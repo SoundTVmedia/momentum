@@ -1,0 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  
+  /* New color palette - concert lighting inspired */
+  --electric-blue: #0066FF;
+  --deep-blue: #0047AB;
+  --neon-cyan: #00D9FF;
+  --vibrant-cyan: #06B6D4;
+  --neon-purple: #7C3AED;
+  --deep-purple: #5B21B6;
+  
+  /* Gradients */
+  --gradient-electric: linear-gradient(135deg, #0066FF 0%, #00D9FF 100%);
+  --gradient-concert: linear-gradient(135deg, #0047AB 0%, #7C3AED 100%);
+  --gradient-stage: linear-gradient(135deg, #06B6D4 0%, #0066FF 100%);
+}
+
+/* Custom scrollbar - vibrant theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #0066FF, #A855F7);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, #0066FF, #00D9FF);
+}
+
+/* Custom animations */
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 102, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(6, 182, 212, 0.6);
+  }
+}
+
+@keyframes heart-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce-slow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(234, 179, 8, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(234, 179, 8, 0.8);
+  }
+}
+
+@keyframes neon-pulse {
+  0%, 100% {
+    box-shadow: 
+      0 0 10px rgba(0, 102, 255, 0.5),
+      0 0 20px rgba(0, 217, 255, 0.3);
+  }
+  50% {
+    box-shadow: 
+      0 0 20px rgba(0, 102, 255, 0.8),
+      0 0 40px rgba(6, 182, 212, 0.6);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-neon-pulse {
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-heart-pop {
+  animation: heart-pop 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 2s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Typography utilities */
+.font-headline {
+  font-family: 'Montserrat', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Video-first card styles */
+.video-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+.video-card:hover {
+  transform: scale(1.02);
+  box-shadow: 
+    0 0 30px rgba(0, 102, 255, 0.3),
+    0 0 60px rgba(6, 182, 212, 0.2);
+}
+
+/* Neon glow effects */
+.neon-border {
+  border: 2px solid;
+  border-image: linear-gradient(135deg, #0066FF, #00D9FF) 1;
+}
+
+.neon-glow {
+  box-shadow: 
+    0 0 10px rgba(0, 102, 255, 0.5),
+    0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+/* Bottom nav safe area for mobile */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-nav {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+  }
+}
+
+/* Backdrop blur utilities */
+.backdrop-blur-strong {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Tap feedback - mobile button presses */
+.tap-feedback {
+  transition: all 0.1s ease;
+}
+
+.tap-feedback:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+
+/* Smooth transitions for all interactive elements */
+button, a, .interactive {
+  transition: all 0.2s ease;
+}
+
+/* Enhanced glow for premium elements */
+.filter-drop-shadow-glow {
+  filter: drop-shadow(0 0 20px rgba(234, 179, 8, 0.6));
+}
+
+/* Loading skeleton pulse */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}

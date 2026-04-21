@@ -1,0 +1,19 @@
+
+CREATE TABLE two_factor_auth (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  mocha_user_id TEXT NOT NULL UNIQUE,
+  secret TEXT NOT NULL,
+  backup_codes TEXT,
+  is_enabled BOOLEAN DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE two_factor_verifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  mocha_user_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  verified_at DATETIME,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
