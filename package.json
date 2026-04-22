@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "dependencies": {
     "@hono/zod-validator": "^0.5.0",
     "hono": "4.7.7",
@@ -22,7 +25,7 @@
     "@types/node": "22.14.1",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
-    "@vitejs/plugin-react": "4.4.1",
+    "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.21",
     "eslint": "9.25.1",
     "eslint-plugin-react-hooks": "5.2.0",
@@ -39,7 +42,8 @@
     "build": "tsc -b && vite build",
     "cf-typegen": "wrangler types",
     "check": "tsc && vite build && wrangler deploy --dry-run",
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:worker": "vite",
     "lint": "eslint ."
   }
 }
