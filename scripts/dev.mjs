@@ -7,18 +7,22 @@ const [major, minor] = os
   .map((value) => Number.parseInt(value, 10));
 
 const isMac = process.platform === "darwin";
+const forceFrontendOnly = process.env.FORCE_FRONTEND_ONLY_DEV === "1";
 const supportsCloudflareRuntime =
-  !isMac ||
-  Number.isNaN(major) ||
-  Number.isNaN(minor) ||
-  major > 22 ||
-  (major === 22 && minor >= 5);
+  !forceFrontendOnly &&
+  (!isMac ||
+    Number.isNaN(major) ||
+    Number.isNaN(minor) ||
+    major > 22 ||
+    (major === 22 && minor >= 6));
 
 const viteArgs = supportsCloudflareRuntime ? [] : ["--mode", "frontend-only"];
 
 if (!supportsCloudflareRuntime) {
   console.log(
-    "Detected macOS < 13.5; starting frontend-only mode (Cloudflare runtime disabled).",
+    forceFrontendOnly
+      ? "FORCE_FRONTEND_ONLY_DEV=1 detected; starting frontend-only mode."
+      : "Detected macOS < 13.5; starting frontend-only mode (Cloudflare runtime disabled).",
   );
   console.log(
     "Use `npm run dev:worker` on macOS 13.5+ or Linux for full worker emulation.",
