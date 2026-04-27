@@ -28,7 +28,4 @@ interface Env {
   
   // Google Maps API
   GOOGLE_MAPS_API_KEY: string;
-  
-  // Durable Objects
-  REALTIME: DurableObjectNamespace;
 }

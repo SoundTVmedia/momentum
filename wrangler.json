@@ -14,14 +14,14 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "019aa38d-a318-7dee-9fdf-30039470c120",
-      "database_id": "019aa38d-a318-7dee-9fdf-30039470c120"
+      "database_name": "momentum-db",
+      "database_id": "e96d451b-6c25-455b-8224-db244c0fa1c8"
     }
   ],
   "r2_buckets": [
     {
-      "binding": "R2_BUCKET",
-      "bucket_name": "019aa38d-a318-7dee-9fdf-30039470c120"
+      "binding": "R2_BUCKET.wrangler.json:21-26",
+      "bucket_name": "momentum-videos"
     }
   ],
   "durable_objects": {
