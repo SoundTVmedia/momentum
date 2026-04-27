@@ -23,5 +23,21 @@
       "binding": "R2_BUCKET",
       "bucket_name": "019aa38d-a318-7dee-9fdf-30039470c120"
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "REALTIME",
+        "class_name": "RealtimeDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "RealtimeDurableObject"
+      ]
+    }
   ]
 }
