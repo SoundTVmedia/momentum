@@ -1,0 +1,35 @@
+{
+  "name": "momentum-devcontainer",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [5173, 8787, 5432, 5050],
+  "portsAttributes": {
+    "5173": {
+      "label": "Vite frontend"
+    },
+    "8787": {
+      "label": "Wrangler dev"
+    },
+    "5432": {
+      "label": "Postgres"
+    },
+    "5050": {
+      "label": "pgAdmin"
+    }
+  },
+  "postCreateCommand": "npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "remoteEnv": {
+    "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/momentum"
+  }
+}
