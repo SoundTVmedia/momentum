@@ -54,9 +54,44 @@ fetch(debugEndpoint, {
 }).catch(() => {});
 // #endregion
 
+const isLinux = process.platform === "linux";
+const isMac = process.platform === "darwin";
+const macVersionHint = process.env.MACOS_VERSION ?? null;
+const enableCloudflareByEnv = process.env.ENABLE_CLOUDFLARE_VITE === "1";
+const shouldEnableCloudflarePlugin = isLinux || enableCloudflareByEnv;
+
+// #region agent log
+fetch(debugEndpoint, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Debug-Session-Id": debugSessionId,
+  },
+  body: JSON.stringify({
+    sessionId: debugSessionId,
+    runId: debugRunId,
+    hypothesisId: "H3",
+    location: "vite.config.ts:45",
+    message: "Cloudflare plugin gating decision",
+    data: {
+      isLinux,
+      isMac,
+      macVersionHint,
+      enableCloudflareByEnv,
+      shouldEnableCloudflarePlugin,
+    },
+    timestamp: Date.now(),
+  }),
+}).catch(() => {});
+// #endregion
+
 export default defineConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  plugins: [...mochaPlugins(process.env as any), react(), cloudflare()],
+  plugins: [
+    ...mochaPlugins(process.env as any),
+    react(),
+    ...(shouldEnableCloudflarePlugin ? [cloudflare()] : []),
+  ],
   server: {
     allowedHosts: true,
   },
