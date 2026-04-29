@@ -30,8 +30,8 @@ services:
     depends_on:
       - postgres
     environment:
-      PGADMIN_DEFAULT_EMAIL: dev@momentum.local
-      PGADMIN_DEFAULT_PASSWORD: devpassword
+      PGADMIN_DEFAULT_EMAIL: wes@soundtvmedia.com
+      PGADMIN_DEFAULT_PASSWORD: soundTV
     ports:
       - "5050:80"
     volumes:
