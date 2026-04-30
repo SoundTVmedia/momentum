@@ -1,6 +1,6 @@
 -- Add tables to support collaboration requests between artists and influencers
 CREATE TABLE collaboration_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   artist_user_id TEXT NOT NULL,
   influencer_user_id TEXT NOT NULL,
   brief TEXT NOT NULL,
@@ -16,7 +16,7 @@ CREATE INDEX idx_collaboration_requests_artist ON collaboration_requests(artist_
 
 -- Add table for pinned clips on artist pages
 CREATE TABLE artist_pinned_clips (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   artist_id INTEGER NOT NULL,
   clip_id INTEGER NOT NULL,
   pinned_by TEXT NOT NULL,
@@ -28,7 +28,7 @@ CREATE INDEX idx_artist_pinned_clips_artist ON artist_pinned_clips(artist_id);
 
 -- Add table for tracking featured clips on Momentum Live
 CREATE TABLE live_featured_clips (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   clip_id INTEGER NOT NULL,
   live_session_id INTEGER NOT NULL,
   featured_at DATETIME NOT NULL,

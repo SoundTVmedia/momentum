@@ -1,6 +1,6 @@
 
 CREATE TABLE transactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   type TEXT NOT NULL,
   amount INTEGER NOT NULL,

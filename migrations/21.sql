@@ -1,14 +1,13 @@
-
 CREATE TABLE payout_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   amount INTEGER NOT NULL,
   currency TEXT DEFAULT 'usd',
   status TEXT DEFAULT 'pending',
   stripe_transfer_id TEXT,
   stripe_account_id TEXT,
-  requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  processed_at DATETIME,
+  requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  processed_at TIMESTAMP,
   processed_by TEXT,
   rejection_reason TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

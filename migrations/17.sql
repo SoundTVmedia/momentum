@@ -1,6 +1,5 @@
-
 CREATE TABLE verification_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   full_name TEXT NOT NULL,
   reason TEXT NOT NULL,
@@ -8,7 +7,7 @@ CREATE TABLE verification_requests (
   social_links TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
   reviewed_by TEXT,
-  reviewed_at DATETIME,
+  reviewed_at TIMESTAMP,
   rejection_reason TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

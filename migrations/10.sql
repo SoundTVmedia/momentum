@@ -1,6 +1,6 @@
 
 CREATE TABLE live_sessions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   start_time DATETIME NOT NULL,
   end_time DATETIME NOT NULL,
   title TEXT,

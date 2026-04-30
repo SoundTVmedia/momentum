@@ -1,22 +1,26 @@
+ALTER TABLE live_chat_messages 
+ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;
+ALTER TABLE live_chat_messages 
+ADD COLUMN IF NOT EXISTS deleted_by TEXT;
+ALTER TABLE live_chat_messages 
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
-ALTER TABLE live_chat_messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0;
-ALTER TABLE live_chat_messages ADD COLUMN deleted_by TEXT;
-ALTER TABLE live_chat_messages ADD COLUMN deleted_at DATETIME;
-
-CREATE TABLE live_chat_bans (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS live_chat_bans (
+  id SERIAL PRIMARY KEY,
   live_session_id INTEGER NOT NULL,
   mocha_user_id TEXT NOT NULL,
   banned_by TEXT NOT NULL,
   reason TEXT,
-  expires_at DATETIME,
+  expires_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(live_session_id, mocha_user_id)
 );
 
-CREATE INDEX idx_chat_bans_session ON live_chat_bans(live_session_id);
-CREATE INDEX idx_chat_bans_user ON live_chat_bans(mocha_user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_bans_session ON live_chat_bans(live_session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_bans_user ON live_chat_bans(mocha_user_id);
 
-ALTER TABLE user_profiles ADD COLUMN is_admin BOOLEAN DEFAULT 0;
-ALTER TABLE user_profiles ADD COLUMN is_moderator BOOLEAN DEFAULT 0;
+ALTER TABLE user_profiles 
+ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
+ALTER TABLE user_profiles 
+ADD COLUMN IF NOT EXISTS is_moderator BOOLEAN DEFAULT false;

@@ -1,6 +1,6 @@
 
 CREATE TABLE user_device_tokens (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   device_token TEXT NOT NULL UNIQUE,
   device_name TEXT,

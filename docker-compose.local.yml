@@ -16,6 +16,8 @@
 # Services:
 #   - Postgres: localhost:5432  (DB: momentum, user/pass: postgres/postgres)
 #   - pgAdmin:  http://localhost:5050
+#     Default login: pgadmin@example.com / devpassword (override via env vars).
+#     Do not use *.local addresses — pgAdmin rejects RFC reserved/special-use domains.
 #
 # pgAdmin → register server:
 #   Host: postgres   Port: 5432   Username: postgres   Password: postgres
@@ -53,7 +55,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-dev@momentum.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-devpassword}
       PGADMIN_CONFIG_SERVER_MODE: "False"
     ports:

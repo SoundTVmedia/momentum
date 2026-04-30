@@ -1,12 +1,11 @@
-
 CREATE TABLE affiliate_sales (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   referrer_user_id TEXT NOT NULL,
   transaction_id INTEGER NOT NULL,
   commission_amount INTEGER NOT NULL,
   commission_rate REAL NOT NULL,
   event_name TEXT,
-  event_date DATETIME,
+  event_date TIMESTAMP,
   ticket_quantity INTEGER,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

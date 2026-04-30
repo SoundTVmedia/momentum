@@ -1,6 +1,6 @@
 
 CREATE TABLE comments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   clip_id INTEGER NOT NULL,
   mocha_user_id TEXT NOT NULL,
   parent_comment_id INTEGER,

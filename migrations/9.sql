@@ -1,6 +1,6 @@
 
 CREATE TABLE artist_tour_dates (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   artist_id INTEGER NOT NULL,
   venue_id INTEGER,
   date DATETIME NOT NULL,

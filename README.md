@@ -16,7 +16,7 @@ This repo includes a DevContainer that runs on Debian Bookworm (glibc newer than
 ### 1) Start the DevContainer
 
 1. Open this repo in Cursor/VS Code.
-2. Run `Dev Containers: Reopen in Container`.
+2. Run `docker compose -f .devcontainer/docker-compose.yml up -d`.
 3. Wait for `postCreateCommand` to finish (`npm install` inside the container).
 
 ### 2) Run the app safely for local Durable Objects
@@ -39,7 +39,7 @@ The DevContainer Compose stack includes:
 
 - Postgres: `localhost:5432`
 - pgAdmin: `http://localhost:5050`
-- pgAdmin login: `dev@momentum.local` / `devpassword`
+- pgAdmin login: `pgadmin@example.com` / `devpassword` (avoid `*.local` emails; pgAdmin rejects them)
 
 When adding a server in pgAdmin:
 
