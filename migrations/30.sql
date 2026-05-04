@@ -1,6 +1,6 @@
 -- Add rating columns to clips table
-ALTER TABLE clips ADD COLUMN IF NOT EXISTS average_rating REAL DEFAULT 0.0;
-ALTER TABLE clips ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0;
+ALTER TABLE clips ADD COLUMN average_rating REAL DEFAULT 0.0;
+ALTER TABLE clips ADD COLUMN rating_count INTEGER DEFAULT 0;
 
 -- Create clip_ratings table for storing individual user ratings
 CREATE TABLE IF NOT EXISTS clip_ratings (

@@ -1,1 +1,1 @@
-ALTER TABLE clips ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'published';
+ALTER TABLE clips ADD COLUMN status TEXT DEFAULT 'published';

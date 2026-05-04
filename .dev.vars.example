@@ -1,5 +1,17 @@
+# --- Mocha (Google + Spotify OAuth) ---
+# Required for OAuth: API URL + key from your Mocha / GetMocha project.
+# Local + Cloudflare: same vars in .dev.vars (local) and wrangler secret / dashboard (prod).
 MOCHA_USERS_SERVICE_API_URL=
 MOCHA_USERS_SERVICE_API_KEY=
+# Optional: if Mocha cannot infer return URL, set your app origin (e.g. http://localhost:5173 or https://your-domain.com).
+# The app normally sends ?redirect_base= automatically from the browser.
+# MOCHA_OAUTH_REDIRECT_ORIGIN=
+#
+# In your Mocha app settings, allow OAuth return to this app, e.g.:
+#   http://localhost:5173/auth/callback
+#   http://localhost:5173/auth   (some flows land ?code= here)
+#   https://<your-workers-or-pages-domain>/auth/callback
+# Spotify: enable Spotify for the project in Mocha if the provider is supported there.
 JAMBASE_API_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=

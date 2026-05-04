@@ -2,7 +2,7 @@
 -- DROP TABLE IF EXISTS user_profiles;
 
 CREATE TABLE IF NOT EXISTS user_profiles (
-  id            SERIAL          PRIMARY KEY,
+  id            INTEGER         PRIMARY KEY AUTOINCREMENT,
   mocha_user_id TEXT            NOT NULL UNIQUE,
   role          TEXT            NOT NULL DEFAULT 'fan',
   display_name  TEXT,
@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   city          TEXT,
   genres        TEXT,
   social_links  TEXT,
-  is_verified   BOOLEAN         DEFAULT FALSE,
-  is_premium    BOOLEAN         DEFAULT FALSE,
-  commission_rate DOUBLE PRECISION,
+  is_verified   BOOLEAN         DEFAULT false,
+  is_premium    BOOLEAN         DEFAULT false,
+  commission_rate REAL,
   created_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
   updated_at    TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
 );

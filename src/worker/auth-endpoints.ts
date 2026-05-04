@@ -1,87 +1,156 @@
 import { Context } from 'hono';
 import * as crypto from 'crypto';
+import {
+  createEmailSession,
+  setEmailSessionCookie,
+} from './hybrid-auth';
+
+function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 100_000, 32, 'sha256')
+    .toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPasswordStored(password: string, stored: string): boolean {
+  const parts = stored.split(':');
+  if (parts.length !== 2) {
+    return false;
+  }
+  const [salt, hash] = parts;
+  const verify = crypto
+    .pbkdf2Sync(password, salt, 100_000, 32, 'sha256')
+    .toString('hex');
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(hash, 'hex'),
+      Buffer.from(verify, 'hex')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 /**
- * Email/Password Sign In Endpoint
- * Note: This is a placeholder implementation. In production, you would:
- * 1. Use a proper password hashing library (bcrypt, argon2, etc.)
- * 2. Store password hashes in a secure user_credentials table
- * 3. Implement proper rate limiting
- * 4. Add email verification flow
- * 5. Implement password reset functionality
- * 
- * For now, this returns an error directing users to use Google OAuth
+ * Register with email and password. Creates a local account and session cookie.
  */
-export async function emailPasswordSignIn(c: Context) {
+export async function emailSignUp(c: Context<{ Bindings: Env }>) {
   const body = await c.req.json();
-  const { email, password } = body;
+  const emailRaw = body.email as string | undefined;
+  const password = body.password as string | undefined;
+  const displayName = (body.display_name as string | undefined)?.trim() || '';
 
-  if (!email || !password) {
+  if (!emailRaw || !password) {
     return c.json({ error: 'Email and password are required' }, 400);
   }
 
-  // IMPORTANT: Email/Password authentication requires additional setup
-  // For security reasons, we recommend using Google OAuth for now
-  return c.json({ 
-    error: 'Email/password authentication is not yet configured. Please use "Sign In with Google" for now.' 
-  }, 501);
-
-  // TODO: Implement email/password authentication
-  // This would involve:
-  // 1. Looking up user by email in database
-  // 2. Verifying password hash
-  // 3. Creating session token
-  // 4. Setting session cookie
-  // 5. Returning user data
-  
-  /*
-  try {
-    // Look up user credentials
-    const credentials = await c.env.DB.prepare(
-      'SELECT * FROM user_credentials WHERE email = ?'
-    )
-      .bind(email)
-      .first();
-
-    if (!credentials) {
-      return c.json({ error: 'Invalid email or password' }, 401);
-    }
-
-    // Verify password (use bcrypt.compare or similar)
-    const isValidPassword = await verifyPassword(password, credentials.password_hash);
-    
-    if (!isValidPassword) {
-      return c.json({ error: 'Invalid email or password' }, 401);
-    }
-
-    // Create session token
-    const sessionToken = crypto.randomBytes(32).toString('hex');
-    
-    // Store session in database or cache
-    // Set session cookie
-    // Return user data
-    
-    return c.json({ success: true, user: userData });
-  } catch (error) {
-    console.error('Email sign in error:', error);
-    return c.json({ error: 'Sign in failed' }, 500);
+  const email = normalizeEmail(emailRaw);
+  if (!isValidEmail(email)) {
+    return c.json({ error: 'Please enter a valid email address' }, 400);
   }
-  */
+
+  if (password.length < 8) {
+    return c.json(
+      { error: 'Password must be at least 8 characters long' },
+      400
+    );
+  }
+
+  const id = crypto.randomUUID();
+  const passwordHash = hashPassword(password);
+
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO email_accounts (id, email, password_hash, display_name, created_at, updated_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    )
+      .bind(id, email, passwordHash, displayName || null)
+      .run();
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('UNIQUE') || msg.includes('unique')) {
+      return c.json(
+        { error: 'An account with this email already exists. Try signing in.' },
+        409
+      );
+    }
+    if (msg.includes('no such table')) {
+      console.error('emailSignUp: missing tables — apply D1 migrations', e);
+      return c.json(
+        {
+          error:
+            'Database is missing email auth tables. Apply migrations (e.g. npx wrangler d1 migrations apply momentum-db --local).',
+        },
+        500
+      );
+    }
+    console.error('emailSignUp insert error:', e);
+    return c.json({ error: 'Could not create account. Please try again.' }, 500);
+  }
+
+  let rawToken: string;
+  try {
+    const session = await createEmailSession(c.env.DB, id);
+    rawToken = session.rawToken;
+  } catch (sessionErr) {
+    console.error('emailSignUp session error:', sessionErr);
+    await c.env.DB.prepare('DELETE FROM email_accounts WHERE id = ?').bind(id).run();
+    const smsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr);
+    if (smsg.includes('no such table')) {
+      return c.json(
+        {
+          error:
+            'Database is missing email auth tables. Apply D1 migrations (e.g. npx wrangler d1 migrations apply momentum-db --local).',
+        },
+        500
+      );
+    }
+    return c.json({ error: 'Could not create session. Please try again.' }, 500);
+  }
+
+  setEmailSessionCookie(c, rawToken);
+
+  return c.json({ success: true, userId: id }, 201);
 }
 
 /**
- * Helper function to hash passwords (placeholder)
+ * Sign in with email and password. Sets email session cookie.
  */
-async function hashPassword(password: string): Promise<string> {
-  // TODO: Use bcrypt or argon2
-  return crypto.createHash('sha256').update(password).digest('hex');
-}
+export async function emailPasswordSignIn(c: Context<{ Bindings: Env }>) {
+  const body = await c.req.json();
+  const emailRaw = body.email as string | undefined;
+  const password = body.password as string | undefined;
 
-/**
- * Helper function to verify passwords (placeholder)
- */
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  // TODO: Use bcrypt.compare or argon2.verify
-  const inputHash = crypto.createHash('sha256').update(password).digest('hex');
-  return inputHash === hash;
+  if (!emailRaw || !password) {
+    return c.json({ error: 'Email and password are required' }, 400);
+  }
+
+  const email = normalizeEmail(emailRaw);
+  if (!isValidEmail(email)) {
+    return c.json({ error: 'Please enter a valid email address' }, 400);
+  }
+
+  const row = await c.env.DB.prepare(
+    'SELECT id, password_hash FROM email_accounts WHERE email = ?'
+  )
+    .bind(email)
+    .first<{ id: string; password_hash: string }>();
+
+  if (!row || !verifyPasswordStored(password, row.password_hash)) {
+    return c.json({ error: 'Invalid email or password' }, 401);
+  }
+
+  const { rawToken } = await createEmailSession(c.env.DB, row.id);
+  setEmailSessionCookie(c, rawToken);
+
+  return c.json({ success: true }, 200);
 }

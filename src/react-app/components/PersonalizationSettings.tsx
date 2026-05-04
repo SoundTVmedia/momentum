@@ -29,7 +29,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
   useEffect(() => {
     const fetchCurrentSettings = async () => {
       try {
-        const response = await fetch('/api/users/me');
+        const response = await fetch('/api/users/me', { credentials: 'include' });
         const data = await response.json();
         
         if (data.profile) {
@@ -68,16 +68,28 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
     setLoadingLocation(true);
     try {
       const position = await getCurrentPosition();
-      
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
       const response = await fetch(
-        `/api/google-maps/reverse-geocode?lat=${position.coords.latitude}&lng=${position.coords.longitude}`
+        `/api/maps/reverse-geocode?lat=${lat}&lng=${lng}`,
+        { credentials: 'include' }
       );
-      
+
       if (response.ok) {
-        const data = await response.json();
-        setHomeLocation(data.formatted_address || 'Current Location');
-        setHomeLatitude(position.coords.latitude);
-        setHomeLongitude(position.coords.longitude);
+        const data = (await response.json()) as {
+          formattedAddress?: string | null;
+        };
+        setHomeLocation(
+          data.formattedAddress?.trim() ||
+            `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+        );
+        setHomeLatitude(lat);
+        setHomeLongitude(lng);
+      } else if (response.status === 503) {
+        setHomeLocation('Current location');
+        setHomeLatitude(lat);
+        setHomeLongitude(lng);
       }
     } catch (error) {
       console.error('Failed to get location:', error);
@@ -93,6 +105,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
       const response = await fetch('/api/personalization/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           favorite_artists: favoriteArtists,
           home_location: homeLocation,

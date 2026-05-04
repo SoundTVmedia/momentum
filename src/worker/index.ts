@@ -1,11 +1,17 @@
 import { Hono } from "hono";
 import {
   exchangeCodeForSessionToken,
-  getOAuthRedirectUrl,
-  authMiddleware,
   deleteSession,
   MOCHA_SESSION_TOKEN_COOKIE_NAME,
+  DEFAULT_MOCHA_USERS_SERVICE_API_URL,
 } from "@getmocha/users-service/backend";
+import {
+  authMiddleware,
+  EMAIL_SESSION_COOKIE_NAME,
+  clearEmailSessionCookie,
+  revokeEmailSession,
+  isLocalDevHost,
+} from "./hybrid-auth";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
@@ -48,14 +54,65 @@ app.use('*', async (c, next) => {
   monitor.setHeaders(c);
 });
 
-// OAuth redirect URL
-app.get('/api/oauth/google/redirect_url', async (c) => {
-  const redirectUrl = await getOAuthRedirectUrl('google', {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
+const ALLOWED_OAUTH_PROVIDERS = new Set(['google', 'spotify']);
+
+// OAuth redirect URL (Google, Spotify — proxied to Mocha Users Service when enabled there)
+app.get('/api/oauth/:provider/redirect_url', async (c) => {
+  const provider = c.req.param('provider');
+  if (!ALLOWED_OAUTH_PROVIDERS.has(provider)) {
+    return c.json({ error: 'Unsupported OAuth provider' }, 400);
+  }
+
+  const apiKey = c.env.MOCHA_USERS_SERVICE_API_KEY;
+  if (typeof apiKey !== 'string' || apiKey.trim() === '') {
+    return c.json(
+      {
+        error:
+          'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars (local) or Worker secrets (Cloudflare).',
+      },
+      503
+    );
+  }
+
+  const apiUrl =
+    c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL;
+
+  const redirectBase =
+    c.req.query('redirect_base')?.trim() ||
+    (typeof c.env.MOCHA_OAUTH_REDIRECT_ORIGIN === 'string'
+      ? c.env.MOCHA_OAUTH_REDIRECT_ORIGIN.trim()
+      : '');
+  const mochaParams = new URLSearchParams();
+  if (redirectBase.length > 0) {
+    mochaParams.set('redirect_base', redirectBase);
+  }
+  const qs = mochaParams.toString();
+  const mochaRedirectUrl = `${apiUrl}/oauth/${provider}/redirect_url${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(mochaRedirectUrl, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+    },
   });
 
-  return c.json({ redirectUrl }, 200);
+  if (!response.ok) {
+    const errBody = await response.text();
+    console.error('Mocha OAuth redirect error', provider, response.status, errBody);
+    return c.json(
+      {
+        error:
+          provider === 'spotify'
+            ? 'Spotify sign-in is not available. Try Google or email, enable Spotify in your Mocha project, and allow this app origin as a redirect URL.'
+            : 'Could not start Google sign-in. Check Mocha API URL and key, and register this app origin /auth/callback in your Mocha app settings.',
+      },
+      502
+    );
+  }
+
+  const data = (await response.json()) as { redirect_url: string };
+  return c.json({ redirectUrl: data.redirect_url }, 200);
 });
 
 // Exchange code for session token
@@ -66,16 +123,40 @@ app.post("/api/sessions", async (c) => {
     return c.json({ error: "No authorization code provided" }, 400);
   }
 
-  const sessionToken = await exchangeCodeForSessionToken(body.code, {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
+  const apiKey = c.env.MOCHA_USERS_SERVICE_API_KEY;
+  if (typeof apiKey !== 'string' || apiKey.trim() === '') {
+    return c.json(
+      {
+        error:
+          'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars or Worker secrets.',
+      },
+      503
+    );
+  }
 
+  let sessionToken: string;
+  try {
+    sessionToken = await exchangeCodeForSessionToken(body.code, {
+      apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
+      apiKey,
+    });
+  } catch (e) {
+    console.error('exchangeCodeForSessionToken:', e);
+    return c.json(
+      {
+        error:
+          'Could not exchange OAuth code. Confirm Mocha credentials and that this deployment URL is allowed for OAuth return.',
+      },
+      502
+    );
+  }
+
+  const local = isLocalDevHost(c);
   setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: true,
+    sameSite: local ? "lax" : "none",
+    secure: !local,
     maxAge: 30 * 24 * 60 * 60, // 30 days
   });
 
@@ -114,19 +195,35 @@ app.get('/api/logout', async (c) => {
     });
   }
 
+  const localLogout = isLocalDevHost(c);
   setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, '', {
     httpOnly: true,
     path: '/',
-    sameSite: 'none',
-    secure: true,
+    sameSite: localLogout ? 'lax' : 'none',
+    secure: !localLogout,
     maxAge: 0,
   });
+
+  const emailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
+  if (typeof emailToken === 'string' && emailToken.length > 0) {
+    await revokeEmailSession(c.env.DB, emailToken);
+  }
+  clearEmailSessionCookie(c);
 
   return c.json({ success: true }, 200);
 });
 
-// Email/Password Authentication Endpoint
-app.post("/api/auth/signin", authEndpoints.emailPasswordSignIn);
+// Email/password registration and sign-in
+app.post(
+  "/api/auth/signup",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.emailSignUp
+);
+app.post(
+  "/api/auth/signin",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.emailPasswordSignIn
+);
 
 // Device Token Endpoints for "Remember Me" functionality
 app.post("/api/auth/create-device-token", authMiddleware, deviceToken.createDeviceToken);
@@ -318,71 +415,99 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
   if (!mochaUser) {
     return c.json({ error: "Unauthorized" }, 401);
   }
-  
-  const body = await c.req.json();
 
-  const { role, display_name, bio, location, profile_image_url, cover_image_url, city, genres, social_links } = body;
+  const nullIfUndef = (v: unknown) => (v === undefined ? null : v);
 
-  // Check if profile exists
-  const existingProfile = await c.env.DB.prepare(
-    "SELECT id FROM user_profiles WHERE mocha_user_id = ?"
-  )
-    .bind(mochaUser.id)
-    .first();
+  try {
+    const body = await c.req.json();
 
-  if (existingProfile) {
-    // Update existing profile
-    await c.env.DB.prepare(
-      `UPDATE user_profiles 
+    const {
+      role,
+      display_name,
+      bio,
+      location,
+      profile_image_url,
+      cover_image_url,
+      city,
+      genres,
+      social_links,
+    } = body;
+
+    const roleVal =
+      typeof role === "string" && role.trim() !== "" ? role : "fan";
+    const genresJson = JSON.stringify(Array.isArray(genres) ? genres : []);
+    const socialJson = JSON.stringify(
+      social_links !== undefined &&
+        social_links !== null &&
+        typeof social_links === "object"
+        ? social_links
+        : {}
+    );
+
+    // Check if profile exists
+    const existingProfile = await c.env.DB.prepare(
+      "SELECT id FROM user_profiles WHERE mocha_user_id = ?"
+    )
+      .bind(mochaUser.id)
+      .first();
+
+    if (existingProfile) {
+      // Update existing profile
+      await c.env.DB.prepare(
+        `UPDATE user_profiles 
        SET role = ?, display_name = ?, bio = ?, location = ?, 
            profile_image_url = ?, cover_image_url = ?, city = ?, 
            genres = ?, social_links = ?, updated_at = CURRENT_TIMESTAMP
        WHERE mocha_user_id = ?`
-    )
-      .bind(
-        role,
-        display_name,
-        bio,
-        location,
-        profile_image_url,
-        cover_image_url,
-        city,
-        JSON.stringify(genres || []),
-        JSON.stringify(social_links || {}),
-        mochaUser.id
       )
-      .run();
-  } else {
-    // Create new profile
-    await c.env.DB.prepare(
-      `INSERT INTO user_profiles 
+        .bind(
+          roleVal,
+          nullIfUndef(display_name),
+          nullIfUndef(bio),
+          nullIfUndef(location),
+          nullIfUndef(profile_image_url),
+          nullIfUndef(cover_image_url),
+          nullIfUndef(city),
+          genresJson,
+          socialJson,
+          mochaUser.id
+        )
+        .run();
+    } else {
+      // Create new profile
+      await c.env.DB.prepare(
+        `INSERT INTO user_profiles 
        (mocha_user_id, role, display_name, bio, location, profile_image_url, 
         cover_image_url, city, genres, social_links, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    )
-      .bind(
-        mochaUser.id,
-        role || 'fan',
-        display_name,
-        bio,
-        location,
-        profile_image_url,
-        cover_image_url,
-        city,
-        JSON.stringify(genres || []),
-        JSON.stringify(social_links || {})
       )
-      .run();
+        .bind(
+          mochaUser.id,
+          roleVal,
+          nullIfUndef(display_name),
+          nullIfUndef(bio),
+          nullIfUndef(location),
+          nullIfUndef(profile_image_url),
+          nullIfUndef(cover_image_url),
+          nullIfUndef(city),
+          genresJson,
+          socialJson
+        )
+        .run();
+    }
+
+    // Fetch updated profile
+    const updatedProfile = await c.env.DB.prepare(
+      "SELECT * FROM user_profiles WHERE mocha_user_id = ?"
+    )
+      .bind(mochaUser.id)
+      .first();
+
+    return c.json(updatedProfile);
+  } catch (e) {
+    console.error("POST /api/users/profile:", e);
+    return c.json({ error: "Could not save profile" }, 500);
   }
-
-  // Fetch updated profile
-  const updatedProfile = await c.env.DB.prepare(
-    "SELECT * FROM user_profiles WHERE mocha_user_id = ?"
-  )
-    .bind(mochaUser.id)
-    .first();
-
-  return c.json(updatedProfile);
 });
 
 // Resumable upload endpoint for large files

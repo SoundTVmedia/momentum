@@ -11,6 +11,8 @@ interface Env {
   // Mocha Users Service
   MOCHA_USERS_SERVICE_API_URL: string;
   MOCHA_USERS_SERVICE_API_KEY: string;
+  /** Optional default for OAuth redirect_base when the client does not send ?redirect_base= */
+  MOCHA_OAUTH_REDIRECT_ORIGIN?: string;
   
   // JamBase API
   JAMBASE_API_KEY: string;

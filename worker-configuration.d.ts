@@ -7,7 +7,7 @@ declare namespace Cloudflare {
 		durableNamespaces: "RealtimeDurableObject";
 	}
 	interface Env {
-		"R2_BUCKET.wrangler.json:21-26": R2Bucket;
+		R2_BUCKET: R2Bucket;
 		DB: D1Database;
 		JAMBASE_API_KEY: string;
 		STRIPE_SECRET_KEY: string;

@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import * as crypto from 'crypto';
+import { createEmailSession, setEmailSessionCookie } from './hybrid-auth';
 
 /**
  * Create a device token for "remember me" functionality
@@ -86,10 +87,25 @@ export async function verifyDeviceToken(c: Context) {
       .bind(token.mocha_user_id)
       .first();
 
-    return c.json({ 
-      valid: true, 
+    // Email/password accounts: restore session cookie so /api/users/me works
+    const emailAccount = await c.env.DB.prepare(
+      'SELECT id FROM email_accounts WHERE id = ?'
+    )
+      .bind(token.mocha_user_id)
+      .first<{ id: string }>();
+
+    if (emailAccount) {
+      const { rawToken } = await createEmailSession(
+        c.env.DB,
+        token.mocha_user_id as string
+      );
+      setEmailSessionCookie(c, rawToken);
+    }
+
+    return c.json({
+      valid: true,
       userId: token.mocha_user_id,
-      profile: userData 
+      profile: userData,
     });
   } catch (error) {
     console.error('Verify device token error:', error);
