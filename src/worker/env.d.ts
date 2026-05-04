@@ -13,6 +13,11 @@ interface Env {
   MOCHA_USERS_SERVICE_API_KEY: string;
   /** Optional default for OAuth redirect_base when the client does not send ?redirect_base= */
   MOCHA_OAUTH_REDIRECT_ORIGIN?: string;
+
+  /** Web origin for password-reset links when Origin header is absent (e.g. server-side or non-browser clients). */
+  PUBLIC_APP_URL?: string;
+  RESEND_API_KEY?: string;
+  TRANSACTIONAL_EMAIL_FROM?: string;
   
   // JamBase API
   JAMBASE_API_KEY: string;

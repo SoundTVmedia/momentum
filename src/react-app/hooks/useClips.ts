@@ -91,6 +91,10 @@ export function useClips(options: UseClipsOptions = {}) {
     fetchClips(1, false)
   }, [fetchClips])
 
+  const removeClip = useCallback((clipId: number) => {
+    setClips((prev) => prev.filter((c) => c.id !== clipId))
+  }, [])
+
   // Initial load
   useEffect(() => {
     setPage(1)
@@ -138,5 +142,6 @@ export function useClips(options: UseClipsOptions = {}) {
     loadMore,
     refresh,
     refetch: refresh, // Alias for clarity in error handling
+    removeClip,
   }
 }

@@ -6,6 +6,7 @@ import FeedPage from "@/react-app/pages/Feed";
 import NotFoundPage from "@/react-app/pages/NotFound";
 import AuthPage from "@/react-app/pages/Auth";
 import AuthCallbackPage from "@/react-app/pages/AuthCallback";
+import ResetPasswordPage from "@/react-app/pages/ResetPassword";
 import OnboardingPage from "@/react-app/pages/Onboarding";
 import DashboardPage from "@/react-app/pages/Dashboard";
 import UploadClipPage from "@/react-app/pages/UploadClip";
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/feed" element={<FeedPage />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/upload" element={<UploadClipPage />} />

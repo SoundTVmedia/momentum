@@ -12,6 +12,14 @@ MOCHA_USERS_SERVICE_API_KEY=
 #   http://localhost:5173/auth   (some flows land ?code= here)
 #   https://<your-workers-or-pages-domain>/auth/callback
 # Spotify: enable Spotify for the project in Mocha if the provider is supported there.
+#
+# --- Email/password password reset (Resend) ---
+# Optional: without RESEND_API_KEY, local dev still works — the Worker logs the reset URL when the request is from a local host.
+# RESEND_API_KEY=
+# Use a verified sender in Resend (default onboarding@resend.dev only works for Resend test domain).
+# TRANSACTIONAL_EMAIL_FROM=Momentum <onboarding@resend.dev>
+# If the Worker cannot infer your SPA origin, set the public app URL (password reset links).
+# PUBLIC_APP_URL=http://localhost:5173
 JAMBASE_API_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=

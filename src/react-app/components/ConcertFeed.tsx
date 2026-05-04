@@ -1,6 +1,7 @@
-import { Heart, MessageCircle, Share, MapPin, Clock, Bookmark } from 'lucide-react'
+import { Heart, MessageCircle, Share, MapPin, Clock, Bookmark, Trash2 } from 'lucide-react'
 import { useRef, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
+import { useAuth } from '@getmocha/users-service/react'
 import { useClips } from '@/react-app/hooks/useClips'
 import { useClipLike } from '@/react-app/hooks/useClipLike'
 import { useClipSave } from '@/react-app/hooks/useClipSave'
@@ -8,6 +9,22 @@ import ClipModal from './ClipModal'
 import { ClipCardSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
+
+function pruneClipFromLocalCaches(clipId: number, userId: string) {
+  try {
+    for (const key of [`liked_clips_${userId}`, `saved_clips_${userId}`]) {
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      const arr = JSON.parse(raw) as number[]
+      if (!Array.isArray(arr)) continue
+      const next = arr.filter((id) => id !== clipId)
+      if (next.length === 0) localStorage.removeItem(key)
+      else localStorage.setItem(key, JSON.stringify(next))
+    }
+  } catch {
+    // ignore
+  }
+}
 
 interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
@@ -23,7 +40,8 @@ export default function ConcertFeed({
   userId 
 }: ConcertFeedProps) {
   const navigate = useNavigate()
-  const { clips, loading, hasMore, loadMore, error, refetch } = useClips({
+  const { user } = useAuth()
+  const { clips, loading, hasMore, loadMore, error, refetch, removeClip } = useClips({
     feedType,
     artistName,
     venueName,
@@ -36,6 +54,8 @@ export default function ConcertFeed({
   const [likingClip, setLikingClip] = useState<number | null>(null)
   const observerTarget = useRef<HTMLDivElement>(null)
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null)
+  const [clipPendingDelete, setClipPendingDelete] = useState<ClipWithUser | null>(null)
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
   // Infinite scroll observer
   useEffect(() => {
@@ -68,6 +88,37 @@ export default function ConcertFeed({
 
   const handleSave = async (clipId: number) => {
     await toggleSave(clipId)
+  }
+
+  const confirmDeleteClip = async () => {
+    if (!clipPendingDelete || !user) return
+    const clipId = clipPendingDelete.id
+    setDeleteSubmitting(true)
+    try {
+      const response = await fetch(`/api/clips/${clipId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!response.ok) {
+        let msg = 'Could not delete clip'
+        try {
+          const data = (await response.json()) as { error?: string }
+          if (data.error) msg = data.error
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg)
+      }
+      pruneClipFromLocalCaches(clipId, user.id)
+      removeClip(clipId)
+      setSelectedClip((prev) => (prev?.id === clipId ? null : prev))
+      setClipPendingDelete(null)
+    } catch (e) {
+      console.error(e)
+      alert(e instanceof Error ? e.message : 'Could not delete clip')
+    } finally {
+      setDeleteSubmitting(false)
+    }
   }
 
   const handleShare = async (clipId: number) => {
@@ -323,6 +374,21 @@ export default function ConcertFeed({
                     />
                     <span className="font-bold text-xs">Save</span>
                   </button>
+
+                  {user && clip.mocha_user_id === user.id && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setClipPendingDelete(clip)
+                      }}
+                      className="flex flex-col items-center space-y-1 text-white hover:text-red-400 transition-all group tap-feedback"
+                      title="Delete clip"
+                    >
+                      <Trash2 className="w-6 h-6 sm:w-7 sm:h-7 group-hover:scale-110 transition-transform" />
+                      <span className="font-bold text-xs">Delete</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -367,6 +433,43 @@ export default function ConcertFeed({
           clip={selectedClip} 
           onClose={() => setSelectedClip(null)} 
         />
+      )}
+
+      {clipPendingDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-clip-title"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-white/10 bg-slate-950 p-6 shadow-2xl">
+            <h3 id="delete-clip-title" className="text-lg font-bold text-white">
+              Delete this moment?
+            </h3>
+            <p className="mt-2 text-sm text-gray-400">
+              This removes your clip from Momentum for everyone. Likes, comments, and saves will
+              be removed. This cannot be undone.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                disabled={deleteSubmitting}
+                onClick={() => setClipPendingDelete(null)}
+                className="flex-1 rounded-lg border border-white/20 py-2.5 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteSubmitting}
+                onClick={() => void confirmDeleteClip()}
+                className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+              >
+                {deleteSubmitting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   )

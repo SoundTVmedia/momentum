@@ -66,8 +66,12 @@ function sessionCookieOptions(c: Context) {
   };
 }
 
-function hashSessionToken(raw: string): string {
+export function hashOpaqueToken(raw: string): string {
   return crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
+}
+
+function hashSessionToken(raw: string): string {
+  return hashOpaqueToken(raw);
 }
 
 export function emailAccountToMochaUser(row: {
@@ -154,6 +158,10 @@ export async function revokeEmailSession(db: D1Database, rawToken: string) {
     .prepare('DELETE FROM email_sessions WHERE token_hash = ?')
     .bind(tokenHash)
     .run();
+}
+
+export async function revokeAllEmailSessionsForUser(db: D1Database, userId: string) {
+  await db.prepare('DELETE FROM email_sessions WHERE user_id = ?').bind(userId).run();
 }
 
 export function setEmailSessionCookie(c: Context, rawToken: string) {

@@ -49,11 +49,12 @@ export default function Auth() {
   const [error, setError] = useState<string | null>(null);
   const [authMethod, setAuthMethod] = useState<OAuthProvider | 'email'>('google');
 
-  const [emailMode, setEmailMode] = useState<'signin' | 'signup'>('signin');
+  const [emailMode, setEmailMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState<string | null>(null);
 
   // Restore session from device token (works for email-based accounts; OAuth users still need Google/Spotify)
   useEffect(() => {
@@ -200,6 +201,42 @@ export default function Auth() {
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (emailMode === 'forgot') {
+      if (!email) {
+        setError('Please enter your email address');
+        return;
+      }
+      setEmailLoading(true);
+      setError(null);
+      setForgotMessage(null);
+      try {
+        const redirect_base =
+          typeof window !== 'undefined' && window.location?.origin
+            ? window.location.origin
+            : undefined;
+        const response = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, redirect_base }),
+        });
+        const data = (await response.json()) as { message?: string; error?: string };
+        if (!response.ok) {
+          throw new Error(data.error || 'Could not send reset email');
+        }
+        setForgotMessage(
+          data.message ||
+            'If an account exists for this email, we sent password reset instructions.'
+        );
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : 'Something went wrong. Please try again.'
+        );
+      } finally {
+        setEmailLoading(false);
+      }
+      return;
+    }
 
     if (!email || !password) {
       setError('Please enter both email and password');
@@ -417,8 +454,15 @@ export default function Auth() {
                 <div className="w-full border-t border-white/10" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-black/40 text-gray-400">or use email</span>
+                <span className="px-4 bg-black/40 text-gray-400">or continue with email</span>
               </div>
+            </div>
+
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-white">Email &amp; password</h3>
+              <p className="text-gray-500 text-sm mt-1">
+                One account for the app — same session as social sign-in after you land.
+              </p>
             </div>
 
             <div className="flex rounded-lg border border-white/10 p-1 bg-black/20">
@@ -427,9 +471,10 @@ export default function Auth() {
                 onClick={() => {
                   setEmailMode('signin');
                   setError(null);
+                  setForgotMessage(null);
                 }}
                 className={`flex-1 py-2 text-sm font-semibold rounded-md transition-colors ${
-                  emailMode === 'signin'
+                  emailMode === 'signin' || emailMode === 'forgot'
                     ? 'bg-white/15 text-white'
                     : 'text-gray-400 hover:text-white'
                 }`}
@@ -441,6 +486,7 @@ export default function Auth() {
                 onClick={() => {
                   setEmailMode('signup');
                   setError(null);
+                  setForgotMessage(null);
                 }}
                 className={`flex-1 py-2 text-sm font-semibold rounded-md transition-colors ${
                   emailMode === 'signup'
@@ -451,6 +497,12 @@ export default function Auth() {
                 Create account
               </button>
             </div>
+
+            {forgotMessage && (
+              <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                <p className="text-cyan-200 text-sm">{forgotMessage}</p>
+              </div>
+            )}
 
             <form onSubmit={handleEmailAuth} className="space-y-4">
               {emailMode === 'signup' && (
@@ -492,24 +544,33 @@ export default function Auth() {
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="password"
-                    id="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={emailMode === 'signup' ? 'At least 8 characters' : '••••••••'}
-                    autoComplete={emailMode === 'signup' ? 'new-password' : 'current-password'}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-colors"
-                    disabled={loading || emailLoading}
-                  />
+              {emailMode !== 'forgot' && (
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="password"
+                      id="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={emailMode === 'signup' ? 'At least 8 characters' : '••••••••'}
+                      autoComplete={emailMode === 'signup' ? 'new-password' : 'current-password'}
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-colors"
+                      disabled={loading || emailLoading}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {emailMode === 'forgot' && (
+                <p className="text-sm text-gray-400">
+                  We&apos;ll email you a link to choose a new password if this address has an email
+                  account.
+                </p>
+              )}
 
               <button
                 type="submit"
@@ -519,14 +580,35 @@ export default function Auth() {
                 {emailLoading ? (
                   <span className="flex items-center justify-center space-x-2">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>{emailMode === 'signup' ? 'Creating account...' : 'Signing in...'}</span>
+                    <span>
+                      {emailMode === 'signup'
+                        ? 'Creating account...'
+                        : emailMode === 'forgot'
+                          ? 'Sending link...'
+                          : 'Signing in...'}
+                    </span>
                   </span>
                 ) : emailMode === 'signup' ? (
                   'Create account'
+                ) : emailMode === 'forgot' ? (
+                  'Send reset link'
                 ) : (
                   'Sign in with email'
                 )}
               </button>
+              {emailMode === 'signin' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmailMode('forgot');
+                    setError(null);
+                    setForgotMessage(null);
+                  }}
+                  className="w-full text-center text-[11px] text-cyan-400 hover:text-cyan-300"
+                >
+                  Forgot Passoword
+                </button>
+              )}
             </form>
           </div>
         </div>

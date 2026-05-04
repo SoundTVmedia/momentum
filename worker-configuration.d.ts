@@ -9,6 +9,12 @@ declare namespace Cloudflare {
 	interface Env {
 		R2_BUCKET: R2Bucket;
 		DB: D1Database;
+		/** Public web origin for password-reset links (e.g. https://app.example.com). Optional if the client sends Origin or redirect_base. */
+		PUBLIC_APP_URL?: string;
+		/** Resend API key for transactional email (password reset). */
+		RESEND_API_KEY?: string;
+		/** From address for Resend (must be a verified domain/sender in Resend). */
+		TRANSACTIONAL_EMAIL_FROM?: string;
 		JAMBASE_API_KEY: string;
 		STRIPE_SECRET_KEY: string;
 		STRIPE_WEBHOOK_SECRET: string;

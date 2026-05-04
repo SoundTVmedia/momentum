@@ -40,6 +40,7 @@ import * as personalization from "./personalization-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { PerformanceMonitor } from "./performance-utils";
 import { handleResumableUpload } from "./resumable-upload-endpoints";
+import { deleteOwnClip } from "./clip-endpoints";
 export { RealtimeDurableObject } from "./realtime-durable-object";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -223,6 +224,16 @@ app.post(
   "/api/auth/signin",
   rateLimiter(RateLimits.AUTH),
   authEndpoints.emailPasswordSignIn
+);
+app.post(
+  "/api/auth/forgot-password",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.requestPasswordReset
+);
+app.post(
+  "/api/auth/reset-password",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.confirmPasswordReset
 );
 
 // Device Token Endpoints for "Remember Me" functionality
@@ -1014,6 +1025,9 @@ app.post("/api/clips/:id/save", authMiddleware, async (c) => {
     return c.json({ saved: true });
   }
 });
+
+// Delete own clip (uploader only)
+app.delete("/api/clips/:id", authMiddleware, deleteOwnClip);
 
 // Get comments for a clip (optimized with pagination)
 app.get("/api/clips/:id/comments", async (c) => {
