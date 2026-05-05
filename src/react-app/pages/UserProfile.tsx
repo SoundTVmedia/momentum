@@ -10,6 +10,7 @@ import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
 import type { ClipWithUser, UserProfile } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { artistPath } from '@/shared/app-paths';
 
 interface UserStats {
   totalClips: number;
@@ -341,7 +342,7 @@ export default function UserProfilePage() {
               {favoriteArtists.map((favoriteArtist) => (
                 <div key={favoriteArtist.artist.artist_id} className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 sm:p-6">
                   <button
-                    onClick={() => navigate(`/artists/${encodeURIComponent(favoriteArtist.artist.name)}`)}
+                    onClick={() => navigate(artistPath(favoriteArtist.artist.name))}
                     className="flex items-center space-x-4 mb-4 hover:opacity-80 transition-opacity"
                   >
                     {favoriteArtist.artist.image_url && (

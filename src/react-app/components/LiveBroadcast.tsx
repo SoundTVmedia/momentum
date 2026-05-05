@@ -9,6 +9,7 @@ import { useLiveSchedule } from '@/react-app/hooks/useLiveSchedule';
 import LivePoll from '@/react-app/components/LivePoll';
 import { useLivePoll } from '@/react-app/hooks/useLivePoll';
 import LiveSchedulePreview from '@/react-app/components/LiveSchedulePreview';
+import { artistPath } from '@/shared/app-paths';
 
 interface LiveBroadcastProps {
   layoutMode?: 'full' | 'compact';
@@ -226,7 +227,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                           <div className="flex-1 min-w-0">
                             {currentClip.artist_name && (
                               <button
-                                onClick={() => navigate(`/artists/${encodeURIComponent(currentClip.artist_name!)}`)}
+                                onClick={() => navigate(artistPath(currentClip.artist_name!))}
                                 className="text-white font-bold hover:text-cyan-400 transition-colors text-xs sm:text-sm md:text-base truncate block"
                               >
                                 {currentClip.artist_name}

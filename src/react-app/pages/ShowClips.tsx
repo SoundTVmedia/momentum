@@ -5,6 +5,7 @@ import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { apiArtistPath, artistPath } from '@/shared/app-paths';
 
 export default function ShowClipsPage() {
   const { artistName, showId } = useParams<{ artistName: string; showId: string }>();
@@ -24,7 +25,7 @@ export default function ShowClipsPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/artists/${encodeURIComponent(artistName)}/shows/${showId}/clips?sort_by=${sortBy}`
+        `${apiArtistPath(artistName)}/shows/${showId}/clips?sort_by=${sortBy}`
       );
       if (response.ok) {
         const data = await response.json();
@@ -60,7 +61,7 @@ export default function ShowClipsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Back Button */}
         <button
-          onClick={() => navigate(`/artists/${artistName}`)}
+          onClick={() => navigate(artistName ? artistPath(artistName) : '/')}
           className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors mb-6"
         >
           <ArrowLeft className="w-5 h-5" />

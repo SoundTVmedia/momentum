@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { usePrioritizedShows } from '@/react-app/hooks/usePrioritizedShows'
 import { useAuth } from '@getmocha/users-service/react'
+import { artistPath, venuePath } from '@/shared/app-paths'
 
 export default function DiscoverSection() {
   const navigate = useNavigate()
@@ -22,16 +23,16 @@ export default function DiscoverSection() {
   const handleShowClick = (show: any) => {
     if (show.type === 'live') {
       // Navigate to venue page for live shows
-      navigate(`/venues/${encodeURIComponent(show.venue_name)}`)
+      navigate(venuePath(show.venue_name))
     } else if (show.type === 'upcoming_favorite' || show.type === 'nearby_upcoming') {
       // Navigate to artist page for upcoming shows
-      navigate(`/artists/${encodeURIComponent(show.artist_name)}`)
+      navigate(artistPath(show.artist_name))
     } else if (show.type === 'favorite_artist') {
       // Navigate to artist page
-      navigate(`/artists/${encodeURIComponent(show.artist_name)}`)
+      navigate(artistPath(show.artist_name))
     } else if (show.type === 'trending' && show.clip) {
       // Could open clip modal or navigate to artist
-      navigate(`/artists/${encodeURIComponent(show.clip.artist_name)}`)
+      navigate(artistPath(show.clip.artist_name))
     }
   }
 
@@ -248,7 +249,7 @@ export default function DiscoverSection() {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (show.venue_name) {
-                              navigate(`/venues/${encodeURIComponent(show.venue_name)}`);
+                              navigate(venuePath(show.venue_name));
                             }
                           }}
                           className="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import AmbassadorReferralBanner from '@/react-app/components/AmbassadorReferralBanner';
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
+import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 interface AmbassadorDashboardProps {
@@ -25,6 +26,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Ambassador';
   const city = user.profile?.city || 'Your City';
   const [analytics, setAnalytics] = useState<AmbassadorAnalytics | null>(null);
+  const [promoEventCatalog, setPromoEventCatalog] = useState<'jambase' | 'ticketmaster'>('jambase');
 
   useEffect(() => {
     fetchAnalytics();
@@ -136,11 +138,39 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         <div className="grid grid-cols-1 gap-8">
           {/* Live Events to Promote */}
           <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <h2 className="text-2xl font-bold text-white">Events to Promote in {city}</h2>
               <div className="text-sm text-gray-400">Earn 15% commission per sale</div>
             </div>
-            <TicketmasterEventGrid city={city} maxEvents={8} />
+            <div className="flex gap-2 mb-6 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setPromoEventCatalog('jambase')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  promoEventCatalog === 'jambase'
+                    ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white'
+                    : 'bg-white/5 text-gray-300 border border-orange-500/20'
+                }`}
+              >
+                JamBase
+              </button>
+              <button
+                type="button"
+                onClick={() => setPromoEventCatalog('ticketmaster')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  promoEventCatalog === 'ticketmaster'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
+                    : 'bg-white/5 text-gray-300 border border-orange-500/20'
+                }`}
+              >
+                Ticketmaster
+              </button>
+            </div>
+            {promoEventCatalog === 'jambase' ? (
+              <JamBaseEventGrid city={city === 'Your City' ? undefined : city} maxEvents={8} />
+            ) : (
+              <TicketmasterEventGrid city={city === 'Your City' ? undefined : city} maxEvents={8} />
+            )}
           </div>
 
           {/* Local Events */}

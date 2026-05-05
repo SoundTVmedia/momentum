@@ -1,4 +1,6 @@
 import { Context } from 'hono';
+import { jamBaseFetch } from './jambase-client';
+import { buildTightJamBaseEventResults } from './jambase-events-search';
 
 // Advanced search with filters
 export async function advancedSearch(c: Context) {
@@ -8,7 +10,13 @@ export async function advancedSearch(c: Context) {
   const sortBy = c.req.query('sortBy') || 'latest';
   
   if (!query.trim()) {
-    return c.json({ clips: [], artists: [], venues: [], users: [] });
+    return c.json({
+      clips: [],
+      artists: [],
+      venues: [],
+      users: [],
+      jambase: { artists: [], venues: [], events: [] },
+    });
   }
 
   let daysBack = 30;
@@ -117,11 +125,41 @@ export async function advancedSearch(c: Context) {
     .bind(`%${query}%`)
     .all();
 
+  let jambase: { artists: unknown[]; venues: unknown[]; events: unknown[] } = {
+    artists: [],
+    venues: [],
+    events: [],
+  };
+
+  const jbKey = c.env.JAMBASE_API_KEY;
+  if (query.trim().length >= 2 && typeof jbKey === 'string' && jbKey.trim()) {
+    const q = query.trim();
+    const [a, v, tightEvents] = await Promise.all([
+      jamBaseFetch<{ artists?: unknown[] }>(jbKey, '/artists', {
+        artistName: q,
+        perPage: '10',
+        page: '1',
+      }),
+      jamBaseFetch<{ venues?: unknown[] }>(jbKey, '/venues', {
+        venueName: q,
+        perPage: '10',
+        page: '1',
+      }),
+      buildTightJamBaseEventResults(jbKey, q, 18),
+    ]);
+    jambase = {
+      artists: a?.artists ?? [],
+      venues: v?.venues ?? [],
+      events: tightEvents,
+    };
+  }
+
   return c.json({
     clips: clips.results || [],
     artists: artists.results || [],
     venues: venues.results || [],
     users: users.results || [],
+    jambase,
   });
 }
 

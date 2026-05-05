@@ -98,9 +98,9 @@ export function useJamBase() {
     }
   }, []);
 
-  // Get upcoming events
+  // Browse upcoming events (metro / city / default — uses JamBase live-tab proxy)
   const getUpcomingEvents = useCallback(async (
-    location?: string,
+    cityOrMetro?: string,
     genre?: string,
     page = 0
   ): Promise<{ events: JamBaseEvent[]; hasMore: boolean }> => {
@@ -109,23 +109,28 @@ export function useJamBase() {
 
     try {
       const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '30',
+        perPage: '30',
+        page: String(page + 1),
       });
-      
-      if (location) params.append('location', location);
-      if (genre) params.append('genre', genre);
 
-      const response = await fetch(`/api/jambase/events/upcoming?${params}`);
-      
+      if (cityOrMetro?.startsWith('jambase:')) {
+        params.set('geoMetroId', cityOrMetro);
+      } else if (cityOrMetro) {
+        params.set('city', cityOrMetro);
+      }
+      if (genre) params.set('genreSlug', genre);
+
+      const response = await fetch(`/api/jambase/events/live-tab?${params}`);
+
       if (!response.ok) {
         throw new Error('Failed to fetch upcoming events');
       }
 
       const data = await response.json();
+      const list = data.events || [];
       return {
-        events: data.events || [],
-        hasMore: data.pagination?.totalPages > page + 1,
+        events: list,
+        hasMore: list.length >= 30,
       };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch events');
@@ -159,6 +164,32 @@ export function useJamBase() {
     }
   }, []);
 
+  const searchEvents = useCallback(async (query: string): Promise<JamBaseEvent[]> => {
+    if (!query || query.length < 2) return [];
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/jambase/search/events?q=${encodeURIComponent(query)}&perPage=20`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to search events');
+      }
+
+      const data = await response.json();
+      return data.events || [];
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Event search failed');
+      console.error('JamBase event search error:', err);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     loading,
     error,
@@ -167,5 +198,6 @@ export function useJamBase() {
     matchEvents,
     getUpcomingEvents,
     getArtistTourDates,
+    searchEvents,
   };
 }

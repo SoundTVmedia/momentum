@@ -1,6 +1,7 @@
 import { Calendar, Star, Video, Play, ChevronDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
+import { apiVenuePath, artistPath } from '@/shared/app-paths';
 
 interface Show {
   show_id: string;
@@ -34,7 +35,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/venues/${encodeURIComponent(venueName)}/archive?sort_by=${sortBy}&limit=100`
+        `${apiVenuePath(venueName)}/archive?sort_by=${sortBy}&limit=100`
       );
       if (response.ok) {
         const data = await response.json();
@@ -72,9 +73,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
   };
 
   const handleShowClick = (show: Show) => {
-    navigate(
-      `/artists/${encodeURIComponent(show.artist_name)}/shows/${show.show_id}/clips`
-    );
+    navigate(`${artistPath(show.artist_name)}/shows/${show.show_id}/clips`);
   };
 
   const hasMoreShows = displayedShows.length < shows.length;

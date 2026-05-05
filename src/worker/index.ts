@@ -17,6 +17,7 @@ import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
 import * as discovery from "./discovery-endpoints";
 import * as jambase from "./jambase-endpoints";
+import * as artistVenuePages from "./artist-venue-pages";
 import * as stripe from "./stripe-endpoints";
 import { handleStripeWebhook } from "./stripe-webhooks";
 import { createStreamService } from "./stream-service";
@@ -1474,69 +1475,19 @@ app.get("/api/jambase/artist/:artistId", jambase.getArtistById);
 app.get("/api/jambase/venue/:venueId", jambase.getVenueById);
 app.get("/api/jambase/events/match", jambase.matchEventsByLocation);
 app.get("/api/jambase/events/upcoming", jambase.getUpcomingEvents);
+app.get("/api/jambase/events/live-tab", jambase.getLiveTabEvents);
+app.get("/api/jambase/events/by-artist-name", jambase.getEventsByArtistName);
+app.get("/api/jambase/search/events", jambase.searchEvents);
 
-// Get artist by name
+// Get artist by slug (hyphenated name) — enriched with JamBase when JAMBASE_API_KEY is set
 app.get("/api/artists/:artistName", async (c) => {
-  const artistName = decodeURIComponent(c.req.param('artistName'));
-  
-  // Get or create artist record
-  let artist = await c.env.DB.prepare(
-    "SELECT * FROM artists WHERE name = ?"
-  )
-    .bind(artistName)
-    .first();
-
-  if (!artist) {
-    // Auto-create artist if doesn't exist
-    const result = await c.env.DB.prepare(
-      "INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
-    )
-      .bind(artistName)
-      .run();
-
-    artist = await c.env.DB.prepare(
-      "SELECT * FROM artists WHERE id = ?"
-    )
-      .bind(result.meta.last_row_id)
-      .first();
+  try {
+    const payload = await artistVenuePages.buildArtistPagePayload(c);
+    return c.json(payload);
+  } catch (err) {
+    console.error("Get artist page error:", err);
+    return c.json({ error: "Failed to load artist" }, 500);
   }
-
-  // Get clips for this artist
-  const clips = await c.env.DB.prepare(
-    `SELECT 
-      clips.rowid AS _clipRowId,
-      clips.*,
-      user_profiles.display_name as user_display_name,
-      user_profiles.profile_image_url as user_avatar
-    FROM clips
-    LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.artist_name = ? AND clips.is_hidden = 0
-    ORDER BY clips.created_at DESC
-    LIMIT 50`
-  )
-    .bind(artistName)
-    .all();
-
-  // Get tour dates for this artist
-  const tourDates = await c.env.DB.prepare(
-    `SELECT 
-      artist_tour_dates.*,
-      venues.name as venue_name,
-      venues.location as venue_location
-    FROM artist_tour_dates
-    LEFT JOIN venues ON artist_tour_dates.venue_id = venues.id
-    WHERE artist_tour_dates.artist_id = ?
-    AND artist_tour_dates.date >= datetime('now')
-    ORDER BY artist_tour_dates.date ASC`
-  )
-    .bind(artist?.id || 0)
-    .all();
-
-  return c.json({
-    artist,
-    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
-    tourDates: tourDates.results || [],
-  });
 });
 
 // Create or update artist profile
@@ -1618,68 +1569,15 @@ app.post("/api/artists", authMiddleware, async (c) => {
   }
 });
 
-// Get venue by name
+// Get venue by slug (hyphenated name) — enriched with JamBase when JAMBASE_API_KEY is set
 app.get("/api/venues/:venueName", async (c) => {
-  const venueName = decodeURIComponent(c.req.param('venueName'));
-  
-  // Get or create venue record
-  let venue = await c.env.DB.prepare(
-    "SELECT * FROM venues WHERE name = ?"
-  )
-    .bind(venueName)
-    .first();
-
-  if (!venue) {
-    // Auto-create venue if doesn't exist
-    const result = await c.env.DB.prepare(
-      "INSERT INTO venues (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
-    )
-      .bind(venueName)
-      .run();
-
-    venue = await c.env.DB.prepare(
-      "SELECT * FROM venues WHERE id = ?"
-    )
-      .bind(result.meta.last_row_id)
-      .first();
+  try {
+    const payload = await artistVenuePages.buildVenuePagePayload(c);
+    return c.json(payload);
+  } catch (err) {
+    console.error("Get venue page error:", err);
+    return c.json({ error: "Failed to load venue" }, 500);
   }
-
-  // Get clips for this venue
-  const clips = await c.env.DB.prepare(
-    `SELECT 
-      clips.rowid AS _clipRowId,
-      clips.*,
-      user_profiles.display_name as user_display_name,
-      user_profiles.profile_image_url as user_avatar
-    FROM clips
-    LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.venue_name = ? AND clips.is_hidden = 0
-    ORDER BY clips.created_at DESC
-    LIMIT 50`
-  )
-    .bind(venueName)
-    .all();
-
-  // Get upcoming events at this venue
-  const upcomingEvents = await c.env.DB.prepare(
-    `SELECT 
-      artist_tour_dates.*,
-      artists.name as artist_name,
-      artists.image_url as artist_image
-    FROM artist_tour_dates
-    LEFT JOIN artists ON artist_tour_dates.artist_id = artists.id
-    WHERE artist_tour_dates.venue_id = ?
-    AND artist_tour_dates.date >= datetime('now')
-    ORDER BY artist_tour_dates.date ASC`
-  )
-    .bind(venue?.id || 0)
-    .all();
-
-  return c.json({
-    venue,
-    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
-    upcomingEvents: upcomingEvents.results || [],
-  });
 });
 
 // Create or update venue profile
@@ -2994,7 +2892,11 @@ app.get("/api/venues/:venueName/archive", discoverPrioritized.getVenueArchive);
 
 // Artist Live Status
 app.get("/api/artists/:artistName/live-status", async (c) => {
-  const artistName = decodeURIComponent(c.req.param('artistName'));
+  const artistName = await artistVenuePages.resolveArtistNameForClipsQuery(
+    c.env.DB,
+    c.env.JAMBASE_API_KEY,
+    c.req.param("artistName")
+  );
 
   try {
     // Check if artist is currently performing live
@@ -3033,7 +2935,11 @@ app.get("/api/artists/:artistName/live-status", async (c) => {
 
 // Artist Previous Shows
 app.get("/api/artists/:artistName/previous-shows", async (c) => {
-  const artistName = decodeURIComponent(c.req.param('artistName'));
+  const artistName = await artistVenuePages.resolveArtistNameForClipsQuery(
+    c.env.DB,
+    c.env.JAMBASE_API_KEY,
+    c.req.param("artistName")
+  );
   const limit = Math.min(parseInt(c.req.query('limit') || '8'), 20);
 
   try {

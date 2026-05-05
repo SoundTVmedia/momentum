@@ -7,10 +7,11 @@ import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ReferralLinkGenerator from '@/react-app/components/ReferralLinkGenerator';
 import PremiumPresaleAlert from '@/react-app/components/PremiumPresaleAlert';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
-import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
+import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
+import { apiArtistPath, artistPath, venuePath } from '@/shared/app-paths';
 
 interface Artist {
   id: number;
@@ -41,6 +42,7 @@ interface ArtistData {
   artist: Artist;
   clips: ClipWithUser[];
   tourDates: TourDate[];
+  jambase_attribution?: boolean;
 }
 
 interface LiveShow {
@@ -86,7 +88,7 @@ export default function ArtistPage() {
       setError(null);
 
       try {
-        const response = await fetch(`/api/artists/${encodeURIComponent(artistName)}`);
+        const response = await fetch(apiArtistPath(artistName));
         
         if (!response.ok) {
           throw new Error('Failed to fetch artist data');
@@ -115,7 +117,7 @@ export default function ArtistPage() {
     if (!artistName) return;
 
     try {
-      const response = await fetch(`/api/artists/${encodeURIComponent(artistName)}/live-status`);
+      const response = await fetch(`${apiArtistPath(artistName)}/live-status`);
       if (response.ok) {
         const data = await response.json();
         if (data.isLive) {
@@ -131,7 +133,7 @@ export default function ArtistPage() {
     if (!artistName) return;
 
     try {
-      const response = await fetch(`/api/artists/${encodeURIComponent(artistName)}/previous-shows?limit=8`);
+      const response = await fetch(`${apiArtistPath(artistName)}/previous-shows?limit=8`);
       if (response.ok) {
         const data = await response.json();
         setPreviousShows(data.shows || []);
@@ -271,7 +273,7 @@ export default function ArtistPage() {
         {liveShow && (
           <div className="mb-8">
             <button
-              onClick={() => navigate(`/venues/${encodeURIComponent(liveShow.venue_name)}`)}
+              onClick={() => navigate(venuePath(liveShow.venue_name))}
               className="w-full bg-gradient-to-r from-red-600 via-orange-600 to-pink-600 rounded-2xl overflow-hidden hover:scale-[1.02] transition-transform group"
             >
               <div className="relative aspect-[21/9]">
@@ -353,7 +355,7 @@ export default function ArtistPage() {
               {previousShows.map((show) => (
                 <button
                   key={show.show_id}
-                  onClick={() => navigate(`/artists/${encodeURIComponent(show.artist_name)}/shows/${show.show_id}/clips`)}
+                  onClick={() => navigate(`${artistPath(show.artist_name)}/shows/${show.show_id}/clips`)}
                   className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl overflow-hidden hover:border-purple-400/50 transition-all group"
                 >
                   <div className="relative aspect-video">
@@ -444,7 +446,7 @@ export default function ArtistPage() {
                   <a
                     href={tourDates[0].ticket_url}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="nofollow noopener noreferrer"
                     className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg hover:scale-105 transition-transform group"
                   >
                     <Ticket className="w-5 h-5 text-white" />
@@ -523,10 +525,7 @@ export default function ArtistPage() {
 
               {showLiveEvents ? (
                 <div className="mt-4">
-                  <TicketmasterEventGrid 
-                    city={artist.name.split(' ')[0]} 
-                    maxEvents={6} 
-                  />
+                  <JamBaseEventGrid artistName={artist.name} maxEvents={8} />
                 </div>
               ) : tourDates.length > 0 ? (
                 <>
@@ -556,7 +555,7 @@ export default function ArtistPage() {
                             <a
                               href={tourDate.ticket_url}
                               target="_blank"
-                              rel="noopener noreferrer"
+                              rel="nofollow noopener noreferrer"
                               className="flex items-center justify-center space-x-2 w-full px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
                             >
                               <Ticket className="w-4 h-4" />
@@ -580,6 +579,18 @@ export default function ArtistPage() {
                     <button className="w-full mt-4 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors">
                       View All Tour Dates
                     </button>
+                  )}
+                  {data.jambase_attribution && (
+                    <p className="mt-4 text-center text-xs text-gray-500">
+                      <a
+                        href="https://www.jambase.com"
+                        target="_blank"
+                        rel="nofollow noopener noreferrer"
+                        className="text-gray-400 hover:text-purple-300 underline"
+                      >
+                        Powered by JamBase
+                      </a>
+                    </p>
                   )}
                 </>
               ) : (

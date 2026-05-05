@@ -9,6 +9,7 @@ import { ClipCardSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
+import { artistPath, venuePath } from '@/shared/app-paths'
 
 interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
@@ -249,7 +250,7 @@ export default function ConcertFeed({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (clip.artist_name) {
-                          navigate(`/artists/${encodeURIComponent(clip.artist_name)}`)
+                          navigate(artistPath(clip.artist_name))
                         }
                       }}
                       className="font-headline text-xl sm:text-2xl text-white hover:text-purple-400 transition-colors drop-shadow-lg block"
@@ -262,7 +263,7 @@ export default function ConcertFeed({
                       onClick={(e) => {
                         e.stopPropagation()
                         if (clip.venue_name) {
-                          navigate(`/venues/${encodeURIComponent(clip.venue_name)}`)
+                          navigate(venuePath(clip.venue_name))
                         }
                       }}
                       className="flex items-center space-x-1 text-sm text-white/90 hover:text-white transition-colors drop-shadow"

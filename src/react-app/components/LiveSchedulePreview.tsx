@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ExtendedMochaUser } from '@/shared/types';
+import { artistPath } from '@/shared/app-paths';
 
 interface ScheduleItem {
   id: number;
@@ -75,7 +76,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
           <div
             key={item.id}
             className="group flex items-center space-x-3 p-3 bg-black/30 hover:bg-black/40 rounded-lg transition-all cursor-pointer"
-            onClick={() => item.artist_name && navigate(`/artists/${encodeURIComponent(item.artist_name)}`)}
+            onClick={() => item.artist_name && navigate(artistPath(item.artist_name))}
           >
             <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center font-bold text-white">
               {index + 1}

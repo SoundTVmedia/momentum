@@ -7,6 +7,7 @@ import ShowArchive from '@/react-app/components/ShowArchive';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { apiArtistPath, apiVenuePath, artistPath } from '@/shared/app-paths';
 
 interface Venue {
   id: number;
@@ -37,6 +38,7 @@ interface VenueData {
   venue: Venue;
   clips: ClipWithUser[];
   upcomingEvents: UpcomingEvent[];
+  jambase_attribution?: boolean;
 }
 
 interface RecentShow {
@@ -69,7 +71,7 @@ export default function VenuePage() {
       setError(null);
 
       try {
-        const response = await fetch(`/api/venues/${encodeURIComponent(venueName)}`);
+        const response = await fetch(apiVenuePath(venueName ?? ''));
         
         if (!response.ok) {
           throw new Error('Failed to fetch venue data');
@@ -100,7 +102,7 @@ export default function VenuePage() {
     
     try {
       const response = await fetch(
-        `/api/venues/${encodeURIComponent(venueName)}/archive?sort_by=date_played&limit=1`
+        `${apiVenuePath(venueName ?? '')}/archive?sort_by=date_played&limit=1`
       );
       
       if (response.ok) {
@@ -112,7 +114,7 @@ export default function VenuePage() {
           
           // Fetch clips for this show
           const clipsResponse = await fetch(
-            `/api/artists/${encodeURIComponent(mostRecentShow.artist_name)}/shows/${mostRecentShow.show_id}/clips?limit=6`
+            `${apiArtistPath(mostRecentShow.artist_name)}/shows/${mostRecentShow.show_id}/clips?limit=6`
           );
           
           if (clipsResponse.ok) {
@@ -367,7 +369,7 @@ export default function VenuePage() {
                       <p className="text-gray-400 text-sm">{formatDate(recentShow.show_date)}</p>
                     </div>
                     <button
-                      onClick={() => navigate(`/artists/${encodeURIComponent(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
+                      onClick={() => navigate(`${artistPath(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
                       className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
                     >
                       View Full Show
@@ -378,7 +380,7 @@ export default function VenuePage() {
                     {recentShow.clips.map((clip, index) => (
                       <button
                         key={clipListItemKey(clip, index)}
-                        onClick={() => navigate(`/artists/${encodeURIComponent(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
+                        onClick={() => navigate(`${artistPath(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
                         className="relative aspect-video rounded-lg overflow-hidden group"
                       >
                         <img
@@ -446,7 +448,13 @@ export default function VenuePage() {
                           />
                         )}
                         <div className="flex-1">
-                          <div className="text-white font-bold">{event.artist_name || 'Artist'}</div>
+                          <button
+                            type="button"
+                            onClick={() => event.artist_name && navigate(artistPath(event.artist_name))}
+                            className="text-left text-white font-bold hover:text-cyan-300 transition-colors"
+                          >
+                            {event.artist_name || 'Artist'}
+                          </button>
                           <div className="text-sm text-gray-400">{formatDate(event.date)}</div>
                         </div>
                       </div>
@@ -454,7 +462,7 @@ export default function VenuePage() {
                         <a
                           href={event.ticket_url}
                           target="_blank"
-                          rel="noopener noreferrer"
+                          rel="nofollow noopener noreferrer"
                           className="mt-2 flex items-center justify-center space-x-2 w-full px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
                         >
                           <Calendar className="w-4 h-4" />
@@ -468,6 +476,18 @@ export default function VenuePage() {
                   <button className="w-full mt-4 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors">
                     View All Events
                   </button>
+                )}
+                {data.jambase_attribution && (
+                  <p className="mt-4 text-center text-xs text-gray-500">
+                    <a
+                      href="https://www.jambase.com"
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="text-gray-400 hover:text-cyan-300 underline"
+                    >
+                      Powered by JamBase
+                    </a>
+                  </p>
                 )}
               </div>
             )}

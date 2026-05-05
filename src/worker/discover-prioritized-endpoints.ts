@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
 
 /**
  * Get prioritized shows for discovery feed
@@ -298,7 +299,11 @@ export async function getShowClips(c: Context) {
   if (artistNameParam === undefined) {
     return c.json({ error: 'artistName is required' }, 400);
   }
-  const artistName = decodeURIComponent(artistNameParam);
+  const artistName = await resolveArtistNameForClipsQuery(
+    c.env.DB,
+    c.env.JAMBASE_API_KEY,
+    artistNameParam
+  );
   const showId = c.req.param('showId');
   const sortBy = c.req.query('sort_by') || 'time_posted';
   const page = parseInt(c.req.query('page') || '1');

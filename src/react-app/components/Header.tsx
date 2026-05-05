@@ -7,6 +7,7 @@ import { useSearch } from '@/react-app/hooks/useSearch'
 import NotificationPanel from './NotificationPanel'
 import type { ExtendedMochaUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
+import { artistPath, venuePath } from '@/shared/app-paths'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -47,9 +48,9 @@ export default function Header() {
     
     // Navigate based on what was clicked
     if (clip.artist_name) {
-      navigate(`/artists/${encodeURIComponent(clip.artist_name)}`)
+      navigate(artistPath(clip.artist_name))
     } else if (clip.venue_name) {
-      navigate(`/venues/${encodeURIComponent(clip.venue_name)}`)
+      navigate(venuePath(clip.venue_name))
     } else {
       navigate('/')
     }

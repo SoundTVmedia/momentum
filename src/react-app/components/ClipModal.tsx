@@ -9,6 +9,7 @@ import CommentSection from './CommentSection';
 import StreamVideoPlayer from './StreamVideoPlayer';
 import StarRating from './StarRating';
 import type { ClipWithUser } from '@/shared/types';
+import { artistPath, venuePath } from '@/shared/app-paths';
 
 interface ClipModalProps {
   clip: ClipWithUser;
@@ -130,7 +131,7 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
                     onClick={() => {
                       onClose()
                       if (clip.artist_name) {
-                        navigate(`/artists/${encodeURIComponent(clip.artist_name)}`)
+                        navigate(artistPath(clip.artist_name))
                       }
                     }}
                     className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0"
@@ -144,7 +145,7 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
                     onClick={() => {
                       onClose()
                       if (clip.venue_name) {
-                        navigate(`/venues/${encodeURIComponent(clip.venue_name)}`)
+                        navigate(venuePath(clip.venue_name))
                       }
                     }}
                     className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0"

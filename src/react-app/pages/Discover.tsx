@@ -4,15 +4,55 @@ import { useNavigate, useSearchParams } from 'react-router';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
+import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { artistPath, venuePath } from '@/shared/app-paths';
 
 interface SearchResults {
   clips: ClipWithUser[];
   artists: { name: string; image_url: string | null; clip_count: number }[];
   venues: { name: string; location: string | null; clip_count: number }[];
   users: { mocha_user_id: string; display_name: string | null; profile_image_url: string | null; clip_count: number }[];
+  jambase?: {
+    artists: Record<string, unknown>[];
+    venues: Record<string, unknown>[];
+    events: Record<string, unknown>[];
+  };
+}
+
+function jamBaseEventTicket(ev: Record<string, unknown>): string | null {
+  const offers = ev.offers;
+  if (!Array.isArray(offers) || offers.length === 0) {
+    return typeof ev.url === 'string' ? ev.url : null;
+  }
+  const primary = offers.find(
+    (o: unknown) =>
+      typeof o === 'object' &&
+      o !== null &&
+      (o as Record<string, unknown>).category === 'ticketingLinkPrimary'
+  ) as Record<string, unknown> | undefined;
+  const u = (primary?.url ?? (offers[0] as Record<string, unknown>)?.url) as string | undefined;
+  return typeof u === 'string' ? u : null;
+}
+
+function jamBaseEventHeadlinerName(ev: Record<string, unknown>): string | null {
+  const p = ev.performer;
+  if (!Array.isArray(p) || p.length === 0) return null;
+  const head = p.find(
+    (x: unknown) =>
+      typeof x === 'object' &&
+      x !== null &&
+      (x as Record<string, unknown>)['x-isHeadliner'] === true
+  ) as Record<string, unknown> | undefined;
+  const pick = head ?? (p[0] as Record<string, unknown>);
+  return typeof pick?.name === 'string' ? pick.name : null;
+}
+
+function jamBaseEventVenueName(ev: Record<string, unknown>): string | null {
+  const loc = ev.location as Record<string, unknown> | undefined;
+  return typeof loc?.name === 'string' ? loc.name : null;
 }
 
 export default function DiscoverPage() {
@@ -38,6 +78,7 @@ export default function DiscoverPage() {
     clips: ClipWithUser[];
   } | null>(null);
   const [showLiveEvents, setShowLiveEvents] = useState(false);
+  const [liveEventCatalog, setLiveEventCatalog] = useState<'jambase' | 'ticketmaster'>('jambase');
 
   useEffect(() => {
     if (searchQuery) {
@@ -256,7 +297,7 @@ export default function DiscoverPage() {
                   {results.artists.map((artist) => (
                     <button
                       key={artist.name}
-                      onClick={() => navigate(`/artists/${encodeURIComponent(artist.name)}`)}
+                      onClick={() => navigate(artistPath(artist.name))}
                       className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-all text-center"
                     >
                       <img
@@ -286,7 +327,7 @@ export default function DiscoverPage() {
                   {results.venues.map((venue) => (
                     <button
                       key={venue.name}
-                      onClick={() => navigate(`/venues/${encodeURIComponent(venue.name)}`)}
+                      onClick={() => navigate(venuePath(venue.name))}
                       className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-4 hover:border-blue-400/50 transition-all text-left"
                     >
                       <div className="flex items-start space-x-3">
@@ -302,6 +343,163 @@ export default function DiscoverPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {results.jambase &&
+              (results.jambase.artists.length > 0 ||
+                results.jambase.venues.length > 0 ||
+                results.jambase.events.length > 0) && (
+              <div className="rounded-2xl border border-amber-500/25 bg-amber-950/10 p-6 space-y-10">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <Ticket className="w-6 h-6 text-amber-400" />
+                    <h2 className="text-2xl font-bold text-white">JamBase directory</h2>
+                  </div>
+                  <a
+                    href="https://www.jambase.com"
+                    target="_blank"
+                    rel="nofollow noopener noreferrer"
+                    className="text-xs text-amber-200/80 hover:text-amber-100 underline"
+                  >
+                    Powered by JamBase
+                  </a>
+                </div>
+
+                {results.jambase.artists.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                      <Music className="w-5 h-5 text-purple-400" />
+                      <span>Artists</span>
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {results.jambase.artists.map((a) => {
+                        const name = typeof a.name === 'string' ? a.name : 'Artist';
+                        const image = typeof a.image === 'string' ? a.image : null;
+                        return (
+                          <button
+                            key={typeof a.identifier === 'string' ? a.identifier : name}
+                            type="button"
+                            onClick={() => navigate(artistPath(name))}
+                            className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-all text-center"
+                          >
+                            <img
+                              src={
+                                image ||
+                                'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop'
+                              }
+                              alt={name}
+                              className="w-20 h-20 rounded-full mx-auto mb-3 object-cover"
+                            />
+                            <div className="text-white font-medium text-sm truncate">{name}</div>
+                            <div className="text-amber-200/70 text-xs">JamBase</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {results.jambase.venues.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                      <MapPin className="w-5 h-5 text-blue-400" />
+                      <span>Venues</span>
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {results.jambase.venues.map((v) => {
+                        const name = typeof v.name === 'string' ? v.name : 'Venue';
+                        const addr = v.address as Record<string, unknown> | undefined;
+                        const city =
+                          typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
+                        const region = addr?.addressRegion as Record<string, unknown> | undefined;
+                        const st =
+                          typeof region?.alternateName === 'string'
+                            ? region.alternateName
+                            : typeof region?.name === 'string'
+                              ? (region.name as string)
+                              : '';
+                        const loc = [city, st].filter(Boolean).join(', ');
+                        return (
+                          <button
+                            key={typeof v.identifier === 'string' ? v.identifier : name}
+                            type="button"
+                            onClick={() => navigate(venuePath(name))}
+                            className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-4 hover:border-blue-400/50 transition-all text-left"
+                          >
+                            <div className="text-white font-medium truncate">{name}</div>
+                            {loc ? (
+                              <div className="text-gray-400 text-sm truncate">{loc}</div>
+                            ) : null}
+                            <div className="text-amber-200/70 text-xs mt-1">JamBase</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {results.jambase.events.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
+                      <Ticket className="w-5 h-5 text-cyan-400" />
+                      <span>Upcoming shows</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {results.jambase.events.map((ev) => {
+                        const id = typeof ev.identifier === 'string' ? ev.identifier : String(ev.startDate);
+                        const title = typeof ev.name === 'string' ? ev.name : 'Show';
+                        const head = jamBaseEventHeadlinerName(ev);
+                        const venueNm = jamBaseEventVenueName(ev);
+                        const ticket = jamBaseEventTicket(ev);
+                        const start = typeof ev.startDate === 'string' ? ev.startDate : '';
+                        return (
+                          <div
+                            key={id}
+                            className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-black/40 border border-white/10"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white font-medium truncate">{title}</div>
+                              <div className="text-sm text-gray-400">
+                                {start && new Date(start).toLocaleString()}
+                                {head ? ` · ` : ''}
+                                {head ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(artistPath(head))}
+                                    className="text-purple-300 hover:underline"
+                                  >
+                                    {head}
+                                  </button>
+                                ) : null}
+                                {venueNm ? ` @ ` : ''}
+                                {venueNm ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(venuePath(venueNm))}
+                                    className="text-blue-300 hover:underline"
+                                  >
+                                    {venueNm}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                            {ticket ? (
+                              <a
+                                href={ticket}
+                                target="_blank"
+                                rel="nofollow noopener noreferrer"
+                                className="shrink-0 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white text-sm font-medium text-center"
+                              >
+                                Tickets
+                              </a>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -382,11 +580,43 @@ export default function DiscoverPage() {
 
             {showLiveEvents ? (
               <div>
-                <h3 className="text-2xl font-bold text-white mb-6 flex items-center space-x-2">
+                <h3 className="text-2xl font-bold text-white mb-4 flex items-center space-x-2">
                   <Ticket className="w-6 h-6 text-cyan-400" />
                   <span>Upcoming Shows</span>
                 </h3>
-                <TicketmasterEventGrid maxEvents={20} />
+                <p className="text-gray-400 text-sm mb-6 max-w-2xl mx-auto text-center">
+                  JamBase powers concert listings here; switch to Ticketmaster when your project has a
+                  Ticketmaster API key configured.
+                </p>
+                <div className="flex justify-center gap-2 mb-8 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setLiveEventCatalog('jambase')}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      liveEventCatalog === 'jambase'
+                        ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white'
+                        : 'bg-black/40 text-gray-300 border border-amber-500/30 hover:border-amber-400/50'
+                    }`}
+                  >
+                    JamBase
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLiveEventCatalog('ticketmaster')}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      liveEventCatalog === 'ticketmaster'
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
+                        : 'bg-black/40 text-gray-300 border border-cyan-500/30 hover:border-cyan-400/50'
+                    }`}
+                  >
+                    Ticketmaster
+                  </button>
+                </div>
+                {liveEventCatalog === 'jambase' ? (
+                  <JamBaseEventGrid maxEvents={20} />
+                ) : (
+                  <TicketmasterEventGrid maxEvents={20} />
+                )}
               </div>
             ) : (
               <>
@@ -433,7 +663,7 @@ export default function DiscoverPage() {
                       {trendingContent.artists.map((artist: any) => (
                         <button
                           key={artist.name}
-                          onClick={() => navigate(`/artists/${encodeURIComponent(artist.name)}`)}
+                          onClick={() => navigate(artistPath(artist.name))}
                           className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-all text-center group"
                         >
                           <div className="relative">
@@ -459,7 +689,7 @@ export default function DiscoverPage() {
                       {trendingContent.venues.map((venue: any) => (
                         <button
                           key={venue.name}
-                          onClick={() => navigate(`/venues/${encodeURIComponent(venue.name)}`)}
+                          onClick={() => navigate(venuePath(venue.name))}
                           className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-4 hover:border-blue-400/50 transition-all text-left group"
                         >
                           <div className="flex items-start space-x-3">
