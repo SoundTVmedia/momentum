@@ -20,6 +20,9 @@ MOCHA_USERS_SERVICE_API_KEY=
 # TRANSACTIONAL_EMAIL_FROM=Momentum <onboarding@resend.dev>
 # If the Worker cannot infer your SPA origin, set the public app URL (password reset links).
 # PUBLIC_APP_URL=http://localhost:5173
+# JamBase Data API v3 — typical plan limits: ~20k calls/mo, ~7,200/hr upstream.
+# The Worker caches identical JamBase URLs at the edge and dedupes concurrent requests;
+# per-IP hourly caps apply to /api/jambase/* and /api/search/advanced to limit abuse.
 JAMBASE_API_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=

@@ -98,8 +98,11 @@ export async function resolveVenueNameForClipsQuery(
 }
 
 export async function buildArtistPagePayload(c: Context): Promise<Record<string, unknown>> {
-  const param = c.req.param('artistName') ?? '';
-  const slug = normalizedSlugFromRouteParam(param);
+  const param = (c.req.param('artistName') ?? '').trim();
+  let slug = normalizedSlugFromRouteParam(param);
+  if (!slug && param) {
+    slug = slugifyEntityName(param);
+  }
   const apiKey = c.env.JAMBASE_API_KEY;
   const db = c.env.DB;
 
@@ -119,9 +122,17 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
     }
   }
 
-  const canonicalName = jambaseArtist?.name
-    ? String(jambaseArtist.name)
-    : await resolveArtistNameForClipsQuery(db, apiKey, param);
+  let canonicalName = jambaseArtist?.name
+    ? String(jambaseArtist.name).trim()
+    : (await resolveArtistNameForClipsQuery(db, apiKey, param)).trim();
+
+  if (!canonicalName) {
+    canonicalName =
+      titleCaseWords(searchPhraseFromSlug(slug)) ||
+      param ||
+      (jambaseArtist && typeof jambaseArtist.name === 'string' ? jambaseArtist.name : '') ||
+      'Artist';
+  }
 
   let artist = (await db
     .prepare(
@@ -130,16 +141,34 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
     .bind(slug, canonicalName)
     .first()) as Record<string, unknown> | null;
 
-  if (!artist) {
-    const ins = await db
-      .prepare(
-        `INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-      )
-      .bind(canonicalName)
-      .run();
+  if (!artist && canonicalName) {
+    try {
+      const ins = await db
+        .prepare(
+          `INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        )
+        .bind(canonicalName)
+        .run();
+      if (ins.success) {
+        const lid = ins.meta?.last_row_id;
+        if (lid != null && lid !== '') {
+          artist = (await db
+            .prepare('SELECT * FROM artists WHERE id = ?')
+            .bind(Number(lid))
+            .first()) as Record<string, unknown> | null;
+        }
+      }
+    } catch (err) {
+      console.error('Artist INSERT failed (likely duplicate):', err);
+    }
+  }
+
+  if (!artist && canonicalName) {
     artist = (await db
-      .prepare('SELECT * FROM artists WHERE id = ?')
-      .bind(ins.meta.last_row_id)
+      .prepare(
+        `SELECT * FROM artists WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ? OR name = ? ORDER BY id DESC LIMIT 1`
+      )
+      .bind(slug, canonicalName)
       .first()) as Record<string, unknown> | null;
   }
 
@@ -158,6 +187,34 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
       .prepare('SELECT * FROM artists WHERE id = ?')
       .bind(artist.id)
       .first()) as Record<string, unknown> | null;
+  }
+
+  if (!artist) {
+    const nameForDisplay =
+      (jambaseArtist && typeof jambaseArtist.name === 'string' && jambaseArtist.name) ||
+      canonicalName ||
+      'Artist';
+    const img =
+      jambaseArtist && typeof jambaseArtist.image === 'string' ? jambaseArtist.image : null;
+    const web = jambaseArtist && typeof jambaseArtist.url === 'string' ? jambaseArtist.url : null;
+    artist = {
+      id: 0,
+      name: nameForDisplay,
+      bio: null,
+      image_url: img,
+      social_links: web ? JSON.stringify({ website: web }) : null,
+      is_verified: 0,
+      created_at: '',
+      updated_at: '',
+    };
+  } else {
+    artist = {
+      ...artist,
+      social_links: artist.social_links ?? null,
+      bio: artist.bio ?? null,
+      image_url: artist.image_url ?? null,
+      is_verified: artist.is_verified ?? 0,
+    };
   }
 
   const clipsRes = await db

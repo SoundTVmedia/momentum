@@ -9,6 +9,11 @@ interface RateLimitConfig {
   windowMs: number; // Time window in milliseconds
   maxRequests: number; // Max requests per window
   message?: string;
+  /**
+   * If set, all routes using the same bucket name share one counter per client
+   * (e.g. every `/api/jambase/*` path counts toward the same hourly cap).
+   */
+  sharedBucket?: string;
 }
 
 interface RateLimitRecord {
@@ -23,11 +28,18 @@ const rateLimitStore = new Map<string, RateLimitRecord>();
  * Create rate limiter middleware
  */
 export function rateLimiter(config: RateLimitConfig) {
-  const { windowMs, maxRequests, message = 'Too many requests, please try again later' } = config;
+  const {
+    windowMs,
+    maxRequests,
+    message = 'Too many requests, please try again later',
+    sharedBucket,
+  } = config;
 
   return async (c: Context, next: () => Promise<void>) => {
     const identifier = getIdentifier(c);
-    const key = `${c.req.path}:${identifier}`;
+    const key = sharedBucket
+      ? `shared:${sharedBucket}:${identifier}`
+      : `${c.req.path}:${identifier}`;
     const now = Date.now();
 
     // Get or create rate limit record
@@ -123,4 +135,26 @@ export const RateLimits = {
   
   // General requests
   GENERAL: { windowMs: 60 * 1000, maxRequests: 60 }, // 60 per minute
+
+  /**
+   * Shared bucket for all `/api/jambase/*` handlers (per user/IP, rolling hour).
+   * Keeps browser abuse from burning JamBase quota (20k/mo, 7200/hr at JamBase).
+   */
+  JAMBASE_PROXY_HOURLY: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 240,
+    sharedBucket: 'jambase-proxy',
+    message:
+      'Too many live-music lookups this hour. Please wait a bit or narrow your search.',
+  },
+
+  /**
+   * Advanced discover search can trigger several JamBase calls per request when `q` is set.
+   */
+  ADVANCED_SEARCH_HOURLY: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 90,
+    sharedBucket: 'advanced-search',
+    message: 'Too many searches this hour. Please try again later.',
+  },
 };

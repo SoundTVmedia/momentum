@@ -80,6 +80,13 @@ export default function DiscoverPage() {
   const [showLiveEvents, setShowLiveEvents] = useState(false);
   const [liveEventCatalog, setLiveEventCatalog] = useState<'jambase' | 'ticketmaster'>('jambase');
 
+  const liveCity = filters.location.trim() || undefined;
+  const liveGenre = filters.genre.trim() || undefined;
+  const liveGenreSlug =
+    liveGenre != null && liveGenre.length > 0
+      ? liveGenre.toLowerCase().replace(/\s+/g, '-')
+      : undefined;
+
   useEffect(() => {
     if (searchQuery) {
       performSearch();
@@ -613,9 +620,9 @@ export default function DiscoverPage() {
                   </button>
                 </div>
                 {liveEventCatalog === 'jambase' ? (
-                  <JamBaseEventGrid maxEvents={20} />
+                  <JamBaseEventGrid maxEvents={20} city={liveCity} genreSlug={liveGenreSlug} />
                 ) : (
-                  <TicketmasterEventGrid maxEvents={20} />
+                  <TicketmasterEventGrid maxEvents={20} city={liveCity} genre={liveGenre} />
                 )}
               </div>
             ) : (

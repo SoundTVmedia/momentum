@@ -39,10 +39,23 @@ interface TourDate {
 }
 
 interface ArtistData {
-  artist: Artist;
+  artist: Artist | null;
   clips: ClipWithUser[];
   tourDates: TourDate[];
   jambase_attribution?: boolean;
+}
+
+function parseArtistSocialLinks(raw: string | null | undefined): Record<string, string> {
+  if (raw == null || !String(raw).trim()) return {};
+  try {
+    const v = JSON.parse(String(raw));
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      return v as Record<string, string>;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
 }
 
 interface LiveShow {
@@ -183,8 +196,27 @@ export default function ArtistPage() {
     );
   }
 
+  if (!data.artist) {
+    return (
+      <div className="min-h-screen bg-black">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="text-center">
+            <p className="text-gray-300 mb-4">We couldn&apos;t load this artist profile yet.</p>
+            <button
+              onClick={() => navigate('/discover')}
+              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+            >
+              Search on Discover
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const { artist, clips, tourDates } = data;
-  const socialLinks = artist.social_links ? JSON.parse(artist.social_links) : {};
+  const socialLinks = parseArtistSocialLinks(artist.social_links);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">

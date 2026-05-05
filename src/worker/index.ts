@@ -56,6 +56,11 @@ const app = new Hono<{ Bindings: Env }>();
 // Global rate limiting for general API endpoints
 app.use('/api/*', rateLimiter(RateLimits.GENERAL));
 
+// JamBase-backed routes: shared hourly bucket per user/IP (protects upstream quota)
+app.use('/api/jambase/*', rateLimiter(RateLimits.JAMBASE_PROXY_HOURLY));
+// Discover advanced search may call JamBase artists/venues/events per query
+app.use('/api/search/advanced', rateLimiter(RateLimits.ADVANCED_SEARCH_HOURLY));
+
 // Performance monitoring middleware
 app.use('*', async (c, next) => {
   const monitor = new PerformanceMonitor();

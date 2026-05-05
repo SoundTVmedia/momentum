@@ -8,6 +8,11 @@ export async function advancedSearch(c: Context) {
   const location = c.req.query('location') || '';
   const dateRange = c.req.query('dateRange') || '30d';
   const sortBy = c.req.query('sortBy') || 'latest';
+  const compact = c.req.query('compact') === '1';
+  const clipLimit = compact ? 8 : 30;
+  const artistLimit = compact ? 6 : 20;
+  const venueLimit = compact ? 6 : 20;
+  const userLimit = compact ? 4 : 20;
   
   if (!query.trim()) {
     return c.json({
@@ -67,7 +72,7 @@ export async function advancedSearch(c: Context) {
       clipsQuery += ` ORDER BY clips.created_at DESC`;
   }
 
-  clipsQuery += ` LIMIT 30`;
+  clipsQuery += ` LIMIT ${clipLimit}`;
 
   const clips = await c.env.DB.prepare(clipsQuery).bind(...bindings).all();
 
@@ -84,7 +89,7 @@ export async function advancedSearch(c: Context) {
     AND clips.is_hidden = 0
     GROUP BY clips.artist_name
     ORDER BY clip_count DESC
-    LIMIT 20`
+    LIMIT ${artistLimit}`
   )
     .bind(`%${query}%`)
     .all();
@@ -102,7 +107,7 @@ export async function advancedSearch(c: Context) {
     AND clips.is_hidden = 0
     GROUP BY clips.venue_name
     ORDER BY clip_count DESC
-    LIMIT 20`
+    LIMIT ${venueLimit}`
   )
     .bind(`%${query}%`)
     .all();
@@ -120,7 +125,7 @@ export async function advancedSearch(c: Context) {
     GROUP BY user_profiles.mocha_user_id
     HAVING clip_count > 0
     ORDER BY clip_count DESC
-    LIMIT 20`
+    LIMIT ${userLimit}`
   )
     .bind(`%${query}%`)
     .all();
@@ -134,18 +139,20 @@ export async function advancedSearch(c: Context) {
   const jbKey = c.env.JAMBASE_API_KEY;
   if (query.trim().length >= 2 && typeof jbKey === 'string' && jbKey.trim()) {
     const q = query.trim();
+    const jbPer = compact ? '5' : '10';
+    const eventCap = compact ? 8 : 18;
     const [a, v, tightEvents] = await Promise.all([
       jamBaseFetch<{ artists?: unknown[] }>(jbKey, '/artists', {
         artistName: q,
-        perPage: '10',
+        perPage: jbPer,
         page: '1',
       }),
       jamBaseFetch<{ venues?: unknown[] }>(jbKey, '/venues', {
         venueName: q,
-        perPage: '10',
+        perPage: jbPer,
         page: '1',
       }),
-      buildTightJamBaseEventResults(jbKey, q, 18),
+      buildTightJamBaseEventResults(jbKey, q, eventCap),
     ]);
     jambase = {
       artists: a?.artists ?? [],
