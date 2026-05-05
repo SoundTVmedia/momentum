@@ -4,8 +4,6 @@
 
 PRAGMA foreign_keys = OFF;
 
-BEGIN TRANSACTION;
-
 CREATE TABLE clips_new (
   id INTEGER PRIMARY KEY NOT NULL,
   mocha_user_id TEXT NOT NULL,
@@ -186,7 +184,5 @@ CREATE INDEX IF NOT EXISTS idx_clips_video_status ON clips(video_status);
 CREATE INDEX IF NOT EXISTS idx_clips_show_id ON clips(show_id);
 CREATE INDEX IF NOT EXISTS idx_clips_user_id ON clips(mocha_user_id);
 CREATE INDEX IF NOT EXISTS idx_clips_trending ON clips(is_trending_score DESC, created_at DESC);
-
-COMMIT;
 
 PRAGMA foreign_keys = ON;
