@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import { normalizeClipApiRows } from './clip-row-normalize';
 
 /**
  * Update user personalization settings
@@ -89,6 +90,7 @@ export async function getPersonalizedFeed(c: Context) {
     // Build personalized query
     let query = `
       SELECT 
+        clips.rowid AS _clipRowId,
         clips.*,
         user_profiles.display_name as user_display_name,
         user_profiles.profile_image_url as user_avatar,
@@ -103,6 +105,7 @@ export async function getPersonalizedFeed(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       WHERE clips.is_hidden = 0 AND clips.is_draft = 0
+      AND clips.mocha_user_id != ?
     `;
 
     const bindings: any[] = [...favoriteArtists];
@@ -116,6 +119,7 @@ export async function getPersonalizedFeed(c: Context) {
       
       query = `
         SELECT 
+          clips.rowid AS _clipRowId,
           clips.*,
           user_profiles.display_name as user_display_name,
           user_profiles.profile_image_url as user_avatar,
@@ -144,10 +148,14 @@ export async function getPersonalizedFeed(c: Context) {
         FROM clips
         LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
         WHERE clips.is_hidden = 0 AND clips.is_draft = 0
+        AND clips.mocha_user_id != ?
       `;
       
       bindings.push(lat, lon, lat, radiusMiles);
     }
+
+    // Exclude viewer's own uploads from "For You"
+    bindings.push(mochaUser.id);
 
     // Order by total score
     query += `
@@ -161,7 +169,7 @@ export async function getPersonalizedFeed(c: Context) {
     const clips = await c.env.DB.prepare(query).bind(...bindings).all();
 
     return c.json({
-      clips: clips.results || [],
+      clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
       personalized: true,
       page,
       limit,

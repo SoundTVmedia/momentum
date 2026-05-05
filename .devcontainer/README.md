@@ -46,6 +46,22 @@ npm run dev
 
 Open the **“Vite (app UI)”** forwarded port (usually `http://localhost:5173`).
 
+### D1 (local vs remote)
+
+Vite is configured so **`remoteBindings` is off** and local state lives under **`.wrangler/state`** in the repo. That matches **`wrangler d1 migrations apply momentum-db --local`**: one local SQLite file for both the CLI and `npm run dev`, which avoids “feed shows clips but delete returns 404” when the UI was talking to a different database than migrations.
+
+After pulling schema changes, from `/workspace` run:
+
+```bash
+npm run db:migrate:local
+```
+
+For **production D1**, use the same migration files against the remote database (after `wrangler login`):
+
+```bash
+npm run db:migrate:remote
+```
+
 **Optional:** To run **Wrangler’s dev server alone** (e.g. comparing behavior), use `npm run dev:api` in a terminal. Avoid also running `npm run dev` at the same time unless you know you need both — the Vite+Cloudflare setup already serves the Worker.
 
 ## Postgres + pgAdmin (optional)

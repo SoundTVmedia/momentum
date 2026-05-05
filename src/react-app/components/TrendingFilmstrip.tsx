@@ -2,6 +2,7 @@ import { Flame, Play } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useClips } from '@/react-app/hooks/useClips'
 import type { ClipWithUser } from '@/shared/types'
+import { clipListItemKey } from '@/react-app/lib/clip-list-key'
 
 export default function TrendingFilmstrip() {
   const navigate = useNavigate()
@@ -54,9 +55,9 @@ export default function TrendingFilmstrip() {
           <div className="relative">
             {/* Horizontal scrolling container */}
             <div className="flex space-x-3 sm:space-x-4 md:space-x-5 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
-              {clips.map((clip) => (
+              {clips.map((clip, index) => (
                 <button
-                  key={clip.id}
+                  key={clipListItemKey(clip, index)}
                   onClick={() => handleClipClick(clip)}
                   className="flex-shrink-0 w-40 sm:w-48 md:w-56 group cursor-pointer snap-start"
                 >

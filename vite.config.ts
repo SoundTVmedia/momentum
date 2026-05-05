@@ -102,7 +102,18 @@ export default defineConfig({
   plugins: [
     ...mochaPlugins(process.env as any),
     react(),
-    ...(shouldEnableCloudflarePlugin ? [cloudflare()] : []),
+    ...(shouldEnableCloudflarePlugin
+      ? [
+          cloudflare({
+            // Same wrangler.json as `wrangler dev` / `wrangler d1 ... --local` (smooth path to prod D1).
+            configPath: path.resolve(__dirname, "wrangler.json"),
+            // Pin persistence so Vite + Wrangler CLI share one local SQLite (default is `.wrangler/state`).
+            persistState: { path: path.resolve(__dirname, ".wrangler/state") },
+            // Default true: can bind D1 remotely while migrations apply to local DB — list/delete then disagree.
+            remoteBindings: false,
+          }),
+        ]
+      : []),
   ],
   server: {
     allowedHosts: true,

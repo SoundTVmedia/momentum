@@ -4,6 +4,7 @@ import { ArrowLeft, Calendar, MapPin, Star, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 export default function ShowClipsPage() {
   const { artistName, showId } = useParams<{ artistName: string; showId: string }>();
@@ -124,9 +125,9 @@ export default function ShowClipsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clips.map((clip) => (
+            {clips.map((clip, index) => (
               <div
-                key={clip.id}
+                key={clipListItemKey(clip, index)}
                 onClick={() => setSelectedClip(clip)}
                 className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
               >

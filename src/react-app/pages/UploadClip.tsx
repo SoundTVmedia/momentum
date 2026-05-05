@@ -360,7 +360,13 @@ export default function UploadClip() {
         navigate('/dashboard');
       } else {
         // Show confirmation modal for published clips
-        setPostedClip(newClip);
+        setPostedClip(newClip ?? {
+          artist_name: formData.artist_name || null,
+          venue_name: formData.venue_name || null,
+          location: formData.location || null,
+          content_description: formData.content_description || null,
+          thumbnail_url: thumbnailUrl || null,
+        });
         setShowConfirmationModal(true);
       }
     } catch (err) {
@@ -386,6 +392,12 @@ export default function UploadClip() {
     setShowConfirmationModal(false);
     setPostedClip(null);
     navigate('/');
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowConfirmationModal(false);
+    setPostedClip(null);
+    navigate('/dashboard');
   };
 
   const handleShareClip = async () => {
@@ -414,6 +426,144 @@ export default function UploadClip() {
       }
     }
   };
+
+  const modalClip = postedClip ?? {
+    artist_name: formData.artist_name || null,
+    venue_name: formData.venue_name || null,
+    location: formData.location || null,
+    content_description: formData.content_description || null,
+    thumbnail_url: formData.thumbnail_url || null,
+  };
+
+  const confirmationModal = showConfirmationModal ? (
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-cyan-500/20 rounded-xl overflow-hidden animate-scale-in relative">
+        <button
+          type="button"
+          onClick={handleCloseSuccessModal}
+          className="absolute top-4 right-4 text-gray-300 hover:text-white transition-colors"
+          aria-label="Close success message"
+        >
+          <X className="w-6 h-6" />
+        </button>
+
+        {/* Header */}
+        <div className="p-6 text-center border-b border-white/10">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+            Upload complete! 🎬
+          </h1>
+          <p className="text-gray-300 text-lg">
+            Your clip is live in the Momentum feed
+          </p>
+        </div>
+
+        {/* Clip Preview */}
+        <div className="p-6 bg-black/40">
+          <div className="bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 rounded-xl overflow-hidden">
+            {/* User Info */}
+            <div className="p-4 flex items-center space-x-3">
+              <img
+                src={user?.google_user_data.picture || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+                alt="Your avatar"
+                className="w-10 h-10 rounded-full border-2 border-cyan-500/40"
+              />
+              <div>
+                <div className="font-bold text-white">{user?.google_user_data.name || 'You'}</div>
+                <div className="text-xs text-gray-400">just now</div>
+              </div>
+            </div>
+
+            {/* Video Preview */}
+            <div className="relative aspect-video bg-black">
+              {videoBlobUrl ? (
+                <video
+                  src={videoBlobUrl}
+                  loop
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : modalClip.thumbnail_url ? (
+                <img
+                  src={modalClip.thumbnail_url}
+                  alt="Clip thumbnail"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Film className="w-16 h-16 text-gray-600" />
+                </div>
+              )}
+
+              {/* Overlay info */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+              <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
+                {modalClip.artist_name && (
+                  <div className="flex items-center space-x-2 text-white">
+                    <Music className="w-4 h-4 text-purple-400" />
+                    <span className="font-bold">{modalClip.artist_name}</span>
+                  </div>
+                )}
+                {modalClip.venue_name && (
+                  <div className="flex items-center space-x-2 text-white/90">
+                    <MapPin className="w-4 h-4 text-green-400" />
+                    <span>{modalClip.venue_name}</span>
+                    {modalClip.location && <span className="text-white/70">• {modalClip.location}</span>}
+                  </div>
+                )}
+                {modalClip.content_description && (
+                  <p className="text-white text-sm">{modalClip.content_description}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Engagement Buttons */}
+            <div className="flex items-center justify-between px-4 py-3 bg-black/40">
+              <div className="flex items-center space-x-4">
+                <button className="flex flex-col items-center space-y-1 text-gray-400">
+                  <Heart className="w-6 h-6" />
+                  <span className="text-xs font-bold">0</span>
+                </button>
+                <button className="flex flex-col items-center space-y-1 text-gray-400">
+                  <MessageCircle className="w-6 h-6" />
+                  <span className="text-xs font-bold">0</span>
+                </button>
+                <button className="flex flex-col items-center space-y-1 text-gray-400">
+                  <Share2 className="w-6 h-6" />
+                  <span className="text-xs font-bold">Share</span>
+                </button>
+                <button className="flex flex-col items-center space-y-1 text-gray-400">
+                  <Bookmark className="w-6 h-6" />
+                  <span className="text-xs font-bold">Save</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="p-6 space-y-3">
+          {/* Primary CTA */}
+          <button
+            onClick={handleBackToFeed}
+            className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform shadow-lg shadow-green-500/30"
+          >
+            Back to Feed
+          </button>
+
+          {/* Secondary CTA */}
+          <button
+            onClick={handleShareClip}
+            className="w-full flex items-center justify-center space-x-2 text-cyan-400 hover:text-cyan-300 transition-colors py-2 text-sm font-medium"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>Share with Friends</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   if (isPending) {
     return (
@@ -784,127 +934,7 @@ export default function UploadClip() {
           </div>
         </div>
 
-        {/* CONFIRMATION MODAL */}
-        {showConfirmationModal && postedClip && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-cyan-500/20 rounded-xl overflow-hidden animate-scale-in">
-            {/* Header */}
-            <div className="p-6 text-center border-b border-white/10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                Moment captured! 🎬
-              </h1>
-              <p className="text-gray-300 text-lg">
-                Your clip is live in the Momentum feed
-              </p>
-            </div>
-
-            {/* Clip Preview */}
-            <div className="p-6 bg-black/40">
-              <div className="bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 rounded-xl overflow-hidden">
-                {/* User Info */}
-                <div className="p-4 flex items-center space-x-3">
-                  <img
-                    src={user?.google_user_data.picture || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
-                    alt="Your avatar"
-                    className="w-10 h-10 rounded-full border-2 border-cyan-500/40"
-                  />
-                  <div>
-                    <div className="font-bold text-white">{user?.google_user_data.name || 'You'}</div>
-                    <div className="text-xs text-gray-400">just now</div>
-                  </div>
-                </div>
-
-                {/* Video Preview */}
-                <div className="relative aspect-video bg-black">
-                  {videoBlobUrl ? (
-                    <video
-                      src={videoBlobUrl}
-                      loop
-                      autoPlay
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                  ) : postedClip.thumbnail_url ? (
-                    <img
-                      src={postedClip.thumbnail_url}
-                      alt="Clip thumbnail"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Film className="w-16 h-16 text-gray-600" />
-                    </div>
-                  )}
-
-                  {/* Overlay info */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
-                    {postedClip.artist_name && (
-                      <div className="flex items-center space-x-2 text-white">
-                        <Music className="w-4 h-4 text-purple-400" />
-                        <span className="font-bold">{postedClip.artist_name}</span>
-                      </div>
-                    )}
-                    {postedClip.venue_name && (
-                      <div className="flex items-center space-x-2 text-white/90">
-                        <MapPin className="w-4 h-4 text-green-400" />
-                        <span>{postedClip.venue_name}</span>
-                        {postedClip.location && <span className="text-white/70">• {postedClip.location}</span>}
-                      </div>
-                    )}
-                    {postedClip.content_description && (
-                      <p className="text-white text-sm">{postedClip.content_description}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Engagement Buttons */}
-                <div className="flex items-center justify-between px-4 py-3 bg-black/40">
-                  <div className="flex items-center space-x-4">
-                    <button className="flex flex-col items-center space-y-1 text-gray-400">
-                      <Heart className="w-6 h-6" />
-                      <span className="text-xs font-bold">0</span>
-                    </button>
-                    <button className="flex flex-col items-center space-y-1 text-gray-400">
-                      <MessageCircle className="w-6 h-6" />
-                      <span className="text-xs font-bold">0</span>
-                    </button>
-                    <button className="flex flex-col items-center space-y-1 text-gray-400">
-                      <Share2 className="w-6 h-6" />
-                      <span className="text-xs font-bold">Share</span>
-                    </button>
-                    <button className="flex flex-col items-center space-y-1 text-gray-400">
-                      <Bookmark className="w-6 h-6" />
-                      <span className="text-xs font-bold">Save</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="p-6 space-y-3">
-              {/* Primary CTA */}
-              <button
-                onClick={handleBackToFeed}
-                className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform shadow-lg shadow-green-500/30"
-              >
-                Back to Feed
-              </button>
-
-              {/* Secondary CTA */}
-              <button
-                onClick={handleShareClip}
-                className="w-full flex items-center justify-center space-x-2 text-cyan-400 hover:text-cyan-300 transition-colors py-2 text-sm font-medium"
-              >
-                <Share2 className="w-4 h-4" />
-                <span>Share with Friends</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        )}
+        {confirmationModal}
       </div>
     );
   }
@@ -1260,6 +1290,7 @@ export default function UploadClip() {
           </div>
         </form>
       </div>
+      {confirmationModal}
     </div>
   );
 }

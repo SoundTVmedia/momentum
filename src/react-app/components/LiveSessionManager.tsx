@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, GripVertical, Search, Loader2 } from 'lucide-react';
 import type { ClipWithUser } from '@/shared/types';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 interface LiveSession {
   id: number;
@@ -252,9 +253,9 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                 {/* Search Results */}
                 {searchResults.length > 0 && (
                   <div className="mt-2 bg-black/60 border border-white/10 rounded-lg max-h-48 overflow-y-auto">
-                    {searchResults.map((clip) => (
+                    {searchResults.map((clip, index) => (
                       <div
-                        key={clip.id}
+                        key={clipListItemKey(clip, index)}
                         className="p-3 hover:bg-white/5 flex items-center justify-between border-b border-white/5 last:border-0"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">

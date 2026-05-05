@@ -18,6 +18,17 @@ export async function uploadFromUrl(c: Context) {
     return c.json({ error: "video_url is required" }, 400);
   }
 
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(video_url);
+  } catch {
+    return c.json({ error: "video_url must be a valid URL" }, 400);
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    return c.json({ error: "video_url must use http or https" }, 400);
+  }
+
   try {
     const streamService = createStreamService(c.env);
     const videoDetails = await streamService.uploadFromUrl(video_url, {
@@ -32,12 +43,18 @@ export async function uploadFromUrl(c: Context) {
       status: videoDetails.status,
       readyToStream: videoDetails.readyToStream,
       duration: videoDetails.duration,
+      type: 'stream',
     }, 201);
   } catch (error) {
     console.error('Stream upload from URL failed:', error);
-    return c.json({ 
-      error: error instanceof Error ? error.message : "Failed to upload video to Stream" 
-    }, 500);
+
+    // Match file-upload behavior: if Stream ingestion fails, keep upload flow usable.
+    return c.json({
+      success: true,
+      url: parsedUrl.toString(),
+      type: 'direct',
+      streamFallback: true,
+    }, 201);
   }
 }
 

@@ -7,6 +7,7 @@ import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
 import DeviceManagement from '@/react-app/components/DeviceManagement';
 import PersonalizedFeed from '@/react-app/components/PersonalizedFeed';
+import MyClipsSection from '@/react-app/components/MyClipsSection';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
 import PersonalizationSettings from '@/react-app/components/PersonalizationSettings';
 import FanDashboard from '@/react-app/components/dashboards/FanDashboard';
@@ -125,6 +126,7 @@ export default function Dashboard() {
         {/* Personalized Content Sections */}
         <div className="space-y-12 mb-8">
           <PersonalizedFeed />
+          {user && <MyClipsSection />}
           <PersonalizedConcerts />
         </div>
       </div>

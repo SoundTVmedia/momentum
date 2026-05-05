@@ -16,7 +16,8 @@
     {
       "binding": "DB",
       "database_name": "momentum-db",
-      "database_id": "e96d451b-6c25-455b-8224-db244c0fa1c8"
+      "database_id": "e96d451b-6c25-455b-8224-db244c0fa1c8",
+      "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [

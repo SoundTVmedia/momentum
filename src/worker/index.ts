@@ -40,7 +40,13 @@ import * as personalization from "./personalization-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { PerformanceMonitor } from "./performance-utils";
 import { handleResumableUpload } from "./resumable-upload-endpoints";
-import { deleteOwnClip } from "./clip-endpoints";
+import {
+  deleteOwnClip,
+  deleteOwnClipByBody,
+  updateOwnClipByBody,
+  getMyClipsFeed,
+} from "./clip-endpoints";
+import { normalizeClipApiRows } from "./clip-row-normalize";
 export { RealtimeDurableObject } from "./realtime-durable-object";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -698,8 +704,17 @@ app.post("/api/clips", authMiddleware, async (c) => {
     )
     .run();
 
+  // Some local schemas have nullable `clips.id`; ensure canonical numeric id is present.
+  await c.env.DB.prepare(
+    `UPDATE clips
+     SET id = COALESCE(id, ?)
+     WHERE rowid = ?`
+  )
+    .bind(result.meta.last_row_id, result.meta.last_row_id)
+    .run();
+
   const newClip = await c.env.DB.prepare(
-    "SELECT * FROM clips WHERE id = ?"
+    "SELECT * FROM clips WHERE rowid = ?"
   )
     .bind(result.meta.last_row_id)
     .first();
@@ -739,6 +754,12 @@ app.post("/api/clips", authMiddleware, async (c) => {
   return c.json(newClip, 201);
 });
 
+// Delete own clip (uploader only) — register before GET /api/clips/:id so :clipId is not shadowed
+app.delete("/api/clips/:clipId", authMiddleware, deleteOwnClip);
+app.post("/api/clips/delete-own", authMiddleware, deleteOwnClipByBody);
+app.post("/api/clips/update-own", authMiddleware, updateOwnClipByBody);
+app.get("/api/me/clips", authMiddleware, getMyClipsFeed);
+
 // Get clips feed (optimized with caching headers)
 app.get("/api/clips", async (c) => {
   const page = parseInt(c.req.query('page') || '1');
@@ -753,6 +774,8 @@ app.get("/api/clips", async (c) => {
   
   let query = `
     SELECT 
+      clips.rowid AS _clipRowId,
+      clips.id AS clip_primary_id,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar,
@@ -814,11 +837,18 @@ app.get("/api/clips", async (c) => {
     .bind(...bindings)
     .all();
 
-  // Add cache headers for better performance
-  c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  // User-scoped or filtered feeds must not be cached publicly — stale JSON causes "My clips"
+  // to show rows that no longer exist locally, so delete/update then return 404 Clip not found.
+  const scopedFeed = Boolean(userId || since || artistName || venueName);
+  if (scopedFeed) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+    c.header('Pragma', 'no-cache');
+  } else {
+    c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  }
 
   return c.json({
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     page,
     limit,
     hasMore: (clips.results || []).length === limit
@@ -831,6 +861,7 @@ app.get("/api/clips/:id", async (c) => {
   
   const clip = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -852,7 +883,8 @@ app.get("/api/clips/:id", async (c) => {
     .bind(clipId)
     .run();
 
-  return c.json(clip);
+  const [normalizedClip] = normalizeClipApiRows([clip as Record<string, unknown>]);
+  return c.json(normalizedClip);
 });
 
 // Like a clip
@@ -1025,9 +1057,6 @@ app.post("/api/clips/:id/save", authMiddleware, async (c) => {
     return c.json({ saved: true });
   }
 });
-
-// Delete own clip (uploader only)
-app.delete("/api/clips/:id", authMiddleware, deleteOwnClip);
 
 // Get comments for a clip (optimized with pagination)
 app.get("/api/clips/:id/comments", async (c) => {
@@ -1248,6 +1277,7 @@ app.get("/api/users/:userId", async (c) => {
   // Get user's clips
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1280,7 +1310,7 @@ app.get("/api/users/:userId", async (c) => {
 
   return c.json({
     profile,
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     stats: {
       totalClips: clips.results?.length || 0,
       totalLikes,
@@ -1301,6 +1331,7 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
 
   const savedClips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1313,7 +1344,9 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
     .bind(mochaUser.id)
     .all();
 
-  return c.json({ clips: savedClips.results || [] });
+  return c.json({
+    clips: normalizeClipApiRows((savedClips.results || []) as Record<string, unknown>[]),
+  });
 });
 
 // Get user's notifications (optimized with limit on unread)
@@ -1395,6 +1428,7 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
   
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar,
@@ -1420,7 +1454,9 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
   // Cache search results briefly
   c.header('Cache-Control', 'public, max-age=60');
 
-  return c.json({ clips: clips.results || [] });
+  return c.json({
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
+  });
 });
 
 // Advanced search with filters
@@ -1467,6 +1503,7 @@ app.get("/api/artists/:artistName", async (c) => {
   // Get clips for this artist
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1496,7 +1533,7 @@ app.get("/api/artists/:artistName", async (c) => {
 
   return c.json({
     artist,
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     tourDates: tourDates.results || [],
   });
 });
@@ -1609,6 +1646,7 @@ app.get("/api/venues/:venueName", async (c) => {
   // Get clips for this venue
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1638,7 +1676,7 @@ app.get("/api/venues/:venueName", async (c) => {
 
   return c.json({
     venue,
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     upcomingEvents: upcomingEvents.results || [],
   });
 });
@@ -1792,8 +1830,9 @@ app.get("/api/live/current", async (c) => {
   // Get current clip if session is live
   let currentClip = null;
   if (session.status === 'live' && session.current_clip_id) {
-    currentClip = await c.env.DB.prepare(
+    const rawClip = await c.env.DB.prepare(
       `SELECT 
+        clips.rowid AS _clipRowId,
         clips.*,
         user_profiles.display_name as user_display_name,
         user_profiles.profile_image_url as user_avatar
@@ -1803,6 +1842,10 @@ app.get("/api/live/current", async (c) => {
     )
       .bind(session.current_clip_id)
       .first();
+    if (rawClip) {
+      const [n] = normalizeClipApiRows([rawClip as Record<string, unknown>]);
+      currentClip = n;
+    }
   }
 
   // Count active viewers (those with heartbeat in last 30 seconds)
@@ -2779,6 +2822,7 @@ app.get("/api/admin/analytics", authMiddleware, async (c) => {
   // Top Clips by engagement
   const topClips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name
     FROM clips
@@ -2819,7 +2863,7 @@ app.get("/api/admin/analytics", authMiddleware, async (c) => {
       totalSessions: totalSessions?.count || 0,
     },
     growthData: growthData.results || [],
-    topClips: topClips.results || [],
+    topClips: normalizeClipApiRows((topClips.results || []) as Record<string, unknown>[]),
     topUsers: topUsers.results || [],
   });
 });
