@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 
 interface Clip {
   id: number;
+  mocha_user_id?: string;
   artist_name: string;
   venue_name: string;
   location: string;
@@ -85,6 +86,6 @@ export function usePersonalizedFeed() {
     personalized,
     hasMore,
     loadMore,
-    refresh
+    refresh,
   };
 }

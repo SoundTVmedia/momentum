@@ -9,6 +9,7 @@ import VerificationRequest from '@/react-app/components/VerificationRequest';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
 import type { ClipWithUser, UserProfile } from '@/shared/types';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 interface UserStats {
   totalClips: number;
@@ -360,9 +361,9 @@ export default function UserProfilePage() {
 
                   {favoriteArtist.clips.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {favoriteArtist.clips.slice(0, 3).map((clip) => (
+                      {favoriteArtist.clips.slice(0, 3).map((clip, index) => (
                         <div
-                          key={clip.id}
+                          key={clipListItemKey(clip, index)}
                           onClick={() => setSelectedClip(clip)}
                           className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-lg overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
                         >
@@ -412,9 +413,9 @@ export default function UserProfilePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clips.map((clip) => (
+            {clips.map((clip, index) => (
               <div
-                key={clip.id}
+                key={clipListItemKey(clip, index)}
                 onClick={() => setSelectedClip(clip)}
                 className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl overflow-hidden hover:border-cyan-400/50 transition-all cursor-pointer group"
               >

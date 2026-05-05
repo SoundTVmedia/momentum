@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Eye, Heart, Video, BarChart3 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 interface UserAnalyticsData {
   followers: number;
@@ -207,7 +208,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           <h3 className="text-xl font-bold text-white mb-4">Top Performing Clips</h3>
           <div className="space-y-4">
             {data.topClips.map((clip, index) => (
-              <div key={clip.id} className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
+              <div key={clipListItemKey(clip, index)} className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
                 <div className="flex-shrink-0 w-8 h-8 bg-cyan-500/20 rounded-full flex items-center justify-center">
                   <span className="text-cyan-400 font-bold text-sm">#{index + 1}</span>
                 </div>

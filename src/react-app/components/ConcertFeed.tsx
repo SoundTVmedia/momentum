@@ -8,6 +8,7 @@ import ClipModal from './ClipModal'
 import { ClipCardSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
+import { clipListItemKey } from '@/react-app/lib/clip-list-key'
 
 interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
@@ -163,9 +164,9 @@ export default function ConcertFeed({
               <ClipCardSkeleton />
             </>
           ) : (
-            clips.map((clip) => (
+            clips.map((clip, index) => (
             <div 
-              key={clip.id}
+              key={clipListItemKey(clip, index)}
               className="video-card bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 p-0 hover:border-purple-500/50 transition-all group"
             >
               {/* Video Thumbnail - Full Width */}
@@ -368,6 +369,7 @@ export default function ConcertFeed({
           onClose={() => setSelectedClip(null)} 
         />
       )}
+
     </section>
   )
 }

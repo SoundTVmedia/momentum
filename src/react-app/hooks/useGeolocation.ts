@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 interface GeolocationData {
   latitude: number;
@@ -12,6 +12,23 @@ export function useGeolocation() {
   const [location, setLocation] = useState<GeolocationData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** Raw browser position (no reverse geocode). Used by onboarding / settings. */
+  const getCurrentPosition = useCallback(
+    () =>
+      new Promise<GeolocationPosition>((resolve, reject) => {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+          reject(new Error('Geolocation is not supported'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0,
+        });
+      }),
+    []
+  );
 
   const requestLocation = async () => {
     setLoading(true);
@@ -70,5 +87,6 @@ export function useGeolocation() {
     loading,
     error,
     requestLocation,
+    getCurrentPosition,
   };
 }

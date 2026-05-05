@@ -1,0 +1,68 @@
+# =============================================================================
+# Local Docker stack for Momentum (handoff / non-DevContainer workflow)
+# =============================================================================
+#
+# Prerequisites: Docker Engine 20.10+ and Docker Compose v2 (`docker compose`).
+#
+# Start:
+#   docker compose -f docker-compose.local.yml up -d
+#
+# Stop (keeps data volumes):
+#   docker compose -f docker-compose.local.yml down
+#
+# Stop and remove DB + pgAdmin data:
+#   docker compose -f docker-compose.local.yml down -v
+#
+# Services:
+#   - Postgres: localhost:5432  (DB: momentum, user/pass: postgres/postgres)
+#   - pgAdmin:  http://localhost:5050
+#     Default login: pgadmin@example.com / devpassword (override via env vars).
+#     Do not use *.local addresses — pgAdmin rejects RFC reserved/special-use domains.
+#
+# pgAdmin → register server:
+#   Host: postgres   Port: 5432   Username: postgres   Password: postgres
+#   Maintenance DB: momentum
+#
+# App env (host or container): point DATABASE_URL at Postgres, e.g.
+#   postgresql://postgres:postgres@localhost:5432/momentum
+#
+# Note: Cloudflare Worker / Miniflare dev on macOS < 13.5 is unsupported;
+# use the repo DevContainer (Linux) or upgrade macOS for full Vite+Worker local dev.
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: momentum
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - momentum_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d momentum"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-devpassword}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - momentum_pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  momentum_postgres_data:
+  momentum_pgadmin_data:

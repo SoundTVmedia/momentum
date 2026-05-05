@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import { purgeClipFromDatabase } from './clip-delete-utils';
 
 // Report/flag a clip
 export async function reportClip(c: Context) {
@@ -185,15 +186,12 @@ export async function deleteClip(c: Context) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
-  const clipId = c.req.param('clipId');
+  const clipId = Number.parseInt(c.req.param('clipId'), 10);
+  if (Number.isNaN(clipId)) {
+    return c.json({ error: 'Invalid clip id' }, 400);
+  }
 
-  // Delete associated data
-  await c.env.DB.prepare("DELETE FROM clip_likes WHERE clip_id = ?").bind(clipId).run();
-  await c.env.DB.prepare("DELETE FROM comments WHERE clip_id = ?").bind(clipId).run();
-  await c.env.DB.prepare("DELETE FROM saved_clips WHERE clip_id = ?").bind(clipId).run();
-  await c.env.DB.prepare("DELETE FROM clip_flags WHERE clip_id = ?").bind(clipId).run();
-  await c.env.DB.prepare("DELETE FROM live_session_clips WHERE clip_id = ?").bind(clipId).run();
-  await c.env.DB.prepare("DELETE FROM clips WHERE id = ?").bind(clipId).run();
+  await purgeClipFromDatabase(c.env.DB, clipId);
 
   return c.json({ success: true });
 }

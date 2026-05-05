@@ -1,6 +1,6 @@
 
 CREATE TABLE venues (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   location TEXT,
   address TEXT,

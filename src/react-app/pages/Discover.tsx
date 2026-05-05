@@ -6,6 +6,7 @@ import ClipModal from '@/react-app/components/ClipModal';
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
 import type { ClipWithUser } from '@/shared/types';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 interface SearchResults {
   clips: ClipWithUser[];
@@ -214,9 +215,9 @@ export default function DiscoverPage() {
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {results.clips.map((clip) => (
+                  {results.clips.map((clip, index) => (
                     <div
-                      key={clip.id}
+                      key={clipListItemKey(clip, index)}
                       onClick={() => setSelectedClip(clip)}
                       className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl overflow-hidden hover:border-cyan-400/50 transition-all cursor-pointer group"
                     >
@@ -394,9 +395,9 @@ export default function DiscoverPage() {
                   <div>
                     <h3 className="text-2xl font-bold text-white mb-6">🔥 Trending Clips</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {trendingContent.clips.map((clip) => (
+                      {trendingContent.clips.map((clip, index) => (
                         <div
-                          key={clip.id}
+                          key={clipListItemKey(clip, index)}
                           onClick={() => setSelectedClip(clip)}
                           className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl overflow-hidden hover:border-orange-400/50 transition-all cursor-pointer group"
                         >

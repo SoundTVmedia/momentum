@@ -1,7 +1,7 @@
 
 -- Create user_favorite_artists table
 CREATE TABLE user_favorite_artists (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   artist_id INTEGER NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

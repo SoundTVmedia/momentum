@@ -1,11 +1,11 @@
 
 CREATE TABLE artists (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   bio TEXT,
   image_url TEXT,
   social_links TEXT,
-  is_verified BOOLEAN DEFAULT 0,
+  is_verified BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,4 +1,8 @@
 node_modules/
+.npm-cache
 .wrangler/
+.cursor/
+dist/
+.dev.vars
 .DS_Store
 npm-debug.log*

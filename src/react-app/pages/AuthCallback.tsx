@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Loader2 } from 'lucide-react';
 
+async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const data = (await response.json()) as { error?: string };
+    return data.error || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function AuthCallback() {
   const navigate = useNavigate();
   const { exchangeCodeForSessionToken } = useAuth();
@@ -12,18 +21,28 @@ export default function AuthCallback() {
     const handleCallback = async () => {
       try {
         await exchangeCodeForSessionToken();
-        
-        // Check if user has a profile
-        const response = await fetch('/api/users/me');
+        window.history.replaceState({}, document.title, '/auth/callback');
+
+        const response = await fetch('/api/users/me', { credentials: 'include' });
+        if (!response.ok) {
+          const msg = await readErrorMessage(
+            response,
+            'Signed in but could not load your account. Try again.'
+          );
+          setError(msg);
+          return;
+        }
+
         const userData = await response.json();
-        
+
         if (userData.profile) {
-          navigate('/dashboard');
+          navigate('/dashboard', { replace: true });
         } else {
-          navigate('/onboarding');
+          navigate('/onboarding', { replace: true });
         }
       } catch (err) {
         console.error('Auth callback error:', err);
+        window.history.replaceState({}, document.title, '/auth/callback');
         setError('Authentication failed. Please try again.');
       }
     };
@@ -33,14 +52,15 @@ export default function AuthCallback() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-black flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
           <p className="text-red-400 mb-4">{error}</p>
           <button
-            onClick={() => navigate('/')}
+            type="button"
+            onClick={() => navigate('/auth', { replace: true })}
             className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
           >
-            Return Home
+            Back to sign in
           </button>
         </div>
       </div>

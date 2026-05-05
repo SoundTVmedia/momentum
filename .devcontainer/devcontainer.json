@@ -1,0 +1,36 @@
+{
+  "name": "momentum-devcontainer",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [5173, 8787, 5432, 5050],
+  "portsAttributes": {
+    "5173": {
+      "label": "Vite (app UI)"
+    },
+    "8787": {
+      "label": "Wrangler dev (if run separately)"
+    },
+    "5432": {
+      "label": "Postgres (optional / pgAdmin)"
+    },
+    "5050": {
+      "label": "pgAdmin"
+    }
+  },
+  "postCreateCommand": "bash -lc 'cd /workspace && npm install && npx wrangler d1 migrations apply momentum-db --local && npm run build'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "remoteEnv": {
+    "DATABASE_URL": "postgresql://postgres:postgres@postgres:5432/momentum",
+    "ENABLE_CLOUDFLARE_VITE": "1"
+  }
+}

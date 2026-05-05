@@ -5,6 +5,7 @@ import { Bookmark, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 export default function SavedClips() {
   const navigate = useNavigate();
@@ -79,9 +80,9 @@ export default function SavedClips() {
           </div>
         ) : (
           <div className="space-y-6">
-            {clips.map((clip) => (
+            {clips.map((clip, index) => (
               <div 
-                key={clip.id}
+                key={clipListItemKey(clip, index)}
                 onClick={() => setSelectedClip(clip)}
                 className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all cursor-pointer group"
               >

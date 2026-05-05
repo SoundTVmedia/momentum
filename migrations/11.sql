@@ -1,12 +1,11 @@
-
 CREATE TABLE live_session_clips (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   live_session_id INTEGER NOT NULL,
   clip_id INTEGER NOT NULL,
   order_index INTEGER NOT NULL,
-  scheduled_start_time DATETIME,
+  scheduled_start_time TIMESTAMP,
   duration INTEGER,
-  played_at DATETIME,
+  played_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

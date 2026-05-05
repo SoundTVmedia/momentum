@@ -61,13 +61,13 @@ const popularArtists = [
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isPending } = useAuth();
   const { getCurrentPosition } = useGeolocation();
   
   const [selectedRole, setSelectedRole] = useState<UserRole>('fan');
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
-    displayName: user?.google_user_data.name || '',
+    displayName: '',
     bio: '',
     location: '',
     city: '',
@@ -83,6 +83,29 @@ export default function Onboarding() {
   const [locationRadius, setLocationRadius] = useState(50);
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isPending && !user) {
+      navigate('/auth');
+    }
+  }, [user, isPending, navigate]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+    const fromOAuth =
+      user.google_user_data?.name?.trim() ||
+      user.email?.split('@')[0] ||
+      '';
+    if (fromOAuth) {
+      setFormData((prev) => ({
+        ...prev,
+        displayName: prev.displayName || fromOAuth,
+      }));
+    }
+  }, [user]);
 
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
@@ -111,17 +134,28 @@ export default function Onboarding() {
     setLoadingLocation(true);
     try {
       const position = await getCurrentPosition();
-      
-      // Reverse geocode to get location name
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
       const response = await fetch(
-        `/api/google-maps/reverse-geocode?lat=${position.coords.latitude}&lng=${position.coords.longitude}`
+        `/api/maps/reverse-geocode?lat=${lat}&lng=${lng}`,
+        { credentials: 'include' }
       );
-      
+
       if (response.ok) {
-        const data = await response.json();
-        setHomeLocation(data.formatted_address || 'Current Location');
-        setHomeLatitude(position.coords.latitude);
-        setHomeLongitude(position.coords.longitude);
+        const data = (await response.json()) as {
+          formattedAddress?: string | null;
+        };
+        setHomeLocation(
+          data.formattedAddress?.trim() ||
+            `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+        );
+        setHomeLatitude(lat);
+        setHomeLongitude(lng);
+      } else if (response.status === 503) {
+        setHomeLocation('Current location');
+        setHomeLatitude(lat);
+        setHomeLongitude(lng);
       }
     } catch (error) {
       console.error('Failed to get location:', error);
@@ -131,16 +165,23 @@ export default function Onboarding() {
   };
 
   const handleSubmit = async () => {
+    setSubmitError(null);
+    const displayName = formData.displayName.trim();
+    if (!displayName) {
+      setSubmitError('Please enter a display name.');
+      return;
+    }
+
     setSubmitting(true);
-    
+
     try {
-      // Create profile
-      await fetch('/api/users/profile', {
+      const profileRes = await fetch('/api/users/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           role: selectedRole,
-          display_name: formData.displayName,
+          display_name: displayName,
           bio: formData.bio,
           location: formData.location,
           city: formData.city,
@@ -148,10 +189,24 @@ export default function Onboarding() {
         }),
       });
 
-      // Save personalization settings
-      await fetch('/api/personalization/update', {
+      if (!profileRes.ok) {
+        let msg = 'Could not save your profile.';
+        try {
+          const errBody = (await profileRes.json()) as { error?: string };
+          if (errBody.error) {
+            msg = errBody.error;
+          }
+        } catch {
+          /* use default */
+        }
+        setSubmitError(msg);
+        return;
+      }
+
+      const personalizationRes = await fetch('/api/personalization/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           favorite_artists: favoriteArtists,
           home_location: homeLocation,
@@ -162,9 +217,24 @@ export default function Onboarding() {
         }),
       });
 
-      navigate('/dashboard');
+      if (!personalizationRes.ok) {
+        let msg = 'Profile saved, but personalization settings failed.';
+        try {
+          const errBody = (await personalizationRes.json()) as { error?: string };
+          if (errBody.error) {
+            msg = errBody.error;
+          }
+        } catch {
+          /* use default */
+        }
+        setSubmitError(msg);
+        return;
+      }
+
+      navigate('/dashboard', { replace: true });
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
+      setSubmitError('Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -173,6 +243,17 @@ export default function Onboarding() {
   const filteredArtists = popularArtists.filter(artist =>
     artist.toLowerCase().includes(artistSearch.toLowerCase())
   );
+
+  if (isPending || !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <p className="text-white text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black">
@@ -470,6 +551,12 @@ export default function Onboarding() {
                 </p>
               </div>
             </div>
+
+            {submitError && (
+              <div className="mt-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm text-center">
+                {submitError}
+              </div>
+            )}
 
             <div className="flex justify-center space-x-4 mt-8">
               <button

@@ -1,7 +1,7 @@
 
 -- Create user_favorite_clips_by_artist table
 CREATE TABLE user_favorite_clips_by_artist (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   artist_id INTEGER NOT NULL,
   clip_id INTEGER NOT NULL,

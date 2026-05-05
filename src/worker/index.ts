@@ -1,11 +1,17 @@
 import { Hono } from "hono";
 import {
   exchangeCodeForSessionToken,
-  getOAuthRedirectUrl,
-  authMiddleware,
   deleteSession,
   MOCHA_SESSION_TOKEN_COOKIE_NAME,
+  DEFAULT_MOCHA_USERS_SERVICE_API_URL,
 } from "@getmocha/users-service/backend";
+import {
+  authMiddleware,
+  EMAIL_SESSION_COOKIE_NAME,
+  clearEmailSessionCookie,
+  revokeEmailSession,
+  isLocalDevHost,
+} from "./hybrid-auth";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
@@ -34,6 +40,13 @@ import * as personalization from "./personalization-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { PerformanceMonitor } from "./performance-utils";
 import { handleResumableUpload } from "./resumable-upload-endpoints";
+import {
+  deleteOwnClip,
+  deleteOwnClipByBody,
+  updateOwnClipByBody,
+  getMyClipsFeed,
+} from "./clip-endpoints";
+import { normalizeClipApiRows } from "./clip-row-normalize";
 export { RealtimeDurableObject } from "./realtime-durable-object";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -48,14 +61,65 @@ app.use('*', async (c, next) => {
   monitor.setHeaders(c);
 });
 
-// OAuth redirect URL
-app.get('/api/oauth/google/redirect_url', async (c) => {
-  const redirectUrl = await getOAuthRedirectUrl('google', {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
+const ALLOWED_OAUTH_PROVIDERS = new Set(['google', 'spotify']);
+
+// OAuth redirect URL (Google, Spotify — proxied to Mocha Users Service when enabled there)
+app.get('/api/oauth/:provider/redirect_url', async (c) => {
+  const provider = c.req.param('provider');
+  if (!ALLOWED_OAUTH_PROVIDERS.has(provider)) {
+    return c.json({ error: 'Unsupported OAuth provider' }, 400);
+  }
+
+  const apiKey = c.env.MOCHA_USERS_SERVICE_API_KEY;
+  if (typeof apiKey !== 'string' || apiKey.trim() === '') {
+    return c.json(
+      {
+        error:
+          'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars (local) or Worker secrets (Cloudflare).',
+      },
+      503
+    );
+  }
+
+  const apiUrl =
+    c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL;
+
+  const redirectBase =
+    c.req.query('redirect_base')?.trim() ||
+    (typeof c.env.MOCHA_OAUTH_REDIRECT_ORIGIN === 'string'
+      ? c.env.MOCHA_OAUTH_REDIRECT_ORIGIN.trim()
+      : '');
+  const mochaParams = new URLSearchParams();
+  if (redirectBase.length > 0) {
+    mochaParams.set('redirect_base', redirectBase);
+  }
+  const qs = mochaParams.toString();
+  const mochaRedirectUrl = `${apiUrl}/oauth/${provider}/redirect_url${qs ? `?${qs}` : ''}`;
+
+  const response = await fetch(mochaRedirectUrl, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+    },
   });
 
-  return c.json({ redirectUrl }, 200);
+  if (!response.ok) {
+    const errBody = await response.text();
+    console.error('Mocha OAuth redirect error', provider, response.status, errBody);
+    return c.json(
+      {
+        error:
+          provider === 'spotify'
+            ? 'Spotify sign-in is not available. Try Google or email, enable Spotify in your Mocha project, and allow this app origin as a redirect URL.'
+            : 'Could not start Google sign-in. Check Mocha API URL and key, and register this app origin /auth/callback in your Mocha app settings.',
+      },
+      502
+    );
+  }
+
+  const data = (await response.json()) as { redirect_url: string };
+  return c.json({ redirectUrl: data.redirect_url }, 200);
 });
 
 // Exchange code for session token
@@ -66,16 +130,40 @@ app.post("/api/sessions", async (c) => {
     return c.json({ error: "No authorization code provided" }, 400);
   }
 
-  const sessionToken = await exchangeCodeForSessionToken(body.code, {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
+  const apiKey = c.env.MOCHA_USERS_SERVICE_API_KEY;
+  if (typeof apiKey !== 'string' || apiKey.trim() === '') {
+    return c.json(
+      {
+        error:
+          'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars or Worker secrets.',
+      },
+      503
+    );
+  }
 
+  let sessionToken: string;
+  try {
+    sessionToken = await exchangeCodeForSessionToken(body.code, {
+      apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
+      apiKey,
+    });
+  } catch (e) {
+    console.error('exchangeCodeForSessionToken:', e);
+    return c.json(
+      {
+        error:
+          'Could not exchange OAuth code. Confirm Mocha credentials and that this deployment URL is allowed for OAuth return.',
+      },
+      502
+    );
+  }
+
+  const local = isLocalDevHost(c);
   setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: true,
+    sameSite: local ? "lax" : "none",
+    secure: !local,
     maxAge: 30 * 24 * 60 * 60, // 30 days
   });
 
@@ -114,19 +202,45 @@ app.get('/api/logout', async (c) => {
     });
   }
 
+  const localLogout = isLocalDevHost(c);
   setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, '', {
     httpOnly: true,
     path: '/',
-    sameSite: 'none',
-    secure: true,
+    sameSite: localLogout ? 'lax' : 'none',
+    secure: !localLogout,
     maxAge: 0,
   });
+
+  const emailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
+  if (typeof emailToken === 'string' && emailToken.length > 0) {
+    await revokeEmailSession(c.env.DB, emailToken);
+  }
+  clearEmailSessionCookie(c);
 
   return c.json({ success: true }, 200);
 });
 
-// Email/Password Authentication Endpoint
-app.post("/api/auth/signin", authEndpoints.emailPasswordSignIn);
+// Email/password registration and sign-in
+app.post(
+  "/api/auth/signup",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.emailSignUp
+);
+app.post(
+  "/api/auth/signin",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.emailPasswordSignIn
+);
+app.post(
+  "/api/auth/forgot-password",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.requestPasswordReset
+);
+app.post(
+  "/api/auth/reset-password",
+  rateLimiter(RateLimits.AUTH),
+  authEndpoints.confirmPasswordReset
+);
 
 // Device Token Endpoints for "Remember Me" functionality
 app.post("/api/auth/create-device-token", authMiddleware, deviceToken.createDeviceToken);
@@ -318,71 +432,99 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
   if (!mochaUser) {
     return c.json({ error: "Unauthorized" }, 401);
   }
-  
-  const body = await c.req.json();
 
-  const { role, display_name, bio, location, profile_image_url, cover_image_url, city, genres, social_links } = body;
+  const nullIfUndef = (v: unknown) => (v === undefined ? null : v);
 
-  // Check if profile exists
-  const existingProfile = await c.env.DB.prepare(
-    "SELECT id FROM user_profiles WHERE mocha_user_id = ?"
-  )
-    .bind(mochaUser.id)
-    .first();
+  try {
+    const body = await c.req.json();
 
-  if (existingProfile) {
-    // Update existing profile
-    await c.env.DB.prepare(
-      `UPDATE user_profiles 
+    const {
+      role,
+      display_name,
+      bio,
+      location,
+      profile_image_url,
+      cover_image_url,
+      city,
+      genres,
+      social_links,
+    } = body;
+
+    const roleVal =
+      typeof role === "string" && role.trim() !== "" ? role : "fan";
+    const genresJson = JSON.stringify(Array.isArray(genres) ? genres : []);
+    const socialJson = JSON.stringify(
+      social_links !== undefined &&
+        social_links !== null &&
+        typeof social_links === "object"
+        ? social_links
+        : {}
+    );
+
+    // Check if profile exists
+    const existingProfile = await c.env.DB.prepare(
+      "SELECT id FROM user_profiles WHERE mocha_user_id = ?"
+    )
+      .bind(mochaUser.id)
+      .first();
+
+    if (existingProfile) {
+      // Update existing profile
+      await c.env.DB.prepare(
+        `UPDATE user_profiles 
        SET role = ?, display_name = ?, bio = ?, location = ?, 
            profile_image_url = ?, cover_image_url = ?, city = ?, 
            genres = ?, social_links = ?, updated_at = CURRENT_TIMESTAMP
        WHERE mocha_user_id = ?`
-    )
-      .bind(
-        role,
-        display_name,
-        bio,
-        location,
-        profile_image_url,
-        cover_image_url,
-        city,
-        JSON.stringify(genres || []),
-        JSON.stringify(social_links || {}),
-        mochaUser.id
       )
-      .run();
-  } else {
-    // Create new profile
-    await c.env.DB.prepare(
-      `INSERT INTO user_profiles 
+        .bind(
+          roleVal,
+          nullIfUndef(display_name),
+          nullIfUndef(bio),
+          nullIfUndef(location),
+          nullIfUndef(profile_image_url),
+          nullIfUndef(cover_image_url),
+          nullIfUndef(city),
+          genresJson,
+          socialJson,
+          mochaUser.id
+        )
+        .run();
+    } else {
+      // Create new profile
+      await c.env.DB.prepare(
+        `INSERT INTO user_profiles 
        (mocha_user_id, role, display_name, bio, location, profile_image_url, 
         cover_image_url, city, genres, social_links, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    )
-      .bind(
-        mochaUser.id,
-        role || 'fan',
-        display_name,
-        bio,
-        location,
-        profile_image_url,
-        cover_image_url,
-        city,
-        JSON.stringify(genres || []),
-        JSON.stringify(social_links || {})
       )
-      .run();
+        .bind(
+          mochaUser.id,
+          roleVal,
+          nullIfUndef(display_name),
+          nullIfUndef(bio),
+          nullIfUndef(location),
+          nullIfUndef(profile_image_url),
+          nullIfUndef(cover_image_url),
+          nullIfUndef(city),
+          genresJson,
+          socialJson
+        )
+        .run();
+    }
+
+    // Fetch updated profile
+    const updatedProfile = await c.env.DB.prepare(
+      "SELECT * FROM user_profiles WHERE mocha_user_id = ?"
+    )
+      .bind(mochaUser.id)
+      .first();
+
+    return c.json(updatedProfile);
+  } catch (e) {
+    console.error("POST /api/users/profile:", e);
+    return c.json({ error: "Could not save profile" }, 500);
   }
-
-  // Fetch updated profile
-  const updatedProfile = await c.env.DB.prepare(
-    "SELECT * FROM user_profiles WHERE mocha_user_id = ?"
-  )
-    .bind(mochaUser.id)
-    .first();
-
-  return c.json(updatedProfile);
 });
 
 // Resumable upload endpoint for large files
@@ -562,8 +704,17 @@ app.post("/api/clips", authMiddleware, async (c) => {
     )
     .run();
 
+  // Some local schemas have nullable `clips.id`; ensure canonical numeric id is present.
+  await c.env.DB.prepare(
+    `UPDATE clips
+     SET id = COALESCE(id, ?)
+     WHERE rowid = ?`
+  )
+    .bind(result.meta.last_row_id, result.meta.last_row_id)
+    .run();
+
   const newClip = await c.env.DB.prepare(
-    "SELECT * FROM clips WHERE id = ?"
+    "SELECT * FROM clips WHERE rowid = ?"
   )
     .bind(result.meta.last_row_id)
     .first();
@@ -603,6 +754,12 @@ app.post("/api/clips", authMiddleware, async (c) => {
   return c.json(newClip, 201);
 });
 
+// Delete own clip (uploader only) — register before GET /api/clips/:id so :clipId is not shadowed
+app.delete("/api/clips/:clipId", authMiddleware, deleteOwnClip);
+app.post("/api/clips/delete-own", authMiddleware, deleteOwnClipByBody);
+app.post("/api/clips/update-own", authMiddleware, updateOwnClipByBody);
+app.get("/api/me/clips", authMiddleware, getMyClipsFeed);
+
 // Get clips feed (optimized with caching headers)
 app.get("/api/clips", async (c) => {
   const page = parseInt(c.req.query('page') || '1');
@@ -617,6 +774,8 @@ app.get("/api/clips", async (c) => {
   
   let query = `
     SELECT 
+      clips.rowid AS _clipRowId,
+      clips.id AS clip_primary_id,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar,
@@ -678,11 +837,18 @@ app.get("/api/clips", async (c) => {
     .bind(...bindings)
     .all();
 
-  // Add cache headers for better performance
-  c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  // User-scoped or filtered feeds must not be cached publicly — stale JSON causes "My clips"
+  // to show rows that no longer exist locally, so delete/update then return 404 Clip not found.
+  const scopedFeed = Boolean(userId || since || artistName || venueName);
+  if (scopedFeed) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+    c.header('Pragma', 'no-cache');
+  } else {
+    c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  }
 
   return c.json({
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     page,
     limit,
     hasMore: (clips.results || []).length === limit
@@ -695,6 +861,7 @@ app.get("/api/clips/:id", async (c) => {
   
   const clip = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -716,7 +883,8 @@ app.get("/api/clips/:id", async (c) => {
     .bind(clipId)
     .run();
 
-  return c.json(clip);
+  const [normalizedClip] = normalizeClipApiRows([clip as Record<string, unknown>]);
+  return c.json(normalizedClip);
 });
 
 // Like a clip
@@ -1109,6 +1277,7 @@ app.get("/api/users/:userId", async (c) => {
   // Get user's clips
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1141,7 +1310,7 @@ app.get("/api/users/:userId", async (c) => {
 
   return c.json({
     profile,
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     stats: {
       totalClips: clips.results?.length || 0,
       totalLikes,
@@ -1162,6 +1331,7 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
 
   const savedClips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1174,7 +1344,9 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
     .bind(mochaUser.id)
     .all();
 
-  return c.json({ clips: savedClips.results || [] });
+  return c.json({
+    clips: normalizeClipApiRows((savedClips.results || []) as Record<string, unknown>[]),
+  });
 });
 
 // Get user's notifications (optimized with limit on unread)
@@ -1256,6 +1428,7 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
   
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar,
@@ -1281,7 +1454,9 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
   // Cache search results briefly
   c.header('Cache-Control', 'public, max-age=60');
 
-  return c.json({ clips: clips.results || [] });
+  return c.json({
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
+  });
 });
 
 // Advanced search with filters
@@ -1328,6 +1503,7 @@ app.get("/api/artists/:artistName", async (c) => {
   // Get clips for this artist
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1357,7 +1533,7 @@ app.get("/api/artists/:artistName", async (c) => {
 
   return c.json({
     artist,
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     tourDates: tourDates.results || [],
   });
 });
@@ -1470,6 +1646,7 @@ app.get("/api/venues/:venueName", async (c) => {
   // Get clips for this venue
   const clips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
@@ -1499,7 +1676,7 @@ app.get("/api/venues/:venueName", async (c) => {
 
   return c.json({
     venue,
-    clips: clips.results || [],
+    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     upcomingEvents: upcomingEvents.results || [],
   });
 });
@@ -1653,8 +1830,9 @@ app.get("/api/live/current", async (c) => {
   // Get current clip if session is live
   let currentClip = null;
   if (session.status === 'live' && session.current_clip_id) {
-    currentClip = await c.env.DB.prepare(
+    const rawClip = await c.env.DB.prepare(
       `SELECT 
+        clips.rowid AS _clipRowId,
         clips.*,
         user_profiles.display_name as user_display_name,
         user_profiles.profile_image_url as user_avatar
@@ -1664,6 +1842,10 @@ app.get("/api/live/current", async (c) => {
     )
       .bind(session.current_clip_id)
       .first();
+    if (rawClip) {
+      const [n] = normalizeClipApiRows([rawClip as Record<string, unknown>]);
+      currentClip = n;
+    }
   }
 
   // Count active viewers (those with heartbeat in last 30 seconds)
@@ -2640,6 +2822,7 @@ app.get("/api/admin/analytics", authMiddleware, async (c) => {
   // Top Clips by engagement
   const topClips = await c.env.DB.prepare(
     `SELECT 
+      clips.rowid AS _clipRowId,
       clips.*,
       user_profiles.display_name as user_display_name
     FROM clips
@@ -2680,7 +2863,7 @@ app.get("/api/admin/analytics", authMiddleware, async (c) => {
       totalSessions: totalSessions?.count || 0,
     },
     growthData: growthData.results || [],
-    topClips: topClips.results || [],
+    topClips: normalizeClipApiRows((topClips.results || []) as Record<string, unknown>[]),
     topUsers: topUsers.results || [],
   });
 });

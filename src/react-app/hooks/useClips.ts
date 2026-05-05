@@ -6,6 +6,8 @@ interface UseClipsOptions {
   artistName?: string
   venueName?: string
   userId?: string
+  /** When true, uses GET /api/me/clips (session user) so list ids always match delete/update. */
+  mine?: boolean
   limit?: number
   enablePolling?: boolean
 }
@@ -16,6 +18,7 @@ export function useClips(options: UseClipsOptions = {}) {
     artistName,
     venueName,
     userId,
+    mine = false,
     limit = 10,
     enablePolling = false,
   } = options
@@ -42,12 +45,14 @@ export function useClips(options: UseClipsOptions = {}) {
 
         if (artistName) params.append('artist_name', artistName)
         if (venueName) params.append('venue_name', venueName)
-        if (userId) params.append('user_id', userId)
+        if (!mine && userId) params.append('user_id', userId)
 
-        const response = await fetch(`/api/clips?${params}`, {
-          // Add cache headers for better performance
+        const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
+        const response = await fetch(listPath, {
+          credentials: 'include',
+          cache: 'no-store',
           headers: {
-            'Cache-Control': 'public, max-age=60',
+            'Cache-Control': 'no-cache',
           },
         })
         
@@ -76,7 +81,7 @@ export function useClips(options: UseClipsOptions = {}) {
         setLoading(false)
       }
     },
-    [feedType, artistName, venueName, userId, limit, loading]
+    [feedType, artistName, venueName, userId, mine, limit, loading]
   )
 
   const loadMore = useCallback(() => {
@@ -91,11 +96,35 @@ export function useClips(options: UseClipsOptions = {}) {
     fetchClips(1, false)
   }, [fetchClips])
 
+  const removeClip = useCallback((clipId: number) => {
+    setClips((prev) =>
+      prev.filter((c) => {
+        const id = typeof c.id === 'number' ? c.id : Number(c.id)
+        return !Number.isFinite(id) || id !== clipId
+      })
+    )
+  }, [])
+
+  const removeClipBy = useCallback((predicate: (clip: ClipWithUser) => boolean) => {
+    setClips((prev) => prev.filter((c) => !predicate(c)))
+  }, [])
+
+  const updateClip = useCallback((updated: ClipWithUser) => {
+    const uid = typeof updated.id === 'number' ? updated.id : Number(updated.id)
+    if (!Number.isFinite(uid)) return
+    setClips((prev) =>
+      prev.map((c) => {
+        const id = typeof c.id === 'number' ? c.id : Number(c.id)
+        return Number.isFinite(id) && id === uid ? ({ ...c, ...updated } as ClipWithUser) : c
+      })
+    )
+  }, [])
+
   // Initial load
   useEffect(() => {
     setPage(1)
     fetchClips(1, false)
-  }, [feedType, artistName, venueName, userId, limit])
+  }, [feedType, artistName, venueName, userId, mine, limit])
 
   // Polling for new clips
   useEffect(() => {
@@ -111,9 +140,13 @@ export function useClips(options: UseClipsOptions = {}) {
 
         if (artistName) params.append('artist_name', artistName)
         if (venueName) params.append('venue_name', venueName)
-        if (userId) params.append('user_id', userId)
+        if (!mine && userId) params.append('user_id', userId)
 
-        const response = await fetch(`/api/clips?${params}`)
+        const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
+        const response = await fetch(listPath, {
+          credentials: 'include',
+          cache: 'no-store',
+        })
         
         if (!response.ok) return
 
@@ -128,7 +161,7 @@ export function useClips(options: UseClipsOptions = {}) {
     }, 15000) // Poll every 15 seconds
 
     return () => clearInterval(interval)
-  }, [enablePolling, feedType, artistName, venueName, userId, clips, limit])
+  }, [enablePolling, feedType, artistName, venueName, userId, mine, clips, limit])
 
   return {
     clips,
@@ -138,5 +171,8 @@ export function useClips(options: UseClipsOptions = {}) {
     loadMore,
     refresh,
     refetch: refresh, // Alias for clarity in error handling
+    removeClip,
+    removeClipBy,
+    updateClip,
   }
 }

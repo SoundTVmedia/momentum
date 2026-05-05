@@ -1,7 +1,7 @@
 
 -- Points and gamification system
 CREATE TABLE user_points (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   points INTEGER DEFAULT 0,
   level INTEGER DEFAULT 1,
@@ -11,7 +11,7 @@ CREATE TABLE user_points (
 );
 
 CREATE TABLE point_transactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   points_amount INTEGER NOT NULL,
   reason TEXT NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE point_transactions (
 );
 
 CREATE TABLE badges (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
   description TEXT NOT NULL,
   icon_url TEXT,
@@ -32,7 +32,7 @@ CREATE TABLE badges (
 );
 
 CREATE TABLE user_badges (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   badge_id INTEGER NOT NULL,
   earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -41,18 +41,18 @@ CREATE TABLE user_badges (
 
 -- Live polls system
 CREATE TABLE live_polls (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   live_session_id INTEGER NOT NULL,
   question TEXT NOT NULL,
   options TEXT NOT NULL,
-  is_active BOOLEAN DEFAULT 1,
+  is_active BOOLEAN DEFAULT true,
   created_by TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP
 );
 
 CREATE TABLE live_poll_votes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   poll_id INTEGER NOT NULL,
   mocha_user_id TEXT,
   option_index INTEGER NOT NULL,

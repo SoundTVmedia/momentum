@@ -1,11 +1,10 @@
-
 CREATE TABLE clips (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   artist_name TEXT,
   venue_name TEXT,
   location TEXT,
-  timestamp DATETIME,
+  timestamp TIMESTAMP,
   content_description TEXT,
   video_url TEXT NOT NULL,
   thumbnail_url TEXT,
@@ -25,7 +24,7 @@ CREATE INDEX idx_clips_trending_score ON clips(is_trending_score DESC);
 CREATE INDEX idx_clips_created_at ON clips(created_at DESC);
 
 CREATE TABLE clip_likes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   clip_id INTEGER NOT NULL,
   mocha_user_id TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

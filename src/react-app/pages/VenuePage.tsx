@@ -6,6 +6,7 @@ import ClipModal from '@/react-app/components/ClipModal';
 import ShowArchive from '@/react-app/components/ShowArchive';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 interface Venue {
   id: number;
@@ -268,9 +269,9 @@ export default function VenuePage() {
               {displayedClips.length > 0 ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {displayedClips.map((clip) => (
+                    {displayedClips.map((clip, index) => (
                       <div
-                        key={clip.id}
+                        key={clipListItemKey(clip, index)}
                         className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all group cursor-pointer"
                         onClick={() => setSelectedClip(clip)}
                       >
@@ -374,9 +375,9 @@ export default function VenuePage() {
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {recentShow.clips.map((clip) => (
+                    {recentShow.clips.map((clip, index) => (
                       <button
-                        key={clip.id}
+                        key={clipListItemKey(clip, index)}
                         onClick={() => navigate(`/artists/${encodeURIComponent(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
                         className="relative aspect-video rounded-lg overflow-hidden group"
                       >

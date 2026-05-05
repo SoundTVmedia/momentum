@@ -1,13 +1,13 @@
 
 CREATE TABLE notifications (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   mocha_user_id TEXT NOT NULL,
   type TEXT NOT NULL,
   content TEXT NOT NULL,
   related_user_id TEXT,
   related_clip_id INTEGER,
   related_comment_id INTEGER,
-  is_read BOOLEAN DEFAULT 0,
+  is_read BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

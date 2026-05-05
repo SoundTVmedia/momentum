@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Star, Pin, Eye, Heart, MessageCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
+import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 export default function ArtistCurationPanel() {
   const { user } = useAuth();
@@ -96,12 +97,12 @@ export default function ArtistCurationPanel() {
         </div>
       ) : (
         <div className="space-y-4">
-          {clips.map((clip) => {
+          {clips.map((clip, index) => {
             const isPinned = pinnedClips.has(clip.id);
             
             return (
               <div
-                key={clip.id}
+                key={clipListItemKey(clip, index)}
                 className={`p-4 rounded-lg border transition-all ${
                   isPinned
                     ? 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30'

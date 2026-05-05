@@ -3,6 +3,8 @@
  * Handles WebSocket connections for live updates, chat, notifications, etc.
  */
 
+import { DurableObject } from "cloudflare:workers";
+
 interface Session {
   webSocket: WebSocket;
   userId: string | null;
@@ -16,11 +18,12 @@ interface BroadcastMessage {
   channel?: string;
 }
 
-export class RealtimeDurableObject {
+export class RealtimeDurableObject extends DurableObject {
   private sessions: Map<WebSocket, Session>;
   private channels: Map<string, Set<WebSocket>>;
 
-  constructor(_state: DurableObjectState, _env: Env) {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
     this.sessions = new Map();
     this.channels = new Map();
   }

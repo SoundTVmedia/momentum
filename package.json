@@ -8,26 +8,27 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.5.0",
-    "hono": "4.7.7",
+    "hono": "^4.12.15",
     "lucide-react": "^0.510.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-is": "19.0.0",
     "react-router": "^7.5.3",
     "recharts": "^3.4.1",
     "stripe": "^19.3.1",
     "zod": "^3.24.3"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.12.0",
+    "@cloudflare/vite-plugin": "^1.2.4",
     "@eslint/js": "9.25.1",
-    "@getmocha/vite-plugins": "latest",
     "@getmocha/users-service": "^0.0.4",
+    "@getmocha/vite-plugins": "latest",
     "@types/node": "22.14.1",
     "@types/react": "19.0.10",
     "@types/react-dom": "19.0.4",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.21",
-    "eslint": "9.25.1",
+    "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "5.2.0",
     "eslint-plugin-react-refresh": "0.4.19",
     "globals": "15.15.0",
@@ -36,7 +37,8 @@
     "typescript": "5.8.3",
     "typescript-eslint": "8.31.0",
     "vite": "^7.1.3",
-    "wrangler": "^4.33.0"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.87.0"
   },
   "scripts": {
     "build": "tsc -b && vite build",
@@ -44,6 +46,12 @@
     "check": "tsc && vite build && wrangler deploy --dry-run",
     "dev": "node scripts/dev.mjs",
     "dev:worker": "vite",
-    "lint": "eslint ."
+    "db:migrate:local": "wrangler d1 migrations apply momentum-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply momentum-db --remote",
+    "dev:api": "wrangler dev",
+    "dev:api:remote": "wrangler dev --remote",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   }
 }

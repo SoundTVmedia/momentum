@@ -6,6 +6,7 @@ import { useNotifications } from '@/react-app/hooks/useNotifications'
 import { useSearch } from '@/react-app/hooks/useSearch'
 import NotificationPanel from './NotificationPanel'
 import type { ExtendedMochaUser } from '@/shared/types'
+import { clipListItemKey } from '@/react-app/lib/clip-list-key'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -76,39 +77,43 @@ export default function Header() {
 
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
-            <button 
+            <button
+              type="button"
               onClick={() => navigate('/')}
               className="flex items-center space-x-2 text-white hover:text-blue-400 transition-colors font-medium"
             >
-              <Play className="w-4 h-4" />
-              <span>The Feed</span>
+              {/*<Play className="w-4 h-4" aria-hidden />*/}
+              Feed
             </button>
-            <button 
+            <button
+              type="button"
               onClick={() => navigate('/discover')}
               className="flex items-center space-x-2 text-white hover:text-purple-400 transition-colors font-medium"
             >
-              <Search className="w-4 h-4" />
-              <span>Discover Shows</span>
+               {/*<Search className="w-4 h-4" aria-hidden />*/}
+              Discover Shows
             </button>
-            {user && (
+            {/*{user && (
               <button
+                type="button"
                 onClick={() => navigate('/dashboard')}
                 className="flex items-center space-x-2 text-white hover:text-cyan-400 transition-colors font-medium"
               >
-                <User className="w-4 h-4" />
-                <span>Profile</span>
+                <User className="w-4 h-4" aria-hidden />
+                Profile
               </button>
-            )}
-            {extendedUser?.profile?.is_premium !== 1 && (
+            )}*/}
+            {/*{extendedUser?.profile?.is_premium !== 1 && (
               <button
+                type="button"
                 onClick={() => navigate('/premium')}
                 className="flex items-center space-x-2 text-yellow-400 hover:text-yellow-300 transition-colors font-medium"
                 title="Upgrade to Premium"
               >
-                <Crown className="w-4 h-4" />
-                <span>Premium</span>
+                <Crown className="w-4 h-4" aria-hidden />
+                Premium
               </button>
-            )}
+            )}*/}
           </nav>
 
           {/* Search & Profile */}
@@ -130,9 +135,9 @@ export default function Header() {
               {showSearchResults && results.length > 0 && (
                 <div className="absolute top-full mt-2 w-96 bg-black/95 backdrop-blur-lg border border-cyan-500/20 rounded-xl overflow-hidden z-50">
                   <div className="max-h-96 overflow-y-auto">
-                    {results.map((clip) => (
+                    {results.map((clip, index) => (
                       <button
-                        key={clip.id}
+                        key={clipListItemKey(clip, index)}
                         onClick={() => handleSearchResultClick(clip)}
                         className="w-full p-4 hover:bg-white/5 transition-colors text-left border-b border-white/10 last:border-b-0"
                       >

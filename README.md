@@ -30,3 +30,10 @@ If you are on macOS `13.5+` (or Linux) and want full local worker emulation, run
 ```bash
 npm run dev:worker
 ```
+
+## DevContainer (Linux/glibc 2.35+) setup
+
+For full local Cloudflare runtime parity (D1/DO/R2) use the included DevContainer docs:
+
+- `.devcontainer/README.md`
+
