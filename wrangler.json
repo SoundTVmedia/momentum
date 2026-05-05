@@ -24,6 +24,10 @@
     {
       "binding": "R2_BUCKET",
       "bucket_name": "momentum-videos"
+    },
+    {
+      "binding": "R2_THUMBNAILS_BUCKET",
+      "bucket_name": "momentum-thumbnails"
     }
   ],
   "durable_objects": {

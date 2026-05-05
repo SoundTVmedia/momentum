@@ -8,6 +8,7 @@ declare namespace Cloudflare {
 	}
 	interface Env {
 		R2_BUCKET: R2Bucket;
+		R2_THUMBNAILS_BUCKET: R2Bucket;
 		DB: D1Database;
 		/** Public web origin for password-reset links (e.g. https://app.example.com). Optional if the client sends Origin or redirect_base. */
 		PUBLIC_APP_URL?: string;

@@ -7,6 +7,7 @@ interface Env {
   
   // Object Storage
   R2_BUCKET: R2Bucket;
+  R2_THUMBNAILS_BUCKET: R2Bucket;
   
   // Mocha Users Service
   MOCHA_USERS_SERVICE_API_URL: string;

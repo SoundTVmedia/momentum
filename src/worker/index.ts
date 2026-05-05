@@ -47,6 +47,7 @@ import {
   getMyClipsFeed,
 } from "./clip-endpoints";
 import { normalizeClipApiRows } from "./clip-row-normalize";
+import { getClipObjectFromR2, r2ForClipObjectKey } from "./r2-clip-key";
 export { RealtimeDurableObject } from "./realtime-durable-object";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -583,8 +584,8 @@ app.post("/api/upload", authMiddleware, rateLimiter(RateLimits.UPLOAD), async (c
     // Determine content type
     const contentType = file.type || (type === 'video' ? 'video/mp4' : 'image/jpeg');
 
-    // Upload to R2
-    await c.env.R2_BUCKET.put(key, file.stream(), {
+    const r2 = r2ForClipObjectKey(c.env, key);
+    await r2.put(key, file.stream(), {
       httpMetadata: {
         contentType: contentType,
       },
@@ -611,7 +612,7 @@ app.get("/api/files/:key{.+}", async (c) => {
   const key = decodeURIComponent(c.req.param('key'));
 
   try {
-    const object = await c.env.R2_BUCKET.get(key);
+    const object = await getClipObjectFromR2(c.env, key);
 
     if (!object) {
       return c.json({ error: "File not found" }, 404);
