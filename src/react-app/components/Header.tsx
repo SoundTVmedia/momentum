@@ -1,4 +1,4 @@
-import { Play, Search, LogOut, User, Bell, Shield, Crown } from 'lucide-react'
+import { Search, LogOut, User, Bell, Shield } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
 import { useNavigate } from 'react-router'

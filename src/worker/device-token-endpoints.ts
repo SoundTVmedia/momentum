@@ -88,11 +88,11 @@ export async function verifyDeviceToken(c: Context) {
       .first();
 
     // Email/password accounts: restore session cookie so /api/users/me works
-    const emailAccount = await c.env.DB.prepare(
+    const emailAccount = (await c.env.DB.prepare(
       'SELECT id FROM email_accounts WHERE id = ?'
     )
       .bind(token.mocha_user_id)
-      .first<{ id: string }>();
+      .first()) as { id: string } | null;
 
     if (emailAccount) {
       const { rawToken } = await createEmailSession(

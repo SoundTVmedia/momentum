@@ -1,4 +1,4 @@
-import { Home, Search, PlusCircle, Bell, User, Video } from 'lucide-react';
+import { Home, Search, Bell, User, Video } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNotifications } from '@/react-app/hooks/useNotifications';

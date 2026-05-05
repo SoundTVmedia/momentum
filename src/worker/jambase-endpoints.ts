@@ -96,6 +96,10 @@ export async function getArtistTourDates(c: Context) {
   const artistId = c.req.param('artistId');
   const limit = c.req.query('limit') || '50';
 
+  if (!artistId) {
+    return c.json({ error: 'artistId is required', events: [] }, 400);
+  }
+
   try {
     const data = await fetchJamBase('/events', c.env.JAMBASE_API_KEY, {
       artistId,

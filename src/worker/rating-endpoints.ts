@@ -14,6 +14,10 @@ export async function rateClip(c: Context) {
   const body = await c.req.json();
   const { rating } = body;
 
+  if (!clipId) {
+    return c.json({ error: 'Clip id is required' }, 400);
+  }
+
   if (!rating || rating < 1 || rating > 5) {
     return c.json({ error: 'Rating must be between 1 and 5' }, 400);
   }
@@ -71,7 +75,7 @@ export async function rateClip(c: Context) {
     // Award points for rating (only on first rating)
     if (!existingRating) {
       const { awardPoints } = await import('./gamification-endpoints');
-      await awardPoints(c.env, mochaUser.id, 2, 'Rated a clip', parseInt(clipId));
+      await awardPoints(c.env, mochaUser.id, 2, 'Rated a clip', parseInt(clipId, 10));
     }
 
     return c.json({ 

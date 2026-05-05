@@ -91,6 +91,10 @@ export async function voteOnPoll(c: Context) {
   const body = await c.req.json();
   const { option_index } = body;
 
+  if (!pollId) {
+    return c.json({ error: "pollId is required" }, 400);
+  }
+
   if (typeof option_index !== 'number') {
     return c.json({ error: "option_index is required" }, 400);
   }
@@ -137,7 +141,7 @@ export async function voteOnPoll(c: Context) {
     .run();
 
   // Get updated results
-  const results = await getPollResults(c.env, parseInt(pollId));
+  const results = await getPollResults(c.env, parseInt(pollId, 10));
 
   // Broadcast updated results
   try {
@@ -158,7 +162,11 @@ export async function voteOnPoll(c: Context) {
 export async function getLivePollResults(c: Context) {
   const pollId = c.req.param('pollId');
 
-  const results = await getPollResults(c.env, parseInt(pollId));
+  if (!pollId) {
+    return c.json({ error: "pollId is required" }, 400);
+  }
+
+  const results = await getPollResults(c.env, parseInt(pollId, 10));
 
   return c.json(results);
 }
@@ -208,6 +216,10 @@ export async function endLivePoll(c: Context) {
 
   const pollId = c.req.param('pollId');
 
+  if (!pollId) {
+    return c.json({ error: "pollId is required" }, 400);
+  }
+
   const poll = await c.env.DB.prepare(
     `SELECT live_session_id FROM live_polls WHERE id = ?`
   )
@@ -224,7 +236,7 @@ export async function endLivePoll(c: Context) {
     .bind(pollId)
     .run();
 
-  const results = await getPollResults(c.env, parseInt(pollId));
+  const results = await getPollResults(c.env, parseInt(pollId, 10));
 
   // Broadcast poll ended
   try {

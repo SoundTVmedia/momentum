@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
-import TrendingFilmstrip from '@/react-app/components/TrendingFilmstrip'
 import LiveBroadcast from '@/react-app/components/LiveBroadcast'
 import PlatformStats from '@/react-app/components/PlatformStats'
 import DiscoverSection from '@/react-app/components/DiscoverSection'

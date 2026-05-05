@@ -56,7 +56,7 @@ export default function PersonalizedFeed() {
       title="For You"
       subtitle="Moments from artists you love and shows near you"
       headerIcon={<Heart className="w-6 h-6 text-pink-400" />}
-      clips={clips as DashboardGridClip[]}
+      clips={clips as unknown as DashboardGridClip[]}
       loading={loading}
       error={null}
       emptyContent={null}

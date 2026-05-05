@@ -186,7 +186,11 @@ export async function deleteClip(c: Context) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
-  const clipId = Number.parseInt(c.req.param('clipId'), 10);
+  const clipIdParam = c.req.param('clipId');
+  if (clipIdParam === undefined) {
+    return c.json({ error: 'Invalid clip id' }, 400);
+  }
+  const clipId = Number.parseInt(clipIdParam, 10);
   if (Number.isNaN(clipId)) {
     return c.json({ error: 'Invalid clip id' }, 400);
   }

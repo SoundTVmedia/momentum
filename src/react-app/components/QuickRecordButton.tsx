@@ -14,8 +14,8 @@ interface QuickRecordButtonProps {
 
 export default function QuickRecordButton({ isOpen = false, onClose }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
-  const { location, requestLocation } = useGeolocation();
-  const { matchEventsByLocation } = useJamBase();
+  const { requestLocation } = useGeolocation();
+  const { matchEvents } = useJamBase();
   const [showModal, setShowModal] = useState(isOpen);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -39,7 +39,6 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
 
   // Detect network speed
   useEffect(() => {
@@ -100,13 +99,17 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
       
       if (geo && geo.latitude && geo.longitude) {
         // Try to match with a live event
-        const events = await matchEventsByLocation(geo.latitude, geo.longitude);
+        const events = await matchEvents(
+          geo.latitude,
+          geo.longitude,
+          new Date().toISOString()
+        );
         
         if (events && events.length > 0) {
           const event = events[0];
           setAutoTaggedShow({
-            artist_name: event.artist_name,
-            venue_name: event.venue_name,
+            artist_name: event.artists?.[0]?.name ?? event.name,
+            venue_name: event.venue?.name ?? '',
             location: [geo.city, geo.state].filter(Boolean).join(', '),
             latitude: geo.latitude,
             longitude: geo.longitude,
@@ -207,8 +210,7 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
 
   const detectLowLight = (stream: MediaStream) => {
     const videoTrack = stream.getVideoTracks()[0];
-    const settings = videoTrack.getSettings();
-    
+
     // Check if device supports flash
     const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : null;
     const hasTorch = capabilities && 'torch' in capabilities;
@@ -399,10 +401,6 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
 
   // Responsive class names based on orientation
   const modalClass = `fixed inset-0 bg-black z-50 flex flex-col transition-all duration-300 ease-in-out`;
-  
-  // Safe zone calculations for iOS notch and home indicator
-  const safeTop = 'safe-top'; // CSS env(safe-area-inset-top) or custom value
-  const safeBottom = 'safe-bottom'; // CSS env(safe-area-inset-bottom) or custom value
 
   return (
     <>

@@ -83,8 +83,13 @@ export default function ConcertFeed({
       await fetch(`/api/clips/${clipId}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          platform: navigator.share ? 'native_share' : 'copy_link' 
+        body: JSON.stringify({
+          platform:
+            typeof navigator !== 'undefined' &&
+            typeof (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share ===
+              'function'
+              ? 'native_share'
+              : 'copy_link',
         }),
       })
     } catch (err) {
@@ -92,7 +97,11 @@ export default function ConcertFeed({
     }
 
     // Use native share if available
-    if (navigator.share) {
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof (navigator as Navigator & { share?: (data: ShareData) => Promise<void> }).share ===
+        'function'
+    ) {
       try {
         await navigator.share({
           title: 'Check out this MOMENTUM clip!',

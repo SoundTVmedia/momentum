@@ -294,7 +294,11 @@ export async function getPrioritizedShows(c: Context) {
  * Get clips from a specific show (by show_id)
  */
 export async function getShowClips(c: Context) {
-  const artistName = decodeURIComponent(c.req.param('artistName'));
+  const artistNameParam = c.req.param('artistName');
+  if (artistNameParam === undefined) {
+    return c.json({ error: 'artistName is required' }, 400);
+  }
+  const artistName = decodeURIComponent(artistNameParam);
   const showId = c.req.param('showId');
   const sortBy = c.req.query('sort_by') || 'time_posted';
   const page = parseInt(c.req.query('page') || '1');
@@ -350,7 +354,11 @@ export async function getShowClips(c: Context) {
  * Get venue archive (past shows)
  */
 export async function getVenueArchive(c: Context) {
-  const venueName = decodeURIComponent(c.req.param('venueName'));
+  const venueNameParam = c.req.param('venueName');
+  if (venueNameParam === undefined) {
+    return c.json({ error: 'venueName is required' }, 400);
+  }
+  const venueName = decodeURIComponent(venueNameParam);
   const sortBy = c.req.query('sort_by') || 'date_played';
   const page = parseInt(c.req.query('page') || '1');
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50);

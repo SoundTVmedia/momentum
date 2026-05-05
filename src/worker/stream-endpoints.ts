@@ -64,6 +64,10 @@ export async function uploadFromUrl(c: Context) {
 export async function getVideoStatus(c: Context) {
   const videoId = c.req.param('videoId');
 
+  if (!videoId) {
+    return c.json({ error: "videoId is required" }, 400);
+  }
+
   try {
     const streamService = createStreamService(c.env);
     const videoDetails = await streamService.getVideoDetails(videoId);
@@ -100,6 +104,10 @@ export async function deleteVideo(c: Context) {
 
   const videoId = c.req.param('videoId');
 
+  if (!videoId) {
+    return c.json({ error: "videoId is required" }, 400);
+  }
+
   try {
     const streamService = createStreamService(c.env);
     const success = await streamService.deleteVideo(videoId);
@@ -125,6 +133,10 @@ export async function getThumbnail(c: Context) {
   const time = c.req.query('time') || '0s';
   const width = parseInt(c.req.query('width') || '0');
   const height = parseInt(c.req.query('height') || '0');
+
+  if (!videoId) {
+    return c.json({ error: "videoId is required" }, 400);
+  }
 
   try {
     const streamService = createStreamService(c.env);

@@ -283,7 +283,6 @@ export async function triggerPersonalizationNotifications(
 
     // Create notifications for matching users
     for (const user of usersToNotify) {
-      const contentType = clipOrConcert.type === 'clip' ? 'moment' : 'concert';
       const content = `${clipOrConcert.artist_name} ${clipOrConcert.type === 'clip' ? 'posted a new moment' : 'announced a show'}${clipOrConcert.venue_name ? ` at ${clipOrConcert.venue_name}` : ''}`;
       
       await env.DB.prepare(

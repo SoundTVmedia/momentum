@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 interface GeolocationData {
   latitude: number;
   longitude: number;
+  accuracy?: number;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -44,7 +45,7 @@ export function useGeolocation() {
         });
       });
 
-      const { latitude, longitude } = position.coords;
+      const { latitude, longitude, accuracy } = position.coords;
 
       // Reverse geocode using Nominatim (free, no API key needed)
       const response = await fetch(
@@ -61,6 +62,7 @@ export function useGeolocation() {
       setLocation({
         latitude,
         longitude,
+        accuracy,
         city: address.city || address.town || address.village || null,
         state: address.state || null,
         country: address.country || null,
@@ -70,6 +72,7 @@ export function useGeolocation() {
       return {
         latitude,
         longitude,
+        accuracy,
         city: address.city || address.town || address.village || null,
         state: address.state || null,
         country: address.country || null,
