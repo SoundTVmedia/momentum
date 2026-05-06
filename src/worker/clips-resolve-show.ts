@@ -16,6 +16,42 @@ export type ClipShowCandidate = {
   distance_miles: number | null;
 };
 
+type ClipResolveMatch = 'none' | 'single' | 'ambiguous';
+
+async function recordResolveTelemetry(
+  c: Context,
+  mochaUserId: string,
+  match: ClipResolveMatch,
+  radiusMiles: number,
+  rawEventCount: number,
+  candidateCount: number,
+  geoCityId: string | null,
+  source: string,
+  notice: string | null
+): Promise<void> {
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO clip_show_resolve_telemetry
+       (mocha_user_id, match, radius_miles, raw_event_count, candidate_count, geo_city_id, source, notice)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        mochaUserId,
+        match,
+        radiusMiles,
+        rawEventCount,
+        candidateCount,
+        geoCityId,
+        source,
+        notice
+      )
+      .run();
+  } catch (e) {
+    // Telemetry should never break upload flow.
+    console.error('clip_show_resolve_telemetry insert failed:', e);
+  }
+}
+
 export function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -204,6 +240,17 @@ export async function postResolveShowForClip(c: Context) {
 
   const key = c.env.JAMBASE_API_KEY;
   if (!key?.trim()) {
+    await recordResolveTelemetry(
+      c,
+      mochaUser.id,
+      'none',
+      50,
+      0,
+      0,
+      null,
+      'missing_jambase_key',
+      'JamBase is not configured'
+    );
     return c.json({
       match: 'none' as const,
       candidates: [] as ClipShowCandidate[],
@@ -285,16 +332,34 @@ export async function postResolveShowForClip(c: Context) {
     return da - db;
   });
 
-  let match: 'none' | 'single' | 'ambiguous';
+  let match: ClipResolveMatch;
   if (candidates.length === 0) match = 'none';
   else if (candidates.length === 1) match = 'single';
   else match = 'ambiguous';
+
+  const notice =
+    match === 'none'
+      ? 'No matching show found in your current time window and radius. You can enter details manually.'
+      : null;
+
+  await recordResolveTelemetry(
+    c,
+    mochaUser.id,
+    match,
+    radiusMiles,
+    rawEvents.length,
+    candidates.length,
+    geoCityId,
+    geoCityId ? 'geo_city_id' : 'metro_fallback',
+    notice
+  );
 
   c.header('Cache-Control', 'private, max-age=60');
 
   return c.json({
     match,
     candidates,
+    notice,
     meta: {
       radiusMiles,
       geoCityId,

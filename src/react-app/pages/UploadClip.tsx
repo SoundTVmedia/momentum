@@ -56,6 +56,7 @@ export default function UploadClip() {
     state: string | null;
     country: string | null;
   } | null>(null);
+  const [resolveNotice, setResolveNotice] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     video_file: null as File | null,
@@ -89,6 +90,14 @@ export default function UploadClip() {
       setVideoBlobUrl(blobUrl);
       setShowCaptionScreen(true);
     }
+    if (location.state?.videoFile) {
+      const selectedFile = location.state.videoFile as File;
+      setFormData(prev => ({ ...prev, video_file: selectedFile, video_blob: null }));
+      setUploadMethod('file');
+      const fileUrl = URL.createObjectURL(selectedFile);
+      setVideoBlobUrl(fileUrl);
+      setShowCaptionScreen(true);
+    }
     
     // Check if we received show data from auto-tagging
     if (location.state?.showData) {
@@ -110,11 +119,13 @@ export default function UploadClip() {
           venue: typeof showData.jambase_venue_id === 'string' ? showData.jambase_venue_id : null,
         });
       }
+      setResolveNotice(null);
     }
 
     const nav = location.state as Record<string, unknown> | undefined;
     if (Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0) {
       setAmbiguousCandidates(nav.ambiguousCandidates as ClipShowCandidate[]);
+      setResolveNotice('We found multiple nearby shows. Pick the right one below or edit manually.');
     }
     if (typeof nav?.recordingStartedAt === 'string') {
       setRecordingAtIso(nav.recordingStartedAt);
@@ -219,6 +230,7 @@ export default function UploadClip() {
       venue: c.jambase_venue_id,
     });
     setAmbiguousCandidates([]);
+    setResolveNotice(null);
   }, []);
 
   useEffect(() => {
@@ -287,6 +299,8 @@ export default function UploadClip() {
             country: g.country,
           };
           setCaptureGeo(geo);
+        } else {
+          setResolveNotice('Location permission was denied, so show tagging is disabled. You can enter details manually.');
         }
       }
       if (!geo?.latitude || cancelled) return;
@@ -307,15 +321,24 @@ export default function UploadClip() {
         const data = (await res.json()) as {
           match?: string;
           candidates?: ClipShowCandidate[];
+          notice?: string;
         };
         if (cancelled) return;
         if (data.match === 'single' && data.candidates?.[0]) {
           applyClipCandidate(data.candidates[0]);
+          setResolveNotice(null);
         } else if (data.match === 'ambiguous' && data.candidates?.length) {
           setAmbiguousCandidates(data.candidates);
+          setResolveNotice(data.notice ?? 'We found multiple nearby shows. Pick the right one below or edit manually.');
+        } else if (data.match === 'none') {
+          setResolveNotice(
+            data.notice ??
+              'No matching show found in your time window and radius. You can enter details manually.'
+          );
         }
       } catch (e) {
         console.error('resolve-show', e);
+        setResolveNotice('Auto-tagging is temporarily unavailable. You can still enter details manually.');
       }
     })();
     return () => {
@@ -892,6 +915,11 @@ export default function UploadClip() {
                   <p className="text-red-400">{error}</p>
                 </div>
               )}
+              {resolveNotice && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                  <p className="text-amber-200 text-sm">{resolveNotice}</p>
+                </div>
+              )}
 
               {/* Caption Field */}
               <div>
@@ -1162,6 +1190,11 @@ export default function UploadClip() {
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>
+            </div>
+          )}
+          {resolveNotice && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <p className="text-amber-200 text-sm">{resolveNotice}</p>
             </div>
           )}
 

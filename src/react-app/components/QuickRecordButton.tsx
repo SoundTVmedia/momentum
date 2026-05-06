@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Film, Loader2, Circle, Square, AlertCircle, Zap } from 'lucide-react';
+import { Film, Loader2, Circle, Square, AlertCircle, Zap, ImagePlus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import type { ClipShowCandidate } from '@/shared/types';
@@ -42,10 +42,20 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
   const [videoResolution, setVideoResolution] = useState({ width: 1080, height: 1920 });
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const deviceMediaInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraOpenRequested, setCameraOpenRequested] = useState(false);
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua);
+  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const isChrome = /Chrome|CriOS/i.test(ua);
+  const [preferredFacingMode, setPreferredFacingMode] = useState<'environment' | 'user'>('environment');
+  const [audioEnabled, setAudioEnabled] = useState(true);
 
   // Detect network speed
   useEffect(() => {
@@ -113,50 +123,87 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
 
   const requestPermissions = async () => {
     console.log('QuickRecordButton: Requesting camera permissions...');
+    setCameraOpenRequested(true);
     setCameraReady(false); // Reset camera ready state
     setPermissionDenied(false); // Clear previous denial state
+    setCameraError(null);
 
     try {
       // Detect current orientation
       const currentIsPortrait = window.innerHeight > window.innerWidth;
       console.log('QuickRecordButton: Current orientation:', currentIsPortrait ? 'portrait' : 'landscape');
       
-      // Set video constraints based on orientation
-      const videoConstraints = currentIsPortrait 
+      // Try multiple camera constraint sets for broader mobile compatibility.
+      const baseVideo = currentIsPortrait
         ? {
-            width: { ideal: 1080, min: 720 },
-            height: { ideal: 1920, min: 1280 },
-            frameRate: { ideal: 30, min: 30 },
-            facingMode: 'environment',
+            width: { ideal: 1080, min: 640 },
+            height: { ideal: 1920, min: 960 },
+            frameRate: { ideal: 30, min: 24 },
           }
         : {
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 },
-            frameRate: { ideal: 30, min: 30 },
-            facingMode: 'environment',
+            width: { ideal: 1920, min: 960 },
+            height: { ideal: 1080, min: 640 },
+            frameRate: { ideal: 30, min: 24 },
           };
+      const orderedFacingModes: ('environment' | 'user')[] =
+        preferredFacingMode === 'environment' ? ['environment', 'user'] : ['user', 'environment'];
+      const videoAttempts: (MediaTrackConstraints | boolean)[] = [
+        { ...baseVideo, facingMode: { ideal: orderedFacingModes[0] } },
+        { ...baseVideo, facingMode: orderedFacingModes[1] },
+        true,
+      ];
 
-      console.log('QuickRecordButton: Requesting getUserMedia with constraints:', videoConstraints);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: {
-          sampleRate: 48000,
-          channelCount: 2,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-      });
+      let stream: MediaStream | null = null;
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      for (const video of videoAttempts) {
+        try {
+          const audioConstraints = audioEnabled
+            ? {
+                sampleRate: 48000,
+                channelCount: 2,
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+              }
+            : false;
+          stream = await navigator.mediaDevices.getUserMedia({
+            video,
+            audio: audioConstraints,
+          });
+          break;
+        } catch (attemptError) {
+          const errName =
+            attemptError instanceof DOMException
+              ? attemptError.name
+              : attemptError instanceof Error
+                ? attemptError.name
+                : '';
+          if (audioEnabled && (errName === 'NotAllowedError' || errName === 'NotFoundError' || errName === 'OverconstrainedError')) {
+            // Some devices block open due to mic permission/availability; retry video-only.
+            console.warn('QuickRecordButton: retrying camera without audio due to:', errName);
+            setAudioEnabled(false);
+          }
+          console.warn('QuickRecordButton: getUserMedia attempt failed', attemptError);
+        }
+      }
 
-      console.log('QuickRecordButton: getUserMedia successful, stream obtained');
+      if (!stream) {
+        throw new Error('Unable to access camera with available constraints');
+      }
+
+      console.log('QuickRecordButton: getUserMedia successful');
       streamRef.current = stream;
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         console.log('QuickRecordButton: Video stream assigned to video element');
         
         // Wait for the video to load metadata before marking as ready
         videoRef.current.onloadedmetadata = () => {
+          void videoRef.current?.play().catch(() => undefined);
           console.log('QuickRecordButton: Video metadata loaded, camera is ready');
           setHasPermission(true);
           setCameraReady(true); // Only set cameraReady to true after video metadata is loaded
@@ -183,15 +230,67 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
       }
       
       setPermissionDenied(false);
+      const hasAudioTrack = stream.getAudioTracks().length > 0;
+      if (!hasAudioTrack) {
+        setAudioEnabled(false);
+        setCameraError('Camera opened without microphone access. Video capture still works.');
+      } else {
+        setAudioEnabled(true);
+        setCameraError(null);
+      }
       
       return stream;
     } catch (err) {
       console.error('QuickRecordButton: Permission denied or camera access failed:', err);
       setPermissionDenied(true);
+      const fallbackMsg =
+        isIOS && isSafari
+          ? 'iOS Safari blocked camera start. Tap "Open Camera" and allow permission, or choose a video from device.'
+          : isAndroid && isChrome
+            ? 'Android Chrome could not open the camera. Close other camera apps and tap "Open Camera" again.'
+            : 'Camera access failed. You can grant access or choose media from your device.';
+      setCameraError(err instanceof Error ? `${fallbackMsg} (${err.message})` : fallbackMsg);
       setHasPermission(false);
       setCameraReady(false); // Ensure cameraReady is false on failure
       return null;
     }
+  };
+
+  const toggleCameraFacing = async () => {
+    if (isRecording) return;
+    setPreferredFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+    await requestPermissions();
+  };
+
+  const handlePickFromDevice = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fileIsVideo = file.type.startsWith('video/');
+    if (!fileIsVideo) {
+      setCameraError('Please choose a video file.');
+      return;
+    }
+
+    const geo = lastGeoRef.current;
+    navigate('/upload', {
+      state: {
+        videoFile: file,
+        recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
+        captureGeo: geo
+          ? {
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+              city: geo.city,
+              state: geo.state,
+              country: geo.country,
+            }
+          : null,
+      },
+    });
+  };
+
+  const openDeviceMediaPicker = () => {
+    deviceMediaInputRef.current?.click();
   };
 
   const detectLowLight = (stream: MediaStream) => {
@@ -440,11 +539,11 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
 
   // Trigger camera permission request when modal opens, if not already granted
   useEffect(() => {
-    if (showModal && !hasPermission && !permissionDenied) {
+    if (showModal && !hasPermission && !permissionDenied && !cameraOpenRequested) {
       console.log('QuickRecordButton: Modal opened, requesting camera permissions...');
-      requestPermissions();
+      void requestPermissions();
     }
-  }, [showModal, hasPermission, permissionDenied]);
+  }, [showModal, hasPermission, permissionDenied, cameraOpenRequested]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -489,6 +588,7 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
                     <>
                       <h3 className="text-xl font-bold text-white">Camera Access Needed</h3>
                       <p className="text-gray-400">Please allow camera and microphone access to record your moment</p>
+                      {cameraError && <p className="text-red-400 text-sm">{cameraError}</p>}
                       <button
                         onClick={requestPermissions}
                         className="px-6 py-3 bg-cyan-500 rounded-lg text-white font-medium hover:bg-cyan-600 transition-colors"
@@ -500,6 +600,13 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
                     <>
                       <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
                       <p className="text-white">Requesting camera access...</p>
+                      <button
+                        onClick={requestPermissions}
+                        className="px-6 py-3 bg-cyan-500 rounded-lg text-white font-medium hover:bg-cyan-600 transition-colors"
+                      >
+                        Open Camera
+                      </button>
+                      {cameraError && <p className="text-red-400 text-sm mt-2">{cameraError}</p>}
                     </>
                   )}
                 </div>
@@ -642,16 +749,33 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
               paddingRight: '1.5rem'
             }}
           >
+            <input
+              ref={deviceMediaInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={handlePickFromDevice}
+            />
             <div className={`flex items-center justify-between mx-auto transition-all duration-300 ease-in-out ${
               isPortrait ? 'max-w-lg' : 'max-w-2xl'
             }`}>
-              <button
-                onClick={closeModal}
-                className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors flex-shrink-0"
-                style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-              >
-                <span className="text-xl">✕</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={closeModal}
+                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors flex-shrink-0"
+                  style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+                >
+                  <span className="text-xl">✕</span>
+                </button>
+                <button
+                  onClick={openDeviceMediaPicker}
+                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors flex-shrink-0"
+                  style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+                  title="Choose video from your device"
+                >
+                  <ImagePlus className="w-6 h-6" />
+                </button>
+              </div>
 
               {/* Main Action Button - Responsive sizing */}
               {!isRecording ? (
@@ -689,17 +813,31 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
                 </button>
               )}
 
-              {flashEnabled ? (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={toggleFlash}
-                  className="w-14 h-14 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 hover:bg-yellow-500/30 transition-colors flex-shrink-0"
+                  onClick={toggleCameraFacing}
+                  disabled={isRecording}
+                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+                  title="Flip camera"
                 >
-                  <Zap className="w-6 h-6 fill-yellow-400" />
+                  <RefreshCw className="w-6 h-6" />
                 </button>
-              ) : (
-                <div className="w-14 h-14 flex-shrink-0" style={{ minWidth: '3.5rem' }} />
-              )}
+                <span className="text-[10px] text-gray-300 leading-none">
+                  {preferredFacingMode === 'environment' ? 'Back' : 'Front'}
+                </span>
+                {flashEnabled ? (
+                  <button
+                    onClick={toggleFlash}
+                    className="w-14 h-14 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 hover:bg-yellow-500/30 transition-colors flex-shrink-0"
+                    style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+                  >
+                    <Zap className="w-6 h-6 fill-yellow-400" />
+                  </button>
+                ) : (
+                  <div className="w-14 h-14 flex-shrink-0" style={{ minWidth: '3.5rem' }} />
+                )}
+              </div>
             </div>
           </div>
         </div>
