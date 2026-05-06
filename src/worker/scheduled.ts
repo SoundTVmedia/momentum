@@ -74,6 +74,9 @@ async function performanceOptimizations(env: Env): Promise<void> {
     const { cleanupRateLimits } = await import('./rate-limiter');
     cleanupRateLimits();
 
+    const { pruneJamBaseApiUsageBuckets } = await import('./jambase-client');
+    await pruneJamBaseApiUsageBuckets(env.DB);
+
     // Clean up old clip shares (older than 90 days)
     await cleanupOldShares(env);
 

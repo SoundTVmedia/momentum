@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
+import { jamBaseQuotaFromEnv } from './jambase-client';
 
 /**
  * Get prioritized shows for discovery feed
@@ -302,7 +303,8 @@ export async function getShowClips(c: Context) {
   const artistName = await resolveArtistNameForClipsQuery(
     c.env.DB,
     c.env.JAMBASE_API_KEY,
-    artistNameParam
+    artistNameParam,
+    jamBaseQuotaFromEnv(c.env)
   );
   const showId = c.req.param('showId');
   const sortBy = c.req.query('sort_by') || 'time_posted';

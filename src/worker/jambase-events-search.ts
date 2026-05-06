@@ -1,4 +1,8 @@
-import { jamBaseFetch, jamBaseEventDateFromToday } from './jambase-client';
+import {
+  jamBaseFetch,
+  jamBaseEventDateFromToday,
+  type JamBaseQuotaContext,
+} from './jambase-client';
 import {
   normalizedSlugFromRouteParam,
   searchPhraseFromSlug,
@@ -42,7 +46,8 @@ function dedupeEvents(events: Record<string, unknown>[]): Record<string, unknown
 export async function buildTightJamBaseEventResults(
   apiKey: string,
   query: string,
-  maxResults = 18
+  maxResults = 18,
+  quota?: JamBaseQuotaContext
 ): Promise<unknown[]> {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -52,16 +57,26 @@ export async function buildTightJamBaseEventResults(
   const fromDate = jamBaseEventDateFromToday();
 
   const [artistList, venueList] = await Promise.all([
-    jamBaseFetch<{ artists?: Record<string, unknown>[] }>(apiKey, '/artists', {
-      artistName: phrase,
-      perPage: '8',
-      page: '1',
-    }),
-    jamBaseFetch<{ venues?: Record<string, unknown>[] }>(apiKey, '/venues', {
-      venueName: phrase,
-      perPage: '6',
-      page: '1',
-    }),
+    jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+      apiKey,
+      '/artists',
+      {
+        artistName: phrase,
+        perPage: '8',
+        page: '1',
+      },
+      quota
+    ),
+    jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      apiKey,
+      '/venues',
+      {
+        venueName: phrase,
+        perPage: '6',
+        page: '1',
+      },
+      quota
+    ),
   ]);
 
   const topArtists = (artistList?.artists ?? []).slice(0, 4);
@@ -70,23 +85,33 @@ export async function buildTightJamBaseEventResults(
   const artistEventCalls = topArtists
     .filter((a) => typeof a.identifier === 'string')
     .map((a) =>
-      jamBaseFetch<{ events?: Record<string, unknown>[] }>(apiKey, '/events', {
-        artistId: String(a.identifier),
-        eventDateFrom: fromDate,
-        perPage: '10',
-        page: '1',
-      })
+      jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+        apiKey,
+        '/events',
+        {
+          artistId: String(a.identifier),
+          eventDateFrom: fromDate,
+          perPage: '10',
+          page: '1',
+        },
+        quota
+      )
     );
 
   const venueEventCalls = topVenues
     .filter((v) => typeof v.identifier === 'string')
     .map((v) =>
-      jamBaseFetch<{ events?: Record<string, unknown>[] }>(apiKey, '/events', {
-        venueId: String(v.identifier),
-        eventDateFrom: fromDate,
-        perPage: '10',
-        page: '1',
-      })
+      jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+        apiKey,
+        '/events',
+        {
+          venueId: String(v.identifier),
+          eventDateFrom: fromDate,
+          perPage: '10',
+          page: '1',
+        },
+        quota
+      )
     );
 
   const batchResults = await Promise.all([...artistEventCalls, ...venueEventCalls]);
@@ -113,7 +138,8 @@ export async function buildTightJamBaseEventResults(
         eventDateFrom: fromDate,
         perPage: '24',
         page: '1',
-      }
+      },
+      quota
     );
     const fe = fallback?.events ?? [];
     for (const ev of fe) {

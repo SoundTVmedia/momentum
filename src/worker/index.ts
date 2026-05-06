@@ -39,6 +39,7 @@ import * as deviceToken from "./device-token-endpoints";
 import * as authEndpoints from "./auth-endpoints";
 import * as personalization from "./personalization-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
+import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor } from "./performance-utils";
 import { handleResumableUpload } from "./resumable-upload-endpoints";
 import {
@@ -2900,7 +2901,8 @@ app.get("/api/artists/:artistName/live-status", async (c) => {
   const artistName = await artistVenuePages.resolveArtistNameForClipsQuery(
     c.env.DB,
     c.env.JAMBASE_API_KEY,
-    c.req.param("artistName")
+    c.req.param("artistName"),
+    jamBaseQuotaFromEnv(c.env)
   );
 
   try {
@@ -2943,7 +2945,8 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
   const artistName = await artistVenuePages.resolveArtistNameForClipsQuery(
     c.env.DB,
     c.env.JAMBASE_API_KEY,
-    c.req.param("artistName")
+    c.req.param("artistName"),
+    jamBaseQuotaFromEnv(c.env)
   );
   const limit = Math.min(parseInt(c.req.query('limit') || '8'), 20);
 

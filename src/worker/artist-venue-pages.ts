@@ -1,6 +1,11 @@
 import type { Context } from 'hono';
 import { normalizeClipApiRows } from './clip-row-normalize';
-import { jamBaseFetch, jamBaseEventDateFromToday } from './jambase-client';
+import {
+  jamBaseFetch,
+  jamBaseEventDateFromToday,
+  jamBaseQuotaFromEnv,
+  type JamBaseQuotaContext,
+} from './jambase-client';
 import { jamBaseEventToTourDateRow, jamBaseEventToVenueUpcomingRow } from './jambase-map';
 import {
   normalizedSlugFromRouteParam,
@@ -12,7 +17,8 @@ import {
 export async function resolveArtistNameForClipsQuery(
   db: D1Database,
   apiKey: string | undefined,
-  routeParam: string
+  routeParam: string,
+  quota?: JamBaseQuotaContext
 ): Promise<string> {
   const slug = normalizedSlugFromRouteParam(routeParam);
   if (!slug) return '';
@@ -37,11 +43,16 @@ export async function resolveArtistNameForClipsQuery(
 
   const phrase = searchPhraseFromSlug(slug);
   if (apiKey?.trim()) {
-    const data = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(apiKey, '/artists', {
-      artistName: phrase,
-      perPage: '15',
-      page: '1',
-    });
+    const data = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+      apiKey,
+      '/artists',
+      {
+        artistName: phrase,
+        perPage: '15',
+        page: '1',
+      },
+      quota
+    );
     const artists = data?.artists ?? [];
     if (artists.length) {
       const exact = artists.find((a) => slugifyEntityName(String(a.name)) === slug);
@@ -56,7 +67,8 @@ export async function resolveArtistNameForClipsQuery(
 export async function resolveVenueNameForClipsQuery(
   db: D1Database,
   apiKey: string | undefined,
-  routeParam: string
+  routeParam: string,
+  quota?: JamBaseQuotaContext
 ): Promise<string> {
   const slug = normalizedSlugFromRouteParam(routeParam);
   if (!slug) return '';
@@ -81,11 +93,16 @@ export async function resolveVenueNameForClipsQuery(
 
   const phrase = searchPhraseFromSlug(slug);
   if (apiKey?.trim()) {
-    const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(apiKey, '/venues', {
-      venueName: phrase,
-      perPage: '15',
-      page: '1',
-    });
+    const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      apiKey,
+      '/venues',
+      {
+        venueName: phrase,
+        perPage: '15',
+        page: '1',
+      },
+      quota
+    );
     const venues = data?.venues ?? [];
     if (venues.length) {
       const exact = venues.find((v) => slugifyEntityName(String(v.name)) === slug);
@@ -105,16 +122,22 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
   }
   const apiKey = c.env.JAMBASE_API_KEY;
   const db = c.env.DB;
+  const jbQ = jamBaseQuotaFromEnv(c.env);
 
   let jambaseArtist: Record<string, unknown> | null = null;
   const phrase = searchPhraseFromSlug(slug);
 
   if (apiKey?.trim() && phrase) {
-    const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(apiKey, '/artists', {
-      artistName: phrase,
-      perPage: '20',
-      page: '1',
-    });
+    const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+      apiKey,
+      '/artists',
+      {
+        artistName: phrase,
+        perPage: '20',
+        page: '1',
+      },
+      jbQ
+    );
     const artists = list?.artists ?? [];
     if (artists.length) {
       jambaseArtist =
@@ -124,7 +147,7 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
 
   let canonicalName = jambaseArtist?.name
     ? String(jambaseArtist.name).trim()
-    : (await resolveArtistNameForClipsQuery(db, apiKey, param)).trim();
+    : (await resolveArtistNameForClipsQuery(db, apiKey, param, jbQ)).trim();
 
   if (!canonicalName) {
     canonicalName =
@@ -254,7 +277,8 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
         eventDateFrom: jamBaseEventDateFromToday(),
         perPage: '50',
         page: '1',
-      }
+      },
+      jbQ
     );
     const events = eventsRes?.events ?? [];
     if (events.length) {
@@ -295,16 +319,22 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
   const slug = normalizedSlugFromRouteParam(param);
   const apiKey = c.env.JAMBASE_API_KEY;
   const db = c.env.DB;
+  const jbQ = jamBaseQuotaFromEnv(c.env);
 
   let jambaseVenue: Record<string, unknown> | null = null;
   const phrase = searchPhraseFromSlug(slug);
 
   if (apiKey?.trim() && phrase) {
-    const list = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(apiKey, '/venues', {
-      venueName: phrase,
-      perPage: '20',
-      page: '1',
-    });
+    const list = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      apiKey,
+      '/venues',
+      {
+        venueName: phrase,
+        perPage: '20',
+        page: '1',
+      },
+      jbQ
+    );
     const venues = list?.venues ?? [];
     if (venues.length) {
       jambaseVenue =
@@ -314,7 +344,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
 
   const canonicalName = jambaseVenue?.name
     ? String(jambaseVenue.name)
-    : await resolveVenueNameForClipsQuery(db, apiKey, param);
+    : await resolveVenueNameForClipsQuery(db, apiKey, param, jbQ);
 
   let venue = (await db
     .prepare(
@@ -430,7 +460,8 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
         eventDateFrom: jamBaseEventDateFromToday(),
         perPage: '50',
         page: '1',
-      }
+      },
+      jbQ
     );
     const events = eventsRes?.events ?? [];
     if (events.length) {

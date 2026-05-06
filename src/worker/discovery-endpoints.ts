@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { jamBaseFetch } from './jambase-client';
+import { jamBaseFetch, jamBaseQuotaFromEnv } from './jambase-client';
 import { buildTightJamBaseEventResults } from './jambase-events-search';
 
 // Advanced search with filters
@@ -141,18 +141,29 @@ export async function advancedSearch(c: Context) {
     const q = query.trim();
     const jbPer = compact ? '5' : '10';
     const eventCap = compact ? 8 : 18;
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     const [a, v, tightEvents] = await Promise.all([
-      jamBaseFetch<{ artists?: unknown[] }>(jbKey, '/artists', {
-        artistName: q,
-        perPage: jbPer,
-        page: '1',
-      }),
-      jamBaseFetch<{ venues?: unknown[] }>(jbKey, '/venues', {
-        venueName: q,
-        perPage: jbPer,
-        page: '1',
-      }),
-      buildTightJamBaseEventResults(jbKey, q, eventCap),
+      jamBaseFetch<{ artists?: unknown[] }>(
+        jbKey,
+        '/artists',
+        {
+          artistName: q,
+          perPage: jbPer,
+          page: '1',
+        },
+        jbQ
+      ),
+      jamBaseFetch<{ venues?: unknown[] }>(
+        jbKey,
+        '/venues',
+        {
+          venueName: q,
+          perPage: jbPer,
+          page: '1',
+        },
+        jbQ
+      ),
+      buildTightJamBaseEventResults(jbKey, q, eventCap, jbQ),
     ]);
     jambase = {
       artists: a?.artists ?? [],

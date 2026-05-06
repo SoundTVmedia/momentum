@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { jamBaseFetch, jamBaseEventDateFromToday } from './jambase-client';
+import { jamBaseFetch, jamBaseEventDateFromToday, jamBaseQuotaFromEnv } from './jambase-client';
 import { buildTightJamBaseEventResults } from './jambase-events-search';
 import {
   normalizedSlugFromRouteParam,
@@ -21,6 +21,7 @@ export async function searchArtists(c: Context) {
   }
 
   try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     const data = await jamBaseFetch<{ artists?: unknown[] }>(
       c.env.JAMBASE_API_KEY,
       '/artists',
@@ -28,7 +29,8 @@ export async function searchArtists(c: Context) {
         artistName: query,
         page: c.req.query('page') || '1',
         perPage,
-      }
+      },
+      jbQ
     );
 
     c.header('Cache-Control', 'public, max-age=3600');
@@ -52,6 +54,7 @@ export async function searchVenues(c: Context) {
   }
 
   try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     const params: Record<string, string> = {
       page: c.req.query('page') || '1',
       perPage,
@@ -61,7 +64,8 @@ export async function searchVenues(c: Context) {
     const data = await jamBaseFetch<{ venues?: unknown[] }>(
       c.env.JAMBASE_API_KEY,
       '/venues',
-      params
+      params,
+      jbQ
     );
 
     c.header('Cache-Control', 'public, max-age=3600');
@@ -85,12 +89,18 @@ export async function getArtistTourDates(c: Context) {
   }
 
   try {
-    const data = await jamBaseFetch<{ events?: unknown[] }>(c.env.JAMBASE_API_KEY, '/events', {
-      artistId,
-      eventDateFrom: jamBaseEventDateFromToday(),
-      page: c.req.query('page') || '1',
-      perPage,
-    });
+    const jbQ = jamBaseQuotaFromEnv(c.env);
+    const data = await jamBaseFetch<{ events?: unknown[] }>(
+      c.env.JAMBASE_API_KEY,
+      '/events',
+      {
+        artistId,
+        eventDateFrom: jamBaseEventDateFromToday(),
+        page: c.req.query('page') || '1',
+        perPage,
+      },
+      jbQ
+    );
 
     c.header('Cache-Control', 'public, max-age=1800');
 
@@ -138,7 +148,13 @@ export async function getUpcomingEvents(c: Context) {
     if (geoMetroId) params.geoMetroId = geoMetroId;
     if (geoCityId) params.geoCityId = geoCityId;
 
-    const data = await jamBaseFetch<{ events?: unknown[] }>(c.env.JAMBASE_API_KEY, '/events', params);
+    const jbQ = jamBaseQuotaFromEnv(c.env);
+    const data = await jamBaseFetch<{ events?: unknown[] }>(
+      c.env.JAMBASE_API_KEY,
+      '/events',
+      params,
+      jbQ
+    );
 
     c.header('Cache-Control', 'public, max-age=600');
 
@@ -160,10 +176,12 @@ export async function getArtistById(c: Context) {
   const artistId = encodeURIComponent(raw);
 
   try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     const data = await jamBaseFetch<Record<string, unknown>>(
       c.env.JAMBASE_API_KEY,
       `/artists/${artistId}`,
-      {}
+      {},
+      jbQ
     );
 
     if (!data) {
@@ -187,10 +205,12 @@ export async function getVenueById(c: Context) {
   const venueId = encodeURIComponent(raw);
 
   try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     const data = await jamBaseFetch<Record<string, unknown>>(
       c.env.JAMBASE_API_KEY,
       `/venues/${venueId}`,
-      {}
+      {},
+      jbQ
     );
 
     if (!data) {
@@ -220,18 +240,24 @@ export async function searchEvents(c: Context) {
       return c.json({ events: [] });
     }
 
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     if (c.req.query('loose') === '1') {
-      const data = await jamBaseFetch<{ events?: unknown[] }>(key, '/events', {
-        artistName: q,
-        eventDateFrom: c.req.query('eventDateFrom') || jamBaseEventDateFromToday(),
-        page: c.req.query('page') || '1',
-        perPage: String(max),
-      });
+      const data = await jamBaseFetch<{ events?: unknown[] }>(
+        key,
+        '/events',
+        {
+          artistName: q,
+          eventDateFrom: c.req.query('eventDateFrom') || jamBaseEventDateFromToday(),
+          page: c.req.query('page') || '1',
+          perPage: String(max),
+        },
+        jbQ
+      );
       c.header('Cache-Control', 'public, max-age=600');
       return c.json({ events: data?.events || [] });
     }
 
-    const events = await buildTightJamBaseEventResults(key, q, max);
+    const events = await buildTightJamBaseEventResults(key, q, max, jbQ);
     c.header('Cache-Control', 'public, max-age=600');
     return c.json({ events });
   } catch (error) {
@@ -256,6 +282,7 @@ export async function getLiveTabEvents(c: Context) {
   const country = ((c.req.query('country') || 'US').trim().slice(0, 2) || 'US').toUpperCase();
 
   try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     const params: Record<string, string> = {
       eventDateFrom: c.req.query('eventDateFrom') || jamBaseEventDateFromToday(),
       perPage,
@@ -274,7 +301,8 @@ export async function getLiveTabEvents(c: Context) {
         {
           geoCityName: city,
           geoCountryIso2: country,
-        }
+        },
+        jbQ
       );
       const first = cities?.cities?.[0];
       if (first && typeof first.identifier === 'string') {
@@ -286,7 +314,7 @@ export async function getLiveTabEvents(c: Context) {
       params.geoMetroId = 'jambase:1';
     }
 
-    const data = await jamBaseFetch<{ events?: unknown[] }>(key, '/events', params);
+    const data = await jamBaseFetch<{ events?: unknown[] }>(key, '/events', params, jbQ);
     c.header('Cache-Control', 'public, max-age=600');
     return c.json({
       events: data?.events ?? [],
@@ -310,14 +338,20 @@ export async function getEventsByArtistName(c: Context) {
   }
 
   try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
     const slug = slugifyEntityName(raw) || normalizedSlugFromRouteParam(raw);
     const phrase = searchPhraseFromSlug(slug);
 
-    const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(key, '/artists', {
-      artistName: phrase,
-      perPage: '8',
-      page: '1',
-    });
+    const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+      key,
+      '/artists',
+      {
+        artistName: phrase,
+        perPage: '8',
+        page: '1',
+      },
+      jbQ
+    );
     const artists = list?.artists ?? [];
     if (!artists.length) {
       return c.json({ events: [], artist: null });
@@ -330,12 +364,17 @@ export async function getEventsByArtistName(c: Context) {
       return c.json({ events: [], artist: null });
     }
 
-    const ev = await jamBaseFetch<{ events?: unknown[] }>(key, '/events', {
-      artistId: id,
-      eventDateFrom: jamBaseEventDateFromToday(),
-      perPage: c.req.query('perPage') || '32',
-      page: c.req.query('page') || '1',
-    });
+    const ev = await jamBaseFetch<{ events?: unknown[] }>(
+      key,
+      '/events',
+      {
+        artistId: id,
+        eventDateFrom: jamBaseEventDateFromToday(),
+        perPage: c.req.query('perPage') || '32',
+        page: c.req.query('page') || '1',
+      },
+      jbQ
+    );
 
     c.header('Cache-Control', 'public, max-age=600');
 

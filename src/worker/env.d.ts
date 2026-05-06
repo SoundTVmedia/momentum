@@ -22,6 +22,10 @@ interface Env {
   
   // JamBase API
   JAMBASE_API_KEY: string;
+  /** Max upstream JamBase calls (D1 `jambase_api_usage`, bucket `jam:upstream`). Default 1000. */
+  JAMBASE_QUOTA_MAX?: string;
+  /** Set to `0` / `false` / `off` to disable D1 quota enforcement (e.g. before migration 42). */
+  JAMBASE_QUOTA_ENFORCEMENT?: string;
   
   // Stripe Payment Processing
   STRIPE_SECRET_KEY: string;
