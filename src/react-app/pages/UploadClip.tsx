@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Upload, MapPin, Music, Calendar, Hash, Loader2, X, Film, Image as ImageIcon, Search, Edit2, Check, Share2, Heart, MessageCircle, Bookmark } from 'lucide-react';
@@ -7,7 +7,7 @@ import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
-import type { JamBaseArtist, JamBaseVenue } from '@/shared/types';
+import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -41,7 +41,22 @@ export default function UploadClip() {
   // Confirmation modal state
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [postedClip, setPostedClip] = useState<any | null>(null);
-  
+
+  const [jambaseLink, setJambaseLink] = useState<{
+    event: string;
+    artist: string | null;
+    venue: string | null;
+  } | null>(null);
+  const [ambiguousCandidates, setAmbiguousCandidates] = useState<ClipShowCandidate[]>([]);
+  const [recordingAtIso, setRecordingAtIso] = useState<string | null>(null);
+  const [captureGeo, setCaptureGeo] = useState<{
+    latitude: number;
+    longitude: number;
+    city: string | null;
+    state: string | null;
+    country: string | null;
+  } | null>(null);
+
   const [formData, setFormData] = useState({
     video_file: null as File | null,
     video_blob: null as Blob | null,
@@ -77,17 +92,43 @@ export default function UploadClip() {
     
     // Check if we received show data from auto-tagging
     if (location.state?.showData) {
-      const showData = location.state.showData as any;
+      const showData = location.state.showData as Record<string, unknown>;
       setFormData(prev => ({
         ...prev,
-        artist_name: showData.artist_name || '',
-        venue_name: showData.venue_name || '',
-        location: showData.location || '',
+        artist_name: (showData.artist_name as string) || '',
+        venue_name: (showData.venue_name as string) || '',
+        location: (showData.location as string) || '',
       }));
-      
-      // Pre-fill search fields
-      if (showData.artist_name) setArtistSearch(showData.artist_name);
-      if (showData.venue_name) setVenueSearch(showData.venue_name);
+
+      if (showData.artist_name) setArtistSearch(String(showData.artist_name));
+      if (showData.venue_name) setVenueSearch(String(showData.venue_name));
+
+      if (typeof showData.jambase_event_id === 'string') {
+        setJambaseLink({
+          event: showData.jambase_event_id,
+          artist: typeof showData.jambase_artist_id === 'string' ? showData.jambase_artist_id : null,
+          venue: typeof showData.jambase_venue_id === 'string' ? showData.jambase_venue_id : null,
+        });
+      }
+    }
+
+    const nav = location.state as Record<string, unknown> | undefined;
+    if (Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0) {
+      setAmbiguousCandidates(nav.ambiguousCandidates as ClipShowCandidate[]);
+    }
+    if (typeof nav?.recordingStartedAt === 'string') {
+      setRecordingAtIso(nav.recordingStartedAt);
+    }
+    if (nav?.captureGeo && typeof nav.captureGeo === 'object' && nav.captureGeo !== null) {
+      setCaptureGeo(
+        nav.captureGeo as {
+          latitude: number;
+          longitude: number;
+          city: string | null;
+          state: string | null;
+          country: string | null;
+        }
+      );
     }
     
     // Check if we received video metadata (orientation and resolution)
@@ -162,6 +203,137 @@ export default function UploadClip() {
       setShowVenueSuggestions(false);
     }
   }, [debouncedVenueSearch, formData.location, searchVenues]);
+
+  const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
+    setFormData((prev) => ({
+      ...prev,
+      artist_name: c.artist_name ?? '',
+      venue_name: c.venue_name ?? '',
+      location: c.location ?? prev.location,
+    }));
+    setArtistSearch(c.artist_name ?? '');
+    setVenueSearch(c.venue_name ?? '');
+    setJambaseLink({
+      event: c.jambase_event_id,
+      artist: c.jambase_artist_id,
+      venue: c.jambase_venue_id,
+    });
+    setAmbiguousCandidates([]);
+  }, []);
+
+  useEffect(() => {
+    if (
+      formData.video_file &&
+      !(location.state as { recordingStartedAt?: string } | null)?.recordingStartedAt
+    ) {
+      setRecordingAtIso(new Date(formData.video_file.lastModified).toISOString());
+    }
+  }, [formData.video_file, location.state]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (jambaseLink?.event) return;
+    if (ambiguousCandidates.length > 0) return;
+
+    const nav = location.state as {
+      videoBlob?: unknown;
+      showData?: { jambase_event_id?: string };
+      ambiguousCandidates?: unknown[];
+      recordingStartedAt?: string;
+      captureGeo?: {
+        latitude: number;
+        longitude: number;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+      };
+    } | null;
+
+    const fromQuick = Boolean(nav?.videoBlob);
+
+    const shouldResolve =
+      Boolean(formData.video_file && uploadMethod === 'file' && !fromQuick) ||
+      Boolean(
+        showCaptionScreen &&
+          fromQuick &&
+          !nav?.showData?.jambase_event_id &&
+          !(Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0)
+      );
+
+    if (!shouldResolve) return;
+
+    const at =
+      recordingAtIso ||
+      (formData.video_file ? new Date(formData.video_file.lastModified).toISOString() : null) ||
+      (typeof nav?.recordingStartedAt === 'string' ? nav.recordingStartedAt : null);
+    if (!at) return;
+
+    let cancelled = false;
+    (async () => {
+      let geo = captureGeo;
+      if (!geo?.latitude && nav?.captureGeo?.latitude != null) {
+        geo = nav.captureGeo;
+        if (!cancelled) setCaptureGeo(geo);
+      }
+      if (!geo?.latitude) {
+        const g = await requestLocation();
+        if (cancelled) return;
+        if (g?.latitude != null && g?.longitude != null) {
+          geo = {
+            latitude: g.latitude,
+            longitude: g.longitude,
+            city: g.city,
+            state: g.state,
+            country: g.country,
+          };
+          setCaptureGeo(geo);
+        }
+      }
+      if (!geo?.latitude || cancelled) return;
+      try {
+        const res = await fetch('/api/clips/resolve-show', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            at,
+            city: geo.city ?? undefined,
+            state: geo.state ?? undefined,
+            country: geo.country ?? undefined,
+          }),
+        });
+        if (cancelled || !res.ok) return;
+        const data = (await res.json()) as {
+          match?: string;
+          candidates?: ClipShowCandidate[];
+        };
+        if (cancelled) return;
+        if (data.match === 'single' && data.candidates?.[0]) {
+          applyClipCandidate(data.candidates[0]);
+        } else if (data.match === 'ambiguous' && data.candidates?.length) {
+          setAmbiguousCandidates(data.candidates);
+        }
+      } catch (e) {
+        console.error('resolve-show', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user,
+    jambaseLink?.event,
+    ambiguousCandidates.length,
+    formData.video_file,
+    uploadMethod,
+    showCaptionScreen,
+    recordingAtIso,
+    captureGeo,
+    location.state,
+    requestLocation,
+    applyClipCandidate,
+  ]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -317,6 +489,12 @@ export default function UploadClip() {
         content_description: formData.content_description || null,
         hashtags: hashtagsArray,
         status,
+        timestamp: recordingAtIso || undefined,
+        jambase_event_id: jambaseLink?.event ?? undefined,
+        jambase_artist_id: jambaseLink?.artist ?? undefined,
+        jambase_venue_id: jambaseLink?.venue ?? undefined,
+        geolocation_latitude: captureGeo?.latitude,
+        geolocation_longitude: captureGeo?.longitude,
         // Include video metadata if available (orientation and resolution)
         recording_orientation: videoMetadata.recording_orientation || null,
         video_resolution_w: videoMetadata.video_resolution_w || null,
@@ -730,6 +908,28 @@ export default function UploadClip() {
                 <p className="text-gray-400 text-xs mt-2">Caption is optional</p>
               </div>
 
+              {ambiguousCandidates.length > 0 && !jambaseLink?.event && (
+                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                  <p className="text-amber-200 text-sm font-medium">Which show was this?</p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {ambiguousCandidates.map((c) => (
+                      <button
+                        key={c.jambase_event_id}
+                        type="button"
+                        onClick={() => applyClipCandidate(c)}
+                        className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
+                      >
+                        <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
+                        <span className="text-gray-400"> · {c.venue_name}</span>
+                        <span className="block text-xs text-gray-500 mt-0.5">
+                          {c.location} · {c.startDate ? new Date(c.startDate).toLocaleString() : ''}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Auto-Populated Tags */}
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -1115,6 +1315,28 @@ export default function UploadClip() {
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
                 placeholder="https://example.com/thumbnail.jpg"
               />
+            </div>
+          )}
+
+          {ambiguousCandidates.length > 0 && !jambaseLink?.event && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+              <p className="text-amber-200 text-sm font-medium">Which show was this?</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {ambiguousCandidates.map((c) => (
+                  <button
+                    key={c.jambase_event_id}
+                    type="button"
+                    onClick={() => applyClipCandidate(c)}
+                    className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
+                  >
+                    <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
+                    <span className="text-gray-400"> · {c.venue_name}</span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      {c.location} · {c.startDate ? new Date(c.startDate).toLocaleString() : ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

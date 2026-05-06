@@ -96,3 +96,26 @@ export interface JamBaseEvent {
   ticketUrl?: string;
   image?: string;
 }
+
+/** Server /api/clips/resolve-show candidate */
+export interface ClipShowCandidate {
+  jambase_event_id: string;
+  jambase_artist_id: string | null;
+  jambase_venue_id: string | null;
+  artist_name: string | null;
+  venue_name: string | null;
+  location: string | null;
+  startDate: string;
+  distance_miles: number | null;
+}
+
+export interface ClipShowResolveResponse {
+  match: 'none' | 'single' | 'ambiguous';
+  candidates: ClipShowCandidate[];
+  notice?: string;
+  meta?: {
+    radiusMiles: number;
+    geoCityId: string | null;
+    eventDateFrom: string;
+  };
+}

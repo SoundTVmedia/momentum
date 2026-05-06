@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Film, Loader2, Circle, Square, AlertCircle, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
-import { useJamBase } from '@/react-app/hooks/useJamBase';
+import type { ClipShowCandidate } from '@/shared/types';
 
 const MAX_RECORDING_TIME = 60; // 60 seconds
 const HAPTIC_WARNING_TIME = 45; // Haptic feedback at 45 seconds
@@ -15,7 +15,15 @@ interface QuickRecordButtonProps {
 export default function QuickRecordButton({ isOpen = false, onClose }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { requestLocation } = useGeolocation();
-  const { matchEvents } = useJamBase();
+  const lastGeoRef = useRef<{
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    city: string | null;
+    state: string | null;
+    country: string | null;
+  } | null>(null);
+  const recordingStartedAtRef = useRef<string | null>(null);
   const [showModal, setShowModal] = useState(isOpen);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -26,7 +34,6 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [locationLocked, setLocationLocked] = useState(false);
   const [showSearching, setShowSearching] = useState(false);
-  const [autoTaggedShow, setAutoTaggedShow] = useState<any | null>(null);
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
   
   // Orientation state
@@ -84,46 +91,25 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     };
   }, [isRecording, isPortrait, recordingOrientation]);
 
-  // Auto-detect location and match show when modal opens
+  // Prime device location when modal opens (JamBase match runs when recording finishes)
   useEffect(() => {
-    if (showModal && !locationLocked && !autoTaggedShow) {
-      handleLocationDetection();
-    }
-  }, [showModal]);
-
-  const handleLocationDetection = async () => {
-    setShowSearching(true);
-    
-    try {
-      const geo = await requestLocation();
-      
-      if (geo && geo.latitude && geo.longitude) {
-        // Try to match with a live event
-        const events = await matchEvents(
-          geo.latitude,
-          geo.longitude,
-          new Date().toISOString()
-        );
-        
-        if (events && events.length > 0) {
-          const event = events[0];
-          setAutoTaggedShow({
-            artist_name: event.artists?.[0]?.name ?? event.name,
-            venue_name: event.venue?.name ?? '',
-            location: [geo.city, geo.state].filter(Boolean).join(', '),
-            latitude: geo.latitude,
-            longitude: geo.longitude,
-            accuracy: geo.accuracy,
-          });
-          setLocationLocked(true);
+    if (showModal && !locationLocked) {
+      (async () => {
+        setShowSearching(true);
+        try {
+          const geo = await requestLocation();
+          if (geo?.latitude != null && geo?.longitude != null) {
+            lastGeoRef.current = geo;
+            setLocationLocked(true);
+          }
+        } catch (err) {
+          console.error('Location detection failed:', err);
+        } finally {
+          setShowSearching(false);
         }
-      }
-    } catch (err) {
-      console.error('Location detection failed:', err);
-    } finally {
-      setShowSearching(false);
+      })();
     }
-  };
+  }, [showModal, locationLocked, requestLocation]);
 
   const requestPermissions = async () => {
     console.log('QuickRecordButton: Requesting camera permissions...');
@@ -261,6 +247,8 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
       navigator.vibrate(50);
     }
 
+    recordingStartedAtRef.current = new Date().toISOString();
+
     try {
       // Use VP9 codec if available, fallback to H.264
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
@@ -327,18 +315,83 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     }
   };
 
-  const handleRecordingComplete = (blob: Blob) => {
+  const handleRecordingComplete = async (blob: Blob) => {
     // Stop all tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
 
-    // Navigate to upload screen with recorded blob, auto-tagged show data, and orientation metadata
+    const at = recordingStartedAtRef.current || new Date().toISOString();
+    let geo = lastGeoRef.current;
+    if (!geo?.latitude) {
+      try {
+        const g = await requestLocation();
+        if (g?.latitude != null && g?.longitude != null) {
+          geo = g;
+          lastGeoRef.current = g;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    let showData: Record<string, unknown> | null = null;
+    let ambiguousCandidates: ClipShowCandidate[] | null = null;
+
+    if (geo?.latitude != null && geo?.longitude != null) {
+      try {
+        const res = await fetch('/api/clips/resolve-show', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            at,
+            city: geo.city ?? undefined,
+            state: geo.state ?? undefined,
+            country: geo.country ?? undefined,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.match === 'single' && data.candidates?.[0]) {
+            const c = data.candidates[0] as ClipShowCandidate;
+            showData = {
+              artist_name: c.artist_name ?? '',
+              venue_name: c.venue_name ?? '',
+              location: c.location ?? [geo.city, geo.state].filter(Boolean).join(', '),
+              jambase_event_id: c.jambase_event_id,
+              jambase_artist_id: c.jambase_artist_id,
+              jambase_venue_id: c.jambase_venue_id,
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+              accuracy: geo.accuracy,
+            };
+          } else if (data.match === 'ambiguous' && data.candidates?.length) {
+            ambiguousCandidates = data.candidates as ClipShowCandidate[];
+          }
+        }
+      } catch (e) {
+        console.error('resolve-show failed:', e);
+      }
+    }
+
     navigate('/upload', {
       state: {
         videoBlob: blob,
-        showData: autoTaggedShow,
+        showData,
+        ambiguousCandidates,
+        recordingStartedAt: at,
+        captureGeo: geo
+          ? {
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+              city: geo.city,
+              state: geo.state,
+              country: geo.country,
+            }
+          : null,
         videoMetadata: {
           recording_orientation: recordingOrientation,
           video_resolution_w: videoResolution.width,
@@ -346,6 +399,8 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
         },
       },
     });
+
+    recordingStartedAtRef.current = null;
 
     // Close modal
     setShowModal(false);
@@ -369,7 +424,7 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     setHasPermission(false);
     setCameraReady(false);
     setRecordingTime(0);
-    setAutoTaggedShow(null);
+    lastGeoRef.current = null;
     setLocationLocked(false);
     
     // Call onClose callback if provided
@@ -478,17 +533,17 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
                 {showSearching ? (
                   <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg flex items-center space-x-2">
                     <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
-                    <span className="text-white text-sm">📍 Finding your show...</span>
+                    <span className="text-white text-sm">📍 Getting location…</span>
                   </div>
-                ) : locationLocked && autoTaggedShow ? (
+                ) : locationLocked ? (
                   <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg">
                     <div className="text-cyan-400 text-sm font-medium text-center">
-                      📍 {autoTaggedShow.artist_name} at {autoTaggedShow.venue_name}
+                      📍 Location on — we will tag the show when you finish recording
                     </div>
                   </div>
                 ) : (
                   <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg">
-                    <div className="text-gray-400 text-sm">Ready to capture</div>
+                    <div className="text-gray-400 text-sm">Allow location to auto-tag nearby shows</div>
                   </div>
                 )}
               </div>
