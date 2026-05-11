@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Film, Loader2, Circle, Square, AlertCircle, Zap, ImagePlus, RefreshCw } from 'lucide-react';
+import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import type { ClipShowCandidate } from '@/shared/types';
@@ -43,8 +43,6 @@ export default function QuickRecordButton({
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
-  const [lowLightDetected, setLowLightDetected] = useState(false);
-  const [flashEnabled, setFlashEnabled] = useState(false);
   const [locationLocked, setLocationLocked] = useState(false);
   const [showSearching, setShowSearching] = useState(false);
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
@@ -339,7 +337,6 @@ export default function QuickRecordButton({
             setVideoResolution({ width: settings.width, height: settings.height });
           }
         }
-        detectLowLight(previewStream);
       } catch (e) {
         console.warn('QuickRecordButton: preview metadata failed', e);
       }
@@ -460,33 +457,6 @@ export default function QuickRecordButton({
 
   const openDeviceMediaPicker = () => {
     deviceMediaInputRef.current?.click();
-  };
-
-  const detectLowLight = (stream: MediaStream) => {
-    const videoTrack = stream.getVideoTracks()[0];
-
-    // Check if device supports flash
-    const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : null;
-    const hasTorch = capabilities && 'torch' in capabilities;
-    
-    if (hasTorch) {
-      // Simple low light detection based on brightness (would need more sophisticated detection in production)
-      setLowLightDetected(true);
-    }
-  };
-
-  const toggleFlash = async () => {
-    if (!streamRef.current) return;
-    
-    const videoTrack = streamRef.current.getVideoTracks()[0];
-    try {
-      await videoTrack.applyConstraints({
-        advanced: [{ torch: !flashEnabled } as any],
-      });
-      setFlashEnabled(!flashEnabled);
-    } catch (err) {
-      console.error('Flash toggle failed:', err);
-    }
   };
 
   const startRecording = async () => {
@@ -811,30 +781,6 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* Low Light Warning - Responsive positioning */}
-            {hasPermission && lowLightDetected && !flashEnabled && (
-              <div 
-                className="absolute left-4 right-4 z-10 transition-all duration-300 ease-in-out"
-                style={{
-                  top: isPortrait ? 'max(5rem, calc(env(safe-area-inset-top, 1rem) + 4rem))' : '5rem'
-                }}
-              >
-                <div className="bg-yellow-500/20 backdrop-blur-md border border-yellow-500/50 px-4 py-3 rounded-lg flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                    <span className="text-white text-sm">Dim lighting detected. Turn on flash?</span>
-                  </div>
-                  <button
-                    onClick={toggleFlash}
-                    className="px-3 py-1 bg-yellow-500 rounded-lg text-black text-sm font-medium hover:bg-yellow-400 transition-colors flex items-center space-x-1 flex-shrink-0"
-                  >
-                    <Zap className="w-3 h-3" />
-                    <span>Turn On Flash</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Network Warning - Responsive positioning */}
             {hasPermission && networkSpeed === 'slow' && (
               <div 
@@ -872,20 +818,24 @@ export default function QuickRecordButton({
               className="hidden"
               onChange={handlePickFromDevice}
             />
-            <div className={`flex items-center justify-between mx-auto transition-all duration-300 ease-in-out ${
-              isPortrait ? 'max-w-lg' : 'max-w-2xl'
-            }`}>
-              <div className="flex items-center gap-2">
+            <div
+              className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
+                isPortrait ? 'max-w-lg' : 'max-w-2xl'
+              }`}
+            >
+              <div className="flex justify-start gap-2">
                 <button
+                  type="button"
                   onClick={closeModal}
-                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors flex-shrink-0"
+                  className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
                 >
                   <span className="text-xl">✕</span>
                 </button>
                 <button
+                  type="button"
                   onClick={openDeviceMediaPicker}
-                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors flex-shrink-0"
+                  className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
                   title="Choose video from your device"
                 >
@@ -893,66 +843,57 @@ export default function QuickRecordButton({
                 </button>
               </div>
 
-              {/* Main Action Button - Responsive sizing */}
-              {!isRecording ? (
-                /* Ready State - Capture Button */
-                <button
-                  onClick={startRecording}
-                  disabled={!cameraReady}
-                  className="relative group disabled:opacity-50 flex-shrink-0"
-                  title="Start capturing your moment (up to 60 seconds)"
-                  style={{ minWidth: '5rem', minHeight: '5rem' }}
-                >
-                  <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
-                    <Circle className="w-16 h-16 text-red-500 fill-red-500" />
-                  </div>
-                  {cameraReady && (
-                    <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-                      <span className="text-white text-xs font-medium">Capture</span>
+              <div className="flex justify-center pb-0.5">
+                {!isRecording ? (
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={!cameraReady}
+                    className="relative group disabled:opacity-50 shrink-0"
+                    title="Start capturing your moment (up to 60 seconds)"
+                    style={{ minWidth: '5rem', minHeight: '5rem' }}
+                  >
+                    <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                      <Circle className="w-16 h-16 text-red-500 fill-red-500" />
                     </div>
-                  )}
-                </button>
-              ) : (
-                /* Recording State - End Moment Button */
-                <button
-                  onClick={stopRecording}
-                  className="relative group flex-shrink-0"
-                  title="Stop recording and save your moment"
-                  style={{ minWidth: '5rem', minHeight: '5rem' }}
-                >
-                  <div className="w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
-                    <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
-                  </div>
-                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-                    <span className="text-white text-xs font-medium">End Moment</span>
-                  </div>
-                </button>
-              )}
+                    {cameraReady && (
+                      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                        <span className="text-white text-xs font-medium">Capture</span>
+                      </div>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    className="relative group shrink-0"
+                    title="Stop recording and save your moment"
+                    style={{ minWidth: '5rem', minHeight: '5rem' }}
+                  >
+                    <div className="w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
+                      <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
+                    </div>
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                      <span className="text-white text-xs font-medium">End Moment</span>
+                    </div>
+                  </button>
+                )}
+              </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-end justify-end gap-1">
                 <button
+                  type="button"
                   onClick={toggleCameraFacing}
                   disabled={isRecording}
-                  className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors flex-shrink-0 disabled:opacity-50"
+                  className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
                   title="Flip camera"
                 >
                   <RefreshCw className="w-6 h-6" />
                 </button>
-                <span className="text-[10px] text-gray-300 leading-none">
+                <span className="text-[10px] text-gray-300 leading-tight text-right pr-0.5">
                   {preferredFacingMode === 'environment' ? 'Back' : 'Front'}
                 </span>
-                {flashEnabled ? (
-                  <button
-                    onClick={toggleFlash}
-                    className="w-14 h-14 rounded-full bg-yellow-500/20 flex items-center justify-center text-yellow-400 hover:bg-yellow-500/30 transition-colors flex-shrink-0"
-                    style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-                  >
-                    <Zap className="w-6 h-6 fill-yellow-400" />
-                  </button>
-                ) : (
-                  <div className="w-14 h-14 flex-shrink-0" style={{ minWidth: '3.5rem' }} />
-                )}
               </div>
             </div>
           </div>

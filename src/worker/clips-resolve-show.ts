@@ -231,6 +231,10 @@ async function resolveGeoCityId(
  * POST /api/clips/resolve-show
  * Body: { latitude, longitude, at, city?, state?, country? }
  * Uses user_profiles.location_radius_miles (default 50).
+ *
+ * Candidates are events in the time window that fall within radius (or city heuristics).
+ * They are ordered with the venue nearest to (latitude, longitude) first so the primary
+ * pick and jambase_venue_id align with closest physical venue, then recording time.
  */
 export async function postResolveShowForClip(c: Context) {
   const mochaUser = c.get('user');
@@ -323,13 +327,19 @@ export async function postResolveShowForClip(c: Context) {
     if (cnd) candidates.push(cnd);
   }
 
+  // Prefer the venue closest to the user's coordinates so clips.jambase_venue_id reflects
+  // geographic association; time-to-show is a tiebreaker (same venue / city-only rows).
   candidates.sort((a, b) => {
+    const da = a.distance_miles;
+    const db = b.distance_miles;
+    const aGeo = da != null && Number.isFinite(da);
+    const bGeo = db != null && Number.isFinite(db);
+    if (aGeo && bGeo && da !== db) return da - db;
+    if (aGeo && !bGeo) return -1;
+    if (!aGeo && bGeo) return 1;
     const ta = Math.abs(Date.parse(a.startDate) - atMs);
     const tb = Math.abs(Date.parse(b.startDate) - atMs);
-    if (ta !== tb) return ta - tb;
-    const da = a.distance_miles ?? 9999;
-    const db = b.distance_miles ?? 9999;
-    return da - db;
+    return ta - tb;
   });
 
   let match: ClipResolveMatch;
