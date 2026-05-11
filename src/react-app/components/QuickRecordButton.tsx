@@ -23,6 +23,8 @@ interface QuickRecordButtonProps {
   captureLaunchGeo?: PrimedCaptureGeo | null;
   /** Set true when parent’s priming promise settled (even if geo is null). */
   captureLaunchGeoResolved?: boolean;
+  /** When true, do not call getUserMedia until launch-time geolocation has finished (location before camera/mic). */
+  deferCameraUntilLaunchGeo?: boolean;
 }
 
 export default function QuickRecordButton({
@@ -33,6 +35,7 @@ export default function QuickRecordButton({
   gestureCameraPrimingPending = false,
   captureLaunchGeo,
   captureLaunchGeoResolved = true,
+  deferCameraUntilLaunchGeo = false,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
@@ -89,10 +92,15 @@ export default function QuickRecordButton({
     lon: number;
   } | null>(null);
   const [nearbyVenues, setNearbyVenues] = useState<ClipShowCandidate[]>([]);
+  const nearbyVenuesRef = useRef<ClipShowCandidate[]>([]);
   const [nearbyVenuesLoading, setNearbyVenuesLoading] = useState(false);
   const [nearbyVenuesNotice, setNearbyVenuesNotice] = useState<string | null>(null);
   const [selectedVenueKey, setSelectedVenueKey] = useState<string | null>(null);
   const coordsForNearbyVenuesRef = useRef<{ lat: number; lon: number } | null>(null);
+
+  useEffect(() => {
+    nearbyVenuesRef.current = nearbyVenues;
+  }, [nearbyVenues]);
 
   useEffect(() => {
     coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
@@ -759,6 +767,7 @@ export default function QuickRecordButton({
 
     let showData: Record<string, unknown> | null = null;
     let ambiguousCandidates: ClipShowCandidate[] | null = null;
+    let nearbyVenuesForUpload: ClipShowCandidate[] = [];
 
     const picked = selectedVenueCandidateRef.current;
     if (picked && geo?.latitude != null && geo?.longitude != null) {
@@ -776,6 +785,7 @@ export default function QuickRecordButton({
         longitude: geo.longitude,
         accuracy: geo.accuracy,
       };
+      nearbyVenuesForUpload = [...nearbyVenuesRef.current];
     } else if (geo?.latitude != null && geo?.longitude != null) {
       try {
         const res = await fetch('/api/clips/resolve-show', {
@@ -793,6 +803,7 @@ export default function QuickRecordButton({
         });
         if (res.ok) {
           const data = await res.json();
+          nearbyVenuesForUpload = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
           if (data.match === 'single' && data.candidates?.[0]) {
             const c = data.candidates[0] as ClipShowCandidate;
             showData = {
@@ -824,6 +835,7 @@ export default function QuickRecordButton({
           videoBlob: blob,
           showData,
           ambiguousCandidates,
+          nearbyVenuesFromCapture: nearbyVenuesForUpload.length > 0 ? nearbyVenuesForUpload : undefined,
           recordingStartedAt: at,
           captureGeo: geo
             ? {
@@ -902,14 +914,29 @@ export default function QuickRecordButton({
     setShowModal(isOpen);
   }, [isOpen]);
 
-  // Trigger camera when modal opens (skip when parent primed stream on user gesture, or autoRequestCamera false)
+  // Trigger camera when modal opens (skip when parent primed stream, or while waiting for launch-time GPS)
   useEffect(() => {
     if (!autoRequestCamera) return;
+    if (
+      deferCameraUntilLaunchGeo &&
+      captureLaunchGeo !== undefined &&
+      !captureLaunchGeoResolved
+    ) {
+      return;
+    }
     if (showModal && !permissionDenied && !cameraOpenRequested) {
       console.log('QuickRecordButton: Modal opened, requesting camera permissions...');
       void requestPermissions();
     }
-  }, [showModal, permissionDenied, cameraOpenRequested, autoRequestCamera]);
+  }, [
+    showModal,
+    permissionDenied,
+    cameraOpenRequested,
+    autoRequestCamera,
+    deferCameraUntilLaunchGeo,
+    captureLaunchGeo,
+    captureLaunchGeoResolved,
+  ]);
 
   useEffect(() => {
     return () => {

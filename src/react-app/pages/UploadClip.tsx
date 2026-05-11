@@ -21,7 +21,7 @@ export default function UploadClip() {
   const location = useLocation();
   const { user, isPending } = useAuth();
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
-  const { location: lastKnownGeo } = useGeolocation();
+  const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ video: 0, thumbnail: 0 });
@@ -59,6 +59,8 @@ export default function UploadClip() {
     venue: string | null;
   } | null>(null);
   const [ambiguousCandidates, setAmbiguousCandidates] = useState<ClipShowCandidate[]>([]);
+  /** JamBase venues near capture GPS (post-capture suggestions). */
+  const [nearbyVenueSuggestions, setNearbyVenueSuggestions] = useState<ClipShowCandidate[]>([]);
   const [recordingAtIso, setRecordingAtIso] = useState<string | null>(null);
   const [captureGeo, setCaptureGeo] = useState<{
     latitude: number;
@@ -87,6 +89,24 @@ export default function UploadClip() {
       setCaptureGeo(cg);
     }
   }, [location.state]);
+
+  /** Keep hook `location` in sync with capture coords so resolve + fallbacks see the same point. */
+  useEffect(() => {
+    if (
+      !captureGeo ||
+      !Number.isFinite(captureGeo.latitude) ||
+      !Number.isFinite(captureGeo.longitude)
+    ) {
+      return;
+    }
+    ingestCaptureGeo({
+      latitude: captureGeo.latitude,
+      longitude: captureGeo.longitude,
+      city: captureGeo.city,
+      state: captureGeo.state,
+      country: captureGeo.country,
+    });
+  }, [captureGeo, ingestCaptureGeo]);
 
   const [formData, setFormData] = useState({
     video_file: null as File | null,
@@ -164,6 +184,7 @@ export default function UploadClip() {
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
     if (location.state?.videoBlob) {
+      setNearbyVenueSuggestions([]);
       const blob = location.state.videoBlob as Blob;
       setFormData(prev => ({ ...prev, video_blob: blob }));
       setUploadMethod('file');
@@ -235,6 +256,9 @@ export default function UploadClip() {
     if (Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0) {
       setAmbiguousCandidates(nav.ambiguousCandidates as ClipShowCandidate[]);
       setResolveNotice('We found multiple nearby venues. Pick the right one below or edit manually.');
+    }
+    if (Array.isArray(nav?.nearbyVenuesFromCapture) && nav.nearbyVenuesFromCapture.length > 0) {
+      setNearbyVenueSuggestions(nav.nearbyVenuesFromCapture as ClipShowCandidate[]);
     }
     if (typeof nav?.recordingStartedAt === 'string') {
       setRecordingAtIso(nav.recordingStartedAt);
@@ -329,7 +353,8 @@ export default function UploadClip() {
     setShowArtistSuggestions(false);
   }, [showCaptionScreen, isEditingTags, formData.artist_name]);
 
-  const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
+  const applyClipCandidate = useCallback((c: ClipShowCandidate, options?: { clearNearby?: boolean }) => {
+    const clearNearby = options?.clearNearby !== false;
     setFormData((prev) => ({
       ...prev,
       artist_name: c.artist_name ?? '',
@@ -345,6 +370,7 @@ export default function UploadClip() {
     });
     captionCommittedArtistNameRef.current = c.artist_name ?? '';
     setAmbiguousCandidates([]);
+    if (clearNearby) setNearbyVenueSuggestions([]);
     setResolveNotice(null);
   }, []);
 
@@ -413,26 +439,44 @@ export default function UploadClip() {
           Number.isFinite(g.latitude) &&
           Number.isFinite(g.longitude);
 
-        const g = validG(lastKnownGeo) ? lastKnownGeo : null;
-        if (cancelled) return;
-        if (validG(g)) {
-          geo = {
-            latitude: g!.latitude,
-            longitude: g!.longitude,
-            city: g!.city ?? null,
-            state: g!.state ?? null,
-            country: g!.country ?? null,
-          };
-          setCaptureGeo(geo);
-        } else {
-          if (!cancelled) {
-            setResolveNotice(
-              fromQuick
-                ? 'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
-                : 'Turn on location when you use Capture to auto-tag venues, or enter details manually.'
-            );
+        if (fromQuick && !cancelled) {
+          const device = await getDeviceCoordinates();
+          if (cancelled) return;
+          if (validG(device)) {
+            geo = {
+              latitude: device!.latitude,
+              longitude: device!.longitude,
+              city: device!.city ?? null,
+              state: device!.state ?? null,
+              country: device!.country ?? null,
+            };
+            setCaptureGeo(geo);
+            ingestCaptureGeo(geo);
           }
-          return;
+        }
+
+        if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) {
+          const g = validG(lastKnownGeo) ? lastKnownGeo : null;
+          if (cancelled) return;
+          if (validG(g)) {
+            geo = {
+              latitude: g!.latitude,
+              longitude: g!.longitude,
+              city: g!.city ?? null,
+              state: g!.state ?? null,
+              country: g!.country ?? null,
+            };
+            setCaptureGeo(geo);
+          } else {
+            if (!cancelled) {
+              setResolveNotice(
+                fromQuick
+                  ? 'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
+                  : 'Turn on location when you use Capture to auto-tag venues, or enter details manually.'
+              );
+            }
+            return;
+          }
         }
       }
       if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude) || cancelled) return;
@@ -462,11 +506,16 @@ export default function UploadClip() {
         const data = (await res.json()) as {
           match?: string;
           candidates?: ClipShowCandidate[];
+          nearbyVenues?: ClipShowCandidate[];
           notice?: string;
         };
         if (cancelled) return;
+        const nearbyList = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
+        if (fromQuick) {
+          setNearbyVenueSuggestions(nearbyList);
+        }
         if (data.match === 'single' && data.candidates?.[0]) {
-          applyClipCandidate(data.candidates[0]);
+          applyClipCandidate(data.candidates[0], { clearNearby: false });
           setResolveNotice(null);
         } else if (data.match === 'ambiguous' && data.candidates?.length) {
           setAmbiguousCandidates(data.candidates);
@@ -500,6 +549,8 @@ export default function UploadClip() {
     location.state,
     lastKnownGeo,
     applyClipCandidate,
+    getDeviceCoordinates,
+    ingestCaptureGeo,
   ]);
 
   const handleInputChange = (field: string, value: string) => {
@@ -775,35 +826,35 @@ export default function UploadClip() {
   };
 
   const handleReRecord = () => {
-    setReRecordLaunchGeo(null);
-    setReRecordLaunchGeoResolved(false);
-    void primeGeolocationOnUserGesture().then((g) => {
-      setReRecordLaunchGeo(g);
-      setReRecordLaunchGeoResolved(true);
-    });
-    // Prime camera inside the user gesture so iOS Safari allows getUserMedia without a prompt.
-    const streamPromise = primeCameraOnUserGesture();
-    setReRecordGesturePending(true);
-    setReRecordPrimedStream(null);
-    void streamPromise
-      .then((stream) => setReRecordPrimedStream(stream))
-      .catch(() => setReRecordPrimedStream(null))
-      .finally(() => setReRecordGesturePending(false));
-
     // Reset upload state
     if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     setVideoBlobUrl(null);
     setShowCaptionScreen(false);
     setFormData((prev) => ({ ...prev, video_blob: null, video_file: null }));
     setAmbiguousCandidates([]);
+    setNearbyVenueSuggestions([]);
     setJambaseLink(null);
     captionCommittedArtistNameRef.current = '';
     setResolveNotice(null);
     setRecordingAtIso(null);
     setCaptureGeo(null);
     setError(null);
-    // Open the capture UI in-place (no navigation — preserves user-gesture chain for camera)
+
+    setReRecordLaunchGeo(null);
+    setReRecordLaunchGeoResolved(false);
+    setReRecordPrimedStream(null);
+    setReRecordGesturePending(true);
     setShowQuickCapture(true);
+
+    void primeGeolocationOnUserGesture()
+      .then((g) => {
+        setReRecordLaunchGeo(g);
+        setReRecordLaunchGeoResolved(true);
+        return primeCameraOnUserGesture();
+      })
+      .then((stream) => setReRecordPrimedStream(stream))
+      .catch(() => setReRecordPrimedStream(null))
+      .finally(() => setReRecordGesturePending(false));
   };
 
   /** Leave upload (e.g. mobile caption screen) and return to the feed; drops in-progress media. */
@@ -825,6 +876,7 @@ export default function UploadClip() {
     }));
     setVideoMetadata({});
     setAmbiguousCandidates([]);
+    setNearbyVenueSuggestions([]);
     setJambaseLink(null);
     setResolveNotice(null);
     setRecordingAtIso(null);
@@ -888,8 +940,10 @@ export default function UploadClip() {
           isOpen={true}
           primedMediaStream={reRecordPrimedStream}
           gestureCameraPrimingPending={reRecordGesturePending}
+          autoRequestCamera={!reRecordPrimedStream && !reRecordGesturePending}
           captureLaunchGeo={reRecordLaunchGeo}
           captureLaunchGeoResolved={reRecordLaunchGeoResolved}
+          deferCameraUntilLaunchGeo
           onClose={() => {
             reRecordPrimedStream?.getTracks().forEach((t) => t.stop());
             setReRecordPrimedStream(null);
@@ -1065,7 +1119,7 @@ export default function UploadClip() {
                       <button
                         key={c.jambase_event_id ?? c.jambase_venue_id ?? 'candidate'}
                         type="button"
-                        onClick={() => applyClipCandidate(c)}
+                        onClick={() => applyClipCandidate(c, { clearNearby: true })}
                         className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
                       >
                         <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
@@ -1073,6 +1127,33 @@ export default function UploadClip() {
                         <span className="block text-xs text-gray-500 mt-0.5">
                           {c.location} · {c.startDate ? new Date(c.startDate).toLocaleString() : ''}
                         </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {nearbyVenueSuggestions.length > 0 && (
+                <div className="p-4 bg-cyan-500/10 border border-cyan-500/25 rounded-lg space-y-2">
+                  <p className="text-cyan-100 text-sm font-medium">
+                    Venues near where you recorded (JamBase)
+                  </p>
+                  <p className="text-gray-400 text-xs">
+                    Tap to tag this clip, or use Change Artist/Venue below to search.
+                  </p>
+                  <div className="space-y-2 max-h-52 overflow-y-auto">
+                    {nearbyVenueSuggestions.map((c) => (
+                      <button
+                        key={`${c.jambase_event_id ?? ''}-${c.jambase_venue_id ?? ''}-${c.venue_name ?? ''}`}
+                        type="button"
+                        onClick={() => applyClipCandidate(c, { clearNearby: true })}
+                        className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
+                      >
+                        <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
+                        <span className="text-gray-400"> · {c.venue_name}</span>
+                        {c.location ? (
+                          <span className="block text-xs text-gray-500 mt-0.5">{c.location}</span>
+                        ) : null}
                       </button>
                     ))}
                   </div>

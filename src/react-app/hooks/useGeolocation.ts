@@ -106,6 +106,10 @@ export function useGeolocation() {
     }
   };
 
+  const ingestCaptureGeo = useCallback((g: GeolocationData) => {
+    setLocation(g);
+  }, []);
+
   return {
     location,
     loading,
@@ -113,5 +117,6 @@ export function useGeolocation() {
     requestLocation,
     getCurrentPosition,
     getDeviceCoordinates,
+    ingestCaptureGeo,
   };
 }

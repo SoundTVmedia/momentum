@@ -35,18 +35,18 @@ export default function MobileBottomNav() {
     }
     setCaptureLaunchGeo(null);
     setCaptureLaunchGeoResolved(false);
-    void primeGeolocationOnUserGesture().then((g) => {
-      setCaptureLaunchGeo(g);
-      setCaptureLaunchGeoResolved(true);
-    });
-    // Start getUserMedia synchronously (async function runs until first await in the same call stack as the tap).
-    // Do not await before opening the modal — that can burn user activation so the prompt never completes.
-    const streamPromise = primeCameraOnUserGesture();
-    setGesturePrimePending(true);
     setOpenedWithGestureCamera(false);
     setPrimedMediaStream(null);
+    setGesturePrimePending(true);
     setShowQuickCapture(true);
-    void streamPromise
+
+    // Location first (same tap), then camera/mic — avoids the OS never showing the location prompt when getUserMedia runs in parallel.
+    void primeGeolocationOnUserGesture()
+      .then((g) => {
+        setCaptureLaunchGeo(g);
+        setCaptureLaunchGeoResolved(true);
+        return primeCameraOnUserGesture();
+      })
       .then((stream) => {
         setOpenedWithGestureCamera(!!stream);
         setPrimedMediaStream(stream);
@@ -153,6 +153,7 @@ export default function MobileBottomNav() {
           autoRequestCamera={!openedWithGestureCamera && !gesturePrimePending}
           captureLaunchGeo={captureLaunchGeo}
           captureLaunchGeoResolved={captureLaunchGeoResolved}
+          deferCameraUntilLaunchGeo
           onClose={handleQuickCaptureClose}
         />
       )}
