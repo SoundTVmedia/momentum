@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import { useNotifications } from '@/react-app/hooks/useNotifications';
 import { useState } from 'react';
 import QuickRecordButton from './QuickRecordButton';
+import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 
 export default function MobileBottomNav() {
   const navigate = useNavigate();
@@ -11,10 +12,40 @@ export default function MobileBottomNav() {
   const { user } = useAuth();
   const { unreadCount } = useNotifications();
   const [showQuickCapture, setShowQuickCapture] = useState(false);
+  const [primedMediaStream, setPrimedMediaStream] = useState<MediaStream | null>(null);
+  /** When true, camera was opened on the same tap as Capture (iOS); skip deferred getUserMedia. */
+  const [openedWithGestureCamera, setOpenedWithGestureCamera] = useState(false);
+  /** While primeCameraOnUserGesture() promise is pending — child must not skip fallback with auto=false + no stream. */
+  const [gesturePrimePending, setGesturePrimePending] = useState(false);
 
   const handleCaptureClick = () => {
-    // Open camera modal directly - no auth check required
+    // Start getUserMedia synchronously (async function runs until first await in the same call stack as the tap).
+    // Do not await before opening the modal — that can burn user activation so the prompt never completes.
+    const streamPromise = primeCameraOnUserGesture();
+    setGesturePrimePending(true);
+    setOpenedWithGestureCamera(false);
+    setPrimedMediaStream(null);
     setShowQuickCapture(true);
+    void streamPromise
+      .then((stream) => {
+        setOpenedWithGestureCamera(!!stream);
+        setPrimedMediaStream(stream);
+      })
+      .catch(() => {
+        setOpenedWithGestureCamera(false);
+        setPrimedMediaStream(null);
+      })
+      .finally(() => {
+        setGesturePrimePending(false);
+      });
+  };
+
+  const handleQuickCaptureClose = () => {
+    primedMediaStream?.getTracks().forEach((t) => t.stop());
+    setPrimedMediaStream(null);
+    setOpenedWithGestureCamera(false);
+    setGesturePrimePending(false);
+    setShowQuickCapture(false);
   };
 
   const navItems = [
@@ -86,9 +117,12 @@ export default function MobileBottomNav() {
 
       {/* Quick Capture Modal */}
       {showQuickCapture && (
-        <QuickRecordButton 
-          isOpen={showQuickCapture} 
-          onClose={() => setShowQuickCapture(false)} 
+        <QuickRecordButton
+          isOpen={showQuickCapture}
+          primedMediaStream={primedMediaStream}
+          gestureCameraPrimingPending={gesturePrimePending}
+          autoRequestCamera={!openedWithGestureCamera && !gesturePrimePending}
+          onClose={handleQuickCaptureClose}
         />
       )}
     </>

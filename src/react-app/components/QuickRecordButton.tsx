@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Film, Loader2, Circle, Square, AlertCircle, Zap, ImagePlus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
@@ -10,9 +10,21 @@ const HAPTIC_WARNING_TIME = 45; // Haptic feedback at 45 seconds
 interface QuickRecordButtonProps {
   isOpen?: boolean;
   onClose?: () => void;
+  /** Obtained in the same user gesture as opening capture (see MobileBottomNav). Required for iOS Safari. */
+  primedMediaStream?: MediaStream | null;
+  /** When false, skip getUserMedia on open (primed stream or caller handles it). */
+  autoRequestCamera?: boolean;
+  /** Parent is resolving getUserMedia on the capture tap — wait before treating as gesture-only with no stream. */
+  gestureCameraPrimingPending?: boolean;
 }
 
-export default function QuickRecordButton({ isOpen = false, onClose }: QuickRecordButtonProps = {}) {
+export default function QuickRecordButton({
+  isOpen = false,
+  onClose,
+  primedMediaStream = null,
+  autoRequestCamera = true,
+  gestureCameraPrimingPending = false,
+}: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { requestLocation } = useGeolocation();
   const lastGeoRef = useRef<{
@@ -56,6 +68,10 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
   const isChrome = /Chrome|CriOS/i.test(ua);
   const [preferredFacingMode, setPreferredFacingMode] = useState<'environment' | 'user'>('environment');
   const [audioEnabled, setAudioEnabled] = useState(true);
+  /** Bound to preview <video>; drives loadedmetadata / play without mount-order deadlock */
+  const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
+  /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
+  const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
 
   // Detect network speed
   useEffect(() => {
@@ -121,10 +137,12 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     }
   }, [showModal, locationLocked, requestLocation]);
 
-  const requestPermissions = async () => {
+  const requestPermissions = async (facingOverride?: 'environment' | 'user') => {
     console.log('QuickRecordButton: Requesting camera permissions...');
     setCameraOpenRequested(true);
-    setCameraReady(false); // Reset camera ready state
+    setHasPermission(false);
+    setCameraReady(false);
+    setPreviewStream(null);
     setPermissionDenied(false); // Clear previous denial state
     setCameraError(null);
 
@@ -145,13 +163,32 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
             height: { ideal: 1080, min: 640 },
             frameRate: { ideal: 30, min: 24 },
           };
+      const facing = facingOverride ?? preferredFacingMode;
       const orderedFacingModes: ('environment' | 'user')[] =
-        preferredFacingMode === 'environment' ? ['environment', 'user'] : ['user', 'environment'];
-      const videoAttempts: (MediaTrackConstraints | boolean)[] = [
+        facing === 'environment' ? ['environment', 'user'] : ['user', 'environment'];
+      const heavyFacing: MediaTrackConstraints[] = [
         { ...baseVideo, facingMode: { ideal: orderedFacingModes[0] } },
-        { ...baseVideo, facingMode: orderedFacingModes[1] },
-        true,
+        { ...baseVideo, facingMode: { ideal: orderedFacingModes[1] } },
       ];
+      // `true` first: works on most desktops, VMs, and Docker dev where facingMode/heavy mins can yield NotFoundError.
+      const videoAttempts: (MediaTrackConstraints | boolean)[] = [
+        true,
+        ...(isIOS || isAndroid
+          ? [
+              { facingMode: { ideal: orderedFacingModes[0] } },
+              { facingMode: { ideal: orderedFacingModes[1] } },
+            ]
+          : []),
+        ...heavyFacing,
+      ];
+
+      const audioConstraintsObj = {
+        sampleRate: 48000,
+        channelCount: 2,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      };
 
       let stream: MediaStream | null = null;
       if (streamRef.current) {
@@ -159,21 +196,15 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
         streamRef.current = null;
       }
       for (const video of videoAttempts) {
-        try {
-          const audioConstraints = audioEnabled
-            ? {
-                sampleRate: 48000,
-                channelCount: 2,
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: false,
-              }
-            : false;
-          stream = await navigator.mediaDevices.getUserMedia({
+        let attemptStream: MediaStream | null = null;
+        const tryOpen = async (withAudio: boolean) => {
+          return navigator.mediaDevices.getUserMedia({
             video,
-            audio: audioConstraints,
+            audio: withAudio ? audioConstraintsObj : false,
           });
-          break;
+        };
+        try {
+          attemptStream = await tryOpen(audioEnabled);
         } catch (attemptError) {
           const errName =
             attemptError instanceof DOMException
@@ -181,12 +212,35 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
               : attemptError instanceof Error
                 ? attemptError.name
                 : '';
-          if (audioEnabled && (errName === 'NotAllowedError' || errName === 'NotFoundError' || errName === 'OverconstrainedError')) {
-            // Some devices block open due to mic permission/availability; retry video-only.
-            console.warn('QuickRecordButton: retrying camera without audio due to:', errName);
-            setAudioEnabled(false);
+          // NotFoundError = no matching camera/mic device — retrying video-only on the same constraints cannot fix it.
+          const maybeMicBlocked =
+            audioEnabled &&
+            (errName === 'NotAllowedError' ||
+              errName === 'OverconstrainedError' ||
+              errName === 'AbortError');
+          if (maybeMicBlocked) {
+            try {
+              attemptStream = await tryOpen(false);
+              setAudioEnabled(false);
+              console.warn('QuickRecordButton: opened camera without audio after:', errName);
+            } catch (videoOnlyError) {
+              const vName =
+                videoOnlyError instanceof DOMException
+                  ? videoOnlyError.name
+                  : videoOnlyError instanceof Error
+                    ? videoOnlyError.name
+                    : '';
+              if (vName !== 'NotFoundError') {
+                console.warn('QuickRecordButton: video-only attempt failed', videoOnlyError);
+              }
+            }
+          } else if (errName !== 'NotFoundError') {
+            console.warn('QuickRecordButton: getUserMedia attempt failed', attemptError);
           }
-          console.warn('QuickRecordButton: getUserMedia attempt failed', attemptError);
+        }
+        if (attemptStream) {
+          stream = attemptStream;
+          break;
         }
       }
 
@@ -196,39 +250,8 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
 
       console.log('QuickRecordButton: getUserMedia successful');
       streamRef.current = stream;
+      setPreviewStream(stream);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        console.log('QuickRecordButton: Video stream assigned to video element');
-        
-        // Wait for the video to load metadata before marking as ready
-        videoRef.current.onloadedmetadata = () => {
-          void videoRef.current?.play().catch(() => undefined);
-          console.log('QuickRecordButton: Video metadata loaded, camera is ready');
-          setHasPermission(true);
-          setCameraReady(true); // Only set cameraReady to true after video metadata is loaded
-          
-          // Get actual video resolution from track settings
-          const videoTrack = stream.getVideoTracks()[0];
-          const settings = videoTrack.getSettings();
-          
-          if (settings.width && settings.height) {
-            console.log('QuickRecordButton: Video resolution:', settings.width, 'x', settings.height);
-            setVideoResolution({
-              width: settings.width,
-              height: settings.height
-            });
-          }
-          
-          // Detect low light conditions
-          detectLowLight(stream);
-        };
-      } else {
-        // If videoRef is not available, permissions are still granted but camera isn't ready
-        console.log('QuickRecordButton: Video ref not available, but permissions granted');
-        setHasPermission(true);
-      }
-      
       setPermissionDenied(false);
       const hasAudioTrack = stream.getAudioTracks().length > 0;
       if (!hasAudioTrack) {
@@ -241,14 +264,20 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
       
       return stream;
     } catch (err) {
-      console.error('QuickRecordButton: Permission denied or camera access failed:', err);
-      setPermissionDenied(true);
-      const fallbackMsg =
-        isIOS && isSafari
-          ? 'iOS Safari blocked camera start. Tap "Open Camera" and allow permission, or choose a video from device.'
-          : isAndroid && isChrome
-            ? 'Android Chrome could not open the camera. Close other camera apps and tap "Open Camera" again.'
-            : 'Camera access failed. You can grant access or choose media from your device.';
+      console.warn('QuickRecordButton: camera access failed:', err);
+      setPreviewStream(null);
+      const isNotAllowed =
+        err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+      setPermissionDenied(isNotAllowed);
+      const noDeviceHint =
+        'No camera was detected (common without a webcam, in Docker, or when the browser cannot access devices). Use the gallery button to pick a video.';
+      const fallbackMsg = isNotAllowed
+        ? isIOS && isSafari
+          ? 'Camera access is blocked for this site. In Settings → Safari → Camera, allow access, then use Capture again.'
+          : 'Camera access was denied. Allow camera (and microphone if asked) for this site in your browser settings, then open Capture again.'
+        : isAndroid && isChrome
+          ? 'Could not start the camera. Close other apps using the camera, then try Capture again.'
+          : noDeviceHint;
       setCameraError(err instanceof Error ? `${fallbackMsg} (${err.message})` : fallbackMsg);
       setHasPermission(false);
       setCameraReady(false); // Ensure cameraReady is false on failure
@@ -256,10 +285,145 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     }
   };
 
+  useLayoutEffect(() => {
+    if (!showModal) {
+      lastAdoptedPrimedRef.current = null;
+      return;
+    }
+    if (!primedMediaStream) return;
+
+    const v0 = primedMediaStream.getVideoTracks()[0];
+    if (!v0 || v0.readyState === 'ended') return;
+
+    if (lastAdoptedPrimedRef.current === primedMediaStream) return;
+    lastAdoptedPrimedRef.current = primedMediaStream;
+
+    if (streamRef.current && streamRef.current !== primedMediaStream) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    streamRef.current = primedMediaStream;
+    setCameraOpenRequested(true);
+    setPermissionDenied(false);
+    setCameraError(null);
+    setHasPermission(false);
+    setCameraReady(false);
+    setPreviewStream(primedMediaStream);
+  }, [showModal, primedMediaStream]);
+
+  useLayoutEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!previewStream) {
+      video.srcObject = null;
+      return;
+    }
+
+    let cancelled = false;
+    let marked = false;
+
+    const markReady = () => {
+      if (cancelled || marked) return;
+      marked = true;
+      void video.play().catch(() => undefined);
+      setHasPermission(true);
+      setCameraReady(true);
+      try {
+        const vt = previewStream.getVideoTracks()[0];
+        if (vt?.getSettings) {
+          const settings = vt.getSettings();
+          if (settings.width && settings.height) {
+            setVideoResolution({ width: settings.width, height: settings.height });
+          }
+        }
+        detectLowLight(previewStream);
+      } catch (e) {
+        console.warn('QuickRecordButton: preview metadata failed', e);
+      }
+    };
+
+    const tryMarkFromElement = () => {
+      if (cancelled || marked) return;
+      void video.play().catch(() => undefined);
+      const vt = previewStream.getVideoTracks()[0];
+      const streamLive = vt?.readyState === 'live';
+      const hasDims = video.videoWidth > 0 && video.videoHeight > 0;
+      // Safari often stays at HAVE_METADATA with 0×0 until after play(); still allow ready UI + record.
+      if (
+        hasDims ||
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||
+        (streamLive && video.readyState >= HTMLMediaElement.HAVE_METADATA)
+      ) {
+        markReady();
+      }
+    };
+
+    // iOS WebKit often will not decode or advance readyState while the <video> is
+    // effectively hidden (e.g. opacity:0). Keep preview opaque; the loading layer covers it.
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('muted', '');
+    video.srcObject = previewStream;
+
+    const onMeta = () => tryMarkFromElement();
+    const onData = () => tryMarkFromElement();
+    const onCanPlay = () => tryMarkFromElement();
+    const onPlaying = () => markReady();
+
+    video.addEventListener('loadedmetadata', onMeta);
+    video.addEventListener('loadeddata', onData);
+    video.addEventListener('canplay', onCanPlay);
+    video.addEventListener('playing', onPlaying);
+
+    const vTrack = previewStream.getVideoTracks()[0];
+    const onTrackUnmute = () => tryMarkFromElement();
+    vTrack?.addEventListener('unmute', onTrackUnmute);
+
+    tryMarkFromElement();
+
+    let frames = 0;
+    const maxFrames = 180;
+    const poll = () => {
+      if (cancelled || marked) return;
+      frames += 1;
+      tryMarkFromElement();
+      if (!marked && frames < maxFrames) {
+        requestAnimationFrame(poll);
+      } else if (!marked) {
+        markReady();
+      }
+    };
+    requestAnimationFrame(poll);
+
+    // Permission resolves outside a tap; if events never fire, still unblock capture when the track is live.
+    const fallbackMs = 600;
+    const fallbackId = window.setTimeout(() => {
+      if (cancelled || marked) return;
+      const t = previewStream.getVideoTracks()[0];
+      if (t?.readyState === 'live') {
+        markReady();
+      }
+    }, fallbackMs);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallbackId);
+      vTrack?.removeEventListener('unmute', onTrackUnmute);
+      video.removeEventListener('loadedmetadata', onMeta);
+      video.removeEventListener('loadeddata', onData);
+      video.removeEventListener('canplay', onCanPlay);
+      video.removeEventListener('playing', onPlaying);
+    };
+  }, [previewStream]);
+
   const toggleCameraFacing = async () => {
     if (isRecording) return;
-    setPreferredFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
-    await requestPermissions();
+    const next = preferredFacingMode === 'environment' ? 'user' : 'environment';
+    setPreferredFacingMode(next);
+    await requestPermissions(next);
   };
 
   const handlePickFromDevice = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -504,6 +668,9 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     // Close modal
     setShowModal(false);
     setHasPermission(false);
+    setCameraReady(false);
+    setPreviewStream(null);
+    setCameraOpenRequested(false);
     setRecordingTime(0);
   };
 
@@ -512,7 +679,8 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
-    
+    setPreviewStream(null);
+
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -522,10 +690,12 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     setIsRecording(false);
     setHasPermission(false);
     setCameraReady(false);
+    setCameraOpenRequested(false);
     setRecordingTime(0);
     lastGeoRef.current = null;
     setLocationLocked(false);
-    
+    lastAdoptedPrimedRef.current = null;
+
     // Call onClose callback if provided
     if (onClose) {
       onClose();
@@ -537,13 +707,14 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
     setShowModal(isOpen);
   }, [isOpen]);
 
-  // Trigger camera permission request when modal opens, if not already granted
+  // Trigger camera when modal opens (skip when parent primed stream on user gesture, or autoRequestCamera false)
   useEffect(() => {
-    if (showModal && !hasPermission && !permissionDenied && !cameraOpenRequested) {
+    if (!autoRequestCamera) return;
+    if (showModal && !permissionDenied && !cameraOpenRequested) {
       console.log('QuickRecordButton: Modal opened, requesting camera permissions...');
       void requestPermissions();
     }
-  }, [showModal, hasPermission, permissionDenied, cameraOpenRequested]);
+  }, [showModal, permissionDenied, cameraOpenRequested, autoRequestCamera]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -571,42 +742,36 @@ export default function QuickRecordButton({ isOpen = false, onClose }: QuickReco
       {showModal && (
         <div className={modalClass}>
           {/* Camera View */}
-          <div className="flex-1 relative bg-black">
-            {hasPermission && cameraReady ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover transition-transform duration-300 ease-in-out"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="text-center space-y-4 p-6">
+          <div className="flex-1 min-h-0 relative bg-black">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 z-0 w-full h-full object-cover"
+            />
+            {(!hasPermission || !cameraReady) && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
+                <div className="text-center space-y-4 p-6 max-w-sm">
                   <Film className="w-16 h-16 text-gray-400 mx-auto" />
                   {permissionDenied ? (
                     <>
-                      <h3 className="text-xl font-bold text-white">Camera Access Needed</h3>
-                      <p className="text-gray-400">Please allow camera and microphone access to record your moment</p>
-                      {cameraError && <p className="text-red-400 text-sm">{cameraError}</p>}
-                      <button
-                        onClick={requestPermissions}
-                        className="px-6 py-3 bg-cyan-500 rounded-lg text-white font-medium hover:bg-cyan-600 transition-colors"
-                      >
-                        Grant Access
-                      </button>
+                      <h3 className="text-xl font-bold text-white">Camera blocked</h3>
+                      <p className="text-gray-400 text-sm">
+                        Use your device settings to allow the camera for this site, then tap Capture again. You can also
+                        use the gallery button below to choose a video.
+                      </p>
+                      {cameraError && <p className="text-red-400/90 text-xs mt-2">{cameraError}</p>}
                     </>
                   ) : (
                     <>
                       <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
-                      <p className="text-white">Requesting camera access...</p>
-                      <button
-                        onClick={requestPermissions}
-                        className="px-6 py-3 bg-cyan-500 rounded-lg text-white font-medium hover:bg-cyan-600 transition-colors"
-                      >
-                        Open Camera
-                      </button>
-                      {cameraError && <p className="text-red-400 text-sm mt-2">{cameraError}</p>}
+                      <p className="text-white text-sm">
+                        {gestureCameraPrimingPending
+                          ? 'Use the camera prompt if it appears…'
+                          : 'Starting camera…'}
+                      </p>
+                      {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
                     </>
                   )}
                 </div>
