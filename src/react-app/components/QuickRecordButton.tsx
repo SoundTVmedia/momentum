@@ -49,6 +49,8 @@ export default function QuickRecordButton({
   const [cameraReady, setCameraReady] = useState(false);
   const [locationLocked, setLocationLocked] = useState(false);
   const [showSearching, setShowSearching] = useState(false);
+  const [isProcessingTransition, setIsProcessingTransition] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(8);
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
   
   // Orientation state
@@ -75,6 +77,7 @@ export default function QuickRecordButton({
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
   const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
+  const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Detect network speed
   useEffect(() => {
@@ -272,6 +275,11 @@ export default function QuickRecordButton({
       streamRef.current = stream;
       setPreviewStream(stream);
 
+      const activeFacing = stream.getVideoTracks()[0]?.getSettings?.()?.facingMode;
+      if (activeFacing === 'user' || activeFacing === 'environment') {
+        setPreferredFacingMode(activeFacing);
+      }
+
       setPermissionDenied(false);
       const hasAudioTrack = stream.getAudioTracks().length > 0;
       if (!hasAudioTrack) {
@@ -328,6 +336,10 @@ export default function QuickRecordButton({
     setHasPermission(false);
     setCameraReady(false);
     setPreviewStream(primedMediaStream);
+    const primedFacing = v0.getSettings?.()?.facingMode;
+    if (primedFacing === 'user' || primedFacing === 'environment') {
+      setPreferredFacingMode(primedFacing);
+    }
   }, [showModal, primedMediaStream]);
 
   useLayoutEffect(() => {
@@ -440,10 +452,21 @@ export default function QuickRecordButton({
 
   const toggleCameraFacing = async () => {
     if (isRecording) return;
-    const next = preferredFacingMode === 'environment' ? 'user' : 'environment';
+    const track = streamRef.current?.getVideoTracks()[0];
+    const currentFacing = track?.getSettings?.()?.facingMode;
+    let next: 'environment' | 'user';
+    if (currentFacing === 'user') next = 'environment';
+    else if (currentFacing === 'environment') next = 'user';
+    else next = preferredFacingMode === 'environment' ? 'user' : 'environment';
+
     const stream = await requestPermissions(next);
     if (stream) {
-      setPreferredFacingMode(next);
+      const fm = stream.getVideoTracks()[0]?.getSettings?.()?.facingMode;
+      if (fm === 'user' || fm === 'environment') {
+        setPreferredFacingMode(fm);
+      } else {
+        setPreferredFacingMode(next);
+      }
     }
   };
 
@@ -582,6 +605,8 @@ export default function QuickRecordButton({
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setIsProcessingTransition(true);
+      setProcessingProgress(14);
       
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -591,6 +616,26 @@ export default function QuickRecordButton({
   };
 
   const handleRecordingComplete = async (blob: Blob) => {
+    const clearProcessingTicker = () => {
+      if (processingIntervalRef.current) {
+        clearInterval(processingIntervalRef.current);
+        processingIntervalRef.current = null;
+      }
+    };
+    clearProcessingTicker();
+    const targetPeak = networkSpeed === 'fast' ? 88 : 82;
+    const tickMs = networkSpeed === 'fast' ? 140 : 260;
+    processingIntervalRef.current = setInterval(() => {
+      setProcessingProgress((prev) => {
+        if (prev >= targetPeak) return prev;
+        const remaining = targetPeak - prev;
+        const deltaBase = networkSpeed === 'fast' ? 6 : 3;
+        const delta = Math.max(1, Math.min(deltaBase, remaining / 3));
+        return Math.min(targetPeak, prev + delta);
+      });
+    }, tickMs);
+
+    setProcessingProgress(networkSpeed === 'fast' ? 24 : 18);
     // Stop all tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -610,6 +655,7 @@ export default function QuickRecordButton({
         /* ignore */
       }
     }
+    setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
 
     let showData: Record<string, unknown> | null = null;
     let ambiguousCandidates: ClipShowCandidate[] | null = null;
@@ -651,6 +697,7 @@ export default function QuickRecordButton({
         console.error('resolve-show failed:', e);
       }
     }
+    setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
     navigate(
       '/upload',
@@ -678,6 +725,8 @@ export default function QuickRecordButton({
         },
       }
     );
+    setProcessingProgress(100);
+    clearProcessingTicker();
 
     recordingStartedAtRef.current = null;
 
@@ -687,10 +736,18 @@ export default function QuickRecordButton({
     setCameraReady(false);
     setPreviewStream(null);
     setCameraOpenRequested(false);
+    setIsProcessingTransition(false);
+    setProcessingProgress(8);
     recordingSecondsRef.current = 0;
   };
 
   const closeModal = () => {
+    if (isProcessingTransition) return;
+
+    if (processingIntervalRef.current) {
+      clearInterval(processingIntervalRef.current);
+      processingIntervalRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
@@ -707,6 +764,8 @@ export default function QuickRecordButton({
     setHasPermission(false);
     setCameraReady(false);
     setCameraOpenRequested(false);
+    setIsProcessingTransition(false);
+    setProcessingProgress(8);
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     setLocationLocked(false);
@@ -731,6 +790,15 @@ export default function QuickRecordButton({
       void requestPermissions();
     }
   }, [showModal, permissionDenied, cameraOpenRequested, autoRequestCamera]);
+
+  useEffect(() => {
+    return () => {
+      if (processingIntervalRef.current) {
+        clearInterval(processingIntervalRef.current);
+        processingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Responsive class names based on orientation
   const modalClass = `fixed inset-0 bg-black z-50 flex flex-col transition-all duration-300 ease-in-out`;
@@ -798,6 +866,33 @@ export default function QuickRecordButton({
                 <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center space-x-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                   <span className="text-red-500 text-sm font-bold">REC</span>
+                </div>
+              </div>
+            )}
+
+            {/* Processing transition while resolving nearby venue before upload UI */}
+            {isProcessingTransition && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+                <div className="w-[88%] max-w-md rounded-2xl border border-white/15 bg-black/70 p-5">
+                  <div className="mb-3 flex items-center gap-2 text-white">
+                    <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
+                    <p className="text-sm font-medium">
+                      {networkSpeed === 'slow' || networkSpeed === 'offline'
+                        ? 'Processing on a slower connection…'
+                        : 'Processing your moment…'}
+                    </p>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-white/20">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-500 transition-all duration-200 ease-out"
+                      style={{ width: `${Math.min(100, Math.round(processingProgress))}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-white/70">
+                    {networkSpeed === 'slow' || networkSpeed === 'offline'
+                      ? 'Hang tight while we prepare your upload and look up nearby shows.'
+                      : 'Preparing upload and auto-tagging the nearby show.'}
+                  </p>
                 </div>
               </div>
             )}
@@ -883,6 +978,7 @@ export default function QuickRecordButton({
                 <button
                   type="button"
                   onClick={openDeviceMediaPicker}
+                  disabled={isProcessingTransition}
                   className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
                   title="Choose video from your device"
@@ -896,7 +992,7 @@ export default function QuickRecordButton({
                   <button
                     type="button"
                     onClick={startRecording}
-                    disabled={!cameraReady}
+                    disabled={!cameraReady || isProcessingTransition}
                     className="relative group disabled:opacity-50 shrink-0"
                     title="Start capturing your moment (up to 60 seconds)"
                     style={{ minWidth: '5rem', minHeight: '5rem' }}
@@ -914,6 +1010,7 @@ export default function QuickRecordButton({
                   <button
                     type="button"
                     onClick={stopRecording}
+                    disabled={isProcessingTransition}
                     className="relative group shrink-0"
                     title="Stop recording and save your moment"
                     style={{ minWidth: '5rem', minHeight: '5rem' }}
@@ -932,7 +1029,7 @@ export default function QuickRecordButton({
                 <button
                   type="button"
                   onClick={toggleCameraFacing}
-                  disabled={isRecording}
+                  disabled={isRecording || isProcessingTransition}
                   className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
                   title="Flip camera"

@@ -20,11 +20,13 @@ import AnalyticsPage from "@/react-app/pages/Analytics";
 import PremiumPage from "@/react-app/pages/Premium";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import MobileBottomNav from "@/react-app/components/MobileBottomNav";
+import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 
 export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <MobileChromeProvider>
         <Router>
           <Routes>
           <Route path="/" element={<HomePage />} />
@@ -48,6 +50,7 @@ export default function App() {
         </Routes>
         <MobileBottomNav />
       </Router>
+        </MobileChromeProvider>
     </AuthProvider>
     </ErrorBoundary>
   );

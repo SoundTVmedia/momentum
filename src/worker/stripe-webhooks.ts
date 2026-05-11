@@ -107,7 +107,7 @@ async function handleCheckoutSessionCompleted(
     // Create notification
     await db.prepare(
       `INSERT INTO notifications (mocha_user_id, type, content, created_at)
-       VALUES (?, 'payment', 'Welcome to MOMENTUM Premium! 👑 Your subscription is now active.', CURRENT_TIMESTAMP)`
+       VALUES (?, 'payment', 'Welcome to FEEDBACK Premium! 👑 Your subscription is now active.', CURRENT_TIMESTAMP)`
     )
       .bind(mochaUserId)
       .run();
@@ -229,7 +229,7 @@ async function handleSubscriptionDeleted(
     // Create notification
     await db.prepare(
       `INSERT INTO notifications (mocha_user_id, type, content, created_at)
-       VALUES (?, 'payment', 'Your MOMENTUM Premium subscription has ended.', CURRENT_TIMESTAMP)`
+       VALUES (?, 'payment', 'Your FEEDBACK Premium subscription has ended.', CURRENT_TIMESTAMP)`
     )
       .bind(subRecord.mocha_user_id)
       .run();

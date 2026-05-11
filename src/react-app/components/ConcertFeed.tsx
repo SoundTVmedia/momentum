@@ -77,7 +77,7 @@ export default function ConcertFeed({
     if (!clip) return
 
     const clipUrl = `${window.location.origin}/?clip=${clipId}`
-    const shareText = `Check out this moment${clip.artist_name ? ` from ${clip.artist_name}` : ''}${clip.venue_name ? ` at ${clip.venue_name}` : ''} on MOMENTUM!`
+    const shareText = `Check out this moment${clip.artist_name ? ` from ${clip.artist_name}` : ''}${clip.venue_name ? ` at ${clip.venue_name}` : ''} on FEEDBACK!`
 
     // Track share
     try {
@@ -105,7 +105,7 @@ export default function ConcertFeed({
     ) {
       try {
         await navigator.share({
-          title: 'Check out this MOMENTUM clip!',
+          title: 'Check out this FEEDBACK clip!',
           text: shareText,
           url: clipUrl,
         })
@@ -210,10 +210,10 @@ export default function ConcertFeed({
                   </div>
                 )}
 
-                {/* Momentum Live Featured badge */}
+                {/* Feedback Live featured badge */}
                 {clip.momentum_live_featured && (
                   <div className="absolute top-3 left-3 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full text-xs font-bold text-white shadow-lg animate-slide-up">
-                    🎬 Featured on Momentum Live
+                    🎬 Featured on Feedback Live
                   </div>
                 )}
 

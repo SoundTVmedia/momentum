@@ -187,7 +187,7 @@ export default function Header() {
             className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-4 min-w-0"
           >
             <div className="text-lg sm:text-xl md:text-2xl font-headline bg-gradient-to-r from-blue-600 via-cyan-500 to-purple-600 bg-clip-text text-transparent truncate">
-              MOMENTUM
+              FEEDBACK
             </div>
             {isLiveTime() && (
               <div className="hidden sm:flex items-center space-x-1.5 sm:space-x-2 px-2 sm:px-3 py-0.5 sm:py-1 bg-gradient-to-r from-cyan-600/20 to-blue-600/20 border border-cyan-500/50 rounded-full animate-neon-pulse">
@@ -299,7 +299,7 @@ export default function Header() {
                       {advancedResults.artists.length > 0 && (
                         <div className="border-b border-white/10">
                           <div className="px-3 py-2 text-xs font-semibold text-purple-300/90 uppercase tracking-wide flex items-center gap-1">
-                            <Music className="w-3.5 h-3.5" /> Artists (Momentum)
+                            <Music className="w-3.5 h-3.5" /> Artists (Feedback)
                           </div>
                           {advancedResults.artists.map((a) => (
                             <button
@@ -319,7 +319,7 @@ export default function Header() {
                       {advancedResults.venues.length > 0 && (
                         <div className="border-b border-white/10">
                           <div className="px-3 py-2 text-xs font-semibold text-blue-300/90 uppercase tracking-wide flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5" /> Venues (Momentum)
+                            <MapPin className="w-3.5 h-3.5" /> Venues (Feedback)
                           </div>
                           {advancedResults.venues.map((v) => (
                             <button

@@ -99,7 +99,7 @@ export async function exportUserData(c: Context) {
 
     // Return as downloadable JSON
     return c.json(dataPackage, 200, {
-      'Content-Disposition': `attachment; filename="momentum-data-export-${mochaUser.id}.json"`,
+      'Content-Disposition': `attachment; filename="feedback-data-export-${mochaUser.id}.json"`,
     });
   } catch (error) {
     console.error('Data export error:', error);

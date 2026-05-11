@@ -28,8 +28,8 @@ export async function sendPasswordResetEmail(opts: SendPasswordResetEmailOpts): 
     body: JSON.stringify({
       from,
       to: [to],
-      subject: 'Reset your Momentum password',
-      html: `<p>You requested a password reset for your Momentum account.</p>
+      subject: 'Reset your Feedback password',
+      html: `<p>You requested a password reset for your Feedback account.</p>
 <p><a href="${resetUrl}">Choose a new password</a></p>
 <p>This link expires in one hour. If you did not request a reset, you can ignore this email.</p>`,
     }),

@@ -82,7 +82,7 @@ export async function createPremiumCheckoutSession(c: Context) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "MOMENTUM Premium",
+              name: "FEEDBACK Premium",
               description: "Annual premium membership with exclusive perks",
             },
             unit_amount: 12000, // $120.00

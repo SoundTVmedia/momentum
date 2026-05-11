@@ -121,7 +121,7 @@ export default function MyClipsSection() {
     <>
       <DashboardClipsGrid
         title="My clips"
-        subtitle="Everything you have shared on Momentum"
+        subtitle="Everything you have shared on Feedback"
         headerIcon={<Film className="w-6 h-6 text-cyan-400" />}
         clips={clips as DashboardGridClip[]}
         loading={loading}

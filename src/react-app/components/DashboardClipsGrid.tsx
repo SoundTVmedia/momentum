@@ -277,7 +277,7 @@ export default function DashboardClipsGrid({
               Delete this moment?
             </h3>
             <p className="mt-2 text-sm text-gray-400">
-              This removes your clip from Momentum for everyone. Likes, comments, and saves will be
+              This removes your clip from Feedback for everyone. Likes, comments, and saves will be
               removed. This cannot be undone.
             </p>
             <div className="mt-6 flex gap-3">

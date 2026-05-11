@@ -6,6 +6,12 @@ import type { ClipShowCandidate } from '../shared/types';
 /** If the second-closest venue is within this many miles of the closest, offer a disambiguation list. */
 const VENUE_TIE_MILES = 0.35;
 
+/** Extra miles beyond profile radius so GPS jitter does not drop the venue you are standing in front of. */
+const GPS_DISTANCE_SLACK_MILES = 0.75;
+
+const VENUES_PER_PAGE = '100';
+const VENUE_GEO_CITY_MAX_PAGES = 5;
+
 type ClipResolveMatch = 'none' | 'single' | 'ambiguous';
 
 async function recordResolveTelemetry(
@@ -57,23 +63,35 @@ export function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: n
 
 function extractVenueCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {
   const loc = ev.location as Record<string, unknown> | undefined;
-  if (!loc) return null;
-  const geo = loc.geo as Record<string, unknown> | undefined;
-  if (geo) {
-    const lat = Number(geo.latitude);
-    const lon = Number(geo.longitude);
+  if (loc) {
+    const geo = loc.geo as Record<string, unknown> | undefined;
+    if (geo) {
+      const lat = Number(geo.latitude);
+      const lon = Number(geo.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+    }
+    const latLoc = Number(loc.latitude);
+    const lonLoc = Number(loc.longitude);
+    if (Number.isFinite(latLoc) && Number.isFinite(lonLoc)) return { lat: latLoc, lon: lonLoc };
+  }
+  const rootGeo = ev.geo as Record<string, unknown> | undefined;
+  if (rootGeo) {
+    const lat = Number(rootGeo.latitude);
+    const lon = Number(rootGeo.longitude);
     if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
   }
-  const lat = Number(loc.latitude);
-  const lon = Number(loc.longitude);
-  if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+  const rlat = Number(ev.latitude);
+  const rlon = Number(ev.longitude);
+  if (Number.isFinite(rlat) && Number.isFinite(rlon)) return { lat: rlat, lon: rlon };
   return null;
 }
 
 function venueCityStateLine(ev: Record<string, unknown>): string | null {
   const loc = ev.location as Record<string, unknown> | undefined;
   const addr = loc?.address as Record<string, unknown> | undefined;
-  const city = typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
+  const cityFromAddr = typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
+  const cityFlat = typeof loc?.city === 'string' ? (loc.city as string) : '';
+  const stateFlat = typeof loc?.state === 'string' ? (loc.state as string) : '';
   const region = addr?.addressRegion as Record<string, unknown> | undefined;
   const st =
     typeof region?.alternateName === 'string'
@@ -81,7 +99,9 @@ function venueCityStateLine(ev: Record<string, unknown>): string | null {
       : typeof region?.name === 'string'
         ? (region.name as string)
         : '';
-  const line = [city, st].filter(Boolean).join(', ');
+  const city = cityFromAddr || cityFlat;
+  const regionPart = st || stateFlat;
+  const line = [city, regionPart].filter(Boolean).join(', ');
   return line || null;
 }
 
@@ -98,22 +118,37 @@ function venueIdentifier(ev: Record<string, unknown>): string | null {
 async function nominatimReverse(
   lat: number,
   lon: number
-): Promise<{ city: string | null; state: string | null; country_code: string | null } | null> {
+): Promise<{
+  city: string | null;
+  state: string | null;
+  country_code: string | null;
+  postcode: string | null;
+} | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&format=json`;
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'Momentum/1.0 (https://github.com/)',
+        'User-Agent': 'Feedback/1.0 (https://github.com/)',
         Accept: 'application/json',
       },
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { address?: Record<string, string> };
     const address = data.address || {};
-    const city = address.city || address.town || address.village || null;
+    const city =
+      address.city ||
+      address.town ||
+      address.village ||
+      address.hamlet ||
+      address.suburb ||
+      address.neighbourhood ||
+      address.municipality ||
+      address.county ||
+      null;
     const state = address.state || null;
     const country_code = address.country_code ? address.country_code.toUpperCase() : null;
-    return { city, state, country_code };
+    const postcode = address.postcode ? address.postcode.trim() : null;
+    return { city, state, country_code, postcode };
   } catch (e) {
     console.error('Nominatim reverse failed:', e);
     return null;
@@ -200,7 +235,7 @@ function candidateFromVenue(
 
   if (coords) {
     distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
-    withinRadius = distanceMiles <= radiusMiles;
+    withinRadius = distanceMiles <= radiusMiles + GPS_DISTANCE_SLACK_MILES;
   } else if (userCityLower && locationLine) {
     const locLower = locationLine.toLowerCase();
     const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
@@ -247,7 +282,7 @@ function candidateFromEvent(
 
   if (coords) {
     distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
-    withinRadius = distanceMiles <= radiusMiles;
+    withinRadius = distanceMiles <= radiusMiles + GPS_DISTANCE_SLACK_MILES;
   } else if (userCityLower && locationLine) {
     const locLower = locationLine.toLowerCase();
     const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
@@ -272,14 +307,16 @@ function candidateFromEvent(
   };
 }
 
-async function resolveGeoCityId(
+/** JamBase may return several cities for one name (e.g. suburbs); merge venues across a few IDs. */
+async function resolveGeoCityIds(
   apiKey: string,
   city: string,
   countryIso2: string,
-  jbQ: JamBaseQuotaContext | undefined
-): Promise<string | null> {
+  jbQ: JamBaseQuotaContext | undefined,
+  max: number
+): Promise<string[]> {
   const trimmed = city.trim();
-  if (!trimmed) return null;
+  if (!trimmed) return [];
   const cities = await jamBaseFetch<{ cities?: Record<string, unknown>[] }>(
     apiKey,
     '/geographies/cities',
@@ -289,8 +326,53 @@ async function resolveGeoCityId(
     },
     jbQ
   );
-  const first = cities?.cities?.[0];
-  return typeof first?.identifier === 'string' ? first.identifier : null;
+  const ids: string[] = [];
+  for (const row of (cities?.cities ?? []).slice(0, max)) {
+    if (typeof row.identifier === 'string') ids.push(row.identifier);
+  }
+  return ids;
+}
+
+async function fetchVenuesPaginatedByGeoCity(
+  apiKey: string,
+  geoCityId: string,
+  jbQ: JamBaseQuotaContext | undefined
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let page = 1; page <= VENUE_GEO_CITY_MAX_PAGES; page++) {
+    const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      apiKey,
+      '/venues',
+      { geoCityId, perPage: VENUES_PER_PAGE, page: String(page) },
+      jbQ
+    );
+    const batch = data?.venues ?? [];
+    if (batch.length === 0) break;
+    for (const v of batch) out.push(v as Record<string, unknown>);
+    if (batch.length < parseInt(VENUES_PER_PAGE, 10)) break;
+  }
+  return out;
+}
+
+/** JamBase supports zip + radius (miles) on many plans — fills gaps when geoCityId misses edge-of-town venues. */
+async function fetchVenuesByZipRadius(
+  apiKey: string,
+  postcode: string,
+  radiusMiles: number,
+  countryIso2: string,
+  jbQ: JamBaseQuotaContext | undefined
+): Promise<Record<string, unknown>[]> {
+  let zip = postcode.replace(/\s+/g, '').trim();
+  if (countryIso2 === 'US' && /^\d{5}-\d{4}$/.test(zip)) zip = zip.slice(0, 5);
+  if (zip.length < 3) return [];
+  const radius = Math.max(5, Math.min(100, Math.ceil(radiusMiles + GPS_DISTANCE_SLACK_MILES)));
+  const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+    apiKey,
+    '/venues',
+    { zipCode: zip, radius: String(radius), perPage: VENUES_PER_PAGE, page: '1' },
+    jbQ
+  );
+  return (data?.venues ?? []) as Record<string, unknown>[];
 }
 
 /**
@@ -348,10 +430,12 @@ export async function postResolveShowForClip(c: Context) {
   let countryIso = typeof body.country === 'string' ? body.country.trim().toUpperCase() : 'US';
   if (countryIso.length !== 2) countryIso = 'US';
 
-  if (!city) {
-    const rev = await nominatimReverse(lat, lon);
-    if (rev?.city) city = rev.city;
-    if (rev?.country_code) countryIso = rev.country_code;
+  let postcode: string | null = null;
+  const rev = await nominatimReverse(lat, lon);
+  if (rev) {
+    if (!city && rev.city) city = rev.city;
+    if (rev.country_code) countryIso = rev.country_code;
+    if (rev.postcode) postcode = rev.postcode;
   }
 
   const profile = (await c.env.DB.prepare(
@@ -363,32 +447,46 @@ export async function postResolveShowForClip(c: Context) {
   const radiusMiles = Math.max(1, Number(profile?.location_radius_miles) || 50);
 
   const jbQ = jamBaseQuotaFromEnv(c.env);
-  const geoCityId = city ? await resolveGeoCityId(key, city, countryIso, jbQ) : null;
+  const geoCityIds = city ? await resolveGeoCityIds(key, city, countryIso, jbQ, 4) : [];
+  const primaryGeoCityId = geoCityIds[0] ?? null;
 
   const userCityLower = city ? city.toLowerCase() : null;
 
-  const venueParams: Record<string, string> = {
-    perPage: '80',
-    page: '1',
+  const seenVenueKeys = new Set<string>();
+  const rawVenueList: Record<string, unknown>[] = [];
+  const pushVenueBatch = (venues: Record<string, unknown>[]) => {
+    for (const v of venues) {
+      const id = typeof v.identifier === 'string' ? v.identifier : '';
+      if (!id || seenVenueKeys.has(id)) continue;
+      seenVenueKeys.add(id);
+      rawVenueList.push(v);
+    }
   };
-  if (geoCityId) venueParams.geoCityId = geoCityId;
-  else venueParams.geoMetroId = 'jambase:1';
 
-  const venuePayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-    key,
-    '/venues',
-    venueParams,
-    jbQ
-  );
+  for (const gcid of geoCityIds) {
+    pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ));
+  }
+  if (postcode) {
+    pushVenueBatch(await fetchVenuesByZipRadius(key, postcode, radiusMiles, countryIso, jbQ));
+  }
+  if (rawVenueList.length === 0 && geoCityIds.length === 0) {
+    const metroPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      key,
+      '/venues',
+      { geoMetroId: 'jambase:1', perPage: VENUES_PER_PAGE, page: '1' },
+      jbQ
+    );
+    pushVenueBatch((metroPayload?.venues ?? []) as Record<string, unknown>[]);
+  }
 
   const fromVenues: ClipShowCandidate[] = [];
-  for (const v of venuePayload?.venues ?? []) {
-    const cnd = candidateFromVenue(v as Record<string, unknown>, lat, lon, radiusMiles, userCityLower);
+  for (const v of rawVenueList) {
+    const cnd = candidateFromVenue(v, lat, lon, radiusMiles, userCityLower);
     if (cnd) fromVenues.push(cnd);
   }
 
   let matchSource: 'venues' | 'events' = 'venues';
-  let rawUpstreamCount = venuePayload?.venues?.length ?? 0;
+  let rawUpstreamCount = rawVenueList.length;
   let working = dedupeKeepClosestPerVenue(fromVenues);
 
   if (working.length === 0) {
@@ -403,8 +501,8 @@ export async function postResolveShowForClip(c: Context) {
       perPage: '80',
       page: '1',
     };
-    if (geoCityId) {
-      eventParams.geoCityId = geoCityId;
+    if (primaryGeoCityId) {
+      eventParams.geoCityId = primaryGeoCityId;
     } else {
       eventParams.geoMetroId = 'jambase:1';
     }
@@ -435,7 +533,7 @@ export async function postResolveShowForClip(c: Context) {
     radiusMiles,
     rawUpstreamCount,
     candidates.length,
-    geoCityId,
+    primaryGeoCityId,
     matchSource === 'venues' ? 'venues_geo' : 'events_fallback',
     notice
   );
@@ -453,7 +551,9 @@ export async function postResolveShowForClip(c: Context) {
     notice,
     meta: {
       radiusMiles,
-      geoCityId,
+      geoCityId: primaryGeoCityId,
+      geoCityIds,
+      postcodeUsed: Boolean(postcode),
       eventDateFrom,
       matchSource,
     },

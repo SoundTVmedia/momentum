@@ -202,7 +202,7 @@ async function checkTrendingThresholds(env: Env): Promise<void> {
     )
       .bind(
         clip.mocha_user_id,
-        `Your ${clip.artist_name ? clip.artist_name + ' ' : ''}clip is fire! 🔥 It may be featured on Momentum Live`,
+        `Your ${clip.artist_name ? clip.artist_name + ' ' : ''}clip is fire! 🔥 It may be featured on Feedback Live`,
         clip.id
       )
       .run();

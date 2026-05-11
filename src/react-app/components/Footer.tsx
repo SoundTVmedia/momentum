@@ -11,7 +11,7 @@ export default function Footer() {
             <div className="flex items-center space-x-2">
               <Music className="w-8 h-8 text-cyan-400" />
               <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 bg-clip-text text-transparent">
-                MOMENTUM
+                FEEDBACK
               </span>
             </div>
             <p className="text-gray-400 leading-relaxed">
@@ -58,7 +58,7 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-white">Get the App</h3>
             <p className="text-gray-400 text-sm">
-              Download MOMENTUM to capture and share concert moments
+              Download FEEDBACK to capture and share concert moments
             </p>
             <div className="space-y-2">
               <button className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors">
@@ -78,7 +78,7 @@ export default function Footer() {
           <div className="max-w-md mx-auto text-center">
             <h3 className="font-bold text-white mb-2">Stay in the Loop</h3>
             <p className="text-gray-400 mb-4 text-sm">
-              Get notified about featured concerts and exclusive MOMENTUM content
+              Get notified about featured concerts and exclusive FEEDBACK content
             </p>
             <div className="flex space-x-2">
               <input 
@@ -96,7 +96,7 @@ export default function Footer() {
         {/* Show Schedule */}
         <div className="border-t border-purple-500/20 pt-8 mb-8">
           <div className="text-center">
-            <h3 className="font-bold text-white mb-4">MOMENTUM Live Schedule</h3>
+            <h3 className="font-bold text-white mb-4">FEEDBACK Live Schedule</h3>
             <div className="grid grid-cols-1 md:grid-cols-7 gap-2 max-w-4xl mx-auto">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
                 <div key={day} className="bg-black/40 border border-cyan-500/20 rounded-lg p-3 text-center">
@@ -113,7 +113,7 @@ export default function Footer() {
         <div className="border-t border-purple-500/20 pt-8 text-center">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-gray-400 text-sm">
-              © 2024 MOMENTUM. All rights reserved.
+              © 2024 FEEDBACK. All rights reserved.
             </div>
             <div className="text-gray-400 text-sm">
               Built for the live music community 🎵

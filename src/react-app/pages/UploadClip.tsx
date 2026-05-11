@@ -7,6 +7,8 @@ import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
+import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
+import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
 export default function UploadClip() {
@@ -15,6 +17,7 @@ export default function UploadClip() {
   const { user, isPending } = useAuth();
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
   const { requestLocation } = useGeolocation();
+  const { setHideBottomNav } = useMobileChrome();
   const [loading, setLoading] = useState(false);
   const [geoDetected, setGeoDetected] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ video: 0, thumbnail: 0 });
@@ -37,24 +40,8 @@ export default function UploadClip() {
   // Quick capture modal state
   const [showQuickCapture, setShowQuickCapture] = useState(false);
 
-  // Open quick capture when ?quickCapture=true — only for signed-in users (guests → auth, no camera)
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const wantCapture = params.get('quickCapture') === 'true';
-    if (!wantCapture) {
-      setShowQuickCapture(false);
-      return;
-    }
-    if (isPending) return;
-    if (!user) {
-      setShowQuickCapture(false);
-      navigate('/auth', { replace: true });
-      return;
-    }
-    setShowQuickCapture(true);
-  }, [location.search, user, isPending, navigate]);
   const [isEditingTags, setIsEditingTags] = useState(false);
-  
+
   // Confirmation modal state
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
   const [postedClip, setPostedClip] = useState<any | null>(null);
@@ -94,6 +81,49 @@ export default function UploadClip() {
     video_resolution_w?: number;
     video_resolution_h?: number;
   }>({});
+
+  useEffect(() => {
+    const source = formData.video_file ?? formData.video_blob;
+    if (!source) return;
+    if (formData.thumbnail_file) return;
+
+    let cancelled = false;
+    void (async () => {
+      const thumb = await generateVideoThumbnailJpeg(source);
+      if (cancelled || !thumb) return;
+      setFormData((prev) => {
+        if (prev.thumbnail_file) return prev;
+        if (!(prev.video_file ?? prev.video_blob)) return prev;
+        return { ...prev, thumbnail_file: thumb };
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.video_file, formData.video_blob, formData.thumbnail_file]);
+
+  useEffect(() => {
+    setHideBottomNav(showCaptionScreen);
+    return () => setHideBottomNav(false);
+  }, [showCaptionScreen, setHideBottomNav]);
+
+  // Open quick capture when ?quickCapture=true — only for signed-in users (guests → auth, no camera)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const wantCapture = params.get('quickCapture') === 'true';
+    if (!wantCapture) {
+      setShowQuickCapture(false);
+      return;
+    }
+    if (isPending) return;
+    if (!user) {
+      setShowQuickCapture(false);
+      navigate('/auth', { replace: true });
+      return;
+    }
+    setShowQuickCapture(true);
+  }, [location.search, user, isPending, navigate]);
 
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
@@ -720,12 +750,12 @@ export default function UploadClip() {
     if (!postedClip) return;
 
     const clipUrl = `${window.location.origin}/?clip=${postedClip.id}`;
-    const shareText = `Check out this moment${postedClip.artist_name ? ` from ${postedClip.artist_name}` : ''}${postedClip.venue_name ? ` at ${postedClip.venue_name}` : ''} on MOMENTUM!`;
+    const shareText = `Check out this moment${postedClip.artist_name ? ` from ${postedClip.artist_name}` : ''}${postedClip.venue_name ? ` at ${postedClip.venue_name}` : ''} on FEEDBACK!`;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Check out my MOMENTUM clip!',
+          title: 'Check out my FEEDBACK clip!',
           text: shareText,
           url: clipUrl,
         });
@@ -769,7 +799,7 @@ export default function UploadClip() {
             Upload complete! 🎬
           </h1>
           <p className="text-gray-300 text-lg">
-            Your clip is live in the Momentum feed
+            Your clip is live in the Feedback feed
           </p>
         </div>
 

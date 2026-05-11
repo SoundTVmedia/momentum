@@ -105,7 +105,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
             
             <div className="text-center sm:text-left">
               <h3 className="text-base sm:text-lg font-bold text-white">
-                MOMENTUM <span className="text-cyan-400">LIVE</span>
+                FEEDBACK <span className="text-cyan-400">LIVE</span>
               </h3>
               <p className="text-xs sm:text-sm text-gray-300">
                 {session ? (
@@ -153,7 +153,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                 
                 <div className="text-center sm:text-left">
                   <h3 className="text-base sm:text-lg font-bold text-white">
-                    MOMENTUM <span className="text-cyan-400">LIVE</span>
+                    FEEDBACK <span className="text-cyan-400">LIVE</span>
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-300">
                     {session ? (
@@ -189,7 +189,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
           <div className="flex items-center justify-center space-x-1.5 sm:space-x-2 md:space-x-3 mb-2 sm:mb-3 md:mb-4">
             <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse"></div>
             <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white">
-              MOMENTUM <span className="text-red-400">LIVE</span>
+              FEEDBACK <span className="text-red-400">LIVE</span>
             </h2>
             <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse"></div>
           </div>
@@ -281,8 +281,8 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                     try {
                       if (navigator.share) {
                         await navigator.share({
-                          title: 'Watch MOMENTUM Live!',
-                          text: 'Join me watching live concert moments on MOMENTUM',
+                          title: 'Watch FEEDBACK Live!',
+                          text: 'Join me watching live concert moments on FEEDBACK',
                           url: link
                         });
                       } else {
@@ -302,7 +302,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                 </button>
               </div>
               <div className="text-gray-400 text-xs sm:text-sm text-center sm:text-right truncate">
-                {session.title || 'MOMENTUM Live'}
+                {session.title || 'FEEDBACK Live'}
               </div>
             </div>
 

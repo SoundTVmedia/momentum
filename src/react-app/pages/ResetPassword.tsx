@@ -63,7 +63,7 @@ export default function ResetPassword() {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-5xl font-headline bg-gradient-to-r from-blue-600 via-cyan-500 to-purple-600 bg-clip-text text-transparent mb-4">
-            MOMENTUM
+            FEEDBACK
           </h1>
           <p className="text-xl text-gray-300">Set a new password</p>
         </div>

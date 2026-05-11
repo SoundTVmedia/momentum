@@ -1,5 +1,5 @@
 const JAMBASE_V3_BASE = 'https://api.data.jambase.com/v3';
-const JAMBASE_USER_AGENT = 'Momentum/1.0';
+const JAMBASE_USER_AGENT = 'Feedback/1.0';
 
 /** Single D1 row for counting all-time upstream JamBase usage in this deployment. */
 const JAMBASE_USAGE_BUCKET_ID = 'jam:upstream';

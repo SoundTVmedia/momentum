@@ -29,7 +29,7 @@ export default function PlatformStats({ compact = false }: PlatformStatsProps) {
       <div>
         <div className="mb-4">
           <h2 className="text-xl sm:text-2xl md:text-3xl font-headline">
-            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">Momentum By The Numbers</span>
+            <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">Feedback By The Numbers</span>
           </h2>
         </div>
 
@@ -65,7 +65,7 @@ export default function PlatformStats({ compact = false }: PlatformStatsProps) {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="text-center mb-6 sm:mb-8">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2">
-            The Pulse of <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">MOMENTUM</span>
+            The Pulse of <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">FEEDBACK</span>
           </h2>
           <p className="text-sm sm:text-base text-gray-400">Real-time platform activity</p>
         </div>

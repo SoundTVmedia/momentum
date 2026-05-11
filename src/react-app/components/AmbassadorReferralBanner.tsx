@@ -72,8 +72,8 @@ export default function AmbassadorReferralBanner() {
               try {
                 if (navigator.share) {
                   await navigator.share({
-                    title: 'Check out MOMENTUM',
-                    text: 'Join me on MOMENTUM - the live music community',
+                    title: 'Check out FEEDBACK',
+                    text: 'Join me on FEEDBACK - the live music community',
                     url: referralLink
                   });
                 } else {

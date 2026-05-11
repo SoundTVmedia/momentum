@@ -996,7 +996,7 @@ app.post("/api/clips/:id/like", authMiddleware, async (c) => {
         .first();
 
       const notificationContent = featured 
-        ? 'liked your clip that was featured on Momentum Live'
+        ? 'liked your clip that was featured on Feedback Live'
         : 'liked your clip';
 
       const notificationResult = await c.env.DB.prepare(
@@ -2517,7 +2517,7 @@ app.post("/api/admin/live/sessions/:sessionId/feature-clip/:clipId", authMiddlew
   )
     .bind(
       clip.mocha_user_id,
-      `🎬 Your moment is on Momentum Live right now!`,
+      `🎬 Your moment is on Feedback Live right now!`,
       clipId
     )
     .run();
@@ -2545,7 +2545,7 @@ app.post("/api/admin/live/sessions/:sessionId/feature-clip/:clipId", authMiddlew
 
   // Award bonus points for being featured
   try {
-    await gamification.awardPoints(c.env, clip.mocha_user_id as string, 100, 'Featured on Momentum Live', parseInt(clipId));
+    await gamification.awardPoints(c.env, clip.mocha_user_id as string, 100, 'Featured on Feedback Live', parseInt(clipId));
   } catch (err) {
     console.error('Failed to award points:', err);
   }

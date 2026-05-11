@@ -53,7 +53,7 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
   };
 
   const handleShareTwitter = () => {
-    const text = `Check out this concert moment${clip.artist_name ? ` from ${clip.artist_name}` : ''}${clip.venue_name ? ` at ${clip.venue_name}` : ''} on MOMENTUM!`;
+    const text = `Check out this concert moment${clip.artist_name ? ` from ${clip.artist_name}` : ''}${clip.venue_name ? ` at ${clip.venue_name}` : ''} on FEEDBACK!`;
     const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(getClipUrl())}`;
     window.open(url, '_blank', 'width=550,height=420');
   };

@@ -69,7 +69,7 @@ export default function GDPRSettings() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `momentum-data-export-${Date.now()}.json`;
+        a.download = `feedback-data-export-${Date.now()}.json`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);

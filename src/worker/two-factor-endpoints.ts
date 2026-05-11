@@ -58,7 +58,7 @@ export async function setupTwoFactor(c: Context) {
   }
 
   // Generate OTP Auth URL for QR code
-  const appName = 'MOMENTUM';
+  const appName = 'FEEDBACK';
   const userLabel = mochaUser.google_user_data.email;
   const otpAuthUrl = `otpauth://totp/${encodeURIComponent(appName)}:${encodeURIComponent(userLabel)}?secret=${secret}&issuer=${encodeURIComponent(appName)}`;
 

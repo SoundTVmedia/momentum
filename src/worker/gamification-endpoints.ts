@@ -317,14 +317,14 @@ export async function initializeDefaultBadges(c: Context) {
       points_required: 1000,
     },
     {
-      name: 'MOMENTUM Legend',
+      name: 'FEEDBACK Legend',
       description: 'Reached level 10',
       badge_type: 'points',
       points_required: 1000,
     },
     {
       name: 'Featured Creator',
-      description: 'Had a clip featured on MOMENTUM Live',
+      description: 'Had a clip featured on FEEDBACK Live',
       badge_type: 'featured',
       points_required: 1,
     },

@@ -228,7 +228,7 @@ export async function requestPasswordReset(c: Context<{ Bindings: Env }>) {
   const from =
     typeof c.env.TRANSACTIONAL_EMAIL_FROM === 'string' && c.env.TRANSACTIONAL_EMAIL_FROM.trim()
       ? c.env.TRANSACTIONAL_EMAIL_FROM.trim()
-      : 'Momentum <onboarding@resend.dev>';
+      : 'Feedback <onboarding@resend.dev>';
 
   try {
     const hasResendKey =

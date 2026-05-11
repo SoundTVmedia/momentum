@@ -297,12 +297,12 @@ export default function UserProfilePage() {
               </div>
             </div>
 
-            {/* Lifetime Momentum Stats */}
+            {/* Lifetime Feedback stats */}
             {lifetimeStats && (
               <div className="mt-6 sm:mt-8 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/30 rounded-xl p-4 sm:p-6">
                 <div className="flex items-center space-x-2 mb-4">
                   <TrendingUp className="w-5 h-5 text-cyan-400" />
-                  <h3 className="text-lg sm:text-xl font-bold text-white">Lifetime Momentum Stats</h3>
+                  <h3 className="text-lg sm:text-xl font-bold text-white">Lifetime Feedback Stats</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="text-center">

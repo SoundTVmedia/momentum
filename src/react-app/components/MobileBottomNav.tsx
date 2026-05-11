@@ -5,10 +5,12 @@ import { useNotifications } from '@/react-app/hooks/useNotifications';
 import { useState } from 'react';
 import QuickRecordButton from './QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
+import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export default function MobileBottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hideBottomNav } = useMobileChrome();
   const { user, isPending } = useAuth();
   const { unreadCount } = useNotifications();
   const [showQuickCapture, setShowQuickCapture] = useState(false);
@@ -67,6 +69,10 @@ export default function MobileBottomNav() {
     }
     return location.pathname.startsWith(path);
   };
+
+  if (hideBottomNav) {
+    return null;
+  }
 
   return (
     <>
