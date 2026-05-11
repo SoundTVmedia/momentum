@@ -91,10 +91,12 @@ export default function JamBaseEventGrid({
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [upstreamNotice, setUpstreamNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setUpstreamNotice(null);
     try {
       let url: string;
       if (artistName?.trim()) {
@@ -121,8 +123,12 @@ export default function JamBaseEventGrid({
       if (!res.ok) {
         throw new Error('Could not load JamBase events');
       }
-      const data = (await res.json()) as { events?: Record<string, unknown>[] };
+      const data = (await res.json()) as {
+        events?: Record<string, unknown>[];
+        notice?: string;
+      };
       setEvents(data.events ?? []);
+      setUpstreamNotice(typeof data.notice === 'string' && data.notice.trim() ? data.notice.trim() : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
       setEvents([]);
@@ -171,6 +177,9 @@ export default function JamBaseEventGrid({
       <div className="text-center py-12">
         <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-4" />
         <p className="text-gray-400">No upcoming shows from JamBase for this view.</p>
+        {upstreamNotice && (
+          <p className="text-amber-200/90 text-sm mt-3 max-w-lg mx-auto leading-relaxed">{upstreamNotice}</p>
+        )}
         <p className="text-gray-500 text-sm mt-2">
           <a
             href="https://www.jambase.com"

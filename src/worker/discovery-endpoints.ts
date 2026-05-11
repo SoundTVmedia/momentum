@@ -135,6 +135,7 @@ export async function advancedSearch(c: Context) {
     venues: [],
     events: [],
   };
+  let jambaseNotice: string | null = null;
 
   const jbKey = c.env.JAMBASE_API_KEY;
   if (query.trim().length >= 2 && typeof jbKey === 'string' && jbKey.trim()) {
@@ -170,6 +171,12 @@ export async function advancedSearch(c: Context) {
       venues: v?.venues ?? [],
       events: tightEvents,
     };
+    if (a == null && v == null) {
+      jambaseNotice =
+        'JamBase did not return search results (check JAMBASE_API_KEY on the worker, or worker logs). If you enabled a global quota, ensure JAMBASE_QUOTA_ENFORCEMENT is only set when intended.';
+    }
+  } else if (query.trim().length >= 2 && !jbKey?.trim()) {
+    jambaseNotice = 'JamBase is not configured (missing JAMBASE_API_KEY).';
   }
 
   return c.json({
@@ -178,6 +185,7 @@ export async function advancedSearch(c: Context) {
     venues: venues.results || [],
     users: users.results || [],
     jambase,
+    jambaseNotice,
   });
 }
 

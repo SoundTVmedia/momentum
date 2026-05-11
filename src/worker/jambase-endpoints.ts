@@ -21,9 +21,14 @@ export async function searchArtists(c: Context) {
   }
 
   try {
+    const key = c.env.JAMBASE_API_KEY;
+    if (!key?.trim()) {
+      return c.json({ artists: [], notice: 'JamBase is not configured (missing JAMBASE_API_KEY).' });
+    }
+
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const data = await jamBaseFetch<{ artists?: unknown[] }>(
-      c.env.JAMBASE_API_KEY,
+      key,
       '/artists',
       {
         artistName: query,
@@ -35,8 +40,16 @@ export async function searchArtists(c: Context) {
 
     c.header('Cache-Control', 'public, max-age=3600');
 
+    if (!data) {
+      return c.json({
+        artists: [],
+        notice:
+          'JamBase did not return artist results (API error or upstream unavailable). Check worker logs and JAMBASE_API_KEY.',
+      });
+    }
+
     return c.json({
-      artists: data?.artists || [],
+      artists: data.artists || [],
       pagination: {},
     });
   } catch (error) {
@@ -47,31 +60,46 @@ export async function searchArtists(c: Context) {
 
 export async function searchVenues(c: Context) {
   const query = c.req.query('q') || '';
+  const location = (c.req.query('location') || '').trim();
+  const country = ((c.req.query('country') || 'US').trim().slice(0, 2) || 'US').toUpperCase();
   const perPage = c.req.query('limit') || c.req.query('perPage') || '20';
 
-  if (!query && !c.req.query('location')) {
+  if (!query && !location) {
     return c.json({ venues: [] });
   }
 
   try {
+    const key = c.env.JAMBASE_API_KEY;
+    if (!key?.trim()) {
+      return c.json({ venues: [], notice: 'JamBase is not configured (missing JAMBASE_API_KEY).' });
+    }
+
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const params: Record<string, string> = {
       page: c.req.query('page') || '1',
       perPage,
     };
     if (query) params.venueName = query;
+    /** v3 `/venues` requires `venueName` or a geo filter — city alone must use geoCityName + country. */
+    if (location) {
+      params.geoCityName = location;
+      params.geoCountryIso2 = country;
+    }
 
-    const data = await jamBaseFetch<{ venues?: unknown[] }>(
-      c.env.JAMBASE_API_KEY,
-      '/venues',
-      params,
-      jbQ
-    );
+    const data = await jamBaseFetch<{ venues?: unknown[] }>(key, '/venues', params, jbQ);
 
     c.header('Cache-Control', 'public, max-age=3600');
 
+    if (!data) {
+      return c.json({
+        venues: [],
+        notice:
+          'JamBase did not return venue results (invalid request, API error, or upstream unavailable). Check worker logs.',
+      });
+    }
+
     return c.json({
-      venues: data?.venues || [],
+      venues: data.venues || [],
       pagination: {},
     });
   } catch (error) {
@@ -316,8 +344,16 @@ export async function getLiveTabEvents(c: Context) {
 
     const data = await jamBaseFetch<{ events?: unknown[] }>(key, '/events', params, jbQ);
     c.header('Cache-Control', 'public, max-age=600');
+    if (!data) {
+      return c.json({
+        events: [],
+        notice:
+          'JamBase did not return events (missing/invalid API key, upstream error, or quota if enabled). Check JAMBASE_API_KEY and worker logs.',
+        meta: { geoMetroId: params.geoMetroId, geoCityId: params.geoCityId, artistName: params.artistName },
+      });
+    }
     return c.json({
-      events: data?.events ?? [],
+      events: data.events ?? [],
       meta: { geoMetroId: params.geoMetroId, geoCityId: params.geoCityId, artistName: params.artistName },
     });
   } catch (error) {

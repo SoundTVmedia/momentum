@@ -20,8 +20,10 @@ MOCHA_USERS_SERVICE_API_KEY=
 # TRANSACTIONAL_EMAIL_FROM=Momentum <onboarding@resend.dev>
 # If the Worker cannot infer your SPA origin, set the public app URL (password reset links).
 # PUBLIC_APP_URL=http://localhost:5173
-# JamBase Data API v3 — edge cache + D1 global cap (default 1000 upstream calls; bucket jam:upstream).
-# Apply migration 42.sql. Raise later: JAMBASE_QUOTA_MAX=5000. Disable: JAMBASE_QUOTA_ENFORCEMENT=0
+# JamBase Data API v3 — Worker→JamBase requests use Cloudflare edge cache (see jambase-client.ts TTLs).
+# Optional D1 cap on **upstream** calls only (cache HITs do not count). Apply migration 42.sql.
+# Example 6k/month: JAMBASE_QUOTA_ENFORCEMENT=1  JAMBASE_QUOTA_MAX=6000  JAMBASE_QUOTA_WINDOW=month
+# All-time cap instead: omit JAMBASE_QUOTA_WINDOW or set JAMBASE_QUOTA_WINDOW=all
 # Per-IP caps also apply to /api/jambase/* and /api/search/advanced.
 JAMBASE_API_KEY=
 STRIPE_SECRET_KEY=

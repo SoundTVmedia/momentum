@@ -20,6 +20,8 @@ interface SearchResults {
     venues: Record<string, unknown>[];
     events: Record<string, unknown>[];
   };
+  /** Worker hint when JamBase proxy returned no upstream data (key, errors, quota). */
+  jambaseNotice?: string | null;
 }
 
 function jamBaseEventTicket(ev: Record<string, unknown>): string | null {
@@ -252,6 +254,11 @@ export default function DiscoverPage() {
           </div>
         ) : results ? (
           <div className="space-y-12">
+            {results.jambaseNotice && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-amber-100 text-sm max-w-3xl mx-auto">
+                {results.jambaseNotice}
+              </div>
+            )}
             {/* Clips Results */}
             {results.clips.length > 0 && (
               <div>
