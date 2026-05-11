@@ -119,6 +119,27 @@ function jamBaseCacheTtlSeconds(url: URL): number {
 
 const inflight = new Map<string, Promise<JamBaseJson | null>>();
 
+const JAMBASE_429_MAX_ATTEMPTS = 4;
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Parse JamBase / CDN `Retry-After` (seconds or HTTP-date). Caps wait to keep Workers responsive. */
+function retryAfterDelayMs(header: string | null, attemptIndex: number): number {
+  const fallbackSec = Math.min(8, 1 + attemptIndex * 2);
+  if (!header?.trim()) return Math.min(10_000, fallbackSec * 1000);
+  const sec = Number.parseInt(header.trim(), 10);
+  if (Number.isFinite(sec) && sec > 0) {
+    return Math.min(10_000, sec * 1000);
+  }
+  const when = Date.parse(header.trim());
+  if (Number.isFinite(when)) {
+    return Math.min(10_000, Math.max(0, when - Date.now()));
+  }
+  return Math.min(10_000, fallbackSec * 1000);
+}
+
 /** Optional: caller mutates this when `jamBaseFetch` returns null (not set on inflight dedupe hits). */
 export type JamBaseFetchDiag = {
   failure?:
@@ -164,34 +185,46 @@ export async function jamBaseFetch<T extends JamBaseJson>(
 
   const promise = (async (): Promise<T | null> => {
     try {
-      if (quota && !(await jamBaseQuotaPrecheck(quota))) {
-        if (diag) diag.failure = 'quota';
-        return null;
-      }
-
       let res: Response;
-      try {
-        res = await fetch(url.toString(), {
-          headers: {
-            Authorization: `Bearer ${key}`,
-            Accept: 'application/json',
-            'User-Agent': JAMBASE_USER_AGENT,
-          },
-          cf: {
-            cacheEverything: true,
-            cacheTtl,
-            cacheTtlByStatus: {
-              '200-299': cacheTtl,
-              '400-499': 120,
-              '429': 0,
-              '500-599': 0,
+      let attempt = 0;
+      while (true) {
+        if (quota && !(await jamBaseQuotaPrecheck(quota))) {
+          if (diag) diag.failure = 'quota';
+          return null;
+        }
+        try {
+          res = await fetch(url.toString(), {
+            headers: {
+              Authorization: `Bearer ${key}`,
+              Accept: 'application/json',
+              'User-Agent': JAMBASE_USER_AGENT,
             },
-          },
-        } as RequestInit);
-      } catch (e) {
-        console.error('JamBase fetch network error', path, e);
-        if (diag) diag.failure = 'network';
-        return null;
+            cf: {
+              cacheEverything: true,
+              cacheTtl,
+              cacheTtlByStatus: {
+                '200-299': cacheTtl,
+                '400-499': 120,
+                '429': 0,
+                '500-599': 0,
+              },
+            },
+          } as RequestInit);
+        } catch (e) {
+          console.error('JamBase fetch network error', path, e);
+          if (diag) diag.failure = 'network';
+          return null;
+        }
+
+        if (res.status === 429 && attempt < JAMBASE_429_MAX_ATTEMPTS - 1) {
+          const waitMs = retryAfterDelayMs(res.headers.get('Retry-After'), attempt);
+          console.warn('JamBase HTTP 429, backing off (ms)', path, waitMs, { attempt });
+          await res.text().catch(() => {});
+          await sleepMs(waitMs);
+          attempt += 1;
+          continue;
+        }
+        break;
       }
 
       if (quota && jamBaseResponseCountsAsUpstream(res)) {

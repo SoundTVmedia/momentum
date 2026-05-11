@@ -510,7 +510,7 @@ function jamBaseVenueFetchFailureNotice(
         return `JamBase rejected the API key (HTTP ${httpStatus}). Use your JamBase Data API v3 key from https://data.jambase.com — paste it as JAMBASE_API_KEY with no quotes or spaces.`;
       }
       if (httpStatus === 429) {
-        return 'JamBase rate-limited the request (HTTP 429). Retry later or check your JamBase plan.';
+        return 'JamBase rate-limited the request (HTTP 429) after automatic retries. Wait a minute and try again, or check your JamBase plan limits.';
       }
       return `JamBase returned HTTP ${httpStatus ?? 'error'}. Open worker logs for the response snippet. GPS was still received.`;
     case 'non_json':
@@ -638,9 +638,6 @@ export async function postResolveShowForClip(c: Context) {
     });
   }
 
-  const geoCityIds = city ? await resolveGeoCityIds(key, city, countryIso, jbQ, 4) : [];
-  const primaryGeoCityId = geoCityIds[0] ?? null;
-
   const userCityLower = city ? city.toLowerCase() : null;
 
   const seenVenueKeys = new Set<string>();
@@ -685,17 +682,24 @@ export async function postResolveShowForClip(c: Context) {
     }
   }
 
-  for (const gcid of geoCityIds) {
-    pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ), false);
-  }
-  if (rawVenueList.length === 0 && geoCityIds.length === 0) {
-    const metroPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-      key,
-      '/venues',
-      { geoMetroId: 'jambase:1', perPage: VENUES_PER_PAGE, page: '1' },
-      jbQ
-    );
-    pushVenueBatch((metroPayload?.venues ?? []) as Record<string, unknown>[], false);
+  /** Only when lat/lon (+ IP) returned nothing — avoids extra JamBase calls when geo search already succeeded. */
+  let geoCityIds: string[] = [];
+  let primaryGeoCityId: string | null = null;
+  if (rawVenueList.length === 0) {
+    geoCityIds = city ? await resolveGeoCityIds(key, city, countryIso, jbQ, 4) : [];
+    primaryGeoCityId = geoCityIds[0] ?? null;
+    for (const gcid of geoCityIds) {
+      pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ), false);
+    }
+    if (rawVenueList.length === 0 && geoCityIds.length === 0) {
+      const metroPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+        key,
+        '/venues',
+        { geoMetroId: 'jambase:1', perPage: VENUES_PER_PAGE, page: '1' },
+        jbQ
+      );
+      pushVenueBatch((metroPayload?.venues ?? []) as Record<string, unknown>[], false);
+    }
   }
 
   const fromVenues: ClipShowCandidate[] = [];

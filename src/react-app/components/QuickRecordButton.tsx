@@ -5,6 +5,27 @@ import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import type { ClipShowCandidate } from '@/shared/types';
 
+/** ~0.35 mi — same order as clip resolve slack; reuse resolve-show if GPS did not move much. */
+function withinMiles(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+  maxMiles: number
+): boolean {
+  const R = 3959;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c <= maxMiles;
+}
+
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
@@ -93,6 +114,18 @@ export default function QuickRecordButton({
   } | null>(null);
   const [nearbyVenues, setNearbyVenues] = useState<ClipShowCandidate[]>([]);
   const nearbyVenuesRef = useRef<ClipShowCandidate[]>([]);
+  /** Reuse first resolve-show (nearby list fetch) at end of recording to avoid doubling JamBase upstream. */
+  const resolveShowCacheRef = useRef<{
+    lat: number;
+    lon: number;
+    fetchedAt: number;
+    data: {
+      match?: string;
+      candidates?: ClipShowCandidate[];
+      nearbyVenues?: ClipShowCandidate[];
+      notice?: string | null;
+    };
+  } | null>(null);
   const [nearbyVenuesLoading, setNearbyVenuesLoading] = useState(false);
   const [nearbyVenuesNotice, setNearbyVenuesNotice] = useState<string | null>(null);
   const [selectedVenueKey, setSelectedVenueKey] = useState<string | null>(null);
@@ -159,6 +192,7 @@ export default function QuickRecordButton({
       setNearbyVenuesNotice(null);
       selectedVenueCandidateRef.current = null;
       setSelectedVenueKey(null);
+      resolveShowCacheRef.current = null;
     }
   }, [showModal]);
 
@@ -214,11 +248,24 @@ export default function QuickRecordButton({
           return;
         }
         const data = (await res.json()) as {
+          match?: string;
+          candidates?: ClipShowCandidate[];
           nearbyVenues?: ClipShowCandidate[];
           notice?: string | null;
         };
         if (ac.signal.aborted) return;
         const list = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
+        resolveShowCacheRef.current = {
+          lat: coordsForNearbyVenues.lat,
+          lon: coordsForNearbyVenues.lon,
+          fetchedAt: Date.now(),
+          data: {
+            match: data.match,
+            candidates: data.candidates,
+            nearbyVenues: list,
+            notice: data.notice ?? null,
+          },
+        };
         setNearbyVenues(list);
         setNearbyVenuesNotice(data.notice?.trim() || null);
         selectedVenueCandidateRef.current = null;
@@ -787,22 +834,41 @@ export default function QuickRecordButton({
       };
       nearbyVenuesForUpload = [...nearbyVenuesRef.current];
     } else if (geo?.latitude != null && geo?.longitude != null) {
+      const cache = resolveShowCacheRef.current;
+      const reuseResolve =
+        cache != null &&
+        withinMiles(cache.lat, cache.lon, geo.latitude, geo.longitude, 0.35) &&
+        Date.now() - cache.fetchedAt < 12 * 60 * 1000;
+
+      type ResolveJson = {
+        match?: string;
+        candidates?: ClipShowCandidate[];
+        nearbyVenues?: ClipShowCandidate[];
+      };
+
+      let data: ResolveJson | null = null;
       try {
-        const res = await fetch('/api/clips/resolve-show', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            latitude: geo.latitude,
-            longitude: geo.longitude,
-            at,
-            city: geo.city ?? undefined,
-            state: geo.state ?? undefined,
-            country: geo.country ?? undefined,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
+        if (reuseResolve) {
+          data = cache.data;
+        } else {
+          const res = await fetch('/api/clips/resolve-show', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+              at,
+              city: geo.city ?? undefined,
+              state: geo.state ?? undefined,
+              country: geo.country ?? undefined,
+            }),
+          });
+          if (res.ok) {
+            data = (await res.json()) as ResolveJson;
+          }
+        }
+        if (data) {
           nearbyVenuesForUpload = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
           if (data.match === 'single' && data.candidates?.[0]) {
             const c = data.candidates[0] as ClipShowCandidate;
