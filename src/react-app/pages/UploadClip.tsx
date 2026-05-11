@@ -385,7 +385,6 @@ export default function UploadClip() {
 
   useEffect(() => {
     if (!user) return;
-    if (jambaseLink?.event || jambaseLink?.venue) return;
     if (ambiguousCandidates.length > 0) return;
 
     const nav = location.state as {
@@ -403,17 +402,25 @@ export default function UploadClip() {
     } | null;
 
     const fromQuick = Boolean(nav?.videoBlob);
+    const isQuickCaption = showCaptionScreen && fromQuick;
 
-    const shouldResolve =
-      Boolean(formData.video_file && uploadMethod === 'file' && !fromQuick) ||
-      Boolean(
-        showCaptionScreen &&
-          fromQuick &&
-          !nav?.showData &&
-          !(Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0)
-      );
+    const resolveForFile =
+      Boolean(formData.video_file && uploadMethod === 'file' && !fromQuick);
 
-    if (!shouldResolve) return;
+    /** JamBase venue list for this clip’s capture coordinates (post-capture screen). */
+    const resolveForNearbyOnCaption =
+      isQuickCaption &&
+      !(Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0);
+
+    /** Apply single/ambiguous match only when navigation did not already carry show data. */
+    const resolveForAutoTagQuick =
+      isQuickCaption &&
+      !nav?.showData &&
+      !(Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0);
+
+    if (!resolveForFile && !resolveForNearbyOnCaption) return;
+
+    if (resolveForFile && (jambaseLink?.event || jambaseLink?.venue)) return;
 
     const at =
       recordingAtIso ||
@@ -480,6 +487,7 @@ export default function UploadClip() {
         }
       }
       if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude) || cancelled) return;
+
       try {
         const res = await fetch('/api/clips/resolve-show', {
           method: 'POST',
@@ -510,23 +518,53 @@ export default function UploadClip() {
           notice?: string;
         };
         if (cancelled) return;
+
         const nearbyList = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
+        const sortedNearby = [...nearbyList].sort((a, b) => {
+          const da = a.distance_miles;
+          const db = b.distance_miles;
+          if (da != null && db != null) return da - db;
+          if (da != null) return -1;
+          if (db != null) return 1;
+          return 0;
+        });
         if (fromQuick) {
-          setNearbyVenueSuggestions(nearbyList);
+          setNearbyVenueSuggestions(sortedNearby);
         }
-        if (data.match === 'single' && data.candidates?.[0]) {
-          applyClipCandidate(data.candidates[0], { clearNearby: false });
-          setResolveNotice(null);
-        } else if (data.match === 'ambiguous' && data.candidates?.length) {
-          setAmbiguousCandidates(data.candidates);
-          setResolveNotice(
-            data.notice ?? 'We found multiple nearby venues. Pick the right one below or edit manually.'
-          );
-        } else if (data.match === 'none') {
-          setResolveNotice(
-            data.notice ??
-              'No nearby JamBase venue found in your radius. You can enter details manually.'
-          );
+
+        if (resolveForFile) {
+          if (data.match === 'single' && data.candidates?.[0]) {
+            applyClipCandidate(data.candidates[0], { clearNearby: false });
+            setResolveNotice(null);
+          } else if (data.match === 'ambiguous' && data.candidates?.length) {
+            setAmbiguousCandidates(data.candidates);
+            setResolveNotice(
+              data.notice ?? 'We found multiple nearby venues. Pick the right one below or edit manually.'
+            );
+          } else if (data.match === 'none') {
+            setResolveNotice(
+              data.notice ??
+                'No nearby JamBase venue found in your radius. You can enter details manually.'
+            );
+          }
+        } else if (
+          resolveForAutoTagQuick &&
+          !(jambaseLink?.event || jambaseLink?.venue)
+        ) {
+          if (data.match === 'single' && data.candidates?.[0]) {
+            applyClipCandidate(data.candidates[0], { clearNearby: false });
+            setResolveNotice(null);
+          } else if (data.match === 'ambiguous' && data.candidates?.length) {
+            setAmbiguousCandidates(data.candidates);
+            setResolveNotice(
+              data.notice ?? 'We found multiple nearby venues. Pick the right one below or edit manually.'
+            );
+          } else if (data.match === 'none') {
+            setResolveNotice(
+              data.notice ??
+                'No nearby JamBase venue found in your radius. You can enter details manually.'
+            );
+          }
         }
       } catch (e) {
         console.error('resolve-show', e);
@@ -1136,10 +1174,20 @@ export default function UploadClip() {
               {nearbyVenueSuggestions.length > 0 && (
                 <div className="p-4 bg-cyan-500/10 border border-cyan-500/25 rounded-lg space-y-2">
                   <p className="text-cyan-100 text-sm font-medium">
-                    Venues near where you recorded (JamBase)
+                    JamBase venues for your capture location
                   </p>
+                  {captureGeo &&
+                  Number.isFinite(captureGeo.latitude) &&
+                  Number.isFinite(captureGeo.longitude) && (
+                    <p className="text-gray-300 text-xs leading-relaxed">
+                      <span className="text-cyan-200/90 font-medium">Your clip: </span>
+                      {[captureGeo.city, captureGeo.state].filter(Boolean).join(', ') ||
+                        `${captureGeo.latitude.toFixed(4)}, ${captureGeo.longitude.toFixed(4)}`}
+                      <span className="text-gray-500"> — list is ordered closest first.</span>
+                    </p>
+                  )}
                   <p className="text-gray-400 text-xs">
-                    Tap to tag this clip, or use Change Artist/Venue below to search.
+                    Tap a row to tag this clip, or use Change Artist/Venue below to search JamBase.
                   </p>
                   <div className="space-y-2 max-h-52 overflow-y-auto">
                     {nearbyVenueSuggestions.map((c) => (
@@ -1151,6 +1199,9 @@ export default function UploadClip() {
                       >
                         <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
                         <span className="text-gray-400"> · {c.venue_name}</span>
+                        {c.distance_miles != null && Number.isFinite(c.distance_miles) ? (
+                          <span className="text-cyan-300/90 text-xs"> · {c.distance_miles.toFixed(1)} mi</span>
+                        ) : null}
                         {c.location ? (
                           <span className="block text-xs text-gray-500 mt-0.5">{c.location}</span>
                         ) : null}

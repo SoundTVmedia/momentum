@@ -1,37 +1,13 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin } from 'lucide-react';
+import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
-import type { ClipShowCandidate } from '@/shared/types';
-
-/** ~0.35 mi — same order as clip resolve slack; reuse resolve-show if GPS did not move much. */
-function withinMiles(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-  maxMiles: number
-): boolean {
-  const R = 3959;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c <= maxMiles;
-}
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
-/** Post-record resolve must not block the UI indefinitely (worker + JamBase can be slow). */
-const RESOLVE_SHOW_TIMEOUT_MS = 28_000;
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -109,33 +85,12 @@ export default function QuickRecordButton({
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
   const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const selectedVenueCandidateRef = useRef<ClipShowCandidate | null>(null);
+  /** GPS used for lastGeoRef + upload `captureGeo`; JamBase tagging runs on the upload screen only. */
   const [coordsForNearbyVenues, setCoordsForNearbyVenues] = useState<{
     lat: number;
     lon: number;
   } | null>(null);
-  const [nearbyVenues, setNearbyVenues] = useState<ClipShowCandidate[]>([]);
-  const nearbyVenuesRef = useRef<ClipShowCandidate[]>([]);
-  /** Reuse first resolve-show (nearby list fetch) at end of recording to avoid doubling JamBase upstream. */
-  const resolveShowCacheRef = useRef<{
-    lat: number;
-    lon: number;
-    fetchedAt: number;
-    data: {
-      match?: string;
-      candidates?: ClipShowCandidate[];
-      nearbyVenues?: ClipShowCandidate[];
-      notice?: string | null;
-    };
-  } | null>(null);
-  const [nearbyVenuesLoading, setNearbyVenuesLoading] = useState(false);
-  const [nearbyVenuesNotice, setNearbyVenuesNotice] = useState<string | null>(null);
-  const [selectedVenueKey, setSelectedVenueKey] = useState<string | null>(null);
   const coordsForNearbyVenuesRef = useRef<{ lat: number; lon: number } | null>(null);
-
-  useEffect(() => {
-    nearbyVenuesRef.current = nearbyVenues;
-  }, [nearbyVenues]);
 
   useEffect(() => {
     coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
@@ -185,16 +140,10 @@ export default function QuickRecordButton({
     };
   }, [isRecording, isPortrait, recordingOrientation]);
 
-  // Reset venue / location UI when capture closes
+  // Reset capture coords when modal closes
   useEffect(() => {
     if (!showModal) {
       setCoordsForNearbyVenues(null);
-      setNearbyVenues([]);
-      setNearbyVenuesLoading(false);
-      setNearbyVenuesNotice(null);
-      selectedVenueCandidateRef.current = null;
-      setSelectedVenueKey(null);
-      resolveShowCacheRef.current = null;
     }
   }, [showModal]);
 
