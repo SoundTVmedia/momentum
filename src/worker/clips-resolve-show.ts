@@ -10,10 +10,13 @@ const VENUE_TIE_MILES = 0.35;
 const GPS_DISTANCE_SLACK_MILES = 1.25;
 
 /** JamBase `/venues` lat+lon search uses at least this many miles so sparse areas still return rows. */
-const VENUE_JAMBASE_SEARCH_MIN_MILES = 30;
+const VENUE_JAMBASE_SEARCH_MIN_MILES = 35;
 
 /** Optional JamBase radius beyond profile radius when calling `/venues` (still filter by profile radius when coords exist). */
-const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 20;
+const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 25;
+
+/** Never match tighter than this when comparing GPS ↔ venue coords (profile can be 1–5 mi). */
+const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
 
 type CandidateGeoTrust = { trustJamBaseGeoList?: boolean };
 
@@ -74,23 +77,38 @@ function extractVenueCoords(ev: Record<string, unknown>): { lat: number; lon: nu
   if (loc) {
     const geo = loc.geo as Record<string, unknown> | undefined;
     if (geo) {
-      const lat = Number(geo.latitude);
-      const lon = Number(geo.longitude);
+      const lat = Number(geo.latitude ?? geo.lat);
+      const lon = Number(geo.longitude ?? geo.lon ?? geo.lng);
       if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
     }
-    const latLoc = Number(loc.latitude);
-    const lonLoc = Number(loc.longitude);
+    const addr = loc.address as Record<string, unknown> | undefined;
+    if (addr) {
+      const ag = addr.geo as Record<string, unknown> | undefined;
+      if (ag) {
+        const lat = Number(ag.latitude ?? ag.lat);
+        const lon = Number(ag.longitude ?? ag.lon ?? ag.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+      }
+    }
+    const latLoc = Number(loc.latitude ?? loc.lat);
+    const lonLoc = Number(loc.longitude ?? loc.lon ?? loc.lng);
     if (Number.isFinite(latLoc) && Number.isFinite(lonLoc)) return { lat: latLoc, lon: lonLoc };
   }
   const rootGeo = ev.geo as Record<string, unknown> | undefined;
   if (rootGeo) {
-    const lat = Number(rootGeo.latitude);
-    const lon = Number(rootGeo.longitude);
+    const lat = Number(rootGeo.latitude ?? rootGeo.lat);
+    const lon = Number(rootGeo.longitude ?? rootGeo.lon ?? rootGeo.lng);
     if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
   }
   const rlat = Number(ev.latitude);
   const rlon = Number(ev.longitude);
   if (Number.isFinite(rlat) && Number.isFinite(rlon)) return { lat: rlat, lon: rlon };
+  return null;
+}
+
+function venueRootIdentifier(v: Record<string, unknown>): string | null {
+  if (typeof v.identifier === 'string' && v.identifier.trim()) return v.identifier.trim();
+  if (typeof v.id === 'string' && v.id.trim()) return v.id.trim();
   return null;
 }
 
@@ -188,7 +206,7 @@ function soleRawVenueCandidate(
   userLat: number,
   userLon: number
 ): ClipShowCandidate | null {
-  const venueId = typeof v.identifier === 'string' ? v.identifier : null;
+  const venueId = venueRootIdentifier(v);
   const venueName = typeof v.name === 'string' ? v.name : null;
   if (!venueId) return null;
 
@@ -276,11 +294,11 @@ function candidateFromVenue(
   v: Record<string, unknown>,
   userLat: number,
   userLon: number,
-  radiusMiles: number,
+  matchRadiusMiles: number,
   userCityLower: string | null,
   opts?: CandidateGeoTrust
 ): ClipShowCandidate | null {
-  const venueId = typeof v.identifier === 'string' ? v.identifier : null;
+  const venueId = venueRootIdentifier(v);
   const venueName = typeof v.name === 'string' ? v.name : null;
   if (!venueId) return null;
 
@@ -291,7 +309,7 @@ function candidateFromVenue(
 
   if (coords) {
     distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
-    withinRadius = distanceMiles <= radiusMiles + GPS_DISTANCE_SLACK_MILES;
+    withinRadius = distanceMiles <= matchRadiusMiles + GPS_DISTANCE_SLACK_MILES;
   } else if (userCityLower && locationLine) {
     const locLower = locationLine.toLowerCase();
     const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
@@ -319,7 +337,7 @@ function candidateFromEvent(
   ev: Record<string, unknown>,
   userLat: number,
   userLon: number,
-  radiusMiles: number,
+  matchRadiusMiles: number,
   userCityLower: string | null,
   opts?: CandidateGeoTrust
 ): ClipShowCandidate | null {
@@ -340,7 +358,7 @@ function candidateFromEvent(
 
   if (coords) {
     distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
-    withinRadius = distanceMiles <= radiusMiles + GPS_DISTANCE_SLACK_MILES;
+    withinRadius = distanceMiles <= matchRadiusMiles + GPS_DISTANCE_SLACK_MILES;
   } else if (userCityLower && locationLine) {
     const locLower = locationLine.toLowerCase();
     const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
@@ -520,7 +538,10 @@ export async function postResolveShowForClip(c: Context) {
     .bind(mochaUser.id)
     .first()) as { location_radius_miles: number | null } | null;
 
-  const radiusMiles = Math.max(1, Number(profile?.location_radius_miles) || 50);
+  /** Stored preference (feed, etc.). */
+  const profileRadiusMiles = Math.max(1, Number(profile?.location_radius_miles) || 50);
+  /** JamBase resolve / venue–GPS comparison never uses a tighter disk than this. */
+  const matchRadiusMiles = Math.max(profileRadiusMiles, VENUE_MATCH_RADIUS_FLOOR_MILES);
 
   const jbQ = jamBaseQuotaFromEnv(c.env);
   const geoCityIds = city ? await resolveGeoCityIds(key, city, countryIso, jbQ, 4) : [];
@@ -535,7 +556,7 @@ export async function postResolveShowForClip(c: Context) {
 
   const pushVenueBatch = (venues: Record<string, unknown>[], fromLatLonGeo: boolean) => {
     for (const v of venues) {
-      const id = typeof v.identifier === 'string' ? v.identifier : '';
+      const id = venueRootIdentifier(v) ?? '';
       if (!id || seenVenueKeys.has(id)) continue;
       seenVenueKeys.add(id);
       rawVenueList.push(v);
@@ -543,7 +564,7 @@ export async function postResolveShowForClip(c: Context) {
     }
   };
 
-  pushVenueBatch(await fetchVenuesPaginatedByLatLon(key, lat, lon, radiusMiles, jbQ), true);
+  pushVenueBatch(await fetchVenuesPaginatedByLatLon(key, lat, lon, profileRadiusMiles, jbQ), true);
 
   for (const gcid of geoCityIds) {
     pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ), false);
@@ -560,11 +581,20 @@ export async function postResolveShowForClip(c: Context) {
 
   const fromVenues: ClipShowCandidate[] = [];
   for (const v of rawVenueList) {
-    const vid = typeof v.identifier === 'string' ? v.identifier : '';
-    const cnd = candidateFromVenue(v, lat, lon, radiusMiles, userCityLower, {
+    const vid = venueRootIdentifier(v) ?? '';
+    const cnd = candidateFromVenue(v, lat, lon, matchRadiusMiles, userCityLower, {
       trustJamBaseGeoList: venueIdsFromLatLonSearch.has(vid),
     });
     if (cnd) fromVenues.push(cnd);
+  }
+
+  if (fromVenues.length === 0) {
+    for (const v of rawVenueList) {
+      const vid = venueRootIdentifier(v) ?? '';
+      if (!vid || !venueIdsFromLatLonSearch.has(vid)) continue;
+      const salvage = soleRawVenueCandidate(v, lat, lon);
+      if (salvage) fromVenues.push(salvage);
+    }
   }
 
   let matchSource: 'venues' | 'events' = 'venues';
@@ -586,7 +616,7 @@ export async function postResolveShowForClip(c: Context) {
     const eventDateFrom = from.toISOString().split('T')[0];
 
     const eventSearchMiles = Math.max(
-      radiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
+      profileRadiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
       VENUE_JAMBASE_SEARCH_MIN_MILES
     );
     const eventRadius = Math.min(5000, Math.max(1, Math.ceil(eventSearchMiles + GPS_DISTANCE_SLACK_MILES)));
@@ -607,7 +637,7 @@ export async function postResolveShowForClip(c: Context) {
 
     const fromEvents: ClipShowCandidate[] = [];
     for (const ev of rawEvents) {
-      const cnd = candidateFromEvent(ev, lat, lon, radiusMiles, userCityLower, {
+      const cnd = candidateFromEvent(ev, lat, lon, matchRadiusMiles, userCityLower, {
         trustJamBaseGeoList: true,
       });
       if (cnd) fromEvents.push(cnd);
@@ -615,18 +645,20 @@ export async function postResolveShowForClip(c: Context) {
     working = dedupeKeepClosestPerVenue(fromEvents);
   }
 
-  const { match, candidates } = finalizeMatch(working, radiusMiles);
+  const { match, candidates } = finalizeMatch(working, matchRadiusMiles);
 
   const notice =
     match === 'none'
-      ? 'No JamBase venue found within your radius. You can enter details manually.'
+      ? rawVenueList.length === 0
+        ? 'JamBase did not return any venues near this location (API empty, quota, or network). You can enter the venue manually.'
+        : 'No JamBase venue could be matched to your coordinates. You can enter the venue manually.'
       : null;
 
   await recordResolveTelemetry(
     c,
     mochaUser.id,
     match,
-    radiusMiles,
+    profileRadiusMiles,
     rawUpstreamCount,
     candidates.length,
     primaryGeoCityId,
@@ -646,7 +678,8 @@ export async function postResolveShowForClip(c: Context) {
     candidates,
     notice,
     meta: {
-      radiusMiles,
+      radiusMiles: profileRadiusMiles,
+      matchRadiusMiles,
       city,
       postcode,
       geoCityId: primaryGeoCityId,

@@ -30,7 +30,7 @@ export default function QuickRecordButton({
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
-  const { requestLocation } = useGeolocation();
+  const { getDeviceCoordinates } = useGeolocation();
   const lastGeoRef = useRef<{
     latitude: number;
     longitude: number;
@@ -125,8 +125,7 @@ export default function QuickRecordButton({
     };
   }, [isRecording, isPortrait, recordingOrientation]);
 
-  // Geolocation when capture opens (before record). Prefer GPS even if reverse-geocode fails;
-  // discard the result only if the user already closed the modal (avoids Strict Mode losing a fix).
+  // GPS when capture opens: device lat/lon only (no Nominatim). JamBase + worker reverse-geocode use these coords.
   useEffect(() => {
     if (!showModal) {
       geoPrimedForModalRef.current = false;
@@ -137,7 +136,7 @@ export default function QuickRecordButton({
     geoPrimedForModalRef.current = true;
     void (async () => {
       try {
-        const geo = await requestLocation();
+        const geo = await getDeviceCoordinates();
         if (geo?.latitude == null || geo.longitude == null) return;
         if (!showModalRef.current) return;
         lastGeoRef.current = {
@@ -155,7 +154,22 @@ export default function QuickRecordButton({
     return () => {
       geoPrimedForModalRef.current = false;
     };
-  }, [showModal, requestLocation]);
+  }, [showModal, getDeviceCoordinates]);
+
+  /** Refresh GPS into lastGeoRef; keeps any city/state/country already merged from a prior read. */
+  const mergeDeviceGpsIntoLastGeoRef = async () => {
+    const fresh = await getDeviceCoordinates();
+    if (fresh?.latitude == null || fresh.longitude == null) return;
+    const prev = lastGeoRef.current;
+    lastGeoRef.current = {
+      latitude: fresh.latitude,
+      longitude: fresh.longitude,
+      accuracy: fresh.accuracy ?? prev?.accuracy,
+      city: fresh.city ?? prev?.city ?? null,
+      state: fresh.state ?? prev?.state ?? null,
+      country: fresh.country ?? prev?.country ?? null,
+    };
+  };
 
   const requestPermissions = async (facingOverride?: 'environment' | 'user') => {
     if (isPending) return;
@@ -518,6 +532,7 @@ export default function QuickRecordButton({
       return;
     }
 
+    await mergeDeviceGpsIntoLastGeoRef();
     const geo = lastGeoRef.current;
     navigate({ pathname: '/upload', search: '' }, {
       state: {
@@ -657,8 +672,8 @@ export default function QuickRecordButton({
     }
 
     const at = recordingStartedAtRef.current || new Date().toISOString();
-    // Use location from the single upfront prompt only — do not call getCurrentPosition again here
-    // (avoids a second permission prompt or confusing duplicate UX).
+    // Fresh lat/lon at end of capture (same permission) so JamBase resolve matches where the clip was recorded.
+    await mergeDeviceGpsIntoLastGeoRef();
     const geo = lastGeoRef.current;
     setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
 

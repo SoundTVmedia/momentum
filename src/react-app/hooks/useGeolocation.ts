@@ -24,12 +24,30 @@ export function useGeolocation() {
         }
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0,
+          timeout: 10000,
+          maximumAge: 60000,
         });
       }),
     []
   );
+
+  /** Browser GPS only (no reverse geocode). Best for capture / JamBase lat–lon matching. */
+  const getDeviceCoordinates = useCallback(async (): Promise<GeolocationData | null> => {
+    try {
+      const position = await getCurrentPosition();
+      const { latitude, longitude, accuracy } = position.coords;
+      return {
+        latitude,
+        longitude,
+        accuracy,
+        city: null,
+        state: null,
+        country: null,
+      };
+    } catch {
+      return null;
+    }
+  }, [getCurrentPosition]);
 
   const requestLocation = async () => {
     setLoading(true);
@@ -94,5 +112,6 @@ export function useGeolocation() {
     error,
     requestLocation,
     getCurrentPosition,
+    getDeviceCoordinates,
   };
 }
