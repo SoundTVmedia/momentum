@@ -66,7 +66,7 @@ export function jamBaseQuotaFromEnv(env: JamBaseQuotaEnv): JamBaseQuotaContext |
   return { db: env.DB, max, bucketId };
 }
 
-async function jamBaseQuotaPrecheck(quota: JamBaseQuotaContext): Promise<boolean> {
+export async function jamBaseQuotaPrecheck(quota: JamBaseQuotaContext): Promise<boolean> {
   try {
     const row = await quota.db
       .prepare('SELECT count FROM jambase_api_usage WHERE bucket_id = ?')

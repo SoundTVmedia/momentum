@@ -685,6 +685,7 @@ export default function QuickRecordButton({
         const res = await fetch('/api/clips/resolve-show', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             latitude: geo.latitude,
             longitude: geo.longitude,

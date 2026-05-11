@@ -1,5 +1,10 @@
 import type { Context } from 'hono';
-import { jamBaseFetch, jamBaseQuotaFromEnv, type JamBaseQuotaContext } from './jambase-client';
+import {
+  jamBaseFetch,
+  jamBaseQuotaFromEnv,
+  jamBaseQuotaPrecheck,
+  type JamBaseQuotaContext,
+} from './jambase-client';
 import { headlinerFromEvent } from './jambase-map';
 import type { ClipShowCandidate } from '../shared/types';
 
@@ -440,13 +445,14 @@ async function fetchVenuesPaginatedByLatLon(
   userLon: number,
   radiusMiles: number,
   jbQ: JamBaseQuotaContext | undefined
-): Promise<Record<string, unknown>[]> {
+): Promise<{ venues: Record<string, unknown>[]; upstreamNull: boolean }> {
   const searchMiles = Math.max(
     radiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
     VENUE_JAMBASE_SEARCH_MIN_MILES
   );
   const radiusAmount = Math.min(5000, Math.max(1, Math.ceil(searchMiles)));
   const out: Record<string, unknown>[] = [];
+  let upstreamNull = false;
   for (let page = 1; page <= VENUE_GEO_CITY_MAX_PAGES; page++) {
     const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
       apiKey,
@@ -461,12 +467,16 @@ async function fetchVenuesPaginatedByLatLon(
       },
       jbQ
     );
+    if (data == null) {
+      upstreamNull = true;
+      break;
+    }
     const batch = data?.venues ?? [];
     if (batch.length === 0) break;
     for (const v of batch) out.push(v as Record<string, unknown>);
     if (batch.length < parseInt(VENUES_PER_PAGE, 10)) break;
   }
-  return out;
+  return { venues: out, upstreamNull };
 }
 
 /**
@@ -544,6 +554,43 @@ export async function postResolveShowForClip(c: Context) {
   const matchRadiusMiles = Math.max(profileRadiusMiles, VENUE_MATCH_RADIUS_FLOOR_MILES);
 
   const jbQ = jamBaseQuotaFromEnv(c.env);
+  if (jbQ && !(await jamBaseQuotaPrecheck(jbQ))) {
+    await recordResolveTelemetry(
+      c,
+      mochaUser.id,
+      'none',
+      profileRadiusMiles,
+      0,
+      0,
+      null,
+      'jambase_quota',
+      'JamBase quota exceeded'
+    );
+    return c.json({
+      match: 'none' as const,
+      candidates: [] as ClipShowCandidate[],
+      notice:
+        'JamBase is unavailable right now because the workspace API call quota was reached. For local dev, turn off JAMBASE_QUOTA_ENFORCEMENT or raise JAMBASE_QUOTA_MAX in .dev.vars, then retry.',
+      meta: {
+        radiusMiles: profileRadiusMiles,
+        matchRadiusMiles,
+        city,
+        postcode,
+        geoCityId: null,
+        geoCityIds: [],
+        postcodeFromNominatim: Boolean(postcode),
+        venuesLatLonSearch: true,
+        rawVenueCount: 0,
+        matchedVenueCount: 0,
+        eventDateFrom: new Date().toISOString().split('T')[0],
+        matchSource: 'quota',
+        lat,
+        lon,
+        jamBaseQuotaBlocked: true,
+      },
+    });
+  }
+
   const geoCityIds = city ? await resolveGeoCityIds(key, city, countryIso, jbQ, 4) : [];
   const primaryGeoCityId = geoCityIds[0] ?? null;
 
@@ -551,20 +598,45 @@ export async function postResolveShowForClip(c: Context) {
 
   const seenVenueKeys = new Set<string>();
   const rawVenueList: Record<string, unknown>[] = [];
-  /** Venue ids returned from JamBase lat/lon geo search (already radius-filtered upstream). */
-  const venueIdsFromLatLonSearch = new Set<string>();
+  /** Lat/lon + geoIp JamBase listings: trust rows without precise coords when city is unknown. */
+  const trustedGeoVenueIds = new Set<string>();
 
-  const pushVenueBatch = (venues: Record<string, unknown>[], fromLatLonGeo: boolean) => {
+  const pushVenueBatch = (venues: Record<string, unknown>[], markTrusted: boolean) => {
     for (const v of venues) {
       const id = venueRootIdentifier(v) ?? '';
       if (!id || seenVenueKeys.has(id)) continue;
       seenVenueKeys.add(id);
       rawVenueList.push(v);
-      if (fromLatLonGeo) venueIdsFromLatLonSearch.add(id);
+      if (markTrusted) trustedGeoVenueIds.add(id);
     }
   };
 
-  pushVenueBatch(await fetchVenuesPaginatedByLatLon(key, lat, lon, profileRadiusMiles, jbQ), true);
+  const latLonRes = await fetchVenuesPaginatedByLatLon(key, lat, lon, profileRadiusMiles, jbQ);
+  let venuesLatLonUpstreamNull = latLonRes.upstreamNull;
+  pushVenueBatch(latLonRes.venues, true);
+
+  if (rawVenueList.length === 0 && !venuesLatLonUpstreamNull) {
+    const cfIp =
+      c.req.header('cf-connecting-ip') ||
+      c.req.header('CF-Connecting-IP') ||
+      (typeof c.req.header('x-forwarded-for') === 'string'
+        ? c.req.header('x-forwarded-for')!.split(',')[0]!.trim()
+        : '');
+    if (cfIp.length > 5) {
+      const ipData = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+        key,
+        '/venues',
+        {
+          geoIp: cfIp,
+          perPage: VENUES_PER_PAGE,
+          page: '1',
+        },
+        jbQ
+      );
+      if (ipData == null) venuesLatLonUpstreamNull = true;
+      else pushVenueBatch((ipData.venues ?? []) as Record<string, unknown>[], true);
+    }
+  }
 
   for (const gcid of geoCityIds) {
     pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ), false);
@@ -583,7 +655,7 @@ export async function postResolveShowForClip(c: Context) {
   for (const v of rawVenueList) {
     const vid = venueRootIdentifier(v) ?? '';
     const cnd = candidateFromVenue(v, lat, lon, matchRadiusMiles, userCityLower, {
-      trustJamBaseGeoList: venueIdsFromLatLonSearch.has(vid),
+      trustJamBaseGeoList: trustedGeoVenueIds.has(vid),
     });
     if (cnd) fromVenues.push(cnd);
   }
@@ -591,7 +663,7 @@ export async function postResolveShowForClip(c: Context) {
   if (fromVenues.length === 0) {
     for (const v of rawVenueList) {
       const vid = venueRootIdentifier(v) ?? '';
-      if (!vid || !venueIdsFromLatLonSearch.has(vid)) continue;
+      if (!vid || !trustedGeoVenueIds.has(vid)) continue;
       const salvage = soleRawVenueCandidate(v, lat, lon);
       if (salvage) fromVenues.push(salvage);
     }
@@ -649,9 +721,11 @@ export async function postResolveShowForClip(c: Context) {
 
   const notice =
     match === 'none'
-      ? rawVenueList.length === 0
-        ? 'JamBase did not return any venues near this location (API empty, quota, or network). You can enter the venue manually.'
-        : 'No JamBase venue could be matched to your coordinates. You can enter the venue manually.'
+      ? venuesLatLonUpstreamNull
+        ? 'Could not reach JamBase (invalid API key, network error, or quota blocked the call). Your GPS coordinates were still received — check worker logs and .dev.vars (JAMBASE_API_KEY, JAMBASE_QUOTA_ENFORCEMENT).'
+        : rawVenueList.length === 0
+          ? 'JamBase returned no venues for this latitude and longitude. You can enter the venue manually.'
+          : 'JamBase returned nearby venues, but none could be matched to your coordinates. You can pick the venue manually.'
       : null;
 
   await recordResolveTelemetry(
@@ -692,6 +766,7 @@ export async function postResolveShowForClip(c: Context) {
       matchSource,
       lat,
       lon,
+      jamBaseVenuesUpstreamNull: venuesLatLonUpstreamNull,
     },
   });
 }

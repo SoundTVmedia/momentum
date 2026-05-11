@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Upload, MapPin, Music, Calendar, Hash, Loader2, X, Film, Image as ImageIcon, Search, Edit2, Check } from 'lucide-react';
@@ -17,7 +17,7 @@ export default function UploadClip() {
   const location = useLocation();
   const { user, isPending } = useAuth();
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
-  const { requestLocation } = useGeolocation();
+  const { requestLocation, getDeviceCoordinates } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
   const [loading, setLoading] = useState(false);
   const [geoDetected, setGeoDetected] = useState(false);
@@ -63,6 +63,25 @@ export default function UploadClip() {
     country: string | null;
   } | null>(null);
   const [resolveNotice, setResolveNotice] = useState<string | null>(null);
+
+  /** Apply GPS from navigation state before paint so resolve-show sees coords on first run. */
+  useLayoutEffect(() => {
+    const nav = location.state as {
+      videoBlob?: unknown;
+      captureGeo?: {
+        latitude: number;
+        longitude: number;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+      };
+    } | null | undefined;
+    if (!nav?.videoBlob || !nav.captureGeo) return;
+    const cg = nav.captureGeo;
+    if (Number.isFinite(cg.latitude) && Number.isFinite(cg.longitude)) {
+      setCaptureGeo(cg);
+    }
+  }, [location.state]);
 
   const [formData, setFormData] = useState({
     video_file: null as File | null,
@@ -384,14 +403,22 @@ export default function UploadClip() {
     let cancelled = false;
     (async () => {
       let geo = captureGeo;
-      if (!geo?.latitude && nav?.captureGeo?.latitude != null) {
+      if (
+        (geo == null || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) &&
+        nav?.captureGeo != null &&
+        Number.isFinite(nav.captureGeo.latitude) &&
+        Number.isFinite(nav.captureGeo.longitude)
+      ) {
         geo = nav.captureGeo;
         if (!cancelled) setCaptureGeo(geo);
       }
-      if (!geo?.latitude) {
-        const g = await requestLocation();
+      if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) {
+        let g = await getDeviceCoordinates();
+        if ((g?.latitude == null || !Number.isFinite(g.latitude)) && !fromQuick) {
+          g = await requestLocation();
+        }
         if (cancelled) return;
-        if (g?.latitude != null && g?.longitude != null) {
+        if (g?.latitude != null && g?.longitude != null && Number.isFinite(g.latitude) && Number.isFinite(g.longitude)) {
           geo = {
             latitude: g.latitude,
             longitude: g.longitude,
@@ -411,11 +438,12 @@ export default function UploadClip() {
           return;
         }
       }
-      if (!geo?.latitude || cancelled) return;
+      if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude) || cancelled) return;
       try {
         const res = await fetch('/api/clips/resolve-show', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             latitude: geo.latitude,
             longitude: geo.longitude,
@@ -425,7 +453,15 @@ export default function UploadClip() {
             country: geo.country ?? undefined,
           }),
         });
-        if (cancelled || !res.ok) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          setResolveNotice(
+            res.status === 401
+              ? 'Sign in again to match your clip to nearby JamBase venues.'
+              : `Venue lookup failed (HTTP ${res.status}). In local development, run the worker so /api/clips/resolve-show is available (e.g. npm run dev:api with Vite proxy to port 8787).`
+          );
+          return;
+        }
         const data = (await res.json()) as {
           match?: string;
           candidates?: ClipShowCandidate[];
@@ -466,6 +502,7 @@ export default function UploadClip() {
     captureGeo,
     location.state,
     requestLocation,
+    getDeviceCoordinates,
     applyClipCandidate,
   ]);
 
