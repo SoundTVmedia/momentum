@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw } from 'lucide-react';
+import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
-import type { ClipShowCandidate } from '@/shared/types';
+import {
+  CAPTURE_LOCATION_FROM_GESTURE_NONE,
+  type ClipShowCandidate,
+  type CaptureLocationFromGesture,
+} from '@/shared/types';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -19,6 +23,8 @@ interface QuickRecordButtonProps {
   autoRequestCamera?: boolean;
   /** Parent is resolving getUserMedia on the capture tap — wait before treating as gesture-only with no stream. */
   gestureCameraPrimingPending?: boolean;
+  /** GPS primed on the same tap as Capture (MobileBottomNav); drives the location prompt + nearby venue list. */
+  captureLocationFromGesture?: CaptureLocationFromGesture;
 }
 
 export default function QuickRecordButton({
@@ -27,6 +33,7 @@ export default function QuickRecordButton({
   primedMediaStream = null,
   autoRequestCamera = true,
   gestureCameraPrimingPending = false,
+  captureLocationFromGesture = CAPTURE_LOCATION_FROM_GESTURE_NONE,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
@@ -80,6 +87,15 @@ export default function QuickRecordButton({
   /** Dedupe one geolocation attempt per modal open (Strict Mode runs effects twice). */
   const geoPrimedForModalRef = useRef(false);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const selectedVenueCandidateRef = useRef<ClipShowCandidate | null>(null);
+  const [coordsForNearbyVenues, setCoordsForNearbyVenues] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
+  const [nearbyVenues, setNearbyVenues] = useState<ClipShowCandidate[]>([]);
+  const [nearbyVenuesLoading, setNearbyVenuesLoading] = useState(false);
+  const [nearbyVenuesNotice, setNearbyVenuesNotice] = useState<string | null>(null);
+  const [selectedVenueKey, setSelectedVenueKey] = useState<string | null>(null);
 
   // Detect network speed
   useEffect(() => {
@@ -125,20 +141,61 @@ export default function QuickRecordButton({
     };
   }, [isRecording, isPortrait, recordingOrientation]);
 
-  // GPS when capture opens: device lat/lon only (no Nominatim). JamBase + worker reverse-geocode use these coords.
+  // GPS when capture opens: prefer parent gesture-primed coords (MobileBottomNav), else deferred read when phase is `none`.
   useEffect(() => {
+    let cancelled = false;
     if (!showModal) {
       geoPrimedForModalRef.current = false;
+      setCoordsForNearbyVenues(null);
+      setNearbyVenues([]);
+      setNearbyVenuesLoading(false);
+      setNearbyVenuesNotice(null);
+      selectedVenueCandidateRef.current = null;
+      setSelectedVenueKey(null);
       return;
     }
+
+    const prime = captureLocationFromGesture;
+
+    if (prime.phase === 'ready') {
+      geoPrimedForModalRef.current = true;
+      lastGeoRef.current = {
+        latitude: prime.latitude,
+        longitude: prime.longitude,
+        accuracy: prime.accuracy,
+        city: null,
+        state: null,
+        country: null,
+      };
+      setCoordsForNearbyVenues({ lat: prime.latitude, lon: prime.longitude });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (prime.phase === 'requesting') {
+      setCoordsForNearbyVenues(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (prime.phase === 'denied') {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // phase `none` (e.g. re-record from upload): background geolocation
     if (lastGeoRef.current?.latitude != null) return;
     if (geoPrimedForModalRef.current) return;
     geoPrimedForModalRef.current = true;
+
     void (async () => {
       try {
         const geo = await getDeviceCoordinates();
+        if (cancelled || !showModalRef.current) return;
         if (geo?.latitude == null || geo.longitude == null) return;
-        if (!showModalRef.current) return;
         lastGeoRef.current = {
           latitude: geo.latitude,
           longitude: geo.longitude,
@@ -147,14 +204,81 @@ export default function QuickRecordButton({
           state: geo.state,
           country: geo.country,
         };
+        setCoordsForNearbyVenues({ lat: geo.latitude, lon: geo.longitude });
       } catch {
         /* denied / unsupported — manual tagging on upload */
       }
     })();
+
     return () => {
+      cancelled = true;
       geoPrimedForModalRef.current = false;
     };
-  }, [showModal, getDeviceCoordinates]);
+  }, [showModal, captureLocationFromGesture, getDeviceCoordinates]);
+
+  useEffect(() => {
+    if (!coordsForNearbyVenues || !user || isPending) {
+      return;
+    }
+    const ac = new AbortController();
+    setNearbyVenuesLoading(true);
+    setNearbyVenuesNotice(null);
+    void (async () => {
+      try {
+        const res = await fetch('/api/clips/resolve-show', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          signal: ac.signal,
+          body: JSON.stringify({
+            latitude: coordsForNearbyVenues.lat,
+            longitude: coordsForNearbyVenues.lon,
+            at: new Date().toISOString(),
+          }),
+        });
+        if (!res.ok) {
+          if (!ac.signal.aborted) {
+            setNearbyVenues([]);
+            setNearbyVenuesNotice('Could not load nearby venues.');
+          }
+          return;
+        }
+        const data = (await res.json()) as {
+          nearbyVenues?: ClipShowCandidate[];
+          notice?: string | null;
+        };
+        if (ac.signal.aborted) return;
+        const list = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
+        setNearbyVenues(list);
+        setNearbyVenuesNotice(data.notice?.trim() || null);
+        selectedVenueCandidateRef.current = null;
+        setSelectedVenueKey(null);
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return;
+        if (!ac.signal.aborted) {
+          setNearbyVenues([]);
+          setNearbyVenuesNotice('Could not load nearby venues.');
+        }
+      } finally {
+        if (!ac.signal.aborted) setNearbyVenuesLoading(false);
+      }
+    })();
+    return () => ac.abort();
+  }, [coordsForNearbyVenues, user, isPending]);
+
+  const retryLocationAfterDenial = async () => {
+    const geo = await getDeviceCoordinates();
+    if (geo?.latitude == null || geo.longitude == null) return;
+    lastGeoRef.current = {
+      latitude: geo.latitude,
+      longitude: geo.longitude,
+      accuracy: geo.accuracy,
+      city: geo.city,
+      state: geo.state,
+      country: geo.country,
+    };
+    setCoordsForNearbyVenues({ lat: geo.latitude, lon: geo.longitude });
+  };
 
   /** Refresh GPS into lastGeoRef; keeps any city/state/country already merged from a prior read. */
   const mergeDeviceGpsIntoLastGeoRef = async () => {
@@ -680,7 +804,23 @@ export default function QuickRecordButton({
     let showData: Record<string, unknown> | null = null;
     let ambiguousCandidates: ClipShowCandidate[] | null = null;
 
-    if (geo?.latitude != null && geo?.longitude != null) {
+    const picked = selectedVenueCandidateRef.current;
+    if (picked && geo?.latitude != null && geo?.longitude != null) {
+      showData = {
+        artist_name: picked.artist_name ?? '',
+        venue_name: picked.venue_name ?? '',
+        location:
+          (picked.location?.trim() ||
+            [geo.city, geo.state].filter(Boolean).join(', ')) ||
+          '',
+        ...(picked.jambase_event_id ? { jambase_event_id: picked.jambase_event_id } : {}),
+        ...(picked.jambase_artist_id ? { jambase_artist_id: picked.jambase_artist_id } : {}),
+        ...(picked.jambase_venue_id ? { jambase_venue_id: picked.jambase_venue_id } : {}),
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+        accuracy: geo.accuracy,
+      };
+    } else if (geo?.latitude != null && geo?.longitude != null) {
       try {
         const res = await fetch('/api/clips/resolve-show', {
           method: 'POST',
@@ -752,6 +892,7 @@ export default function QuickRecordButton({
     recordingStartedAtRef.current = null;
     lastGeoRef.current = null;
     geoPrimedForModalRef.current = false;
+    selectedVenueCandidateRef.current = null;
 
     // Close modal
     setShowModal(false);
@@ -793,6 +934,8 @@ export default function QuickRecordButton({
     lastGeoRef.current = null;
     geoPrimedForModalRef.current = false;
     lastAdoptedPrimedRef.current = null;
+    selectedVenueCandidateRef.current = null;
+    setSelectedVenueKey(null);
 
     // Call onClose callback if provided
     if (onClose) {
@@ -870,6 +1013,11 @@ export default function QuickRecordButton({
                           ? 'Use the camera prompt if it appears…'
                           : 'Starting camera…'}
                       </p>
+                      {captureLocationFromGesture.phase === 'requesting' && (
+                        <p className="text-cyan-200/90 text-xs mt-2 max-w-xs mx-auto">
+                          If your device asks for location, allowing it helps list venues you may be at.
+                        </p>
+                      )}
                       {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
                     </>
                   )}
@@ -957,6 +1105,90 @@ export default function QuickRecordButton({
               className="hidden"
               onChange={handlePickFromDevice}
             />
+
+            {hasPermission && cameraReady && !isRecording && !isProcessingTransition && (
+              <div className="mx-auto mb-3 w-full max-w-lg px-1">
+                {captureLocationFromGesture.phase === 'requesting' && (
+                  <p className="text-center text-cyan-200/90 text-xs mb-2">
+                    Waiting for location… allow access if prompted to see nearby venues.
+                  </p>
+                )}
+                {captureLocationFromGesture.phase === 'denied' && !coordsForNearbyVenues && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+                    <p className="text-amber-100 text-xs mb-2">Location is off — we cannot suggest venues until you share approximate GPS.</p>
+                    <button
+                      type="button"
+                      onClick={() => void retryLocationAfterDenial()}
+                      className="text-sm font-medium text-cyan-300 hover:text-cyan-200"
+                    >
+                      Try location again
+                    </button>
+                  </div>
+                )}
+                {(coordsForNearbyVenues || nearbyVenuesLoading) && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2">
+                    <div className="flex items-center gap-2 px-1 pb-1.5 border-b border-white/10">
+                      <MapPin className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+                      <span className="text-white/90 text-xs font-medium">Nearby venues</span>
+                      {nearbyVenuesLoading && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400 ml-auto" />
+                      )}
+                    </div>
+                    {nearbyVenuesNotice && nearbyVenues.length === 0 && !nearbyVenuesLoading && (
+                      <p className="text-amber-200/90 text-[11px] px-1 py-1.5">{nearbyVenuesNotice}</p>
+                    )}
+                    {!nearbyVenuesLoading && nearbyVenues.length === 0 && !nearbyVenuesNotice && coordsForNearbyVenues && (
+                      <p className="text-gray-400 text-[11px] px-1 py-1.5">No venues matched this spot in your radius. You can tag the venue on the next screen.</p>
+                    )}
+                    {nearbyVenues.length > 0 && (
+                      <ul className="mt-1 max-h-[9.5rem] overflow-y-auto space-y-0.5">
+                        {nearbyVenues.map((c, idx) => {
+                          const rowKey = `${c.jambase_venue_id ?? ''}:${c.jambase_event_id ?? ''}:${c.venue_name ?? ''}:${idx}`;
+                          const dist =
+                            c.distance_miles != null && Number.isFinite(c.distance_miles)
+                              ? `${c.distance_miles.toFixed(1)} mi`
+                              : 'Nearby';
+                          const selected = selectedVenueKey === rowKey;
+                          return (
+                            <li key={rowKey}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (selectedVenueKey === rowKey) {
+                                    setSelectedVenueKey(null);
+                                    selectedVenueCandidateRef.current = null;
+                                  } else {
+                                    setSelectedVenueKey(rowKey);
+                                    selectedVenueCandidateRef.current = c;
+                                  }
+                                }}
+                                className={`w-full text-left rounded-lg px-2 py-1.5 text-[11px] leading-snug transition-colors ${
+                                  selected
+                                    ? 'bg-cyan-500/25 border border-cyan-400/50 text-white'
+                                    : 'hover:bg-white/10 text-white/90 border border-transparent'
+                                }`}
+                              >
+                                <span className="font-medium text-white">{c.venue_name ?? 'Venue'}</span>
+                                {c.artist_name ? (
+                                  <span className="text-gray-400"> · {c.artist_name}</span>
+                                ) : null}
+                                <span className="block text-gray-500 mt-0.5">
+                                  {c.location ?? '—'} · {dist}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                    {selectedVenueKey && (
+                      <p className="text-cyan-300/90 text-[10px] px-1 pt-1">Selected tag is used when you finish recording.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div
               className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
                 isPortrait ? 'max-w-lg' : 'max-w-2xl'

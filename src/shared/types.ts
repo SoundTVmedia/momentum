@@ -119,6 +119,8 @@ export interface ClipShowCandidate {
 export interface ClipShowResolveResponse {
   match: 'none' | 'single' | 'ambiguous';
   candidates: ClipShowCandidate[];
+  /** Closest plausible venues by distance (for pickers); not tied to `match`. */
+  nearbyVenues?: ClipShowCandidate[];
   notice?: string;
   meta?: {
     radiusMiles: number;
@@ -126,3 +128,12 @@ export interface ClipShowResolveResponse {
     eventDateFrom: string;
   };
 }
+
+/** Parent-driven GPS on capture tap (see MobileBottomNav). */
+export type CaptureLocationFromGesture =
+  | { phase: 'none' }
+  | { phase: 'requesting' }
+  | { phase: 'ready'; latitude: number; longitude: number; accuracy?: number }
+  | { phase: 'denied' };
+
+export const CAPTURE_LOCATION_FROM_GESTURE_NONE: CaptureLocationFromGesture = { phase: 'none' };

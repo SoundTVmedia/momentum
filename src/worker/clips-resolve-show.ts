@@ -554,6 +554,7 @@ export async function postResolveShowForClip(c: Context) {
     return c.json({
       match: 'none' as const,
       candidates: [] as ClipShowCandidate[],
+      nearbyVenues: [] as ClipShowCandidate[],
       notice: 'JamBase is not configured',
     });
   }
@@ -614,6 +615,7 @@ export async function postResolveShowForClip(c: Context) {
     return c.json({
       match: 'none' as const,
       candidates: [] as ClipShowCandidate[],
+      nearbyVenues: [] as ClipShowCandidate[],
       notice:
         'JamBase is unavailable right now because the workspace API call quota was reached. For local dev, turn off JAMBASE_QUOTA_ENFORCEMENT or raise JAMBASE_QUOTA_MAX in .dev.vars, then retry.',
       meta: {
@@ -763,6 +765,7 @@ export async function postResolveShowForClip(c: Context) {
   }
 
   const { match, candidates } = finalizeMatch(working, matchRadiusMiles);
+  const nearbyVenues = working.slice(0, 15);
 
   const notice =
     match === 'none'
@@ -795,6 +798,7 @@ export async function postResolveShowForClip(c: Context) {
   return c.json({
     match,
     candidates,
+    nearbyVenues,
     notice,
     meta: {
       radiusMiles: profileRadiusMiles,
