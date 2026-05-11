@@ -165,6 +165,44 @@ function sortCandidatesByDistance(cands: ClipShowCandidate[]): ClipShowCandidate
   return [...cands].sort((a, b) => distanceSortKey(a.distance_miles) - distanceSortKey(b.distance_miles));
 }
 
+/** Group tied rows that refer to the same real venue (same JamBase venue id, or same name+location when id missing). */
+function venueIdentityKey(c: ClipShowCandidate): string {
+  const id = c.jambase_venue_id?.trim();
+  if (id) return `id:${id}`;
+  const name = (c.venue_name ?? '').toLowerCase().trim();
+  const loc = (c.location ?? '').toLowerCase().trim();
+  return `nm:${name}|${loc}`;
+}
+
+/** When JamBase returns a single venue row for this search but strict radius/city filters reject it, still trust that hit. */
+function soleRawVenueCandidate(
+  v: Record<string, unknown>,
+  userLat: number,
+  userLon: number
+): ClipShowCandidate | null {
+  const venueId = typeof v.identifier === 'string' ? v.identifier : null;
+  const venueName = typeof v.name === 'string' ? v.name : null;
+  if (!venueId) return null;
+
+  const locationLine = venueCityStateLine(v);
+  const coords = extractVenueCoords(v);
+  let distanceMiles: number | null = null;
+  if (coords) {
+    distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
+  }
+
+  return {
+    jambase_event_id: null,
+    jambase_artist_id: null,
+    jambase_venue_id: venueId,
+    artist_name: null,
+    venue_name: venueName,
+    location: locationLine,
+    startDate: '',
+    distance_miles: distanceMiles,
+  };
+}
+
 /** One row per venue (or per event if venue id missing), keeping the closest hit. */
 function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidate[] {
   const map = new Map<string, ClipShowCandidate>();
@@ -215,6 +253,11 @@ function finalizeMatch(dedupedSorted: ClipShowCandidate[], radiusMiles: number):
       return d - da < tieWindowMiles;
     });
     if (tied.length >= 2) {
+      const identityKeys = new Set(tied.map(venueIdentityKey));
+      if (identityKeys.size === 1) {
+        const sortedTied = sortCandidatesByDistance(tied);
+        return { match: 'single', candidates: [sortedTied[0]!] };
+      }
       return { match: 'ambiguous', candidates: tied.slice(0, 8) };
     }
   }
@@ -508,6 +551,13 @@ export async function postResolveShowForClip(c: Context) {
   let matchSource: 'venues' | 'events' = 'venues';
   let rawUpstreamCount = rawVenueList.length;
   let working = dedupeKeepClosestPerVenue(fromVenues);
+
+  if (working.length === 0 && rawVenueList.length === 1) {
+    const sole = soleRawVenueCandidate(rawVenueList[0]!, lat, lon);
+    if (sole) {
+      working = dedupeKeepClosestPerVenue([sole]);
+    }
+  }
 
   if (working.length === 0) {
     matchSource = 'events';
