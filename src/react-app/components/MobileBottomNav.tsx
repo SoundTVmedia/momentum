@@ -70,7 +70,10 @@ export default function MobileBottomNav() {
     return location.pathname.startsWith(path);
   };
 
-  if (hideBottomNav) {
+  const hideOnAuthRoute =
+    location.pathname === '/auth' || location.pathname.startsWith('/auth/');
+
+  if (hideBottomNav || hideOnAuthRoute) {
     return null;
   }
 
