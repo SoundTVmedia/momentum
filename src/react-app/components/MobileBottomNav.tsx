@@ -5,12 +5,7 @@ import { useNotifications } from '@/react-app/hooks/useNotifications';
 import { useState } from 'react';
 import QuickRecordButton from './QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
-import { primeGeolocationOnUserGesture } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
-import {
-  CAPTURE_LOCATION_FROM_GESTURE_NONE,
-  type CaptureLocationFromGesture,
-} from '@/shared/types';
 
 export default function MobileBottomNav() {
   const navigate = useNavigate();
@@ -24,8 +19,6 @@ export default function MobileBottomNav() {
   const [openedWithGestureCamera, setOpenedWithGestureCamera] = useState(false);
   /** While primeCameraOnUserGesture() promise is pending — child must not skip fallback with auto=false + no stream. */
   const [gesturePrimePending, setGesturePrimePending] = useState(false);
-  const [captureLocationFromGesture, setCaptureLocationFromGesture] =
-    useState<CaptureLocationFromGesture>(CAPTURE_LOCATION_FROM_GESTURE_NONE);
 
   const handleCaptureClick = () => {
     if (isPending) return;
@@ -33,19 +26,6 @@ export default function MobileBottomNav() {
       navigate('/auth');
       return;
     }
-    setCaptureLocationFromGesture({ phase: 'requesting' });
-    void primeGeolocationOnUserGesture().then((g) => {
-      if (g) {
-        setCaptureLocationFromGesture({
-          phase: 'ready',
-          latitude: g.latitude,
-          longitude: g.longitude,
-          accuracy: g.accuracy,
-        });
-      } else {
-        setCaptureLocationFromGesture({ phase: 'denied' });
-      }
-    });
     // Start getUserMedia synchronously (async function runs until first await in the same call stack as the tap).
     // Do not await before opening the modal — that can burn user activation so the prompt never completes.
     const streamPromise = primeCameraOnUserGesture();
@@ -72,7 +52,6 @@ export default function MobileBottomNav() {
     setPrimedMediaStream(null);
     setOpenedWithGestureCamera(false);
     setGesturePrimePending(false);
-    setCaptureLocationFromGesture(CAPTURE_LOCATION_FROM_GESTURE_NONE);
     setShowQuickCapture(false);
   };
 
@@ -157,7 +136,6 @@ export default function MobileBottomNav() {
           primedMediaStream={primedMediaStream}
           gestureCameraPrimingPending={gesturePrimePending}
           autoRequestCamera={!openedWithGestureCamera && !gesturePrimePending}
-          captureLocationFromGesture={captureLocationFromGesture}
           onClose={handleQuickCaptureClose}
         />
       )}

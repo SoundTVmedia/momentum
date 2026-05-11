@@ -128,12 +128,3 @@ export interface ClipShowResolveResponse {
     eventDateFrom: string;
   };
 }
-
-/** Parent-driven GPS on capture tap (see MobileBottomNav). */
-export type CaptureLocationFromGesture =
-  | { phase: 'none' }
-  | { phase: 'requesting' }
-  | { phase: 'ready'; latitude: number; longitude: number; accuracy?: number }
-  | { phase: 'denied' };
-
-export const CAPTURE_LOCATION_FROM_GESTURE_NONE: CaptureLocationFromGesture = { phase: 'none' };
