@@ -554,11 +554,17 @@ export async function postResolveShowForClip(c: Context) {
     notice,
     meta: {
       radiusMiles,
+      city,
+      postcode,
       geoCityId: primaryGeoCityId,
       geoCityIds,
       postcodeUsed: Boolean(postcode),
+      rawVenueCount: rawVenueList.length,
+      matchedVenueCount: fromVenues.length,
       eventDateFrom,
       matchSource,
+      lat,
+      lon,
     },
   });
 }

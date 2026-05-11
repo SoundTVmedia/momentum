@@ -81,7 +81,8 @@ function jamBaseCacheTtlSeconds(url: URL): number {
   const p = url.pathname;
   if (p.includes('/geographies')) return 86_400;
   if (p.endsWith('/genres')) return 604_800;
-  if (p.includes('/artists') || p.includes('/venues')) return 3600;
+  if (p.includes('/artists')) return 3600;
+  if (p.includes('/venues')) return 300;
   if (p.includes('/events')) return 900;
   return 600;
 }

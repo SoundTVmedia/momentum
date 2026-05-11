@@ -48,6 +48,8 @@ export default function QuickRecordButton({
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [locationLocked, setLocationLocked] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [showSearching, setShowSearching] = useState(false);
   const [isProcessingTransition, setIsProcessingTransition] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(8);
@@ -125,23 +127,69 @@ export default function QuickRecordButton({
 
   // Prime device location when modal opens (JamBase match runs when recording finishes)
   useEffect(() => {
-    if (showModal && !locationLocked) {
-      (async () => {
+    if (!showModal || locationLocked) return;
+    (async () => {
+      // Check if location permission is already decided (granted or denied) without prompting.
+      let alreadyGranted = false;
+      try {
+        const perm = await navigator.permissions.query({ name: 'geolocation' });
+        if (perm.state === 'granted') {
+          alreadyGranted = true;
+        } else if (perm.state === 'denied') {
+          setLocationDenied(true);
+          return;
+        }
+        // 'prompt' state falls through — show our own friendly prompt below
+      } catch {
+        // Browser doesn't support permissions API — try directly
+        alreadyGranted = true;
+      }
+
+      if (alreadyGranted) {
         setShowSearching(true);
         try {
           const geo = await requestLocation();
           if (geo?.latitude != null && geo?.longitude != null) {
             lastGeoRef.current = geo;
             setLocationLocked(true);
+          } else {
+            setLocationDenied(true);
           }
-        } catch (err) {
-          console.error('Location detection failed:', err);
+        } catch {
+          setLocationDenied(true);
         } finally {
           setShowSearching(false);
         }
-      })();
-    }
+      } else {
+        // Permission state is 'prompt' — show our friendly pre-prompt
+        setShowLocationPrompt(true);
+      }
+    })();
   }, [showModal, locationLocked, requestLocation]);
+
+  const handleRequestLocation = async () => {
+    setShowLocationPrompt(false);
+    setShowSearching(true);
+    try {
+      const geo = await requestLocation();
+      if (geo?.latitude != null && geo?.longitude != null) {
+        lastGeoRef.current = geo;
+        setLocationLocked(true);
+        setLocationDenied(false);
+      } else {
+        setLocationDenied(true);
+      }
+    } catch {
+      setLocationDenied(true);
+    } finally {
+      setShowSearching(false);
+    }
+  };
+
+  const handleSkipLocation = () => {
+    setShowLocationPrompt(false);
+    setLocationDenied(true);
+  };
 
   const requestPermissions = async (facingOverride?: 'environment' | 'user') => {
     if (isPending) return;
@@ -769,6 +817,8 @@ export default function QuickRecordButton({
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     setLocationLocked(false);
+    setLocationDenied(false);
+    setShowLocationPrompt(false);
     lastAdoptedPrimedRef.current = null;
 
     // Call onClose callback if provided
@@ -897,6 +947,36 @@ export default function QuickRecordButton({
               </div>
             )}
 
+            {/* Location permission prompt — shown before camera loads if permission not yet granted */}
+            {showLocationPrompt && !isProcessingTransition && (
+              <div className="absolute inset-0 z-20 flex items-end justify-center pb-48 px-4">
+                <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-black/80 backdrop-blur-md p-5 space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-white font-semibold text-base">📍 Allow location?</p>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      We use your location to automatically tag the nearby show — artist, venue, and city — when you finish recording. We never store your location beyond this clip.
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleRequestLocation}
+                      className="flex-1 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-semibold text-sm transition-colors"
+                    >
+                      Use my location
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSkipLocation}
+                      className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Location Status - Responsive positioning */}
             {hasPermission && (
               <div 
@@ -916,11 +996,11 @@ export default function QuickRecordButton({
                       📍 Location on — we will tag the show when you finish recording
                     </div>
                   </div>
-                ) : (
+                ) : locationDenied ? (
                   <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg">
-                    <div className="text-gray-400 text-sm">Allow location to auto-tag nearby shows</div>
+                    <div className="text-gray-400 text-sm">Show tagging off — you can add details after recording</div>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
