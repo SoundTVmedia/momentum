@@ -139,6 +139,10 @@ export default function UploadClip() {
       const blobUrl = URL.createObjectURL(blob);
       setVideoBlobUrl(blobUrl);
       setShowCaptionScreen(true);
+      // Recording finished — close capture overlay and release primed stream
+      setShowQuickCapture(false);
+      setReRecordPrimedStream((prev) => { prev?.getTracks().forEach((t) => t.stop()); return null; });
+      setReRecordGesturePending(false);
     }
     if (location.state?.videoFile) {
       const selectedFile = location.state.videoFile as File;
@@ -147,6 +151,9 @@ export default function UploadClip() {
       const fileUrl = URL.createObjectURL(selectedFile);
       setVideoBlobUrl(fileUrl);
       setShowCaptionScreen(true);
+      setShowQuickCapture(false);
+      setReRecordPrimedStream((prev) => { prev?.getTracks().forEach((t) => t.stop()); return null; });
+      setReRecordGesturePending(false);
     }
     
     // Check if we received show data from auto-tagging
