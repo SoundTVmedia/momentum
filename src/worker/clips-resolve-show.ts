@@ -88,7 +88,8 @@ function extractVenueCoords(ev: Record<string, unknown>): { lat: number; lon: nu
 
 function venueCityStateLine(ev: Record<string, unknown>): string | null {
   const loc = ev.location as Record<string, unknown> | undefined;
-  const addr = loc?.address as Record<string, unknown> | undefined;
+  /** `/venues` returns `MusicVenue` with `address` at root; events nest under `location`. */
+  const addr = (loc?.address ?? ev.address) as Record<string, unknown> | undefined;
   const cityFromAddr = typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
   const cityFlat = typeof loc?.city === 'string' ? (loc.city as string) : '';
   const stateFlat = typeof loc?.state === 'string' ? (loc.state as string) : '';
@@ -357,25 +358,42 @@ async function fetchVenuesPaginatedByGeoCity(
   return out;
 }
 
-/** JamBase supports zip + radius (miles) on many plans — fills gaps when geoCityId misses edge-of-town venues. */
-async function fetchVenuesByZipRadius(
+/**
+ * JamBase v3 `/venues` requires `venueName` or geo filters — use lat/lon + radius (mi), not zipCode.
+ * @see https://data.jambase.com/openapi.json searchVenues
+ */
+async function fetchVenuesPaginatedByLatLon(
   apiKey: string,
-  postcode: string,
+  userLat: number,
+  userLon: number,
   radiusMiles: number,
-  countryIso2: string,
   jbQ: JamBaseQuotaContext | undefined
 ): Promise<Record<string, unknown>[]> {
-  let zip = postcode.replace(/\s+/g, '').trim();
-  if (countryIso2 === 'US' && /^\d{5}-\d{4}$/.test(zip)) zip = zip.slice(0, 5);
-  if (zip.length < 3) return [];
-  const radius = Math.max(5, Math.min(100, Math.ceil(radiusMiles + GPS_DISTANCE_SLACK_MILES)));
-  const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-    apiKey,
-    '/venues',
-    { zipCode: zip, radius: String(radius), perPage: VENUES_PER_PAGE, page: '1' },
-    jbQ
+  const radiusAmount = Math.min(
+    5000,
+    Math.max(1, Math.ceil(radiusMiles + GPS_DISTANCE_SLACK_MILES))
   );
-  return (data?.venues ?? []) as Record<string, unknown>[];
+  const out: Record<string, unknown>[] = [];
+  for (let page = 1; page <= VENUE_GEO_CITY_MAX_PAGES; page++) {
+    const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      apiKey,
+      '/venues',
+      {
+        geoLatitude: String(userLat),
+        geoLongitude: String(userLon),
+        geoRadiusAmount: String(radiusAmount),
+        geoRadiusUnits: 'mi',
+        perPage: VENUES_PER_PAGE,
+        page: String(page),
+      },
+      jbQ
+    );
+    const batch = data?.venues ?? [];
+    if (batch.length === 0) break;
+    for (const v of batch) out.push(v as Record<string, unknown>);
+    if (batch.length < parseInt(VENUES_PER_PAGE, 10)) break;
+  }
+  return out;
 }
 
 /**
@@ -466,11 +484,10 @@ export async function postResolveShowForClip(c: Context) {
     }
   };
 
+  pushVenueBatch(await fetchVenuesPaginatedByLatLon(key, lat, lon, radiusMiles, jbQ));
+
   for (const gcid of geoCityIds) {
     pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ));
-  }
-  if (postcode) {
-    pushVenueBatch(await fetchVenuesByZipRadius(key, postcode, radiusMiles, countryIso, jbQ));
   }
   if (rawVenueList.length === 0 && geoCityIds.length === 0) {
     const metroPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
@@ -499,16 +516,17 @@ export async function postResolveShowForClip(c: Context) {
     from.setUTCDate(from.getUTCDate() - 1);
     const eventDateFrom = from.toISOString().split('T')[0];
 
+    const eventRadius = Math.min(5000, Math.max(1, Math.ceil(radiusMiles + GPS_DISTANCE_SLACK_MILES)));
+    /** Prefer GPS radius over city/metro so fallback matches the same coordinates as venue search. */
     const eventParams: Record<string, string> = {
       eventDateFrom,
       perPage: '80',
       page: '1',
+      geoLatitude: String(lat),
+      geoLongitude: String(lon),
+      geoRadiusAmount: String(eventRadius),
+      geoRadiusUnits: 'mi',
     };
-    if (primaryGeoCityId) {
-      eventParams.geoCityId = primaryGeoCityId;
-    } else {
-      eventParams.geoMetroId = 'jambase:1';
-    }
 
     const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(key, '/events', eventParams, jbQ);
     const rawEvents = data?.events ?? [];
@@ -558,7 +576,8 @@ export async function postResolveShowForClip(c: Context) {
       postcode,
       geoCityId: primaryGeoCityId,
       geoCityIds,
-      postcodeUsed: Boolean(postcode),
+      postcodeFromNominatim: Boolean(postcode),
+      venuesLatLonSearch: true,
       rawVenueCount: rawVenueList.length,
       matchedVenueCount: fromVenues.length,
       eventDateFrom,
