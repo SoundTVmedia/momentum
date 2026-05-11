@@ -7,7 +7,15 @@ import type { ClipShowCandidate } from '../shared/types';
 const VENUE_TIE_MILES = 0.35;
 
 /** Extra miles beyond profile radius so GPS jitter does not drop the venue you are standing in front of. */
-const GPS_DISTANCE_SLACK_MILES = 0.75;
+const GPS_DISTANCE_SLACK_MILES = 1.25;
+
+/** JamBase `/venues` lat+lon search uses at least this many miles so sparse areas still return rows. */
+const VENUE_JAMBASE_SEARCH_MIN_MILES = 30;
+
+/** Optional JamBase radius beyond profile radius when calling `/venues` (still filter by profile radius when coords exist). */
+const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 20;
+
+type CandidateGeoTrust = { trustJamBaseGeoList?: boolean };
 
 const VENUES_PER_PAGE = '100';
 const VENUE_GEO_CITY_MAX_PAGES = 5;
@@ -269,7 +277,8 @@ function candidateFromVenue(
   userLat: number,
   userLon: number,
   radiusMiles: number,
-  userCityLower: string | null
+  userCityLower: string | null,
+  opts?: CandidateGeoTrust
 ): ClipShowCandidate | null {
   const venueId = typeof v.identifier === 'string' ? v.identifier : null;
   const venueName = typeof v.name === 'string' ? v.name : null;
@@ -288,7 +297,8 @@ function candidateFromVenue(
     const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
     withinRadius = venueCity === userCityLower || locLower.includes(userCityLower);
   } else {
-    withinRadius = false;
+    // JamBase already scoped lat/lon results; without reverse-geocoded city we cannot string-match.
+    withinRadius = Boolean(opts?.trustJamBaseGeoList);
   }
 
   if (!withinRadius) return null;
@@ -310,7 +320,8 @@ function candidateFromEvent(
   userLat: number,
   userLon: number,
   radiusMiles: number,
-  userCityLower: string | null
+  userCityLower: string | null,
+  opts?: CandidateGeoTrust
 ): ClipShowCandidate | null {
   const id = typeof ev.identifier === 'string' ? ev.identifier : null;
   if (!id) return null;
@@ -335,7 +346,7 @@ function candidateFromEvent(
     const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
     withinRadius = venueCity === userCityLower || locLower.includes(userCityLower);
   } else {
-    withinRadius = false;
+    withinRadius = Boolean(opts?.trustJamBaseGeoList);
   }
 
   if (!withinRadius) return null;
@@ -412,10 +423,11 @@ async function fetchVenuesPaginatedByLatLon(
   radiusMiles: number,
   jbQ: JamBaseQuotaContext | undefined
 ): Promise<Record<string, unknown>[]> {
-  const radiusAmount = Math.min(
-    5000,
-    Math.max(1, Math.ceil(radiusMiles + GPS_DISTANCE_SLACK_MILES))
+  const searchMiles = Math.max(
+    radiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
+    VENUE_JAMBASE_SEARCH_MIN_MILES
   );
+  const radiusAmount = Math.min(5000, Math.max(1, Math.ceil(searchMiles)));
   const out: Record<string, unknown>[] = [];
   for (let page = 1; page <= VENUE_GEO_CITY_MAX_PAGES; page++) {
     const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
@@ -518,19 +530,23 @@ export async function postResolveShowForClip(c: Context) {
 
   const seenVenueKeys = new Set<string>();
   const rawVenueList: Record<string, unknown>[] = [];
-  const pushVenueBatch = (venues: Record<string, unknown>[]) => {
+  /** Venue ids returned from JamBase lat/lon geo search (already radius-filtered upstream). */
+  const venueIdsFromLatLonSearch = new Set<string>();
+
+  const pushVenueBatch = (venues: Record<string, unknown>[], fromLatLonGeo: boolean) => {
     for (const v of venues) {
       const id = typeof v.identifier === 'string' ? v.identifier : '';
       if (!id || seenVenueKeys.has(id)) continue;
       seenVenueKeys.add(id);
       rawVenueList.push(v);
+      if (fromLatLonGeo) venueIdsFromLatLonSearch.add(id);
     }
   };
 
-  pushVenueBatch(await fetchVenuesPaginatedByLatLon(key, lat, lon, radiusMiles, jbQ));
+  pushVenueBatch(await fetchVenuesPaginatedByLatLon(key, lat, lon, radiusMiles, jbQ), true);
 
   for (const gcid of geoCityIds) {
-    pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ));
+    pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ), false);
   }
   if (rawVenueList.length === 0 && geoCityIds.length === 0) {
     const metroPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
@@ -539,12 +555,15 @@ export async function postResolveShowForClip(c: Context) {
       { geoMetroId: 'jambase:1', perPage: VENUES_PER_PAGE, page: '1' },
       jbQ
     );
-    pushVenueBatch((metroPayload?.venues ?? []) as Record<string, unknown>[]);
+    pushVenueBatch((metroPayload?.venues ?? []) as Record<string, unknown>[], false);
   }
 
   const fromVenues: ClipShowCandidate[] = [];
   for (const v of rawVenueList) {
-    const cnd = candidateFromVenue(v, lat, lon, radiusMiles, userCityLower);
+    const vid = typeof v.identifier === 'string' ? v.identifier : '';
+    const cnd = candidateFromVenue(v, lat, lon, radiusMiles, userCityLower, {
+      trustJamBaseGeoList: venueIdsFromLatLonSearch.has(vid),
+    });
     if (cnd) fromVenues.push(cnd);
   }
 
@@ -566,7 +585,11 @@ export async function postResolveShowForClip(c: Context) {
     from.setUTCDate(from.getUTCDate() - 1);
     const eventDateFrom = from.toISOString().split('T')[0];
 
-    const eventRadius = Math.min(5000, Math.max(1, Math.ceil(radiusMiles + GPS_DISTANCE_SLACK_MILES)));
+    const eventSearchMiles = Math.max(
+      radiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
+      VENUE_JAMBASE_SEARCH_MIN_MILES
+    );
+    const eventRadius = Math.min(5000, Math.max(1, Math.ceil(eventSearchMiles + GPS_DISTANCE_SLACK_MILES)));
     /** Prefer GPS radius over city/metro so fallback matches the same coordinates as venue search. */
     const eventParams: Record<string, string> = {
       eventDateFrom,
@@ -584,7 +607,9 @@ export async function postResolveShowForClip(c: Context) {
 
     const fromEvents: ClipShowCandidate[] = [];
     for (const ev of rawEvents) {
-      const cnd = candidateFromEvent(ev, lat, lon, radiusMiles, userCityLower);
+      const cnd = candidateFromEvent(ev, lat, lon, radiusMiles, userCityLower, {
+        trustJamBaseGeoList: true,
+      });
       if (cnd) fromEvents.push(cnd);
     }
     working = dedupeKeepClosestPerVenue(fromEvents);
