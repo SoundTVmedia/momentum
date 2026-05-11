@@ -38,7 +38,8 @@ export default function QuickRecordButton({
   const recordingStartedAtRef = useRef<string | null>(null);
   const [showModal, setShowModal] = useState(isOpen);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
+  /** Seconds elapsed while recording (no UI; drives haptics + auto-stop). */
+  const recordingSecondsRef = useRef(0);
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -170,17 +171,19 @@ export default function QuickRecordButton({
         { ...baseVideo, facingMode: { ideal: orderedFacingModes[0] } },
         { ...baseVideo, facingMode: { ideal: orderedFacingModes[1] } },
       ];
-      // `true` first: works on most desktops, VMs, and Docker dev where facingMode/heavy mins can yield NotFoundError.
-      const videoAttempts: (MediaTrackConstraints | boolean)[] = [
-        true,
-        ...(isIOS || isAndroid
-          ? [
-              { facingMode: { ideal: orderedFacingModes[0] } },
-              { facingMode: { ideal: orderedFacingModes[1] } },
-            ]
-          : []),
-        ...heavyFacing,
+      const facingFirst: MediaTrackConstraints[] = [
+        { facingMode: { ideal: orderedFacingModes[0] } },
+        { facingMode: { ideal: orderedFacingModes[1] } },
       ];
+      // Flip / explicit facing: never lead with `video: true` — it ignores facingMode and keeps the same camera on phones.
+      const videoAttempts: (MediaTrackConstraints | boolean)[] =
+        facingOverride !== undefined
+          ? [...facingFirst, true, ...heavyFacing]
+          : [
+              true,
+              ...(isIOS || isAndroid ? facingFirst : []),
+              ...heavyFacing,
+            ];
 
       const audioConstraintsObj = {
         sampleRate: 48000,
@@ -422,8 +425,10 @@ export default function QuickRecordButton({
   const toggleCameraFacing = async () => {
     if (isRecording) return;
     const next = preferredFacingMode === 'environment' ? 'user' : 'environment';
-    setPreferredFacingMode(next);
-    await requestPermissions(next);
+    const stream = await requestPermissions(next);
+    if (stream) {
+      setPreferredFacingMode(next);
+    }
   };
 
   const handlePickFromDevice = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -541,25 +546,18 @@ export default function QuickRecordButton({
       mediaRecorder.start(100); // Capture data every 100ms for smoother recording
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
-      setRecordingTime(0);
+      recordingSecondsRef.current = 0;
 
       // Start timer
       timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => {
-          const newTime = prev + 1;
-          
-          // Haptic feedback at 45 seconds
-          if (newTime === HAPTIC_WARNING_TIME && 'vibrate' in navigator) {
-            navigator.vibrate([100, 50, 100]); // Short vibration pattern
-          }
-          
-          // Auto-stop at 60 seconds
-          if (newTime >= MAX_RECORDING_TIME) {
-            stopRecording();
-          }
-          
-          return newTime;
-        });
+        recordingSecondsRef.current += 1;
+        const t = recordingSecondsRef.current;
+        if (t === HAPTIC_WARNING_TIME && 'vibrate' in navigator) {
+          navigator.vibrate([100, 50, 100]);
+        }
+        if (t >= MAX_RECORDING_TIME) {
+          stopRecording();
+        }
       }, 1000);
     } catch (err) {
       console.error('Recording failed:', err);
@@ -671,7 +669,7 @@ export default function QuickRecordButton({
     setCameraReady(false);
     setPreviewStream(null);
     setCameraOpenRequested(false);
-    setRecordingTime(0);
+    recordingSecondsRef.current = 0;
   };
 
   const closeModal = () => {
@@ -691,7 +689,7 @@ export default function QuickRecordButton({
     setHasPermission(false);
     setCameraReady(false);
     setCameraOpenRequested(false);
-    setRecordingTime(0);
+    recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     setLocationLocked(false);
     lastAdoptedPrimedRef.current = null;
@@ -715,14 +713,6 @@ export default function QuickRecordButton({
       void requestPermissions();
     }
   }, [showModal, permissionDenied, cameraOpenRequested, autoRequestCamera]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const progressPercentage = (recordingTime / MAX_RECORDING_TIME) * 100;
 
   // Responsive class names based on orientation
   const modalClass = `fixed inset-0 bg-black z-50 flex flex-col transition-all duration-300 ease-in-out`;
@@ -861,45 +851,6 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* Timer & Progress - Responsive positioning */}
-            {cameraReady && (
-              <div 
-                className="absolute inset-x-0 z-10 px-4 transition-all duration-300 ease-in-out"
-                style={{
-                  bottom: isPortrait 
-                    ? 'max(8rem, calc(env(safe-area-inset-bottom, 1rem) + 7rem))' 
-                    : '8rem'
-                }}
-              >
-                <div className="bg-black/60 backdrop-blur-md rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      {isRecording && <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />}
-                      <span className="text-white font-mono text-2xl font-bold">
-                        {formatTime(recordingTime)}
-                      </span>
-                    </div>
-                    {isRecording && (
-                      <span className="text-gray-400 text-sm">
-                        {formatTime(MAX_RECORDING_TIME - recordingTime)} left
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Progress Bar */}
-                  <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-100 ${
-                        isRecording 
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500' 
-                          : 'bg-gray-500'
-                      }`}
-                      style={{ width: `${isRecording ? progressPercentage : 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Controls - Responsive layout */}
