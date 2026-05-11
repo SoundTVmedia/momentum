@@ -91,6 +91,11 @@ export default function QuickRecordButton({
   const [selectedVenueKey, setSelectedVenueKey] = useState<string | null>(null);
   const [locationRequestInFlight, setLocationRequestInFlight] = useState(false);
   const [previewGeoPending, setPreviewGeoPending] = useState(false);
+  const coordsForNearbyVenuesRef = useRef<{ lat: number; lon: number } | null>(null);
+
+  useEffect(() => {
+    coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
+  }, [coordsForNearbyVenues]);
 
   // Detect network speed
   useEffect(() => {
@@ -633,6 +638,26 @@ export default function QuickRecordButton({
     }
 
     await mergeDeviceGpsIntoLastGeoRef();
+    const crd = coordsForNearbyVenuesRef.current;
+    if (
+      crd &&
+      Number.isFinite(crd.lat) &&
+      Number.isFinite(crd.lon) &&
+      (!lastGeoRef.current?.latitude ||
+        !lastGeoRef.current?.longitude ||
+        !Number.isFinite(lastGeoRef.current.latitude) ||
+        !Number.isFinite(lastGeoRef.current.longitude))
+    ) {
+      const prev = lastGeoRef.current;
+      lastGeoRef.current = {
+        latitude: crd.lat,
+        longitude: crd.lon,
+        accuracy: prev?.accuracy,
+        city: prev?.city ?? null,
+        state: prev?.state ?? null,
+        country: prev?.country ?? null,
+      };
+    }
     const geo = lastGeoRef.current;
     navigate({ pathname: '/upload', search: '' }, {
       state: {
@@ -774,6 +799,26 @@ export default function QuickRecordButton({
     const at = recordingStartedAtRef.current || new Date().toISOString();
     // Fresh lat/lon at end of capture (same permission) so JamBase resolve matches where the clip was recorded.
     await mergeDeviceGpsIntoLastGeoRef();
+    const crd = coordsForNearbyVenuesRef.current;
+    if (
+      crd &&
+      Number.isFinite(crd.lat) &&
+      Number.isFinite(crd.lon) &&
+      (!lastGeoRef.current?.latitude ||
+        !lastGeoRef.current?.longitude ||
+        !Number.isFinite(lastGeoRef.current.latitude) ||
+        !Number.isFinite(lastGeoRef.current.longitude))
+    ) {
+      const prev = lastGeoRef.current;
+      lastGeoRef.current = {
+        latitude: crd.lat,
+        longitude: crd.lon,
+        accuracy: prev?.accuracy,
+        city: prev?.city ?? null,
+        state: prev?.state ?? null,
+        country: prev?.country ?? null,
+      };
+    }
     const geo = lastGeoRef.current;
     setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
 

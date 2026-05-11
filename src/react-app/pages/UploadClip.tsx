@@ -17,7 +17,7 @@ export default function UploadClip() {
   const location = useLocation();
   const { user, isPending } = useAuth();
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
-  const { requestLocation, getDeviceCoordinates } = useGeolocation();
+  const { requestLocation, getDeviceCoordinates, location: lastKnownGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
   const [loading, setLoading] = useState(false);
   const [geoDetected, setGeoDetected] = useState(false);
@@ -353,6 +353,35 @@ export default function UploadClip() {
     setResolveNotice(null);
   }, []);
 
+  const [captureGeoRetryBusy, setCaptureGeoRetryBusy] = useState(false);
+  const retryCaptureGeoFromCaption = useCallback(async () => {
+    setCaptureGeoRetryBusy(true);
+    setResolveNotice(null);
+    try {
+      const g = await requestLocation();
+      if (
+        g?.latitude != null &&
+        Number.isFinite(g.latitude) &&
+        g.longitude != null &&
+        Number.isFinite(g.longitude)
+      ) {
+        setCaptureGeo({
+          latitude: g.latitude,
+          longitude: g.longitude,
+          city: g.city,
+          state: g.state,
+          country: g.country,
+        });
+      } else {
+        setResolveNotice(
+          'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
+        );
+      }
+    } finally {
+      setCaptureGeoRetryBusy(false);
+    }
+  }, [requestLocation]);
+
   useEffect(() => {
     if (
       formData.video_file &&
@@ -413,18 +442,26 @@ export default function UploadClip() {
         if (!cancelled) setCaptureGeo(geo);
       }
       if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) {
+        const validG = (g: { latitude: number; longitude: number } | null | undefined) =>
+          g != null &&
+          Number.isFinite(g.latitude) &&
+          Number.isFinite(g.longitude);
+
         let g = await getDeviceCoordinates();
-        if ((g?.latitude == null || !Number.isFinite(g.latitude)) && !fromQuick) {
+        if (!validG(g) && validG(lastKnownGeo)) {
+          g = lastKnownGeo;
+        }
+        if (!validG(g)) {
           g = await requestLocation();
         }
         if (cancelled) return;
-        if (g?.latitude != null && g?.longitude != null && Number.isFinite(g.latitude) && Number.isFinite(g.longitude)) {
+        if (validG(g)) {
           geo = {
-            latitude: g.latitude,
-            longitude: g.longitude,
-            city: g.city,
-            state: g.state,
-            country: g.country,
+            latitude: g!.latitude,
+            longitude: g!.longitude,
+            city: g!.city ?? null,
+            state: g!.state ?? null,
+            country: g!.country ?? null,
           };
           setCaptureGeo(geo);
         } else {
@@ -503,6 +540,7 @@ export default function UploadClip() {
     location.state,
     requestLocation,
     getDeviceCoordinates,
+    lastKnownGeo,
     applyClipCandidate,
   ]);
 
@@ -1011,8 +1049,25 @@ export default function UploadClip() {
                 </div>
               )}
               {resolveNotice && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
                   <p className="text-amber-200 text-sm">{resolveNotice}</p>
+                  {resolveNotice.includes('Location was not available for this capture') && (
+                    <button
+                      type="button"
+                      disabled={captureGeoRetryBusy}
+                      onClick={() => void retryCaptureGeoFromCaption()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-cyan-600/90 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-60"
+                    >
+                      {captureGeoRetryBusy ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Requesting location…
+                        </>
+                      ) : (
+                        'Share location for this clip'
+                      )}
+                    </button>
+                  )}
                 </div>
               )}
 
