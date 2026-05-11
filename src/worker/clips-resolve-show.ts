@@ -1,20 +1,10 @@
 import type { Context } from 'hono';
 import { jamBaseFetch, jamBaseQuotaFromEnv, type JamBaseQuotaContext } from './jambase-client';
 import { headlinerFromEvent } from './jambase-map';
+import type { ClipShowCandidate } from '../shared/types';
 
-const SHOW_PAD_MS = 3 * 60 * 60 * 1000;
-const DEFAULT_END_AFTER_START_MS = 4 * 60 * 60 * 1000;
-
-export type ClipShowCandidate = {
-  jambase_event_id: string;
-  jambase_artist_id: string | null;
-  jambase_venue_id: string | null;
-  artist_name: string | null;
-  venue_name: string | null;
-  location: string | null;
-  startDate: string;
-  distance_miles: number | null;
-};
+/** If the second-closest venue is within this many miles of the closest, offer a disambiguation list. */
+const VENUE_TIE_MILES = 0.35;
 
 type ClipResolveMatch = 'none' | 'single' | 'ambiguous';
 
@@ -47,7 +37,6 @@ async function recordResolveTelemetry(
       )
       .run();
   } catch (e) {
-    // Telemetry should never break upload flow.
     console.error('clip_show_resolve_telemetry insert failed:', e);
   }
 }
@@ -131,30 +120,107 @@ async function nominatimReverse(
   }
 }
 
-function eventWindowBounds(
-  ev: Record<string, unknown>
-): { start: number; end: number } | null {
-  const startRaw = ev.startDate;
-  if (typeof startRaw !== 'string') return null;
-  const start = Date.parse(startRaw);
-  if (!Number.isFinite(start)) return null;
-
-  let end: number;
-  const endRaw = ev.endDate;
-  if (typeof endRaw === 'string') {
-    const p = Date.parse(endRaw);
-    end = Number.isFinite(p) ? p : start + DEFAULT_END_AFTER_START_MS;
-  } else {
-    end = start + DEFAULT_END_AFTER_START_MS;
-  }
-
-  return { start: start - SHOW_PAD_MS, end: end + SHOW_PAD_MS };
+function distanceSortKey(d: number | null): number {
+  if (d == null || !Number.isFinite(d)) return Number.POSITIVE_INFINITY;
+  return d;
 }
 
-function clipTimeInEventWindow(atMs: number, ev: Record<string, unknown>): boolean {
-  const w = eventWindowBounds(ev);
-  if (!w) return false;
-  return atMs >= w.start && atMs <= w.end;
+function sortCandidatesByDistance(cands: ClipShowCandidate[]): ClipShowCandidate[] {
+  return [...cands].sort((a, b) => distanceSortKey(a.distance_miles) - distanceSortKey(b.distance_miles));
+}
+
+/** One row per venue (or per event if venue id missing), keeping the closest hit. */
+function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidate[] {
+  const map = new Map<string, ClipShowCandidate>();
+  for (const row of cands) {
+    const vid = row.jambase_venue_id;
+    const key =
+      vid && vid.length > 0
+        ? `v:${vid}`
+        : row.jambase_event_id
+          ? `e:${row.jambase_event_id}`
+          : null;
+    if (!key) continue;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, row);
+      continue;
+    }
+    if (distanceSortKey(row.distance_miles) < distanceSortKey(prev.distance_miles)) {
+      map.set(key, row);
+    }
+  }
+  return sortCandidatesByDistance([...map.values()]);
+}
+
+function finalizeMatch(dedupedSorted: ClipShowCandidate[]): {
+  match: ClipResolveMatch;
+  candidates: ClipShowCandidate[];
+} {
+  if (dedupedSorted.length === 0) return { match: 'none', candidates: [] };
+  const best = dedupedSorted[0]!;
+  const second = dedupedSorted[1];
+  const da = best.distance_miles;
+  const db = second?.distance_miles;
+  if (
+    second &&
+    da != null &&
+    db != null &&
+    Number.isFinite(da) &&
+    Number.isFinite(db) &&
+    db - da < VENUE_TIE_MILES
+  ) {
+    const tied = dedupedSorted.filter((c) => {
+      const d = c.distance_miles;
+      if (d == null || !Number.isFinite(d) || da == null) return false;
+      return d - da < VENUE_TIE_MILES;
+    });
+    if (tied.length >= 2) {
+      return { match: 'ambiguous', candidates: tied.slice(0, 8) };
+    }
+  }
+  return { match: 'single', candidates: [best] };
+}
+
+function candidateFromVenue(
+  v: Record<string, unknown>,
+  userLat: number,
+  userLon: number,
+  radiusMiles: number,
+  userCityLower: string | null
+): ClipShowCandidate | null {
+  const venueId = typeof v.identifier === 'string' ? v.identifier : null;
+  const venueName = typeof v.name === 'string' ? v.name : null;
+  if (!venueId) return null;
+
+  const locationLine = venueCityStateLine(v);
+  const coords = extractVenueCoords(v);
+  let distanceMiles: number | null = null;
+  let withinRadius = false;
+
+  if (coords) {
+    distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
+    withinRadius = distanceMiles <= radiusMiles;
+  } else if (userCityLower && locationLine) {
+    const locLower = locationLine.toLowerCase();
+    const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
+    withinRadius = venueCity === userCityLower || locLower.includes(userCityLower);
+  } else {
+    withinRadius = false;
+  }
+
+  if (!withinRadius) return null;
+
+  return {
+    jambase_event_id: null,
+    jambase_artist_id: null,
+    jambase_venue_id: venueId,
+    artist_name: null,
+    venue_name: venueName,
+    location: locationLine,
+    startDate: '',
+    distance_miles: distanceMiles,
+  };
 }
 
 function candidateFromEvent(
@@ -229,12 +295,11 @@ async function resolveGeoCityId(
 
 /**
  * POST /api/clips/resolve-show
- * Body: { latitude, longitude, at, city?, state?, country? }
- * Uses user_profiles.location_radius_miles (default 50).
+ * Body: { latitude, longitude, at? (optional, ignored for matching), city?, state?, country? }
  *
- * Candidates are events in the time window that fall within radius (or city heuristics).
- * They are ordered with the venue nearest to (latitude, longitude) first so the primary
- * pick and jambase_venue_id align with closest physical venue, then recording time.
+ * Picks the JamBase **venue** closest to the user's coordinates within their profile radius.
+ * No show-time filter: upcoming events in the area are only used as a fallback when
+ * `/venues` returns no usable rows.
  */
 export async function postResolveShowForClip(c: Context) {
   const mochaUser = c.get('user');
@@ -273,9 +338,10 @@ export async function postResolveShowForClip(c: Context) {
   const lon = Number(body.longitude);
   const atRaw = typeof body.at === 'string' ? body.at : '';
   const atMs = Date.parse(atRaw);
+  const hasAt = Number.isFinite(atMs);
 
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isFinite(atMs)) {
-    return c.json({ error: 'latitude, longitude, and valid ISO at are required' }, 400);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return c.json({ error: 'latitude and longitude are required' }, 400);
   }
 
   let city = typeof body.city === 'string' ? body.city.trim() : '';
@@ -299,57 +365,67 @@ export async function postResolveShowForClip(c: Context) {
   const jbQ = jamBaseQuotaFromEnv(c.env);
   const geoCityId = city ? await resolveGeoCityId(key, city, countryIso, jbQ) : null;
 
-  const atDate = new Date(atMs);
-  const from = new Date(atDate);
-  from.setUTCDate(from.getUTCDate() - 1);
-  const eventDateFrom = from.toISOString().split('T')[0];
-
-  const params: Record<string, string> = {
-    eventDateFrom,
-    perPage: '60',
-    page: '1',
-  };
-  if (geoCityId) {
-    params.geoCityId = geoCityId;
-  } else {
-    params.geoMetroId = 'jambase:1';
-  }
-
-  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(key, '/events', params, jbQ);
-  const rawEvents = data?.events ?? [];
-
   const userCityLower = city ? city.toLowerCase() : null;
 
-  const candidates: ClipShowCandidate[] = [];
-  for (const ev of rawEvents) {
-    if (!clipTimeInEventWindow(atMs, ev)) continue;
-    const cnd = candidateFromEvent(ev, lat, lon, radiusMiles, userCityLower);
-    if (cnd) candidates.push(cnd);
+  const venueParams: Record<string, string> = {
+    perPage: '80',
+    page: '1',
+  };
+  if (geoCityId) venueParams.geoCityId = geoCityId;
+  else venueParams.geoMetroId = 'jambase:1';
+
+  const venuePayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+    key,
+    '/venues',
+    venueParams,
+    jbQ
+  );
+
+  const fromVenues: ClipShowCandidate[] = [];
+  for (const v of venuePayload?.venues ?? []) {
+    const cnd = candidateFromVenue(v as Record<string, unknown>, lat, lon, radiusMiles, userCityLower);
+    if (cnd) fromVenues.push(cnd);
   }
 
-  // Prefer the venue closest to the user's coordinates so clips.jambase_venue_id reflects
-  // geographic association; time-to-show is a tiebreaker (same venue / city-only rows).
-  candidates.sort((a, b) => {
-    const da = a.distance_miles;
-    const db = b.distance_miles;
-    const aGeo = da != null && Number.isFinite(da);
-    const bGeo = db != null && Number.isFinite(db);
-    if (aGeo && bGeo && da !== db) return da - db;
-    if (aGeo && !bGeo) return -1;
-    if (!aGeo && bGeo) return 1;
-    const ta = Math.abs(Date.parse(a.startDate) - atMs);
-    const tb = Math.abs(Date.parse(b.startDate) - atMs);
-    return ta - tb;
-  });
+  let matchSource: 'venues' | 'events' = 'venues';
+  let rawUpstreamCount = venuePayload?.venues?.length ?? 0;
+  let working = dedupeKeepClosestPerVenue(fromVenues);
 
-  let match: ClipResolveMatch;
-  if (candidates.length === 0) match = 'none';
-  else if (candidates.length === 1) match = 'single';
-  else match = 'ambiguous';
+  if (working.length === 0) {
+    matchSource = 'events';
+    const anchor = hasAt ? new Date(atMs) : new Date();
+    const from = new Date(anchor);
+    from.setUTCDate(from.getUTCDate() - 1);
+    const eventDateFrom = from.toISOString().split('T')[0];
+
+    const eventParams: Record<string, string> = {
+      eventDateFrom,
+      perPage: '80',
+      page: '1',
+    };
+    if (geoCityId) {
+      eventParams.geoCityId = geoCityId;
+    } else {
+      eventParams.geoMetroId = 'jambase:1';
+    }
+
+    const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(key, '/events', eventParams, jbQ);
+    const rawEvents = data?.events ?? [];
+    rawUpstreamCount = rawEvents.length;
+
+    const fromEvents: ClipShowCandidate[] = [];
+    for (const ev of rawEvents) {
+      const cnd = candidateFromEvent(ev, lat, lon, radiusMiles, userCityLower);
+      if (cnd) fromEvents.push(cnd);
+    }
+    working = dedupeKeepClosestPerVenue(fromEvents);
+  }
+
+  const { match, candidates } = finalizeMatch(working);
 
   const notice =
     match === 'none'
-      ? 'No matching show found in your current time window and radius. You can enter details manually.'
+      ? 'No JamBase venue found within your radius. You can enter details manually.'
       : null;
 
   await recordResolveTelemetry(
@@ -357,14 +433,19 @@ export async function postResolveShowForClip(c: Context) {
     mochaUser.id,
     match,
     radiusMiles,
-    rawEvents.length,
+    rawUpstreamCount,
     candidates.length,
     geoCityId,
-    geoCityId ? 'geo_city_id' : 'metro_fallback',
+    matchSource === 'venues' ? 'venues_geo' : 'events_fallback',
     notice
   );
 
   c.header('Cache-Control', 'private, max-age=60');
+
+  const anchor = hasAt ? new Date(atMs) : new Date();
+  const from = new Date(anchor);
+  from.setUTCDate(from.getUTCDate() - 1);
+  const eventDateFrom = from.toISOString().split('T')[0];
 
   return c.json({
     match,
@@ -374,6 +455,7 @@ export async function postResolveShowForClip(c: Context) {
       radiusMiles,
       geoCityId,
       eventDateFrom,
+      matchSource,
     },
   });
 }

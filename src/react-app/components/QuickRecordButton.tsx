@@ -4,8 +4,10 @@ import { useNavigate } from 'react-router';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import type { ClipShowCandidate } from '@/shared/types';
 
-const MAX_RECORDING_TIME = 60; // 60 seconds
-const HAPTIC_WARNING_TIME = 45; // Haptic feedback at 45 seconds
+/** Hard cap for in-app capture and gallery uploads (1 minute). */
+const MAX_CLIP_LENGTH_SECONDS = 60;
+const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
+const HAPTIC_WARNING_TIME = 50;
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -428,12 +430,37 @@ export default function QuickRecordButton({
     }
   };
 
-  const handlePickFromDevice = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePickFromDevice = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const fileIsVideo = file.type.startsWith('video/');
     if (!fileIsVideo) {
       setCameraError('Please choose a video file.');
+      return;
+    }
+
+    const tooLong = await new Promise<boolean>((resolve) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      const done = (long: boolean) => {
+        URL.revokeObjectURL(url);
+        resolve(long);
+      };
+      video.onloadedmetadata = () => {
+        const d = video.duration;
+        if (Number.isFinite(d) && d > MAX_CLIP_LENGTH_SECONDS + 1) {
+          done(true);
+        } else {
+          done(false);
+        }
+      };
+      video.onerror = () => done(false);
+      video.src = url;
+    });
+    if (tooLong) {
+      setCameraError(`Videos must be ${MAX_CLIP_LENGTH_SECONDS} seconds or shorter.`);
+      e.target.value = '';
       return;
     }
 
@@ -592,9 +619,9 @@ export default function QuickRecordButton({
               artist_name: c.artist_name ?? '',
               venue_name: c.venue_name ?? '',
               location: c.location ?? [geo.city, geo.state].filter(Boolean).join(', '),
-              jambase_event_id: c.jambase_event_id,
-              jambase_artist_id: c.jambase_artist_id,
-              jambase_venue_id: c.jambase_venue_id,
+              ...(c.jambase_event_id ? { jambase_event_id: c.jambase_event_id } : {}),
+              ...(c.jambase_artist_id ? { jambase_artist_id: c.jambase_artist_id } : {}),
+              ...(c.jambase_venue_id ? { jambase_venue_id: c.jambase_venue_id } : {}),
               latitude: geo.latitude,
               longitude: geo.longitude,
               accuracy: geo.accuracy,

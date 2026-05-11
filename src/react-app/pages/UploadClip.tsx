@@ -37,13 +37,11 @@ export default function UploadClip() {
   // Quick capture modal state
   const [showQuickCapture, setShowQuickCapture] = useState(false);
 
-  // Check for quickCapture URL parameter
+  // Open quick capture when ?quickCapture=true (re-run when search changes, e.g. after Re-record)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('quickCapture') === 'true') {
-      setShowQuickCapture(true);
-    }
-  }, []);
+    const params = new URLSearchParams(location.search);
+    setShowQuickCapture(params.get('quickCapture') === 'true');
+  }, [location.search]);
   const [isEditingTags, setIsEditingTags] = useState(false);
   
   // Confirmation modal state
@@ -51,7 +49,7 @@ export default function UploadClip() {
   const [postedClip, setPostedClip] = useState<any | null>(null);
 
   const [jambaseLink, setJambaseLink] = useState<{
-    event: string;
+    event: string | null;
     artist: string | null;
     venue: string | null;
   } | null>(null);
@@ -135,6 +133,12 @@ export default function UploadClip() {
           artist: typeof showData.jambase_artist_id === 'string' ? showData.jambase_artist_id : null,
           venue: typeof showData.jambase_venue_id === 'string' ? showData.jambase_venue_id : null,
         });
+      } else if (typeof showData.jambase_venue_id === 'string') {
+        setJambaseLink({
+          event: null,
+          artist: typeof showData.jambase_artist_id === 'string' ? showData.jambase_artist_id : null,
+          venue: showData.jambase_venue_id,
+        });
       }
       setResolveNotice(null);
     }
@@ -142,7 +146,7 @@ export default function UploadClip() {
     const nav = location.state as Record<string, unknown> | undefined;
     if (Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0) {
       setAmbiguousCandidates(nav.ambiguousCandidates as ClipShowCandidate[]);
-      setResolveNotice('We found multiple nearby shows. Pick the right one below or edit manually.');
+      setResolveNotice('We found multiple nearby venues. Pick the right one below or edit manually.');
     }
     if (typeof nav?.recordingStartedAt === 'string') {
       setRecordingAtIso(nav.recordingStartedAt);
@@ -250,7 +254,7 @@ export default function UploadClip() {
     setArtistSearch(c.artist_name ?? '');
     setVenueSearch(c.venue_name ?? '');
     setJambaseLink({
-      event: c.jambase_event_id,
+      event: c.jambase_event_id ?? null,
       artist: c.jambase_artist_id,
       venue: c.jambase_venue_id,
     });
@@ -269,12 +273,12 @@ export default function UploadClip() {
 
   useEffect(() => {
     if (!user) return;
-    if (jambaseLink?.event) return;
+    if (jambaseLink?.event || jambaseLink?.venue) return;
     if (ambiguousCandidates.length > 0) return;
 
     const nav = location.state as {
       videoBlob?: unknown;
-      showData?: { jambase_event_id?: string };
+      showData?: { jambase_event_id?: string; jambase_venue_id?: string };
       ambiguousCandidates?: unknown[];
       recordingStartedAt?: string;
       captureGeo?: {
@@ -293,7 +297,7 @@ export default function UploadClip() {
       Boolean(
         showCaptionScreen &&
           fromQuick &&
-          !nav?.showData?.jambase_event_id &&
+          !nav?.showData &&
           !(Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0)
       );
 
@@ -302,8 +306,8 @@ export default function UploadClip() {
     const at =
       recordingAtIso ||
       (formData.video_file ? new Date(formData.video_file.lastModified).toISOString() : null) ||
-      (typeof nav?.recordingStartedAt === 'string' ? nav.recordingStartedAt : null);
-    if (!at) return;
+      (typeof nav?.recordingStartedAt === 'string' ? nav.recordingStartedAt : null) ||
+      new Date().toISOString();
 
     let cancelled = false;
     (async () => {
@@ -354,11 +358,13 @@ export default function UploadClip() {
           setResolveNotice(null);
         } else if (data.match === 'ambiguous' && data.candidates?.length) {
           setAmbiguousCandidates(data.candidates);
-          setResolveNotice(data.notice ?? 'We found multiple nearby shows. Pick the right one below or edit manually.');
+          setResolveNotice(
+            data.notice ?? 'We found multiple nearby venues. Pick the right one below or edit manually.'
+          );
         } else if (data.match === 'none') {
           setResolveNotice(
             data.notice ??
-              'No matching show found in your time window and radius. You can enter details manually.'
+              'No nearby JamBase venue found in your radius. You can enter details manually.'
           );
         }
       } catch (e) {
@@ -372,6 +378,7 @@ export default function UploadClip() {
   }, [
     user,
     jambaseLink?.event,
+    jambaseLink?.venue,
     ambiguousCandidates.length,
     formData.video_file,
     uploadMethod,
@@ -408,20 +415,40 @@ export default function UploadClip() {
     setShowVenueSuggestions(false);
   };
 
-  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('video/')) {
-        setError('Please select a valid video file');
-        return;
-      }
-      if (file.size > 500 * 1024 * 1024) {
-        setError('Video file must be less than 500MB');
-        return;
-      }
-      setFormData(prev => ({ ...prev, video_file: file }));
-      setError(null);
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      setError('Please select a valid video file');
+      return;
     }
+    if (file.size > 500 * 1024 * 1024) {
+      setError('Video file must be less than 500MB');
+      return;
+    }
+    const maxSeconds = 60;
+    const tooLong = await new Promise<boolean>((resolve) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      const finish = (long: boolean) => {
+        URL.revokeObjectURL(url);
+        resolve(long);
+      };
+      video.onloadedmetadata = () => {
+        const d = video.duration;
+        finish(Number.isFinite(d) && d > maxSeconds + 1);
+      };
+      video.onerror = () => finish(false);
+      video.src = url;
+    });
+    if (tooLong) {
+      setError('Videos must be 1 minute or shorter.');
+      e.target.value = '';
+      return;
+    }
+    setFormData((prev) => ({ ...prev, video_file: file }));
+    setError(null);
   };
 
   const handleThumbnailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -611,7 +638,20 @@ export default function UploadClip() {
     if (videoBlobUrl) {
       URL.revokeObjectURL(videoBlobUrl);
     }
-    navigate('/');
+    setVideoBlobUrl(null);
+    setShowCaptionScreen(false);
+    setFormData((prev) => ({
+      ...prev,
+      video_blob: null,
+      video_file: null,
+    }));
+    setAmbiguousCandidates([]);
+    setJambaseLink(null);
+    setResolveNotice(null);
+    setRecordingAtIso(null);
+    setCaptureGeo(null);
+    setError(null);
+    navigate('/upload?quickCapture=true', { replace: true, state: {} });
   };
 
   const handleBackToFeed = () => {
@@ -994,13 +1034,13 @@ export default function UploadClip() {
                 <p className="text-gray-400 text-xs mt-2">Caption is optional</p>
               </div>
 
-              {ambiguousCandidates.length > 0 && !jambaseLink?.event && (
+              {ambiguousCandidates.length > 0 && !jambaseLink && (
                 <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-                  <p className="text-amber-200 text-sm font-medium">Which show was this?</p>
+                  <p className="text-amber-200 text-sm font-medium">Which venue was this?</p>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {ambiguousCandidates.map((c) => (
                       <button
-                        key={c.jambase_event_id}
+                        key={c.jambase_event_id ?? c.jambase_venue_id ?? 'candidate'}
                         type="button"
                         onClick={() => applyClipCandidate(c)}
                         className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
@@ -1426,13 +1466,13 @@ export default function UploadClip() {
             </div>
           )}
 
-          {ambiguousCandidates.length > 0 && !jambaseLink?.event && (
+          {ambiguousCandidates.length > 0 && !jambaseLink && (
             <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-              <p className="text-amber-200 text-sm font-medium">Which show was this?</p>
+              <p className="text-amber-200 text-sm font-medium">Which venue was this?</p>
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {ambiguousCandidates.map((c) => (
                   <button
-                    key={c.jambase_event_id}
+                    key={c.jambase_event_id ?? c.jambase_venue_id ?? 'candidate'}
                     type="button"
                     onClick={() => applyClipCandidate(c)}
                     className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"

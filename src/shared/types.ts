@@ -99,7 +99,8 @@ export interface JamBaseEvent {
 
 /** Server /api/clips/resolve-show candidate */
 export interface ClipShowCandidate {
-  jambase_event_id: string;
+  /** Present when the row came from an event; null for closest-venue-only matches. */
+  jambase_event_id: string | null;
   jambase_artist_id: string | null;
   jambase_venue_id: string | null;
   artist_name: string | null;
