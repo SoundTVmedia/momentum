@@ -5,6 +5,10 @@ import { useNotifications } from '@/react-app/hooks/useNotifications';
 import { useState } from 'react';
 import QuickRecordButton from './QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
+import {
+  primeGeolocationOnUserGesture,
+  type PrimedCaptureGeo,
+} from '@/react-app/utils/primeGeolocationOnUserGesture';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export default function MobileBottomNav() {
@@ -19,6 +23,9 @@ export default function MobileBottomNav() {
   const [openedWithGestureCamera, setOpenedWithGestureCamera] = useState(false);
   /** While primeCameraOnUserGesture() promise is pending — child must not skip fallback with auto=false + no stream. */
   const [gesturePrimePending, setGesturePrimePending] = useState(false);
+  /** GPS started in the same tap as Capture (location prompt only on camera launch). */
+  const [captureLaunchGeo, setCaptureLaunchGeo] = useState<PrimedCaptureGeo | null>(null);
+  const [captureLaunchGeoResolved, setCaptureLaunchGeoResolved] = useState(false);
 
   const handleCaptureClick = () => {
     if (isPending) return;
@@ -26,6 +33,12 @@ export default function MobileBottomNav() {
       navigate('/auth');
       return;
     }
+    setCaptureLaunchGeo(null);
+    setCaptureLaunchGeoResolved(false);
+    void primeGeolocationOnUserGesture().then((g) => {
+      setCaptureLaunchGeo(g);
+      setCaptureLaunchGeoResolved(true);
+    });
     // Start getUserMedia synchronously (async function runs until first await in the same call stack as the tap).
     // Do not await before opening the modal — that can burn user activation so the prompt never completes.
     const streamPromise = primeCameraOnUserGesture();
@@ -52,6 +65,8 @@ export default function MobileBottomNav() {
     setPrimedMediaStream(null);
     setOpenedWithGestureCamera(false);
     setGesturePrimePending(false);
+    setCaptureLaunchGeo(null);
+    setCaptureLaunchGeoResolved(false);
     setShowQuickCapture(false);
   };
 
@@ -136,6 +151,8 @@ export default function MobileBottomNav() {
           primedMediaStream={primedMediaStream}
           gestureCameraPrimingPending={gesturePrimePending}
           autoRequestCamera={!openedWithGestureCamera && !gesturePrimePending}
+          captureLaunchGeo={captureLaunchGeo}
+          captureLaunchGeoResolved={captureLaunchGeoResolved}
           onClose={handleQuickCaptureClose}
         />
       )}

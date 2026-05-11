@@ -5,6 +5,10 @@ import { Upload, MapPin, Music, Calendar, Hash, Loader2, X, Film, Image as Image
 import Header from '@/react-app/components/Header';
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
+import {
+  primeGeolocationOnUserGesture,
+  type PrimedCaptureGeo,
+} from '@/react-app/utils/primeGeolocationOnUserGesture';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
@@ -17,10 +21,9 @@ export default function UploadClip() {
   const location = useLocation();
   const { user, isPending } = useAuth();
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
-  const { requestLocation, getDeviceCoordinates, location: lastKnownGeo } = useGeolocation();
+  const { location: lastKnownGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
   const [loading, setLoading] = useState(false);
-  const [geoDetected, setGeoDetected] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ video: 0, thumbnail: 0 });
   const [error, setError] = useState<string | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +48,8 @@ export default function UploadClip() {
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [reRecordPrimedStream, setReRecordPrimedStream] = useState<MediaStream | null>(null);
   const [reRecordGesturePending, setReRecordGesturePending] = useState(false);
+  const [reRecordLaunchGeo, setReRecordLaunchGeo] = useState<PrimedCaptureGeo | null>(null);
+  const [reRecordLaunchGeoResolved, setReRecordLaunchGeoResolved] = useState(false);
 
   const [isEditingTags, setIsEditingTags] = useState(false);
 
@@ -135,6 +140,8 @@ export default function UploadClip() {
     const wantCapture = params.get('quickCapture') === 'true';
     if (!wantCapture) {
       setShowQuickCapture(false);
+      setReRecordLaunchGeo(null);
+      setReRecordLaunchGeoResolved(false);
       return;
     }
     // Post-record review / caption flow must not lose to this effect (would flash the camera again).
@@ -148,6 +155,9 @@ export default function UploadClip() {
       navigate('/auth', { replace: true });
       return;
     }
+    // Deep link: no Capture-tap priming — skip waiting for launch geo.
+    setReRecordLaunchGeo(null);
+    setReRecordLaunchGeoResolved(true);
     setShowQuickCapture(true);
   }, [location.search, showCaptionScreen, user, isPending, navigate]);
 
@@ -282,21 +292,6 @@ export default function UploadClip() {
   const [showVenueSuggestions, setShowVenueSuggestions] = useState(false);
   const debouncedVenueSearch = useDebounce(venueSearch, 300);
 
-  // Auto-detect location on mount
-  useEffect(() => {
-    if (!geoDetected && user && !showCaptionScreen) {
-      requestLocation().then((geo) => {
-        if (geo) {
-          const locationStr = [geo.city, geo.state].filter(Boolean).join(', ');
-          if (locationStr) {
-            setFormData(prev => ({ ...prev, location: locationStr }));
-          }
-          setGeoDetected(true);
-        }
-      });
-    }
-  }, [user, geoDetected, requestLocation, showCaptionScreen]);
-
   // Search for artists
   useEffect(() => {
     if (debouncedArtistSearch && debouncedArtistSearch.length >= 2) {
@@ -352,35 +347,6 @@ export default function UploadClip() {
     setAmbiguousCandidates([]);
     setResolveNotice(null);
   }, []);
-
-  const [captureGeoRetryBusy, setCaptureGeoRetryBusy] = useState(false);
-  const retryCaptureGeoFromCaption = useCallback(async () => {
-    setCaptureGeoRetryBusy(true);
-    setResolveNotice(null);
-    try {
-      const g = await requestLocation();
-      if (
-        g?.latitude != null &&
-        Number.isFinite(g.latitude) &&
-        g.longitude != null &&
-        Number.isFinite(g.longitude)
-      ) {
-        setCaptureGeo({
-          latitude: g.latitude,
-          longitude: g.longitude,
-          city: g.city,
-          state: g.state,
-          country: g.country,
-        });
-      } else {
-        setResolveNotice(
-          'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
-        );
-      }
-    } finally {
-      setCaptureGeoRetryBusy(false);
-    }
-  }, [requestLocation]);
 
   useEffect(() => {
     if (
@@ -447,13 +413,7 @@ export default function UploadClip() {
           Number.isFinite(g.latitude) &&
           Number.isFinite(g.longitude);
 
-        let g = await getDeviceCoordinates();
-        if (!validG(g) && validG(lastKnownGeo)) {
-          g = lastKnownGeo;
-        }
-        if (!validG(g)) {
-          g = await requestLocation();
-        }
+        const g = validG(lastKnownGeo) ? lastKnownGeo : null;
         if (cancelled) return;
         if (validG(g)) {
           geo = {
@@ -469,7 +429,7 @@ export default function UploadClip() {
             setResolveNotice(
               fromQuick
                 ? 'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
-                : 'Location permission was denied, so show tagging is disabled. You can enter details manually.'
+                : 'Turn on location when you use Capture to auto-tag venues, or enter details manually.'
             );
           }
           return;
@@ -538,8 +498,6 @@ export default function UploadClip() {
     recordingAtIso,
     captureGeo,
     location.state,
-    requestLocation,
-    getDeviceCoordinates,
     lastKnownGeo,
     applyClipCandidate,
   ]);
@@ -817,6 +775,12 @@ export default function UploadClip() {
   };
 
   const handleReRecord = () => {
+    setReRecordLaunchGeo(null);
+    setReRecordLaunchGeoResolved(false);
+    void primeGeolocationOnUserGesture().then((g) => {
+      setReRecordLaunchGeo(g);
+      setReRecordLaunchGeoResolved(true);
+    });
     // Prime camera inside the user gesture so iOS Safari allows getUserMedia without a prompt.
     const streamPromise = primeCameraOnUserGesture();
     setReRecordGesturePending(true);
@@ -924,10 +888,14 @@ export default function UploadClip() {
           isOpen={true}
           primedMediaStream={reRecordPrimedStream}
           gestureCameraPrimingPending={reRecordGesturePending}
+          captureLaunchGeo={reRecordLaunchGeo}
+          captureLaunchGeoResolved={reRecordLaunchGeoResolved}
           onClose={() => {
             reRecordPrimedStream?.getTracks().forEach((t) => t.stop());
             setReRecordPrimedStream(null);
             setReRecordGesturePending(false);
+            setReRecordLaunchGeo(null);
+            setReRecordLaunchGeoResolved(false);
             setShowQuickCapture(false);
             window.history.replaceState({}, '', '/upload');
           }}
@@ -1049,25 +1017,8 @@ export default function UploadClip() {
                 </div>
               )}
               {resolveNotice && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                   <p className="text-amber-200 text-sm">{resolveNotice}</p>
-                  {resolveNotice.includes('Location was not available for this capture') && (
-                    <button
-                      type="button"
-                      disabled={captureGeoRetryBusy}
-                      onClick={() => void retryCaptureGeoFromCaption()}
-                      className="inline-flex items-center gap-2 rounded-lg bg-cyan-600/90 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-60"
-                    >
-                      {captureGeoRetryBusy ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Requesting location…
-                        </>
-                      ) : (
-                        'Share location for this clip'
-                      )}
-                    </button>
-                  )}
                 </div>
               )}
 

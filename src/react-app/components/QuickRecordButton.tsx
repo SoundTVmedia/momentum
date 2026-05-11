@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { useGeolocation } from '@/react-app/hooks/useGeolocation';
+import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import type { ClipShowCandidate } from '@/shared/types';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
@@ -19,6 +19,10 @@ interface QuickRecordButtonProps {
   autoRequestCamera?: boolean;
   /** Parent is resolving getUserMedia on the capture tap — wait before treating as gesture-only with no stream. */
   gestureCameraPrimingPending?: boolean;
+  /** Parent starts geolocation in the same gesture as camera (Capture / Re-record tap). */
+  captureLaunchGeo?: PrimedCaptureGeo | null;
+  /** Set true when parent’s priming promise settled (even if geo is null). */
+  captureLaunchGeoResolved?: boolean;
 }
 
 export default function QuickRecordButton({
@@ -27,10 +31,11 @@ export default function QuickRecordButton({
   primedMediaStream = null,
   autoRequestCamera = true,
   gestureCameraPrimingPending = false,
+  captureLaunchGeo,
+  captureLaunchGeoResolved = true,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
-  const { getDeviceCoordinates } = useGeolocation();
   const lastGeoRef = useRef<{
     latitude: number;
     longitude: number;
@@ -77,8 +82,6 @@ export default function QuickRecordButton({
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
   const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
-  /** One automatic location read per capture session, after the live preview is ready. */
-  const previewGeoRequestedRef = useRef(false);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const selectedVenueCandidateRef = useRef<ClipShowCandidate | null>(null);
   const [coordsForNearbyVenues, setCoordsForNearbyVenues] = useState<{
@@ -89,8 +92,6 @@ export default function QuickRecordButton({
   const [nearbyVenuesLoading, setNearbyVenuesLoading] = useState(false);
   const [nearbyVenuesNotice, setNearbyVenuesNotice] = useState<string | null>(null);
   const [selectedVenueKey, setSelectedVenueKey] = useState<string | null>(null);
-  const [locationRequestInFlight, setLocationRequestInFlight] = useState(false);
-  const [previewGeoPending, setPreviewGeoPending] = useState(false);
   const coordsForNearbyVenuesRef = useRef<{ lat: number; lon: number } | null>(null);
 
   useEffect(() => {
@@ -144,8 +145,6 @@ export default function QuickRecordButton({
   // Reset venue / location UI when capture closes
   useEffect(() => {
     if (!showModal) {
-      previewGeoRequestedRef.current = false;
-      setPreviewGeoPending(false);
       setCoordsForNearbyVenues(null);
       setNearbyVenues([]);
       setNearbyVenuesLoading(false);
@@ -155,42 +154,29 @@ export default function QuickRecordButton({
     }
   }, [showModal]);
 
-  // Location only after live preview is ready (video pipeline marked ready — not just getUserMedia).
+  // Apply GPS from the same user gesture as camera launch (parent primed); no getCurrentPosition here.
   useEffect(() => {
-    if (!showModal || !hasPermission || !cameraReady) return;
-    if (previewGeoRequestedRef.current) return;
-    previewGeoRequestedRef.current = true;
-    setPreviewGeoPending(true);
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const geo = await getDeviceCoordinates();
-        if (cancelled || !showModalRef.current) return;
-        if (geo?.latitude != null && geo.longitude != null) {
-          lastGeoRef.current = {
-            latitude: geo.latitude,
-            longitude: geo.longitude,
-            accuracy: geo.accuracy,
-            city: geo.city,
-            state: geo.state,
-            country: geo.country,
-          };
-          setCoordsForNearbyVenues({ lat: geo.latitude, lon: geo.longitude });
-        }
-      } finally {
-        if (!cancelled && showModalRef.current) {
-          setPreviewGeoPending(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      setPreviewGeoPending(false);
-      previewGeoRequestedRef.current = false;
-    };
-  }, [showModal, hasPermission, cameraReady, getDeviceCoordinates]);
+    if (captureLaunchGeo === undefined) return;
+    if (!showModal || !captureLaunchGeoResolved) return;
+    if (
+      captureLaunchGeo != null &&
+      Number.isFinite(captureLaunchGeo.latitude) &&
+      Number.isFinite(captureLaunchGeo.longitude)
+    ) {
+      lastGeoRef.current = {
+        latitude: captureLaunchGeo.latitude,
+        longitude: captureLaunchGeo.longitude,
+        accuracy: captureLaunchGeo.accuracy,
+        city: null,
+        state: null,
+        country: null,
+      };
+      setCoordsForNearbyVenues({
+        lat: captureLaunchGeo.latitude,
+        lon: captureLaunchGeo.longitude,
+      });
+    }
+  }, [showModal, captureLaunchGeo, captureLaunchGeoResolved]);
 
   useEffect(() => {
     if (!coordsForNearbyVenues || !user || isPending) {
@@ -242,37 +228,26 @@ export default function QuickRecordButton({
     return () => ac.abort();
   }, [coordsForNearbyVenues, user, isPending]);
 
-  const requestLocationForVenues = async () => {
-    setLocationRequestInFlight(true);
-    try {
-      const geo = await getDeviceCoordinates();
-      if (geo?.latitude == null || geo.longitude == null) return;
-      lastGeoRef.current = {
-        latitude: geo.latitude,
-        longitude: geo.longitude,
-        accuracy: geo.accuracy,
-        city: geo.city,
-        state: geo.state,
-        country: geo.country,
-      };
-      setCoordsForNearbyVenues({ lat: geo.latitude, lon: geo.longitude });
-    } finally {
-      setLocationRequestInFlight(false);
+  /** Use coordinates we already have (launch tap + JamBase preview). Does not call geolocation again. */
+  const syncLastGeoFromNearbyCoordsRef = () => {
+    const crd = coordsForNearbyVenuesRef.current;
+    if (!crd || !Number.isFinite(crd.lat) || !Number.isFinite(crd.lon)) return;
+    if (
+      lastGeoRef.current?.latitude != null &&
+      lastGeoRef.current?.longitude != null &&
+      Number.isFinite(lastGeoRef.current.latitude) &&
+      Number.isFinite(lastGeoRef.current.longitude)
+    ) {
+      return;
     }
-  };
-
-  /** Refresh GPS into lastGeoRef; keeps any city/state/country already merged from a prior read. */
-  const mergeDeviceGpsIntoLastGeoRef = async () => {
-    const fresh = await getDeviceCoordinates();
-    if (fresh?.latitude == null || fresh.longitude == null) return;
     const prev = lastGeoRef.current;
     lastGeoRef.current = {
-      latitude: fresh.latitude,
-      longitude: fresh.longitude,
-      accuracy: fresh.accuracy ?? prev?.accuracy,
-      city: fresh.city ?? prev?.city ?? null,
-      state: fresh.state ?? prev?.state ?? null,
-      country: fresh.country ?? prev?.country ?? null,
+      latitude: crd.lat,
+      longitude: crd.lon,
+      accuracy: prev?.accuracy,
+      city: prev?.city ?? null,
+      state: prev?.state ?? null,
+      country: prev?.country ?? null,
     };
   };
 
@@ -637,27 +612,7 @@ export default function QuickRecordButton({
       return;
     }
 
-    await mergeDeviceGpsIntoLastGeoRef();
-    const crd = coordsForNearbyVenuesRef.current;
-    if (
-      crd &&
-      Number.isFinite(crd.lat) &&
-      Number.isFinite(crd.lon) &&
-      (!lastGeoRef.current?.latitude ||
-        !lastGeoRef.current?.longitude ||
-        !Number.isFinite(lastGeoRef.current.latitude) ||
-        !Number.isFinite(lastGeoRef.current.longitude))
-    ) {
-      const prev = lastGeoRef.current;
-      lastGeoRef.current = {
-        latitude: crd.lat,
-        longitude: crd.lon,
-        accuracy: prev?.accuracy,
-        city: prev?.city ?? null,
-        state: prev?.state ?? null,
-        country: prev?.country ?? null,
-      };
-    }
+    syncLastGeoFromNearbyCoordsRef();
     const geo = lastGeoRef.current;
     navigate({ pathname: '/upload', search: '' }, {
       state: {
@@ -798,27 +753,7 @@ export default function QuickRecordButton({
 
     const at = recordingStartedAtRef.current || new Date().toISOString();
     // Fresh lat/lon at end of capture (same permission) so JamBase resolve matches where the clip was recorded.
-    await mergeDeviceGpsIntoLastGeoRef();
-    const crd = coordsForNearbyVenuesRef.current;
-    if (
-      crd &&
-      Number.isFinite(crd.lat) &&
-      Number.isFinite(crd.lon) &&
-      (!lastGeoRef.current?.latitude ||
-        !lastGeoRef.current?.longitude ||
-        !Number.isFinite(lastGeoRef.current.latitude) ||
-        !Number.isFinite(lastGeoRef.current.longitude))
-    ) {
-      const prev = lastGeoRef.current;
-      lastGeoRef.current = {
-        latitude: crd.lat,
-        longitude: crd.lon,
-        accuracy: prev?.accuracy,
-        city: prev?.city ?? null,
-        state: prev?.state ?? null,
-        country: prev?.country ?? null,
-      };
-    }
+    syncLastGeoFromNearbyCoordsRef();
     const geo = lastGeoRef.current;
     setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
 
@@ -912,7 +847,6 @@ export default function QuickRecordButton({
 
     recordingStartedAtRef.current = null;
     lastGeoRef.current = null;
-    previewGeoRequestedRef.current = false;
     selectedVenueCandidateRef.current = null;
 
     // Close modal
@@ -953,7 +887,6 @@ export default function QuickRecordButton({
     setProcessingProgress(8);
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
-    previewGeoRequestedRef.current = false;
     lastAdoptedPrimedRef.current = null;
     selectedVenueCandidateRef.current = null;
     setSelectedVenueKey(null);
@@ -1035,8 +968,8 @@ export default function QuickRecordButton({
                           : 'Starting camera…'}
                       </p>
                       <p className="text-cyan-200/90 text-xs mt-2 max-w-xs mx-auto">
-                        Once the live preview is running, we request your location so we can match you to nearby JamBase
-                        venues.
+                        Location is requested when you tap Capture (same moment as the camera), so we can suggest nearby
+                        JamBase venues after you record.
                       </p>
                       {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
                     </>
@@ -1128,38 +1061,12 @@ export default function QuickRecordButton({
 
             {hasPermission && cameraReady && !isRecording && !isProcessingTransition && (
               <div className="mx-auto mb-3 w-full max-w-lg px-1">
-                {previewGeoPending && !coordsForNearbyVenues && (
+                {captureLaunchGeo !== undefined && !captureLaunchGeoResolved && (
                   <p className="text-center text-cyan-200/90 text-xs mb-2 flex items-center justify-center gap-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                    Getting your location for nearby venues…
+                    Finishing location from your Capture tap…
                   </p>
                 )}
-                {hasPermission &&
-                  cameraReady &&
-                  !coordsForNearbyVenues &&
-                  !nearbyVenuesLoading &&
-                  !previewGeoPending && (
-                    <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2.5 text-center mb-2">
-                      <p className="text-white/90 text-xs mb-2">
-                        Share approximate location so we can list JamBase venues near you.
-                      </p>
-                      <button
-                        type="button"
-                        disabled={locationRequestInFlight}
-                        onClick={() => void requestLocationForVenues()}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600/90 px-3 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-60"
-                      >
-                        {locationRequestInFlight ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Requesting…
-                          </>
-                        ) : (
-                          'Share location for venues'
-                        )}
-                      </button>
-                    </div>
-                  )}
                 {(coordsForNearbyVenues || nearbyVenuesLoading) && (
                   <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2">
                     <div className="flex items-center gap-2 px-1 pb-1.5 border-b border-white/10">
