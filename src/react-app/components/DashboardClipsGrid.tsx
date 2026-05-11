@@ -4,6 +4,7 @@ import { useState } from 'react';
 import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 
 const CLIP_THUMB_FALLBACK =
@@ -21,6 +22,9 @@ export type DashboardGridClip = Record<string, unknown> & {
   location_score?: number;
   stream_thumbnail_url?: string | null;
   stream_video_id?: string | null;
+  recording_orientation?: string | null;
+  video_resolution_w?: number | null;
+  video_resolution_h?: number | null;
   content_description?: string | null;
   hashtags?: string | unknown;
 };
@@ -154,7 +158,8 @@ export default function DashboardClipsGrid({
           return (
             <div
               key={clipListItemKey(clip, index)}
-              className="group relative aspect-[9/16] bg-black/40 rounded-xl overflow-hidden hover:scale-105 transition-transform"
+              className="group relative w-full bg-black/40 rounded-xl overflow-hidden hover:scale-105 transition-transform"
+              style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
             >
               <img
                 src={

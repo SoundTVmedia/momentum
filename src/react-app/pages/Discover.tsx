@@ -8,6 +8,7 @@ import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import { artistPath, venuePath } from '@/shared/app-paths';
 
 interface SearchResults {
@@ -276,7 +277,10 @@ export default function DiscoverPage() {
                       onClick={() => setSelectedClip(clip)}
                       className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl overflow-hidden hover:border-cyan-400/50 transition-all cursor-pointer group"
                     >
-                      <div className="relative aspect-video">
+                      <div
+                        className="relative w-full bg-black"
+                        style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
+                      >
                         <img
                           src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
                           alt="Concert moment"
@@ -645,7 +649,10 @@ export default function DiscoverPage() {
                           onClick={() => setSelectedClip(clip)}
                           className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl overflow-hidden hover:border-orange-400/50 transition-all cursor-pointer group"
                         >
-                          <div className="relative aspect-video">
+                          <div
+                            className="relative w-full bg-black"
+                            style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
+                          >
                             <img
                               src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
                               alt="Concert moment"

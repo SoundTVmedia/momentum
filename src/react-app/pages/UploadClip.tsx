@@ -10,6 +10,7 @@ import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
+import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
 export default function UploadClip() {
@@ -119,6 +120,11 @@ export default function UploadClip() {
       setShowQuickCapture(false);
       return;
     }
+    // Post-record review / caption flow must not lose to this effect (would flash the camera again).
+    if (showCaptionScreen) {
+      setShowQuickCapture(false);
+      return;
+    }
     if (isPending) return;
     if (!user) {
       setShowQuickCapture(false);
@@ -126,7 +132,7 @@ export default function UploadClip() {
       return;
     }
     setShowQuickCapture(true);
-  }, [location.search, user, isPending, navigate]);
+  }, [location.search, showCaptionScreen, user, isPending, navigate]);
 
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
@@ -573,6 +579,7 @@ export default function UploadClip() {
     try {
       let videoData: any = null;
       let thumbnailUrl = formData.thumbnail_url;
+      let thumbnailFile = formData.thumbnail_file;
 
       // Upload video - prioritize Cloudflare Stream for better quality
       if (uploadMethod === 'file' && (formData.video_file || formData.video_blob)) {
@@ -582,6 +589,13 @@ export default function UploadClip() {
         let fileToUpload = formData.video_file;
         if (!fileToUpload && formData.video_blob) {
           fileToUpload = new File([formData.video_blob], `recording-${Date.now()}.webm`, { type: 'video/webm' });
+        }
+
+        if (fileToUpload && !thumbnailFile) {
+          thumbnailFile = await generateVideoThumbnailJpeg(fileToUpload, { seekSeconds: 0 });
+          if (thumbnailFile) {
+            setFormData((prev) => ({ ...prev, thumbnail_file: thumbnailFile }));
+          }
         }
         
         if (fileToUpload) {
@@ -594,10 +608,10 @@ export default function UploadClip() {
         setUploadProgress(prev => ({ ...prev, video: 100 }));
       }
 
-      // Upload thumbnail if provided
-      if (formData.thumbnail_file) {
+      // Upload thumbnail if provided or generated from first frame
+      if (thumbnailFile) {
         setUploadProgress(prev => ({ ...prev, thumbnail: 10 }));
-        const thumbData = await uploadFile(formData.thumbnail_file, 'thumbnail');
+        const thumbData = await uploadFile(thumbnailFile, 'thumbnail');
         thumbnailUrl = thumbData.url;
         setUploadProgress(prev => ({ ...prev, thumbnail: 100 }));
       }
@@ -718,10 +732,39 @@ export default function UploadClip() {
     setShowQuickCapture(true);
   };
 
+  /** Leave upload (e.g. mobile caption screen) and return to the feed; drops in-progress media. */
+  const handleCloseUploadToFeed = () => {
+    if (videoBlobUrl) {
+      URL.revokeObjectURL(videoBlobUrl);
+      setVideoBlobUrl(null);
+    }
+    if (videoInputRef.current) videoInputRef.current.value = '';
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+    setShowCaptionScreen(false);
+    setFormData((prev) => ({
+      ...prev,
+      video_blob: null,
+      video_file: null,
+      thumbnail_file: null,
+      video_url: '',
+      thumbnail_url: '',
+    }));
+    setVideoMetadata({});
+    setAmbiguousCandidates([]);
+    setJambaseLink(null);
+    setResolveNotice(null);
+    setRecordingAtIso(null);
+    setCaptureGeo(null);
+    setError(null);
+    setCaptionVideoPlaying(false);
+    setCaptionVideoMuted(true);
+    navigate('/feed', { replace: true });
+  };
+
   const handleBackToFeed = () => {
     setShowConfirmationModal(false);
     setPostedClip(null);
-    navigate('/');
+    navigate('/feed', { replace: true });
   };
 
   const handleCloseSuccessModal = () => {
@@ -835,7 +878,12 @@ export default function UploadClip() {
             </div>
 
             {/* Video Preview */}
-            <div className="relative aspect-video bg-black">
+            <div
+              className="relative w-full max-h-[70vh] mx-auto bg-black"
+              style={{
+                aspectRatio: clipDisplayAspectRatio(videoMetadata) ?? '16 / 9',
+              }}
+            >
               {videoBlobUrl ? (
                 <video
                   src={videoBlobUrl}
@@ -970,14 +1018,24 @@ export default function UploadClip() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
         <Header />
-        
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-          <div className="mb-6">
-            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Share your moment</h1>
-            <p className="text-gray-300 text-lg">
-              Add details and post — same upload as Share your moment. Venue and location are filled from your GPS
-              and JamBase when we find a match; edit below if needed.
-            </p>
+
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-fade-in">
+          <div className="mb-6 flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">Share your moment</h1>
+              <p className="text-gray-300 text-sm sm:text-lg">
+                Add details and post — same upload as Share your moment. Venue and location are filled from your GPS
+                and JamBase when we find a match; edit below if needed.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseUploadToFeed}
+              className="shrink-0 flex items-center justify-center p-2.5 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 active:scale-95 transition-transform"
+              aria-label="Close and go to feed"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
 
           <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl overflow-hidden">
@@ -1357,11 +1415,13 @@ export default function UploadClip() {
       
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-4xl font-bold text-white">Share Your Moment</h1>
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <h1 className="text-2xl sm:text-4xl font-bold text-white min-w-0">Share Your Moment</h1>
             <button
-              onClick={() => navigate(-1)}
-              className="text-gray-400 hover:text-white transition-colors"
+              type="button"
+              onClick={handleCloseUploadToFeed}
+              className="shrink-0 flex items-center justify-center p-2.5 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 active:scale-95 transition-transform"
+              aria-label="Close and go to feed"
             >
               <X className="w-6 h-6" />
             </button>

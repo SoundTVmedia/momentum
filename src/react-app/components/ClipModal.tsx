@@ -7,6 +7,7 @@ import { useClipRating } from '@/react-app/hooks/useClipRating';
 import { useFavoriteClip } from '@/react-app/hooks/useFavoriteClip';
 import CommentSection from './CommentSection';
 import StreamVideoPlayer from './StreamVideoPlayer';
+import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import StarRating from './StarRating';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, venuePath } from '@/shared/app-paths';
@@ -84,22 +85,29 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
       <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-cyan-500/20 sm:rounded-xl overflow-hidden animate-scale-in">
         <div className="flex flex-col md:flex-row h-full sm:max-h-[90vh]">
           {/* Video Side */}
-          <div className="md:w-2/3 bg-black flex items-center justify-center relative flex-shrink-0">
+          <div className="md:w-2/3 bg-black flex items-center justify-center relative flex-shrink-0 min-h-[36vh] md:min-h-0 p-2 sm:p-4">
             <button
               onClick={onClose}
               className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors z-10"
             >
               <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
-            
-            <StreamVideoPlayer
-              streamVideoId={(clip as any).stream_video_id}
-              playbackUrl={(clip as any).stream_playback_url}
-              fallbackUrl={clip.video_url}
-              poster={(clip as any).stream_thumbnail_url || clip.thumbnail_url || undefined}
-              autoPlay
-              className="w-full h-full"
-            />
+
+            <div
+              className="relative w-full max-h-[min(85dvh,100%)] md:max-h-[min(90vh,72vw)] mx-auto bg-black rounded-none sm:rounded-lg overflow-hidden"
+              style={{
+                aspectRatio: clipDisplayAspectRatio(clip) ?? '16 / 9',
+              }}
+            >
+              <StreamVideoPlayer
+                streamVideoId={(clip as any).stream_video_id}
+                playbackUrl={(clip as any).stream_playback_url}
+                fallbackUrl={clip.video_url}
+                poster={(clip as any).stream_thumbnail_url || clip.thumbnail_url || undefined}
+                autoPlay
+                className="absolute inset-0 w-full h-full"
+              />
+            </div>
           </div>
 
           {/* Content Side */}

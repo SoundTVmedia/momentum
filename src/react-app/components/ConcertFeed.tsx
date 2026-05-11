@@ -9,6 +9,7 @@ import { ClipCardSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
+import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio'
 import { artistPath, venuePath } from '@/shared/app-paths'
 
 interface ConcertFeedProps {
@@ -181,7 +182,10 @@ export default function ConcertFeed({
             >
               {/* Video Thumbnail - Full Width */}
               <div 
-                className="relative w-full aspect-[9/16] sm:aspect-video cursor-pointer group/video overflow-hidden"
+                className="relative w-full cursor-pointer group/video overflow-hidden bg-black"
+                style={{
+                  aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16',
+                }}
                 onClick={() => setSelectedClip(clip)}
               >
                 <img 

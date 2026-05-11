@@ -10,6 +10,7 @@ import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
 import type { ClipWithUser, UserProfile } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import { artistPath } from '@/shared/app-paths';
 
 interface UserStats {
@@ -368,7 +369,10 @@ export default function UserProfilePage() {
                           onClick={() => setSelectedClip(clip)}
                           className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-lg overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
                         >
-                          <div className="relative aspect-video">
+                          <div
+                            className="relative w-full bg-black"
+                            style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
+                          >
                             <img
                               src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
                               alt="Concert moment"
@@ -420,7 +424,10 @@ export default function UserProfilePage() {
                 onClick={() => setSelectedClip(clip)}
                 className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl overflow-hidden hover:border-cyan-400/50 transition-all cursor-pointer group"
               >
-                <div className="relative aspect-video">
+                <div
+                  className="relative w-full bg-black"
+                  style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
+                >
                   <img
                     src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
                     alt="Concert moment"

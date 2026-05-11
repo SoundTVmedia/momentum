@@ -48,9 +48,7 @@ export default function QuickRecordButton({
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [locationLocked, setLocationLocked] = useState(false);
-  const [locationDenied, setLocationDenied] = useState(false);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
-  const [showSearching, setShowSearching] = useState(false);
   const [isProcessingTransition, setIsProcessingTransition] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(8);
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
@@ -136,7 +134,6 @@ export default function QuickRecordButton({
         if (perm.state === 'granted') {
           alreadyGranted = true;
         } else if (perm.state === 'denied') {
-          setLocationDenied(true);
           return;
         }
         // 'prompt' state falls through — show our own friendly prompt below
@@ -146,19 +143,14 @@ export default function QuickRecordButton({
       }
 
       if (alreadyGranted) {
-        setShowSearching(true);
         try {
           const geo = await requestLocation();
           if (geo?.latitude != null && geo?.longitude != null) {
             lastGeoRef.current = geo;
             setLocationLocked(true);
-          } else {
-            setLocationDenied(true);
           }
         } catch {
-          setLocationDenied(true);
-        } finally {
-          setShowSearching(false);
+          /* no coords — upload flow can still add venue manually */
         }
       } else {
         // Permission state is 'prompt' — show our friendly pre-prompt
@@ -169,26 +161,19 @@ export default function QuickRecordButton({
 
   const handleRequestLocation = async () => {
     setShowLocationPrompt(false);
-    setShowSearching(true);
     try {
       const geo = await requestLocation();
       if (geo?.latitude != null && geo?.longitude != null) {
         lastGeoRef.current = geo;
         setLocationLocked(true);
-        setLocationDenied(false);
-      } else {
-        setLocationDenied(true);
       }
     } catch {
-      setLocationDenied(true);
-    } finally {
-      setShowSearching(false);
+      /* user dismissed browser prompt or timeout */
     }
   };
 
   const handleSkipLocation = () => {
     setShowLocationPrompt(false);
-    setLocationDenied(true);
   };
 
   const requestPermissions = async (facingOverride?: 'environment' | 'user') => {
@@ -553,7 +538,7 @@ export default function QuickRecordButton({
     }
 
     const geo = lastGeoRef.current;
-    navigate('/upload', {
+    navigate({ pathname: '/upload', search: '' }, {
       state: {
         videoFile: file,
         recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
@@ -691,18 +676,9 @@ export default function QuickRecordButton({
     }
 
     const at = recordingStartedAtRef.current || new Date().toISOString();
-    let geo = lastGeoRef.current;
-    if (!geo?.latitude) {
-      try {
-        const g = await requestLocation();
-        if (g?.latitude != null && g?.longitude != null) {
-          geo = g;
-          lastGeoRef.current = g;
-        }
-      } catch {
-        /* ignore */
-      }
-    }
+    // Use location from the single upfront prompt only — do not call getCurrentPosition again here
+    // (avoids a second permission prompt or confusing duplicate UX).
+    const geo = lastGeoRef.current;
     setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
 
     let showData: Record<string, unknown> | null = null;
@@ -748,7 +724,7 @@ export default function QuickRecordButton({
     setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
     navigate(
-      '/upload',
+      { pathname: '/upload', search: '' },
       {
         replace: true,
         state: {
@@ -817,7 +793,6 @@ export default function QuickRecordButton({
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     setLocationLocked(false);
-    setLocationDenied(false);
     setShowLocationPrompt(false);
     lastAdoptedPrimedRef.current = null;
 
@@ -974,33 +949,6 @@ export default function QuickRecordButton({
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Location Status - Responsive positioning */}
-            {hasPermission && (
-              <div 
-                className="absolute left-1/2 transform -translate-x-1/2 z-10 transition-all duration-300 ease-in-out max-w-[90%]"
-                style={{
-                  top: isPortrait ? 'max(1rem, env(safe-area-inset-top, 1rem))' : '1rem'
-                }}
-              >
-                {showSearching ? (
-                  <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg flex items-center space-x-2">
-                    <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
-                    <span className="text-white text-sm">📍 Getting location…</span>
-                  </div>
-                ) : locationLocked ? (
-                  <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg">
-                    <div className="text-cyan-400 text-sm font-medium text-center">
-                      📍 Location on — we will tag the show when you finish recording
-                    </div>
-                  </div>
-                ) : locationDenied ? (
-                  <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-lg">
-                    <div className="text-gray-400 text-sm">Show tagging off — you can add details after recording</div>
-                  </div>
-                ) : null}
               </div>
             )}
 

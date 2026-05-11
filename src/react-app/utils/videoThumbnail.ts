@@ -5,7 +5,8 @@ export async function generateVideoThumbnailJpeg(
   source: File | Blob,
   options?: { seekSeconds?: number; maxWidth?: number; quality?: number }
 ): Promise<File | null> {
-  const seekSeconds = options?.seekSeconds ?? 0.25;
+  /** Default 0 = first decodable frame (product thumbnails). */
+  const seekSeconds = options?.seekSeconds ?? 0;
   const maxWidth = options?.maxWidth ?? 720;
   const quality = options?.quality ?? 0.85;
 
@@ -25,7 +26,7 @@ export async function generateVideoThumbnailJpeg(
     const duration = video.duration;
     const t =
       Number.isFinite(duration) && duration > 0
-        ? Math.min(Math.max(seekSeconds, 0), Math.max(0, duration - 0.05))
+        ? Math.min(Math.max(seekSeconds, 0), Math.max(0, duration - 0.001))
         : 0;
 
     await new Promise<void>((resolve, reject) => {
