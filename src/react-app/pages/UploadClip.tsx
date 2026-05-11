@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import { Upload, MapPin, Music, Calendar, Hash, Loader2, X, Film, Image as ImageIcon, Search, Edit2, Check, Share2, Heart, MessageCircle, Bookmark } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
+import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
@@ -39,6 +40,8 @@ export default function UploadClip() {
 
   // Quick capture modal state
   const [showQuickCapture, setShowQuickCapture] = useState(false);
+  const [reRecordPrimedStream, setReRecordPrimedStream] = useState<MediaStream | null>(null);
+  const [reRecordGesturePending, setReRecordGesturePending] = useState(false);
 
   const [isEditingTags, setIsEditingTags] = useState(false);
 
@@ -684,23 +687,28 @@ export default function UploadClip() {
   };
 
   const handleReRecord = () => {
-    if (videoBlobUrl) {
-      URL.revokeObjectURL(videoBlobUrl);
-    }
+    // Prime camera inside the user gesture so iOS Safari allows getUserMedia without a prompt.
+    const streamPromise = primeCameraOnUserGesture();
+    setReRecordGesturePending(true);
+    setReRecordPrimedStream(null);
+    void streamPromise
+      .then((stream) => setReRecordPrimedStream(stream))
+      .catch(() => setReRecordPrimedStream(null))
+      .finally(() => setReRecordGesturePending(false));
+
+    // Reset upload state
+    if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     setVideoBlobUrl(null);
     setShowCaptionScreen(false);
-    setFormData((prev) => ({
-      ...prev,
-      video_blob: null,
-      video_file: null,
-    }));
+    setFormData((prev) => ({ ...prev, video_blob: null, video_file: null }));
     setAmbiguousCandidates([]);
     setJambaseLink(null);
     setResolveNotice(null);
     setRecordingAtIso(null);
     setCaptureGeo(null);
     setError(null);
-    navigate('/upload?quickCapture=true', { replace: true, state: {} });
+    // Open the capture UI in-place (no navigation — preserves user-gesture chain for camera)
+    setShowQuickCapture(true);
   };
 
   const handleBackToFeed = () => {
@@ -928,13 +936,17 @@ export default function UploadClip() {
   if (showQuickCapture) {
     return (
       <div className="min-h-screen bg-black">
-        <QuickRecordButton 
-          isOpen={true} 
+        <QuickRecordButton
+          isOpen={true}
+          primedMediaStream={reRecordPrimedStream}
+          gestureCameraPrimingPending={reRecordGesturePending}
           onClose={() => {
+            reRecordPrimedStream?.getTracks().forEach((t) => t.stop());
+            setReRecordPrimedStream(null);
+            setReRecordGesturePending(false);
             setShowQuickCapture(false);
-            // Remove query param
             window.history.replaceState({}, '', '/upload');
-          }} 
+          }}
         />
       </div>
     );

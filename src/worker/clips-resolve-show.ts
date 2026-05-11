@@ -188,7 +188,7 @@ function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidat
   return sortCandidatesByDistance([...map.values()]);
 }
 
-function finalizeMatch(dedupedSorted: ClipShowCandidate[]): {
+function finalizeMatch(dedupedSorted: ClipShowCandidate[], radiusMiles: number): {
   match: ClipResolveMatch;
   candidates: ClipShowCandidate[];
 } {
@@ -197,18 +197,21 @@ function finalizeMatch(dedupedSorted: ClipShowCandidate[]): {
   const second = dedupedSorted[1];
   const da = best.distance_miles;
   const db = second?.distance_miles;
+  // Resolve ambiguity when multiple venues are plausible. Use a radius-relative
+  // threshold so dense areas (small radii) don't require extremely close distances.
+  const tieWindowMiles = Math.max(VENUE_TIE_MILES, Math.min(5, radiusMiles * 0.2));
   if (
     second &&
     da != null &&
     db != null &&
     Number.isFinite(da) &&
     Number.isFinite(db) &&
-    db - da < VENUE_TIE_MILES
+    db - da < tieWindowMiles
   ) {
     const tied = dedupedSorted.filter((c) => {
       const d = c.distance_miles;
       if (d == null || !Number.isFinite(d) || da == null) return false;
-      return d - da < VENUE_TIE_MILES;
+      return d - da < tieWindowMiles;
     });
     if (tied.length >= 2) {
       return { match: 'ambiguous', candidates: tied.slice(0, 8) };
@@ -519,7 +522,7 @@ export async function postResolveShowForClip(c: Context) {
     working = dedupeKeepClosestPerVenue(fromEvents);
   }
 
-  const { match, candidates } = finalizeMatch(working);
+  const { match, candidates } = finalizeMatch(working, radiusMiles);
 
   const notice =
     match === 'none'
