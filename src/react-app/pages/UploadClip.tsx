@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Upload, MapPin, Music, Calendar, Hash, Loader2, X, Film, Image as ImageIcon, Search, Edit2, Check, Share2, Heart, MessageCircle, Bookmark } from 'lucide-react';
+import { Upload, MapPin, Music, Calendar, Hash, Loader2, X, Film, Image as ImageIcon, Search, Edit2, Check } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
@@ -10,7 +10,6 @@ import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
 export default function UploadClip() {
@@ -34,6 +33,9 @@ export default function UploadClip() {
     return Boolean(s?.videoBlob ?? s?.videoFile);
   });
 
+  /** Mobile caption artist field: last name chosen from JamBase (or auto-tag); typing away clears until re-selected. */
+  const captionCommittedArtistNameRef = useRef('');
+
   // Caption / review screen video preview (must not live inside `if (showCaptionScreen)` — Rules of Hooks)
   const captionVideoRef = useRef<HTMLVideoElement>(null);
   const [captionVideoPlaying, setCaptionVideoPlaying] = useState(false);
@@ -45,10 +47,6 @@ export default function UploadClip() {
   const [reRecordGesturePending, setReRecordGesturePending] = useState(false);
 
   const [isEditingTags, setIsEditingTags] = useState(false);
-
-  // Confirmation modal state
-  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [postedClip, setPostedClip] = useState<any | null>(null);
 
   const [jambaseLink, setJambaseLink] = useState<{
     event: string | null;
@@ -181,7 +179,11 @@ export default function UploadClip() {
         location: locFromShow,
       }));
 
-      if (showData.artist_name) setArtistSearch(String(showData.artist_name));
+      if (showData.artist_name) {
+        const an = String(showData.artist_name);
+        setArtistSearch(an);
+        captionCommittedArtistNameRef.current = an;
+      }
       if (showData.venue_name) setVenueSearch(String(showData.venue_name));
 
       if (typeof showData.jambase_event_id === 'string') {
@@ -252,6 +254,7 @@ export default function UploadClip() {
   const [artistSearch, setArtistSearch] = useState('');
   const [artistSuggestions, setArtistSuggestions] = useState<JamBaseArtist[]>([]);
   const [showArtistSuggestions, setShowArtistSuggestions] = useState(false);
+  const [artistSearchPending, setArtistSearchPending] = useState(false);
   const debouncedArtistSearch = useDebounce(artistSearch, 300);
   
   // Venue autocomplete
@@ -278,13 +281,17 @@ export default function UploadClip() {
   // Search for artists
   useEffect(() => {
     if (debouncedArtistSearch && debouncedArtistSearch.length >= 2) {
-      searchArtists(debouncedArtistSearch).then(results => {
-        setArtistSuggestions(results);
-        setShowArtistSuggestions(results.length > 0);
-      });
+      setArtistSearchPending(true);
+      searchArtists(debouncedArtistSearch)
+        .then((results) => {
+          setArtistSuggestions(results);
+          setShowArtistSuggestions(results.length > 0);
+        })
+        .finally(() => setArtistSearchPending(false));
     } else {
       setArtistSuggestions([]);
       setShowArtistSuggestions(false);
+      setArtistSearchPending(false);
     }
   }, [debouncedArtistSearch, searchArtists]);
 
@@ -301,6 +308,13 @@ export default function UploadClip() {
     }
   }, [debouncedVenueSearch, formData.location, searchVenues]);
 
+  // Keep caption search field aligned with committed tags when not editing (mobile).
+  useEffect(() => {
+    if (!showCaptionScreen || isEditingTags) return;
+    setArtistSearch(formData.artist_name);
+    setShowArtistSuggestions(false);
+  }, [showCaptionScreen, isEditingTags, formData.artist_name]);
+
   const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
     setFormData((prev) => ({
       ...prev,
@@ -315,6 +329,7 @@ export default function UploadClip() {
       artist: c.jambase_artist_id,
       venue: c.jambase_venue_id,
     });
+    captionCommittedArtistNameRef.current = c.artist_name ?? '';
     setAmbiguousCandidates([]);
     setResolveNotice(null);
   }, []);
@@ -374,6 +389,14 @@ export default function UploadClip() {
         if (!cancelled) setCaptureGeo(geo);
       }
       if (!geo?.latitude) {
+        if (fromQuick) {
+          if (!cancelled) {
+            setResolveNotice(
+              'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
+            );
+          }
+          return;
+        }
         const g = await requestLocation();
         if (cancelled) return;
         if (g?.latitude != null && g?.longitude != null) {
@@ -452,9 +475,30 @@ export default function UploadClip() {
   };
 
   const handleArtistSelect = (artist: JamBaseArtist) => {
-    setFormData(prev => ({ ...prev, artist_name: artist.name }));
+    captionCommittedArtistNameRef.current = artist.name;
+    setFormData((prev) => ({ ...prev, artist_name: artist.name }));
     setArtistSearch(artist.name);
     setShowArtistSuggestions(false);
+    setJambaseLink((prev) => ({
+      event: null,
+      artist: artist.identifier,
+      venue: prev?.venue ?? null,
+    }));
+  };
+
+  const handleCaptionArtistSearchChange = (value: string) => {
+    setArtistSearch(value);
+    if (value.trim() === '') {
+      captionCommittedArtistNameRef.current = '';
+      setFormData((prev) => ({ ...prev, artist_name: '' }));
+      setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null } : null));
+      return;
+    }
+    if (value !== captionCommittedArtistNameRef.current) {
+      captionCommittedArtistNameRef.current = '';
+      setFormData((prev) => ({ ...prev, artist_name: '' }));
+      setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null } : null));
+    }
   };
 
   const handleVenueSelect = (venue: JamBaseVenue) => {
@@ -673,7 +717,7 @@ export default function UploadClip() {
         throw new Error(msg);
       }
 
-      const newClip = await response.json();
+      await response.json();
 
       // Clean up blob URL if it exists
       if (videoBlobUrl) {
@@ -681,19 +725,10 @@ export default function UploadClip() {
         setVideoBlobUrl(null);
       }
 
-      // Navigate based on status
       if (status === 'draft') {
         navigate('/dashboard');
       } else {
-        // Show confirmation modal for published clips
-        setPostedClip(newClip ?? {
-          artist_name: formData.artist_name || null,
-          venue_name: formData.venue_name || null,
-          location: formData.location || null,
-          content_description: formData.content_description || null,
-          thumbnail_url: thumbnailUrl || null,
-        });
-        setShowConfirmationModal(true);
+        navigate('/feed', { replace: true });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload clip');
@@ -724,6 +759,7 @@ export default function UploadClip() {
     setFormData((prev) => ({ ...prev, video_blob: null, video_file: null }));
     setAmbiguousCandidates([]);
     setJambaseLink(null);
+    captionCommittedArtistNameRef.current = '';
     setResolveNotice(null);
     setRecordingAtIso(null);
     setCaptureGeo(null);
@@ -758,19 +794,8 @@ export default function UploadClip() {
     setError(null);
     setCaptionVideoPlaying(false);
     setCaptionVideoMuted(true);
+    captionCommittedArtistNameRef.current = '';
     navigate('/feed', { replace: true });
-  };
-
-  const handleBackToFeed = () => {
-    setShowConfirmationModal(false);
-    setPostedClip(null);
-    navigate('/feed', { replace: true });
-  };
-
-  const handleCloseSuccessModal = () => {
-    setShowConfirmationModal(false);
-    setPostedClip(null);
-    navigate('/dashboard');
   };
 
   const toggleCaptionVideoPlay = () => {
@@ -803,176 +828,6 @@ export default function UploadClip() {
       v.muted = true;
     }
   }, [showCaptionScreen, videoBlobUrl]);
-
-  const handleShareClip = async () => {
-    if (!postedClip) return;
-
-    const clipUrl = `${window.location.origin}/?clip=${postedClip.id}`;
-    const shareText = `Check out this moment${postedClip.artist_name ? ` from ${postedClip.artist_name}` : ''}${postedClip.venue_name ? ` at ${postedClip.venue_name}` : ''} on FEEDBACK!`;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Check out my FEEDBACK clip!',
-          text: shareText,
-          url: clipUrl,
-        });
-      } catch (err) {
-        console.error('Error sharing:', err);
-      }
-    } else {
-      // Fallback: copy to clipboard
-      try {
-        await navigator.clipboard.writeText(clipUrl);
-        alert('Link copied to clipboard!');
-      } catch (err) {
-        console.error('Failed to copy link:', err);
-      }
-    }
-  };
-
-  const modalClip = postedClip ?? {
-    artist_name: formData.artist_name || null,
-    venue_name: formData.venue_name || null,
-    location: formData.location || null,
-    content_description: formData.content_description || null,
-    thumbnail_url: formData.thumbnail_url || null,
-  };
-
-  const confirmationModal = showConfirmationModal ? (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-cyan-500/20 rounded-xl overflow-hidden animate-scale-in relative">
-        <button
-          type="button"
-          onClick={handleCloseSuccessModal}
-          className="absolute top-4 right-4 text-gray-300 hover:text-white transition-colors"
-          aria-label="Close success message"
-        >
-          <X className="w-6 h-6" />
-        </button>
-
-        {/* Header */}
-        <div className="p-6 text-center border-b border-white/10">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-            Upload complete! 🎬
-          </h1>
-          <p className="text-gray-300 text-lg">
-            Your clip is live in the Feedback feed
-          </p>
-        </div>
-
-        {/* Clip Preview */}
-        <div className="p-6 bg-black/40">
-          <div className="bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 rounded-xl overflow-hidden">
-            {/* User Info */}
-            <div className="p-4 flex items-center space-x-3">
-              <img
-                src={user?.google_user_data.picture || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
-                alt="Your avatar"
-                className="w-10 h-10 rounded-full border-2 border-cyan-500/40"
-              />
-              <div>
-                <div className="font-bold text-white">{user?.google_user_data.name || 'You'}</div>
-                <div className="text-xs text-gray-400">just now</div>
-              </div>
-            </div>
-
-            {/* Video Preview */}
-            <div
-              className="relative w-full max-h-[70vh] mx-auto bg-black"
-              style={{
-                aspectRatio: clipDisplayAspectRatio(videoMetadata) ?? '16 / 9',
-              }}
-            >
-              {videoBlobUrl ? (
-                <video
-                  src={videoBlobUrl}
-                  loop
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              ) : modalClip.thumbnail_url ? (
-                <img
-                  src={modalClip.thumbnail_url}
-                  alt="Clip thumbnail"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Film className="w-16 h-16 text-gray-600" />
-                </div>
-              )}
-
-              {/* Overlay info */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-              <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
-                {modalClip.artist_name && (
-                  <div className="flex items-center space-x-2 text-white">
-                    <Music className="w-4 h-4 text-purple-400" />
-                    <span className="font-bold">{modalClip.artist_name}</span>
-                  </div>
-                )}
-                {modalClip.venue_name && (
-                  <div className="flex items-center space-x-2 text-white/90">
-                    <MapPin className="w-4 h-4 text-green-400" />
-                    <span>{modalClip.venue_name}</span>
-                    {modalClip.location && <span className="text-white/70">• {modalClip.location}</span>}
-                  </div>
-                )}
-                {modalClip.content_description && (
-                  <p className="text-white text-sm">{modalClip.content_description}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Engagement Buttons */}
-            <div className="flex items-center justify-between px-4 py-3 bg-black/40">
-              <div className="flex items-center space-x-4">
-                <button className="flex flex-col items-center space-y-1 text-gray-400">
-                  <Heart className="w-6 h-6" />
-                  <span className="text-xs font-bold">0</span>
-                </button>
-                <button className="flex flex-col items-center space-y-1 text-gray-400">
-                  <MessageCircle className="w-6 h-6" />
-                  <span className="text-xs font-bold">0</span>
-                </button>
-                <button className="flex flex-col items-center space-y-1 text-gray-400">
-                  <Share2 className="w-6 h-6" />
-                  <span className="text-xs font-bold">Share</span>
-                </button>
-                <button className="flex flex-col items-center space-y-1 text-gray-400">
-                  <Bookmark className="w-6 h-6" />
-                  <span className="text-xs font-bold">Save</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="p-6 space-y-3">
-          {/* Primary CTA */}
-          <button
-            onClick={handleBackToFeed}
-            className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform shadow-lg shadow-green-500/30"
-          >
-            Back to Feed
-          </button>
-
-          {/* Secondary CTA */}
-          <button
-            onClick={handleShareClip}
-            className="w-full flex items-center justify-center space-x-2 text-cyan-400 hover:text-cyan-300 transition-colors py-2 text-sm font-medium"
-          >
-            <Share2 className="w-4 h-4" />
-            <span>Share with Friends</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
 
   if (isPending) {
     return (
@@ -1208,35 +1063,52 @@ export default function UploadClip() {
                 {isEditingTags ? (
                   /* Tag Editing UI */
                   <div className="space-y-4">
-                    {/* Artist */}
+                    {/* Artist — JamBase search + pick only (mobile caption) */}
                     <div className="relative">
+                      <label className="block text-gray-400 text-xs mb-1 font-medium">
+                        Artist <span className="text-gray-500 font-normal">(JamBase)</span>
+                      </label>
                       <div className="relative">
                         <input
                           type="text"
                           value={artistSearch}
-                          onChange={(e) => {
-                            setArtistSearch(e.target.value);
-                            handleInputChange('artist_name', e.target.value);
+                          onChange={(e) => handleCaptionArtistSearchChange(e.target.value)}
+                          onFocus={() => {
+                            if (debouncedArtistSearch.length >= 2) setShowArtistSuggestions(true);
                           }}
-                          onFocus={() => artistSuggestions.length > 0 && setShowArtistSuggestions(true)}
+                          autoComplete="off"
                           className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 text-sm"
-                          placeholder="Artist name"
+                          placeholder="Search JamBase artists"
                         />
-                        <Music className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400 pointer-events-none" />
                       </div>
-                      
-                      {showArtistSuggestions && artistSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-cyan-500/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                          {artistSuggestions.map((artist) => (
-                            <button
-                              key={artist.identifier}
-                              type="button"
-                              onClick={() => handleArtistSelect(artist)}
-                              className="w-full px-3 py-2 text-left hover:bg-cyan-500/20 transition-colors border-b border-white/10 last:border-0"
-                            >
-                              <div className="text-white text-sm font-medium">{artist.name}</div>
-                            </button>
-                          ))}
+                      <p className="text-gray-500 text-xs mt-1">
+                        Pick an artist from the results — free-text names are not saved for this field.
+                      </p>
+
+                      {debouncedArtistSearch.length >= 2 && (
+                        <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-800 border border-cyan-500/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                          {artistSearchPending ? (
+                            <div className="px-3 py-3 flex items-center gap-2 text-gray-300 text-sm">
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                              Searching JamBase…
+                            </div>
+                          ) : artistSuggestions.length > 0 ? (
+                            artistSuggestions.map((artist) => (
+                              <button
+                                key={artist.identifier}
+                                type="button"
+                                onClick={() => handleArtistSelect(artist)}
+                                className="w-full px-3 py-2 text-left hover:bg-cyan-500/20 transition-colors border-b border-white/10 last:border-0"
+                              >
+                                <div className="text-white text-sm font-medium">{artist.name}</div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-gray-400 text-sm">
+                              No artists match that search. Try a different spelling or name.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1402,8 +1274,6 @@ export default function UploadClip() {
             </div>
           </div>
         </div>
-
-        {confirmationModal}
       </div>
     );
   }
@@ -1788,7 +1658,6 @@ export default function UploadClip() {
           </div>
         </form>
       </div>
-      {confirmationModal}
     </div>
   );
 }

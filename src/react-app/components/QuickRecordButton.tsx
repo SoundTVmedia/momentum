@@ -47,7 +47,6 @@ export default function QuickRecordButton({
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
-  const [locationLocked, setLocationLocked] = useState(false);
   const [isProcessingTransition, setIsProcessingTransition] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(8);
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
@@ -76,6 +75,8 @@ export default function QuickRecordButton({
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
   const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
+  /** Dedupe one geolocation attempt per modal open (Strict Mode runs effects twice). */
+  const geoPrimedForModalRef = useRef(false);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Detect network speed
@@ -122,37 +123,37 @@ export default function QuickRecordButton({
     };
   }, [isRecording, isPortrait, recordingOrientation]);
 
-  // If geolocation is already granted, refresh coords in the background for post-record JamBase match.
-  // Never call getCurrentPosition from the capture UI (no overlay / no prompt on top of the camera).
+  // Single geolocation attempt when capture opens (before record). Upload caption screen does not
+  // call getCurrentPosition again for quick-record flows.
   useEffect(() => {
-    if (!showModal || locationLocked) return;
-    (async () => {
-      let alreadyGranted = false;
+    if (!showModal) {
+      geoPrimedForModalRef.current = false;
+      return;
+    }
+    if (lastGeoRef.current?.latitude != null) return;
+    if (geoPrimedForModalRef.current) return;
+    geoPrimedForModalRef.current = true;
+    let cancelled = false;
+    void (async () => {
       try {
-        const perm = await navigator.permissions.query({ name: 'geolocation' });
-        if (perm.state === 'granted') {
-          alreadyGranted = true;
-        } else if (perm.state === 'denied') {
-          return;
-        }
-        // 'prompt': do nothing here — Upload / caption flow can request location after capture.
+        const geo = await requestLocation();
+        if (cancelled || geo?.latitude == null || geo.longitude == null) return;
+        lastGeoRef.current = {
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          accuracy: geo.accuracy,
+          city: geo.city,
+          state: geo.state,
+          country: geo.country,
+        };
       } catch {
-        // No Permissions API: do not probe geolocation on the camera screen (would show a browser prompt).
-      }
-
-      if (alreadyGranted) {
-        try {
-          const geo = await requestLocation();
-          if (geo?.latitude != null && geo?.longitude != null) {
-            lastGeoRef.current = geo;
-            setLocationLocked(true);
-          }
-        } catch {
-          /* no coords — upload flow can still add venue manually */
-        }
+        /* denied / unsupported — manual tagging on upload */
       }
     })();
-  }, [showModal, locationLocked, requestLocation]);
+    return () => {
+      cancelled = true;
+    };
+  }, [showModal, requestLocation]);
 
   const requestPermissions = async (facingOverride?: 'environment' | 'user') => {
     if (isPending) return;
@@ -731,6 +732,8 @@ export default function QuickRecordButton({
     clearProcessingTicker();
 
     recordingStartedAtRef.current = null;
+    lastGeoRef.current = null;
+    geoPrimedForModalRef.current = false;
 
     // Close modal
     setShowModal(false);
@@ -770,7 +773,7 @@ export default function QuickRecordButton({
     setProcessingProgress(8);
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
-    setLocationLocked(false);
+    geoPrimedForModalRef.current = false;
     lastAdoptedPrimedRef.current = null;
 
     // Call onClose callback if provided
