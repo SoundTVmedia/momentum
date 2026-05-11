@@ -36,47 +36,50 @@ export function useGeolocation() {
     setError(null);
 
     try {
-      // Request browser geolocation
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+          reject(new Error('Geolocation is not supported'));
+          return;
+        }
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0,
+          timeout: 10000,
+          maximumAge: 60000,
         });
       });
 
       const { latitude, longitude, accuracy } = position.coords;
 
-      // Reverse geocode using Nominatim (free, no API key needed)
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
-      );
+      let city: string | null = null;
+      let state: string | null = null;
+      let country: string | null = null;
 
-      if (!response.ok) {
-        throw new Error('Failed to reverse geocode location');
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const address = data.address || {};
+          city = address.city || address.town || address.village || null;
+          state = address.state || null;
+          country = address.country || null;
+        }
+      } catch {
+        /* Nominatim blocked / offline — still return GPS for JamBase + resolve-show */
       }
 
-      const data = await response.json();
-      const address = data.address || {};
-
-      setLocation({
+      const result: GeolocationData = {
         latitude,
         longitude,
         accuracy,
-        city: address.city || address.town || address.village || null,
-        state: address.state || null,
-        country: address.country || null,
-      });
-
-      setLoading(false);
-      return {
-        latitude,
-        longitude,
-        accuracy,
-        city: address.city || address.town || address.village || null,
-        state: address.state || null,
-        country: address.country || null,
+        city,
+        state,
+        country,
       };
+      setLocation(result);
+      setLoading(false);
+      return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to get location';
       setError(errorMessage);

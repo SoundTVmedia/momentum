@@ -389,14 +389,6 @@ export default function UploadClip() {
         if (!cancelled) setCaptureGeo(geo);
       }
       if (!geo?.latitude) {
-        if (fromQuick) {
-          if (!cancelled) {
-            setResolveNotice(
-              'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
-            );
-          }
-          return;
-        }
         const g = await requestLocation();
         if (cancelled) return;
         if (g?.latitude != null && g?.longitude != null) {
@@ -409,7 +401,14 @@ export default function UploadClip() {
           };
           setCaptureGeo(geo);
         } else {
-          setResolveNotice('Location permission was denied, so show tagging is disabled. You can enter details manually.');
+          if (!cancelled) {
+            setResolveNotice(
+              fromQuick
+                ? 'Location was not available for this capture, so auto-tagging is skipped. You can enter details manually.'
+                : 'Location permission was denied, so show tagging is disabled. You can enter details manually.'
+            );
+          }
+          return;
         }
       }
       if (!geo?.latitude || cancelled) return;

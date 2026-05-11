@@ -41,6 +41,8 @@ export default function QuickRecordButton({
   } | null>(null);
   const recordingStartedAtRef = useRef<string | null>(null);
   const [showModal, setShowModal] = useState(isOpen);
+  const showModalRef = useRef(showModal);
+  showModalRef.current = showModal;
   const [isRecording, setIsRecording] = useState(false);
   /** Seconds elapsed while recording (no UI; drives haptics + auto-stop). */
   const recordingSecondsRef = useRef(0);
@@ -123,8 +125,8 @@ export default function QuickRecordButton({
     };
   }, [isRecording, isPortrait, recordingOrientation]);
 
-  // Single geolocation attempt when capture opens (before record). Upload caption screen does not
-  // call getCurrentPosition again for quick-record flows.
+  // Geolocation when capture opens (before record). Prefer GPS even if reverse-geocode fails;
+  // discard the result only if the user already closed the modal (avoids Strict Mode losing a fix).
   useEffect(() => {
     if (!showModal) {
       geoPrimedForModalRef.current = false;
@@ -133,11 +135,11 @@ export default function QuickRecordButton({
     if (lastGeoRef.current?.latitude != null) return;
     if (geoPrimedForModalRef.current) return;
     geoPrimedForModalRef.current = true;
-    let cancelled = false;
     void (async () => {
       try {
         const geo = await requestLocation();
-        if (cancelled || geo?.latitude == null || geo.longitude == null) return;
+        if (geo?.latitude == null || geo.longitude == null) return;
+        if (!showModalRef.current) return;
         lastGeoRef.current = {
           latitude: geo.latitude,
           longitude: geo.longitude,
@@ -151,7 +153,7 @@ export default function QuickRecordButton({
       }
     })();
     return () => {
-      cancelled = true;
+      geoPrimedForModalRef.current = false;
     };
   }, [showModal, requestLocation]);
 
