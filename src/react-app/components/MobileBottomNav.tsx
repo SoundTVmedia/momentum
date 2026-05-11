@@ -9,7 +9,7 @@ import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGes
 export default function MobileBottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, isPending } = useAuth();
   const { unreadCount } = useNotifications();
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [primedMediaStream, setPrimedMediaStream] = useState<MediaStream | null>(null);
@@ -19,6 +19,11 @@ export default function MobileBottomNav() {
   const [gesturePrimePending, setGesturePrimePending] = useState(false);
 
   const handleCaptureClick = () => {
+    if (isPending) return;
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
     // Start getUserMedia synchronously (async function runs until first await in the same call stack as the tap).
     // Do not await before opening the modal — that can burn user activation so the prompt never completes.
     const streamPromise = primeCameraOnUserGesture();

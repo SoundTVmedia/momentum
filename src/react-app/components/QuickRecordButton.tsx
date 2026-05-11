@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { useAuth } from '@getmocha/users-service/react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import type { ClipShowCandidate } from '@/shared/types';
 
@@ -28,6 +29,7 @@ export default function QuickRecordButton({
   gestureCameraPrimingPending = false,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
+  const { user, isPending } = useAuth();
   const { requestLocation } = useGeolocation();
   const lastGeoRef = useRef<{
     latitude: number;
@@ -139,6 +141,12 @@ export default function QuickRecordButton({
   }, [showModal, locationLocked, requestLocation]);
 
   const requestPermissions = async (facingOverride?: 'environment' | 'user') => {
+    if (isPending) return;
+    if (!user) {
+      navigate('/auth', { replace: true });
+      closeModal();
+      return;
+    }
     console.log('QuickRecordButton: Requesting camera permissions...');
     setCameraOpenRequested(true);
     setHasPermission(false);
@@ -171,14 +179,23 @@ export default function QuickRecordButton({
         { ...baseVideo, facingMode: { ideal: orderedFacingModes[0] } },
         { ...baseVideo, facingMode: { ideal: orderedFacingModes[1] } },
       ];
-      const facingFirst: MediaTrackConstraints[] = [
-        { facingMode: { ideal: orderedFacingModes[0] } },
-        { facingMode: { ideal: orderedFacingModes[1] } },
-      ];
-      // Flip / explicit facing: never lead with `video: true` — it ignores facingMode and keeps the same camera on phones.
+      const facingFirst: MediaTrackConstraints[] =
+        facingOverride !== undefined
+          ? [
+              { facingMode: { exact: orderedFacingModes[0] } },
+              { facingMode: { ideal: orderedFacingModes[0] } },
+              { facingMode: { ideal: orderedFacingModes[1] } },
+            ]
+          : [
+              { facingMode: { ideal: orderedFacingModes[0] } },
+              { facingMode: { ideal: orderedFacingModes[1] } },
+            ];
+      // Initial open: try `video: true` first on desktop; on mobile use facing hints so environment/back is reachable.
+      // Flip (facingOverride set): never use `video: true` — it ignores facingMode and often re-opens the same camera,
+      // so the first tap would look like a no-op until a later constraint happened to win.
       const videoAttempts: (MediaTrackConstraints | boolean)[] =
         facingOverride !== undefined
-          ? [...facingFirst, true, ...heavyFacing]
+          ? [...facingFirst, ...heavyFacing]
           : [
               true,
               ...(isIOS || isAndroid ? facingFirst : []),
@@ -911,7 +928,7 @@ export default function QuickRecordButton({
                 )}
               </div>
 
-              <div className="flex flex-col items-end justify-end gap-1">
+              <div className="flex flex-col items-end justify-end">
                 <button
                   type="button"
                   onClick={toggleCameraFacing}
@@ -922,9 +939,6 @@ export default function QuickRecordButton({
                 >
                   <RefreshCw className="w-6 h-6" />
                 </button>
-                <span className="text-[10px] text-gray-300 leading-tight text-right pr-0.5">
-                  {preferredFacingMode === 'environment' ? 'Back' : 'Front'}
-                </span>
               </div>
             </div>
           </div>

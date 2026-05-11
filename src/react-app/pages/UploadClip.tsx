@@ -37,11 +37,22 @@ export default function UploadClip() {
   // Quick capture modal state
   const [showQuickCapture, setShowQuickCapture] = useState(false);
 
-  // Open quick capture when ?quickCapture=true (re-run when search changes, e.g. after Re-record)
+  // Open quick capture when ?quickCapture=true — only for signed-in users (guests → auth, no camera)
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    setShowQuickCapture(params.get('quickCapture') === 'true');
-  }, [location.search]);
+    const wantCapture = params.get('quickCapture') === 'true';
+    if (!wantCapture) {
+      setShowQuickCapture(false);
+      return;
+    }
+    if (isPending) return;
+    if (!user) {
+      setShowQuickCapture(false);
+      navigate('/auth', { replace: true });
+      return;
+    }
+    setShowQuickCapture(true);
+  }, [location.search, user, isPending, navigate]);
   const [isEditingTags, setIsEditingTags] = useState(false);
   
   // Confirmation modal state
@@ -597,7 +608,15 @@ export default function UploadClip() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create clip');
+        let msg = 'Failed to create clip';
+        try {
+          const errBody = (await response.json()) as { error?: string; message?: string };
+          if (typeof errBody?.error === 'string') msg = errBody.error;
+          else if (typeof errBody?.message === 'string') msg = errBody.message;
+        } catch {
+          /* non-JSON body */
+        }
+        throw new Error(msg);
       }
 
       const newClip = await response.json();

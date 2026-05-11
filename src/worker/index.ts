@@ -683,94 +683,103 @@ app.post("/api/clips", authMiddleware, async (c) => {
     geolocation_accuracy_radius 
   } = body;
 
-  const result = await c.env.DB.prepare(
-    `INSERT INTO clips 
-     (mocha_user_id, artist_name, venue_name, location, timestamp, content_description, 
-      video_url, thumbnail_url, hashtags, stream_video_id, stream_playback_url, 
-      stream_thumbnail_url, video_status, video_duration, status, 
-      geolocation_latitude, geolocation_longitude, geolocation_accuracy_radius, 
-      recording_orientation, video_resolution_w, video_resolution_h,
-      jambase_event_id, jambase_artist_id, jambase_venue_id,
-      is_draft, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-  )
-    .bind(
-      mochaUser.id,
-      artist_name || null,
-      venue_name || null,
-      location || null,
-      timestamp || new Date().toISOString(),
-      content_description || null,
-      video_url || null,
-      thumbnail_url || null,
-      JSON.stringify(hashtags || []),
-      stream_video_id || null,
-      stream_playback_url || null,
-      stream_thumbnail_url || null,
-      video_status || 'ready',
-      video_duration || null,
-      status || 'published',
-      geolocation_latitude || null,
-      geolocation_longitude || null,
-      geolocation_accuracy_radius || null,
-      recording_orientation || null,
-      video_resolution_w || null,
-      video_resolution_h || null,
-      jambase_event_id || null,
-      jambase_artist_id || null,
-      jambase_venue_id || null,
-      (status === 'draft') ? 1 : 0
+  // `clips.video_url` is NOT NULL; allow Stream-only payloads where playback URL carries the link.
+  const resolvedVideoUrl = (video_url || stream_playback_url || "") as string;
+
+  try {
+    const result = await c.env.DB.prepare(
+      `INSERT INTO clips 
+       (mocha_user_id, artist_name, venue_name, location, timestamp, content_description, 
+        video_url, thumbnail_url, hashtags, stream_video_id, stream_playback_url, 
+        stream_thumbnail_url, video_status, video_duration, status, 
+        geolocation_latitude, geolocation_longitude, geolocation_accuracy_radius, 
+        recording_orientation, video_resolution_w, video_resolution_h,
+        jambase_event_id, jambase_artist_id, jambase_venue_id,
+        is_draft, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     )
-    .run();
+      .bind(
+        mochaUser.id,
+        artist_name || null,
+        venue_name || null,
+        location || null,
+        timestamp || new Date().toISOString(),
+        content_description || null,
+        resolvedVideoUrl,
+        thumbnail_url || null,
+        JSON.stringify(hashtags || []),
+        stream_video_id || null,
+        stream_playback_url || null,
+        stream_thumbnail_url || null,
+        video_status || 'ready',
+        video_duration || null,
+        status || 'published',
+        geolocation_latitude || null,
+        geolocation_longitude || null,
+        geolocation_accuracy_radius || null,
+        recording_orientation || null,
+        video_resolution_w || null,
+        video_resolution_h || null,
+        jambase_event_id || null,
+        jambase_artist_id || null,
+        jambase_venue_id || null,
+        (status === 'draft') ? 1 : 0
+      )
+      .run();
 
-  // Some local schemas have nullable `clips.id`; ensure canonical numeric id is present.
-  await c.env.DB.prepare(
-    `UPDATE clips
-     SET id = COALESCE(id, ?)
-     WHERE rowid = ?`
-  )
-    .bind(result.meta.last_row_id, result.meta.last_row_id)
-    .run();
+    // Some local schemas have nullable `clips.id`; ensure canonical numeric id is present.
+    await c.env.DB.prepare(
+      `UPDATE clips
+       SET id = COALESCE(id, ?)
+       WHERE rowid = ?`
+    )
+      .bind(result.meta.last_row_id, result.meta.last_row_id)
+      .run();
 
-  const newClip = await c.env.DB.prepare(
-    "SELECT * FROM clips WHERE rowid = ?"
-  )
-    .bind(result.meta.last_row_id)
-    .first();
+    const newClip = await c.env.DB.prepare(
+      "SELECT * FROM clips WHERE rowid = ?"
+    )
+      .bind(result.meta.last_row_id)
+      .first();
 
-  // Award points for uploading a clip
-  try {
-    await gamification.awardPoints(c.env, mochaUser.id, 10, 'Uploaded a concert clip', result.meta.last_row_id as number);
-  } catch (err) {
-    console.error('Failed to award points:', err);
-  }
-
-  // Broadcast real-time feed update
-  try {
-    const realtime = createRealtimeService(c.env);
-    await realtime.broadcastFeedUpdate(result.meta.last_row_id as number);
-  } catch (err) {
-    console.error('Failed to broadcast feed update:', err);
-  }
-
-  // Trigger personalization notifications for users who follow this artist or are near this location
-  if (artist_name || (geolocation_latitude && geolocation_longitude)) {
+    // Award points for uploading a clip
     try {
-      await personalization.triggerPersonalizationNotifications(c.env, {
-        id: result.meta.last_row_id as number,
-        artist_name,
-        venue_name,
-        location,
-        latitude: geolocation_latitude,
-        longitude: geolocation_longitude,
-        type: 'clip'
-      });
+      await gamification.awardPoints(c.env, mochaUser.id, 10, 'Uploaded a concert clip', result.meta.last_row_id as number);
     } catch (err) {
-      console.error('Failed to trigger personalization notifications:', err);
+      console.error('Failed to award points:', err);
     }
-  }
 
-  return c.json(newClip, 201);
+    // Broadcast real-time feed update
+    try {
+      const realtime = createRealtimeService(c.env);
+      await realtime.broadcastFeedUpdate(result.meta.last_row_id as number);
+    } catch (err) {
+      console.error('Failed to broadcast feed update:', err);
+    }
+
+    // Trigger personalization notifications for users who follow this artist or are near this location
+    if (artist_name || (geolocation_latitude && geolocation_longitude)) {
+      try {
+        await personalization.triggerPersonalizationNotifications(c.env, {
+          id: result.meta.last_row_id as number,
+          artist_name,
+          venue_name,
+          location,
+          latitude: geolocation_latitude,
+          longitude: geolocation_longitude,
+          type: 'clip'
+        });
+      } catch (err) {
+        console.error('Failed to trigger personalization notifications:', err);
+      }
+    }
+
+    return c.json(newClip, 201);
+  } catch (err) {
+    console.error('POST /api/clips:', err);
+    const message = err instanceof Error ? err.message : 'Failed to create clip';
+    return c.json({ error: message }, 500);
+  }
 });
 
 // Delete own clip (uploader only) — register before GET /api/clips/:id so :clipId is not shadowed
