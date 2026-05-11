@@ -39,45 +39,69 @@ function dedupeEvents(events: Record<string, unknown>[]): Record<string, unknown
   return out;
 }
 
+/** Same JamBase `artistName` / `venueName` input used by tight event search (slug-aware). */
+export function jamBaseArtistVenueSearchPhrase(rawQuery: string): string {
+  const q = rawQuery.trim();
+  if (q.length < 2) return q;
+  const slug = slugifyEntityName(q) || normalizedSlugFromRouteParam(q);
+  const phrase = searchPhraseFromSlug(slug)?.trim();
+  return phrase && phrase.length > 0 ? phrase : q;
+}
+
+export type JamBasePreloadedArtistVenueLists = {
+  artistList: { artists?: Record<string, unknown>[] } | null;
+  venueList: { venues?: Record<string, unknown>[] } | null;
+};
+
 /**
  * Stricter event discovery: resolve top artist + venue matches, fetch their calendars,
  * dedupe, then keep events that match the query text (name, venue, or performer).
+ *
+ * Pass `preloaded` when you already fetched `/artists` + `/venues` for the same phrase
+ * (e.g. Discover advanced search) to avoid duplicate upstream calls and quota spikes.
  */
 export async function buildTightJamBaseEventResults(
   apiKey: string,
   query: string,
   maxResults = 18,
-  quota?: JamBaseQuotaContext
+  quota?: JamBaseQuotaContext,
+  preloaded?: JamBasePreloadedArtistVenueLists | null
 ): Promise<unknown[]> {
   const q = query.trim();
   if (q.length < 2) return [];
   const qLower = q.toLowerCase();
-  const slug = slugifyEntityName(q) || normalizedSlugFromRouteParam(q);
-  const phrase = searchPhraseFromSlug(slug);
+  const phrase = jamBaseArtistVenueSearchPhrase(q);
   const fromDate = jamBaseEventDateFromToday();
 
-  const [artistList, venueList] = await Promise.all([
-    jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
-      apiKey,
-      '/artists',
-      {
-        artistName: phrase,
-        perPage: '8',
-        page: '1',
-      },
-      quota
-    ),
-    jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-      apiKey,
-      '/venues',
-      {
-        venueName: phrase,
-        perPage: '6',
-        page: '1',
-      },
-      quota
-    ),
-  ]);
+  let artistList: { artists?: Record<string, unknown>[] } | null;
+  let venueList: { venues?: Record<string, unknown>[] } | null;
+  if (preloaded) {
+    artistList = preloaded.artistList;
+    venueList = preloaded.venueList;
+  } else {
+    [artistList, venueList] = await Promise.all([
+      jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+        apiKey,
+        '/artists',
+        {
+          artistName: phrase,
+          perPage: '8',
+          page: '1',
+        },
+        quota
+      ),
+      jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+        apiKey,
+        '/venues',
+        {
+          venueName: phrase,
+          perPage: '6',
+          page: '1',
+        },
+        quota
+      ),
+    ]);
+  }
 
   const topArtists = (artistList?.artists ?? []).slice(0, 4);
   const topVenues = (venueList?.venues ?? []).slice(0, 3);

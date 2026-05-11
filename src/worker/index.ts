@@ -40,7 +40,7 @@ import * as authEndpoints from "./auth-endpoints";
 import * as personalization from "./personalization-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
-import { PerformanceMonitor } from "./performance-utils";
+import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
 import { handleResumableUpload } from "./resumable-upload-endpoints";
 import {
   deleteOwnClip,
@@ -1448,6 +1448,7 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50); // Cap at 50
 
   if (!query || query.length < 2) {
+    cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 120 });
     return c.json({ clips: [] });
   }
 
@@ -1479,8 +1480,7 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
     .bind(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, limit)
     .all();
 
-  // Cache search results briefly
-  c.header('Cache-Control', 'public, max-age=60');
+  cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300, staleWhileRevalidate: 600 });
 
   return c.json({
     clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),

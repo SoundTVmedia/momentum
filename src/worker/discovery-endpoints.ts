@@ -1,6 +1,10 @@
 import { Context } from 'hono';
 import { jamBaseFetch, jamBaseQuotaFromEnv } from './jambase-client';
-import { buildTightJamBaseEventResults } from './jambase-events-search';
+import { cacheJsonProxy } from './performance-utils';
+import {
+  buildTightJamBaseEventResults,
+  jamBaseArtistVenueSearchPhrase,
+} from './jambase-events-search';
 
 // Advanced search with filters
 export async function advancedSearch(c: Context) {
@@ -15,6 +19,7 @@ export async function advancedSearch(c: Context) {
   const userLimit = compact ? 4 : 20;
   
   if (!query.trim()) {
+    cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 120 });
     return c.json({
       clips: [],
       artists: [],
@@ -143,12 +148,13 @@ export async function advancedSearch(c: Context) {
     const jbPer = compact ? '5' : '10';
     const eventCap = compact ? 8 : 18;
     const jbQ = jamBaseQuotaFromEnv(c.env);
-    const [a, v, tightEvents] = await Promise.all([
+    const phrase = jamBaseArtistVenueSearchPhrase(q);
+    const [a, v] = await Promise.all([
       jamBaseFetch<{ artists?: unknown[] }>(
         jbKey,
         '/artists',
         {
-          artistName: q,
+          artistName: phrase,
           perPage: jbPer,
           page: '1',
         },
@@ -158,14 +164,17 @@ export async function advancedSearch(c: Context) {
         jbKey,
         '/venues',
         {
-          venueName: q,
+          venueName: phrase,
           perPage: jbPer,
           page: '1',
         },
         jbQ
       ),
-      buildTightJamBaseEventResults(jbKey, q, eventCap, jbQ),
     ]);
+    const tightEvents = await buildTightJamBaseEventResults(jbKey, q, eventCap, jbQ, {
+      artistList: a as { artists?: Record<string, unknown>[] } | null,
+      venueList: v as { venues?: Record<string, unknown>[] } | null,
+    });
     jambase = {
       artists: a?.artists ?? [],
       venues: v?.venues ?? [],
@@ -173,11 +182,13 @@ export async function advancedSearch(c: Context) {
     };
     if (a == null && v == null) {
       jambaseNotice =
-        'JamBase did not return search results (check JAMBASE_API_KEY on the worker, or worker logs). If you enabled a global quota, ensure JAMBASE_QUOTA_ENFORCEMENT is only set when intended.';
+        'JamBase artist/venue search did not complete (network error, invalid API key, or JAMBASE_QUOTA_ENFORCEMENT may have blocked upstream calls). Your Feedback clips and on-platform matches below are unchanged — check worker logs.';
     }
   } else if (query.trim().length >= 2 && !jbKey?.trim()) {
     jambaseNotice = 'JamBase is not configured (missing JAMBASE_API_KEY).';
   }
+
+  cacheJsonProxy(c, { browserMaxAge: 90, cdnMaxAge: 600, staleWhileRevalidate: 900 });
 
   return c.json({
     clips: clips.results || [],
@@ -236,6 +247,8 @@ export async function getTrendingContent(c: Context) {
     ORDER BY clip_count DESC
     LIMIT 9`
   ).all();
+
+  cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
 
   return c.json({
     clips: trendingClips.results || [],

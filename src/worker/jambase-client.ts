@@ -11,9 +11,9 @@ const JAMBASE_USAGE_BUCKET_ALLTIME = 'jam:upstream';
 const TTL_GEOGRAPHIES_SEC = 604_800; // 7d — city/metro lookups rarely change
 const TTL_GENRES_SEC = 604_800; // 7d
 const TTL_ENTITY_BY_ID_SEC = 21_600; // 6h — GET /v3/artists/{id}, /v3/venues/{id}
-const TTL_ARTISTS_SEARCH_SEC = 7_200; // 2h — name search lists
-const TTL_VENUES_SEARCH_SEC = 3_600; // 1h — geo / city venue lists
-const TTL_EVENTS_SEARCH_SEC = 2_400; // 40m — event grids (same URL = shared cache)
+const TTL_ARTISTS_SEARCH_SEC = 28_800; // 8h — name search lists (edge cache; reduces upstream)
+const TTL_VENUES_SEARCH_SEC = 28_800; // 8h — geo / city venue lists
+const TTL_EVENTS_SEARCH_SEC = 7_200; // 2h — event grids (fresher than artist/venue lists)
 const TTL_DEFAULT_SEC = 1_800; // 30m
 
 export type JamBaseJson = Record<string, unknown> & {

@@ -21,6 +21,30 @@ export function cacheDynamic(c: Context, maxAge: number = 60, staleWhileRevalida
 }
 
 /**
+ * Browser + Cloudflare CDN cache for public JSON (JamBase proxies, search aggregates).
+ * `CDN-Cache-Control` keeps responses at the edge longer than the browser to cut repeat work.
+ */
+export function cacheJsonProxy(
+  c: Context,
+  opts: {
+    browserMaxAge: number;
+    cdnMaxAge: number;
+    staleWhileRevalidate?: number;
+  }
+) {
+  const swr = opts.staleWhileRevalidate ?? Math.max(120, opts.browserMaxAge * 2);
+  const cdnSwr = Math.max(swr, opts.cdnMaxAge);
+  c.header(
+    'Cache-Control',
+    `public, max-age=${opts.browserMaxAge}, stale-while-revalidate=${swr}`
+  );
+  c.header(
+    'CDN-Cache-Control',
+    `public, max-age=${opts.cdnMaxAge}, stale-while-revalidate=${cdnSwr}`
+  );
+}
+
+/**
  * No cache for sensitive data
  */
 export function noCache(c: Context) {

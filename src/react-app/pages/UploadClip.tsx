@@ -592,7 +592,7 @@ export default function UploadClip() {
         }
 
         if (fileToUpload && !thumbnailFile) {
-          thumbnailFile = await generateVideoThumbnailJpeg(fileToUpload, { seekSeconds: 0 });
+          thumbnailFile = await generateVideoThumbnailJpeg(fileToUpload);
           if (thumbnailFile) {
             setFormData((prev) => ({ ...prev, thumbnail_file: thumbnailFile }));
           }

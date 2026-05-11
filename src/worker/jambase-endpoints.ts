@@ -1,5 +1,6 @@
 import { Context } from 'hono';
 import { jamBaseFetch, jamBaseEventDateFromToday, jamBaseQuotaFromEnv } from './jambase-client';
+import { cacheJsonProxy } from './performance-utils';
 import { buildTightJamBaseEventResults } from './jambase-events-search';
 import {
   normalizedSlugFromRouteParam,
@@ -17,12 +18,14 @@ export async function searchArtists(c: Context) {
   const perPage = c.req.query('limit') || c.req.query('perPage') || '20';
 
   if (!query || query.length < 2) {
+    cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
     return c.json({ artists: [] });
   }
 
   try {
     const key = c.env.JAMBASE_API_KEY;
     if (!key?.trim()) {
+      cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
       return c.json({ artists: [], notice: 'JamBase is not configured (missing JAMBASE_API_KEY).' });
     }
 
@@ -38,9 +41,8 @@ export async function searchArtists(c: Context) {
       jbQ
     );
 
-    c.header('Cache-Control', 'public, max-age=3600');
-
     if (!data) {
+      cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 300 });
       return c.json({
         artists: [],
         notice:
@@ -48,6 +50,7 @@ export async function searchArtists(c: Context) {
       });
     }
 
+    cacheJsonProxy(c, { browserMaxAge: 1800, cdnMaxAge: 28_800 });
     return c.json({
       artists: data.artists || [],
       pagination: {},
@@ -65,12 +68,14 @@ export async function searchVenues(c: Context) {
   const perPage = c.req.query('limit') || c.req.query('perPage') || '20';
 
   if (!query && !location) {
+    cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
     return c.json({ venues: [] });
   }
 
   try {
     const key = c.env.JAMBASE_API_KEY;
     if (!key?.trim()) {
+      cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
       return c.json({ venues: [], notice: 'JamBase is not configured (missing JAMBASE_API_KEY).' });
     }
 
@@ -88,9 +93,8 @@ export async function searchVenues(c: Context) {
 
     const data = await jamBaseFetch<{ venues?: unknown[] }>(key, '/venues', params, jbQ);
 
-    c.header('Cache-Control', 'public, max-age=3600');
-
     if (!data) {
+      cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 300 });
       return c.json({
         venues: [],
         notice:
@@ -98,6 +102,7 @@ export async function searchVenues(c: Context) {
       });
     }
 
+    cacheJsonProxy(c, { browserMaxAge: 1800, cdnMaxAge: 28_800 });
     return c.json({
       venues: data.venues || [],
       pagination: {},
@@ -130,8 +135,7 @@ export async function getArtistTourDates(c: Context) {
       jbQ
     );
 
-    c.header('Cache-Control', 'public, max-age=1800');
-
+    cacheJsonProxy(c, { browserMaxAge: 900, cdnMaxAge: 7200 });
     return c.json({
       events: data?.events || [],
       pagination: {},
@@ -144,7 +148,7 @@ export async function getArtistTourDates(c: Context) {
 
 /** v3 geo matching for clip auto-tag is not available with the same params as legacy v1. */
 export async function matchEventsByLocation(c: Context) {
-  c.header('Cache-Control', 'public, max-age=300');
+  cacheJsonProxy(c, { browserMaxAge: 600, cdnMaxAge: 3600 });
   return c.json({
     events: [],
     matchCount: 0,
@@ -184,8 +188,7 @@ export async function getUpcomingEvents(c: Context) {
       jbQ
     );
 
-    c.header('Cache-Control', 'public, max-age=600');
-
+    cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
       events: data?.events || [],
       pagination: {},
@@ -216,8 +219,7 @@ export async function getArtistById(c: Context) {
       return c.json({ error: 'Artist not found or unavailable for this key' }, 404);
     }
 
-    c.header('Cache-Control', 'public, max-age=7200');
-
+    cacheJsonProxy(c, { browserMaxAge: 3600, cdnMaxAge: 86_400 });
     return c.json(data);
   } catch (error) {
     console.error('JamBase artist details error:', error);
@@ -245,8 +247,7 @@ export async function getVenueById(c: Context) {
       return c.json({ error: 'Venue not found or unavailable for this key' }, 404);
     }
 
-    c.header('Cache-Control', 'public, max-age=7200');
-
+    cacheJsonProxy(c, { browserMaxAge: 3600, cdnMaxAge: 86_400 });
     return c.json(data);
   } catch (error) {
     console.error('JamBase venue details error:', error);
@@ -259,12 +260,14 @@ export async function searchEvents(c: Context) {
   const max = Math.min(parseInt(c.req.query('perPage') || c.req.query('limit') || '20', 10) || 20, 40);
 
   if (q.length < 2) {
+    cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
     return c.json({ events: [] });
   }
 
   try {
     const key = c.env.JAMBASE_API_KEY;
     if (!key?.trim()) {
+      cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
       return c.json({ events: [] });
     }
 
@@ -281,12 +284,12 @@ export async function searchEvents(c: Context) {
         },
         jbQ
       );
-      c.header('Cache-Control', 'public, max-age=600');
+      cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({ events: data?.events || [] });
     }
 
     const events = await buildTightJamBaseEventResults(key, q, max, jbQ);
-    c.header('Cache-Control', 'public, max-age=600');
+    cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({ events });
   } catch (error) {
     console.error('JamBase event search error:', error);
@@ -298,6 +301,7 @@ export async function searchEvents(c: Context) {
 export async function getLiveTabEvents(c: Context) {
   const key = c.env.JAMBASE_API_KEY;
   if (!key?.trim()) {
+    cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
     return c.json({ events: [], notice: 'JamBase is not configured' });
   }
 
@@ -343,8 +347,8 @@ export async function getLiveTabEvents(c: Context) {
     }
 
     const data = await jamBaseFetch<{ events?: unknown[] }>(key, '/events', params, jbQ);
-    c.header('Cache-Control', 'public, max-age=600');
     if (!data) {
+      cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 300 });
       return c.json({
         events: [],
         notice:
@@ -352,6 +356,7 @@ export async function getLiveTabEvents(c: Context) {
         meta: { geoMetroId: params.geoMetroId, geoCityId: params.geoCityId, artistName: params.artistName },
       });
     }
+    cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
       events: data.events ?? [],
       meta: { geoMetroId: params.geoMetroId, geoCityId: params.geoCityId, artistName: params.artistName },
@@ -390,6 +395,7 @@ export async function getEventsByArtistName(c: Context) {
     );
     const artists = list?.artists ?? [];
     if (!artists.length) {
+      cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600 });
       return c.json({ events: [], artist: null });
     }
 
@@ -397,6 +403,7 @@ export async function getEventsByArtistName(c: Context) {
     const pick = exact || artists[0];
     const id = pick?.identifier;
     if (typeof id !== 'string') {
+      cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600 });
       return c.json({ events: [], artist: null });
     }
 
@@ -412,8 +419,7 @@ export async function getEventsByArtistName(c: Context) {
       jbQ
     );
 
-    c.header('Cache-Control', 'public, max-age=600');
-
+    cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
       events: ev?.events ?? [],
       artist: { name: pick.name, identifier: pick.identifier },
