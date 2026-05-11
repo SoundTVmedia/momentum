@@ -30,6 +30,8 @@ function withinMiles(
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
+/** Post-record resolve must not block the UI indefinitely (worker + JamBase can be slow). */
+const RESOLVE_SHOW_TIMEOUT_MS = 28_000;
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -799,143 +801,157 @@ export default function QuickRecordButton({
       });
     }, tickMs);
 
-    setProcessingProgress(networkSpeed === 'fast' ? 24 : 18);
-    // Stop all tracks
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-
-    const at = recordingStartedAtRef.current || new Date().toISOString();
-    // Fresh lat/lon at end of capture (same permission) so JamBase resolve matches where the clip was recorded.
-    syncLastGeoFromNearbyCoordsRef();
-    const geo = lastGeoRef.current;
-    setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
-
-    let showData: Record<string, unknown> | null = null;
-    let ambiguousCandidates: ClipShowCandidate[] | null = null;
-    let nearbyVenuesForUpload: ClipShowCandidate[] = [];
-
-    const picked = selectedVenueCandidateRef.current;
-    if (picked && geo?.latitude != null && geo?.longitude != null) {
-      showData = {
-        artist_name: picked.artist_name ?? '',
-        venue_name: picked.venue_name ?? '',
-        location:
-          (picked.location?.trim() ||
-            [geo.city, geo.state].filter(Boolean).join(', ')) ||
-          '',
-        ...(picked.jambase_event_id ? { jambase_event_id: picked.jambase_event_id } : {}),
-        ...(picked.jambase_artist_id ? { jambase_artist_id: picked.jambase_artist_id } : {}),
-        ...(picked.jambase_venue_id ? { jambase_venue_id: picked.jambase_venue_id } : {}),
-        latitude: geo.latitude,
-        longitude: geo.longitude,
-        accuracy: geo.accuracy,
-      };
-      nearbyVenuesForUpload = [...nearbyVenuesRef.current];
-    } else if (geo?.latitude != null && geo?.longitude != null) {
-      const cache = resolveShowCacheRef.current;
-      const reuseResolve =
-        cache != null &&
-        withinMiles(cache.lat, cache.lon, geo.latitude, geo.longitude, 0.35) &&
-        Date.now() - cache.fetchedAt < 12 * 60 * 1000;
-
-      type ResolveJson = {
-        match?: string;
-        candidates?: ClipShowCandidate[];
-        nearbyVenues?: ClipShowCandidate[];
-      };
-
-      let data: ResolveJson | null = null;
-      try {
-        if (reuseResolve) {
-          data = cache.data;
-        } else {
-          const res = await fetch('/api/clips/resolve-show', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              latitude: geo.latitude,
-              longitude: geo.longitude,
-              at,
-              city: geo.city ?? undefined,
-              state: geo.state ?? undefined,
-              country: geo.country ?? undefined,
-            }),
-          });
-          if (res.ok) {
-            data = (await res.json()) as ResolveJson;
-          }
-        }
-        if (data) {
-          nearbyVenuesForUpload = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
-          if (data.match === 'single' && data.candidates?.[0]) {
-            const c = data.candidates[0] as ClipShowCandidate;
-            showData = {
-              artist_name: c.artist_name ?? '',
-              venue_name: c.venue_name ?? '',
-              location: c.location ?? [geo.city, geo.state].filter(Boolean).join(', '),
-              ...(c.jambase_event_id ? { jambase_event_id: c.jambase_event_id } : {}),
-              ...(c.jambase_artist_id ? { jambase_artist_id: c.jambase_artist_id } : {}),
-              ...(c.jambase_venue_id ? { jambase_venue_id: c.jambase_venue_id } : {}),
-              latitude: geo.latitude,
-              longitude: geo.longitude,
-              accuracy: geo.accuracy,
-            };
-          } else if (data.match === 'ambiguous' && data.candidates?.length) {
-            ambiguousCandidates = data.candidates as ClipShowCandidate[];
-          }
-        }
-      } catch (e) {
-        console.error('resolve-show failed:', e);
+    try {
+      setProcessingProgress(networkSpeed === 'fast' ? 24 : 18);
+      // Stop all tracks
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
-    }
-    setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
-    navigate(
-      { pathname: '/upload', search: '' },
-      {
-        replace: true,
-        state: {
-          videoBlob: blob,
-          showData,
-          ambiguousCandidates,
-          nearbyVenuesFromCapture: nearbyVenuesForUpload.length > 0 ? nearbyVenuesForUpload : undefined,
-          recordingStartedAt: at,
-          captureGeo: geo
-            ? {
+      const at = recordingStartedAtRef.current || new Date().toISOString();
+      // Fresh lat/lon at end of capture (same permission) so JamBase resolve matches where the clip was recorded.
+      syncLastGeoFromNearbyCoordsRef();
+      const geo = lastGeoRef.current;
+      setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
+
+      let showData: Record<string, unknown> | null = null;
+      let ambiguousCandidates: ClipShowCandidate[] | null = null;
+      let nearbyVenuesForUpload: ClipShowCandidate[] = [];
+
+      const picked = selectedVenueCandidateRef.current;
+      if (picked && geo?.latitude != null && geo?.longitude != null) {
+        showData = {
+          artist_name: picked.artist_name ?? '',
+          venue_name: picked.venue_name ?? '',
+          location:
+            (picked.location?.trim() ||
+              [geo.city, geo.state].filter(Boolean).join(', ')) ||
+            '',
+          ...(picked.jambase_event_id ? { jambase_event_id: picked.jambase_event_id } : {}),
+          ...(picked.jambase_artist_id ? { jambase_artist_id: picked.jambase_artist_id } : {}),
+          ...(picked.jambase_venue_id ? { jambase_venue_id: picked.jambase_venue_id } : {}),
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          accuracy: geo.accuracy,
+        };
+        nearbyVenuesForUpload = [...nearbyVenuesRef.current];
+      } else if (geo?.latitude != null && geo?.longitude != null) {
+        const snap = resolveShowCacheRef.current;
+        const reuseResolve =
+          snap != null &&
+          withinMiles(snap.lat, snap.lon, geo.latitude, geo.longitude, 0.35) &&
+          Date.now() - snap.fetchedAt < 12 * 60 * 1000;
+
+        type ResolveJson = {
+          match?: string;
+          candidates?: ClipShowCandidate[];
+          nearbyVenues?: ClipShowCandidate[];
+        };
+
+        let data: ResolveJson | null = null;
+        try {
+          if (reuseResolve) {
+            data = snap.data;
+          } else {
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), RESOLVE_SHOW_TIMEOUT_MS);
+            try {
+              const res = await fetch('/api/clips/resolve-show', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                signal: controller.signal,
+                body: JSON.stringify({
+                  latitude: geo.latitude,
+                  longitude: geo.longitude,
+                  at,
+                  city: geo.city ?? undefined,
+                  state: geo.state ?? undefined,
+                  country: geo.country ?? undefined,
+                }),
+              });
+              if (res.ok) {
+                data = (await res.json()) as ResolveJson;
+              }
+            } finally {
+              window.clearTimeout(timeoutId);
+            }
+          }
+          if (data) {
+            nearbyVenuesForUpload = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
+            if (data.match === 'single' && data.candidates?.[0]) {
+              const c = data.candidates[0] as ClipShowCandidate;
+              showData = {
+                artist_name: c.artist_name ?? '',
+                venue_name: c.venue_name ?? '',
+                location: c.location ?? [geo.city, geo.state].filter(Boolean).join(', '),
+                ...(c.jambase_event_id ? { jambase_event_id: c.jambase_event_id } : {}),
+                ...(c.jambase_artist_id ? { jambase_artist_id: c.jambase_artist_id } : {}),
+                ...(c.jambase_venue_id ? { jambase_venue_id: c.jambase_venue_id } : {}),
                 latitude: geo.latitude,
                 longitude: geo.longitude,
-                city: geo.city,
-                state: geo.state,
-                country: geo.country,
-              }
-            : null,
-          videoMetadata: {
-            recording_orientation: recordingOrientation,
-            video_resolution_w: videoResolution.width,
-            video_resolution_h: videoResolution.height,
-          },
-        },
+                accuracy: geo.accuracy,
+              };
+            } else if (data.match === 'ambiguous' && data.candidates?.length) {
+              ambiguousCandidates = data.candidates as ClipShowCandidate[];
+            }
+          }
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') {
+            console.warn('resolve-show timed out; continuing to upload without auto-tag');
+          } else {
+            console.error('resolve-show failed:', e);
+          }
+        }
       }
-    );
-    setProcessingProgress(100);
-    clearProcessingTicker();
+      setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
-    recordingStartedAtRef.current = null;
-    lastGeoRef.current = null;
-    selectedVenueCandidateRef.current = null;
+      navigate(
+        { pathname: '/upload', search: '' },
+        {
+          replace: true,
+          state: {
+            videoBlob: blob,
+            showData,
+            ambiguousCandidates,
+            nearbyVenuesFromCapture: nearbyVenuesForUpload.length > 0 ? nearbyVenuesForUpload : undefined,
+            recordingStartedAt: at,
+            captureGeo: geo
+              ? {
+                  latitude: geo.latitude,
+                  longitude: geo.longitude,
+                  city: geo.city,
+                  state: geo.state,
+                  country: geo.country,
+                }
+              : null,
+            videoMetadata: {
+              recording_orientation: recordingOrientation,
+              video_resolution_w: videoResolution.width,
+              video_resolution_h: videoResolution.height,
+            },
+          },
+        }
+      );
+      setProcessingProgress(100);
 
-    // Close modal
-    setShowModal(false);
-    setHasPermission(false);
-    setCameraReady(false);
-    setPreviewStream(null);
-    setCameraOpenRequested(false);
-    setIsProcessingTransition(false);
-    setProcessingProgress(8);
-    recordingSecondsRef.current = 0;
+      recordingStartedAtRef.current = null;
+      lastGeoRef.current = null;
+      selectedVenueCandidateRef.current = null;
+
+      // Close modal
+      setShowModal(false);
+      setHasPermission(false);
+      setCameraReady(false);
+      setPreviewStream(null);
+      setCameraOpenRequested(false);
+      recordingSecondsRef.current = 0;
+    } finally {
+      clearProcessingTicker();
+      setIsProcessingTransition(false);
+      setProcessingProgress(8);
+    }
   };
 
   const closeModal = () => {
