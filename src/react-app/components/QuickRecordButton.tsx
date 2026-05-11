@@ -608,28 +608,32 @@ export default function QuickRecordButton({
       }
     }
 
-    navigate('/upload', {
-      state: {
-        videoBlob: blob,
-        showData,
-        ambiguousCandidates,
-        recordingStartedAt: at,
-        captureGeo: geo
-          ? {
-              latitude: geo.latitude,
-              longitude: geo.longitude,
-              city: geo.city,
-              state: geo.state,
-              country: geo.country,
-            }
-          : null,
-        videoMetadata: {
-          recording_orientation: recordingOrientation,
-          video_resolution_w: videoResolution.width,
-          video_resolution_h: videoResolution.height,
+    navigate(
+      '/upload',
+      {
+        replace: true,
+        state: {
+          videoBlob: blob,
+          showData,
+          ambiguousCandidates,
+          recordingStartedAt: at,
+          captureGeo: geo
+            ? {
+                latitude: geo.latitude,
+                longitude: geo.longitude,
+                city: geo.city,
+                state: geo.state,
+                country: geo.country,
+              }
+            : null,
+          videoMetadata: {
+            recording_orientation: recordingOrientation,
+            video_resolution_w: videoResolution.width,
+            video_resolution_h: videoResolution.height,
+          },
         },
-      },
-    });
+      }
+    );
 
     recordingStartedAtRef.current = null;
 

@@ -22,10 +22,21 @@ export default function UploadClip() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
-  
+
+  /** Post-capture review (Share your moment) — open immediately when landing with a recorded blob/file. */
+  const [showCaptionScreen, setShowCaptionScreen] = useState(() => {
+    const s = location.state as { videoBlob?: unknown; videoFile?: unknown } | null | undefined;
+    return Boolean(s?.videoBlob ?? s?.videoFile);
+  });
+
+  // Caption / review screen video preview (must not live inside `if (showCaptionScreen)` — Rules of Hooks)
+  const captionVideoRef = useRef<HTMLVideoElement>(null);
+  const [captionVideoPlaying, setCaptionVideoPlaying] = useState(false);
+  const [captionVideoMuted, setCaptionVideoMuted] = useState(true);
+
   // Quick capture modal state
   const [showQuickCapture, setShowQuickCapture] = useState(false);
-  
+
   // Check for quickCapture URL parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -33,9 +44,6 @@ export default function UploadClip() {
       setShowQuickCapture(true);
     }
   }, []);
-  
-  // Caption screen state
-  const [showCaptionScreen, setShowCaptionScreen] = useState(false);
   const [isEditingTags, setIsEditingTags] = useState(false);
   
   // Confirmation modal state
@@ -102,11 +110,20 @@ export default function UploadClip() {
     // Check if we received show data from auto-tagging
     if (location.state?.showData) {
       const showData = location.state.showData as Record<string, unknown>;
+      const cap = location.state.captureGeo as
+        | { city?: string | null; state?: string | null }
+        | undefined;
+      const fromGeo = cap ? [cap.city, cap.state].filter(Boolean).join(', ') : '';
+      const locFromShow =
+        typeof showData.location === 'string' && showData.location.trim() !== ''
+          ? (showData.location as string)
+          : fromGeo || '';
+
       setFormData(prev => ({
         ...prev,
         artist_name: (showData.artist_name as string) || '',
         venue_name: (showData.venue_name as string) || '',
-        location: (showData.location as string) || '',
+        location: locFromShow,
       }));
 
       if (showData.artist_name) setArtistSearch(String(showData.artist_name));
@@ -131,15 +148,23 @@ export default function UploadClip() {
       setRecordingAtIso(nav.recordingStartedAt);
     }
     if (nav?.captureGeo && typeof nav.captureGeo === 'object' && nav.captureGeo !== null) {
-      setCaptureGeo(
-        nav.captureGeo as {
-          latitude: number;
-          longitude: number;
-          city: string | null;
-          state: string | null;
-          country: string | null;
+      const cg = nav.captureGeo as {
+        latitude: number;
+        longitude: number;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+      };
+      setCaptureGeo(cg);
+      if (!nav?.showData) {
+        const geoLine = [cg.city, cg.state].filter(Boolean).join(', ');
+        if (geoLine) {
+          setFormData((prev) => ({
+            ...prev,
+            location: prev.location?.trim() ? prev.location : geoLine,
+          }));
         }
-      );
+      }
     }
     
     // Check if we received video metadata (orientation and resolution)
@@ -601,6 +626,37 @@ export default function UploadClip() {
     navigate('/dashboard');
   };
 
+  const toggleCaptionVideoPlay = () => {
+    const video = captionVideoRef.current;
+    if (!video) return;
+    if (captionVideoPlaying) {
+      video.pause();
+    } else {
+      void video.play();
+    }
+    setCaptionVideoPlaying(!captionVideoPlaying);
+  };
+
+  const toggleCaptionVideoMute = () => {
+    const video = captionVideoRef.current;
+    if (!video) return;
+    video.muted = !captionVideoMuted;
+    setCaptionVideoMuted(!captionVideoMuted);
+  };
+
+  // Reset inline preview when opening review or swapping blob URL
+  useEffect(() => {
+    if (!showCaptionScreen || !videoBlobUrl) return;
+    setCaptionVideoPlaying(false);
+    setCaptionVideoMuted(true);
+    const v = captionVideoRef.current;
+    if (v) {
+      v.pause();
+      v.currentTime = 0;
+      v.muted = true;
+    }
+  }, [showCaptionScreen, videoBlobUrl]);
+
   const handleShareClip = async () => {
     if (!postedClip) return;
 
@@ -795,36 +851,13 @@ export default function UploadClip() {
     );
   }
 
-  // CAPTION SCREEN - Shown after recording
+  // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     });
-
-    // Video player state
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isMuted, setIsMuted] = useState(true);
-    const videoPreviewRef = useRef<HTMLVideoElement>(null);
-
-    const togglePlay = () => {
-      if (videoPreviewRef.current) {
-        if (isPlaying) {
-          videoPreviewRef.current.pause();
-        } else {
-          videoPreviewRef.current.play();
-        }
-        setIsPlaying(!isPlaying);
-      }
-    };
-
-    const toggleMute = () => {
-      if (videoPreviewRef.current) {
-        videoPreviewRef.current.muted = !isMuted;
-        setIsMuted(!isMuted);
-      }
-    };
 
     return (
       <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
@@ -832,8 +865,11 @@ export default function UploadClip() {
         
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold text-white mb-2">Finalize Your Moment</h1>
-            <p className="text-gray-400">Add context and share with the community</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Share your moment</h1>
+            <p className="text-gray-300 text-lg">
+              Add details and post — same upload as Share your moment. Venue and location are filled from your GPS
+              and JamBase when we find a match; edit below if needed.
+            </p>
           </div>
 
           <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl overflow-hidden">
@@ -842,13 +878,13 @@ export default function UploadClip() {
               {videoBlobUrl && (
                 <>
                   <video
-                    ref={videoPreviewRef}
+                    ref={captionVideoRef}
                     src={videoBlobUrl}
                     loop
-                    muted={isMuted}
+                    muted={captionVideoMuted}
                     playsInline
                     className="w-full h-full object-cover"
-                    onClick={togglePlay}
+                    onClick={toggleCaptionVideoPlay}
                   />
                   
                   {/* Video Controls Overlay */}
@@ -856,10 +892,11 @@ export default function UploadClip() {
                     {/* Center Play/Pause Button */}
                     <div className="absolute inset-0 flex items-center justify-center">
                       <button
-                        onClick={togglePlay}
+                        type="button"
+                        onClick={toggleCaptionVideoPlay}
                         className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
                       >
-                        {isPlaying ? (
+                        {captionVideoPlaying ? (
                           <div className="w-6 h-6 flex items-center justify-center">
                             <div className="flex space-x-1">
                               <div className="w-2 h-6 bg-white rounded-sm"></div>
@@ -876,10 +913,11 @@ export default function UploadClip() {
                     <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <button
-                          onClick={toggleMute}
+                          type="button"
+                          onClick={toggleCaptionVideoMute}
                           className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
                         >
-                          {isMuted ? (
+                          {captionVideoMuted ? (
                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
@@ -920,6 +958,26 @@ export default function UploadClip() {
                   <p className="text-amber-200 text-sm">{resolveNotice}</p>
                 </div>
               )}
+
+              {/* Venue & location (auto from capture / JamBase; editable via Change Artist/Venue) */}
+              <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-cyan-400/90">
+                  Venue and location
+                </div>
+                <div className="flex items-start gap-2 text-white">
+                  <MapPin className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{formData.venue_name || 'Venue not set yet'}</p>
+                    <p className="text-sm text-gray-300 break-words">
+                      {formData.location || 'Location will appear from your GPS or after you pick a show.'}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Filled automatically when we match your recording to a nearby venue. Use &quot;Change Artist/Venue&quot;
+                  below to edit.
+                </p>
+              </div>
 
               {/* Caption Field */}
               <div>
@@ -1079,11 +1137,28 @@ export default function UploadClip() {
                       <span className="text-sm">{formData.venue_name || 'Venue not set'}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-300">
-                      <Calendar className="w-4 h-4 text-blue-400" />
-                      <span className="text-sm">{currentDate}</span>
+                      <MapPin className="w-4 h-4 text-blue-400" />
+                      <span className="text-sm">{formData.location || 'Location not set'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-gray-400 text-xs pt-1 border-t border-white/10">
+                      <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                      <span>Recorded {currentDate}</span>
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Hashtags — same field as full Share your moment form */}
+              <div>
+                <label className="block text-gray-300 font-normal mb-2">Hashtags</label>
+                <input
+                  type="text"
+                  value={formData.hashtags}
+                  onChange={(e) => handleInputChange('hashtags', e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-colors"
+                  placeholder="#rock #livemusic #concert"
+                />
+                <p className="text-gray-400 text-xs mt-2">Separate with spaces (optional)</p>
               </div>
 
               {/* Upload Progress */}
@@ -1136,7 +1211,7 @@ export default function UploadClip() {
                       </span>
                     </span>
                   ) : (
-                    'Post to Feed'
+                    'Share your moment'
                   )}
                 </button>
 
