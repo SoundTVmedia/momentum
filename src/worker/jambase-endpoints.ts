@@ -1,6 +1,11 @@
 import { Context } from 'hono';
-import { jamBaseFetch, jamBaseEventDateFromToday, jamBaseQuotaFromEnv } from './jambase-client';
-import { cacheJsonProxy } from './performance-utils';
+import {
+  jamBaseFetch,
+  jamBaseEventDateFromToday,
+  jamBaseQuotaFromEnv,
+  type JamBaseFetchDiag,
+} from './jambase-client';
+import { cacheJsonProxy, noCache } from './performance-utils';
 import { buildTightJamBaseEventResults } from './jambase-events-search';
 import {
   normalizedSlugFromRouteParam,
@@ -12,6 +17,80 @@ import {
  * JamBase Data API v3 — proxy endpoints for the SPA.
  * @see https://data.jambase.com/api/docs/getting-started
  */
+
+/** Authenticated smoke test: one geo `/venues` call using server `JAMBASE_API_KEY` (key is never returned). */
+export async function connectionTest(c: Context) {
+  noCache(c);
+  const key = c.env.JAMBASE_API_KEY;
+  if (!key?.trim()) {
+    return c.json({
+      ok: false,
+      apiKeyConfigured: false,
+      jamBase: null,
+      hint: 'Set JAMBASE_API_KEY in .dev.vars (or Wrangler secrets) and restart the worker.',
+    });
+  }
+
+  const diag: JamBaseFetchDiag = {};
+  const jbQ = jamBaseQuotaFromEnv(c.env);
+  const data = await jamBaseFetch<{ venues?: unknown[] }>(
+    key,
+    '/venues',
+    {
+      geoLatitude: '40.7505',
+      geoLongitude: '-73.9934',
+      geoRadiusAmount: '15',
+      geoRadiusUnits: 'mi',
+      perPage: '2',
+      page: '1',
+    },
+    jbQ,
+    diag
+  );
+
+  const venueCount = Array.isArray(data?.venues) ? data.venues.length : 0;
+  const ok = data != null;
+
+  let hint = '';
+  if (ok) {
+    hint =
+      'JamBase returned JSON for a fixed NYC test query. Your key is valid for Data API v3 /venues.';
+  } else {
+    switch (diag.failure) {
+      case 'quota':
+        hint = 'JamBase quota precheck blocked the call (JAMBASE_QUOTA_ENFORCEMENT). Raise max or disable for local dev.';
+        break;
+      case 'http':
+        hint =
+          diag.httpStatus === 401 || diag.httpStatus === 403
+            ? 'JamBase rejected the token (401/403). Regenerate the key at data.jambase.com and update JAMBASE_API_KEY.'
+            : `JamBase HTTP ${diag.httpStatus ?? 'error'}. See worker logs for the response body.`;
+        break;
+      case 'network':
+        hint = 'Worker could not reach api.data.jambase.com (network/TLS).';
+        break;
+      case 'non_json':
+        hint = 'Response was not JSON (unusual for JamBase). Check worker logs.';
+        break;
+      case 'api_error':
+        hint = 'JamBase JSON had success: false. Check worker logs for errors[].';
+        break;
+      default:
+        hint = 'See worker logs. Common causes: wrong key, quota, or outbound fetch blocked.';
+    }
+  }
+
+  return c.json({
+    ok,
+    apiKeyConfigured: true,
+    jamBase: {
+      venuesReturned: venueCount,
+      failureType: diag.failure ?? null,
+      httpStatus: diag.httpStatus ?? null,
+    },
+    hint,
+  });
+}
 
 export async function searchArtists(c: Context) {
   const query = c.req.query('q') || '';

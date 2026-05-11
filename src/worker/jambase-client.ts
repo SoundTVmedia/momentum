@@ -119,6 +119,19 @@ function jamBaseCacheTtlSeconds(url: URL): number {
 
 const inflight = new Map<string, Promise<JamBaseJson | null>>();
 
+/** Optional: caller mutates this when `jamBaseFetch` returns null (not set on inflight dedupe hits). */
+export type JamBaseFetchDiag = {
+  failure?:
+    | 'missing_key'
+    | 'quota'
+    | 'http'
+    | 'non_json'
+    | 'api_error'
+    | 'network'
+    | 'unknown';
+  httpStatus?: number;
+};
+
 /**
  * JamBase Data API v3 fetch with:
  * - Edge cache (cf.cacheEverything) so repeat queries often skip JamBase
@@ -129,10 +142,14 @@ export async function jamBaseFetch<T extends JamBaseJson>(
   apiKey: string | undefined,
   path: string,
   params: Record<string, string | undefined> = {},
-  quota?: JamBaseQuotaContext | undefined
+  quota?: JamBaseQuotaContext | undefined,
+  diag?: JamBaseFetchDiag
 ): Promise<T | null> {
   const key = typeof apiKey === 'string' ? apiKey.trim() : '';
-  if (!key) return null;
+  if (!key) {
+    if (diag) diag.failure = 'missing_key';
+    return null;
+  }
 
   const url = new URL(`${JAMBASE_V3_BASE}${path.startsWith('/') ? path : `/${path}`}`);
   for (const [k, v] of Object.entries(params)) {
@@ -148,26 +165,34 @@ export async function jamBaseFetch<T extends JamBaseJson>(
   const promise = (async (): Promise<T | null> => {
     try {
       if (quota && !(await jamBaseQuotaPrecheck(quota))) {
+        if (diag) diag.failure = 'quota';
         return null;
       }
 
-      const res = await fetch(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${key}`,
-          Accept: 'application/json',
-          'User-Agent': JAMBASE_USER_AGENT,
-        },
-        cf: {
-          cacheEverything: true,
-          cacheTtl,
-          cacheTtlByStatus: {
-            '200-299': cacheTtl,
-            '400-499': 120,
-            '429': 0,
-            '500-599': 0,
+      let res: Response;
+      try {
+        res = await fetch(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${key}`,
+            Accept: 'application/json',
+            'User-Agent': JAMBASE_USER_AGENT,
           },
-        },
-      } as RequestInit);
+          cf: {
+            cacheEverything: true,
+            cacheTtl,
+            cacheTtlByStatus: {
+              '200-299': cacheTtl,
+              '400-499': 120,
+              '429': 0,
+              '500-599': 0,
+            },
+          },
+        } as RequestInit);
+      } catch (e) {
+        console.error('JamBase fetch network error', path, e);
+        if (diag) diag.failure = 'network';
+        return null;
+      }
 
       if (quota && jamBaseResponseCountsAsUpstream(res)) {
         await jamBaseRecordUpstream(quota);
@@ -179,20 +204,33 @@ export async function jamBaseFetch<T extends JamBaseJson>(
         json = JSON.parse(text) as T;
       } catch {
         console.error('JamBase non-JSON', path, res.status, text.slice(0, 200));
+        if (diag) {
+          diag.failure = 'non_json';
+          diag.httpStatus = res.status;
+        }
         return null;
       }
 
       if (!res.ok) {
         console.error('JamBase HTTP error', path, res.status, text.slice(0, 200));
+        if (diag) {
+          diag.failure = 'http';
+          diag.httpStatus = res.status;
+        }
         return null;
       }
 
       if (json.success === false) {
         console.error('JamBase API error', path, json.errors);
+        if (diag) diag.failure = 'api_error';
         return null;
       }
 
       return json;
+    } catch (e) {
+      console.error('JamBase fetch unexpected error', path, e);
+      if (diag) diag.failure = 'unknown';
+      return null;
     } finally {
       inflight.delete(urlKey);
     }

@@ -3,6 +3,7 @@ import {
   jamBaseFetch,
   jamBaseQuotaFromEnv,
   jamBaseQuotaPrecheck,
+  type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { headlinerFromEvent } from './jambase-map';
@@ -445,14 +446,21 @@ async function fetchVenuesPaginatedByLatLon(
   userLon: number,
   radiusMiles: number,
   jbQ: JamBaseQuotaContext | undefined
-): Promise<{ venues: Record<string, unknown>[]; upstreamNull: boolean }> {
+): Promise<{
+  venues: Record<string, unknown>[];
+  /** First `/venues` page failed (null) — JamBase unreachable, auth, quota mid-flight, etc. */
+  firstPageFailed: boolean;
+  firstPageFailure?: JamBaseFetchDiag['failure'];
+  firstPageHttpStatus?: number;
+}> {
   const searchMiles = Math.max(
     radiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
     VENUE_JAMBASE_SEARCH_MIN_MILES
   );
   const radiusAmount = Math.min(5000, Math.max(1, Math.ceil(searchMiles)));
   const out: Record<string, unknown>[] = [];
-  let upstreamNull = false;
+  let firstPageFailed = false;
+  const firstDiag: JamBaseFetchDiag = {};
   for (let page = 1; page <= VENUE_GEO_CITY_MAX_PAGES; page++) {
     const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
       apiKey,
@@ -465,10 +473,13 @@ async function fetchVenuesPaginatedByLatLon(
         perPage: VENUES_PER_PAGE,
         page: String(page),
       },
-      jbQ
+      jbQ,
+      page === 1 ? firstDiag : undefined
     );
     if (data == null) {
-      upstreamNull = true;
+      if (page === 1) {
+        firstPageFailed = true;
+      }
       break;
     }
     const batch = data?.venues ?? [];
@@ -476,7 +487,41 @@ async function fetchVenuesPaginatedByLatLon(
     for (const v of batch) out.push(v as Record<string, unknown>);
     if (batch.length < parseInt(VENUES_PER_PAGE, 10)) break;
   }
-  return { venues: out, upstreamNull };
+  return {
+    venues: out,
+    firstPageFailed,
+    firstPageFailure: firstPageFailed ? firstDiag.failure : undefined,
+    firstPageHttpStatus: firstPageFailed ? firstDiag.httpStatus : undefined,
+  };
+}
+
+/** User-facing copy when the first geo `/venues` JamBase call returns null (see `JamBaseFetchDiag`). */
+function jamBaseVenueFetchFailureNotice(
+  failure?: JamBaseFetchDiag['failure'],
+  httpStatus?: number
+): string {
+  switch (failure) {
+    case 'missing_key':
+      return 'JamBase API key is missing on the worker. Set JAMBASE_API_KEY in .dev.vars (local) or Wrangler secrets (production).';
+    case 'quota':
+      return 'JamBase was blocked by JAMBASE_QUOTA_ENFORCEMENT (call budget used up). For local dev set JAMBASE_QUOTA_ENFORCEMENT=0 or raise JAMBASE_QUOTA_MAX in .dev.vars.';
+    case 'http':
+      if (httpStatus === 401 || httpStatus === 403) {
+        return `JamBase rejected the API key (HTTP ${httpStatus}). Use your JamBase Data API v3 key from https://data.jambase.com — paste it as JAMBASE_API_KEY with no quotes or spaces.`;
+      }
+      if (httpStatus === 429) {
+        return 'JamBase rate-limited the request (HTTP 429). Retry later or check your JamBase plan.';
+      }
+      return `JamBase returned HTTP ${httpStatus ?? 'error'}. Open worker logs for the response snippet. GPS was still received.`;
+    case 'non_json':
+      return 'JamBase did not return JSON (often a proxy/HTML error page). Confirm `npm run dev:api` is running if Vite proxies /api to port 8787, and that JAMBASE_API_KEY is set.';
+    case 'api_error':
+      return 'JamBase responded with success: false (bad parameters or account issue). Check worker logs for json.errors.';
+    case 'network':
+      return 'Could not reach api.data.jambase.com from the worker (network or TLS). Try again; if local, check firewall/VPN.';
+    default:
+      return 'JamBase venue lookup failed before returning data. Check worker logs and JAMBASE_API_KEY / JAMBASE_QUOTA_ENFORCEMENT in .dev.vars.';
+  }
 }
 
 /**
@@ -612,10 +657,9 @@ export async function postResolveShowForClip(c: Context) {
   };
 
   const latLonRes = await fetchVenuesPaginatedByLatLon(key, lat, lon, profileRadiusMiles, jbQ);
-  let venuesLatLonUpstreamNull = latLonRes.upstreamNull;
   pushVenueBatch(latLonRes.venues, true);
 
-  if (rawVenueList.length === 0 && !venuesLatLonUpstreamNull) {
+  if (rawVenueList.length === 0 && !latLonRes.firstPageFailed) {
     const cfIp =
       c.req.header('cf-connecting-ip') ||
       c.req.header('CF-Connecting-IP') ||
@@ -633,8 +677,9 @@ export async function postResolveShowForClip(c: Context) {
         },
         jbQ
       );
-      if (ipData == null) venuesLatLonUpstreamNull = true;
-      else pushVenueBatch((ipData.venues ?? []) as Record<string, unknown>[], true);
+      if (ipData != null) {
+        pushVenueBatch((ipData.venues ?? []) as Record<string, unknown>[], true);
+      }
     }
   }
 
@@ -721,8 +766,8 @@ export async function postResolveShowForClip(c: Context) {
 
   const notice =
     match === 'none'
-      ? venuesLatLonUpstreamNull
-        ? 'Could not reach JamBase (invalid API key, network error, or quota blocked the call). Your GPS coordinates were still received — check worker logs and .dev.vars (JAMBASE_API_KEY, JAMBASE_QUOTA_ENFORCEMENT).'
+      ? latLonRes.firstPageFailed
+        ? jamBaseVenueFetchFailureNotice(latLonRes.firstPageFailure, latLonRes.firstPageHttpStatus)
         : rawVenueList.length === 0
           ? 'JamBase returned no venues for this latitude and longitude. You can enter the venue manually.'
           : 'JamBase returned nearby venues, but none could be matched to your coordinates. You can pick the venue manually.'
@@ -766,7 +811,9 @@ export async function postResolveShowForClip(c: Context) {
       matchSource,
       lat,
       lon,
-      jamBaseVenuesUpstreamNull: venuesLatLonUpstreamNull,
+      jamBaseVenueFirstFetchFailed: latLonRes.firstPageFailed,
+      jamBaseVenueFirstFetchFailure: latLonRes.firstPageFailure ?? null,
+      jamBaseVenueFirstFetchHttpStatus: latLonRes.firstPageHttpStatus ?? null,
     },
   });
 }

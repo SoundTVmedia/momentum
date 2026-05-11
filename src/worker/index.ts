@@ -1494,6 +1494,7 @@ app.get("/api/search/advanced", discovery.advancedSearch);
 app.get("/api/discover/trending", discovery.getTrendingContent);
 
 // JamBase API Integration Endpoints
+app.get("/api/jambase/connection-test", authMiddleware, jambase.connectionTest);
 app.get("/api/jambase/search/artists", jambase.searchArtists);
 app.get("/api/jambase/search/venues", jambase.searchVenues);
 app.get("/api/jambase/artist/:artistId/tourdates", jambase.getArtistTourDates);
