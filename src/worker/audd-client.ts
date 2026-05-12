@@ -1,4 +1,32 @@
 const AUDD_RECOGNIZE_URL = 'https://api.audd.io/';
+const AUDD_DASHBOARD_URL = 'https://dashboard.audd.io/';
+
+function audDErrorCodeFromPayload(
+  json: Record<string, unknown>,
+  raw: unknown,
+  message: string,
+): number | undefined {
+  if (raw && typeof raw === 'object') {
+    const c = (raw as Record<string, unknown>).error_code;
+    if (typeof c === 'number' && Number.isFinite(c)) return c;
+  }
+  const top = json.error_code;
+  if (typeof top === 'number' && Number.isFinite(top)) return top;
+  const fromText = message.match(/(?:code|#)\s*(\d{3})\b/i);
+  if (fromText) {
+    const n = parseInt(fromText[1], 10);
+    if (!Number.isNaN(n)) return n;
+  }
+  return undefined;
+}
+
+/** Human-friendly copy for known AudD billing / quota codes. @see https://docs.audd.io/ */
+function friendlyAudDQuotaMessage(code: number | undefined, fallback: string): string {
+  if (code === 902) {
+    return `Your AudD API key has reached its usage limit (code 902). Add quota or upgrade the plan at ${AUDD_DASHBOARD_URL} , then try again.`;
+  }
+  return fallback;
+}
 
 export type AudDRecognizeResult = {
   artist: string;
@@ -75,7 +103,9 @@ export async function recognizeMusicWithAudD(
     if (!msg.trim() && typeof json.msg === 'string') {
       msg = json.msg;
     }
-    return { ok: false, error: msg.trim() || 'AudD returned an error', audd: json };
+    const fallback = msg.trim() || 'AudD returned an error';
+    const code = audDErrorCodeFromPayload(json, raw, fallback);
+    return { ok: false, error: friendlyAudDQuotaMessage(code, fallback), audd: json };
   }
 
   if (status !== 'success') {
