@@ -33,10 +33,14 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
       };
     });
 
+    const v = video as HTMLVideoElement & {
+      captureStream?: (frameRate?: number) => MediaStream;
+      mozCaptureStream?: () => MediaStream;
+    };
     const stream =
-      typeof video.captureStream === 'function'
-        ? video.captureStream()
-        : (video as HTMLVideoElement & { mozCaptureStream?: () => MediaStream }).mozCaptureStream?.();
+      typeof v.captureStream === 'function'
+        ? v.captureStream()
+        : v.mozCaptureStream?.();
     if (!stream || stream.getTracks().length === 0) {
       return null;
     }
@@ -71,14 +75,14 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
       await video.play();
     } catch {
       mr.stop();
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       return null;
     }
 
     await new Promise((r) => setTimeout(r, SNIPPET_MS));
     mr.stop();
     video.pause();
-    stream.getTracks().forEach((t) => t.stop());
+    stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
     await stopped;
 
     if (chunks.length === 0) return null;

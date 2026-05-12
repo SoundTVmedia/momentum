@@ -963,6 +963,7 @@ export default function UploadClip() {
     }
   };
 
+  const handleReRecord = () => {
     // Reset upload state
     if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     setVideoBlobUrl(null);
