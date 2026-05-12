@@ -25,8 +25,9 @@ export function primeGeolocationOnUserGesture(): Promise<PrimedCaptureGeo | null
       () => resolve(null),
       {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 60000,
+        timeout: 20000,
+        /** Fresh fix so venue tagging matches this capture (cached coords skip re-prompt but still need prior grant). */
+        maximumAge: 0,
       }
     );
   });

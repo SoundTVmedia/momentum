@@ -56,6 +56,8 @@ export default function UploadClip() {
   const [reRecordGesturePending, setReRecordGesturePending] = useState(false);
   const [reRecordLaunchGeo, setReRecordLaunchGeo] = useState<PrimedCaptureGeo | null>(null);
   const [reRecordLaunchGeoResolved, setReRecordLaunchGeoResolved] = useState(false);
+  /** `?quickCapture=true` uses a Continue tap so geolocation runs in a user gesture (iOS Safari). */
+  const [quickCaptureAwaitUserTap, setQuickCaptureAwaitUserTap] = useState(false);
 
   const [isEditingTags, setIsEditingTags] = useState(false);
 
@@ -167,7 +169,7 @@ export default function UploadClip() {
     return () => setHideBottomNav(false);
   }, [showCaptionScreen, setHideBottomNav]);
 
-  // Open quick capture when ?quickCapture=true — only for signed-in users (guests → auth, no camera)
+  // Open quick capture when ?quickCapture=true — needs an explicit Continue tap for location (iOS gesture policy).
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const wantCapture = params.get('quickCapture') === 'true';
@@ -175,34 +177,27 @@ export default function UploadClip() {
       setShowQuickCapture(false);
       setReRecordLaunchGeo(null);
       setReRecordLaunchGeoResolved(false);
+      setQuickCaptureAwaitUserTap(false);
       return;
     }
-    // Post-record review / caption flow must not lose to this effect (would flash the camera again).
     if (showCaptionScreen) {
       setShowQuickCapture(false);
+      setQuickCaptureAwaitUserTap(false);
       return;
     }
     if (isPending) return;
     if (!user) {
       setShowQuickCapture(false);
+      setQuickCaptureAwaitUserTap(false);
       navigate('/auth', { replace: true });
       return;
     }
-    // Same priming as Re-record: location (when the browser allows from this tick), then camera/mic.
-    setReRecordLaunchGeo(null);
-    setReRecordLaunchGeoResolved(false);
-    setReRecordGesturePending(true);
-    setShowQuickCapture(true);
-    void primeGeolocationOnUserGesture()
-      .then((g) => {
-        setReRecordLaunchGeo(g);
-        setReRecordLaunchGeoResolved(true);
-        return primeCameraOnUserGesture();
-      })
-      .then((stream) => setReRecordPrimedStream(stream))
-      .catch(() => setReRecordPrimedStream(null))
-      .finally(() => setReRecordGesturePending(false));
-  }, [location.search, showCaptionScreen, user, isPending, navigate]);
+    if (showQuickCapture) {
+      setQuickCaptureAwaitUserTap(false);
+      return;
+    }
+    setQuickCaptureAwaitUserTap(true);
+  }, [location.search, showCaptionScreen, user, isPending, navigate, showQuickCapture]);
 
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
@@ -1003,9 +998,10 @@ export default function UploadClip() {
     setReRecordLaunchGeoResolved(false);
     setReRecordPrimedStream(null);
     setReRecordGesturePending(true);
+    const geoPromise = primeGeolocationOnUserGesture();
     setShowQuickCapture(true);
 
-    void primeGeolocationOnUserGesture()
+    void geoPromise
       .then((g) => {
         setReRecordLaunchGeo(g);
         setReRecordLaunchGeoResolved(true);
@@ -1093,7 +1089,56 @@ export default function UploadClip() {
     navigate('/auth');
     return null;
   }
-  
+
+  const wantQuickCaptureUrl = new URLSearchParams(location.search).get('quickCapture') === 'true';
+
+  if (quickCaptureAwaitUserTap && wantQuickCaptureUrl && !showCaptionScreen) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6 text-center">
+        <MapPin className="w-14 h-14 text-cyan-400 mb-4 shrink-0" aria-hidden />
+        <h1 className="text-xl font-bold text-white mb-2">Location and camera</h1>
+        <p className="text-gray-400 text-sm max-w-sm mb-8 leading-relaxed">
+          Tap continue so your browser can ask for location (venue suggestions), then camera and microphone for your
+          clip and song recognition.
+        </p>
+        <button
+          type="button"
+          className="w-full max-w-xs px-6 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold active:scale-[0.98] transition-transform"
+          onClick={() => {
+            setReRecordLaunchGeo(null);
+            setReRecordLaunchGeoResolved(false);
+            setReRecordPrimedStream(null);
+            setReRecordGesturePending(true);
+            const geoPromise = primeGeolocationOnUserGesture();
+            setShowQuickCapture(true);
+            setQuickCaptureAwaitUserTap(false);
+            void geoPromise
+              .then((g) => {
+                setReRecordLaunchGeo(g);
+                setReRecordLaunchGeoResolved(true);
+                return primeCameraOnUserGesture();
+              })
+              .then((stream) => setReRecordPrimedStream(stream))
+              .catch(() => setReRecordPrimedStream(null))
+              .finally(() => setReRecordGesturePending(false));
+          }}
+        >
+          Continue
+        </button>
+        <button
+          type="button"
+          className="mt-6 text-gray-500 text-sm hover:text-gray-300"
+          onClick={() => {
+            setQuickCaptureAwaitUserTap(false);
+            navigate({ pathname: '/upload', search: '' }, { replace: true, state: location.state });
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
   // Show quick capture modal if requested
   if (showQuickCapture) {
     return (

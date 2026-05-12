@@ -44,7 +44,8 @@ export default function QuickRecordButton({
   autoRequestCamera = true,
   gestureCameraPrimingPending = false,
   captureLaunchGeo,
-  captureLaunchGeoResolved = true,
+  /** When `deferCameraUntilLaunchGeo`, parent must set `true` after launch-time GPS finishes (even if coords are null). */
+  captureLaunchGeoResolved = false,
   deferCameraUntilLaunchGeo = false,
   onAfterCaptureNavigate,
 }: QuickRecordButtonProps = {}) {
@@ -822,11 +823,7 @@ export default function QuickRecordButton({
   // Trigger camera when modal opens (skip when parent primed stream, or while waiting for launch-time GPS)
   useEffect(() => {
     if (!autoRequestCamera) return;
-    if (
-      deferCameraUntilLaunchGeo &&
-      captureLaunchGeo !== undefined &&
-      !captureLaunchGeoResolved
-    ) {
+    if (deferCameraUntilLaunchGeo && !captureLaunchGeoResolved) {
       return;
     }
     if (showModal && !permissionDenied && !cameraOpenRequested) {
@@ -995,10 +992,10 @@ export default function QuickRecordButton({
 
             {hasPermission && cameraReady && !isRecording && !isProcessingTransition && (
               <div className="mx-auto mb-3 w-full max-w-lg px-1">
-                {captureLaunchGeo !== undefined && !captureLaunchGeoResolved && (
+                {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
                   <p className="text-center text-cyan-200/90 text-xs mb-2 flex items-center justify-center gap-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                    Finishing location from your Capture tap…
+                    Waiting for location permission — allow it when the browser asks so we can match venues.
                   </p>
                 )}
                 {coordsForNearbyVenues && (

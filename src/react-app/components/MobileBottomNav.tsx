@@ -38,10 +38,13 @@ export default function MobileBottomNav() {
     setOpenedWithGestureCamera(false);
     setPrimedMediaStream(null);
     setGesturePrimePending(true);
+
+    // Register geolocation in this same tap *before* React opens the modal (Safari / iOS require a user gesture).
+    const geoPromise = primeGeolocationOnUserGesture();
+
     setShowQuickCapture(true);
 
-    // Location first (same tap), then camera/mic — avoids the OS never showing the location prompt when getUserMedia runs in parallel.
-    void primeGeolocationOnUserGesture()
+    void geoPromise
       .then((g) => {
         setCaptureLaunchGeo(g);
         setCaptureLaunchGeoResolved(true);

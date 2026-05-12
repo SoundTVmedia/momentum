@@ -61,7 +61,7 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
  */
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
   const snippet = await extractMediaSnippetForAudD(source);
-  if (!snippet || snippet.size < 400) {
+  if (!snippet || snippet.size < 220) {
     return {
       status: 'skipped',
       message:
