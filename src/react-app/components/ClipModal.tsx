@@ -146,7 +146,7 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-0 sm:p-4 animate-fade-in">
-      <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-emerald-500/20 sm:rounded-xl overflow-hidden animate-scale-in">
+      <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-momentum-teal/20 sm:rounded-xl overflow-hidden animate-scale-in">
         <div className="flex flex-col md:flex-row h-full sm:max-h-[90vh]">
           {/* Video Side */}
           <div className="md:w-2/3 bg-black flex items-center justify-center relative flex-shrink-0 min-h-[36vh] md:min-h-0 p-2 sm:p-4">
@@ -204,7 +204,7 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
                   <img
                     src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
                     alt={clip.user_display_name || 'User'}
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-emerald-500/40 flex-shrink-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-momentum-teal/40 flex-shrink-0"
                   />
                   <div className="min-w-0">
                     <div className="font-medium text-white text-sm sm:text-base truncate">
@@ -325,7 +325,7 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
 
                     {/* Share Menu */}
                     {showShareMenu && (
-                      <div className="absolute right-0 bottom-full mb-2 bg-black/95 backdrop-blur-lg border border-emerald-500/20 rounded-lg overflow-hidden shadow-xl z-10 min-w-[200px] animate-scale-in">
+                      <div className="absolute right-0 bottom-full mb-2 bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-lg overflow-hidden shadow-xl z-10 min-w-[200px] animate-scale-in">
                         <button
                           onClick={handleCopyLink}
                           className="w-full px-3 sm:px-4 py-2 sm:py-3 hover:bg-white/10 transition-colors flex items-center space-x-2 sm:space-x-3 text-white whitespace-nowrap"

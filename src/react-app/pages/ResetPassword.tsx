@@ -62,13 +62,13 @@ export default function ResetPassword() {
     <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-headline bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent mb-4">
+          <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent mb-4">
             FEEDBACK
           </h1>
           <p className="text-xl text-gray-300">Set a new password</p>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8 space-y-6">
+        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>
@@ -94,7 +94,7 @@ export default function ResetPassword() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 8 characters"
                     autoComplete="new-password"
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 transition-colors"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
                     disabled={loading}
                   />
                 </div>
@@ -112,7 +112,7 @@ export default function ResetPassword() {
                     onChange={(e) => setConfirm(e.target.value)}
                     placeholder="Repeat password"
                     autoComplete="new-password"
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 transition-colors"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
                     disabled={loading}
                   />
                 </div>
@@ -121,7 +121,7 @@ export default function ResetPassword() {
               <button
                 type="submit"
                 disabled={loading || !token}
-                className="w-full px-6 py-3 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-emerald-500/30"
+                className="w-full px-6 py-3 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-momentum-teal/35"
               >
                 {loading ? (
                   <span className="flex items-center justify-center space-x-2">

@@ -73,7 +73,7 @@ export default function SavedClips() {
             <p className="text-gray-500 mt-2">Click the bookmark icon on any clip to save it here</p>
             <button
               onClick={() => navigate('/')}
-              className="mt-6 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+              className="mt-6 px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
             >
               Explore Clips
             </button>

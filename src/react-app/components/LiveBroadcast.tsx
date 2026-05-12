@@ -77,7 +77,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
 
   if (loading) {
     return layoutMode === 'compact' ? null : (
-      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-black via-emerald-900/30 to-black">
+      <section className="py-12 sm:py-16 md:py-20 bg-gradient-to-r from-black via-momentum-teal/14 to-black">
         <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 text-center">
           <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-cyan-400 animate-spin mx-auto" />
         </div>
@@ -88,11 +88,11 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
   // Compact mode for when not live
   if (!isLive && layoutMode === 'compact') {
     return (
-      <div className="bg-gradient-to-r from-emerald-600/20 to-yellow-600/20 backdrop-blur-lg border border-emerald-500/40 rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/20">
+      <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-momentum-teal/25">
         {/* Subtle background glow */}
         <div className="absolute inset-0 opacity-20">
           <div className="absolute left-0 w-32 h-32 bg-cyan-500/30 rounded-full blur-2xl animate-pulse"></div>
-          <div className="absolute right-0 w-32 h-32 bg-emerald-600/20 rounded-full blur-2xl animate-pulse" style={{animationDelay: '1s'}}></div>
+          <div className="absolute right-0 w-32 h-32 bg-momentum-teal/22 rounded-full blur-2xl animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
         
         <div className="relative z-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:justify-between sm:gap-4">
@@ -123,7 +123,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
           </div>
           
           {/* CTA */}
-          <button className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg font-bold text-white text-sm sm:text-base hover:scale-105 transition-all shadow-lg shadow-emerald-500/30 whitespace-nowrap">
+          <button className="px-4 py-2 sm:px-5 sm:py-2.5 momentum-grad-interactive rounded-lg font-bold text-white text-sm sm:text-base hover:scale-105 transition-all shadow-lg shadow-momentum-teal/35 whitespace-nowrap">
             Set Reminder
           </button>
         </div>
@@ -134,13 +134,13 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
   // Full section mode when not live
   if (!isLive) {
     return (
-      <section className="py-3 sm:py-4 bg-gradient-to-r from-black via-emerald-900/30 to-black">
+      <section className="py-3 sm:py-4 bg-gradient-to-r from-black via-momentum-teal/14 to-black">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-          <div className="bg-gradient-to-r from-emerald-600/20 to-yellow-600/20 backdrop-blur-lg border border-emerald-500/40 rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/20">
+          <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-momentum-teal/25">
             {/* Subtle background glow */}
             <div className="absolute inset-0 opacity-20">
               <div className="absolute left-0 w-32 h-32 bg-cyan-500/30 rounded-full blur-2xl animate-pulse"></div>
-              <div className="absolute right-0 w-32 h-32 bg-emerald-600/20 rounded-full blur-2xl animate-pulse" style={{animationDelay: '1s'}}></div>
+              <div className="absolute right-0 w-32 h-32 bg-momentum-teal/22 rounded-full blur-2xl animate-pulse" style={{animationDelay: '1s'}}></div>
             </div>
             
             <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
@@ -171,7 +171,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
               </div>
               
               {/* Right side - CTA */}
-              <button className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg font-bold text-white text-sm sm:text-base hover:scale-105 transition-all shadow-lg shadow-emerald-500/30 whitespace-nowrap">
+              <button className="px-4 py-2 sm:px-5 sm:py-2.5 momentum-grad-interactive rounded-lg font-bold text-white text-sm sm:text-base hover:scale-105 transition-all shadow-lg shadow-momentum-teal/35 whitespace-nowrap">
                 Set Reminder
               </button>
             </div>
@@ -183,9 +183,19 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
 
   // Full live player
   return (
-    <section className="py-8 sm:py-12 md:py-16 lg:py-20 bg-gradient-to-r from-black via-red-900/30 to-black">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+    <section className="relative overflow-hidden py-8 sm:py-12 md:py-16 lg:py-20 bg-gradient-to-b from-black via-momentum-teal/12 to-slate-950">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute top-1/4 left-1/4 h-72 w-72 rounded-full bg-momentum-teal/22 blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 h-80 w-80 rounded-full bg-violet-600/15 blur-3xl" />
+        <div className="absolute top-1/2 right-1/3 h-56 w-56 rounded-full bg-amber-400/10 blur-3xl" />
+      </div>
+      <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="text-center mb-4 sm:mb-6 md:mb-8">
+          <p className="font-headline text-lg sm:text-xl md:text-2xl mb-2 sm:mb-3">
+            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              Tonight&apos;s Show
+            </span>
+          </p>
           <div className="flex items-center justify-center space-x-1.5 sm:space-x-2 md:space-x-3 mb-2 sm:mb-3 md:mb-4">
             <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 md:w-3 md:h-3 bg-red-500 rounded-full animate-pulse"></div>
             <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-white">
@@ -199,8 +209,8 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
           {/* Main Video Player */}
           <div className="lg:col-span-2">
-            <div className="bg-black rounded-lg sm:rounded-xl overflow-hidden border border-red-500/30">
-              <div className="aspect-video bg-gradient-to-br from-purple-900/50 to-black relative">
+            <div className="bg-black rounded-lg sm:rounded-xl overflow-hidden border border-momentum-teal/35 shadow-lg shadow-momentum-teal/25">
+              <div className="aspect-video bg-gradient-to-br from-momentum-teal/35 via-slate-950 to-black relative">
                 {currentClip ? (
                   <>
                     <video
@@ -297,7 +307,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                 >
                   Share Stream
                 </button>
-                <button className="flex-1 sm:flex-none px-3 py-2 sm:px-4 sm:py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform text-xs sm:text-sm whitespace-nowrap">
+                <button className="flex-1 sm:flex-none px-3 py-2 sm:px-4 sm:py-2 momentum-grad-interactive rounded-lg text-white hover:scale-105 transition-transform text-xs sm:text-sm whitespace-nowrap">
                   Follow Show
                 </button>
               </div>
@@ -315,7 +325,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
           </div>
 
           {/* Live Chat */}
-          <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-lg sm:rounded-xl flex flex-col h-[400px] sm:h-[450px] lg:h-auto">
+          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-lg sm:rounded-xl flex flex-col h-[400px] sm:h-[450px] lg:h-auto">
             <div className="p-3 sm:p-4 border-b border-white/10 flex-shrink-0">
               <div className="flex items-center space-x-1.5 sm:space-x-2">
                 <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 flex-shrink-0" />
@@ -370,13 +380,13 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Join the conversation..."
-                    className="flex-1 px-2.5 py-2 sm:px-3 sm:py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 text-xs sm:text-sm"
+                    className="flex-1 px-2.5 py-2 sm:px-3 sm:py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint text-xs sm:text-sm"
                     disabled={sending}
                   />
                   <button 
                     type="submit"
                     disabled={!newMessage.trim() || sending}
-                    className="px-3 py-2 sm:px-4 sm:py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex-shrink-0"
+                    className="px-3 py-2 sm:px-4 sm:py-2 momentum-grad-interactive rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex-shrink-0"
                   >
                     {sending ? (
                       <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />

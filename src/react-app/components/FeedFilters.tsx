@@ -42,7 +42,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
   return (
     <div className="relative">
       {/* Desktop: Tabs */}
-      <div className="hidden md:flex items-center space-x-2 bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-2">
+      <div className="hidden md:flex items-center space-x-2 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-2">
         {filterOptions.map((option) => {
           const Icon = option.icon;
           const isActive = currentFilter === option.value;
@@ -53,7 +53,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
               onClick={() => onFilterChange(option.value)}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
                 isActive
-                  ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
+                  ? 'momentum-grad-interactive text-white'
                   : 'text-gray-300 hover:bg-white/10'
               }`}
             >
@@ -68,7 +68,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
       <div className="md:hidden">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl text-white"
+          className="w-full flex items-center justify-between px-4 py-3 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl text-white"
         >
           <div className="flex items-center space-x-2">
             <CurrentIcon className="w-5 h-5 text-cyan-400" />
@@ -86,7 +86,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
             />
             
             {/* Dropdown Menu */}
-            <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-emerald-500/20 rounded-xl overflow-hidden z-50 shadow-2xl">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-momentum-teal/20 rounded-xl overflow-hidden z-50 shadow-2xl">
               {filterOptions.map((option) => {
                 const Icon = option.icon;
                 const isActive = currentFilter === option.value;
@@ -100,7 +100,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
                     }}
                     className={`w-full flex items-start space-x-3 px-4 py-3 transition-colors ${
                       isActive
-                        ? 'bg-cyan-500/20 border-l-4 border-emerald-500'
+                        ? 'bg-cyan-500/20 border-l-4 border-momentum-teal'
                         : 'hover:bg-white/5 border-l-4 border-transparent'
                     }`}
                   >

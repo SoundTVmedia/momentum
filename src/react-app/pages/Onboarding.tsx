@@ -20,7 +20,7 @@ const roleOptions: RoleOption[] = [
     icon: Users,
     label: 'Fan',
     description: 'Drop clips, find shows, connect with the community',
-    color: 'from-emerald-500 to-yellow-500'
+    color: 'from-momentum-teal via-momentum-mint to-momentum-teal'
   },
   {
     value: 'artist',
@@ -248,7 +248,7 @@ export default function Onboarding() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-momentum-teal animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading...</p>
         </div>
       </div>
@@ -261,7 +261,7 @@ export default function Onboarding() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-lime-400 via-emerald-500 to-yellow-500 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
               Welcome to the Scene
             </span>
           </h1>
@@ -271,15 +271,15 @@ export default function Onboarding() {
         {/* Progress */}
         <div className="flex items-center justify-center mb-12">
           <div className="flex items-center space-x-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 1 ? 'bg-emerald-500' : 'bg-emerald-500/50'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 1 ? 'bg-momentum-teal' : 'bg-momentum-teal/50'}`}>
               <span className="text-white font-bold text-sm">1</span>
             </div>
             <div className="w-16 h-1 bg-gray-700" />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 2 ? 'bg-emerald-500' : step > 2 ? 'bg-emerald-500/50' : 'bg-gray-700'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 2 ? 'bg-momentum-teal' : step > 2 ? 'bg-momentum-teal/50' : 'bg-gray-700'}`}>
               <span className="text-white font-bold text-sm">2</span>
             </div>
             <div className="w-16 h-1 bg-gray-700" />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 3 ? 'bg-emerald-500' : 'bg-gray-700'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 3 ? 'bg-momentum-teal' : 'bg-gray-700'}`}>
               <span className="text-white font-bold text-sm">3</span>
             </div>
           </div>
@@ -298,7 +298,7 @@ export default function Onboarding() {
                     onClick={() => handleRoleSelect(option.value)}
                     className={`p-6 rounded-xl border-2 text-left transition-all ${
                       selectedRole === option.value
-                        ? 'border-lime-400 bg-black/60 scale-105'
+                        ? 'border-momentum-mint bg-black/60 scale-105'
                         : 'border-gray-700 bg-black/40 hover:border-gray-600'
                     }`}
                   >
@@ -319,7 +319,7 @@ export default function Onboarding() {
             <div className="flex justify-center mt-8">
               <button
                 onClick={() => setStep(2)}
-                className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+                className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Continue
               </button>
@@ -340,14 +340,14 @@ export default function Onboarding() {
               </button>
             </div>
 
-            <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8 space-y-6">
+            <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
               <div>
                 <label className="block text-white font-medium mb-2">Display Name</label>
                 <input
                   type="text"
                   value={formData.displayName}
                   onChange={(e) => handleInputChange('displayName', e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                   placeholder="Enter your display name"
                 />
               </div>
@@ -358,7 +358,7 @@ export default function Onboarding() {
                   value={formData.bio}
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                   placeholder="Tell us about yourself..."
                 />
               </div>
@@ -370,7 +370,7 @@ export default function Onboarding() {
                     type="text"
                     value={formData.location}
                     onChange={(e) => handleInputChange('location', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                     placeholder="New York, NY"
                   />
                 </div>
@@ -382,7 +382,7 @@ export default function Onboarding() {
                       type="text"
                       value={formData.city}
                       onChange={(e) => handleInputChange('city', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                       placeholder="New York"
                     />
                   </div>
@@ -403,7 +403,7 @@ export default function Onboarding() {
                       }}
                       className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                         formData.genres.includes(genre)
-                          ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
+                          ? 'momentum-grad-interactive text-white'
                           : 'bg-white/10 text-gray-300 hover:bg-white/20'
                       }`}
                     >
@@ -417,13 +417,13 @@ export default function Onboarding() {
             <div className="flex justify-center space-x-4 mt-8">
               <button
                 onClick={() => setStep(1)}
-                className="px-8 py-4 bg-black/30 border border-emerald-500/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
+                className="px-8 py-4 bg-black/30 border border-momentum-teal/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
               >
                 Back
               </button>
               <button
                 onClick={() => setStep(3)}
-                className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+                className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Continue
               </button>
@@ -444,7 +444,7 @@ export default function Onboarding() {
               </button>
             </div>
 
-            <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8 space-y-8">
+            <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-8">
               {/* Favorite Artists */}
               <div>
                 <label className="block text-white font-medium mb-4">
@@ -460,7 +460,7 @@ export default function Onboarding() {
                       value={artistSearch}
                       onChange={(e) => setArtistSearch(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addCustomArtist()}
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                       placeholder="Search or add custom artist..."
                     />
                   </div>
@@ -471,7 +471,7 @@ export default function Onboarding() {
                     <button
                       key={artist}
                       onClick={() => toggleFavoriteArtist(artist)}
-                      className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full text-white text-sm font-medium hover:scale-105 transition-transform"
+                      className="px-4 py-2 momentum-grad-interactive rounded-full text-white text-sm font-medium hover:scale-105 transition-transform"
                     >
                       {artist} ×
                     </button>
@@ -518,7 +518,7 @@ export default function Onboarding() {
                   </button>
 
                   {homeLocation && (
-                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <div className="p-4 bg-momentum-teal/10 border border-momentum-teal/20 rounded-lg">
                       <p className="text-white font-medium mb-2">Selected Location:</p>
                       <p className="text-gray-300 text-sm">{homeLocation}</p>
                     </div>
@@ -562,14 +562,14 @@ export default function Onboarding() {
               <button
                 onClick={() => setStep(2)}
                 disabled={submitting}
-                className="px-8 py-4 bg-black/30 border border-emerald-500/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all disabled:opacity-50"
+                className="px-8 py-4 bg-black/30 border border-momentum-teal/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all disabled:opacity-50"
               >
                 Back
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={favoriteArtists.length < 3 || submitting}
-                className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+                className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
               >
                 {submitting ? (
                   <span className="flex items-center space-x-2">

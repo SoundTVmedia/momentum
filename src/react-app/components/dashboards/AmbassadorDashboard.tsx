@@ -159,7 +159,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                 onClick={() => setPromoEventCatalog('ticketmaster')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   promoEventCatalog === 'ticketmaster'
-                    ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
+                    ? 'momentum-grad-interactive text-white'
                     : 'bg-white/5 text-gray-300 border border-orange-500/20'
                 }`}
               >

@@ -167,7 +167,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gradient-to-b from-gray-900 to-black border border-emerald-500/30 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-gradient-to-b from-gray-900 to-black border border-momentum-teal/30 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white">
             {session ? 'Edit Live Session' : 'Create Live Session'}
@@ -186,7 +186,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="FEEDBACK Live - Episode 1"
               />
             </div>
@@ -197,7 +197,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="Tonight's curated selection of the best live moments..."
               />
             </div>
@@ -209,7 +209,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                   type="datetime-local"
                   value={formData.start_time}
                   onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-lime-400"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
                 />
               </div>
 
@@ -219,7 +219,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                   type="datetime-local"
                   value={formData.end_time}
                   onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-lime-400"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
                 />
               </div>
             </div>
@@ -239,12 +239,12 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && searchClips()}
                     placeholder="Search clips to add to schedule..."
-                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                   />
                   <button
                     onClick={searchClips}
                     disabled={searching}
-                    className="px-6 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50"
+                    className="px-6 py-2 momentum-grad-interactive rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50"
                   >
                     {searching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                   </button>
@@ -275,7 +275,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                         </div>
                         <button
                           onClick={() => handleAddClip(clip.id)}
-                          className="p-2 bg-cyan-500/20 border border-emerald-500/30 rounded-lg text-cyan-400 hover:bg-cyan-500/30 transition-colors flex-shrink-0"
+                          className="p-2 bg-cyan-500/20 border border-momentum-teal/30 rounded-lg text-cyan-400 hover:bg-cyan-500/30 transition-colors flex-shrink-0"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -339,7 +339,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                             <span className="text-gray-400 text-sm">seconds</span>
                             <button
                               onClick={() => handleUpdateDuration(item.id, parseInt(editingDuration.duration))}
-                              className="px-2 py-1 bg-cyan-500/20 border border-emerald-500/30 rounded text-cyan-400 text-xs hover:bg-cyan-500/30"
+                              className="px-2 py-1 bg-cyan-500/20 border border-momentum-teal/30 rounded text-cyan-400 text-xs hover:bg-cyan-500/30"
                               disabled={!editingDuration.duration || parseInt(editingDuration.duration) <= 0}
                             >
                               Save
@@ -378,7 +378,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
           <button
             onClick={handleSaveSession}
             disabled={saving || !formData.start_time || !formData.end_time}
-            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+            className="px-6 py-3 momentum-grad-interactive rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
           >
             {saving ? 'Saving...' : session ? 'Update Session' : 'Create Session'}
           </button>

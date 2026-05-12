@@ -159,7 +159,7 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
                     <div className="text-yellow-400 text-xs font-medium mb-1">PRESALE ACTIVE</div>
                     <div className="text-gray-400 text-xs">24 hours remaining</div>
                   </div>
-                  <button className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg font-medium text-white hover:scale-105 transition-transform">
+                  <button className="px-4 py-2 momentum-grad-interactive rounded-lg font-medium text-white hover:scale-105 transition-transform">
                     Get Tickets
                   </button>
                 </div>

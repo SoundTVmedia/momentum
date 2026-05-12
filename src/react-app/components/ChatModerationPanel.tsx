@@ -245,7 +245,7 @@ export default function ChatModerationPanel() {
                       type="text"
                       value={banFormData.user_id}
                       onChange={(e) => setBanFormData({ ...banFormData, user_id: e.target.value })}
-                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                       placeholder="user_abc123"
                     />
                   </div>
@@ -256,7 +256,7 @@ export default function ChatModerationPanel() {
                       type="text"
                       value={banFormData.reason}
                       onChange={(e) => setBanFormData({ ...banFormData, reason: e.target.value })}
-                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                       placeholder="Spam, harassment, etc."
                     />
                   </div>
@@ -267,7 +267,7 @@ export default function ChatModerationPanel() {
                       type="number"
                       value={banFormData.duration_minutes}
                       onChange={(e) => setBanFormData({ ...banFormData, duration_minutes: e.target.value })}
-                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                       placeholder="Leave empty for permanent ban"
                     />
                   </div>

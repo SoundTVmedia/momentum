@@ -126,7 +126,7 @@ export default function UserProfilePage() {
             <p className="text-red-400 mb-4">{error || 'User not found'}</p>
             <button
               onClick={() => navigate('/')}
-              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+              className="px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
             >
               Return Home
             </button>
@@ -189,8 +189,8 @@ export default function UserProfilePage() {
                       disabled={followLoading(userId || '')}
                       className={`mt-4 md:mt-0 px-6 py-3 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center space-x-2 ${
                         isFollowing(userId || '')
-                          ? 'bg-white/10 border border-emerald-500/50 text-white'
-                          : 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
+                          ? 'bg-white/10 border border-momentum-teal/50 text-white'
+                          : 'momentum-grad-interactive text-white'
                       }`}
                     >
                       {isFollowing(userId || '') ? (
@@ -211,7 +211,7 @@ export default function UserProfilePage() {
                     <div className="mt-3 sm:mt-4 md:mt-0 flex gap-2 justify-center md:justify-start">
                       <button
                         onClick={() => setShowProfileEditor(true)}
-                        className="px-4 py-2 sm:px-6 sm:py-3 bg-white/10 border border-emerald-500/50 rounded-xl font-semibold text-white hover:bg-white/20 transition-colors flex items-center space-x-2 text-sm sm:text-base"
+                        className="px-4 py-2 sm:px-6 sm:py-3 bg-white/10 border border-momentum-teal/50 rounded-xl font-semibold text-white hover:bg-white/20 transition-colors flex items-center space-x-2 text-sm sm:text-base"
                       >
                         <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                         <span>Edit Profile</span>
@@ -257,7 +257,7 @@ export default function UserProfilePage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mt-6 sm:mt-8">
-              <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Video className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
                 </div>
@@ -265,7 +265,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Clips</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
                 </div>
@@ -273,7 +273,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Likes</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
                 </div>
@@ -281,7 +281,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Views</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Users className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
                 </div>
@@ -289,7 +289,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Followers</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
                 </div>
@@ -300,7 +300,7 @@ export default function UserProfilePage() {
 
             {/* Lifetime Feedback stats */}
             {lifetimeStats && (
-              <div className="mt-6 sm:mt-8 bg-gradient-to-r from-emerald-500/10 to-yellow-500/10 border border-emerald-500/30 rounded-xl p-4 sm:p-6">
+              <div className="mt-6 sm:mt-8 bg-gradient-to-r from-momentum-teal/12 to-momentum-mint/8 border border-momentum-teal/30 rounded-xl p-4 sm:p-6">
                 <div className="flex items-center space-x-2 mb-4">
                   <TrendingUp className="w-5 h-5 text-cyan-400" />
                   <h3 className="text-lg sm:text-xl font-bold text-white">Lifetime Feedback Stats</h3>
@@ -402,7 +402,7 @@ export default function UserProfilePage() {
         </h2>
         
         {clips.length === 0 ? (
-          <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl">
+          <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl">
             <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">
               {isOwnProfile ? "No clips yet. Time to share!" : "Nothing here yet"}
@@ -410,7 +410,7 @@ export default function UserProfilePage() {
             {isOwnProfile && (
               <button
                 onClick={() => navigate('/upload')}
-                className="mt-4 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+                className="mt-4 px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Share Your First Moment
               </button>
@@ -422,7 +422,7 @@ export default function UserProfilePage() {
               <div
                 key={clipListItemKey(clip, index)}
                 onClick={() => setSelectedClip(clip)}
-                className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden hover:border-lime-400/50 transition-all cursor-pointer group"
+                className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
               >
                 <div
                   className="relative w-full bg-black"

@@ -94,8 +94,8 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-emerald-500/20 rounded-xl overflow-hidden">
-        <div className="bg-gradient-to-r from-emerald-600/20 to-lime-600/20 border-b border-white/10 p-6">
+      <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-teal/20 rounded-xl overflow-hidden">
+        <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/12 border-b border-white/10 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <Shield className="w-8 h-8 text-blue-400" />
@@ -145,7 +145,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 type="text"
                 value={formData.full_name}
                 onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="Enter your official name"
                 required
               />
@@ -160,7 +160,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 value={formData.reason}
                 onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
                 rows={4}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 resize-none"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint resize-none"
                 placeholder="Explain your eligibility and why verification is important to you..."
                 required
                 maxLength={1000}
@@ -179,7 +179,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 type="url"
                 value={formData.proof_url}
                 onChange={(e) => setFormData(prev => ({ ...prev, proof_url: e.target.value }))}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="https://"
                 required
               />
@@ -194,7 +194,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 value={formData.social_links}
                 onChange={(e) => setFormData(prev => ({ ...prev, social_links: e.target.value }))}
                 rows={2}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 resize-none"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint resize-none"
                 placeholder="https://instagram.com/yourprofile, https://twitter.com/yourprofile"
                 required
               />
@@ -223,7 +223,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-lime-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-momentum-teal to-momentum-mint rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center"
               >
                 {loading ? (
                   <>

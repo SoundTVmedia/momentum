@@ -51,7 +51,7 @@ export default function QuickRecordModal({ isOpen, onClose }: QuickRecordModalPr
         <button
           type="button"
           disabled={gesturePending}
-          className="w-full max-w-xs rounded-xl bg-gradient-to-r from-emerald-500 to-yellow-500 px-6 py-4 font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
+          className="w-full max-w-xs rounded-xl momentum-grad-interactive px-6 py-4 font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
           onClick={() => {
             setGesturePending(true);
             setCaptureLaunchGeoResolved(false);

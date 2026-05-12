@@ -112,7 +112,7 @@ export default function StreamVideoPlayer({
       {/* Loading indicator */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-          <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />
+          <Loader2 className="w-12 h-12 text-momentum-teal animate-spin" />
         </div>
       )}
 
@@ -171,7 +171,7 @@ export default function StreamVideoPlayer({
 
       {/* Stream Quality Badge */}
       {streamVideoId && (
-        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 px-2 py-1 bg-black/60 backdrop-blur-lg rounded-full text-xs text-emerald-400 font-medium">
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 px-2 py-1 bg-black/60 backdrop-blur-lg rounded-full text-xs text-momentum-teal font-medium">
           Adaptive HD
         </div>
       )}

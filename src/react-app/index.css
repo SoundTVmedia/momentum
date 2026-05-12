@@ -17,6 +17,14 @@ body {
   max-width: 100vw;
   overscroll-behavior-x: none;
   background-color: #000;
+  background-image: linear-gradient(
+    to bottom,
+    #000000 0%,
+    rgba(2, 170, 176, 0.045) 45%,
+    rgba(0, 205, 172, 0.03) 55%,
+    #000000 100%
+  );
+  background-attachment: fixed;
 }
 
 #root {
@@ -28,19 +36,64 @@ body {
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  
-  /* New color palette - concert lighting inspired */
-  --electric-blue: #0066FF;
-  --deep-blue: #0047AB;
-  --neon-cyan: #00D9FF;
-  --vibrant-cyan: #06B6D4;
-  --neon-purple: #7C3AED;
-  --deep-purple: #5B21B6;
-  
-  /* Gradients */
-  --gradient-electric: linear-gradient(135deg, #0066FF 0%, #00D9FF 100%);
-  --gradient-concert: linear-gradient(135deg, #0047AB 0%, #7C3AED 100%);
-  --gradient-stage: linear-gradient(135deg, #06B6D4 0%, #0066FF 100%);
+
+  /* Brand aqua gradient (app-wide surfaces, CTAs, text clips) */
+  --momentum-teal: #02aab0;
+  --momentum-mint: #00cdac;
+  --momentum-grad: linear-gradient(
+    to right,
+    #02aab0 0%,
+    #00cdac 51%,
+    #02aab0 100%
+  );
+
+  /* Legacy concert palette (still used in a few spots) */
+  --electric-blue: #0066ff;
+  --deep-blue: #0047ab;
+  --neon-cyan: #00d9ff;
+  --vibrant-cyan: #06b6d4;
+  --neon-purple: #7c3aed;
+  --deep-purple: #5b21b6;
+  --gradient-electric: linear-gradient(135deg, #0066ff 0%, #00d9ff 100%);
+  --gradient-concert: linear-gradient(135deg, #0047ab 0%, #7c3aed 100%);
+  --gradient-stage: linear-gradient(135deg, #06b6d4 0%, #0066ff 100%);
+}
+
+/* Brand CTAs + surfaces — uses --momentum-grad from :root */
+.momentum-grad-interactive {
+  background-image: var(--momentum-grad);
+  background-size: 200% auto;
+  transition: background-position 0.5s ease, transform 0.2s ease, opacity 0.2s ease;
+  color: #fff;
+}
+.momentum-grad-interactive:hover {
+  background-position: right center;
+}
+
+.momentum-grad-text {
+  background-image: var(--momentum-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.momentum-surface-soft {
+  background: linear-gradient(
+    135deg,
+    rgba(2, 170, 176, 0.2) 0%,
+    rgba(0, 205, 172, 0.08) 45%,
+    rgba(2, 170, 176, 0.14) 100%
+  );
+}
+
+.momentum-page-wash {
+  background: linear-gradient(
+    to bottom,
+    #000000 0%,
+    rgba(2, 170, 176, 0.09) 38%,
+    rgba(0, 205, 172, 0.06) 55%,
+    #030303 100%
+  );
 }
 
 /* Custom scrollbar - vibrant theme */
@@ -53,12 +106,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #0066FF, #A855F7);
+  background: linear-gradient(to bottom, #02aab0, #00cdac);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #0066FF, #00D9FF);
+  background: linear-gradient(to bottom, #00cdac, #02aab0);
 }
 
 /* Custom animations */
@@ -194,9 +247,9 @@ body {
 
 .video-card:hover {
   transform: scale(1.02);
-  box-shadow: 
-    0 0 30px rgba(0, 102, 255, 0.3),
-    0 0 60px rgba(6, 182, 212, 0.2);
+  box-shadow:
+    0 0 28px rgba(2, 170, 176, 0.35),
+    0 0 52px rgba(0, 205, 172, 0.2);
 }
 
 /* Neon glow effects */

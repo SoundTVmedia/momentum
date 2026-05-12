@@ -1097,7 +1097,7 @@ export default function QuickRecordButton({
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-white/20">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-lime-400 via-emerald-400 to-yellow-400 transition-all duration-200 ease-out"
+                      className="h-full rounded-full momentum-grad-interactive transition-all duration-200 ease-out"
                       style={{ width: `${Math.min(100, Math.round(processingProgress))}%` }}
                     />
                   </div>

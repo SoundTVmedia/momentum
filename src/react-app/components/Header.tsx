@@ -186,11 +186,11 @@ export default function Header() {
             onClick={() => navigate('/')}
             className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-4 min-w-0"
           >
-            <div className="text-lg sm:text-xl md:text-2xl font-headline bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent truncate">
+            <div className="text-lg sm:text-xl md:text-2xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent truncate">
               FEEDBACK
             </div>
             {isLiveTime() && (
-              <div className="hidden sm:flex items-center space-x-1.5 sm:space-x-2 px-2 sm:px-3 py-0.5 sm:py-1 bg-gradient-to-r from-emerald-600/20 to-yellow-600/20 border border-emerald-500/50 rounded-full animate-neon-pulse">
+              <div className="hidden sm:flex items-center space-x-1.5 sm:space-x-2 px-2 sm:px-3 py-0.5 sm:py-1 bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 border border-momentum-teal/50 rounded-full animate-neon-pulse">
                 <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-cyan-400 rounded-full animate-pulse"></div>
                 <span className="text-cyan-400 text-xs sm:text-sm font-bold">LIVE</span>
               </div>
@@ -248,7 +248,7 @@ export default function Header() {
                   onChange={(e) => handleSearchInput(e.target.value)}
                   onFocus={() => searchQuery.trim().length >= 2 && setShowSearchResults(true)}
                   placeholder="Search clips, artists, venues..."
-                  className="w-48 xl:w-64 pl-9 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 text-sm"
+                  className="w-48 xl:w-64 pl-9 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint text-sm"
                   aria-autocomplete="list"
                   aria-expanded={showSearchResults}
                 />
@@ -256,7 +256,7 @@ export default function Header() {
               </form>
 
               {showSearchResults && searchQuery.trim().length >= 2 && (
-                <div className="absolute top-full mt-2 w-[28rem] max-w-[90vw] bg-black/95 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden z-50 shadow-xl shadow-cyan-950/40">
+                <div className="absolute top-full mt-2 w-[28rem] max-w-[90vw] bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden z-50 shadow-xl shadow-cyan-950/40">
                   {searchLoading && (
                     <div className="flex items-center justify-center gap-2 py-8 text-gray-400 text-sm">
                       <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
@@ -440,7 +440,7 @@ export default function Header() {
                   <Bell className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${unreadCount > 0 ? 'animate-pulse' : ''} group-hover:scale-110`} />
                   {unreadCount > 0 && (
                     <>
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full text-white text-[10px] sm:text-xs flex items-center justify-center font-bold shadow-lg shadow-emerald-500/50 animate-pulse">
+                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 momentum-grad-interactive rounded-full text-white text-[10px] sm:text-xs flex items-center justify-center font-bold shadow-lg shadow-momentum-teal/40 animate-pulse">
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
                       <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-cyan-500 rounded-full animate-ping opacity-75" />
@@ -470,7 +470,7 @@ export default function Header() {
               <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
                 <button
                   onClick={() => navigate('/upload')}
-                  className="hidden md:block px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base shadow-lg shadow-emerald-500/30"
+                  className="hidden md:block px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base shadow-lg shadow-momentum-teal/35"
                 >
                   Share Your Moment
                 </button>
@@ -501,7 +501,7 @@ export default function Header() {
             ) : (
               <button
                 onClick={() => navigate('/auth')}
-                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base whitespace-nowrap shadow-lg shadow-emerald-500/30"
+                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base whitespace-nowrap shadow-lg shadow-momentum-teal/35"
               >
                 Sign In
               </button>

@@ -46,18 +46,18 @@ export default function DiscoverSection() {
 
   const getPriorityColor = (show: any) => {
     if (show.type === 'live') return 'from-red-500 to-orange-500'
-    if (show.type === 'nearby_upcoming') return 'from-green-500 to-emerald-500'
+    if (show.type === 'nearby_upcoming') return 'from-momentum-teal to-momentum-mint'
     if (show.is_favorite) return 'from-purple-500 to-pink-500'
     if (show.type === 'trending') return 'from-orange-500 to-yellow-500'
-    return 'from-emerald-500 to-yellow-500'
+    return 'from-momentum-teal via-momentum-mint to-momentum-teal'
   }
 
   return (
-    <section className="pt-8 pb-20 bg-gradient-to-b from-black to-slate-900">
+    <section className="pt-8 pb-20 bg-gradient-to-b from-black via-momentum-teal/6 to-slate-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-white mb-4">
-            Find <span className="bg-gradient-to-r from-lime-400 to-emerald-500 bg-clip-text text-transparent">Your Next Show</span>
+            Find <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">Your Next Show</span>
           </h2>
           <p className="text-xl text-gray-300 max-w-2xl mx-auto font-medium">
             See who's playing near you and join the scene
@@ -66,7 +66,7 @@ export default function DiscoverSection() {
 
         {/* Location Request Banner */}
         {user && !hasLocation && (
-          <div className="mb-8 p-4 bg-gradient-to-r from-emerald-600/20 to-yellow-600/20 backdrop-blur-lg border border-emerald-500/40 rounded-xl">
+          <div className="mb-8 p-4 bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Navigation className="w-6 h-6 text-cyan-400" />
@@ -77,7 +77,7 @@ export default function DiscoverSection() {
               </div>
               <button
                 onClick={requestUserLocation}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"
+                className="px-4 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
               >
                 Enable Location
               </button>
@@ -91,8 +91,8 @@ export default function DiscoverSection() {
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-full font-medium transition-all ${
               filter === 'all'
-                ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
-                : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-emerald-500/20 hover:border-lime-400/40'
+                ? 'momentum-grad-interactive text-white'
+                : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-teal/20 hover:border-momentum-mint/40'
             }`}
           >
             All Shows
@@ -115,7 +115,7 @@ export default function DiscoverSection() {
               onClick={() => setFilter('nearby')}
               className={`px-4 py-2 rounded-full font-medium transition-all ${
                 filter === 'nearby'
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
+                  ? 'bg-gradient-to-r from-momentum-teal to-momentum-mint text-white'
                   : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-green-500/20 hover:border-green-400/40'
               }`}
             >
@@ -162,7 +162,7 @@ export default function DiscoverSection() {
                 <div
                   key={`${show.type}-${index}`}
                   onClick={() => handleShowClick(show)}
-                  className="group bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden hover:border-lime-400/50 hover:scale-105 transition-all duration-300 cursor-pointer"
+                  className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300 cursor-pointer"
                 >
                   <div className="relative">
                     <img
@@ -262,7 +262,7 @@ export default function DiscoverSection() {
                             e.stopPropagation();
                             window.open(show.ticket_url, '_blank');
                           }}
-                          className="flex-1 px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"
+                          className="flex-1 px-4 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
                         >
                           Get Tickets
                         </button>
@@ -285,7 +285,7 @@ export default function DiscoverSection() {
             <p className="text-gray-400 text-lg">No shows found matching your filters.</p>
             <button
               onClick={() => setFilter('all')}
-              className="mt-4 px-6 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"
+              className="mt-4 px-6 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
             >
               View All Shows
             </button>
@@ -295,7 +295,7 @@ export default function DiscoverSection() {
         <div className="text-center mt-12">
           <button
             onClick={() => navigate('/discover')}
-            className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform hover:shadow-lg hover:shadow-emerald-500/25"
+            className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform hover:shadow-lg hover:shadow-momentum-teal/30"
           >
             Explore More Shows
           </button>

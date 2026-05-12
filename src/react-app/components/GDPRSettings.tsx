@@ -119,7 +119,7 @@ export default function GDPRSettings() {
       </div>
 
       {/* Privacy Settings */}
-      <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
+      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
         <h3 className="text-xl font-bold text-white mb-6">Privacy Settings</h3>
         
         <div className="space-y-4">
@@ -222,7 +222,7 @@ export default function GDPRSettings() {
       </div>
 
       {/* Data Export */}
-      <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
+      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
         <h3 className="text-xl font-bold text-white mb-4">Export Your Data</h3>
         <p className="text-gray-300 mb-6">
           Download a copy of all your data including clips, comments, likes, and account information.
@@ -230,7 +230,7 @@ export default function GDPRSettings() {
         <button
           onClick={exportData}
           disabled={exporting}
-          className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50"
+          className="flex items-center space-x-2 px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50"
         >
           {exporting ? (
             <>

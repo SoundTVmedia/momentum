@@ -38,7 +38,7 @@ export default function PersonalizedConcerts() {
 
   if (loading) {
     return (
-      <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8">
+      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8">
         <div className="flex items-center justify-center space-x-2 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading your recommendations...</span>
@@ -49,7 +49,7 @@ export default function PersonalizedConcerts() {
 
   if (!personalized || concerts.length === 0) {
     return (
-      <div className="bg-gradient-to-br from-emerald-900/25 to-yellow-900/20 backdrop-blur-lg border border-emerald-500/25 rounded-xl p-8">
+      <div className="bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8">
         <div className="text-center">
           <Heart className="w-12 h-12 text-purple-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">
@@ -81,7 +81,7 @@ export default function PersonalizedConcerts() {
         {concerts.map((concert) => (
           <div
             key={concert.id}
-            className="group bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden hover:border-lime-400/50 transition-all hover:scale-105"
+            className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all hover:scale-105"
           >
             {/* Artist Image */}
             {concert.artist_image && (
@@ -129,7 +129,7 @@ export default function PersonalizedConcerts() {
                   href={concert.ticket_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center space-x-2 w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+                  className="flex items-center justify-center space-x-2 w-full px-4 py-2 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
                 >
                   <span>Get Tickets</span>
                   <ExternalLink className="w-4 h-4" />

@@ -58,7 +58,7 @@ export default function AuthCallback() {
           <button
             type="button"
             onClick={() => navigate('/auth', { replace: true })}
-            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+            className="px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
           >
             Back to sign in
           </button>

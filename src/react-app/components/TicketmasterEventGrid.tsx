@@ -115,7 +115,7 @@ export default function TicketmasterEventGrid({
       {displayEvents.map((event) => (
         <div
           key={event.id}
-          className="group bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden hover:border-lime-400/50 hover:scale-105 transition-all duration-300"
+          className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300"
         >
           <div className="relative">
             <img
@@ -167,7 +167,7 @@ export default function TicketmasterEventGrid({
               <span className="text-cyan-400 font-bold">{formatPrice(event.priceRanges)}</span>
               <button
                 onClick={() => handleTicketClick(event)}
-                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 text-white rounded-lg font-medium hover:scale-105 transition-transform shadow-lg shadow-emerald-500/25"
+                className="flex items-center space-x-2 px-4 py-2 momentum-grad-interactive text-white rounded-lg font-medium hover:scale-105 transition-transform shadow-lg shadow-momentum-teal/30"
               >
                 <Ticket className="w-4 h-4" />
                 <span>Tickets</span>

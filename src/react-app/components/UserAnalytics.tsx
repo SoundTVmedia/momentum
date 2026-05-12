@@ -77,7 +77,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
     <div className="space-y-8">
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
+        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-cyan-500/20 rounded-lg">
               <Users className="w-6 h-6 text-cyan-400" />
@@ -128,7 +128,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
 
       {/* Detailed Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
+        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Average Engagement</h3>
           <div className="space-y-4">
             <div>
@@ -161,7 +161,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           </div>
         </div>
 
-        <div className="md:col-span-2 bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
+        <div className="md:col-span-2 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Engagement Over Time</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={data.engagementOverTime}>
@@ -204,7 +204,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
 
       {/* Top Performing Clips */}
       {data.topClips.length > 0 && (
-        <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
+        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Top Performing Clips</h3>
           <div className="space-y-4">
             {data.topClips.map((clip, index) => (

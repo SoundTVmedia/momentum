@@ -155,7 +155,7 @@ export default function DiscoverPage() {
         {/* Search Section */}
         <div className="mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 text-center">
-            Find <span className="bg-gradient-to-r from-lime-400 to-emerald-500 bg-clip-text text-transparent">Your Next Show</span>
+            Find <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">Your Next Show</span>
           </h1>
           
           <form onSubmit={handleSearch} className="max-w-3xl mx-auto">
@@ -166,7 +166,7 @@ export default function DiscoverPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search artists, venues, cities..."
-                className="w-full pl-14 pr-32 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 text-lg"
+                className="w-full pl-14 pr-32 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint text-lg"
               />
               <button
                 type="button"
@@ -177,7 +177,7 @@ export default function DiscoverPage() {
               </button>
               <button
                 type="submit"
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 px-6 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 px-6 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
               >
                 Search
               </button>
@@ -203,7 +203,7 @@ export default function DiscoverPage() {
                   <select
                     value={filters.genre}
                     onChange={(e) => updateFilter('genre', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-lime-400"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
                   >
                     <option value="">All Genres</option>
                     <option value="Rock">Rock</option>
@@ -220,7 +220,7 @@ export default function DiscoverPage() {
                   <select
                     value={filters.dateRange}
                     onChange={(e) => updateFilter('dateRange', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-lime-400"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
                   >
                     <option value="7d">Last 7 days</option>
                     <option value="30d">Last 30 days</option>
@@ -234,7 +234,7 @@ export default function DiscoverPage() {
                   <select
                     value={filters.sortBy}
                     onChange={(e) => updateFilter('sortBy', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-lime-400"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
                   >
                     <option value="latest">Latest</option>
                     <option value="trending">Trending</option>
@@ -275,7 +275,7 @@ export default function DiscoverPage() {
                     <div
                       key={clipListItemKey(clip, index)}
                       onClick={() => setSelectedClip(clip)}
-                      className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden hover:border-lime-400/50 transition-all cursor-pointer group"
+                      className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
                     >
                       <div
                         className="relative w-full bg-black"
@@ -567,8 +567,8 @@ export default function DiscoverPage() {
                 onClick={() => setShowLiveEvents(false)}
                 className={`px-6 py-3 rounded-xl font-medium transition-all ${
                   !showLiveEvents
-                    ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
-                    : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-emerald-500/20'
+                    ? 'momentum-grad-interactive text-white'
+                    : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-teal/20'
                 }`}
               >
                 <div className="flex items-center space-x-2">
@@ -580,8 +580,8 @@ export default function DiscoverPage() {
                 onClick={() => setShowLiveEvents(true)}
                 className={`px-6 py-3 rounded-xl font-medium transition-all ${
                   showLiveEvents
-                    ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
-                    : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-emerald-500/20'
+                    ? 'momentum-grad-interactive text-white'
+                    : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-teal/20'
                 }`}
               >
                 <div className="flex items-center space-x-2">
@@ -623,8 +623,8 @@ export default function DiscoverPage() {
                     onClick={() => setLiveEventCatalog('ticketmaster')}
                     className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
                       liveEventCatalog === 'ticketmaster'
-                        ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
-                        : 'bg-black/40 text-gray-300 border border-emerald-500/30 hover:border-lime-400/50'
+                        ? 'momentum-grad-interactive text-white'
+                        : 'bg-black/40 text-gray-300 border border-momentum-teal/30 hover:border-momentum-mint/50'
                     }`}
                   >
                     Ticketmaster

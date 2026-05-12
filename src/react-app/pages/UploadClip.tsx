@@ -1067,7 +1067,7 @@ export default function UploadClip() {
         </p>
         <button
           type="button"
-          className="w-full max-w-xs px-6 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-yellow-500 text-white font-semibold active:scale-[0.98] transition-transform"
+          className="w-full max-w-xs px-6 py-4 rounded-xl momentum-grad-interactive text-white font-semibold active:scale-[0.98] transition-transform"
           onClick={() => {
             setReRecordLaunchGeo(null);
             setReRecordLaunchGeoResolved(false);
@@ -1171,7 +1171,7 @@ export default function UploadClip() {
             </button>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden">
+          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden">
             {/* Video Preview with Controls */}
             <div className="relative aspect-video bg-black group">
               {videoBlobUrl && (
@@ -1321,7 +1321,7 @@ export default function UploadClip() {
                   value={formData.content_description}
                   onChange={(e) => handleInputChange('content_description', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 transition-colors"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
                   placeholder="What was this moment?"
                 />
                 <p className="text-gray-400 text-xs mt-2">Caption is optional</p>
@@ -1350,7 +1350,7 @@ export default function UploadClip() {
               )}
 
               {nearbyVenueSuggestions.length > 0 && (
-                <div className="p-4 bg-cyan-500/10 border border-emerald-500/25 rounded-lg space-y-2">
+                <div className="p-4 bg-cyan-500/10 border border-momentum-teal/25 rounded-lg space-y-2">
                   <p className="text-cyan-100 text-sm font-medium">
                     JamBase venues for your capture location
                   </p>
@@ -1429,7 +1429,7 @@ export default function UploadClip() {
                             if (debouncedArtistSearch.length >= 2) setShowArtistSuggestions(true);
                           }}
                           autoComplete="off"
-                          className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 text-sm"
+                          className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint text-sm"
                           placeholder="Search JamBase artists"
                         />
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400 pointer-events-none" />
@@ -1439,7 +1439,7 @@ export default function UploadClip() {
                       </p>
 
                       {debouncedArtistSearch.length >= 2 && (
-                        <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-800 border border-emerald-500/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                        <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-800 border border-momentum-teal/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                           {artistSearchPending ? (
                             <div className="px-3 py-3 flex items-center gap-2 text-gray-300 text-sm">
                               <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -1476,14 +1476,14 @@ export default function UploadClip() {
                             handleInputChange('venue_name', e.target.value);
                           }}
                           onFocus={() => venueSuggestions.length > 0 && setShowVenueSuggestions(true)}
-                          className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 text-sm"
+                          className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint text-sm"
                           placeholder="Venue name"
                         />
                         <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-400" />
                       </div>
                       
                       {showVenueSuggestions && venueSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-emerald-500/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                        <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-momentum-teal/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                           {venueSuggestions.map((venue) => (
                             <button
                               key={venue.identifier}
@@ -1509,7 +1509,7 @@ export default function UploadClip() {
                         type="text"
                         value={formData.location}
                         onChange={(e) => handleInputChange('location', e.target.value)}
-                        className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 text-sm"
+                        className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint text-sm"
                         placeholder="Location"
                       />
                       <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-400" />
@@ -1545,7 +1545,7 @@ export default function UploadClip() {
                   type="text"
                   value={formData.hashtags}
                   onChange={(e) => handleInputChange('hashtags', e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 transition-colors"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
                   placeholder="#rock #livemusic #concert"
                 />
                 <p className="text-gray-400 text-xs mt-2">Separate with spaces (optional)</p>
@@ -1562,7 +1562,7 @@ export default function UploadClip() {
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-emerald-500 to-yellow-500 transition-all duration-300"
+                          className="h-full bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal transition-all duration-300"
                           style={{ width: `${uploadProgress.video}%` }}
                         />
                       </div>
@@ -1576,7 +1576,7 @@ export default function UploadClip() {
                       </div>
                       <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-emerald-500 to-yellow-500 transition-all duration-300"
+                          className="h-full bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal transition-all duration-300"
                           style={{ width: `${uploadProgress.thumbnail}%` }}
                         />
                       </div>
@@ -1591,7 +1591,7 @@ export default function UploadClip() {
                 <button
                   onClick={() => handleSubmit(null)}
                   disabled={loading}
-                  className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-green-500/30"
+                  className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-momentum-teal/35"
                 >
                   {loading ? (
                     <span className="flex items-center justify-center space-x-2">
@@ -1633,7 +1633,7 @@ export default function UploadClip() {
           <p className="text-gray-300 text-lg">Drop that fire from last night's show</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>
@@ -1654,7 +1654,7 @@ export default function UploadClip() {
                 onClick={() => setUploadMethod('file')}
                 className={`flex-1 px-6 py-3 rounded-lg font-medium transition-all ${
                   uploadMethod === 'file'
-                    ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
+                    ? 'momentum-grad-interactive text-white'
                     : 'bg-white/10 text-gray-300 hover:bg-white/20'
                 }`}
               >
@@ -1668,7 +1668,7 @@ export default function UploadClip() {
                 onClick={() => setUploadMethod('url')}
                 className={`flex-1 px-6 py-3 rounded-lg font-medium transition-all ${
                   uploadMethod === 'url'
-                    ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
+                    ? 'momentum-grad-interactive text-white'
                     : 'bg-white/10 text-gray-300 hover:bg-white/20'
                 }`}
               >
@@ -1717,7 +1717,7 @@ export default function UploadClip() {
                 <div className="mt-2">
                   <div className="w-full bg-white/10 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-emerald-500 to-yellow-500 h-2 rounded-full transition-all"
+                      className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal h-2 rounded-full transition-all"
                       style={{ width: `${uploadProgress.video}%` }}
                     />
                   </div>
@@ -1735,7 +1735,7 @@ export default function UploadClip() {
                 type="url"
                 value={formData.video_url}
                 onChange={(e) => handleInputChange('video_url', e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="https://example.com/video.mp4"
                 required
               />
@@ -1774,7 +1774,7 @@ export default function UploadClip() {
                 <div className="mt-2">
                   <div className="w-full bg-white/10 rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-emerald-500 to-yellow-500 h-2 rounded-full transition-all"
+                      className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal h-2 rounded-full transition-all"
                       style={{ width: `${uploadProgress.thumbnail}%` }}
                     />
                   </div>
@@ -1792,7 +1792,7 @@ export default function UploadClip() {
                 type="url"
                 value={formData.thumbnail_url}
                 onChange={(e) => handleInputChange('thumbnail_url', e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="https://example.com/thumbnail.jpg"
               />
             </div>
@@ -1835,7 +1835,7 @@ export default function UploadClip() {
                   handleInputChange('artist_name', e.target.value);
                 }}
                 onFocus={() => artistSuggestions.length > 0 && setShowArtistSuggestions(true)}
-                className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="Taylor Swift"
               />
               <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1846,7 +1846,7 @@ export default function UploadClip() {
             
             {/* Artist Suggestions Dropdown */}
             {showArtistSuggestions && artistSuggestions.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-emerald-500/30 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+              <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-momentum-teal/30 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                 {artistSuggestions.map((artist) => (
                   <button
                     key={artist.identifier}
@@ -1888,7 +1888,7 @@ export default function UploadClip() {
                     handleInputChange('venue_name', e.target.value);
                   }}
                   onFocus={() => venueSuggestions.length > 0 && setShowVenueSuggestions(true)}
-                  className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                  className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                   placeholder="Madison Square Garden"
                 />
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1896,7 +1896,7 @@ export default function UploadClip() {
               
               {/* Venue Suggestions Dropdown */}
               {showVenueSuggestions && venueSuggestions.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-emerald-500/30 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-momentum-teal/30 rounded-lg shadow-xl max-h-60 overflow-y-auto">
                   {venueSuggestions.map((venue) => (
                     <button
                       key={venue.identifier}
@@ -1929,7 +1929,7 @@ export default function UploadClip() {
                 type="text"
                 value={formData.location}
                 onChange={(e) => handleInputChange('location', e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="New York, NY"
               />
             </div>
@@ -1944,7 +1944,7 @@ export default function UploadClip() {
               value={formData.content_description}
               onChange={(e) => handleInputChange('content_description', e.target.value)}
               rows={4}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
               placeholder="Tell everyone about this epic moment..."
             />
           </div>
@@ -1959,7 +1959,7 @@ export default function UploadClip() {
               type="text"
               value={formData.hashtags}
               onChange={(e) => handleInputChange('hashtags', e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
               placeholder="#rock #livemusic #concert"
             />
             <p className="text-gray-400 text-sm mt-2">Separate hashtags with spaces (e.g., #rock #pop #concert)</p>
@@ -1970,7 +1970,7 @@ export default function UploadClip() {
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="flex-1 px-6 py-4 bg-black/30 border border-emerald-500/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
+              className="flex-1 px-6 py-4 bg-black/30 border border-momentum-teal/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
               disabled={loading}
             >
               Cancel
@@ -1978,7 +1978,7 @@ export default function UploadClip() {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-4 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+              className="flex-1 px-6 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
             >
               {loading ? (
                 <span className="flex items-center justify-center space-x-2">

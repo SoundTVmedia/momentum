@@ -13,11 +13,11 @@ export default function NotFound() {
         <div className="text-center space-y-8">
           {/* 404 Animation */}
           <div className="relative">
-            <div className="text-9xl sm:text-[12rem] font-headline bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent animate-pulse">
+            <div className="text-9xl sm:text-[12rem] font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent animate-pulse">
               404
             </div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-32 h-32 bg-gradient-to-r from-emerald-500/20 to-yellow-500/20 rounded-full blur-3xl animate-pulse" />
+              <div className="w-32 h-32 bg-gradient-to-r from-momentum-teal/18 to-momentum-mint/12 rounded-full blur-3xl animate-pulse" />
             </div>
           </div>
 
@@ -43,7 +43,7 @@ export default function NotFound() {
 
             <button
               onClick={() => navigate('/')}
-              className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+              className="flex items-center space-x-2 px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
             >
               <Home className="w-5 h-5" />
               <span>Back to Home</span>
@@ -66,7 +66,7 @@ export default function NotFound() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
               <button
                 onClick={() => navigate('/')}
-                className="p-4 bg-black/40 border border-emerald-500/20 rounded-lg hover:border-emerald-500/50 transition-colors text-left"
+                className="p-4 bg-black/40 border border-momentum-teal/20 rounded-lg hover:border-momentum-teal/50 transition-colors text-left"
               >
                 <h3 className="font-bold text-white mb-1">Live Feed</h3>
                 <p className="text-sm text-gray-400">See what's happening tonight</p>

@@ -147,9 +147,28 @@ export default function ConcertFeed({
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="text-center mb-4 sm:mb-6 md:mb-8">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
-            {feedType === 'trending' ? 'What\'s Hot Right Now' : 
-             feedType === 'top_rated' ? 'Top Rated Moments' : 
-             'Live From The Scene'} <span className="bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent"></span>
+            {feedType === 'trending' ? (
+              <>
+                What&apos;s{' '}
+                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                  Hot Right Now
+                </span>
+              </>
+            ) : feedType === 'top_rated' ? (
+              <>
+                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                  Top Rated
+                </span>{' '}
+                Moments
+              </>
+            ) : (
+              <>
+                Live From{' '}
+                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                  The Scene
+                </span>
+              </>
+            )}
           </h2>
           <p className="text-sm sm:text-base md:text-lg text-gray-400 px-4">
             {feedType === 'trending' 
@@ -204,7 +223,7 @@ export default function ConcertFeed({
                 
                 {/* Play button overlay */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/video:opacity-100 transition-opacity bg-black/30 pointer-events-none">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-14 lg:h-14 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-500 rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-14 lg:h-14 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
                     <div className="w-0 h-0 border-l-[18px] sm:border-l-[22px] md:border-l-[16px] border-l-white border-y-[12px] sm:border-y-[14px] md:border-y-[11px] border-y-transparent ml-0.5 sm:ml-1" />
                   </div>
                 </div>
@@ -218,7 +237,7 @@ export default function ConcertFeed({
 
                 {/* Feedback Live featured badge */}
                 {clip.momentum_live_featured && (
-                  <div className="absolute top-2 left-2 md:top-1.5 md:left-1.5 px-2 py-0.5 md:px-1.5 md:py-0.5 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full text-[10px] md:text-[10px] font-bold text-white shadow-lg animate-slide-up">
+                  <div className="absolute top-2 left-2 md:top-1.5 md:left-1.5 px-2 py-0.5 md:px-1.5 md:py-0.5 momentum-grad-interactive rounded-full text-[10px] md:text-[10px] font-bold text-white shadow-lg animate-slide-up">
                     🎬 Featured on Feedback Live
                   </div>
                 )}
@@ -362,7 +381,7 @@ export default function ConcertFeed({
 
         {clips.length === 0 && !loading && !error && (
           <div className="text-center py-12 px-4">
-            <div className="max-w-md mx-auto bg-gradient-to-br from-emerald-900/25 to-yellow-900/20 backdrop-blur-lg border border-emerald-500/25 rounded-xl p-8 space-y-4">
+            <div className="max-w-md mx-auto bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8 space-y-4">
               <div className="text-6xl mb-4">🎸</div>
               <h3 className="text-2xl font-bold text-white mb-2">
                 No Clips Yet
@@ -372,7 +391,7 @@ export default function ConcertFeed({
               </p>
               <button
                 onClick={() => navigate('/upload')}
-                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+                className="px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
               >
                 Share Your Moment
               </button>

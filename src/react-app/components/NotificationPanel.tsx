@@ -68,7 +68,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
     : notifications;
 
   return (
-    <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-black/95 backdrop-blur-lg border border-emerald-500/20 rounded-xl overflow-hidden z-50 shadow-xl shadow-emerald-500/10">
+    <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-teal/15">
       {/* Header */}
       <div className="p-3 sm:p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">
@@ -100,7 +100,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             onClick={() => setFilter('all')}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'all'
-                ? 'bg-cyan-500/20 text-cyan-400 border border-emerald-500/30'
+                ? 'bg-cyan-500/20 text-cyan-400 border border-momentum-teal/30'
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
@@ -110,7 +110,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             onClick={() => setFilter('unread')}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'unread'
-                ? 'bg-cyan-500/20 text-cyan-400 border border-emerald-500/30'
+                ? 'bg-cyan-500/20 text-cyan-400 border border-momentum-teal/30'
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
@@ -153,7 +153,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
                   className={`w-full p-3 sm:p-4 hover:bg-white/5 transition-all text-left group relative ${
-                    notification.is_read === 0 ? 'bg-gradient-to-r from-emerald-500/5 to-transparent' : ''
+                    notification.is_read === 0 ? 'bg-gradient-to-r from-momentum-teal/8 to-transparent' : ''
                   }`}
                 >
                   <div className="flex items-start space-x-3">
@@ -162,7 +162,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                       <img
                         src={notification.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
                         alt={notification.user_display_name || 'User'}
-                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/10 group-hover:border-emerald-500/40 transition-colors"
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/10 group-hover:border-momentum-teal/40 transition-colors"
                       />
                       <div className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 ${iconData.color} rounded-full flex items-center justify-center ring-2 ${iconData.ringColor} ring-offset-1 ring-offset-black`}>
                         {iconData.icon}

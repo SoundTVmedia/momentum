@@ -112,7 +112,7 @@ export default function MobileBottomNav() {
                   aria-label="Capture Moment"
                   className="flex flex-col items-center justify-center relative transform transition-all hover:scale-110"
                 >
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 flex items-center justify-center animate-neon-pulse">
+                  <div className="w-12 h-12 rounded-full momentum-grad-interactive flex items-center justify-center animate-neon-pulse">
                     <Icon className="w-6 h-6 text-white" />
                   </div>
                 </button>
@@ -130,7 +130,7 @@ export default function MobileBottomNav() {
                 <div className="relative">
                   <Icon className={`w-6 h-6 transition-all ${active ? 'scale-110' : ''}`} />
                   {item.badge && item.badge > 0 && (
-                    <span className="absolute -top-2 -right-2 w-4 h-4 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
+                    <span className="absolute -top-2 -right-2 w-4 h-4 momentum-grad-interactive rounded-full text-white text-[10px] flex items-center justify-center font-bold">
                       {item.badge > 9 ? '9+' : item.badge}
                     </span>
                   )}
@@ -139,7 +139,7 @@ export default function MobileBottomNav() {
                   {item.label}
                 </span>
                 {active && (
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full" />
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 momentum-grad-interactive rounded-full" />
                 )}
               </button>
             );

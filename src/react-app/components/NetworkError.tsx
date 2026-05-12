@@ -59,7 +59,7 @@ export default function NetworkError({
       {onRetry && (
         <button
           onClick={onRetry}
-          className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+          className="flex items-center space-x-2 px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
         >
           <RefreshCw className="w-5 h-5" />
           <span>Try Again</span>
