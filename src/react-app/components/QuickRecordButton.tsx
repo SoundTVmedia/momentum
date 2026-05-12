@@ -17,6 +17,12 @@ const HAPTIC_WARNING_TIME = 50;
 interface QuickRecordButtonProps {
   isOpen?: boolean;
   onClose?: () => void;
+  /**
+   * Called after a successful recording or gallery pick navigates to `/upload` with clip state.
+   * Use this to dismiss the parent capture overlay **without** mutating `history.state` (e.g. Upload page).
+   * If omitted, `onClose` runs (e.g. MobileBottomNav stops primed streams and hides capture).
+   */
+  onAfterCaptureNavigate?: () => void;
   /** Obtained in the same user gesture as opening capture (see MobileBottomNav). Required for iOS Safari. */
   primedMediaStream?: MediaStream | null;
   /** When false, skip getUserMedia on open (primed stream or caller handles it). */
@@ -40,6 +46,7 @@ export default function QuickRecordButton({
   captureLaunchGeo,
   captureLaunchGeoResolved = true,
   deferCameraUntilLaunchGeo = false,
+  onAfterCaptureNavigate,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
@@ -342,7 +349,9 @@ export default function QuickRecordButton({
       const hasAudioTrack = stream.getAudioTracks().length > 0;
       if (!hasAudioTrack) {
         setAudioEnabled(false);
-        setCameraError('Camera opened without microphone access. Video capture still works.');
+        setCameraError(
+          'Camera opened without microphone access. Song recognition (AudD) needs audio — allow the microphone for this site, then open Capture again.',
+        );
       } else {
         setAudioEnabled(true);
         setCameraError(null);
@@ -586,6 +595,7 @@ export default function QuickRecordButton({
           auddPrefill,
         },
       });
+      (onAfterCaptureNavigate ?? onClose)?.();
     } finally {
       setProcessingHint('');
       setIsProcessingTransition(false);
@@ -748,6 +758,7 @@ export default function QuickRecordButton({
           },
         }
       );
+      (onAfterCaptureNavigate ?? onClose)?.();
       setProcessingProgress(100);
 
       recordingStartedAtRef.current = null;

@@ -188,10 +188,20 @@ export default function UploadClip() {
       navigate('/auth', { replace: true });
       return;
     }
-    // Deep link: no Capture-tap priming — skip waiting for launch geo.
+    // Same priming as Re-record: location (when the browser allows from this tick), then camera/mic.
     setReRecordLaunchGeo(null);
-    setReRecordLaunchGeoResolved(true);
+    setReRecordLaunchGeoResolved(false);
+    setReRecordGesturePending(true);
     setShowQuickCapture(true);
+    void primeGeolocationOnUserGesture()
+      .then((g) => {
+        setReRecordLaunchGeo(g);
+        setReRecordLaunchGeoResolved(true);
+        return primeCameraOnUserGesture();
+      })
+      .then((stream) => setReRecordPrimedStream(stream))
+      .catch(() => setReRecordPrimedStream(null))
+      .finally(() => setReRecordGesturePending(false));
   }, [location.search, showCaptionScreen, user, isPending, navigate]);
 
   // Check if we received a recorded video blob from QuickRecord
@@ -959,6 +969,9 @@ export default function UploadClip() {
         setVideoBlobUrl(null);
       }
 
+      setShowCaptionScreen(false);
+      setShowQuickCapture(false);
+
       navigate('/feed', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload clip');
@@ -1093,6 +1106,14 @@ export default function UploadClip() {
           captureLaunchGeo={reRecordLaunchGeo}
           captureLaunchGeoResolved={reRecordLaunchGeoResolved}
           deferCameraUntilLaunchGeo
+          onAfterCaptureNavigate={() => {
+            reRecordPrimedStream?.getTracks().forEach((t) => t.stop());
+            setReRecordPrimedStream(null);
+            setReRecordGesturePending(false);
+            setReRecordLaunchGeo(null);
+            setReRecordLaunchGeoResolved(false);
+            setShowQuickCapture(false);
+          }}
           onClose={() => {
             reRecordPrimedStream?.getTracks().forEach((t) => t.stop());
             setReRecordPrimedStream(null);
@@ -1100,7 +1121,10 @@ export default function UploadClip() {
             setReRecordLaunchGeo(null);
             setReRecordLaunchGeoResolved(false);
             setShowQuickCapture(false);
-            window.history.replaceState({}, '', '/upload');
+            const sp = new URLSearchParams(location.search);
+            if (sp.get('quickCapture') === 'true') {
+              navigate({ pathname: '/upload', search: '' }, { replace: true, state: location.state });
+            }
           }}
         />
       </div>
