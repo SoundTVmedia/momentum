@@ -47,7 +47,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
   }
 
   return (
-    <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 backdrop-blur-lg border border-purple-500/30 rounded-xl p-4 sm:p-6">
+    <div className="bg-gradient-to-br from-emerald-900/25 to-yellow-900/20 backdrop-blur-lg border border-emerald-500/30 rounded-xl p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
@@ -78,7 +78,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
             className="group flex items-center space-x-3 p-3 bg-black/30 hover:bg-black/40 rounded-lg transition-all cursor-pointer"
             onClick={() => item.artist_name && navigate(artistPath(item.artist_name))}
           >
-            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center font-bold text-white">
+            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-emerald-500 to-lime-500 rounded-full flex items-center justify-center font-bold text-white">
               {index + 1}
             </div>
 

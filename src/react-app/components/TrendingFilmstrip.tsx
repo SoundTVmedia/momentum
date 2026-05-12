@@ -75,7 +75,7 @@ export default function TrendingFilmstrip() {
                     
                     {/* Play button overlay */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full flex items-center justify-center shadow-lg">
                         <Play className="w-5 h-5 sm:w-6 sm:h-6 text-white fill-white ml-0.5" />
                       </div>
                     </div>

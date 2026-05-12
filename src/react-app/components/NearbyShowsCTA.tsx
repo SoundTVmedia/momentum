@@ -98,7 +98,7 @@ export default function NearbyShowsCTA({
   // Location prompt
   if (!location && !hasRequestedLocation) {
     return (
-      <div className="bg-gradient-to-r from-cyan-600/20 to-blue-600/20 backdrop-blur-lg border border-cyan-500/40 rounded-xl p-6 relative">
+      <div className="bg-gradient-to-r from-emerald-600/20 to-yellow-600/20 backdrop-blur-lg border border-emerald-500/40 rounded-xl p-6 relative">
         <button
           onClick={() => setIsDismissed(true)}
           className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
@@ -119,7 +119,7 @@ export default function NearbyShowsCTA({
           <button
             onClick={handleEnableLocation}
             disabled={geoLoading}
-            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white font-bold hover:scale-105 transition-transform disabled:opacity-50 whitespace-nowrap"
+            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-bold hover:scale-105 transition-transform disabled:opacity-50 whitespace-nowrap"
           >
             {geoLoading ? 'Loading...' : 'Enable Location'}
           </button>
@@ -131,7 +131,7 @@ export default function NearbyShowsCTA({
   // Loading state
   if (eventsLoading) {
     return (
-      <div className="bg-gradient-to-r from-cyan-600/20 to-blue-600/20 backdrop-blur-lg border border-cyan-500/40 rounded-xl p-6">
+      <div className="bg-gradient-to-r from-emerald-600/20 to-yellow-600/20 backdrop-blur-lg border border-emerald-500/40 rounded-xl p-6">
         <div className="text-center">
           <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-2"></div>
           <p className="text-gray-300">Finding shows near you...</p>
@@ -248,7 +248,7 @@ export default function NearbyShowsCTA({
           {displayEvents.map((event) => (
             <div
               key={event.id}
-              className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-4 hover:border-cyan-400/50 transition-all"
+              className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-4 hover:border-lime-400/50 transition-all"
             >
               <div className="space-y-3">
                 <div>
@@ -276,7 +276,7 @@ export default function NearbyShowsCTA({
 
                 <button
                   onClick={() => handleTicketClick(event)}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg font-medium hover:scale-105 transition-transform"
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 text-white rounded-lg font-medium hover:scale-105 transition-transform"
                 >
                   <Ticket className="w-4 h-4" />
                   <span>Get Tickets</span>

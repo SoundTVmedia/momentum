@@ -186,7 +186,7 @@ export default function ArtistPage() {
             <p className="text-red-400 mb-4">{error || 'Artist not found'}</p>
             <button
               onClick={() => navigate('/')}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
             >
               Return Home
             </button>
@@ -205,7 +205,7 @@ export default function ArtistPage() {
             <p className="text-gray-300 mb-4">We couldn&apos;t load this artist profile yet.</p>
             <button
               onClick={() => navigate('/discover')}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
             >
               Search on Discover
             </button>

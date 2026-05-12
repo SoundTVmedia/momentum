@@ -69,7 +69,7 @@ export default function ShowClipsPage() {
         </button>
 
         {/* Show Header */}
-        <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/20 rounded-xl p-6 sm:p-8 mb-8">
+        <div className="bg-gradient-to-r from-emerald-900/30 to-yellow-900/30 border border-emerald-500/25 rounded-xl p-6 sm:p-8 mb-8">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             {decodeURIComponent(artistName || '')}
           </h1>
@@ -77,13 +77,13 @@ export default function ShowClipsPage() {
           <div className="flex flex-wrap gap-4 text-gray-300 mb-4">
             {showDate && (
               <div className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-purple-400" />
+                <Calendar className="w-5 h-5 text-lime-400" />
                 <span>{showDate}</span>
               </div>
             )}
             {venueName && (
               <div className="flex items-center space-x-2">
-                <MapPin className="w-5 h-5 text-blue-400" />
+                <MapPin className="w-5 h-5 text-emerald-400" />
                 <span>{venueName}</span>
                 {location && <span className="text-gray-500">• {location}</span>}
               </div>
@@ -107,7 +107,7 @@ export default function ShowClipsPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'time_posted' | 'clip_rating')}
-              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-400"
+              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-lime-400"
             >
               <option value="time_posted">Time Posted</option>
               <option value="clip_rating">Highest Rated</option>

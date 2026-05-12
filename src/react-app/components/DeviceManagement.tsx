@@ -159,7 +159,7 @@ export default function DeviceManagement() {
             return (
               <div
                 key={device.id}
-                className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-cyan-500/20 transition-colors"
+                className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-emerald-500/20 transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">
@@ -208,7 +208,7 @@ export default function DeviceManagement() {
         </div>
       )}
 
-      <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-4">
+      <div className="bg-cyan-500/10 border border-emerald-500/20 rounded-lg p-4">
         <p className="text-cyan-400 text-sm">
           <strong>Note:</strong> Trusted devices will automatically sign you in for 30 days. You can revoke access at any time.
         </p>

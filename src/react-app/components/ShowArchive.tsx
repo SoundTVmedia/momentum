@@ -113,7 +113,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as 'date_played' | 'average_rating')}
-          className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-cyan-400"
+          className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-lime-400"
         >
           <option value="date_played">Most Recent</option>
           <option value="average_rating">Highest Rated</option>
@@ -185,7 +185,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
             <div className="flex justify-center mt-8">
               <button
                 onClick={loadMoreShows}
-                className="px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
+                className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-lime-500 rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
               >
                 <span>Load More Shows</span>
                 <ChevronDown className="w-5 h-5" />

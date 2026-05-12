@@ -298,7 +298,7 @@ export default function Auth() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-emerald-400 animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading...</p>
         </div>
       </div>
@@ -310,25 +310,25 @@ export default function Auth() {
       <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center px-4">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
-            <h1 className="text-5xl font-headline bg-gradient-to-r from-blue-600 via-cyan-500 to-purple-600 bg-clip-text text-transparent mb-4">
+            <h1 className="text-5xl font-headline bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent mb-4">
               FEEDBACK
             </h1>
             <p className="text-xl text-white">Welcome back!</p>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-8 space-y-6">
+          <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8 space-y-6">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Remember this device?</h2>
               <p className="text-gray-400">Stay signed in for easy access</p>
             </div>
 
-            <div className="flex items-start space-x-3 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+            <div className="flex items-start space-x-3 p-4 bg-cyan-500/10 border border-emerald-500/20 rounded-lg">
               <input
                 type="checkbox"
                 id="rememberDeviceCheck"
                 checked={rememberDevice}
                 onChange={(e) => setRememberDevice(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-white/20 bg-white/10 text-cyan-500 focus:ring-cyan-400 focus:ring-offset-0"
+                className="mt-1 w-5 h-5 rounded border-white/20 bg-white/10 text-emerald-500 focus:ring-lime-400 focus:ring-offset-0"
               />
               <label htmlFor="rememberDeviceCheck" className="text-white cursor-pointer flex-1">
                 <div className="font-semibold mb-1">Remember this device for easy sign-in</div>
@@ -342,7 +342,7 @@ export default function Auth() {
             <button
               type="button"
               onClick={() => navigateAfterAuth(rememberDevice)}
-              className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 via-cyan-500 to-purple-600 rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform shadow-lg shadow-cyan-500/30"
+              className="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform shadow-lg shadow-emerald-500/30"
             >
               Continue
             </button>
@@ -364,13 +364,13 @@ export default function Auth() {
     <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-headline bg-gradient-to-r from-blue-600 via-cyan-500 to-purple-600 bg-clip-text text-transparent mb-4">
+          <h1 className="text-5xl font-headline bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent mb-4">
             FEEDBACK
           </h1>
           <p className="text-xl text-gray-300">Where Live Music Lives</p>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-8 space-y-6">
+        <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>
@@ -379,7 +379,7 @@ export default function Auth() {
 
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
-              <Music className="w-6 h-6 text-cyan-400 flex-shrink-0 mt-1" />
+              <Music className="w-6 h-6 text-emerald-400 flex-shrink-0 mt-1" />
               <div>
                 <h3 className="text-white font-semibold">Capture Live Moments</h3>
                 <p className="text-gray-400 text-sm">
@@ -421,7 +421,7 @@ export default function Auth() {
               type="button"
               onClick={() => startOAuth('google')}
               disabled={loading || emailLoading}
-              className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 via-cyan-500 to-purple-600 rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-cyan-500/30"
+              className="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-emerald-500/30"
             >
               {loading && authMethod === 'google' ? (
                 <span className="flex items-center justify-center space-x-2">
@@ -499,8 +499,8 @@ export default function Auth() {
             </div>
 
             {forgotMessage && (
-              <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
-                <p className="text-cyan-200 text-sm">{forgotMessage}</p>
+              <div className="p-4 bg-cyan-500/10 border border-emerald-500/30 rounded-lg">
+                <p className="text-lime-200 text-sm">{forgotMessage}</p>
               </div>
             )}
 
@@ -518,7 +518,7 @@ export default function Auth() {
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="How should we call you?"
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-colors"
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 transition-colors"
                       disabled={loading || emailLoading}
                     />
                   </div>
@@ -538,7 +538,7 @@ export default function Auth() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your.email@example.com"
                     autoComplete="email"
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-colors"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 transition-colors"
                     disabled={loading || emailLoading}
                   />
                 </div>
@@ -558,7 +558,7 @@ export default function Auth() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={emailMode === 'signup' ? 'At least 8 characters' : '••••••••'}
                       autoComplete={emailMode === 'signup' ? 'new-password' : 'current-password'}
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 transition-colors"
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 transition-colors"
                       disabled={loading || emailLoading}
                     />
                   </div>
@@ -604,7 +604,7 @@ export default function Auth() {
                     setError(null);
                     setForgotMessage(null);
                   }}
-                  className="w-full text-center text-[11px] text-cyan-400 hover:text-cyan-300"
+                  className="w-full text-center text-[11px] text-emerald-400 hover:text-lime-300"
                 >
                   Forgot Passoword
                 </button>

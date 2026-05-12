@@ -106,7 +106,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-      <div className="max-w-3xl w-full bg-gradient-to-b from-slate-900 to-black border border-cyan-500/20 rounded-xl my-8 animate-scale-in">
+      <div className="max-w-3xl w-full bg-gradient-to-b from-slate-900 to-black border border-emerald-500/20 rounded-xl my-8 animate-scale-in">
         <div className="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-white/10 p-4 sm:p-6 rounded-t-xl z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl sm:text-2xl font-bold text-white">Edit Profile</h2>
@@ -123,7 +123,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
           {/* Cover Image */}
           <div>
             <label className="block text-white font-medium mb-2">Cover Image</label>
-            <div className="relative h-32 sm:h-48 bg-gradient-to-r from-purple-900/50 to-black rounded-xl overflow-hidden border-2 border-dashed border-white/20 group hover:border-cyan-400/50 transition-colors">
+            <div className="relative h-32 sm:h-48 bg-gradient-to-r from-purple-900/50 to-black rounded-xl overflow-hidden border-2 border-dashed border-white/20 group hover:border-lime-400/50 transition-colors">
               {formData.cover_image_url ? (
                 <img
                   src={formData.cover_image_url}
@@ -168,7 +168,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                 <img
                   src={formData.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=200&h=200&fit=crop&crop=face'}
                   alt="Profile"
-                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-cyan-500/40"
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-emerald-500/40"
                 />
                 <button
                   type="button"
@@ -204,7 +204,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
               type="text"
               value={formData.display_name}
               onChange={(e) => setFormData(prev => ({ ...prev, display_name: e.target.value }))}
-              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
               placeholder="Enter your display name"
               required
             />
@@ -217,7 +217,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
               value={formData.bio}
               onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
               rows={3}
-              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 resize-none"
+              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 resize-none"
               placeholder="Tell us about yourself..."
               maxLength={500}
             />
@@ -234,7 +234,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                 type="text"
                 value={formData.location}
                 onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
                 placeholder="New York, NY"
               />
             </div>
@@ -245,7 +245,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   type="text"
                   value={formData.city}
                   onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                  className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                  className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
                   placeholder="New York"
                 />
               </div>
@@ -268,7 +268,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   }}
                   className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-all tap-feedback ${
                     formData.genres.includes(genre)
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
+                      ? 'bg-gradient-to-r from-emerald-500 to-yellow-500 text-white'
                       : 'bg-white/10 text-gray-300 hover:bg-white/20'
                   }`}
                 >
@@ -289,7 +289,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   ...prev,
                   social_links: { ...prev.social_links, instagram: e.target.value }
                 }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
                 placeholder="Instagram URL"
               />
               <input
@@ -299,7 +299,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   ...prev,
                   social_links: { ...prev.social_links, twitter: e.target.value }
                 }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
                 placeholder="Twitter URL"
               />
               <input
@@ -309,7 +309,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   ...prev,
                   social_links: { ...prev.social_links, website: e.target.value }
                 }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
                 placeholder="Website URL"
               />
             </div>
@@ -342,7 +342,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
             <button
               type="submit"
               disabled={loading || uploading !== null}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center"
             >
               {loading ? (
                 <>

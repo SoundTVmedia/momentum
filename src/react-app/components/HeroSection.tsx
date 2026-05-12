@@ -14,7 +14,7 @@ export default function HeroSection() {
 
       {/* Animated Background Elements - Concert Lighting */}
       <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-emerald-600/20 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-3/4 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '700ms'}}></div>
         <div className="absolute bottom-1/4 left-1/3 w-48 h-48 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1400ms'}}></div>
         <div className="absolute top-1/2 right-1/3 w-72 h-72 bg-blue-500/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2100ms'}}></div>
@@ -25,7 +25,7 @@ export default function HeroSection() {
           {/* Main Headline - Smaller */}
           <div className="mb-1 sm:mb-2">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-headline mb-1 sm:mb-2 leading-tight">
-              <span className="block bg-gradient-to-r from-blue-600 via-cyan-400 to-purple-600 bg-clip-text text-transparent animate-glow">
+              <span className="block bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent animate-glow">
                 WHERE LIVE
               </span>
               <span className="block text-white drop-shadow-2xl">

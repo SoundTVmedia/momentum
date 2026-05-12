@@ -75,7 +75,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
             <img
               src={user.google_user_data.picture || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
               alt="Your avatar"
-              className="w-10 h-10 rounded-full border-2 border-cyan-500/40"
+              className="w-10 h-10 rounded-full border-2 border-emerald-500/40"
             />
             <div className="flex-1 flex space-x-2">
               <input
@@ -83,13 +83,13 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Join the conversation..."
-                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
                 disabled={submitting}
               />
               <button
                 type="submit"
                 disabled={!newComment.trim() || submitting}
-                className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 tap-feedback"
+                className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 tap-feedback"
               >
                 {submitting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -129,7 +129,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
               <img
                 src={comment.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
                 alt={comment.user_display_name || 'User'}
-                className="w-10 h-10 rounded-full border-2 border-cyan-500/40"
+                className="w-10 h-10 rounded-full border-2 border-emerald-500/40"
               />
               <div className="flex-1">
                 <div className="bg-white/5 rounded-lg p-3 border border-white/10">

@@ -5,11 +5,11 @@ import { useClips } from '@/react-app/hooks/useClips'
 import { useClipLike } from '@/react-app/hooks/useClipLike'
 import { useClipSave } from '@/react-app/hooks/useClipSave'
 import ClipModal from './ClipModal'
-import { ClipCardSkeleton } from './LoadingSkeleton'
+import ClipFeedPreviewMedia from './ClipFeedPreviewMedia'
+import { ClipGridTileSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio'
 import { artistPath, venuePath } from '@/shared/app-paths'
 
 interface ConcertFeedProps {
@@ -39,6 +39,7 @@ export default function ConcertFeed({
   const [likingClip, setLikingClip] = useState<number | null>(null)
   const observerTarget = useRef<HTMLDivElement>(null)
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null)
+  const [hoverClipId, setHoverClipId] = useState<number | null>(null)
 
   // Infinite scroll observer
   useEffect(() => {
@@ -143,12 +144,12 @@ export default function ConcertFeed({
 
   return (
     <section className="py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8">
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="text-center mb-4 sm:mb-6 md:mb-8">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
             {feedType === 'trending' ? 'What\'s Hot Right Now' : 
              feedType === 'top_rated' ? 'Top Rated Moments' : 
-             'Live From The Scene'} <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-400 bg-clip-text text-transparent"></span>
+             'Live From The Scene'} <span className="bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-400 bg-clip-text text-transparent"></span>
           </h2>
           <p className="text-sm sm:text-base md:text-lg text-gray-400 px-4">
             {feedType === 'trending' 
@@ -160,40 +161,41 @@ export default function ConcertFeed({
           </p>
         </div>
 
-        <div className="space-y-4 sm:space-y-5 md:space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
           {error && clips.length === 0 ? (
             // Show error state on initial load failure
-            <NetworkError 
-              onRetry={refetch}
-              message="Failed to load clips. Please check your connection and try again."
-            />
+            <div className="col-span-full">
+              <NetworkError
+                onRetry={refetch}
+                message="Failed to load clips. Please check your connection and try again."
+              />
+            </div>
           ) : loading && clips.length === 0 ? (
-            // Show skeletons on initial load
             <>
-              <ClipCardSkeleton />
-              <ClipCardSkeleton />
-              <ClipCardSkeleton />
+              {Array.from({ length: 8 }).map((_, i) => (
+                <ClipGridTileSkeleton key={`sk-${i}`} />
+              ))}
             </>
           ) : (
-            clips.map((clip, index) => (
+            <>
+              {clips.map((clip, index) => (
             <div 
               key={clipListItemKey(clip, index)}
-              className="video-card bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 p-0 hover:border-purple-500/50 transition-all group"
+              className="video-card bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 p-0 hover:border-purple-500/50 transition-all group flex flex-col"
             >
-              {/* Video Thumbnail - Full Width */}
+              {/* Square preview — 1:1 crop in the grid */}
               <div 
-                className="relative w-full cursor-pointer group/video overflow-hidden bg-black"
-                style={{
-                  aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16',
-                }}
+                className="relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square"
                 onClick={() => setSelectedClip(clip)}
+                onMouseEnter={() => setHoverClipId(clip.id)}
+                onMouseLeave={() => setHoverClipId((id) => (id === clip.id ? null : id))}
               >
-                <img 
-                  src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1200&fit=crop'}
-                  alt="Concert moment"
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  decoding="async"
+                <ClipFeedPreviewMedia
+                  className="z-0"
+                  playbackUrl={clip.stream_playback_url}
+                  fallbackUrl={clip.video_url}
+                  posterUrl={clip.stream_thumbnail_url || clip.thumbnail_url}
+                  mediaHovered={hoverClipId === clip.id}
                 />
                 
                 {/* Gradient overlays for better text readability */}
@@ -201,22 +203,22 @@ export default function ConcertFeed({
                 <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent pointer-events-none" />
                 
                 {/* Play button overlay */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/video:opacity-100 transition-opacity bg-black/30">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
-                    <div className="w-0 h-0 border-l-[24px] border-l-white border-y-[16px] border-y-transparent ml-1"></div>
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/video:opacity-100 transition-opacity bg-black/30 pointer-events-none">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-14 lg:h-14 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-500 rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
+                    <div className="w-0 h-0 border-l-[18px] sm:border-l-[22px] md:border-l-[16px] border-l-white border-y-[12px] sm:border-y-[14px] md:border-y-[11px] border-y-transparent ml-0.5 sm:ml-1" />
                   </div>
                 </div>
 
                 {/* Trending badge */}
                 {clip.is_trending_score >= 100 && (
-                  <div className="absolute top-3 right-3 px-3 py-1.5 bg-gradient-to-r from-orange-500 to-pink-600 rounded-full text-xs font-bold text-white shadow-lg animate-slide-up">
+                  <div className="absolute top-2 right-2 md:top-1.5 md:right-1.5 px-2 py-0.5 md:px-1.5 md:py-0.5 bg-gradient-to-r from-orange-500 to-pink-600 rounded-full text-[10px] md:text-[10px] font-bold text-white shadow-lg animate-slide-up">
                     🔥 Trending
                   </div>
                 )}
 
                 {/* Feedback Live featured badge */}
                 {clip.momentum_live_featured && (
-                  <div className="absolute top-3 left-3 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full text-xs font-bold text-white shadow-lg animate-slide-up">
+                  <div className="absolute top-2 left-2 md:top-1.5 md:left-1.5 px-2 py-0.5 md:px-1.5 md:py-0.5 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full text-[10px] md:text-[10px] font-bold text-white shadow-lg animate-slide-up">
                     🎬 Featured on Feedback Live
                   </div>
                 )}
@@ -224,31 +226,31 @@ export default function ConcertFeed({
                 {/* Removed rating badge from thumbnail - ratings shown in actions section only */}
 
                 {/* User info overlay - top */}
-                <div className="absolute top-0 left-0 right-0 p-3 sm:p-4">
+                <div className="absolute top-0 left-0 right-0 p-2 sm:p-3 md:p-1.5 lg:p-3">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       navigate(`/users/${clip.mocha_user_id}`)
                     }}
-                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+                    className="flex items-center space-x-1.5 sm:space-x-2 hover:opacity-80 transition-opacity"
                   >
                     <img 
                       src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
                       alt={clip.user_display_name || 'User'}
-                      className="w-10 h-10 rounded-full border-2 border-white/30 shadow-lg"
+                      className="w-8 h-8 sm:w-9 sm:h-9 md:w-6 md:h-6 lg:w-8 lg:h-8 rounded-full border-2 border-white/30 shadow-lg flex-shrink-0"
                     />
-                    <div>
-                      <div className="font-bold text-white text-sm drop-shadow-lg">{clip.user_display_name || 'Anonymous'}</div>
-                      <div className="flex items-center space-x-1 text-xs text-white/80 drop-shadow">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatTimestamp(clip.created_at)}</span>
+                    <div className="min-w-0">
+                      <div className="font-bold text-white text-xs sm:text-sm md:text-[11px] lg:text-xs drop-shadow-lg truncate">{clip.user_display_name || 'Anonymous'}</div>
+                      <div className="flex items-center space-x-1 text-[10px] sm:text-xs md:text-[10px] text-white/80 drop-shadow">
+                        <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" />
+                        <span className="truncate">{formatTimestamp(clip.created_at)}</span>
                       </div>
                     </div>
                   </button>
                 </div>
 
                 {/* Caption overlay - bottom */}
-                <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 space-y-2">
+                <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-3 md:p-1.5 lg:p-3 space-y-1 md:space-y-0.5 lg:space-y-1">
                   {clip.artist_name && (
                     <button
                       onClick={(e) => {
@@ -257,7 +259,7 @@ export default function ConcertFeed({
                           navigate(artistPath(clip.artist_name))
                         }
                       }}
-                      className="font-headline text-xl sm:text-2xl text-white hover:text-purple-400 transition-colors drop-shadow-lg block"
+                      className="font-headline text-base sm:text-lg md:text-sm lg:text-lg text-white hover:text-purple-400 transition-colors drop-shadow-lg block text-left w-full truncate"
                     >
                       {clip.artist_name}
                     </button>
@@ -270,15 +272,15 @@ export default function ConcertFeed({
                           navigate(venuePath(clip.venue_name))
                         }
                       }}
-                      className="flex items-center space-x-1 text-sm text-white/90 hover:text-white transition-colors drop-shadow"
+                      className="flex items-center space-x-1 text-xs md:text-[11px] lg:text-xs text-white/90 hover:text-white transition-colors drop-shadow w-full min-w-0"
                     >
-                      <MapPin className="w-4 h-4" />
-                      <span className="font-medium">{clip.venue_name}</span>
-                      {clip.location && <span className="text-white/70">• {clip.location}</span>}
+                      <MapPin className="w-3 h-3 md:w-2.5 md:h-2.5 flex-shrink-0" />
+                      <span className="font-medium truncate">{clip.venue_name}</span>
+                      {clip.location && <span className="text-white/70 truncate hidden sm:inline">• {clip.location}</span>}
                     </button>
                   )}
                   {clip.content_description && (
-                    <p className="text-white text-sm sm:text-base leading-snug drop-shadow line-clamp-2">
+                    <p className="text-white text-xs sm:text-sm md:text-[11px] lg:text-xs leading-snug drop-shadow line-clamp-2">
                       {clip.content_description}
                     </p>
                   )}
@@ -286,30 +288,30 @@ export default function ConcertFeed({
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-between px-3 sm:px-4 py-3 sm:py-4 bg-black/40">
-                <div className="flex items-center space-x-4 sm:space-x-6">
+              <div className="flex items-center justify-between px-2 py-2 sm:px-3 sm:py-3 md:px-2 md:py-2 lg:px-3 lg:py-3 bg-black/40">
+                <div className="flex items-center justify-between w-full gap-1 sm:gap-2 md:gap-1 lg:gap-3">
                   <button 
                     onClick={() => handleLike(clip.id, clip.likes_count)}
-                    className={`flex flex-col items-center space-y-1 transition-all group tap-feedback ${
+                    className={`flex flex-col items-center space-y-0.5 transition-all group tap-feedback flex-1 min-w-0 ${
                       isLiked(clip.id) 
                         ? 'text-pink-500' 
                         : 'text-white hover:text-pink-400'
                     }`}
                   >
                     <Heart 
-                      className={`w-6 h-6 sm:w-7 sm:h-7 group-hover:scale-110 transition-transform ${
+                      className={`w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform ${
                         isLiked(clip.id) ? 'fill-current' : ''
                       } ${likingClip === clip.id ? 'animate-heart-pop' : ''}`}
                     />
-                    <span className="font-bold text-xs">{clip.likes_count}</span>
+                    <span className="font-bold text-[10px] sm:text-xs">{clip.likes_count}</span>
                   </button>
                   
                   <button 
                     onClick={() => setSelectedClip(clip)}
-                    className="flex flex-col items-center space-y-1 text-white hover:text-blue-400 transition-all group tap-feedback"
+                    className="flex flex-col items-center space-y-0.5 text-white hover:text-blue-400 transition-all group tap-feedback flex-1 min-w-0"
                   >
-                    <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-xs">{clip.comments_count}</span>
+                    <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-bold text-[10px] sm:text-xs">{clip.comments_count}</span>
                   </button>
                   
                   <button 
@@ -317,47 +319,50 @@ export default function ConcertFeed({
                       e.stopPropagation()
                       handleShare(clip.id)
                     }}
-                    className="flex flex-col items-center space-y-1 text-white hover:text-purple-400 transition-all group tap-feedback"
+                    className="flex flex-col items-center space-y-0.5 text-white hover:text-purple-400 transition-all group tap-feedback flex-1 min-w-0"
                   >
-                    <Share className="w-6 h-6 sm:w-7 sm:h-7 group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-xs">Share</span>
+                    <Share className="w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform" />
+                    <span className="font-bold text-[10px] sm:text-xs">Share</span>
                   </button>
 
                   <button 
                     onClick={() => handleSave(clip.id)}
-                    className={`flex flex-col items-center space-y-1 transition-all group tap-feedback ${
+                    className={`flex flex-col items-center space-y-0.5 transition-all group tap-feedback flex-1 min-w-0 ${
                       isSaved(clip.id) 
                         ? 'text-yellow-400' 
                         : 'text-white hover:text-yellow-400'
                     }`}
                   >
                     <Bookmark 
-                      className={`w-6 h-6 sm:w-7 sm:h-7 group-hover:scale-110 transition-transform ${
+                      className={`w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform ${
                         isSaved(clip.id) ? 'fill-current' : ''
                       }`}
                     />
-                    <span className="font-bold text-xs">Save</span>
+                    <span className="font-bold text-[10px] sm:text-xs">Save</span>
                   </button>
                 </div>
               </div>
             </div>
-          )))
-          }
-        </div>
-
-        {/* Infinite scroll trigger */}
-        <div ref={observerTarget} className="h-10 flex items-center justify-center mt-8">
-          {loading && (
-            <div className="text-cyan-400 text-sm font-medium">Loading more moments...</div>
-          )}
-          {!loading && !hasMore && clips.length > 0 && (
-            <div className="text-gray-500 text-sm">You've reached the end</div>
+              ))}
+              <div
+                key="feed-scroll-sentinel"
+                ref={observerTarget}
+                className="col-span-full h-12 flex flex-col items-center justify-center mt-4 gap-1"
+              >
+                {loading && clips.length > 0 && (
+                  <div className="text-cyan-400 text-sm font-medium">Loading more moments...</div>
+                )}
+                {!loading && !hasMore && clips.length > 0 && (
+                  <div className="text-gray-500 text-sm">You've reached the end</div>
+                )}
+              </div>
+            </>
           )}
         </div>
 
         {clips.length === 0 && !loading && !error && (
           <div className="text-center py-12 px-4">
-            <div className="max-w-md mx-auto bg-gradient-to-br from-purple-900/20 to-blue-900/20 backdrop-blur-lg border border-purple-500/20 rounded-xl p-8 space-y-4">
+            <div className="max-w-md mx-auto bg-gradient-to-br from-emerald-900/25 to-yellow-900/20 backdrop-blur-lg border border-emerald-500/25 rounded-xl p-8 space-y-4">
               <div className="text-6xl mb-4">🎸</div>
               <h3 className="text-2xl font-bold text-white mb-2">
                 No Clips Yet
@@ -367,7 +372,7 @@ export default function ConcertFeed({
               </p>
               <button
                 onClick={() => navigate('/upload')}
-                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
               >
                 Share Your Moment
               </button>
@@ -378,9 +383,14 @@ export default function ConcertFeed({
 
       {/* Clip Modal */}
       {selectedClip && (
-        <ClipModal 
-          clip={selectedClip} 
-          onClose={() => setSelectedClip(null)} 
+        <ClipModal
+          clip={selectedClip}
+          onClose={() => setSelectedClip(null)}
+          feedNavigation={
+            clips.length > 1
+              ? { clips, onChangeClip: setSelectedClip }
+              : null
+          }
         />
       )}
 

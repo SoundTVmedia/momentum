@@ -129,7 +129,7 @@ export default function AnalyticsDashboard() {
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-6">
+        <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-cyan-500/20 rounded-lg">
               <Users className="w-6 h-6 text-cyan-400" />
@@ -208,7 +208,7 @@ export default function AnalyticsDashboard() {
       </div>
 
       {/* Growth Chart */}
-      <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-6">
+      <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
         <div className="flex items-center space-x-2 mb-6">
           <BarChart3 className="w-5 h-5 text-cyan-400" />
           <h3 className="text-xl font-bold text-white">Growth Trends</h3>
@@ -307,7 +307,7 @@ export default function AnalyticsDashboard() {
         </div>
 
         {/* Top Users */}
-        <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-6">
+        <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Top Contributors</h3>
           <div className="space-y-4">
             {topUsers.slice(0, 5).map((user, index) => (

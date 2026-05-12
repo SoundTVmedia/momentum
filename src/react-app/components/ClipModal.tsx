@@ -1,5 +1,21 @@
-import { X, Heart, MessageCircle, Share, Bookmark, MapPin, Music, Calendar, Check, Copy, Facebook, Twitter, Star } from 'lucide-react';
-import { useState } from 'react';
+import {
+  X,
+  Heart,
+  MessageCircle,
+  Share,
+  Bookmark,
+  MapPin,
+  Music,
+  Calendar,
+  Check,
+  Copy,
+  Facebook,
+  Twitter,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
@@ -12,12 +28,19 @@ import StarRating from './StarRating';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, venuePath } from '@/shared/app-paths';
 
+export type ClipModalFeedNavigation = {
+  clips: ClipWithUser[];
+  onChangeClip: (clip: ClipWithUser) => void;
+};
+
 interface ClipModalProps {
   clip: ClipWithUser;
   onClose: () => void;
+  /** Prev/next within the current feed list without closing the modal. */
+  feedNavigation?: ClipModalFeedNavigation | null;
 }
 
-export default function ClipModal({ clip, onClose }: ClipModalProps) {
+export default function ClipModal({ clip, onClose, feedNavigation = null }: ClipModalProps) {
   const navigate = useNavigate();
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
@@ -27,6 +50,47 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
   const [linkCopied, setLinkCopied] = useState(false);
 
   const [isLiking, setIsLiking] = useState(false);
+
+  const navIndex =
+    feedNavigation && feedNavigation.clips.length > 0
+      ? feedNavigation.clips.findIndex((c) => c.id === clip.id)
+      : -1;
+  const canFeedNav = navIndex >= 0 && feedNavigation != null && feedNavigation.clips.length > 1;
+  const prevClip = canFeedNav && navIndex > 0 ? feedNavigation!.clips[navIndex - 1] : null;
+  const nextClip =
+    canFeedNav && navIndex < feedNavigation!.clips.length - 1 ? feedNavigation!.clips[navIndex + 1] : null;
+
+  const goPrev = useCallback(() => {
+    if (prevClip && feedNavigation) feedNavigation.onChangeClip(prevClip);
+  }, [prevClip, feedNavigation]);
+
+  const goNext = useCallback(() => {
+    if (nextClip && feedNavigation) feedNavigation.onChangeClip(nextClip);
+  }, [nextClip, feedNavigation]);
+
+  useEffect(() => {
+    setShowShareMenu(false);
+    setLinkCopied(false);
+  }, [clip.id]);
+
+  useEffect(() => {
+    if (!canFeedNav) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goPrev();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goNext();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canFeedNav, goPrev, goNext]);
 
   const handleLike = async () => {
     setIsLiking(true);
@@ -82,7 +146,7 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-0 sm:p-4 animate-fade-in">
-      <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-cyan-500/20 sm:rounded-xl overflow-hidden animate-scale-in">
+      <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-emerald-500/20 sm:rounded-xl overflow-hidden animate-scale-in">
         <div className="flex flex-col md:flex-row h-full sm:max-h-[90vh]">
           {/* Video Side */}
           <div className="md:w-2/3 bg-black flex items-center justify-center relative flex-shrink-0 min-h-[36vh] md:min-h-0 p-2 sm:p-4">
@@ -92,6 +156,27 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
             >
               <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
+
+            {prevClip && (
+              <button
+                type="button"
+                onClick={goPrev}
+                className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/55 hover:bg-black/75 text-white border border-white/15 transition-colors"
+                aria-label="Previous clip"
+              >
+                <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
+              </button>
+            )}
+            {nextClip && (
+              <button
+                type="button"
+                onClick={goNext}
+                className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/55 hover:bg-black/75 text-white border border-white/15 transition-colors"
+                aria-label="Next clip"
+              >
+                <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
+              </button>
+            )}
 
             <div
               className="relative w-full max-h-[min(85dvh,100%)] md:max-h-[min(90vh,72vw)] mx-auto bg-black rounded-none sm:rounded-lg overflow-hidden"
@@ -119,7 +204,7 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
                   <img
                     src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
                     alt={clip.user_display_name || 'User'}
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-cyan-500/40 flex-shrink-0"
+                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-emerald-500/40 flex-shrink-0"
                   />
                   <div className="min-w-0">
                     <div className="font-medium text-white text-sm sm:text-base truncate">
@@ -240,7 +325,7 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
 
                     {/* Share Menu */}
                     {showShareMenu && (
-                      <div className="absolute right-0 bottom-full mb-2 bg-black/95 backdrop-blur-lg border border-cyan-500/20 rounded-lg overflow-hidden shadow-xl z-10 min-w-[200px] animate-scale-in">
+                      <div className="absolute right-0 bottom-full mb-2 bg-black/95 backdrop-blur-lg border border-emerald-500/20 rounded-lg overflow-hidden shadow-xl z-10 min-w-[200px] animate-scale-in">
                         <button
                           onClick={handleCopyLink}
                           className="w-full px-3 sm:px-4 py-2 sm:py-3 hover:bg-white/10 transition-colors flex items-center space-x-2 sm:space-x-3 text-white whitespace-nowrap"
@@ -280,7 +365,7 @@ export default function ClipModal({ clip, onClose }: ClipModalProps) {
 
             {/* Comments Section */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-              <CommentSection clipId={clip.id} />
+              <CommentSection key={clip.id} clipId={clip.id} />
             </div>
           </div>
         </div>

@@ -117,14 +117,14 @@ export default function AdminDashboard() {
 
   if (!extendedUser?.profile?.is_admin) {
     return (
-      <section className="py-20 bg-gradient-to-r from-black via-purple-900/30 to-black min-h-screen">
+      <section className="py-20 bg-gradient-to-r from-black via-emerald-900/30 to-black min-h-screen">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <Shield className="w-16 h-16 text-red-400 mx-auto mb-6" />
           <h2 className="text-3xl font-bold text-white mb-4">Access Denied</h2>
           <p className="text-gray-300 mb-8">You need admin privileges to access this page.</p>
           <button
             onClick={() => navigate('/')}
-            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white hover:scale-105 transition-transform"
+            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform"
           >
             Return Home
           </button>
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <section className="py-20 bg-gradient-to-r from-black via-purple-900/30 to-black min-h-screen">
+    <section className="py-20 bg-gradient-to-r from-black via-emerald-900/30 to-black min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
@@ -224,7 +224,7 @@ export default function AdminDashboard() {
                   setSelectedSession(null);
                   setShowSessionManager(true);
                 }}
-                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white hover:scale-105 transition-transform flex items-center space-x-2"
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform flex items-center space-x-2"
               >
                 <Plus className="w-5 h-5" />
                 <span>Create Session</span>
@@ -245,7 +245,7 @@ export default function AdminDashboard() {
                 {sessions.map((session) => (
                   <div
                     key={session.id}
-                    className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-cyan-500/30 transition-colors"
+                    className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-emerald-500/30 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">

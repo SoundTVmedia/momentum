@@ -193,7 +193,7 @@ export default function VenuePage() {
             <p className="text-red-400 mb-4">{error || 'Venue not found'}</p>
             <button
               onClick={() => navigate('/')}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+              className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
             >
               Return Home
             </button>
@@ -211,7 +211,7 @@ export default function VenuePage() {
       <Header />
       
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-b from-blue-900/30 to-black border-b border-blue-500/20">
+      <div className="relative bg-gradient-to-b from-emerald-900/30 to-black border-b border-emerald-500/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
             {/* Venue Image */}
@@ -286,7 +286,7 @@ export default function VenuePage() {
                           
                           {/* Play overlay */}
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-                            <div className="w-12 h-12 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-full flex items-center justify-center shadow-2xl">
+                            <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 via-lime-400 to-yellow-500 rounded-full flex items-center justify-center shadow-2xl">
                               <div className="w-0 h-0 border-l-[16px] border-l-white border-y-[12px] border-y-transparent ml-1"></div>
                             </div>
                           </div>
@@ -335,7 +335,7 @@ export default function VenuePage() {
                     <div className="flex justify-center mt-8">
                       <button
                         onClick={loadMoreClips}
-                        className="px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
+                        className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-lime-500 rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
                       >
                         <span>Load More</span>
                         <ChevronDown className="w-5 h-5" />
@@ -463,7 +463,7 @@ export default function VenuePage() {
                           href={event.ticket_url}
                           target="_blank"
                           rel="nofollow noopener noreferrer"
-                          className="mt-2 flex items-center justify-center space-x-2 w-full px-3 py-2 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
+                          className="mt-2 flex items-center justify-center space-x-2 w-full px-3 py-2 bg-gradient-to-r from-emerald-500 to-lime-500 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
                         >
                           <Calendar className="w-4 h-4" />
                           <span>Get Tickets</span>
@@ -499,7 +499,7 @@ export default function VenuePage() {
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 ${
                 isFollowing(`venue-${venue?.id || 0}`)
                   ? 'bg-white/10 border border-blue-500/50 text-white'
-                  : 'bg-gradient-to-r from-blue-500 to-cyan-600 text-white'
+                  : 'bg-gradient-to-r from-emerald-500 to-lime-500 text-white'
               }`}
             >
               {isFollowing(`venue-${venue?.id || 0}`) ? (

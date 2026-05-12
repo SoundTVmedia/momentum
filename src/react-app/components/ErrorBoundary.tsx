@@ -109,7 +109,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 
                 <button
                   onClick={this.handleGoHome}
-                  className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white hover:scale-105 transition-transform"
+                  className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white hover:scale-105 transition-transform"
                 >
                   <Home className="w-5 h-5" />
                   <span>Go Home</span>

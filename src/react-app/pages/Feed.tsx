@@ -30,7 +30,7 @@ export default function Feed() {
           {user && (
             <button
               onClick={() => navigate('/upload')}
-              className="hidden sm:flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+              className="hidden sm:flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
             >
               <Upload className="w-5 h-5" />
               <span>Share Moment</span>

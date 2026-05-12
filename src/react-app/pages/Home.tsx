@@ -36,7 +36,7 @@ export default function Home() {
 
       {/* 3. Real Time Feed and Set Reminder (when NOT LIVE) */}
       {!isLive && (
-        <div className="bg-gradient-to-b from-black via-purple-900/10 to-black py-4">
+        <div className="bg-gradient-to-b from-black via-emerald-900/12 to-black py-4">
           <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
               {/* Real Time Feed - Left side on desktop */}
@@ -64,7 +64,7 @@ export default function Home() {
             <div className="mt-8 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl sm:text-3xl font-headline text-white">
-                  <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-lime-400 to-emerald-500 bg-clip-text text-transparent">
                     Live Feed
                   </span>
                 </h2>

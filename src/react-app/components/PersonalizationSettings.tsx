@@ -134,7 +134,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
 
   if (loading) {
     return (
-      <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-8">
+      <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8">
         <div className="flex items-center justify-center space-x-2 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading settings...</span>
@@ -144,7 +144,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
   }
 
   return (
-    <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-6 space-y-6">
+    <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Heart className="w-6 h-6 text-pink-400" />
@@ -175,7 +175,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
               value={artistSearch}
               onChange={(e) => setArtistSearch(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && addCustomArtist()}
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400"
               placeholder="Search or add custom artist..."
             />
           </div>
@@ -186,7 +186,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
             <button
               key={artist}
               onClick={() => toggleFavoriteArtist(artist)}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full text-white text-sm font-medium hover:scale-105 transition-transform"
+              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-full text-white text-sm font-medium hover:scale-105 transition-transform"
             >
               {artist} ×
             </button>
@@ -233,7 +233,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
           </button>
 
           {homeLocation && (
-            <div className="p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
+            <div className="p-4 bg-cyan-500/10 border border-emerald-500/20 rounded-lg">
               <p className="text-white font-medium mb-2">Selected Location:</p>
               <p className="text-gray-300 text-sm">{homeLocation}</p>
             </div>
@@ -264,7 +264,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white font-semibold hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+        className="w-full flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
       >
         {saving ? (
           <>

@@ -95,7 +95,7 @@ export default function VerificationAdminPanel() {
               onClick={() => setStatusFilter(status)}
               className={`px-4 py-2 rounded-lg font-medium transition-colors capitalize text-sm ${
                 statusFilter === status
-                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-emerald-500/30'
                   : 'bg-white/5 text-gray-400 hover:bg-white/10'
               }`}
             >
@@ -119,14 +119,14 @@ export default function VerificationAdminPanel() {
           {requests.map((request) => (
             <div
               key={request.id}
-              className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-cyan-500/30 transition-colors"
+              className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-emerald-500/30 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-4 flex-1">
                   <img
                     src={request.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=60&h=60&fit=crop&crop=face'}
                     alt={request.display_name}
-                    className="w-12 h-12 rounded-full border-2 border-cyan-500/40"
+                    className="w-12 h-12 rounded-full border-2 border-emerald-500/40"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
@@ -190,8 +190,8 @@ export default function VerificationAdminPanel() {
       {/* Review Modal */}
       {selectedRequest && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-cyan-500/20 rounded-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border-b border-white/10 p-6">
+          <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-emerald-500/20 rounded-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-600/20 to-lime-600/20 border-b border-white/10 p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">Review Verification Request</h2>
                 <button
@@ -211,7 +211,7 @@ export default function VerificationAdminPanel() {
                 <img
                   src={selectedRequest.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=80&h=80&fit=crop&crop=face'}
                   alt={selectedRequest.display_name}
-                  className="w-16 h-16 rounded-full border-2 border-cyan-500/40"
+                  className="w-16 h-16 rounded-full border-2 border-emerald-500/40"
                 />
                 <div>
                   <h3 className="text-xl font-bold text-white mb-1">{selectedRequest.full_name}</h3>
@@ -255,7 +255,7 @@ export default function VerificationAdminPanel() {
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400 resize-none"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-lime-400 resize-none"
                       placeholder="Provide a reason if rejecting..."
                     />
                   </div>

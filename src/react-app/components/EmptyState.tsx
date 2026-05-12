@@ -23,14 +23,14 @@ export default function EmptyState({
 }: EmptyStateProps) {
   return (
     <div className="text-center py-12 px-4">
-      <div className="max-w-md mx-auto bg-gradient-to-br from-purple-900/20 to-blue-900/20 backdrop-blur-lg border border-purple-500/20 rounded-xl p-8 space-y-4 animate-fade-in">
+      <div className="max-w-md mx-auto bg-gradient-to-br from-emerald-900/25 to-yellow-900/20 backdrop-blur-lg border border-emerald-500/25 rounded-xl p-8 space-y-4 animate-fade-in">
         {/* Icon or Emoji */}
         <div className="mb-4">
           {emoji ? (
             <div className="text-6xl">{emoji}</div>
           ) : Icon ? (
-            <div className="w-20 h-20 mx-auto bg-purple-500/20 rounded-full flex items-center justify-center">
-              <Icon className="w-10 h-10 text-purple-400" />
+            <div className="w-20 h-20 mx-auto bg-emerald-500/20 rounded-full flex items-center justify-center">
+              <Icon className="w-10 h-10 text-lime-400" />
             </div>
           ) : null}
         </div>
@@ -49,7 +49,7 @@ export default function EmptyState({
         {action && (
           <button
             onClick={action.onClick}
-            className="mt-6 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+            className="mt-6 px-6 py-3 bg-gradient-to-r from-emerald-500 to-yellow-500 rounded-lg text-white font-semibold hover:scale-105 transition-transform"
           >
             {action.label}
           </button>

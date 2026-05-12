@@ -102,7 +102,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
       aria-modal="true"
       aria-labelledby="clip-edit-title"
     >
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-cyan-500/20 bg-slate-950 shadow-2xl">
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-emerald-500/20 bg-slate-950 shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur">
           <h2 id="clip-edit-title" className="text-lg font-bold text-white">
             Edit clip details
@@ -131,7 +131,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={artistName}
               onChange={(e) => setArtistName(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-cyan-500 focus:outline-none"
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-emerald-500 focus:outline-none"
               placeholder="Artist name"
               maxLength={200}
             />
@@ -146,7 +146,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={venueName}
               onChange={(e) => setVenueName(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-cyan-500 focus:outline-none"
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-emerald-500 focus:outline-none"
               placeholder="Venue name"
               maxLength={200}
             />
@@ -161,7 +161,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-cyan-500 focus:outline-none"
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-emerald-500 focus:outline-none"
               placeholder="City, state"
               maxLength={200}
             />
@@ -176,7 +176,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
-              className="w-full resize-y rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-cyan-500 focus:outline-none"
+              className="w-full resize-y rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-emerald-500 focus:outline-none"
               placeholder="What was this moment?"
               maxLength={2000}
             />
@@ -191,7 +191,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={hashtags}
               onChange={(e) => setHashtags(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-cyan-500 focus:outline-none"
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-emerald-500 focus:outline-none"
               placeholder="livemusic, tour2025 (comma-separated)"
               maxLength={500}
             />
@@ -211,7 +211,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
             <button
               type="submit"
               disabled={submitting}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 py-2.5 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-yellow-600 py-2.5 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-50"
             >
               {submitting ? (
                 <>

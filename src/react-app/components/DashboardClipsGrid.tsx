@@ -2,6 +2,7 @@ import { Loader2, RefreshCw, Trash2, Heart, Pencil } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ClipModal from '@/react-app/components/ClipModal';
+import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
@@ -21,7 +22,9 @@ export type DashboardGridClip = Record<string, unknown> & {
   artist_score?: number;
   location_score?: number;
   stream_thumbnail_url?: string | null;
+  stream_playback_url?: string | null;
   stream_video_id?: string | null;
+  video_url?: string | null;
   recording_orientation?: string | null;
   video_resolution_w?: number | null;
   video_resolution_h?: number | null;
@@ -72,6 +75,7 @@ export default function DashboardClipsGrid({
   const [selectedClip, setSelectedClip] = useState<DashboardGridClip | null>(null);
   const [clipPendingDelete, setClipPendingDelete] = useState<DashboardGridClip | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
 
   const confirmDeleteClip = async () => {
     if (!clipPendingDelete || !onDeleteClip) return;
@@ -108,7 +112,7 @@ export default function DashboardClipsGrid({
 
   if (loading && clips.length === 0) {
     return (
-      <div className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-8">
+      <div className="bg-black/40 backdrop-blur-lg border border-emerald-500/20 rounded-xl p-8">
         <div className="flex items-center justify-center space-x-2 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>{initialLoadingLabel}</span>
@@ -154,22 +158,38 @@ export default function DashboardClipsGrid({
         {clips.map((clip, index) => {
           const showDelete = Boolean(showDeleteOnEach && onDeleteClip);
           const showEdit = Boolean(showEditOnEach && onEditClip);
+          const rowKey = clipListItemKey(clip, index);
+
+          const thumb =
+            clip.thumbnail_url || clip.stream_thumbnail_url || CLIP_THUMB_FALLBACK;
+          const playback =
+            typeof clip.stream_playback_url === 'string' ? clip.stream_playback_url : null;
+          const videoUrl = typeof clip.video_url === 'string' ? clip.video_url : '';
 
           return (
             <div
-              key={clipListItemKey(clip, index)}
+              key={rowKey}
               className="group relative w-full bg-black/40 rounded-xl overflow-hidden hover:scale-105 transition-transform"
               style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
+              onMouseEnter={() => setHoveredRowKey(rowKey)}
+              onMouseLeave={() => setHoveredRowKey((k) => (k === rowKey ? null : k))}
             >
-              <img
-                src={
-                  clip.thumbnail_url ||
-                  clip.stream_thumbnail_url ||
-                  CLIP_THUMB_FALLBACK
-                }
-                alt={(clip.artist_name as string) || 'Concert clip'}
-                className="w-full h-full object-cover pointer-events-none"
-              />
+              {videoUrl ? (
+                <ClipFeedPreviewMedia
+                  className="z-0"
+                  playbackUrl={playback}
+                  fallbackUrl={videoUrl}
+                  posterUrl={thumb === CLIP_THUMB_FALLBACK ? null : thumb}
+                  thumbFallback={CLIP_THUMB_FALLBACK}
+                  mediaHovered={hoveredRowKey === rowKey}
+                />
+              ) : (
+                <img
+                  src={thumb}
+                  alt={(clip.artist_name as string) || 'Concert clip'}
+                  className="w-full h-full object-cover pointer-events-none"
+                />
+              )}
 
               <div
                 role="button"
@@ -267,6 +287,14 @@ export default function DashboardClipsGrid({
         <ClipModal
           clip={selectedClip as unknown as ClipWithUser}
           onClose={() => setSelectedClip(null)}
+          feedNavigation={
+            clips.length > 1
+              ? {
+                  clips: clips as unknown as ClipWithUser[],
+                  onChangeClip: (c) => setSelectedClip(c as unknown as DashboardGridClip),
+                }
+              : null
+          }
         />
       )}
 

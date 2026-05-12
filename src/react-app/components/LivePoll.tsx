@@ -64,9 +64,9 @@ export default function LivePoll({ poll, onVote }: LivePollProps) {
   };
 
   return (
-    <div className="bg-gradient-to-r from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 rounded-xl p-4 mb-4">
+    <div className="bg-gradient-to-r from-emerald-500/20 to-yellow-600/20 border border-emerald-500/30 rounded-xl p-4 mb-4">
       <div className="flex items-center space-x-2 mb-3">
-        <BarChart3 className="w-5 h-5 text-cyan-400" />
+        <BarChart3 className="w-5 h-5 text-lime-400" />
         <h3 className="text-white font-bold">Live Poll</h3>
         {!poll.is_active && (
           <span className="text-xs text-gray-400">(Ended)</span>
@@ -91,11 +91,11 @@ export default function LivePoll({ poll, onVote }: LivePollProps) {
                 showResults
                   ? 'bg-white/10 cursor-default'
                   : 'bg-white/5 hover:bg-white/10 cursor-pointer'
-              } ${isSelected ? 'border-2 border-cyan-400' : 'border border-white/20'}`}
+              } ${isSelected ? 'border-2 border-lime-400' : 'border border-white/20'}`}
             >
               {showResults && (
                 <div
-                  className="absolute inset-0 bg-gradient-to-r from-cyan-500/30 to-blue-600/30 transition-all duration-500"
+                  className="absolute inset-0 bg-gradient-to-r from-emerald-500/30 to-yellow-600/30 transition-all duration-500"
                   style={{ width: `${percentage}%` }}
                 />
               )}
@@ -103,7 +103,7 @@ export default function LivePoll({ poll, onVote }: LivePollProps) {
               <div className="relative flex items-center justify-between">
                 <div className="flex items-center space-x-2 flex-1">
                   {isSelected && hasVoted && (
-                    <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                    <Check className="w-4 h-4 text-lime-400 flex-shrink-0" />
                   )}
                   <span className="text-white">{option}</span>
                 </div>
@@ -111,7 +111,7 @@ export default function LivePoll({ poll, onVote }: LivePollProps) {
                 {showResults && (
                   <div className="flex items-center space-x-3 text-sm">
                     <span className="text-gray-400">{votes} votes</span>
-                    <span className="font-bold text-cyan-400">{percentage}%</span>
+                    <span className="font-bold text-lime-400">{percentage}%</span>
                   </div>
                 )}
               </div>
@@ -127,7 +127,7 @@ export default function LivePoll({ poll, onVote }: LivePollProps) {
       )}
 
       {voting && (
-        <div className="mt-3 flex items-center justify-center space-x-2 text-cyan-400">
+        <div className="mt-3 flex items-center justify-center space-x-2 text-lime-400">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Submitting vote...</span>
         </div>
