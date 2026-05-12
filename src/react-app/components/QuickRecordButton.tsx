@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw } from 'lucide-react';
+import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
@@ -171,70 +171,7 @@ export default function QuickRecordButton({
     }
   }, [showModal, captureLaunchGeo, captureLaunchGeoResolved]);
 
-  useEffect(() => {
-    if (!coordsForNearbyVenues || !user || isPending) {
-      return;
-    }
-    const ac = new AbortController();
-    setNearbyVenuesLoading(true);
-    setNearbyVenuesNotice(null);
-    void (async () => {
-      try {
-        const res = await fetch('/api/clips/resolve-show', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          signal: ac.signal,
-          body: JSON.stringify({
-            latitude: coordsForNearbyVenues.lat,
-            longitude: coordsForNearbyVenues.lon,
-            at: new Date().toISOString(),
-          }),
-        });
-        if (!res.ok) {
-          if (!ac.signal.aborted) {
-            setNearbyVenues([]);
-            setNearbyVenuesNotice('Could not load nearby venues.');
-          }
-          return;
-        }
-        const data = (await res.json()) as {
-          match?: string;
-          candidates?: ClipShowCandidate[];
-          nearbyVenues?: ClipShowCandidate[];
-          notice?: string | null;
-        };
-        if (ac.signal.aborted) return;
-        const list = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
-        resolveShowCacheRef.current = {
-          lat: coordsForNearbyVenues.lat,
-          lon: coordsForNearbyVenues.lon,
-          fetchedAt: Date.now(),
-          data: {
-            match: data.match,
-            candidates: data.candidates,
-            nearbyVenues: list,
-            notice: data.notice ?? null,
-          },
-        };
-        setNearbyVenues(list);
-        setNearbyVenuesNotice(data.notice?.trim() || null);
-        selectedVenueCandidateRef.current = null;
-        setSelectedVenueKey(null);
-      } catch (e) {
-        if (e instanceof DOMException && e.name === 'AbortError') return;
-        if (!ac.signal.aborted) {
-          setNearbyVenues([]);
-          setNearbyVenuesNotice('Could not load nearby venues.');
-        }
-      } finally {
-        if (!ac.signal.aborted) setNearbyVenuesLoading(false);
-      }
-    })();
-    return () => ac.abort();
-  }, [coordsForNearbyVenues, user, isPending]);
-
-  /** Use coordinates we already have (launch tap + JamBase preview). Does not call geolocation again. */
+  /** Use coordinates we already have (launch tap). Does not call geolocation again. */
   const syncLastGeoFromNearbyCoordsRef = () => {
     const crd = coordsForNearbyVenuesRef.current;
     if (!crd || !Number.isFinite(crd.lat) || !Number.isFinite(crd.lon)) return;
@@ -759,101 +696,8 @@ export default function QuickRecordButton({
       }
 
       const at = recordingStartedAtRef.current || new Date().toISOString();
-      // Fresh lat/lon at end of capture (same permission) so JamBase resolve matches where the clip was recorded.
       syncLastGeoFromNearbyCoordsRef();
       const geo = lastGeoRef.current;
-      setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 46 : 32));
-
-      let showData: Record<string, unknown> | null = null;
-      let ambiguousCandidates: ClipShowCandidate[] | null = null;
-      let nearbyVenuesForUpload: ClipShowCandidate[] = [];
-
-      const picked = selectedVenueCandidateRef.current;
-      if (picked && geo?.latitude != null && geo?.longitude != null) {
-        showData = {
-          artist_name: picked.artist_name ?? '',
-          venue_name: picked.venue_name ?? '',
-          location:
-            (picked.location?.trim() ||
-              [geo.city, geo.state].filter(Boolean).join(', ')) ||
-            '',
-          ...(picked.jambase_event_id ? { jambase_event_id: picked.jambase_event_id } : {}),
-          ...(picked.jambase_artist_id ? { jambase_artist_id: picked.jambase_artist_id } : {}),
-          ...(picked.jambase_venue_id ? { jambase_venue_id: picked.jambase_venue_id } : {}),
-          latitude: geo.latitude,
-          longitude: geo.longitude,
-          accuracy: geo.accuracy,
-        };
-        nearbyVenuesForUpload = [...nearbyVenuesRef.current];
-      } else if (geo?.latitude != null && geo?.longitude != null) {
-        const snap = resolveShowCacheRef.current;
-        const reuseResolve =
-          snap != null &&
-          withinMiles(snap.lat, snap.lon, geo.latitude, geo.longitude, 0.35) &&
-          Date.now() - snap.fetchedAt < 12 * 60 * 1000;
-
-        type ResolveJson = {
-          match?: string;
-          candidates?: ClipShowCandidate[];
-          nearbyVenues?: ClipShowCandidate[];
-        };
-
-        let data: ResolveJson | null = null;
-        try {
-          if (reuseResolve) {
-            data = snap.data;
-          } else {
-            const controller = new AbortController();
-            const timeoutId = window.setTimeout(() => controller.abort(), RESOLVE_SHOW_TIMEOUT_MS);
-            try {
-              const res = await fetch('/api/clips/resolve-show', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                signal: controller.signal,
-                body: JSON.stringify({
-                  latitude: geo.latitude,
-                  longitude: geo.longitude,
-                  at,
-                  city: geo.city ?? undefined,
-                  state: geo.state ?? undefined,
-                  country: geo.country ?? undefined,
-                }),
-              });
-              if (res.ok) {
-                data = (await res.json()) as ResolveJson;
-              }
-            } finally {
-              window.clearTimeout(timeoutId);
-            }
-          }
-          if (data) {
-            nearbyVenuesForUpload = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
-            if (data.match === 'single' && data.candidates?.[0]) {
-              const c = data.candidates[0] as ClipShowCandidate;
-              showData = {
-                artist_name: c.artist_name ?? '',
-                venue_name: c.venue_name ?? '',
-                location: c.location ?? [geo.city, geo.state].filter(Boolean).join(', '),
-                ...(c.jambase_event_id ? { jambase_event_id: c.jambase_event_id } : {}),
-                ...(c.jambase_artist_id ? { jambase_artist_id: c.jambase_artist_id } : {}),
-                ...(c.jambase_venue_id ? { jambase_venue_id: c.jambase_venue_id } : {}),
-                latitude: geo.latitude,
-                longitude: geo.longitude,
-                accuracy: geo.accuracy,
-              };
-            } else if (data.match === 'ambiguous' && data.candidates?.length) {
-              ambiguousCandidates = data.candidates as ClipShowCandidate[];
-            }
-          }
-        } catch (e) {
-          if (e instanceof DOMException && e.name === 'AbortError') {
-            console.warn('resolve-show timed out; continuing to upload without auto-tag');
-          } else {
-            console.error('resolve-show failed:', e);
-          }
-        }
-      }
       setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
       navigate(
@@ -862,9 +706,6 @@ export default function QuickRecordButton({
           replace: true,
           state: {
             videoBlob: blob,
-            showData,
-            ambiguousCandidates,
-            nearbyVenuesFromCapture: nearbyVenuesForUpload.length > 0 ? nearbyVenuesForUpload : undefined,
             recordingStartedAt: at,
             captureGeo: geo
               ? {
@@ -887,7 +728,6 @@ export default function QuickRecordButton({
 
       recordingStartedAtRef.current = null;
       lastGeoRef.current = null;
-      selectedVenueCandidateRef.current = null;
 
       // Close modal
       setShowModal(false);
@@ -931,8 +771,6 @@ export default function QuickRecordButton({
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     lastAdoptedPrimedRef.current = null;
-    selectedVenueCandidateRef.current = null;
-    setSelectedVenueKey(null);
 
     // Call onClose callback if provided
     if (onClose) {
@@ -1026,8 +864,8 @@ export default function QuickRecordButton({
                           : 'Starting camera…'}
                       </p>
                       <p className="text-cyan-200/90 text-xs mt-2 max-w-xs mx-auto">
-                        Location is requested when you tap Capture (same moment as the camera), so we can suggest nearby
-                        JamBase venues after you record.
+                        Location is requested when you tap Capture (with the camera) so we can match JamBase venues to
+                        your clip on the next screen.
                       </p>
                       {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
                     </>
@@ -1052,7 +890,7 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* Processing transition while resolving nearby venue before upload UI */}
+            {/* Processing transition before opening the upload / caption screen */}
             {isProcessingTransition && (
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 backdrop-blur-sm">
                 <div className="w-[88%] max-w-md rounded-2xl border border-white/15 bg-black/70 p-5">
@@ -1072,8 +910,8 @@ export default function QuickRecordButton({
                   </div>
                   <p className="mt-2 text-xs text-white/70">
                     {networkSpeed === 'slow' || networkSpeed === 'offline'
-                      ? 'Hang tight while we prepare your upload and look up nearby shows.'
-                      : 'Preparing upload and auto-tagging the nearby show.'}
+                      ? 'Hang tight while we open your clip so you can add details and post.'
+                      : 'Opening your clip — venue suggestions load on the next screen.'}
                   </p>
                 </div>
               </div>
@@ -1125,65 +963,13 @@ export default function QuickRecordButton({
                     Finishing location from your Capture tap…
                   </p>
                 )}
-                {(coordsForNearbyVenues || nearbyVenuesLoading) && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2">
-                    <div className="flex items-center gap-2 px-1 pb-1.5 border-b border-white/10">
-                      <MapPin className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
-                      <span className="text-white/90 text-xs font-medium">Nearby venues</span>
-                      {nearbyVenuesLoading && (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400 ml-auto" />
-                      )}
-                    </div>
-                    {nearbyVenuesNotice && nearbyVenues.length === 0 && !nearbyVenuesLoading && (
-                      <p className="text-amber-200/90 text-[11px] px-1 py-1.5">{nearbyVenuesNotice}</p>
-                    )}
-                    {!nearbyVenuesLoading && nearbyVenues.length === 0 && !nearbyVenuesNotice && coordsForNearbyVenues && (
-                      <p className="text-gray-400 text-[11px] px-1 py-1.5">No venues matched this spot in your radius. You can tag the venue on the next screen.</p>
-                    )}
-                    {nearbyVenues.length > 0 && (
-                      <ul className="mt-1 max-h-[9.5rem] overflow-y-auto space-y-0.5">
-                        {nearbyVenues.map((c, idx) => {
-                          const rowKey = `${c.jambase_venue_id ?? ''}:${c.jambase_event_id ?? ''}:${c.venue_name ?? ''}:${idx}`;
-                          const dist =
-                            c.distance_miles != null && Number.isFinite(c.distance_miles)
-                              ? `${c.distance_miles.toFixed(1)} mi`
-                              : 'Nearby';
-                          const selected = selectedVenueKey === rowKey;
-                          return (
-                            <li key={rowKey}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (selectedVenueKey === rowKey) {
-                                    setSelectedVenueKey(null);
-                                    selectedVenueCandidateRef.current = null;
-                                  } else {
-                                    setSelectedVenueKey(rowKey);
-                                    selectedVenueCandidateRef.current = c;
-                                  }
-                                }}
-                                className={`w-full text-left rounded-lg px-2 py-1.5 text-[11px] leading-snug transition-colors ${
-                                  selected
-                                    ? 'bg-cyan-500/25 border border-cyan-400/50 text-white'
-                                    : 'hover:bg-white/10 text-white/90 border border-transparent'
-                                }`}
-                              >
-                                <span className="font-medium text-white">{c.venue_name ?? 'Venue'}</span>
-                                {c.artist_name ? (
-                                  <span className="text-gray-400"> · {c.artist_name}</span>
-                                ) : null}
-                                <span className="block text-gray-500 mt-0.5">
-                                  {c.location ?? '—'} · {dist}
-                                </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                    {selectedVenueKey && (
-                      <p className="text-cyan-300/90 text-[10px] px-1 pt-1">Selected tag is used when you finish recording.</p>
-                    )}
+                {coordsForNearbyVenues && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-cyan-400 mt-0.5" />
+                    <p className="text-gray-300 text-[11px] leading-snug text-left">
+                      Capture location is saved with this clip. After you record, we&apos;ll show JamBase venues for
+                      that spot on the upload screen.
+                    </p>
                   </div>
                 )}
               </div>
