@@ -13,11 +13,11 @@ export async function primeCameraOnUserGesture(): Promise<MediaStream | null> {
     autoGainControl: true,
   };
 
-  // Start with the simplest shapes; iOS often rejects or stalls on heavy facingMode-only profiles.
+  // Prefer back camera first; `video: true` alone often opens the front camera on phones.
   const videoAttempts: (MediaTrackConstraints | boolean)[] = [
-    true,
     { facingMode: { ideal: 'environment' } },
     { facingMode: { ideal: 'user' } },
+    true,
   ];
 
   const tryOpen = (video: MediaTrackConstraints | boolean, withAudio: boolean) =>

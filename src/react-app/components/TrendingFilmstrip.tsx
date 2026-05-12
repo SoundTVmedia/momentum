@@ -1,12 +1,15 @@
+import { useState } from 'react'
 import { Flame, Play } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useClips } from '@/react-app/hooks/useClips'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
+import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia'
 
 export default function TrendingFilmstrip() {
   const navigate = useNavigate()
   const { clips, loading } = useClips({ feedType: 'trending', limit: 12 })
+  const [hoverClipId, setHoverClipId] = useState<number | null>(null)
 
   const handleClipClick = (clip: ClipWithUser) => {
     // Navigate to the main feed where they can view the clip in the modal
@@ -61,33 +64,38 @@ export default function TrendingFilmstrip() {
                   onClick={() => handleClipClick(clip)}
                   className="flex-shrink-0 w-40 sm:w-48 md:w-56 group cursor-pointer snap-start"
                 >
-                  {/* Thumbnail */}
-                  <div className="relative aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3 border border-white/10 group-hover:border-purple-500/50 transition-all bg-gradient-to-br from-slate-900 to-black flex items-center justify-center">
-                    <img
-                      src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
-                      alt={clip.artist_name || 'Concert moment'}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
+                  {/* Thumbnail + hover preview (desktop: video only, no play chip) */}
+                  <div
+                    className="relative aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3 border border-white/10 group-hover:border-purple-500/50 transition-all bg-black group/video"
+                    onMouseEnter={() => setHoverClipId(clip.id)}
+                    onMouseLeave={() => setHoverClipId((id) => (id === clip.id ? null : id))}
+                  >
+                    <ClipFeedPreviewMedia
+                      className="z-0"
+                      playbackUrl={clip.stream_playback_url}
+                      fallbackUrl={clip.video_url}
+                      posterUrl={clip.stream_thumbnail_url || clip.thumbnail_url}
+                      mediaHovered={hoverClipId === clip.id}
                     />
-                    
+
                     {/* Gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    
-                    {/* Play button overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none z-[1]" />
+
+                    {/* Play hint: coarse / touch — hidden on fine-pointer desktop (video plays on hover) */}
+                    <div className="absolute inset-0 z-[1] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:hidden">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 momentum-grad-interactive rounded-full flex items-center justify-center shadow-lg">
                         <Play className="w-5 h-5 sm:w-6 sm:h-6 text-white fill-white ml-0.5" />
                       </div>
                     </div>
 
                     {/* Trending badge */}
-                    <div className="absolute top-2 right-2 px-2 py-1 bg-gradient-to-r from-orange-500 to-pink-600 rounded-full text-xs font-bold text-white shadow-lg flex items-center space-x-1">
+                    <div className="absolute top-2 right-2 z-[2] px-2 py-1 bg-gradient-to-r from-orange-500 to-pink-600 rounded-full text-xs font-bold text-white shadow-lg flex items-center space-x-1">
                       <Flame className="w-3 h-3" />
                       <span className="hidden sm:inline">Hot</span>
                     </div>
 
                     {/* Stats overlay - no ratings shown */}
-                    <div className="absolute bottom-2 left-2 right-2">
+                    <div className="absolute bottom-2 left-2 right-2 z-[2] pointer-events-none">
                       <div className="flex items-center justify-between text-white text-xs">
                         <span className="font-bold">{clip.likes_count > 999 ? `${(clip.likes_count / 1000).toFixed(1)}k` : clip.likes_count} ❤️</span>
                         <span className="font-bold">{clip.views_count > 999 ? `${(clip.views_count / 1000).toFixed(1)}k` : clip.views_count} 👁️</span>

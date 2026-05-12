@@ -267,17 +267,14 @@ export default function QuickRecordButton({
               { facingMode: { ideal: orderedFacingModes[0] } },
               { facingMode: { ideal: orderedFacingModes[1] } },
             ];
-      // Initial open: try `video: true` first on desktop; on mobile use facing hints so environment/back is reachable.
-      // Flip (facingOverride set): never use `video: true` — it ignores facingMode and often re-opens the same camera,
-      // so the first tap would look like a no-op until a later constraint happened to win.
+      // Initial open: on phones, never lead with `video: true` — it usually picks the front camera and wins
+      // before facingMode hints run. Desktop keeps `true` first (often no "environment" device).
       const videoAttempts: (MediaTrackConstraints | boolean)[] =
         facingOverride !== undefined
           ? [...facingFirst, ...heavyFacing]
-          : [
-              true,
-              ...(isIOS || isAndroid ? facingFirst : []),
-              ...heavyFacing,
-            ];
+          : isIOS || isAndroid
+            ? [...facingFirst, ...heavyFacing, true]
+            : [true, ...facingFirst, ...heavyFacing];
 
       const audioConstraintsObj = {
         sampleRate: 48000,

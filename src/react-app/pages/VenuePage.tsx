@@ -4,6 +4,7 @@ import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users, ChevronDo
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ShowArchive from '@/react-app/components/ShowArchive';
+import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
@@ -62,6 +63,7 @@ export default function VenuePage() {
   const [displayedClips, setDisplayedClips] = useState<ClipWithUser[]>([]);
   const [clipsPage, setClipsPage] = useState(1);
   const [recentShow, setRecentShow] = useState<RecentShow | null>(null);
+  const [hoverVenueClipId, setHoverVenueClipId] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchVenueData = async () => {
@@ -277,22 +279,30 @@ export default function VenuePage() {
                         className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all group cursor-pointer"
                         onClick={() => setSelectedClip(clip)}
                       >
-                        <div className="relative aspect-video">
-                          <img
-                            src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
-                            alt="Concert moment"
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        <div
+                          className="relative aspect-video group/video overflow-hidden bg-black"
+                          onMouseEnter={() => setHoverVenueClipId(clip.id)}
+                          onMouseLeave={() =>
+                            setHoverVenueClipId((id) => (id === clip.id ? null : id))
+                          }
+                        >
+                          <ClipFeedPreviewMedia
+                            className="z-0"
+                            playbackUrl={clip.stream_playback_url}
+                            fallbackUrl={clip.video_url}
+                            posterUrl={clip.stream_thumbnail_url || clip.thumbnail_url}
+                            mediaHovered={hoverVenueClipId === clip.id}
                           />
-                          
-                          {/* Play overlay */}
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+
+                          {/* Play hint: coarse / touch only */}
+                          <div className="absolute inset-0 z-[1] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:hidden">
                             <div className="w-12 h-12 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal rounded-full flex items-center justify-center shadow-2xl">
                               <div className="w-0 h-0 border-l-[16px] border-l-white border-y-[12px] border-y-transparent ml-1"></div>
                             </div>
                           </div>
 
                           {/* User info overlay */}
-                          <div className="absolute top-2 left-2 flex items-center space-x-2">
+                          <div className="absolute top-2 left-2 z-[2] flex items-center space-x-2 pointer-events-none">
                             <img 
                               src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
                               alt={clip.user_display_name || 'User'}
@@ -301,7 +311,7 @@ export default function VenuePage() {
                           </div>
 
                           {/* Time overlay */}
-                          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
+                          <div className="absolute top-2 right-2 z-[2] bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full pointer-events-none">
                             <span className="text-white text-xs">{formatTimestamp(clip.created_at)}</span>
                           </div>
                         </div>
