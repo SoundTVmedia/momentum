@@ -59,9 +59,19 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
  * Short in-browser snippet → worker `/api/clips/identify-music` → AudD.
  * Call after capture (before navigating to the caption screen) so fields can be prefilled for review.
  */
+const MIN_SNIPPET_BYTES = 220;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
-  const snippet = await extractMediaSnippetForAudD(source);
-  if (!snippet || snippet.size < 220) {
+  let snippet: Blob | null = null;
+
+  if (source.type.startsWith('audio/') && source.size >= MIN_SNIPPET_BYTES) {
+    snippet = source.size <= MAX_UPLOAD_BYTES ? source : source.slice(0, MAX_UPLOAD_BYTES);
+  } else {
+    snippet = await extractMediaSnippetForAudD(source);
+  }
+
+  if (!snippet || snippet.size < MIN_SNIPPET_BYTES) {
     return {
       status: 'skipped',
       message:
@@ -71,7 +81,11 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
 
   try {
     const fd = new FormData();
-    fd.set('file', snippet, 'clip-snippet.webm');
+    const fileName =
+      snippet.type.includes('mp4') || snippet.type.includes('aac') || snippet.type.includes('mpeg')
+        ? 'clip-snippet.m4a'
+        : 'clip-snippet.webm';
+    fd.set('file', snippet, fileName);
     const res = await fetch('/api/clips/identify-music', {
       method: 'POST',
       body: fd,

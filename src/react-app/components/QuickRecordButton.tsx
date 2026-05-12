@@ -84,6 +84,10 @@ export default function QuickRecordButton({
   const deviceMediaInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  /** Parallel audio-only recorder on cloned mic tracks (same capture window) — camera WebM often muxes audio poorly for re-extraction. */
+  const auddParallelAudioRecorderRef = useRef<MediaRecorder | null>(null);
+  const auddParallelAudioChunksRef = useRef<Blob[]>([]);
+  const lastParallelAuddAudioBlobRef = useRef<Blob | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -681,6 +685,37 @@ export default function QuickRecordButton({
       setIsRecording(true);
       recordingSecondsRef.current = 0;
 
+      lastParallelAuddAudioBlobRef.current = null;
+      auddParallelAudioChunksRef.current = [];
+      auddParallelAudioRecorderRef.current = null;
+      if (hasAudio && audioEnabled) {
+        try {
+          const audioMime = ['audio/webm;codecs=opus', 'audio/webm'].find((m) =>
+            MediaRecorder.isTypeSupported(m),
+          );
+          if (audioMime) {
+            const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
+            if (liveTracks.length > 0) {
+              const clones = liveTracks.map((t) => t.clone());
+              const audStream = new MediaStream(clones);
+              const ar = new MediaRecorder(audStream, {
+                mimeType: audioMime,
+                audioBitsPerSecond: 128_000,
+              });
+              ar.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                  auddParallelAudioChunksRef.current.push(event.data);
+                }
+              };
+              ar.start(250);
+              auddParallelAudioRecorderRef.current = ar;
+            }
+          }
+        } catch (e) {
+          console.warn('QuickRecordButton: parallel AudD audio recorder failed', e);
+        }
+      }
+
       // Start timer
       timerRef.current = setInterval(() => {
         recordingSecondsRef.current += 1;
@@ -698,24 +733,61 @@ export default function QuickRecordButton({
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      const mr = mediaRecorderRef.current;
-      if (mr.state === 'recording' && typeof mr.requestData === 'function') {
-        try {
-          mr.requestData();
-        } catch {
-          /* ignore */
+    const mr = mediaRecorderRef.current;
+    if (!mr || (mr.state !== 'recording' && mr.state !== 'paused')) {
+      return;
+    }
+
+    const ar = auddParallelAudioRecorderRef.current;
+
+    const finalizeMainRecorder = () => {
+      if (mr.state === 'recording' || mr.state === 'paused') {
+        if (mr.state === 'recording' && typeof mr.requestData === 'function') {
+          try {
+            mr.requestData();
+          } catch {
+            /* ignore */
+          }
         }
+        mr.stop();
       }
-      mr.stop();
       setIsRecording(false);
       setIsProcessingTransition(true);
       setProcessingProgress(14);
-      
+
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+    };
+
+    if (ar && (ar.state === 'recording' || ar.state === 'paused')) {
+      ar.onstop = () => {
+        auddParallelAudioRecorderRef.current = null;
+        try {
+          ar.stream.getTracks().forEach((track) => track.stop());
+        } catch {
+          /* ignore */
+        }
+        const chunks = auddParallelAudioChunksRef.current;
+        auddParallelAudioChunksRef.current = [];
+        const outMime =
+          ar.mimeType && ar.mimeType.length > 0 ? ar.mimeType : 'audio/webm';
+        lastParallelAuddAudioBlobRef.current =
+          chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
+        finalizeMainRecorder();
+      };
+      if (typeof ar.requestData === 'function') {
+        try {
+          ar.requestData();
+        } catch {
+          /* ignore */
+        }
+      }
+      ar.stop();
+    } else {
+      lastParallelAuddAudioBlobRef.current = null;
+      finalizeMainRecorder();
     }
   };
 
@@ -753,8 +825,16 @@ export default function QuickRecordButton({
       setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
       setProcessingHint('Identifying music before upload (~15s)…');
+      const parallelAudio = lastParallelAuddAudioBlobRef.current;
+      lastParallelAuddAudioBlobRef.current = null;
+      const MIN_PARALLEL = 220;
+      const useParallelAudD =
+        parallelAudio != null &&
+        parallelAudio.size >= MIN_PARALLEL &&
+        parallelAudio.type.startsWith('audio/');
+      const auddInput = useParallelAudD ? parallelAudio : blob;
       const sourceKey = auddSourceKey(blob);
-      const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(blob));
+      const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(auddInput));
       setProcessingHint('');
 
       navigate(
@@ -805,6 +885,23 @@ export default function QuickRecordButton({
 
   const closeModal = () => {
     if (isProcessingTransition) return;
+
+    const par = auddParallelAudioRecorderRef.current;
+    if (par && (par.state === 'recording' || par.state === 'paused')) {
+      auddParallelAudioRecorderRef.current = null;
+      try {
+        par.stop();
+      } catch {
+        /* ignore */
+      }
+      try {
+        par.stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        /* ignore */
+      }
+    }
+    auddParallelAudioChunksRef.current = [];
+    lastParallelAuddAudioBlobRef.current = null;
 
     if (processingIntervalRef.current) {
       clearInterval(processingIntervalRef.current);
