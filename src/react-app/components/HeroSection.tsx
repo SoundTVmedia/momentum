@@ -25,7 +25,7 @@ export default function HeroSection() {
           {/* Main Headline - Smaller */}
           <div className="mb-1 sm:mb-2">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-headline mb-1 sm:mb-2 leading-tight">
-              <span className="block bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent animate-glow">
+              <span className="block bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
                 WHERE LIVE
               </span>
               <span className="block text-white drop-shadow-2xl">
