@@ -17,7 +17,7 @@ export function auddSourceKey(source: Blob): string {
 
 export type AudDIdentifyResult =
   | { status: 'match'; artist: string; title: string; message: string | null }
-  | { status: 'skipped' }
+  | { status: 'skipped'; message?: string | null }
   | { status: 'nomatch' }
   | { status: 'error'; message: string };
 
@@ -41,7 +41,13 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
     };
   }
   if (r.status === 'skipped') {
-    return { sourceKey, status: 'skipped', message: null, artist: '', title: '' };
+    return {
+      sourceKey,
+      status: 'skipped',
+      message: typeof r.message === 'string' && r.message.trim() !== '' ? r.message : null,
+      artist: '',
+      title: '',
+    };
   }
   if (r.status === 'nomatch') {
     return { sourceKey, status: 'nomatch', message: null, artist: '', title: '' };
@@ -56,7 +62,11 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
   const snippet = await extractMediaSnippetForAudD(source);
   if (!snippet || snippet.size < 400) {
-    return { status: 'skipped' };
+    return {
+      status: 'skipped',
+      message:
+        'Could not capture enough audio from this clip for song ID (needs clearer music in the recording, or try again).',
+    };
   }
 
   try {
@@ -72,10 +82,12 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
       skipped?: boolean;
       match?: { artist?: string; title?: string } | null;
       error?: string;
+      message?: string;
     };
 
     if (data.skipped) {
-      return { status: 'skipped' };
+      const fromApi = typeof data.message === 'string' && data.message.trim() !== '' ? data.message.trim() : null;
+      return { status: 'skipped', message: fromApi };
     }
     if (!res.ok || data.ok === false) {
       return {
@@ -90,7 +102,13 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
     const artist = (data.match.artist ?? '').trim();
     const title = (data.match.title ?? '').trim();
     const message =
-      title && artist ? `Identified: ${title} — ${artist}` : title ? `Identified: ${title}` : null;
+      title && artist
+        ? `Identified: ${title} — ${artist}`
+        : title
+          ? `Identified: ${title}`
+          : artist
+            ? `Identified: ${artist}`
+            : null;
     return { status: 'match', artist, title, message };
   } catch (e) {
     console.error('AudD identify', e);

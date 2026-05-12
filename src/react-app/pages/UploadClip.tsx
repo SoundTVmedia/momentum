@@ -334,7 +334,7 @@ export default function UploadClip() {
         }
       } else if (ap.status === 'skipped') {
         setAuddStatus('skipped');
-        setAuddMessage(null);
+        setAuddMessage(ap.message);
       } else if (ap.status === 'nomatch') {
         setAuddStatus('nomatch');
         setAuddMessage(null);
@@ -662,6 +662,11 @@ export default function UploadClip() {
 
       if (result.status === 'skipped') {
         setAuddStatus('skipped');
+        setAuddMessage(
+          typeof result.message === 'string' && result.message.trim() !== ''
+            ? result.message
+            : 'Song lookup was skipped.',
+        );
         return;
       }
       if (result.status === 'error') {
@@ -1225,11 +1230,21 @@ export default function UploadClip() {
                   <span>Identifying music in your clip (AudD)…</span>
                 </div>
               )}
-              {auddStatus === 'done' && auddMessage && (
+              {auddStatus === 'done' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg">
-                  <p className="text-violet-100 text-sm font-medium">{auddMessage}</p>
+                  <p className="text-violet-100 text-sm font-medium">
+                    {auddMessage?.trim() || 'Song and artist prefilled below.'}
+                  </p>
                   <p className="text-gray-400 text-xs mt-1">
                     Artist and song are prefilled below — pick a JamBase artist if you want a verified link.
+                  </p>
+                </div>
+              )}
+              {auddStatus === 'skipped' && (
+                <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+                  <p className="text-gray-300 text-sm">
+                    {auddMessage?.trim() ||
+                      'Song lookup was skipped. Add AUDD_API_TOKEN to your worker env (e.g. .dev.vars) to enable AudD.'}
                   </p>
                 </div>
               )}
