@@ -49,6 +49,7 @@ import {
   getMyClipsFeed,
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
+import { postClipIdentifyMusicAudD } from "./clip-audd-endpoints";
 import { normalizeClipApiRows } from "./clip-row-normalize";
 import { getClipObjectFromR2, r2ForClipObjectKey } from "./r2-clip-key";
 export { RealtimeDurableObject } from "./realtime-durable-object";
@@ -640,6 +641,12 @@ app.get("/api/files/:key{.+}", async (c) => {
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);
+app.post(
+  "/api/clips/identify-music",
+  authMiddleware,
+  rateLimiter(RateLimits.API),
+  postClipIdentifyMusicAudD
+);
 
 // Create a new clip
 app.post("/api/clips", authMiddleware, async (c) => {

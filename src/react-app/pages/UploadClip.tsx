@@ -14,7 +14,17 @@ import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
+import { extractMediaSnippetForAudD } from '@/react-app/utils/extractMediaSnippetForAudD';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
+
+function mergeSongTitleIntoCaption(current: string, title: string): string {
+  const t = title.trim();
+  if (!t) return current;
+  const c = current.trim();
+  if (!c) return t;
+  if (c.includes(t)) return c;
+  return `${t}\n\n${c}`;
+}
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -70,6 +80,13 @@ export default function UploadClip() {
     country: string | null;
   } | null>(null);
   const [resolveNotice, setResolveNotice] = useState<string | null>(null);
+
+  /** [AudD](https://docs.audd.io/) song ID on the post-capture screen (short snippet from the clip). */
+  const [auddStatus, setAuddStatus] = useState<
+    'idle' | 'loading' | 'done' | 'skipped' | 'nomatch' | 'error'
+  >('idle');
+  const [auddMessage, setAuddMessage] = useState<string | null>(null);
+  const auddAttemptedForSourceKeyRef = useRef<string | null>(null);
 
   /** Apply GPS from navigation state before paint so resolve-show sees coords on first run. */
   useLayoutEffect(() => {
@@ -591,6 +608,97 @@ export default function UploadClip() {
     ingestCaptureGeo,
   ]);
 
+  /** AudD music recognition — short in-browser snippet, then worker → [AudD](https://docs.audd.io/). */
+  useEffect(() => {
+    if (!showCaptionScreen || !user || isPending) return;
+    const source = formData.video_blob ?? formData.video_file;
+    if (!source || !(source instanceof Blob)) return;
+
+    const sourceKey =
+      source instanceof File
+        ? `file:${source.name}:${source.size}:${source.lastModified}`
+        : `blob:${source.size}`;
+    if (auddAttemptedForSourceKeyRef.current === sourceKey) return;
+    auddAttemptedForSourceKeyRef.current = sourceKey;
+
+    let cancelled = false;
+    setAuddStatus('loading');
+    setAuddMessage(null);
+
+    void (async () => {
+      const snippet = await extractMediaSnippetForAudD(source);
+      if (cancelled) return;
+      if (!snippet || snippet.size < 400) {
+        setAuddStatus('skipped');
+        return;
+      }
+
+      try {
+        const fd = new FormData();
+        fd.set('file', snippet, 'clip-snippet.webm');
+        const res = await fetch('/api/clips/identify-music', {
+          method: 'POST',
+          body: fd,
+          credentials: 'include',
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          skipped?: boolean;
+          match?: { artist?: string; title?: string } | null;
+          error?: string;
+        };
+        if (cancelled) return;
+
+        if (data.skipped) {
+          setAuddStatus('skipped');
+          return;
+        }
+        if (!res.ok || data.ok === false) {
+          setAuddStatus('error');
+          setAuddMessage(typeof data.error === 'string' ? data.error : 'Song lookup failed');
+          return;
+        }
+        if (!data.match || (!data.match.artist && !data.match.title)) {
+          setAuddStatus('nomatch');
+          return;
+        }
+
+        const artist = (data.match.artist ?? '').trim();
+        const title = (data.match.title ?? '').trim();
+
+        setFormData((prev) => ({
+          ...prev,
+          artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
+          content_description: mergeSongTitleIntoCaption(prev.content_description, title),
+        }));
+        if (artist) {
+          captionCommittedArtistNameRef.current = artist;
+          setArtistSearch(artist);
+        }
+        setAuddStatus('done');
+        setAuddMessage(
+          title && artist ? `Identified: ${title} — ${artist}` : title ? `Identified: ${title}` : null
+        );
+      } catch (e) {
+        if (!cancelled) {
+          console.error('AudD identify', e);
+          setAuddStatus('error');
+          setAuddMessage('Song lookup failed');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showCaptionScreen,
+    user,
+    isPending,
+    formData.video_blob,
+    formData.video_file,
+  ]);
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -725,7 +833,7 @@ export default function UploadClip() {
     return data;
   };
 
-  const handleSubmit = async (e: React.FormEvent | null, status: 'published' | 'draft' = 'published') => {
+  const handleSubmit = async (e: React.FormEvent | null) => {
     if (e) e.preventDefault();
     
     if (uploadMethod === 'file' && !formData.video_file && !formData.video_blob) {
@@ -793,7 +901,7 @@ export default function UploadClip() {
         location: formData.location || null,
         content_description: formData.content_description || null,
         hashtags: hashtagsArray,
-        status,
+        status: 'published',
         timestamp: recordingAtIso || undefined,
         jambase_event_id: jambaseLink?.event ?? undefined,
         jambase_artist_id: jambaseLink?.artist ?? undefined,
@@ -846,11 +954,7 @@ export default function UploadClip() {
         setVideoBlobUrl(null);
       }
 
-      if (status === 'draft') {
-        navigate('/dashboard');
-      } else {
-        navigate('/feed', { replace: true });
-      }
+      navigate('/feed', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload clip');
     } finally {
@@ -859,11 +963,6 @@ export default function UploadClip() {
     }
   };
 
-  const handleSaveAsDraft = async () => {
-    await handleSubmit(null, 'draft');
-  };
-
-  const handleReRecord = () => {
     // Reset upload state
     if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
     setVideoBlobUrl(null);
@@ -877,6 +976,9 @@ export default function UploadClip() {
     setRecordingAtIso(null);
     setCaptureGeo(null);
     setError(null);
+    auddAttemptedForSourceKeyRef.current = null;
+    setAuddStatus('idle');
+    setAuddMessage(null);
 
     setReRecordLaunchGeo(null);
     setReRecordLaunchGeoResolved(false);
@@ -923,6 +1025,9 @@ export default function UploadClip() {
     setCaptionVideoPlaying(false);
     setCaptionVideoMuted(true);
     captionCommittedArtistNameRef.current = '';
+    auddAttemptedForSourceKeyRef.current = null;
+    setAuddStatus('idle');
+    setAuddMessage(null);
     navigate('/feed', { replace: true });
   };
 
@@ -1111,6 +1216,30 @@ export default function UploadClip() {
               {resolveNotice && (
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                   <p className="text-amber-200 text-sm">{resolveNotice}</p>
+                </div>
+              )}
+              {auddStatus === 'loading' && (
+                <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg flex items-center gap-2 text-violet-100 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <span>Identifying music in your clip (AudD)…</span>
+                </div>
+              )}
+              {auddStatus === 'done' && auddMessage && (
+                <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg">
+                  <p className="text-violet-100 text-sm font-medium">{auddMessage}</p>
+                  <p className="text-gray-400 text-xs mt-1">
+                    Artist and song are prefilled below — pick a JamBase artist if you want a verified link.
+                  </p>
+                </div>
+              )}
+              {auddStatus === 'nomatch' && (
+                <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+                  <p className="text-gray-400 text-sm">No commercial match for this audio (AudD).</p>
+                </div>
+              )}
+              {auddStatus === 'error' && auddMessage && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
               )}
 
@@ -1411,7 +1540,7 @@ export default function UploadClip() {
               <div className="space-y-3 pt-4">
                 {/* Primary: Post to Feed */}
                 <button
-                  onClick={() => handleSubmit(null, 'published')}
+                  onClick={() => handleSubmit(null)}
                   disabled={loading}
                   className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-green-500/30"
                 >
@@ -1427,16 +1556,7 @@ export default function UploadClip() {
                   )}
                 </button>
 
-                {/* Secondary: Save as Draft */}
-                <button
-                  onClick={handleSaveAsDraft}
-                  disabled={loading}
-                  className="w-full px-6 py-3 bg-white/10 border border-white/20 backdrop-blur-lg rounded-xl font-semibold text-gray-300 hover:bg-white/20 transition-all disabled:opacity-50"
-                >
-                  Save as Draft
-                </button>
-
-                {/* Tertiary: Re-record */}
+                {/* Re-record */}
                 <button
                   onClick={handleReRecord}
                   disabled={loading}
@@ -1473,7 +1593,7 @@ export default function UploadClip() {
           <p className="text-gray-300 text-lg">Drop that fire from last night's show</p>
         </div>
 
-        <form onSubmit={(e) => handleSubmit(e, 'published')} className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-black/40 backdrop-blur-lg border border-cyan-500/20 rounded-xl p-8 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>

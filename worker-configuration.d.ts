@@ -23,6 +23,8 @@ declare namespace Cloudflare {
 		CLOUDFLARE_STREAM_API_TOKEN: string;
 		TICKETMASTER_API_KEY: string;
 		GOOGLE_MAPS_API_KEY: string;
+		/** Optional — [AudD](https://docs.audd.io/) music recognition for clip prefill. */
+		AUDD_API_TOKEN?: string;
 		REALTIME: DurableObjectNamespace<import("./src/worker/index").RealtimeDurableObject>;
 	}
 }

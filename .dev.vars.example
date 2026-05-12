@@ -29,6 +29,8 @@ MOCHA_USERS_SERVICE_API_KEY=
 # All-time cap instead: omit JAMBASE_QUOTA_WINDOW or set JAMBASE_QUOTA_WINDOW=all
 # Per-IP caps also apply to /api/jambase/* and /api/search/advanced.
 JAMBASE_API_KEY=
+# Optional — AudD music recognition (https://docs.audd.io/). Used by POST /api/clips/identify-music.
+# AUDD_API_TOKEN=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 CLOUDFLARE_ACCOUNT_ID=

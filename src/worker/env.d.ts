@@ -42,4 +42,7 @@ interface Env {
   
   // Google Maps API
   GOOGLE_MAPS_API_KEY: string;
+
+  /** Optional — [AudD](https://docs.audd.io/) music recognition for clip song/artist prefill */
+  AUDD_API_TOKEN?: string;
 }
