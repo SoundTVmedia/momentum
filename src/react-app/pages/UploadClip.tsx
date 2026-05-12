@@ -14,17 +14,13 @@ import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
-import { extractMediaSnippetForAudD } from '@/react-app/utils/extractMediaSnippetForAudD';
+import {
+  mergeSongTitleIntoCaption,
+  auddSourceKey,
+  identifyMusicWithAudD,
+  type AudDNavPrefill,
+} from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
-
-function mergeSongTitleIntoCaption(current: string, title: string): string {
-  const t = title.trim();
-  if (!t) return current;
-  const c = current.trim();
-  if (!c) return t;
-  if (c.includes(t)) return c;
-  return `${t}\n\n${c}`;
-}
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -309,7 +305,45 @@ export default function UploadClip() {
         video_resolution_h: metadata.video_resolution_h,
       });
     }
-    
+
+    // AudD ran in QuickRecord before navigate — apply prefill and skip a duplicate identify on the caption screen.
+    const navWithAudD = location.state as { auddPrefill?: AudDNavPrefill } | null | undefined;
+    const ap = navWithAudD?.auddPrefill;
+    if (ap?.sourceKey) {
+      auddAttemptedForSourceKeyRef.current = ap.sourceKey;
+      if (ap.status === 'done') {
+        const artist = (ap.artist ?? '').trim();
+        const title = (ap.title ?? '').trim();
+        if (artist || title) {
+          setAuddStatus('done');
+          setAuddMessage(ap.message);
+          setFormData((prev) => ({
+            ...prev,
+            artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
+            content_description: title
+              ? mergeSongTitleIntoCaption(prev.content_description, title)
+              : prev.content_description,
+          }));
+          if (artist) {
+            captionCommittedArtistNameRef.current = artist;
+            setArtistSearch(artist);
+          }
+        } else {
+          setAuddStatus('nomatch');
+          setAuddMessage(null);
+        }
+      } else if (ap.status === 'skipped') {
+        setAuddStatus('skipped');
+        setAuddMessage(null);
+      } else if (ap.status === 'nomatch') {
+        setAuddStatus('nomatch');
+        setAuddMessage(null);
+      } else if (ap.status === 'error') {
+        setAuddStatus('error');
+        setAuddMessage(ap.message ?? 'Song lookup failed');
+      }
+    }
+
     // Cleanup blob URL on unmount
     return () => {
       if (videoBlobUrl) {
@@ -608,16 +642,13 @@ export default function UploadClip() {
     ingestCaptureGeo,
   ]);
 
-  /** AudD music recognition — short in-browser snippet, then worker → [AudD](https://docs.audd.io/). */
+  /** AudD when caption opens without pre-navigate identify (e.g. deep link with blob only). */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
     const source = formData.video_blob ?? formData.video_file;
     if (!source || !(source instanceof Blob)) return;
 
-    const sourceKey =
-      source instanceof File
-        ? `file:${source.name}:${source.size}:${source.lastModified}`
-        : `blob:${source.size}`;
+    const sourceKey = auddSourceKey(source);
     if (auddAttemptedForSourceKeyRef.current === sourceKey) return;
     auddAttemptedForSourceKeyRef.current = sourceKey;
 
@@ -626,66 +657,35 @@ export default function UploadClip() {
     setAuddMessage(null);
 
     void (async () => {
-      const snippet = await extractMediaSnippetForAudD(source);
+      const result = await identifyMusicWithAudD(source);
       if (cancelled) return;
-      if (!snippet || snippet.size < 400) {
+
+      if (result.status === 'skipped') {
         setAuddStatus('skipped');
         return;
       }
-
-      try {
-        const fd = new FormData();
-        fd.set('file', snippet, 'clip-snippet.webm');
-        const res = await fetch('/api/clips/identify-music', {
-          method: 'POST',
-          body: fd,
-          credentials: 'include',
-        });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          skipped?: boolean;
-          match?: { artist?: string; title?: string } | null;
-          error?: string;
-        };
-        if (cancelled) return;
-
-        if (data.skipped) {
-          setAuddStatus('skipped');
-          return;
-        }
-        if (!res.ok || data.ok === false) {
-          setAuddStatus('error');
-          setAuddMessage(typeof data.error === 'string' ? data.error : 'Song lookup failed');
-          return;
-        }
-        if (!data.match || (!data.match.artist && !data.match.title)) {
-          setAuddStatus('nomatch');
-          return;
-        }
-
-        const artist = (data.match.artist ?? '').trim();
-        const title = (data.match.title ?? '').trim();
-
-        setFormData((prev) => ({
-          ...prev,
-          artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
-          content_description: mergeSongTitleIntoCaption(prev.content_description, title),
-        }));
-        if (artist) {
-          captionCommittedArtistNameRef.current = artist;
-          setArtistSearch(artist);
-        }
-        setAuddStatus('done');
-        setAuddMessage(
-          title && artist ? `Identified: ${title} — ${artist}` : title ? `Identified: ${title}` : null
-        );
-      } catch (e) {
-        if (!cancelled) {
-          console.error('AudD identify', e);
-          setAuddStatus('error');
-          setAuddMessage('Song lookup failed');
-        }
+      if (result.status === 'error') {
+        setAuddStatus('error');
+        setAuddMessage(result.message);
+        return;
       }
+      if (result.status === 'nomatch') {
+        setAuddStatus('nomatch');
+        return;
+      }
+
+      const { artist, title, message } = result;
+      setFormData((prev) => ({
+        ...prev,
+        artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
+        content_description: mergeSongTitleIntoCaption(prev.content_description, title),
+      }));
+      if (artist) {
+        captionCommittedArtistNameRef.current = artist;
+        setArtistSearch(artist);
+      }
+      setAuddStatus('done');
+      setAuddMessage(message);
     })();
 
     return () => {

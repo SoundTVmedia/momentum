@@ -3,6 +3,11 @@ import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin } from 'luc
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
+import {
+  identifyMusicWithAudD,
+  auddSourceKey,
+  toAudDNavPrefill,
+} from '@/react-app/utils/auddIdentify';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -57,6 +62,8 @@ export default function QuickRecordButton({
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [isProcessingTransition, setIsProcessingTransition] = useState(false);
+  /** Shown on the processing overlay while AudD runs before opening the caption screen. */
+  const [processingHint, setProcessingHint] = useState('');
   const [processingProgress, setProcessingProgress] = useState(8);
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
   
@@ -557,21 +564,32 @@ export default function QuickRecordButton({
 
     syncLastGeoFromNearbyCoordsRef();
     const geo = lastGeoRef.current;
-    navigate({ pathname: '/upload', search: '' }, {
-      state: {
-        videoFile: file,
-        recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
-        captureGeo: geo
-          ? {
-              latitude: geo.latitude,
-              longitude: geo.longitude,
-              city: geo.city,
-              state: geo.state,
-              country: geo.country,
-            }
-          : null,
-      },
-    });
+
+    setIsProcessingTransition(true);
+    setProcessingHint('Identifying music before upload (~15s)…');
+    try {
+      const sourceKey = auddSourceKey(file);
+      const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(file));
+      navigate({ pathname: '/upload', search: '' }, {
+        state: {
+          videoFile: file,
+          recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
+          captureGeo: geo
+            ? {
+                latitude: geo.latitude,
+                longitude: geo.longitude,
+                city: geo.city,
+                state: geo.state,
+                country: geo.country,
+              }
+            : null,
+          auddPrefill,
+        },
+      });
+    } finally {
+      setProcessingHint('');
+      setIsProcessingTransition(false);
+    }
   };
 
   const openDeviceMediaPicker = () => {
@@ -700,6 +718,11 @@ export default function QuickRecordButton({
       const geo = lastGeoRef.current;
       setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
+      setProcessingHint('Identifying music before upload (~15s)…');
+      const sourceKey = auddSourceKey(blob);
+      const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(blob));
+      setProcessingHint('');
+
       navigate(
         { pathname: '/upload', search: '' },
         {
@@ -721,6 +744,7 @@ export default function QuickRecordButton({
               video_resolution_w: videoResolution.width,
               video_resolution_h: videoResolution.height,
             },
+            auddPrefill,
           },
         }
       );
@@ -738,6 +762,7 @@ export default function QuickRecordButton({
       recordingSecondsRef.current = 0;
     } finally {
       clearProcessingTicker();
+      setProcessingHint('');
       setIsProcessingTransition(false);
       setProcessingProgress(8);
     }
@@ -909,9 +934,11 @@ export default function QuickRecordButton({
                     />
                   </div>
                   <p className="mt-2 text-xs text-white/70">
-                    {networkSpeed === 'slow' || networkSpeed === 'offline'
-                      ? 'Hang tight while we open your clip so you can add details and post.'
-                      : 'Opening your clip — venue suggestions load on the next screen.'}
+                    {processingHint.trim() !== ''
+                      ? processingHint
+                      : networkSpeed === 'slow' || networkSpeed === 'offline'
+                        ? 'Hang tight while we open your clip so you can add details and post.'
+                        : 'Opening your clip — venue suggestions load on the next screen.'}
                   </p>
                 </div>
               </div>
