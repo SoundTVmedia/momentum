@@ -55,13 +55,27 @@ export async function recognizeMusicWithAudD(
 
   const status = typeof json.status === 'string' ? json.status : 'unknown';
   if (status === 'error') {
-    const msg =
-      typeof json.error === 'object' && json.error !== null && 'message' in json.error
-        ? String((json.error as { message?: unknown }).message ?? '')
-        : typeof json.error === 'string'
-          ? json.error
-          : 'AudD returned an error';
-    return { ok: false, error: msg || 'AudD error', audd: json };
+    const raw = json.error;
+    let msg = '';
+    if (typeof raw === 'string') {
+      msg = raw;
+    } else if (typeof raw === 'number') {
+      msg = `AudD error code ${raw}`;
+    } else if (raw && typeof raw === 'object') {
+      const o = raw as Record<string, unknown>;
+      if (typeof o.message === 'string') msg = o.message;
+      else if (typeof o.error_message === 'string') msg = o.error_message;
+      if (typeof o.error_code === 'number') {
+        msg = msg.trim() ? `${msg.trim()} (code ${o.error_code})` : `AudD error code ${o.error_code}`;
+      }
+    }
+    if (!msg.trim() && typeof json.result === 'string') {
+      msg = json.result;
+    }
+    if (!msg.trim() && typeof json.msg === 'string') {
+      msg = json.msg;
+    }
+    return { ok: false, error: msg.trim() || 'AudD returned an error', audd: json };
   }
 
   if (status !== 'success') {

@@ -13,6 +13,8 @@ import {
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
+/** AudD standard recognition: max ~25s per file (see docs). Keep parallel snippet under that while video can run to {@link MAX_RECORDING_TIME}. */
+const MAX_AUDD_PARALLEL_RECORD_MS = 20_000;
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -88,6 +90,8 @@ export default function QuickRecordButton({
   const auddParallelAudioRecorderRef = useRef<MediaRecorder | null>(null);
   const auddParallelAudioChunksRef = useRef<Blob[]>([]);
   const lastParallelAuddAudioBlobRef = useRef<Blob | null>(null);
+  /** Stops parallel AudD-only mic capture after MAX_AUDD_PARALLEL_RECORD_MS so the API never receives a >25s snippet. */
+  const auddParallelCapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -611,6 +615,29 @@ export default function QuickRecordButton({
     deviceMediaInputRef.current?.click();
   };
 
+  const clearAuddParallelCapTimer = () => {
+    if (auddParallelCapTimerRef.current != null) {
+      clearTimeout(auddParallelCapTimerRef.current);
+      auddParallelCapTimerRef.current = null;
+    }
+  };
+
+  const finalizeParallelAuddRecorderOnly = (ar: MediaRecorder) => {
+    clearAuddParallelCapTimer();
+    auddParallelAudioRecorderRef.current = null;
+    try {
+      ar.stream.getTracks().forEach((track) => track.stop());
+    } catch {
+      /* ignore */
+    }
+    const chunks = auddParallelAudioChunksRef.current;
+    auddParallelAudioChunksRef.current = [];
+    const outMime =
+      ar.mimeType && ar.mimeType.length > 0 ? ar.mimeType : 'audio/webm';
+    lastParallelAuddAudioBlobRef.current =
+      chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
+  };
+
   const startRecording = async () => {
     // Only start if camera is ready
     if (!hasPermission || !streamRef.current) {
@@ -640,6 +667,7 @@ export default function QuickRecordButton({
     recordingStartedAtRef.current = new Date().toISOString();
 
     try {
+      clearAuddParallelCapTimer();
       /** Prefer VP*+Opus so the file includes an audio track for AudD; `vp9` alone often muxes video-only. */
       const recorderMimeCandidates = [
         'video/webm;codecs=vp9,opus',
@@ -709,6 +737,26 @@ export default function QuickRecordButton({
               };
               ar.start(250);
               auddParallelAudioRecorderRef.current = ar;
+              clearAuddParallelCapTimer();
+              auddParallelCapTimerRef.current = setTimeout(() => {
+                auddParallelCapTimerRef.current = null;
+                const capAr = auddParallelAudioRecorderRef.current;
+                if (
+                  !capAr ||
+                  (capAr.state !== 'recording' && capAr.state !== 'paused')
+                ) {
+                  return;
+                }
+                capAr.onstop = () => finalizeParallelAuddRecorderOnly(capAr);
+                if (typeof capAr.requestData === 'function') {
+                  try {
+                    capAr.requestData();
+                  } catch {
+                    /* ignore */
+                  }
+                }
+                capAr.stop();
+              }, MAX_AUDD_PARALLEL_RECORD_MS);
             }
           }
         } catch (e) {
@@ -738,6 +786,8 @@ export default function QuickRecordButton({
       return;
     }
 
+    clearAuddParallelCapTimer();
+
     const ar = auddParallelAudioRecorderRef.current;
 
     const finalizeMainRecorder = () => {
@@ -763,18 +813,7 @@ export default function QuickRecordButton({
 
     if (ar && (ar.state === 'recording' || ar.state === 'paused')) {
       ar.onstop = () => {
-        auddParallelAudioRecorderRef.current = null;
-        try {
-          ar.stream.getTracks().forEach((track) => track.stop());
-        } catch {
-          /* ignore */
-        }
-        const chunks = auddParallelAudioChunksRef.current;
-        auddParallelAudioChunksRef.current = [];
-        const outMime =
-          ar.mimeType && ar.mimeType.length > 0 ? ar.mimeType : 'audio/webm';
-        lastParallelAuddAudioBlobRef.current =
-          chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
+        finalizeParallelAuddRecorderOnly(ar);
         finalizeMainRecorder();
       };
       if (typeof ar.requestData === 'function') {
@@ -786,7 +825,6 @@ export default function QuickRecordButton({
       }
       ar.stop();
     } else {
-      lastParallelAuddAudioBlobRef.current = null;
       finalizeMainRecorder();
     }
   };
@@ -885,6 +923,8 @@ export default function QuickRecordButton({
 
   const closeModal = () => {
     if (isProcessingTransition) return;
+
+    clearAuddParallelCapTimer();
 
     const par = auddParallelAudioRecorderRef.current;
     if (par && (par.state === 'recording' || par.state === 'paused')) {
