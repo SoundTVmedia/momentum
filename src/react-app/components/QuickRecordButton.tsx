@@ -636,17 +636,28 @@ export default function QuickRecordButton({
     recordingStartedAtRef.current = new Date().toISOString();
 
     try {
-      // Use VP9 codec if available, fallback to H.264
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=h264')
-        ? 'video/webm;codecs=h264'
-        : 'video/webm';
+      /** Prefer VP*+Opus so the file includes an audio track for AudD; `vp9` alone often muxes video-only. */
+      const recorderMimeCandidates = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm;codecs=h264',
+        'video/webm',
+      ];
+      const mimeType =
+        recorderMimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: 3500000, // 3.5 Mbps - optimized for 1080p/30fps
-      });
+      const hasAudio = stream.getAudioTracks().length > 0;
+      const recorderOptions: MediaRecorderOptions = {
+        videoBitsPerSecond: 3_500_000,
+      };
+      if (mimeType) recorderOptions.mimeType = mimeType;
+      if (hasAudio) {
+        recorderOptions.audioBitsPerSecond = 128_000;
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
 
       chunksRef.current = [];
 
@@ -657,7 +668,11 @@ export default function QuickRecordButton({
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const outType =
+          mediaRecorder.mimeType && mediaRecorder.mimeType.length > 0
+            ? mediaRecorder.mimeType
+            : mimeType || 'video/webm';
+        const blob = new Blob(chunksRef.current, { type: outType });
         handleRecordingComplete(blob);
       };
 
@@ -684,7 +699,15 @@ export default function QuickRecordButton({
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+      const mr = mediaRecorderRef.current;
+      if (mr.state === 'recording' && typeof mr.requestData === 'function') {
+        try {
+          mr.requestData();
+        } catch {
+          /* ignore */
+        }
+      }
+      mr.stop();
       setIsRecording(false);
       setIsProcessingTransition(true);
       setProcessingProgress(14);
