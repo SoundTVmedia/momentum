@@ -16,7 +16,14 @@ export function auddSourceKey(source: Blob): string {
 }
 
 export type AudDIdentifyResult =
-  | { status: 'match'; artist: string; title: string; message: string | null }
+  | {
+      status: 'match';
+      artist: string;
+      title: string;
+      message: string | null;
+      /** 0–1 when the API exposes it; used by live stabilizer for faster confirmation. */
+      confidence?: number;
+    }
   | { status: 'skipped'; message?: string | null }
   | { status: 'nomatch' }
   | { status: 'error'; message: string };

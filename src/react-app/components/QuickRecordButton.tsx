@@ -8,6 +8,8 @@ import {
   auddSourceKey,
   toAudDNavPrefill,
 } from '@/react-app/utils/auddIdentify';
+import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
+import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -15,6 +17,9 @@ const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
 /** AudD standard recognition: max ~25s per file (see docs). Keep parallel snippet under that while video can run to {@link MAX_RECORDING_TIME}. */
 const MAX_AUDD_PARALLEL_RECORD_MS = 20_000;
+/** Sliding-window live ID: one AudD request per timeslice; overlapping calls skipped while a request is in flight. */
+const LIVE_AUDD_TIMESLICE_MS = 6000;
+const MIN_LIVE_AUDD_CHUNK_BYTES = 2000;
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -37,6 +42,8 @@ interface QuickRecordButtonProps {
   captureLaunchGeoResolved?: boolean;
   /** When true, do not call getUserMedia until launch-time geolocation has finished (location before camera/mic). */
   deferCameraUntilLaunchGeo?: boolean;
+  /** Optional setlist / venue / time priors for live on-screen song ID (see `LiveSongStabilizer`). */
+  liveSongPriors?: SongPrior[];
 }
 
 export default function QuickRecordButton({
@@ -50,6 +57,8 @@ export default function QuickRecordButton({
   captureLaunchGeoResolved = false,
   deferCameraUntilLaunchGeo = false,
   onAfterCaptureNavigate,
+  /** Optional setlist / venue / time-window hints — reduces confirmation streak when AudD agrees. */
+  liveSongPriors,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
@@ -92,6 +101,11 @@ export default function QuickRecordButton({
   const lastParallelAuddAudioBlobRef = useRef<Blob | null>(null);
   /** Stops parallel AudD-only mic capture after MAX_AUDD_PARALLEL_RECORD_MS so the API never receives a >25s snippet. */
   const auddParallelCapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liveAuddRecorderRef = useRef<MediaRecorder | null>(null);
+  const liveAuddInFlightRef = useRef(false);
+  const liveAuddStoppedRef = useRef(true);
+  const liveStabilizerRef = useRef(new LiveSongStabilizer());
+  const [liveSongBanner, setLiveSongBanner] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -193,6 +207,10 @@ export default function QuickRecordButton({
       });
     }
   }, [showModal, captureLaunchGeo, captureLaunchGeoResolved]);
+
+  useEffect(() => {
+    liveStabilizerRef.current.setPriors(liveSongPriors);
+  }, [liveSongPriors]);
 
   /** Use coordinates we already have (launch tap). Does not call geolocation again. */
   const syncLastGeoFromNearbyCoordsRef = () => {
@@ -635,6 +653,38 @@ export default function QuickRecordButton({
       chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
   };
 
+  const stopLiveAuddPipeline = () => {
+    liveAuddStoppedRef.current = true;
+    const lr = liveAuddRecorderRef.current;
+    liveAuddRecorderRef.current = null;
+    if (lr && (lr.state === 'recording' || lr.state === 'paused')) {
+      try {
+        if (lr.state === 'recording' && typeof lr.requestData === 'function') {
+          try {
+            lr.requestData();
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        lr.stop();
+      } catch {
+        /* ignore */
+      }
+      try {
+        lr.stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        /* ignore */
+      }
+    }
+    liveAuddInFlightRef.current = false;
+    liveStabilizerRef.current.reset();
+    setLiveSongBanner(null);
+  };
+
   const startRecording = async () => {
     // Only start if camera is ready
     if (!hasPermission || !streamRef.current) {
@@ -664,6 +714,8 @@ export default function QuickRecordButton({
     recordingStartedAtRef.current = new Date().toISOString();
 
     try {
+      stopLiveAuddPipeline();
+      liveAuddStoppedRef.current = false;
       clearAuddParallelCapTimer();
       /** Prefer VP*+Opus so the file includes an audio track for AudD; `vp9` alone often muxes video-only. */
       const recorderMimeCandidates = [
@@ -754,6 +806,31 @@ export default function QuickRecordButton({
                 }
                 capAr.stop();
               }, MAX_AUDD_PARALLEL_RECORD_MS);
+
+              const liveIdStream = new MediaStream(liveTracks.map((t) => t.clone()));
+              const liveRec = new MediaRecorder(liveIdStream, {
+                mimeType: audioMime,
+                audioBitsPerSecond: 96_000,
+              });
+              liveRec.ondataavailable = (event) => {
+                if (liveAuddStoppedRef.current) return;
+                if (!event.data || event.data.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
+                if (!event.data.type.startsWith('audio/')) return;
+                if (liveAuddInFlightRef.current) return;
+                liveAuddInFlightRef.current = true;
+                void (async () => {
+                  try {
+                    const r = await identifyMusicWithAudD(event.data);
+                    if (liveAuddStoppedRef.current) return;
+                    const { line } = liveStabilizerRef.current.observe(r);
+                    setLiveSongBanner(line);
+                  } finally {
+                    liveAuddInFlightRef.current = false;
+                  }
+                })();
+              };
+              liveAuddRecorderRef.current = liveRec;
+              liveRec.start(LIVE_AUDD_TIMESLICE_MS);
             }
           }
         } catch (e) {
@@ -774,6 +851,7 @@ export default function QuickRecordButton({
       }, 1000);
     } catch (err) {
       console.error('Recording failed:', err);
+      stopLiveAuddPipeline();
     }
   };
 
@@ -782,6 +860,8 @@ export default function QuickRecordButton({
     if (!mr || (mr.state !== 'recording' && mr.state !== 'paused')) {
       return;
     }
+
+    stopLiveAuddPipeline();
 
     clearAuddParallelCapTimer();
 
@@ -920,6 +1000,8 @@ export default function QuickRecordButton({
 
   const closeModal = () => {
     if (isProcessingTransition) return;
+
+    stopLiveAuddPipeline();
 
     clearAuddParallelCapTimer();
 
@@ -1064,19 +1146,29 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* REC Indicator - Responsive positioning */}
+            {/* REC + live song ID (sliding-window AudD + hysteresis) */}
             {isRecording && (
-              <div 
-                className="absolute z-10 transition-all duration-300 ease-in-out"
+              <div
+                className="absolute z-10 flex flex-col items-start gap-2 transition-all duration-300 ease-in-out"
                 style={{
                   top: isPortrait ? 'max(1rem, env(safe-area-inset-top, 1rem))' : '1rem',
-                  left: '1rem'
+                  left: '1rem',
                 }}
               >
                 <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center space-x-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                   <span className="text-red-500 text-sm font-bold">REC</span>
                 </div>
+                {liveSongBanner ? (
+                  <div
+                    className="max-w-[min(90vw,20rem)] rounded-lg border border-cyan-500/35 bg-black/55 px-3 py-1.5 backdrop-blur-md"
+                    title={liveSongBanner}
+                  >
+                    <p className="truncate text-cyan-100 text-xs font-medium leading-snug">{liveSongBanner}</p>
+                  </div>
+                ) : (
+                  <p className="text-white/45 text-[11px] px-0.5">Listening for music…</p>
+                )}
               </div>
             )}
 
