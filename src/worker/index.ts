@@ -2921,6 +2921,12 @@ app.get("/api/users/:userId/favorite-artists-with-clips", profile.getUserFavorit
 
 // Prioritized Discovery Endpoints
 app.get("/api/discover/prioritized-shows", discoverPrioritized.getPrioritizedShows);
+app.get(
+  "/api/discover/favorite-artist-feed",
+  authMiddleware,
+  rateLimiter(RateLimits.API),
+  discoverPrioritized.getFavoriteArtistFeed,
+);
 app.get("/api/artists/:artistName/shows/:showId/clips", discoverPrioritized.getShowClips);
 app.get("/api/venues/:venueName/archive", discoverPrioritized.getVenueArchive);
 

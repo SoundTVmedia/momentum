@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Search, TrendingUp, MapPin, Music, Filter, Users, Video, X, Ticket } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
+import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel';
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
@@ -60,6 +62,7 @@ function jamBaseEventVenueName(ev: Record<string, unknown>): string | null {
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -555,6 +558,13 @@ export default function DiscoverPage() {
           </div>
         ) : trendingContent ? (
           <div className="space-y-12">
+            {!searchQuery.trim() && user ? (
+              <FavoriteArtistFeedPanel
+                variant="discover"
+                scrollIntoViewOnMount={searchParams.get('from_favorites') === '1'}
+              />
+            ) : null}
+
             <div className="text-center mb-8">
               <TrendingUp className="w-12 h-12 text-cyan-400 mx-auto mb-4" />
               <h2 className="text-3xl font-bold text-white">What's Popping</h2>

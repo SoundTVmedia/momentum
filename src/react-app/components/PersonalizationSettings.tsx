@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Search, Loader2, Heart, Save, X } from 'lucide-react';
+import { MapPin, Loader2, Heart, Save, X } from 'lucide-react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
-
-const popularArtists = [
-  'Taylor Swift', 'The Weeknd', 'Drake', 'Billie Eilish', 'Bad Bunny',
-  'Ed Sheeran', 'Ariana Grande', 'Beyoncé', 'Post Malone', 'Olivia Rodrigo',
-  'Travis Scott', 'Dua Lipa', 'Harry Styles', 'SZA', 'Morgan Wallen',
-  'Luke Combs', 'Peso Pluma', 'Karol G', 'Future', '21 Savage'
-];
+import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 
 interface PersonalizationSettingsProps {
   onClose?: () => void;
@@ -17,7 +11,6 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
   const { getCurrentPosition } = useGeolocation();
   
   const [favoriteArtists, setFavoriteArtists] = useState<string[]>([]);
-  const [artistSearch, setArtistSearch] = useState('');
   const [homeLocation, setHomeLocation] = useState('');
   const [homeLatitude, setHomeLatitude] = useState<number | null>(null);
   const [homeLongitude, setHomeLongitude] = useState<number | null>(null);
@@ -48,21 +41,6 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
 
     fetchCurrentSettings();
   }, []);
-
-  const toggleFavoriteArtist = (artist: string) => {
-    setFavoriteArtists(prev => 
-      prev.includes(artist) 
-        ? prev.filter(a => a !== artist)
-        : [...prev, artist]
-    );
-  };
-
-  const addCustomArtist = () => {
-    if (artistSearch.trim() && !favoriteArtists.includes(artistSearch.trim())) {
-      setFavoriteArtists(prev => [...prev, artistSearch.trim()]);
-      setArtistSearch('');
-    }
-  };
 
   const handleGetCurrentLocation = async () => {
     setLoadingLocation(true);
@@ -128,10 +106,6 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
     }
   };
 
-  const filteredArtists = popularArtists.filter(artist =>
-    artist.toLowerCase().includes(artistSearch.toLowerCase())
-  );
-
   if (loading) {
     return (
       <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8">
@@ -161,50 +135,13 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
       </div>
 
       {/* Favorite Artists */}
-      <div>
-        <label className="block text-white font-medium mb-4">
-          Favorite Artists
+      <FavoriteArtistsJamBaseField
+        favoriteArtists={favoriteArtists}
+        setFavoriteArtists={setFavoriteArtists}
+        labelExtra={
           <span className="text-gray-400 text-sm ml-2">(Get notified when they post new content)</span>
-        </label>
-        
-        <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={artistSearch}
-              onChange={(e) => setArtistSearch(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && addCustomArtist()}
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
-              placeholder="Search or add custom artist..."
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mb-4">
-          {favoriteArtists.map((artist) => (
-            <button
-              key={artist}
-              onClick={() => toggleFavoriteArtist(artist)}
-              className="px-4 py-2 momentum-grad-interactive rounded-full text-white text-sm font-medium hover:scale-105 transition-transform"
-            >
-              {artist} ×
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {filteredArtists.filter(artist => !favoriteArtists.includes(artist)).map((artist) => (
-            <button
-              key={artist}
-              onClick={() => toggleFavoriteArtist(artist)}
-              className="px-4 py-2 bg-white/10 border border-white/20 rounded-full text-gray-300 text-sm font-medium hover:bg-white/20 transition-all"
-            >
-              {artist}
-            </button>
-          ))}
-        </div>
-      </div>
+        }
+      />
 
       {/* Home Location */}
       <div>

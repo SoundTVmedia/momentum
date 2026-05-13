@@ -294,10 +294,11 @@ export default function DiscoverSection() {
 
         <div className="text-center mt-12">
           <button
-            onClick={() => navigate('/discover')}
+            type="button"
+            onClick={() => navigate('/discover?from_favorites=1')}
             className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform hover:shadow-lg hover:shadow-momentum-teal/30"
           >
-            Explore More Shows
+            Explore more clips
           </button>
         </div>
       </div>

@@ -22,6 +22,34 @@ import {
 } from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
+/** Stable single token from artist display name for `clips.hashtags` (no `#` prefix). */
+function artistNameToHashtagToken(artist: string): string {
+  return artist
+    .trim()
+    .replace(/^#+/, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
+    .trim();
+}
+
+/** Parse `#` tags from the form and ensure the artist is included once (case-insensitive dedupe). */
+function buildHashtagsArrayForPost(hashtagInput: string, artistName: string): string[] {
+  const fromInput = hashtagInput
+    .split(/\s+/)
+    .filter((tag) => tag.startsWith('#'))
+    .map((tag) => tag.replace(/^#+/, '').trim())
+    .filter(Boolean);
+
+  const seen = new Set(fromInput.map((t) => t.toLowerCase()));
+  const out = [...fromInput];
+
+  const artistToken = artistNameToHashtagToken(artistName);
+  if (artistToken.length > 0 && !seen.has(artistToken.toLowerCase())) {
+    out.push(artistToken);
+  }
+
+  return out;
+}
+
 export default function UploadClip() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -899,10 +927,7 @@ export default function UploadClip() {
         setUploadProgress(prev => ({ ...prev, thumbnail: 100 }));
       }
 
-      const hashtagsArray = formData.hashtags
-        .split(/\s+/)
-        .filter(tag => tag.startsWith('#'))
-        .map(tag => tag.slice(1));
+      const hashtagsArray = buildHashtagsArrayForPost(formData.hashtags, formData.artist_name);
 
       // Prepare clip data based on upload type (Stream or R2)
       const clipData: any = {

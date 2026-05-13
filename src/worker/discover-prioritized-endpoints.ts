@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
+import { normalizeClipApiRows } from './clip-row-normalize';
 
 /**
  * Get prioritized shows for discovery feed
@@ -289,6 +290,130 @@ export async function getPrioritizedShows(c: Context) {
   } catch (error) {
     console.error('Get prioritized shows error:', error);
     return c.json({ error: 'Failed to get prioritized shows' }, 500);
+  }
+}
+
+const MAX_FAVORITE_FEED_EVENTS = 3;
+const MAX_FAVORITE_FEED_CLIP_PAGE = 50;
+
+/**
+ * Upcoming tour dates (max 3) + paginated clips for artists the user favorited (`user_favorite_artists`).
+ * Auth required; `clips_limit` / `clips_offset` paginate the clip grid.
+ */
+export async function getFavoriteArtistFeed(c: Context) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const eventsLimit = Math.min(
+    Math.max(parseInt(c.req.query('events_limit') || String(MAX_FAVORITE_FEED_EVENTS), 10) || MAX_FAVORITE_FEED_EVENTS, 1),
+    MAX_FAVORITE_FEED_EVENTS,
+  );
+  const clipsLimit = Math.min(
+    Math.max(parseInt(c.req.query('clips_limit') || '12', 10) || 12, 1),
+    MAX_FAVORITE_FEED_CLIP_PAGE,
+  );
+  const clipsOffset = Math.max(parseInt(c.req.query('clips_offset') || '0', 10) || 0, 0);
+
+  try {
+    const favorites = await c.env.DB.prepare(
+      `SELECT
+        user_favorite_artists.artist_id,
+        artists.name
+      FROM user_favorite_artists
+      LEFT JOIN artists ON user_favorite_artists.artist_id = artists.id
+      WHERE user_favorite_artists.mocha_user_id = ?`,
+    )
+      .bind(user.id)
+      .all();
+
+    const rows = (favorites.results || []) as { artist_id?: unknown; name?: unknown }[];
+    const favoriteArtistIds = rows
+      .map((r) => (typeof r.artist_id === 'number' ? r.artist_id : Number(r.artist_id)))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    const favoriteArtistNames = rows
+      .map((r) => (typeof r.name === 'string' ? r.name.trim() : ''))
+      .filter(Boolean);
+
+    if (rows.length === 0) {
+      c.header('Cache-Control', 'private, no-store');
+      return c.json({
+        hasFavoriteArtists: false,
+        upcomingEvents: [],
+        clips: [],
+        hasMoreClips: false,
+      });
+    }
+
+    let upcomingEvents: Record<string, unknown>[] = [];
+    if (favoriteArtistIds.length > 0) {
+      const upcoming = await c.env.DB.prepare(
+        `SELECT
+          artist_tour_dates.*,
+          artists.name as artist_name,
+          artists.image_url as artist_image,
+          venues.name as venue_name,
+          venues.location as venue_location
+        FROM artist_tour_dates
+        LEFT JOIN artists ON artist_tour_dates.artist_id = artists.id
+        LEFT JOIN venues ON artist_tour_dates.venue_id = venues.id
+        WHERE artist_tour_dates.artist_id IN (${favoriteArtistIds.map(() => '?').join(',')})
+        AND artist_tour_dates.date >= datetime('now')
+        AND artist_tour_dates.date <= datetime('now', '+120 days')
+        ORDER BY artist_tour_dates.date ASC
+        LIMIT ?`,
+      )
+        .bind(...favoriteArtistIds, eventsLimit)
+        .all();
+      upcomingEvents = (upcoming.results || []) as Record<string, unknown>[];
+    }
+
+    const inPlaceholders = favoriteArtistNames.map(() => '?').join(',');
+    let trimmed: Record<string, unknown>[] = [];
+    let hasMoreClips = false;
+
+    if (favoriteArtistNames.length === 0) {
+      trimmed = [];
+      hasMoreClips = false;
+    } else {
+      const clipQuery = `
+      SELECT
+        clips.rowid AS _clipRowId,
+        clips.id AS clip_primary_id,
+        clips.*,
+        user_profiles.display_name as user_display_name,
+        user_profiles.profile_image_url as user_avatar,
+        CASE WHEN live_featured_clips.id IS NOT NULL THEN 1 ELSE 0 END as momentum_live_featured
+      FROM clips
+      LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+      LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
+      WHERE clips.is_hidden = 0
+      AND clips.is_draft = 0
+      AND clips.artist_name IN (${inPlaceholders})
+      ORDER BY clips.created_at DESC
+      LIMIT ? OFFSET ?
+    `;
+
+      const clipBindings: unknown[] = [...favoriteArtistNames, clipsLimit + 1, clipsOffset];
+      const clipsRes = await c.env.DB.prepare(clipQuery).bind(...clipBindings).all();
+      const rawRows = (clipsRes.results || []) as Record<string, unknown>[];
+      hasMoreClips = rawRows.length > clipsLimit;
+      trimmed = hasMoreClips ? rawRows.slice(0, clipsLimit) : rawRows;
+    }
+
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+    c.header('Pragma', 'no-cache');
+
+    return c.json({
+      hasFavoriteArtists: true,
+      upcomingEvents,
+      clips: normalizeClipApiRows(trimmed),
+      hasMoreClips,
+    });
+  } catch (error) {
+    console.error('Get favorite artist feed error:', error);
+    return c.json({ error: 'Failed to load favorite artist feed' }, 500);
   }
 }
 

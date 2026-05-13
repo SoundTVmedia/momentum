@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
+import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel';
 import FeedFilters from '@/react-app/components/FeedFilters';
 import { useAuth } from '@getmocha/users-service/react';
 import { Upload } from 'lucide-react';
@@ -37,6 +38,8 @@ export default function Feed() {
             </button>
           )}
         </div>
+
+        {user ? <FavoriteArtistFeedPanel variant="feed" /> : null}
 
         {/* Feed Filters */}
         <div className="mb-6">
