@@ -18,7 +18,8 @@ declare namespace Cloudflare {
 		CLOUDFLARE_STREAM_API_TOKEN: string;
 		TICKETMASTER_API_KEY: string;
 		GOOGLE_MAPS_API_KEY: string;
-		AUDD_API_TOKEN: string;
+		/** Optional — clip song lookup via AudD when unset at build/runtime */
+		AUDD_API_TOKEN?: string;
 		DATABASE_URL: string;
 		REALTIME: DurableObjectNamespace<import("./src/worker/index").RealtimeDurableObject>;
 	}
