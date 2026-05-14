@@ -4,7 +4,6 @@ import { Calendar, Loader2, MapPin, Plus, Save, Star, Ticket, Video, X } from 'l
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import { artistPath, venuePath } from '@/shared/app-paths';
 import ClipModal from '@/react-app/components/ClipModal';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
@@ -330,18 +329,15 @@ export default function FavoriteArtistFeedPanel({
                     : 'Add favorite artists with the + button above to see their clips and tour picks here.'}
                 </p>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
                   {clips.map((clip, index) => (
                     <button
                       type="button"
                       key={clipListItemKey(clip, index)}
                       onClick={() => setSelectedClip(clip)}
-                      className="text-left rounded-xl border border-momentum-teal/20 bg-black/40 overflow-hidden hover:border-momentum-mint/50 transition-all group"
+                      className="video-card text-left border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] p-0 hover:border-purple-500/50 transition-all group flex flex-col"
                     >
-                      <div
-                        className="relative w-full bg-black"
-                        style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
-                      >
+                      <div className="relative w-full bg-black aspect-square overflow-hidden">
                         <img
                           src={
                             clip.thumbnail_url ||
@@ -351,12 +347,16 @@ export default function FavoriteArtistFeedPanel({
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       </div>
-                      <div className="p-3">
+                      <div className="px-2 py-2 sm:px-2.5 sm:py-2 border-t border-white/5 bg-black/40">
                         {clip.artist_name ? (
-                          <div className="font-bold text-purple-300 text-sm truncate">{clip.artist_name}</div>
+                          <div className="font-semibold text-purple-300 text-[11px] sm:text-xs truncate">
+                            {clip.artist_name}
+                          </div>
                         ) : null}
                         {clip.content_description ? (
-                          <p className="text-gray-400 text-xs line-clamp-2 mt-1">{clip.content_description}</p>
+                          <p className="text-gray-400 text-[10px] sm:text-xs line-clamp-2 mt-0.5 leading-snug">
+                            {clip.content_description}
+                          </p>
                         ) : null}
                       </div>
                     </button>

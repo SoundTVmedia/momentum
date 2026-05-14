@@ -3,6 +3,10 @@ import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 
+function mochaUserIdKey(user: { id: unknown }): string {
+  return String(user.id ?? '').trim();
+}
+
 /**
  * Get prioritized shows for discovery feed
  * Priority:
@@ -343,14 +347,14 @@ export async function getFavoriteArtistFeed(c: Context) {
       LEFT JOIN artists ON user_favorite_artists.artist_id = artists.id
       WHERE user_favorite_artists.mocha_user_id = ?`,
     )
-      .bind(user.id)
+      .bind(mochaUserIdKey(user))
       .all();
 
     const rows = (favorites.results || []) as { artist_id?: unknown; name?: unknown }[];
 
     const profileRow = (await c.env.DB
       .prepare(`SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?`)
-      .bind(user.id)
+      .bind(mochaUserIdKey(user))
       .first()) as { favorite_artists: string | null } | null;
 
     const profileNameStrings = parseProfileFavoriteArtistNames(profileRow?.favorite_artists ?? null);

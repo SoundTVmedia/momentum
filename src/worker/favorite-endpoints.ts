@@ -1,5 +1,51 @@
 import { Context } from 'hono';
 
+/** Stable TEXT key for D1 `mocha_user_id` columns (Mocha may supply number or string). */
+function mochaUserIdKey(user: { id: unknown }): string {
+  return String(user.id ?? '').trim();
+}
+
+async function getOrCreateArtistIdByName(db: D1Database, displayName: string): Promise<number> {
+  const name = displayName.trim();
+  if (!name) {
+    throw new Error('empty artist name');
+  }
+
+  let row = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as { id: unknown } | null;
+  let id = row?.id != null ? Number(row.id) : NaN;
+  if (Number.isFinite(id) && id > 0) {
+    return id;
+  }
+
+  try {
+    const ins = await db
+      .prepare(
+        'INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      )
+      .bind(name)
+      .run();
+    const lid = ins.meta?.last_row_id;
+    const n = lid != null && lid !== '' ? Number(lid) : NaN;
+    if (Number.isFinite(n) && n > 0) {
+      const verify = (await db.prepare('SELECT id FROM artists WHERE id = ?').bind(n).first()) as { id: unknown } | null;
+      const vid = verify?.id != null ? Number(verify.id) : NaN;
+      if (Number.isFinite(vid) && vid > 0) {
+        return vid;
+      }
+    }
+  } catch {
+    /* UNIQUE(name) race — re-select below */
+  }
+
+  row = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as { id: unknown } | null;
+  id = row?.id != null ? Number(row.id) : NaN;
+  if (Number.isFinite(id) && id > 0) {
+    return id;
+  }
+
+  throw new Error('Could not resolve artist id');
+}
+
 /**
  * Get user's favorite artists
  */
@@ -9,6 +55,8 @@ export async function getFavoriteArtists(c: Context) {
   if (!mochaUser) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
+
+  const uid = mochaUserIdKey(mochaUser);
 
   try {
     const favorites = await c.env.DB.prepare(
@@ -22,7 +70,7 @@ export async function getFavoriteArtists(c: Context) {
       WHERE user_favorite_artists.mocha_user_id = ?
       ORDER BY user_favorite_artists.created_at DESC`
     )
-      .bind(mochaUser.id)
+      .bind(uid)
       .all();
 
     return c.json({ artists: favorites.results || [] });
@@ -42,6 +90,8 @@ export async function toggleFavoriteArtist(c: Context) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+
   const body = await c.req.json();
   const { artist_id } = body;
 
@@ -54,7 +104,7 @@ export async function toggleFavoriteArtist(c: Context) {
     const existing = await c.env.DB.prepare(
       'SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?'
     )
-      .bind(mochaUser.id, artist_id)
+      .bind(uid, artist_id)
       .first();
 
     if (existing) {
@@ -62,7 +112,7 @@ export async function toggleFavoriteArtist(c: Context) {
       await c.env.DB.prepare(
         'DELETE FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?'
       )
-        .bind(mochaUser.id, artist_id)
+        .bind(uid, artist_id)
         .run();
 
       return c.json({ favorited: false });
@@ -71,7 +121,7 @@ export async function toggleFavoriteArtist(c: Context) {
       await c.env.DB.prepare(
         'INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
       )
-        .bind(mochaUser.id, artist_id)
+        .bind(uid, artist_id)
         .run();
 
       return c.json({ favorited: true });
@@ -91,6 +141,8 @@ export async function favoriteClip(c: Context) {
   if (!mochaUser) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
+
+  const uid = mochaUserIdKey(mochaUser);
 
   const clipId = c.req.param('id');
 
@@ -131,14 +183,14 @@ export async function favoriteClip(c: Context) {
     const favoriteArtist = await c.env.DB.prepare(
       'SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?'
     )
-      .bind(mochaUser.id, artist.id)
+      .bind(uid, artist.id)
       .first();
 
     if (!favoriteArtist) {
       await c.env.DB.prepare(
         'INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)'
       )
-        .bind(mochaUser.id, artist.id)
+        .bind(uid, artist.id)
         .run();
     }
 
@@ -146,7 +198,7 @@ export async function favoriteClip(c: Context) {
     const existing = await c.env.DB.prepare(
       'SELECT id FROM user_favorite_clips_by_artist WHERE mocha_user_id = ? AND artist_id = ? AND clip_id = ?'
     )
-      .bind(mochaUser.id, artist.id, clipId)
+      .bind(uid, artist.id, clipId)
       .first();
 
     if (existing) {
@@ -154,7 +206,7 @@ export async function favoriteClip(c: Context) {
       await c.env.DB.prepare(
         'DELETE FROM user_favorite_clips_by_artist WHERE mocha_user_id = ? AND artist_id = ? AND clip_id = ?'
       )
-        .bind(mochaUser.id, artist.id, clipId)
+        .bind(uid, artist.id, clipId)
         .run();
 
       return c.json({ favorited: false });
@@ -163,7 +215,7 @@ export async function favoriteClip(c: Context) {
       await c.env.DB.prepare(
         'INSERT INTO user_favorite_clips_by_artist (mocha_user_id, artist_id, clip_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)'
       )
-        .bind(mochaUser.id, artist.id, clipId)
+        .bind(uid, artist.id, clipId)
         .run();
 
       return c.json({ favorited: true });
@@ -184,6 +236,8 @@ export async function getFavoriteClipsByArtist(c: Context) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+
   const artistId = c.req.query('artist_id');
 
   try {
@@ -201,7 +255,7 @@ export async function getFavoriteClipsByArtist(c: Context) {
       WHERE user_favorite_clips_by_artist.mocha_user_id = ?
     `;
 
-    const bindings: any[] = [mochaUser.id];
+    const bindings: any[] = [uid];
 
     if (artistId) {
       query += ' AND user_favorite_clips_by_artist.artist_id = ?';
@@ -231,13 +285,15 @@ export async function checkClipFavorited(c: Context) {
     return c.json({ favorited: false });
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+
   const clipId = c.req.param('id');
 
   try {
     const favorited = await c.env.DB.prepare(
       'SELECT id FROM user_favorite_clips_by_artist WHERE mocha_user_id = ? AND clip_id = ?'
     )
-      .bind(mochaUser.id, clipId)
+      .bind(uid, clipId)
       .first();
 
     return c.json({ favorited: !!favorited });
@@ -258,6 +314,11 @@ export async function syncFavoriteArtistsByName(c: Context) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+  if (!uid) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
   let body: { names?: unknown; artist_names?: unknown };
   try {
     body = (await c.req.json()) as { names?: unknown; artist_names?: unknown };
@@ -274,24 +335,11 @@ export async function syncFavoriteArtistsByName(c: Context) {
 
   try {
     for (const name of normalized) {
-      let artist = (await c.env.DB.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as
-        | { id: number }
-        | null;
-
-      if (!artist) {
-        const result = await c.env.DB
-          .prepare(
-            'INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-          )
-          .bind(name)
-          .run();
-
-        artist = { id: result.meta.last_row_id as number };
-      }
+      const artistId = await getOrCreateArtistIdByName(c.env.DB, name);
 
       const existing = await c.env.DB
         .prepare('SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
-        .bind(mochaUser.id, artist.id)
+        .bind(uid, artistId)
         .first();
 
       if (!existing) {
@@ -299,15 +347,15 @@ export async function syncFavoriteArtistsByName(c: Context) {
           .prepare(
             'INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
           )
-          .bind(mochaUser.id, artist.id)
+          .bind(uid, artistId)
           .run();
       }
     }
 
     const profile = (await c.env.DB
-      .prepare('SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?')
-      .bind(mochaUser.id)
-      .first()) as { favorite_artists: string | null } | null;
+      .prepare('SELECT id, favorite_artists FROM user_profiles WHERE mocha_user_id = ?')
+      .bind(uid)
+      .first()) as { id: unknown; favorite_artists: string | null } | null;
 
     let mergedNames: string[] = [...normalized];
     if (profile?.favorite_artists) {
@@ -321,14 +369,25 @@ export async function syncFavoriteArtistsByName(c: Context) {
       }
     }
 
-    await c.env.DB
-      .prepare(
-        `UPDATE user_profiles
+    const favoritesJson = JSON.stringify(mergedNames);
+    if (profile) {
+      await c.env.DB
+        .prepare(
+          `UPDATE user_profiles
          SET favorite_artists = ?, updated_at = CURRENT_TIMESTAMP
          WHERE mocha_user_id = ?`,
-      )
-      .bind(JSON.stringify(mergedNames), mochaUser.id)
-      .run();
+        )
+        .bind(favoritesJson, uid)
+        .run();
+    } else {
+      await c.env.DB
+        .prepare(
+          `INSERT INTO user_profiles (mocha_user_id, role, favorite_artists, created_at, updated_at)
+           VALUES (?, 'fan', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        )
+        .bind(uid, favoritesJson)
+        .run();
+    }
 
     return c.json({ success: true, synced: normalized.length });
   } catch (error) {
