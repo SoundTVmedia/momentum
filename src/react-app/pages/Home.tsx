@@ -17,14 +17,6 @@ export default function Home() {
 
       {/* LiveBroadcast (Tonight's show / live pulse): hidden for now — re-add useLiveSession + isLive && <LiveBroadcast layoutMode="full" /> */}
 
-      {user && (
-        <div className="bg-gradient-to-b from-black via-momentum-teal/8 to-slate-950 py-8 sm:py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <PersonalizedConcerts />
-          </div>
-        </div>
-      )}
-
       <div className="bg-gradient-to-b from-black via-momentum-teal/8 to-slate-950 py-8 sm:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <NearbyShowsCTA variant="banner" maxShows={1} />
@@ -34,6 +26,14 @@ export default function Home() {
       <div className="bg-gradient-to-b from-slate-950 via-momentum-teal/6 to-black pb-12 sm:pb-16 md:pb-20">
         <DiscoverSection />
       </div>
+
+      {user && (
+        <div className="bg-gradient-to-b from-black via-momentum-teal/8 to-slate-950 py-8 sm:py-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <PersonalizedConcerts />
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

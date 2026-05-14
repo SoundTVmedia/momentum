@@ -13,6 +13,8 @@ export interface JamBaseEventGridProps {
   genreSlug?: string;
   /** When set, loads that artist's upcoming dates from JamBase */
   artistName?: string;
+  /** When set, skips fetch and renders this list (e.g. server-merged favorites feed) */
+  preloadedEvents?: Record<string, unknown>[];
 }
 
 function primaryTicketUrl(ev: Record<string, unknown>): string | null {
@@ -86,6 +88,7 @@ export default function JamBaseEventGrid({
   geoMetroId,
   genreSlug,
   artistName,
+  preloadedEvents,
 }: JamBaseEventGridProps) {
   const navigate = useNavigate();
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
@@ -138,8 +141,15 @@ export default function JamBaseEventGrid({
   }, [artistName, city, country, geoMetroId, genreSlug, maxEvents]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (preloadedEvents !== undefined) {
+      setLoading(false);
+      setError(null);
+      setUpstreamNotice(null);
+      setEvents(preloadedEvents.slice(0, maxEvents));
+      return;
+    }
+    void load();
+  }, [preloadedEvents, maxEvents, load]);
 
   const formatDate = (iso?: string) => {
     if (!iso) return 'TBA';

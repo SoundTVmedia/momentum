@@ -1,5 +1,8 @@
 import { Context } from 'hono';
 import { normalizeClipApiRows } from './clip-row-normalize';
+import { jamBaseQuotaFromEnv } from './jambase-client';
+import { fetchJamBaseEventsByArtistName } from './jambase-endpoints';
+import { dedupeJamBaseEvents } from './jambase-events-search';
 
 /**
  * Update user personalization settings
@@ -187,7 +190,7 @@ export async function getPersonalizedFeed(c: Context) {
  */
 export async function getPersonalizedConcerts(c: Context) {
   const mochaUser = c.get("user");
-  
+
   if (!mochaUser) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -195,7 +198,6 @@ export async function getPersonalizedConcerts(c: Context) {
   try {
     const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50);
 
-    // Get user profile with personalization settings
     const profile = await c.env.DB.prepare(
       `SELECT favorite_artists, home_latitude, home_longitude, location_radius_miles, personalization_enabled
        FROM user_profiles 
@@ -205,16 +207,79 @@ export async function getPersonalizedConcerts(c: Context) {
       .first();
 
     if (!profile || !profile.personalization_enabled) {
-      return c.json({ concerts: [], personalized: false });
+      return c.json({ concerts: [], events: [], personalized: false });
     }
 
-    const favoriteArtists = profile.favorite_artists ? JSON.parse(profile.favorite_artists as string) : [];
-    
+    let favoriteArtists: string[] = [];
+    try {
+      const raw = profile.favorite_artists as string | null;
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          favoriteArtists = parsed
+            .map((x) => (typeof x === 'string' ? x.trim() : String(x ?? '').trim()))
+            .filter(Boolean);
+        }
+      }
+    } catch {
+      favoriteArtists = [];
+    }
+
     if (favoriteArtists.length === 0) {
-      return c.json({ concerts: [], personalized: true, message: 'No favorite artists set' });
+      return c.json({
+        concerts: [],
+        events: [],
+        personalized: true,
+        message: 'No favorite artists set',
+      });
     }
 
-    // Query upcoming tour dates for favorite artists
+    const uniqueArtists = [...new Set(favoriteArtists)].slice(0, 8);
+    const key = c.env.JAMBASE_API_KEY;
+
+    if (key?.trim()) {
+      const jbQ = jamBaseQuotaFromEnv(c.env);
+      const perArtistCap = Math.min(
+        20,
+        Math.max(6, Math.ceil((limit * 3) / Math.max(1, uniqueArtists.length)))
+      );
+      const allRaw: Record<string, unknown>[] = [];
+
+      await Promise.all(
+        uniqueArtists.map(async (artistName) => {
+          try {
+            const { events } = await fetchJamBaseEventsByArtistName(
+              key,
+              jbQ,
+              artistName,
+              String(perArtistCap),
+              '1'
+            );
+            allRaw.push(...events);
+          } catch (e) {
+            console.error('Personalized JamBase fetch failed for', artistName, e);
+          }
+        })
+      );
+
+      const merged = dedupeJamBaseEvents(allRaw);
+      merged.sort((a, b) => {
+        const sa = typeof a.startDate === 'string' ? new Date(a.startDate).getTime() : 0;
+        const sb = typeof b.startDate === 'string' ? new Date(b.startDate).getTime() : 0;
+        return sa - sb;
+      });
+      const slice = merged.slice(0, limit);
+
+      if (slice.length > 0) {
+        return c.json({
+          events: slice,
+          concerts: [],
+          personalized: true,
+          source: 'jambase' as const,
+        });
+      }
+    }
+
     const concerts = await c.env.DB.prepare(
       `SELECT 
         artist_tour_dates.*,
@@ -225,17 +290,19 @@ export async function getPersonalizedConcerts(c: Context) {
        FROM artist_tour_dates
        LEFT JOIN artists ON artist_tour_dates.artist_id = artists.id
        LEFT JOIN venues ON artist_tour_dates.venue_id = venues.id
-       WHERE artists.name IN (${favoriteArtists.map(() => '?').join(',')})
+       WHERE artists.name IN (${uniqueArtists.map(() => '?').join(',')})
        AND artist_tour_dates.date >= datetime('now')
        ORDER BY artist_tour_dates.date ASC
        LIMIT ?`
     )
-      .bind(...favoriteArtists, limit)
+      .bind(...uniqueArtists, limit)
       .all();
 
     return c.json({
       concerts: concerts.results || [],
-      personalized: true
+      events: [],
+      personalized: true,
+      source: 'd1' as const,
     });
   } catch (error) {
     console.error('Get personalized concerts error:', error);

@@ -27,7 +27,7 @@ function eventMatchesQuery(ev: Record<string, unknown>, qLower: string): boolean
   return false;
 }
 
-function dedupeEvents(events: Record<string, unknown>[]): Record<string, unknown>[] {
+export function dedupeJamBaseEvents(events: Record<string, unknown>[]): Record<string, unknown>[] {
   const seen = new Set<string>();
   const out: Record<string, unknown>[] = [];
   for (const ev of events) {
@@ -144,7 +144,7 @@ export async function buildTightJamBaseEventResults(
     merged.push(...(res?.events ?? []));
   }
 
-  merged = dedupeEvents(merged);
+  merged = dedupeJamBaseEvents(merged);
   merged = merged.filter((ev) => eventMatchesQuery(ev, qLower));
 
   merged.sort((a, b) => {
@@ -169,7 +169,7 @@ export async function buildTightJamBaseEventResults(
     for (const ev of fe) {
       if (eventMatchesQuery(ev, qLower)) merged.push(ev);
     }
-    merged = dedupeEvents(merged);
+    merged = dedupeJamBaseEvents(merged);
     merged.sort((a, b) => {
       const da = typeof a.startDate === 'string' ? a.startDate : '';
       const db = typeof b.startDate === 'string' ? b.startDate : '';

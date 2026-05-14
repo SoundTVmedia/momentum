@@ -4,6 +4,7 @@ import {
   jamBaseEventDateFromToday,
   jamBaseQuotaFromEnv,
   type JamBaseFetchDiag,
+  type JamBaseQuotaContext,
 } from './jambase-client';
 import { cacheJsonProxy, noCache } from './performance-utils';
 import { buildTightJamBaseEventResults } from './jambase-events-search';
@@ -446,6 +447,70 @@ export async function getLiveTabEvents(c: Context) {
   }
 }
 
+/**
+ * Resolve JamBase upcoming events for a single artist display name (worker-internal; no HTTP cache).
+ */
+export async function fetchJamBaseEventsByArtistName(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  raw: string,
+  perPage: string,
+  page = '1'
+): Promise<{
+  events: Record<string, unknown>[];
+  artist: { name: unknown; identifier: string } | null;
+}> {
+  const trim = raw.trim();
+  if (!trim) {
+    return { events: [], artist: null };
+  }
+
+  const slug = slugifyEntityName(trim) || normalizedSlugFromRouteParam(trim);
+  const phrase = searchPhraseFromSlug(slug);
+
+  const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+    apiKey,
+    '/artists',
+    {
+      artistName: phrase,
+      perPage: '8',
+      page: '1',
+    },
+    jbQ
+  );
+  const artists = list?.artists ?? [];
+  if (!artists.length) {
+    return { events: [], artist: null };
+  }
+
+  const exact = artists.find((a) => slugifyEntityName(String(a.name)) === slug);
+  const pick = exact || artists[0];
+  const id = pick?.identifier;
+  if (typeof id !== 'string') {
+    return { events: [], artist: null };
+  }
+
+  const ev = await jamBaseFetch<{ events?: unknown[] }>(
+    apiKey,
+    '/events',
+    {
+      artistId: id,
+      eventDateFrom: jamBaseEventDateFromToday(),
+      perPage,
+      page,
+    },
+    jbQ
+  );
+
+  const rawEvents = ev?.events ?? [];
+  const events = rawEvents.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
+
+  return {
+    events,
+    artist: { name: pick.name, identifier: id },
+  };
+}
+
 export async function getEventsByArtistName(c: Context) {
   const raw = (c.req.query('artistName') || '').trim();
   if (!raw) {
@@ -459,49 +524,14 @@ export async function getEventsByArtistName(c: Context) {
 
   try {
     const jbQ = jamBaseQuotaFromEnv(c.env);
-    const slug = slugifyEntityName(raw) || normalizedSlugFromRouteParam(raw);
-    const phrase = searchPhraseFromSlug(slug);
-
-    const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
-      key,
-      '/artists',
-      {
-        artistName: phrase,
-        perPage: '8',
-        page: '1',
-      },
-      jbQ
-    );
-    const artists = list?.artists ?? [];
-    if (!artists.length) {
-      cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600 });
-      return c.json({ events: [], artist: null });
-    }
-
-    const exact = artists.find((a) => slugifyEntityName(String(a.name)) === slug);
-    const pick = exact || artists[0];
-    const id = pick?.identifier;
-    if (typeof id !== 'string') {
-      cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600 });
-      return c.json({ events: [], artist: null });
-    }
-
-    const ev = await jamBaseFetch<{ events?: unknown[] }>(
-      key,
-      '/events',
-      {
-        artistId: id,
-        eventDateFrom: jamBaseEventDateFromToday(),
-        perPage: c.req.query('perPage') || '32',
-        page: c.req.query('page') || '1',
-      },
-      jbQ
-    );
+    const perPage = c.req.query('perPage') || '32';
+    const page = c.req.query('page') || '1';
+    const { events, artist } = await fetchJamBaseEventsByArtistName(key, jbQ, raw, perPage, page);
 
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
-      events: ev?.events ?? [],
-      artist: { name: pick.name, identifier: pick.identifier },
+      events,
+      artist,
     });
   } catch (error) {
     console.error('JamBase events by artist name error:', error);
