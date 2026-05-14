@@ -5,6 +5,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel';
+import DiscoverFavoriteArtistsPrompt from '@/react-app/components/DiscoverFavoriteArtistsPrompt';
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
@@ -85,6 +86,7 @@ export default function DiscoverPage() {
   } | null>(null);
   const [showLiveEvents, setShowLiveEvents] = useState(false);
   const [liveEventCatalog, setLiveEventCatalog] = useState<'jambase' | 'ticketmaster'>('jambase');
+  const [favoriteArtistFeedKey, setFavoriteArtistFeedKey] = useState(0);
 
   const liveCity = filters.location.trim() || undefined;
   const liveGenre = filters.genre.trim() || undefined;
@@ -559,10 +561,16 @@ export default function DiscoverPage() {
         ) : trendingContent ? (
           <div className="space-y-12">
             {!searchQuery.trim() && user ? (
-              <FavoriteArtistFeedPanel
-                variant="discover"
-                scrollIntoViewOnMount={searchParams.get('from_favorites') === '1'}
-              />
+              <>
+                <DiscoverFavoriteArtistsPrompt
+                  onSaved={() => setFavoriteArtistFeedKey((k) => k + 1)}
+                />
+                <FavoriteArtistFeedPanel
+                  key={favoriteArtistFeedKey}
+                  variant="discover"
+                  scrollIntoViewOnMount={searchParams.get('from_favorites') === '1'}
+                />
+              </>
             ) : null}
 
             <div className="text-center mb-8">

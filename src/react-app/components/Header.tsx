@@ -455,14 +455,14 @@ export default function Header() {
                 )}
                 <button
                   onClick={() => navigate('/dashboard')}
-                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors"
+                  className="hidden md:inline-flex p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors"
                   title="Dashboard"
                 >
                   <User className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
                 <button
                   onClick={logout}
-                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors hidden md:block"
+                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors"
                   title="Sign out"
                 >
                   <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />

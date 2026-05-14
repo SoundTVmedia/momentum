@@ -84,7 +84,7 @@ export default function Auth() {
             if (userData.ok) {
               const data = await userData.json();
               if (data.profile) {
-                navigate('/dashboard');
+                navigate('/feed');
               } else {
                 navigate('/onboarding');
               }
@@ -151,20 +151,20 @@ export default function Auth() {
     const data = await userData.json();
 
     if (data.profile) {
-      navigate('/dashboard');
+      navigate('/feed');
     } else {
       navigate('/onboarding');
     }
   };
 
-  // Logged-in users on /auth → dashboard (avoid racing OAuth ?code= exchange)
+  // Logged-in users on /auth → feed (avoid racing OAuth ?code= exchange)
   useEffect(() => {
     if (user && !isPending && !showRememberDevice) {
       const code = searchParams.get('code');
       if (code) {
         return;
       }
-      navigate('/dashboard');
+      navigate('/feed');
     }
   }, [user, isPending, showRememberDevice, navigate, searchParams]);
 

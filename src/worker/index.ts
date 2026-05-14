@@ -2911,6 +2911,7 @@ app.get("/api/clips/:id/rating", authMiddleware, rating.getUserClipRating);
 // Favorite Artists & Clips Endpoints
 app.get("/api/users/me/favorite-artists", authMiddleware, favorite.getFavoriteArtists);
 app.post("/api/users/favorite-artist", authMiddleware, favorite.toggleFavoriteArtist);
+app.post("/api/users/favorite-artists/sync-by-name", authMiddleware, favorite.syncFavoriteArtistsByName);
 app.post("/api/clips/:id/favorite", authMiddleware, favorite.favoriteClip);
 app.get("/api/clips/:id/favorited", authMiddleware, favorite.checkClipFavorited);
 app.get("/api/users/me/favorite-clips-by-artist", authMiddleware, favorite.getFavoriteClipsByArtist);

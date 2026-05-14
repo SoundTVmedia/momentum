@@ -246,3 +246,93 @@ export async function checkClipFavorited(c: Context) {
     return c.json({ favorited: false });
   }
 }
+
+/**
+ * Add artists by display name for Discover "from artists you follow" (user_favorite_artists + artists rows).
+ * Merges names into user_profiles.favorite_artists JSON for personalization.
+ */
+export async function syncFavoriteArtistsByName(c: Context) {
+  const mochaUser = c.get('user');
+
+  if (!mochaUser) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  let body: { names?: unknown; artist_names?: unknown };
+  try {
+    body = (await c.req.json()) as { names?: unknown; artist_names?: unknown };
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400);
+  }
+
+  const raw = body.names ?? body.artist_names;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return c.json({ error: 'names (non-empty array of strings) is required' }, 400);
+  }
+
+  const normalized = [...new Set(raw.map((n) => String(n ?? '').trim()).filter(Boolean))].slice(0, 25);
+
+  try {
+    for (const name of normalized) {
+      let artist = (await c.env.DB.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as
+        | { id: number }
+        | null;
+
+      if (!artist) {
+        const result = await c.env.DB
+          .prepare(
+            'INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+          )
+          .bind(name)
+          .run();
+
+        artist = { id: result.meta.last_row_id as number };
+      }
+
+      const existing = await c.env.DB
+        .prepare('SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
+        .bind(mochaUser.id, artist.id)
+        .first();
+
+      if (!existing) {
+        await c.env.DB
+          .prepare(
+            'INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+          )
+          .bind(mochaUser.id, artist.id)
+          .run();
+      }
+    }
+
+    const profile = (await c.env.DB
+      .prepare('SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?')
+      .bind(mochaUser.id)
+      .first()) as { favorite_artists: string | null } | null;
+
+    let mergedNames: string[] = [...normalized];
+    if (profile?.favorite_artists) {
+      try {
+        const parsed = JSON.parse(profile.favorite_artists) as unknown;
+        if (Array.isArray(parsed)) {
+          mergedNames = [...new Set([...parsed.map((x) => String(x)), ...normalized])];
+        }
+      } catch {
+        /* keep normalized only */
+      }
+    }
+
+    await c.env.DB
+      .prepare(
+        `UPDATE user_profiles
+         SET favorite_artists = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE mocha_user_id = ?`,
+      )
+      .bind(JSON.stringify(mergedNames), mochaUser.id)
+      .run();
+
+    return c.json({ success: true, synced: normalized.length });
+  } catch (error) {
+    console.error('syncFavoriteArtistsByName error:', error);
+    return c.json({ error: 'Failed to sync favorite artists' }, 500);
+  }
+}

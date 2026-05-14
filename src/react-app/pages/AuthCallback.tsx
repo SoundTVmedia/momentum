@@ -36,7 +36,7 @@ export default function AuthCallback() {
         const userData = await response.json();
 
         if (userData.profile) {
-          navigate('/dashboard', { replace: true });
+          navigate('/feed', { replace: true });
         } else {
           navigate('/onboarding', { replace: true });
         }

@@ -131,7 +131,9 @@ export default function FavoriteArtistFeedPanel({
   };
 
   if (!user || isPending) return null;
-  if (!loading && !hasFavoriteArtists) return null;
+  // Discover: avoid showing a loading shell that then vanishes when the user has no favorite artists.
+  if (variant === 'discover' && (loading || !hasFavoriteArtists)) return null;
+  if (variant !== 'discover' && !loading && !hasFavoriteArtists) return null;
 
   return (
     <>
