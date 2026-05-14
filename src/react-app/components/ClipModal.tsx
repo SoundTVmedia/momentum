@@ -12,6 +12,8 @@ import {
   Facebook,
   Twitter,
   Star,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
@@ -34,7 +36,7 @@ export type ClipModalFeedNavigation = {
 interface ClipModalProps {
   clip: ClipWithUser;
   onClose: () => void;
-  /** Vertical thumbnail rail + ArrowUp/ArrowDown to browse clips without closing the modal. */
+  /** Desktop: chevron prev/next. Mobile: swipe up/down. Multiple clips only. */
   feedNavigation?: ClipModalFeedNavigation | null;
 }
 
@@ -48,7 +50,8 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
   const [linkCopied, setLinkCopied] = useState(false);
 
   const [isLiking, setIsLiking] = useState(false);
-  const thumbRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const touchStartY = useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
 
   const navIndex =
     feedNavigation && feedNavigation.clips.length > 0
@@ -74,21 +77,15 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
 
   useEffect(() => {
     if (!canFeedNav) return;
-    const el = thumbRefs.current.get(clip.id);
-    el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [clip.id, canFeedNav]);
-
-  useEffect(() => {
-    if (!canFeedNav) return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) {
         return;
       }
-      if (e.key === 'ArrowUp') {
+      if (e.key === 'ArrowLeft') {
         e.preventDefault();
         goPrev();
-      } else if (e.key === 'ArrowDown') {
+      } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         goNext();
       }
@@ -96,6 +93,28 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [canFeedNav, goPrev, goNext]);
+
+  const SWIPE_MIN_PX = 56;
+
+  const onSwipeTouchStart = (e: React.TouchEvent) => {
+    if (!canFeedNav) return;
+    const t = e.targetTouches[0];
+    touchStartY.current = t.clientY;
+    touchStartX.current = t.clientX;
+  };
+
+  const onSwipeTouchEnd = (e: React.TouchEvent) => {
+    if (!canFeedNav || touchStartY.current == null) return;
+    const t = e.changedTouches[0];
+    const dy = touchStartY.current - t.clientY;
+    const dx = (touchStartX.current ?? t.clientX) - t.clientX;
+    touchStartY.current = null;
+    touchStartX.current = null;
+    if (Math.abs(dy) < SWIPE_MIN_PX) return;
+    if (Math.abs(dy) < Math.abs(dx) * 1.15) return;
+    if (dy > 0) goNext();
+    else goPrev();
+  };
 
   const handleLike = async () => {
     setIsLiking(true);
@@ -153,67 +172,52 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-0 sm:p-4 animate-fade-in">
       <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-momentum-teal/20 sm:rounded-xl overflow-hidden animate-scale-in">
         <div className="flex flex-col md:flex-row h-full sm:max-h-[90vh]">
-          {/* Video side: vertical clip rail + player */}
-          <div className="flex flex-row flex-1 md:flex-[2] min-h-0 min-w-0 bg-black min-h-[36vh] md:min-h-0">
-            {canFeedNav && feedNavigation && (
-              <nav
-                className="w-[4.25rem] sm:w-24 flex-shrink-0 flex flex-col gap-1.5 py-2 px-1 border-r border-white/10 bg-black/70 overflow-y-auto overflow-x-hidden"
-                aria-label="Clips in this list — scroll vertically to choose another"
+          {/* Video side */}
+          <div className="md:w-2/3 bg-black flex items-center justify-center relative flex-shrink-0 min-h-[36vh] md:min-h-0 p-2 sm:p-4">
+            <button
+              onClick={onClose}
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors z-10"
+            >
+              <X className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+
+            {prevClip && (
+              <button
+                type="button"
+                onClick={goPrev}
+                className="hidden md:flex absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/55 hover:bg-black/75 text-white border border-white/15 transition-colors"
+                aria-label="Previous clip"
               >
-                {feedNavigation.clips.map((c) => {
-                  const active = c.id === clip.id;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      ref={(el) => {
-                        if (el) thumbRefs.current.set(c.id, el);
-                        else thumbRefs.current.delete(c.id);
-                      }}
-                      onClick={() => feedNavigation.onChangeClip(c)}
-                      className={`relative w-full rounded-md overflow-hidden flex-shrink-0 transition ring-offset-1 ring-offset-black ${
-                        active ? 'ring-2 ring-cyan-400 opacity-100' : 'opacity-65 hover:opacity-100'
-                      }`}
-                      title={c.artist_name || 'Clip'}
-                    >
-                      <img
-                        src={
-                          (c as { stream_thumbnail_url?: string }).stream_thumbnail_url ||
-                          c.thumbnail_url ||
-                          'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=120&h=120&fit=crop'
-                        }
-                        alt=""
-                        className="w-full aspect-square object-cover bg-black"
-                      />
-                    </button>
-                  );
-                })}
-              </nav>
+                <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
+              </button>
+            )}
+            {nextClip && (
+              <button
+                type="button"
+                onClick={goNext}
+                className="hidden md:flex absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/55 hover:bg-black/75 text-white border border-white/15 transition-colors"
+                aria-label="Next clip"
+              >
+                <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
+              </button>
             )}
 
-            <div className="relative flex-1 flex items-center justify-center min-w-0 p-2 sm:p-4">
-              <button
-                onClick={onClose}
-                className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors z-10"
-              >
-                <X className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-
-              <div
-                className="relative w-full max-h-[min(85dvh,100%)] md:max-h-[min(90vh,72vw)] mx-auto bg-black rounded-none sm:rounded-lg overflow-hidden"
-                style={{
-                  aspectRatio: clipDisplayAspectRatio(clip) ?? '16 / 9',
-                }}
-              >
-                <StreamVideoPlayer
-                  streamVideoId={(clip as any).stream_video_id}
-                  playbackUrl={(clip as any).stream_playback_url}
-                  fallbackUrl={clip.video_url}
-                  poster={(clip as any).stream_thumbnail_url || clip.thumbnail_url || undefined}
-                  autoPlay
-                  className="absolute inset-0 w-full h-full"
-                />
-              </div>
+            <div
+              className="relative w-full max-h-[min(85dvh,100%)] md:max-h-[min(90vh,72vw)] mx-auto bg-black rounded-none sm:rounded-lg overflow-hidden touch-pan-y"
+              style={{
+                aspectRatio: clipDisplayAspectRatio(clip) ?? '16 / 9',
+              }}
+              onTouchStart={onSwipeTouchStart}
+              onTouchEnd={onSwipeTouchEnd}
+            >
+              <StreamVideoPlayer
+                streamVideoId={(clip as any).stream_video_id}
+                playbackUrl={(clip as any).stream_playback_url}
+                fallbackUrl={clip.video_url}
+                poster={(clip as any).stream_thumbnail_url || clip.thumbnail_url || undefined}
+                autoPlay
+                className="absolute inset-0 w-full h-full"
+              />
             </div>
           </div>
 

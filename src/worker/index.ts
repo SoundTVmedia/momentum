@@ -3015,7 +3015,7 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
 
 export default {
   fetch: app.fetch,
-  scheduled: async (_event: ScheduledEvent, env: Env, ctx: ExecutionContext) => {
+  scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
     ctx.waitUntil(handleScheduled(env));
   }
 };

@@ -121,7 +121,7 @@ export default function DiscoverFavoriteArtistsPrompt({ onSaved }: Props) {
           <span>More options in</span>
           <button
             type="button"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(user ? `/users/${user.id}` : '/')}
             className="text-cyan-400 hover:text-cyan-300 underline"
           >
             profile settings

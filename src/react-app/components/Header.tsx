@@ -190,11 +190,10 @@ export default function Header() {
           <nav className="hidden md:flex items-center space-x-8">
             <button
               type="button"
-              onClick={() => navigate('/feed')}
+              onClick={() => navigate('/')}
               className="flex items-center space-x-2 text-white hover:text-blue-400 transition-colors font-medium"
             >
-              {/*<Play className="w-4 h-4" aria-hidden />*/}
-              Feed
+              Home
             </button>
             <button
               type="button"
@@ -462,7 +461,7 @@ export default function Header() {
                   </button>
                 )}
                 <button
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => navigate(user ? `/users/${user.id}` : '/auth')}
                   className="hidden md:inline-flex p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors"
                   title="Dashboard"
                 >

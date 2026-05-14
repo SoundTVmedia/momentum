@@ -84,7 +84,7 @@ export default function Auth() {
             if (userData.ok) {
               const data = await userData.json();
               if (data.profile) {
-                navigate('/feed');
+                navigate('/');
               } else {
                 navigate('/onboarding');
               }
@@ -151,7 +151,7 @@ export default function Auth() {
     const data = await userData.json();
 
     if (data.profile) {
-      navigate('/feed');
+      navigate('/');
     } else {
       navigate('/onboarding');
     }
@@ -164,7 +164,7 @@ export default function Auth() {
       if (code) {
         return;
       }
-      navigate('/feed');
+      navigate('/');
     }
   }, [user, isPending, showRememberDevice, navigate, searchParams]);
 

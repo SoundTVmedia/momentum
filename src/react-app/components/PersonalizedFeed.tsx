@@ -1,8 +1,10 @@
 import { Heart, Sparkles } from 'lucide-react';
+import { useAuth } from '@getmocha/users-service/react';
 import { usePersonalizedFeed } from '@/react-app/hooks/usePersonalizedFeed';
 import DashboardClipsGrid, { type DashboardGridClip } from '@/react-app/components/DashboardClipsGrid';
 
 export default function PersonalizedFeed() {
+  const { user } = useAuth();
   const { clips, loading, error, personalized, hasMore, loadMore, refresh } = usePersonalizedFeed();
 
   if (loading && clips.length === 0) {
@@ -41,10 +43,10 @@ export default function PersonalizedFeed() {
             Complete your profile with favorite artists and home location to see personalized content!
           </p>
           <a
-            href="/dashboard"
+            href={user ? `/users/${user.id}` : '/auth'}
             className="inline-block px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
           >
-            Update Preferences
+            Update preferences on your profile
           </a>
         </div>
       </div>

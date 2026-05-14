@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Heart, Eye, Video, Users, UserPlus, UserCheck, Loader2, MapPin, Edit, Shield, Star, TrendingUp } from 'lucide-react';
 import Header from '@/react-app/components/Header';
+import OwnProfileHub from '@/react-app/components/OwnProfileHub';
 import ClipModal from '@/react-app/components/ClipModal';
 import ProfileEditor from '@/react-app/components/ProfileEditor';
 import VerificationRequest from '@/react-app/components/VerificationRequest';
@@ -332,6 +333,8 @@ export default function UserProfilePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {isOwnProfile && user ? <OwnProfileHub /> : null}
+
         {/* Favorite Artists Section */}
         {favoriteArtists.length > 0 && (
           <div className="mb-12">

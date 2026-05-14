@@ -11,7 +11,7 @@ export type MainFeedStackVariant = 'page' | 'home'
 
 type MainFeedStackProps = {
   variant?: MainFeedStackVariant
-  /** Initial filter for the main clip grid (matches `/feed` when unset). */
+  /** Initial filter for the main clip grid on home and feed-style stacks. */
   defaultFeedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
 }
 

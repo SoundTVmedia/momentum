@@ -209,7 +209,7 @@ export default function Onboarding() {
         return;
       }
 
-      navigate('/feed', { replace: true });
+      navigate('/', { replace: true });
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
       setSubmitError('Something went wrong. Please try again.');

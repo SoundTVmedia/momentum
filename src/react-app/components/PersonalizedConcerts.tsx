@@ -79,7 +79,7 @@ export default function PersonalizedConcerts() {
               ? 'Add favorite artists in your profile to see JamBase tour dates here.'
               : typeof payload?.message === 'string' && payload.message.length > 0
                 ? payload.message
-                : "We'll show upcoming JamBase dates for artists you follow — or add favorites in your dashboard."}
+                : "We'll show upcoming JamBase dates for artists you follow — or add favorites on your profile."}
           </p>
         </div>
       </div>

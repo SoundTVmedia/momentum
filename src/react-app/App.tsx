@@ -1,8 +1,7 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import { AuthProvider } from "@getmocha/users-service/react";
 import ErrorBoundary from "@/react-app/components/ErrorBoundary";
 import HomePage from "@/react-app/pages/Home";
-import FeedPage from "@/react-app/pages/Feed";
 import NotFoundPage from "@/react-app/pages/NotFound";
 import AuthPage from "@/react-app/pages/Auth";
 import AuthCallbackPage from "@/react-app/pages/AuthCallback";
@@ -30,7 +29,7 @@ export default function App() {
         <Router>
           <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/feed" element={<FeedPage />} />
+          <Route path="/feed" element={<Navigate to="/" replace />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/auth/reset-password" element={<ResetPasswordPage />} />

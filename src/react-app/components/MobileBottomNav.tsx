@@ -78,14 +78,22 @@ export default function MobileBottomNav() {
     { icon: Search, label: 'Discover', path: '/discover', onClick: () => navigate('/discover') },
     { icon: Video, label: 'Capture Moment', path: '/capture', onClick: handleCaptureClick, special: true },
     { icon: Bell, label: 'Alerts', path: '/notifications', onClick: () => user ? navigate('/notifications') : navigate('/auth'), badge: unreadCount },
-    { icon: User, label: 'Profile', path: '/dashboard', onClick: () => user ? navigate('/dashboard') : navigate('/auth') },
+    {
+      icon: User,
+      label: 'Profile',
+      path: user ? `/users/${user.id}` : '/auth',
+      onClick: () => (user ? navigate(`/users/${user.id}`) : navigate('/auth')),
+    },
   ];
 
   const isActive = (path: string) => {
     if (path === '/') {
       return location.pathname === '/';
     }
-    return location.pathname.startsWith(path);
+    if (path === '/auth') {
+      return false;
+    }
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
   const hideOnAuthRoute =

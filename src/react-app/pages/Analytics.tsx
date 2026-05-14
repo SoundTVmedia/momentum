@@ -37,11 +37,11 @@ export default function AnalyticsPage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(user ? `/users/${user.id}` : '/')}
             className="flex items-center space-x-2 text-cyan-400 hover:text-cyan-300 mb-4 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Back to Dashboard</span>
+            <span>Back to profile</span>
           </button>
           
           <div className="flex items-center space-x-3">

@@ -992,7 +992,7 @@ export default function UploadClip() {
       setShowCaptionScreen(false);
       setShowQuickCapture(false);
 
-      navigate('/feed', { replace: true });
+      navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload clip');
     } finally {
@@ -1032,7 +1032,7 @@ export default function UploadClip() {
     auddAttemptedForSourceKeyRef.current = null;
     setAuddStatus('idle');
     setAuddMessage(null);
-    navigate('/feed', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const toggleCaptionVideoPlay = () => {
