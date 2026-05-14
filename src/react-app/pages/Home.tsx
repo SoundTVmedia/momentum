@@ -2,7 +2,6 @@ import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
 import DiscoverSection from '@/react-app/components/DiscoverSection'
 import Footer from '@/react-app/components/Footer'
-import Leaderboard from '@/react-app/components/Leaderboard'
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA'
 import { useAuth } from '@getmocha/users-service/react'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
@@ -34,12 +33,6 @@ export default function Home() {
 
       <div className="bg-gradient-to-b from-slate-950 via-momentum-teal/6 to-black pb-12 sm:pb-16 md:pb-20">
         <DiscoverSection />
-      </div>
-
-      <div className="bg-gradient-to-b from-slate-950 via-violet-950/10 to-black py-12 sm:py-16 md:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Leaderboard />
-        </div>
       </div>
 
       <Footer />

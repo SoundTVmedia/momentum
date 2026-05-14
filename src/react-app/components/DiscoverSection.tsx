@@ -1,20 +1,53 @@
-import { MapPin, Radio, Users, Star, Calendar, Loader2, Navigation } from 'lucide-react'
+import { MapPin, Users, Star, Calendar, Loader2, Navigation } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { usePrioritizedShows } from '@/react-app/hooks/usePrioritizedShows'
 import { useAuth } from '@getmocha/users-service/react'
+import type { ExtendedMochaUser } from '@/shared/types'
 import { artistPath, venuePath } from '@/shared/app-paths'
+
+function firstWordFromFullName(full: string): string | null {
+  const w = full.trim().split(/\s+/)[0]
+  if (!w) return null
+  return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+}
+
+/** First segment of the email local-part (e.g. `john.doe+tag` → `John`). */
+function firstNameFromEmailLocal(email: string | null | undefined): string | null {
+  if (!email?.includes('@')) return null
+  const local = email.split('@')[0]?.trim().split('+')[0]
+  if (!local) return null
+  const token = local.split(/[._-]/)[0]
+  if (!token || !/^[a-zA-Z]/.test(token)) return null
+  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
+}
+
+function resolveWelcomeName(u: ExtendedMochaUser | null): string | null {
+  if (!u) return null
+  const profile = u.profile?.display_name?.trim()
+  if (profile) return profile
+  const top = (u as { display_name?: string | null }).display_name?.trim()
+  if (top) return top
+  const google = (u as { google_user_data?: { name?: string } }).google_user_data?.name
+  const fromGoogle = google ? firstWordFromFullName(google) : null
+  if (fromGoogle) return fromGoogle
+  const email = (u as { email?: string | null }).email
+  return firstNameFromEmailLocal(email)
+}
+
+const welcomeGradient =
+  'bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent'
 
 export default function DiscoverSection() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const welcomeName = user ? resolveWelcomeName(user as ExtendedMochaUser | null) : null
   const { shows, loading, hasLocation, requestUserLocation } = usePrioritizedShows()
-  const [filter, setFilter] = useState<'all' | 'live' | 'nearby' | 'favorites'>('all')
+  const [filter, setFilter] = useState<'all' | 'nearby' | 'favorites'>('all')
 
   // Filter shows based on selected filter
   const filteredShows = shows.filter(show => {
     if (filter === 'all') return true
-    if (filter === 'live') return show.type === 'live'
     if (filter === 'nearby') return show.type === 'nearby_upcoming'
     if (filter === 'favorites') return show.is_favorite
     return true
@@ -56,11 +89,25 @@ export default function DiscoverSection() {
     <section className="pt-8 pb-20 bg-gradient-to-b from-black via-momentum-teal/6 to-slate-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-4xl font-bold text-white mb-4">
-            Find <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">Your Next Show</span>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">
+            {user ? (
+              welcomeName ? (
+                <>
+                  <span className="text-white">Welcome, </span>
+                  <span className={welcomeGradient}>{welcomeName}</span>
+                </>
+              ) : (
+                <span className={welcomeGradient}>Welcome</span>
+              )
+            ) : (
+              <>
+                <span className="text-white">Welcome to </span>
+                <span className={welcomeGradient}>Feedback</span>
+              </>
+            )}
           </h2>
           <p className="text-xl text-gray-300 max-w-2xl mx-auto font-medium">
-            See who's playing near you and join the scene
+            Watch all your favorite artist in one place.
           </p>
         </div>
 
@@ -88,27 +135,11 @@ export default function DiscoverSection() {
         {/* Filter Tabs */}
         <div className="flex flex-wrap justify-center gap-3 mb-12">
           <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-full font-medium transition-all ${
-              filter === 'all'
-                ? 'momentum-grad-interactive text-white'
-                : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-teal/20 hover:border-momentum-mint/40'
-            }`}
+            type="button"
+            onClick={() => navigate('/discover')}
+            className="px-4 py-2 rounded-full font-medium transition-all momentum-grad-interactive text-white hover:scale-105"
           >
-            All Shows
-          </button>
-          <button
-            onClick={() => setFilter('live')}
-            className={`px-4 py-2 rounded-full font-medium transition-all ${
-              filter === 'live'
-                ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white'
-                : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-red-500/20 hover:border-red-400/40'
-            }`}
-          >
-            <div className="flex items-center space-x-1">
-              <Radio className="w-4 h-4" />
-              <span>Live Now</span>
-            </div>
+            Find Shows near you
           </button>
           {hasLocation && (
             <button
@@ -292,15 +323,6 @@ export default function DiscoverSection() {
           </div>
         )}
 
-        <div className="text-center mt-12">
-          <button
-            type="button"
-            onClick={() => navigate('/discover?from_favorites=1')}
-            className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform hover:shadow-lg hover:shadow-momentum-teal/30"
-          >
-            Explore more clips
-          </button>
-        </div>
       </div>
     </section>
   )
