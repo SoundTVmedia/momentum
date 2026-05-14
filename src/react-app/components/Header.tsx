@@ -45,7 +45,6 @@ export default function Header() {
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
   const { unreadCount } = useNotifications()
-  const [currentTime, setCurrentTime] = useState(new Date())
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -55,11 +54,6 @@ export default function Header() {
   const searchAbortRef = useRef<AbortController | null>(null)
   const searchDropdownRef = useRef<HTMLDivElement | null>(null)
   
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
   useEffect(() => {
     const onDocDown = (e: MouseEvent) => {
       const el = searchDropdownRef.current
@@ -127,11 +121,6 @@ export default function Header() {
     }
   }, [])
 
-  const isLiveTime = () => {
-    const hour = currentTime.getHours()
-    return hour >= 20 || hour < 4 // 8PM-4AM EST (accounting for timezone complexity)
-  }
-
   const closeSearchUi = () => {
     setShowSearchResults(false)
     setSearchQuery('')
@@ -189,12 +178,6 @@ export default function Header() {
             <div className="text-lg sm:text-xl md:text-2xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent truncate">
               FEEDBACK
             </div>
-            {isLiveTime() && (
-              <div className="hidden sm:flex items-center space-x-1.5 sm:space-x-2 px-2 sm:px-3 py-0.5 sm:py-1 bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 border border-momentum-teal/50 rounded-full animate-neon-pulse">
-                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                <span className="text-cyan-400 text-xs sm:text-sm font-bold">LIVE</span>
-              </div>
-            )}
           </button>
 
           {/* Navigation */}
@@ -453,19 +436,6 @@ export default function Header() {
                 )}
               </div>
             )}
-            <div className="text-right hidden xl:block">
-              <div className="text-xs text-gray-400">
-                {currentTime.toLocaleTimeString('en-US', { 
-                  timeZone: 'America/New_York',
-                  hour: 'numeric',
-                  minute: '2-digit'
-                })} EST
-              </div>
-              <div className="text-xs text-cyan-400">
-                {isLiveTime() ? 'Show Time' : 'Show 8PM-12AM'}
-              </div>
-            </div>
-            
             {user ? (
               <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
                 <button

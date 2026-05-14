@@ -1,18 +1,14 @@
 import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
-import LiveBroadcast from '@/react-app/components/LiveBroadcast'
 import DiscoverSection from '@/react-app/components/DiscoverSection'
 import Footer from '@/react-app/components/Footer'
 import Leaderboard from '@/react-app/components/Leaderboard'
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA'
-import { useLiveSession } from '@/react-app/hooks/useLiveSession'
 import { useAuth } from '@getmocha/users-service/react'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
 
 export default function Home() {
   const { user } = useAuth()
-  const { session } = useLiveSession()
-  const isLive = session?.status === 'live'
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -20,7 +16,7 @@ export default function Home() {
 
       <HeroSection />
 
-      {isLive && <LiveBroadcast layoutMode="full" />}
+      {/* LiveBroadcast (Tonight's show / live pulse): hidden for now — re-add useLiveSession + isLive && <LiveBroadcast layoutMode="full" /> */}
 
       {user && (
         <div className="bg-gradient-to-b from-black via-momentum-teal/8 to-slate-950 py-8 sm:py-12">
