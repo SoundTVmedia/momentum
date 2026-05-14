@@ -25,7 +25,7 @@ async function getOrCreateArtistIdByName(db: D1Database, displayName: string): P
       .bind(name)
       .run();
     const lid = ins.meta?.last_row_id;
-    const n = lid != null && lid !== '' ? Number(lid) : NaN;
+    const n = typeof lid === 'number' && Number.isFinite(lid) && lid > 0 ? lid : NaN;
     if (Number.isFinite(n) && n > 0) {
       const verify = (await db.prepare('SELECT id FROM artists WHERE id = ?').bind(n).first()) as { id: unknown } | null;
       const vid = verify?.id != null ? Number(verify.id) : NaN;
