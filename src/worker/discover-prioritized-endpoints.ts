@@ -295,9 +295,27 @@ export async function getPrioritizedShows(c: Context) {
 
 const MAX_FAVORITE_FEED_EVENTS = 3;
 const MAX_FAVORITE_FEED_CLIP_PAGE = 50;
+const MAX_PROFILE_FAVORITE_NAMES = 40;
+/** Cap `IN (...)` size for clip queries (SQLite binding limits). */
+const MAX_CLIP_ARTIST_NAMES_IN = 80;
+
+function parseProfileFavoriteArtistNames(raw: string | null | undefined): string[] {
+  if (raw == null || !String(raw).trim()) return [];
+  try {
+    const parsed = JSON.parse(String(raw)) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((x) => (typeof x === 'string' ? x.trim() : String(x ?? '').trim()))
+      .filter(Boolean)
+      .slice(0, MAX_PROFILE_FAVORITE_NAMES);
+  } catch {
+    return [];
+  }
+}
 
 /**
- * Upcoming tour dates (max 3) + paginated clips for artists the user favorited (`user_favorite_artists`).
+ * Upcoming tour dates (max 3) + paginated clips for artists the user follows:
+ * `user_favorite_artists` plus names from `user_profiles.favorite_artists` (personalization / onboarding).
  * Auth required; `clips_limit` / `clips_offset` paginate the clip grid.
  */
 export async function getFavoriteArtistFeed(c: Context) {
@@ -329,14 +347,61 @@ export async function getFavoriteArtistFeed(c: Context) {
       .all();
 
     const rows = (favorites.results || []) as { artist_id?: unknown; name?: unknown }[];
-    const favoriteArtistIds = rows
+
+    const profileRow = (await c.env.DB
+      .prepare(`SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?`)
+      .bind(user.id)
+      .first()) as { favorite_artists: string | null } | null;
+
+    const profileNameStrings = parseProfileFavoriteArtistNames(profileRow?.favorite_artists ?? null);
+
+    let favoriteArtistIds = rows
       .map((r) => (typeof r.artist_id === 'number' ? r.artist_id : Number(r.artist_id)))
       .filter((id) => Number.isFinite(id) && id > 0);
-    const favoriteArtistNames = rows
-      .map((r) => (typeof r.name === 'string' ? r.name.trim() : ''))
-      .filter(Boolean);
 
-    if (rows.length === 0) {
+    const canonicalNames = new Set<string>();
+    for (const r of rows) {
+      const n = typeof r.name === 'string' ? r.name.trim() : '';
+      if (n) canonicalNames.add(n);
+    }
+
+    const loweredProfile = [...new Set(profileNameStrings.map((s) => s.toLowerCase()))];
+    if (loweredProfile.length > 0) {
+      const ph = loweredProfile.map(() => '?').join(',');
+      const matchedArtists = await c.env.DB
+        .prepare(`SELECT id, name FROM artists WHERE LOWER(TRIM(name)) IN (${ph})`)
+        .bind(...loweredProfile)
+        .all();
+      for (const m of (matchedArtists.results || []) as { id?: unknown; name?: unknown }[]) {
+        const id = typeof m.id === 'number' ? m.id : Number(m.id);
+        if (Number.isFinite(id) && id > 0) {
+          favoriteArtistIds.push(id);
+        }
+        const nm = typeof m.name === 'string' ? m.name.trim() : '';
+        if (nm) canonicalNames.add(nm);
+      }
+      for (const s of profileNameStrings) {
+        if (s) canonicalNames.add(s);
+      }
+    }
+
+    favoriteArtistIds = [...new Set(favoriteArtistIds)];
+
+    if (canonicalNames.size === 0 && favoriteArtistIds.length > 0) {
+      const idPh = favoriteArtistIds.map(() => '?').join(',');
+      const namesFromIds = await c.env.DB
+        .prepare(`SELECT name FROM artists WHERE id IN (${idPh})`)
+        .bind(...favoriteArtistIds)
+        .all();
+      for (const r of (namesFromIds.results || []) as { name?: unknown }[]) {
+        if (typeof r.name === 'string' && r.name.trim()) canonicalNames.add(r.name.trim());
+      }
+    }
+
+    const favoriteArtistNames = [...canonicalNames].map((n) => n.trim()).filter(Boolean);
+    const clipArtistNames = favoriteArtistNames.slice(0, MAX_CLIP_ARTIST_NAMES_IN);
+
+    if (clipArtistNames.length === 0) {
       c.header('Cache-Control', 'private, no-store');
       return c.json({
         hasFavoriteArtists: false,
@@ -369,15 +434,13 @@ export async function getFavoriteArtistFeed(c: Context) {
       upcomingEvents = (upcoming.results || []) as Record<string, unknown>[];
     }
 
-    const inPlaceholders = favoriteArtistNames.map(() => '?').join(',');
+    const inPlaceholders = clipArtistNames.map(() => '?').join(',');
+    const clipNameLowerBinds = [...new Set(clipArtistNames.map((n) => n.trim().toLowerCase()))];
+    const inLowerPlaceholders = clipNameLowerBinds.map(() => '?').join(',');
     let trimmed: Record<string, unknown>[] = [];
     let hasMoreClips = false;
 
-    if (favoriteArtistNames.length === 0) {
-      trimmed = [];
-      hasMoreClips = false;
-    } else {
-      const clipQuery = `
+    const clipQuery = `
       SELECT
         clips.rowid AS _clipRowId,
         clips.id AS clip_primary_id,
@@ -390,17 +453,19 @@ export async function getFavoriteArtistFeed(c: Context) {
       LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
       WHERE clips.is_hidden = 0
       AND clips.is_draft = 0
-      AND clips.artist_name IN (${inPlaceholders})
+      AND (
+        clips.artist_name IN (${inPlaceholders})
+        OR LOWER(TRIM(clips.artist_name)) IN (${inLowerPlaceholders})
+      )
       ORDER BY clips.created_at DESC
       LIMIT ? OFFSET ?
     `;
 
-      const clipBindings: unknown[] = [...favoriteArtistNames, clipsLimit + 1, clipsOffset];
-      const clipsRes = await c.env.DB.prepare(clipQuery).bind(...clipBindings).all();
-      const rawRows = (clipsRes.results || []) as Record<string, unknown>[];
-      hasMoreClips = rawRows.length > clipsLimit;
-      trimmed = hasMoreClips ? rawRows.slice(0, clipsLimit) : rawRows;
-    }
+    const clipBindings: unknown[] = [...clipArtistNames, ...clipNameLowerBinds, clipsLimit + 1, clipsOffset];
+    const clipsRes = await c.env.DB.prepare(clipQuery).bind(...clipBindings).all();
+    const rawRows = (clipsRes.results || []) as Record<string, unknown>[];
+    hasMoreClips = rawRows.length > clipsLimit;
+    trimmed = hasMoreClips ? rawRows.slice(0, clipsLimit) : rawRows;
 
     c.header('Cache-Control', 'private, no-store, must-revalidate');
     c.header('Pragma', 'no-cache');

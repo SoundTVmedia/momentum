@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Calendar, Loader2, MapPin, Star, Ticket, Video } from 'lucide-react';
+import { Calendar, Loader2, MapPin, Plus, Save, Star, Ticket, Video, X } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import { artistPath, venuePath } from '@/shared/app-paths';
 import ClipModal from '@/react-app/components/ClipModal';
+import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 
 type FavoriteFeedEvent = {
   artist_name?: string | null;
@@ -40,6 +41,10 @@ export default function FavoriteArtistFeedPanel({
   const [hasFavoriteArtists, setHasFavoriteArtists] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  const [showAddArtists, setShowAddArtists] = useState(false);
+  const [draftFavoriteNames, setDraftFavoriteNames] = useState<string[]>([]);
+  const [savingArtists, setSavingArtists] = useState(false);
+  const [saveArtistsError, setSaveArtistsError] = useState<string | null>(null);
 
   const fetchSlice = useCallback(
     async (offset: number, append: boolean) => {
@@ -130,10 +135,34 @@ export default function FavoriteArtistFeedPanel({
     })();
   };
 
+  const saveNewFavoriteArtists = async () => {
+    if (draftFavoriteNames.length === 0) return;
+    setSavingArtists(true);
+    setSaveArtistsError(null);
+    try {
+      const res = await fetch('/api/users/favorite-artists/sync-by-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ names: draftFavoriteNames }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(err.error || 'Could not save artists');
+      }
+      setDraftFavoriteNames([]);
+      setShowAddArtists(false);
+      await fetchSlice(0, false);
+    } catch (e) {
+      setSaveArtistsError(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSavingArtists(false);
+    }
+  };
+
   if (!user || isPending) return null;
   // Discover: avoid showing a loading shell that then vanishes when the user has no favorite artists.
   if (variant === 'discover' && (loading || !hasFavoriteArtists)) return null;
-  if (variant !== 'discover' && !loading && !hasFavoriteArtists) return null;
 
   return (
     <>
@@ -142,10 +171,73 @@ export default function FavoriteArtistFeedPanel({
         id="favorite-artist-clips"
         className="mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg"
       >
-        <div className="flex flex-wrap items-center gap-2 mb-6">
-          <Star className="w-6 h-6 text-purple-400 shrink-0" />
-          <h2 className="text-xl sm:text-2xl font-bold text-white">From artists you follow</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Star className="w-6 h-6 text-purple-400 shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-bold text-white">From artists you follow</h2>
+          </div>
+          {variant === 'feed' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddArtists((v) => !v);
+                setSaveArtistsError(null);
+              }}
+              className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full border border-purple-500/50 bg-purple-500/15 text-purple-200 hover:bg-purple-500/25 hover:border-purple-400/60 transition-colors"
+              title={showAddArtists ? 'Close add artists' : 'Add favorite artists (JamBase)'}
+              aria-expanded={showAddArtists}
+              aria-label={showAddArtists ? 'Close add artists' : 'Add favorite artists'}
+            >
+              {showAddArtists ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+            </button>
+          ) : null}
         </div>
+
+        {variant === 'feed' && showAddArtists ? (
+          <div className="mb-8 rounded-xl border border-purple-500/30 bg-black/50 p-4 sm:p-5">
+            <p className="text-gray-400 text-sm mb-4">
+              Search JamBase or type a name, then save. Artists are added to your favorites and appear in this
+              feed.
+            </p>
+            <FavoriteArtistsJamBaseField
+              favoriteArtists={draftFavoriteNames}
+              setFavoriteArtists={setDraftFavoriteNames}
+              labelExtra={null}
+            />
+            {saveArtistsError ? <p className="text-red-400 text-sm mt-3">{saveArtistsError}</p> : null}
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                disabled={savingArtists || draftFavoriteNames.length === 0}
+                onClick={() => void saveNewFavoriteArtists()}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 momentum-grad-interactive rounded-lg font-semibold text-white text-sm hover:scale-[1.02] transition-transform disabled:opacity-45 disabled:hover:scale-100"
+              >
+                {savingArtists ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save artists
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddArtists(false);
+                  setDraftFavoriteNames([]);
+                  setSaveArtistsError(null);
+                }}
+                className="px-4 py-2 rounded-lg text-sm text-gray-300 border border-white/15 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="flex justify-center py-10">
@@ -233,7 +325,9 @@ export default function FavoriteArtistFeedPanel({
               </h3>
               {clips.length === 0 ? (
                 <p className="text-gray-400 text-sm py-4">
-                  No clips yet from these artists — check back after the next show.
+                  {hasFavoriteArtists
+                    ? 'No clips yet from these artists — check back after the next show.'
+                    : 'Add favorite artists with the + button above to see their clips and tour picks here.'}
                 </p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

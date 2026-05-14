@@ -56,17 +56,17 @@ export default function MainFeedStack({
 
       {user ? <FavoriteArtistFeedPanel variant="feed" /> : null}
 
-      {user && variant === 'home' && (
-        <div className="mt-10 mb-10">
-          <PersonalizedConcerts />
-        </div>
-      )}
-
       <div className="mb-6">
         <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
       </div>
 
       <ConcertFeed feedType={feedType} />
+
+      {user && variant === 'home' && (
+        <div className="mt-10 mb-10">
+          <PersonalizedConcerts />
+        </div>
+      )}
     </div>
   )
 }
