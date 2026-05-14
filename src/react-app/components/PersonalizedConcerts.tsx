@@ -77,7 +77,9 @@ export default function PersonalizedConcerts() {
           <p className="text-gray-300 mb-4">
             {payload?.message === 'No favorite artists set'
               ? 'Add favorite artists in your profile to see JamBase tour dates here.'
-              : "We'll show upcoming JamBase dates for artists you follow — or add favorites in your dashboard."}
+              : typeof payload?.message === 'string' && payload.message.length > 0
+                ? payload.message
+                : "We'll show upcoming JamBase dates for artists you follow — or add favorites in your dashboard."}
           </p>
         </div>
       </div>

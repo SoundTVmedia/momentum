@@ -13,6 +13,7 @@ export default function SavedClips() {
   const [clips, setClips] = useState<ClipWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  const [savedModalFeed, setSavedModalFeed] = useState<ClipWithUser[] | null>(null);
 
   useEffect(() => {
     if (!isPending && !user) {
@@ -83,7 +84,10 @@ export default function SavedClips() {
             {clips.map((clip, index) => (
               <div 
                 key={clipListItemKey(clip, index)}
-                onClick={() => setSelectedClip(clip)}
+                onClick={() => {
+                  setSelectedClip(clip);
+                  setSavedModalFeed(clips.length > 1 ? clips : null);
+                }}
                 className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-4">
@@ -150,9 +154,17 @@ export default function SavedClips() {
       </div>
 
       {selectedClip && (
-        <ClipModal 
-          clip={selectedClip} 
-          onClose={() => setSelectedClip(null)} 
+        <ClipModal
+          clip={selectedClip}
+          onClose={() => {
+            setSelectedClip(null);
+            setSavedModalFeed(null);
+          }}
+          feedNavigation={
+            savedModalFeed && savedModalFeed.length > 1
+              ? { clips: savedModalFeed, onChangeClip: setSelectedClip }
+              : null
+          }
         />
       )}
     </div>

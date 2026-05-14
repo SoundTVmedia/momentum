@@ -48,6 +48,7 @@ export default function UserProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  const [profileModalFeed, setProfileModalFeed] = useState<ClipWithUser[] | null>(null);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showVerificationRequest, setShowVerificationRequest] = useState(false);
 
@@ -366,7 +367,10 @@ export default function UserProfilePage() {
                       {favoriteArtist.clips.slice(0, 3).map((clip, index) => (
                         <div
                           key={clipListItemKey(clip, index)}
-                          onClick={() => setSelectedClip(clip)}
+                          onClick={() => {
+                            setSelectedClip(clip);
+                            setProfileModalFeed(favoriteArtist.clips.length > 1 ? favoriteArtist.clips : null);
+                          }}
                           className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-lg overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
                         >
                           <div
@@ -421,7 +425,10 @@ export default function UserProfilePage() {
             {clips.map((clip, index) => (
               <div
                 key={clipListItemKey(clip, index)}
-                onClick={() => setSelectedClip(clip)}
+                onClick={() => {
+                  setSelectedClip(clip);
+                  setProfileModalFeed(clips.length > 1 ? clips : null);
+                }}
                 className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
               >
                 <div
@@ -470,9 +477,17 @@ export default function UserProfilePage() {
 
       {/* Modals */}
       {selectedClip && (
-        <ClipModal 
-          clip={selectedClip} 
-          onClose={() => setSelectedClip(null)} 
+        <ClipModal
+          clip={selectedClip}
+          onClose={() => {
+            setSelectedClip(null);
+            setProfileModalFeed(null);
+          }}
+          feedNavigation={
+            profileModalFeed && profileModalFeed.length > 1
+              ? { clips: profileModalFeed, onChangeClip: setSelectedClip }
+              : null
+          }
         />
       )}
 

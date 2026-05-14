@@ -306,7 +306,17 @@ export default function FavoriteArtistFeedPanel({
         )}
       </section>
 
-      {selectedClip ? <ClipModal clip={selectedClip} onClose={() => setSelectedClip(null)} /> : null}
+      {selectedClip ? (
+        <ClipModal
+          clip={selectedClip}
+          onClose={() => setSelectedClip(null)}
+          feedNavigation={
+            clips.length > 1
+              ? { clips, onChangeClip: setSelectedClip }
+              : null
+          }
+        />
+      ) : null}
     </>
   );
 }

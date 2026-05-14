@@ -4,6 +4,38 @@ import { jamBaseQuotaFromEnv } from './jambase-client';
 import { fetchJamBaseEventsByArtistName } from './jambase-endpoints';
 import { dedupeJamBaseEvents } from './jambase-events-search';
 
+function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3959;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+/** JamBase / schema.org-style event.place coordinates when present. */
+function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {
+  const loc = ev.location;
+  if (!loc || typeof loc !== 'object') return null;
+  const l = loc as Record<string, unknown>;
+  const pair = (latRaw: unknown, lonRaw: unknown) => {
+    const lat = Number(latRaw);
+    const lon = Number(lonRaw);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+    return null;
+  };
+  const direct = pair(l.latitude, l.longitude);
+  if (direct) return direct;
+  const geo = l.geo;
+  if (geo && typeof geo === 'object') {
+    const g = geo as Record<string, unknown>;
+    return pair(g.latitude, g.longitude) ?? pair(g.lat, g.lng);
+  }
+  return null;
+}
+
 /**
  * Update user personalization settings
  * Stores favorite artists and home location for feed customization
@@ -268,7 +300,60 @@ export async function getPersonalizedConcerts(c: Context) {
         const sb = typeof b.startDate === 'string' ? new Date(b.startDate).getTime() : 0;
         return sa - sb;
       });
-      const slice = merged.slice(0, limit);
+
+      const homeLat = profile.home_latitude != null ? Number(profile.home_latitude) : NaN;
+      const homeLon = profile.home_longitude != null ? Number(profile.home_longitude) : NaN;
+      const radiusMiles = Math.max(1, Number(profile.location_radius_miles) || 50);
+      const hasHome = Number.isFinite(homeLat) && Number.isFinite(homeLon);
+
+      type RadiusMeta =
+        | { applied: false }
+        | {
+            applied: true;
+            radius_miles: number;
+            mode: 'in_radius' | 'no_coordinates_fallback' | 'no_matches_in_radius';
+          };
+
+      let radiusMeta: RadiusMeta = { applied: false };
+      let pool = merged;
+
+      if (hasHome) {
+        const inRadius: Record<string, unknown>[] = [];
+        const noGeo: Record<string, unknown>[] = [];
+        for (const ev of merged) {
+          const c = jamBaseEventCoords(ev);
+          if (!c) {
+            noGeo.push(ev);
+            continue;
+          }
+          const d = haversineMiles(homeLat, homeLon, c.lat, c.lon);
+          if (d <= radiusMiles) inRadius.push(ev);
+        }
+
+        if (inRadius.length > 0) {
+          pool = inRadius;
+          radiusMeta = { applied: true, radius_miles: radiusMiles, mode: 'in_radius' };
+        } else if (noGeo.length > 0) {
+          pool = noGeo;
+          radiusMeta = {
+            applied: true,
+            radius_miles: radiusMiles,
+            mode: 'no_coordinates_fallback',
+          };
+        } else if (merged.length > 0) {
+          pool = [];
+          radiusMeta = {
+            applied: true,
+            radius_miles: radiusMiles,
+            mode: 'no_matches_in_radius',
+          };
+        } else {
+          pool = merged;
+          radiusMeta = { applied: false };
+        }
+      }
+
+      const slice = pool.slice(0, limit);
 
       if (slice.length > 0) {
         return c.json({
@@ -276,6 +361,19 @@ export async function getPersonalizedConcerts(c: Context) {
           concerts: [],
           personalized: true,
           source: 'jambase' as const,
+          radius_meta: radiusMeta,
+        });
+      }
+
+      if (hasHome && radiusMeta.applied && radiusMeta.mode === 'no_matches_in_radius') {
+        return c.json({
+          events: [],
+          concerts: [],
+          personalized: true,
+          source: 'jambase' as const,
+          message:
+            'No upcoming shows from your favorites within your search radius. Try widening it in personalization settings.',
+          radius_meta: radiusMeta,
         });
       }
     }

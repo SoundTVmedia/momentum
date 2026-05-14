@@ -69,6 +69,18 @@ export default function DiscoverPage() {
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  /** When set, ClipModal shows a vertical rail to browse this list (search results or trending clips). */
+  const [discoverModalFeed, setDiscoverModalFeed] = useState<ClipWithUser[] | null>(null);
+
+  const openDiscoverClip = (clip: ClipWithUser, list: ClipWithUser[]) => {
+    setSelectedClip(clip);
+    setDiscoverModalFeed(list.length > 1 ? list : null);
+  };
+
+  const closeDiscoverClipModal = () => {
+    setSelectedClip(null);
+    setDiscoverModalFeed(null);
+  };
   const [showFilters, setShowFilters] = useState(false);
   
   // Filters
@@ -279,7 +291,7 @@ export default function DiscoverPage() {
                   {results.clips.map((clip, index) => (
                     <div
                       key={clipListItemKey(clip, index)}
-                      onClick={() => setSelectedClip(clip)}
+                      onClick={() => openDiscoverClip(clip, results.clips)}
                       className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
                     >
                       <div
@@ -664,7 +676,7 @@ export default function DiscoverPage() {
                       {trendingContent.clips.map((clip, index) => (
                         <div
                           key={clipListItemKey(clip, index)}
-                          onClick={() => setSelectedClip(clip)}
+                          onClick={() => openDiscoverClip(clip, trendingContent.clips)}
                           className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl overflow-hidden hover:border-orange-400/50 transition-all cursor-pointer group"
                         >
                           <div
@@ -753,9 +765,14 @@ export default function DiscoverPage() {
       </div>
 
       {selectedClip && (
-        <ClipModal 
-          clip={selectedClip} 
-          onClose={() => setSelectedClip(null)} 
+        <ClipModal
+          clip={selectedClip}
+          onClose={closeDiscoverClipModal}
+          feedNavigation={
+            discoverModalFeed && discoverModalFeed.length > 1
+              ? { clips: discoverModalFeed, onChangeClip: setSelectedClip }
+              : null
+          }
         />
       )}
     </div>

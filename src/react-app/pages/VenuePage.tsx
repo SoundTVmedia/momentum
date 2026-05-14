@@ -60,6 +60,7 @@ export default function VenuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  const [venueModalFeed, setVenueModalFeed] = useState<ClipWithUser[] | null>(null);
   const [displayedClips, setDisplayedClips] = useState<ClipWithUser[]>([]);
   const [clipsPage, setClipsPage] = useState(1);
   const [recentShow, setRecentShow] = useState<RecentShow | null>(null);
@@ -277,7 +278,10 @@ export default function VenuePage() {
                       <div
                         key={clipListItemKey(clip, index)}
                         className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all group cursor-pointer"
-                        onClick={() => setSelectedClip(clip)}
+                        onClick={() => {
+                          setSelectedClip(clip);
+                          setVenueModalFeed(clips.length > 1 ? clips : null);
+                        }}
                       >
                         <div
                           className="relative aspect-video group/video overflow-hidden bg-black"
@@ -530,9 +534,17 @@ export default function VenuePage() {
 
       {/* Clip Modal */}
       {selectedClip && (
-        <ClipModal 
-          clip={selectedClip} 
-          onClose={() => setSelectedClip(null)} 
+        <ClipModal
+          clip={selectedClip}
+          onClose={() => {
+            setSelectedClip(null);
+            setVenueModalFeed(null);
+          }}
+          feedNavigation={
+            venueModalFeed && venueModalFeed.length > 1
+              ? { clips: venueModalFeed, onChangeClip: setSelectedClip }
+              : null
+          }
         />
       )}
     </div>

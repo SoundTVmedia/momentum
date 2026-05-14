@@ -1,4 +1,4 @@
-import { MapPin, Users, Star, Calendar, Loader2, Navigation } from 'lucide-react'
+import { MapPin, Users, Star, Calendar, Loader2, Navigation, Flame } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { usePrioritizedShows } from '@/react-app/hooks/usePrioritizedShows'
@@ -73,7 +73,7 @@ export default function DiscoverSection() {
     if (show.type === 'live') return 'LIVE NOW'
     if (show.type === 'nearby_upcoming') return 'NEAR YOU'
     if (show.is_favorite) return 'FAVORITE'
-    if (show.type === 'trending') return 'TRENDING'
+    if (show.type === 'trending') return null
     return null
   }
 
@@ -203,13 +203,26 @@ export default function DiscoverSection() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
 
-                    {/* Priority Badge */}
-                    {priorityLabel && (
-                      <div className="absolute top-3 left-3">
-                        <span className={`px-3 py-1 bg-gradient-to-r ${priorityColor} rounded-full text-xs text-white font-bold shadow-lg`}>
-                          {priorityLabel}
+                    {/* Priority badge — trending uses fire icon only */}
+                    {show.type === 'trending' ? (
+                      <div className="absolute top-3 left-3" title="Trending">
+                        <span
+                          className={`flex items-center justify-center w-9 h-9 bg-gradient-to-r ${priorityColor} rounded-full text-white shadow-lg`}
+                          aria-label="Trending"
+                        >
+                          <Flame className="w-5 h-5 shrink-0" strokeWidth={2} />
                         </span>
                       </div>
+                    ) : (
+                      priorityLabel && (
+                        <div className="absolute top-3 left-3">
+                          <span
+                            className={`px-3 py-1 bg-gradient-to-r ${priorityColor} rounded-full text-xs text-white font-bold shadow-lg`}
+                          >
+                            {priorityLabel}
+                          </span>
+                        </div>
+                      )
                     )}
 
                     {/* Live Indicator */}
@@ -274,35 +287,35 @@ export default function DiscoverSection() {
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      {show.type === 'live' && show.venue_name ? (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (show.venue_name) {
-                              navigate(venuePath(show.venue_name));
-                            }
-                          }}
-                          className="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"
-                        >
-                          Join Show Now
-                        </button>
-                      ) : show.ticket_url ? (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(show.ticket_url, '_blank');
-                          }}
-                          className="flex-1 px-4 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
-                        >
-                          Get Tickets
-                        </button>
-                      ) : (
-                        <button className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white font-medium hover:bg-white/20 transition-colors">
-                          View Details
-                        </button>
-                      )}
-                    </div>
+                    {(show.type === 'live' && show.venue_name) || show.ticket_url ? (
+                      <div className="flex items-center justify-between">
+                        {show.type === 'live' && show.venue_name ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (show.venue_name) {
+                                navigate(venuePath(show.venue_name))
+                              }
+                            }}
+                            className="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"
+                          >
+                            Join Show Now
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              window.open(show.ticket_url, '_blank')
+                            }}
+                            className="flex-1 px-4 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
+                          >
+                            Get Tickets
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )

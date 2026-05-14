@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, Share, MapPin, Clock, Bookmark } from 'lucide-react'
+import { Heart, MessageCircle, Share, MapPin, Clock, Bookmark, Flame } from 'lucide-react'
 import { useRef, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useClips } from '@/react-app/hooks/useClips'
@@ -10,20 +10,22 @@ import { ClipGridTileSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
-import { artistPath, venuePath } from '@/shared/app-paths'
 
 interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
   artistName?: string
   venueName?: string
   userId?: string
+  /** When true, omit the large title/subtitle block (e.g. stacked sections on Home). */
+  hideSectionHeader?: boolean
 }
 
 export default function ConcertFeed({ 
   feedType = 'latest', 
   artistName, 
   venueName, 
-  userId 
+  userId,
+  hideSectionHeader = false,
 }: ConcertFeedProps) {
   const navigate = useNavigate()
   const { clips, loading, hasMore, loadMore, error, refetch } = useClips({
@@ -145,40 +147,41 @@ export default function ConcertFeed({
   return (
     <section className="py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-        <div className="text-center mb-4 sm:mb-6 md:mb-8">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
-            {feedType === 'trending' ? (
-              <>
-                What&apos;s{' '}
-                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                  Hot Right Now
-                </span>
-              </>
-            ) : feedType === 'top_rated' ? (
-              <>
-                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                  Top Rated
-                </span>{' '}
-                Moments
-              </>
-            ) : (
-              <>
-                Live From{' '}
-                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                  The Scene
-                </span>
-              </>
-            )}
-          </h2>
-          <p className="text-sm sm:text-base md:text-lg text-gray-400 px-4">
-            {feedType === 'trending' 
-              ? 'Fire moments the community can\'t stop watching'
-              : feedType === 'top_rated'
-              ? 'The highest rated concert moments'
-              : 'Fresh drops from tonight\'s shows'
-            }
-          </p>
-        </div>
+        {!hideSectionHeader && (
+          <div className="text-center mb-4 sm:mb-6 md:mb-8">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
+              {feedType === 'trending' ? (
+                <>
+                  What&apos;s{' '}
+                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                    Hot Right Now
+                  </span>
+                </>
+              ) : feedType === 'top_rated' ? (
+                <>
+                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                    Top Rated
+                  </span>{' '}
+                  Moments
+                </>
+              ) : (
+                <>
+                  Live From{' '}
+                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                    The Scene
+                  </span>
+                </>
+              )}
+            </h2>
+            <p className="text-sm sm:text-base md:text-lg text-gray-400 px-4">
+              {feedType === 'trending'
+                ? "Fire moments the community can't stop watching"
+                : feedType === 'top_rated'
+                  ? 'The highest rated concert moments'
+                  : "Fresh drops from tonight's shows"}
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
           {error && clips.length === 0 ? (
@@ -228,10 +231,18 @@ export default function ConcertFeed({
                   </div>
                 </div>
 
-                {/* Trending badge */}
-                {clip.is_trending_score >= 100 && (
-                  <div className="absolute top-2 right-2 md:top-1.5 md:right-1.5 px-2 py-0.5 md:px-1.5 md:py-0.5 bg-gradient-to-r from-orange-500 to-pink-600 rounded-full text-[10px] md:text-[10px] font-bold text-white shadow-lg animate-slide-up">
-                    🔥 Trending
+                {/* Trending — icon only */}
+                {clip.is_trending_score != null && clip.is_trending_score >= 100 && (
+                  <div
+                    className="absolute top-2 right-2 md:top-1.5 md:right-1.5 z-10"
+                    title="Trending"
+                  >
+                    <div
+                      className="bg-gradient-to-r from-orange-500 to-pink-600 text-white w-8 h-8 md:w-7 md:h-7 rounded-full shadow-lg flex items-center justify-center animate-slide-up"
+                      aria-label="Trending"
+                    >
+                      <Flame className="w-4 h-4 md:w-3.5 md:h-3.5 shrink-0" strokeWidth={2} />
+                    </div>
                   </div>
                 )}
 
@@ -272,11 +283,10 @@ export default function ConcertFeed({
                 <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-3 md:p-1.5 lg:p-3 space-y-1 md:space-y-0.5 lg:space-y-1">
                   {clip.artist_name && (
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (clip.artist_name) {
-                          navigate(artistPath(clip.artist_name))
-                        }
+                        setSelectedClip(clip)
                       }}
                       className="font-headline text-base sm:text-lg md:text-sm lg:text-lg text-white hover:text-purple-400 transition-colors drop-shadow-lg block text-left w-full truncate"
                     >
@@ -285,11 +295,10 @@ export default function ConcertFeed({
                   )}
                   {clip.venue_name && (
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (clip.venue_name) {
-                          navigate(venuePath(clip.venue_name))
-                        }
+                        setSelectedClip(clip)
                       }}
                       className="flex items-center space-x-1 text-xs md:text-[11px] lg:text-xs text-white/90 hover:text-white transition-colors drop-shadow w-full min-w-0"
                     >

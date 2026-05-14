@@ -14,6 +14,7 @@ export default function ShowClipsPage() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'time_posted' | 'clip_rating'>('time_posted');
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  const [showModalFeed, setShowModalFeed] = useState<ClipWithUser[] | null>(null);
 
   useEffect(() => {
     fetchShowClips();
@@ -129,7 +130,10 @@ export default function ShowClipsPage() {
             {clips.map((clip, index) => (
               <div
                 key={clipListItemKey(clip, index)}
-                onClick={() => setSelectedClip(clip)}
+                onClick={() => {
+                  setSelectedClip(clip);
+                  setShowModalFeed(clips.length > 1 ? clips : null);
+                }}
                 className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
               >
                 <div className="relative aspect-video">
@@ -171,7 +175,18 @@ export default function ShowClipsPage() {
       </div>
 
       {selectedClip && (
-        <ClipModal clip={selectedClip} onClose={() => setSelectedClip(null)} />
+        <ClipModal
+          clip={selectedClip}
+          onClose={() => {
+            setSelectedClip(null);
+            setShowModalFeed(null);
+          }}
+          feedNavigation={
+            showModalFeed && showModalFeed.length > 1
+              ? { clips: showModalFeed, onChangeClip: setSelectedClip }
+              : null
+          }
+        />
       )}
     </div>
   );

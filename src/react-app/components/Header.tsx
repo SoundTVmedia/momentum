@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react'
 import { useNavigate } from 'react-router'
 import { useNotifications } from '@/react-app/hooks/useNotifications'
 import NotificationPanel from './NotificationPanel'
+import ClipModal from './ClipModal'
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
 import { artistPath, venuePath } from '@/shared/app-paths'
@@ -50,6 +51,10 @@ export default function Header() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [advancedResults, setAdvancedResults] = useState<HeaderSearchPayload | null>(null)
+  const [headerClipModal, setHeaderClipModal] = useState<{
+    clip: ClipWithUser
+    feed: ClipWithUser[]
+  } | null>(null)
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
   const searchDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -167,6 +172,7 @@ export default function Header() {
           advancedResults.jambase.events.length > 0)))
 
   return (
+    <>
     <header className="bg-black/95 backdrop-blur-strong border-b border-white/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
@@ -184,7 +190,7 @@ export default function Header() {
           <nav className="hidden md:flex items-center space-x-8">
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/feed')}
               className="flex items-center space-x-2 text-white hover:text-blue-400 transition-colors font-medium"
             >
               {/*<Play className="w-4 h-4" aria-hidden />*/}
@@ -259,10 +265,12 @@ export default function Header() {
                               key={clipListItemKey(clip, index)}
                               type="button"
                               onClick={() => {
+                                const feed = advancedResults.clips.slice()
+                                setHeaderClipModal({
+                                  clip,
+                                  feed: feed.length > 1 ? feed : [clip],
+                                })
                                 closeSearchUi()
-                                if (clip.artist_name) navigate(artistPath(clip.artist_name))
-                                else if (clip.venue_name) navigate(venuePath(clip.venue_name))
-                                else navigate('/')
                               }}
                               className="w-full p-3 hover:bg-white/5 transition-colors text-left flex gap-3"
                             >
@@ -480,5 +488,21 @@ export default function Header() {
         </div>
       </div>
     </header>
+    {headerClipModal ? (
+      <ClipModal
+        clip={headerClipModal.clip}
+        onClose={() => setHeaderClipModal(null)}
+        feedNavigation={
+          headerClipModal.feed.length > 1
+            ? {
+                clips: headerClipModal.feed,
+                onChangeClip: (c) =>
+                  setHeaderClipModal((m) => (m ? { ...m, clip: c } : null)),
+              }
+            : null
+        }
+      />
+    ) : null}
+    </>
   )
 }
