@@ -5,6 +5,7 @@ import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ShowArchive from '@/react-app/components/ShowArchive';
 import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
@@ -375,10 +376,14 @@ export default function VenuePage() {
 
                           {/* User info overlay */}
                           <div className="absolute top-2 left-2 z-[2] flex items-center space-x-2 pointer-events-none">
-                            <img 
-                              src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+                            <UserAvatar
+                              imageUrl={clip.user_avatar}
+                              displayName={clip.user_display_name}
+                              seed={clip.mocha_user_id}
                               alt={clip.user_display_name || 'User'}
-                              className="w-8 h-8 rounded-full border-2 border-white/30"
+                              sizeClass="w-8 h-8"
+                              letterClassName="text-xs font-semibold"
+                              className="border-2 border-white/30"
                             />
                           </div>
 

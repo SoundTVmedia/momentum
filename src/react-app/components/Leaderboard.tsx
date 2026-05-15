@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Trophy, Medal, Award } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import UserAvatar from './UserAvatar';
 
 interface LeaderboardEntry {
   mocha_user_id: string;
@@ -111,10 +112,13 @@ export default function Leaderboard() {
                 {getRankIcon(index + 1)}
               </div>
 
-              <img
-                src={entry.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+              <UserAvatar
+                imageUrl={entry.profile_image_url}
+                displayName={entry.display_name}
+                seed={entry.mocha_user_id}
                 alt={entry.display_name || 'User'}
-                className="w-10 h-10 rounded-full object-cover"
+                sizeClass="w-10 h-10"
+                letterClassName="text-sm font-semibold"
               />
 
               <div className="flex-1 min-w-0">

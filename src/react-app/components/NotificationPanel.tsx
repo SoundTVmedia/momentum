@@ -2,6 +2,7 @@ import { Bell, Heart, MessageCircle, UserPlus, X, Check, Star, Award, Video, Rad
 import { useState } from 'react';
 import { useNotifications } from '@/react-app/hooks/useNotifications';
 import { useNavigate } from 'react-router';
+import UserAvatar from '@/react-app/components/UserAvatar';
 
 interface NotificationPanelProps {
   onClose: () => void;
@@ -159,10 +160,14 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                   <div className="flex items-start space-x-3">
                     {/* Avatar with icon overlay */}
                     <div className="relative flex-shrink-0">
-                      <img
-                        src={notification.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+                      <UserAvatar
+                        imageUrl={notification.user_avatar}
+                        displayName={notification.user_display_name}
+                        seed={notification.related_user_id ?? notification.mocha_user_id}
                         alt={notification.user_display_name || 'User'}
-                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/10 group-hover:border-momentum-teal/40 transition-colors"
+                        sizeClass="w-10 h-10 sm:w-12 sm:h-12"
+                        letterClassName="text-sm sm:text-base font-semibold"
+                        className="border-2 border-white/10 group-hover:border-momentum-teal/40 transition-colors"
                       />
                       <div className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 ${iconData.color} rounded-full flex items-center justify-center ring-2 ${iconData.ringColor} ring-offset-1 ring-offset-black`}>
                         {iconData.icon}

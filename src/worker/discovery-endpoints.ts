@@ -51,11 +51,13 @@ export async function advancedSearch(c: Context) {
       clips.artist_name LIKE ? OR
       clips.venue_name LIKE ? OR
       clips.location LIKE ? OR
-      clips.content_description LIKE ?
+      clips.content_description LIKE ? OR
+      clips.hashtags LIKE ?
     )
   `;
 
-  const bindings: any[] = [daysBack, `%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`];
+  const q = `%${query}%`;
+  const bindings: any[] = [daysBack, q, q, q, q, q];
 
   if (location) {
     clipsQuery += ` AND clips.location LIKE ?`;

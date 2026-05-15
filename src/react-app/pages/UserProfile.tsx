@@ -6,6 +6,7 @@ import Header from '@/react-app/components/Header';
 import OwnProfileHub from '@/react-app/components/OwnProfileHub';
 import ClipModal from '@/react-app/components/ClipModal';
 import ProfileEditor from '@/react-app/components/ProfileEditor';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import VerificationRequest from '@/react-app/components/VerificationRequest';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
@@ -161,10 +162,14 @@ export default function UserProfilePage() {
           <div className="relative pb-6 sm:pb-8">
             {/* Profile Image */}
             <div className={`flex flex-col md:flex-row items-center md:items-end space-y-3 sm:space-y-4 md:space-y-0 md:space-x-6 ${profile.cover_image_url ? '-mt-12 sm:-mt-16' : 'pt-6 sm:pt-8'}`}>
-              <img
-                src={profile.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=200&h=200&fit=crop&crop=face'}
+              <UserAvatar
+                imageUrl={profile.profile_image_url}
+                displayName={profile.display_name}
+                seed={profile.mocha_user_id}
                 alt={profile.display_name || 'User'}
-                className="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full border-4 border-black object-cover shadow-xl"
+                sizeClass="w-24 h-24 sm:w-32 sm:h-32 md:w-40 md:h-40"
+                letterClassName="text-3xl sm:text-4xl md:text-5xl font-semibold"
+                className="border-4 border-black shadow-xl"
               />
               
               <div className="flex-1 text-center md:text-left pb-2">

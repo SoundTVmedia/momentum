@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { X, Upload, Loader2, Camera, Image as ImageIcon, Check, AlertCircle } from 'lucide-react';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import type { UserProfile } from '@/shared/types';
 
 interface ProfileEditorProps {
@@ -164,11 +165,14 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
           <div>
             <label className="block text-white font-medium mb-2">Profile Image</label>
             <div className="flex items-center space-x-4">
-              <div className="relative">
-                <img
-                  src={formData.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=200&h=200&fit=crop&crop=face'}
-                  alt="Profile"
-                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-momentum-teal/40"
+              <div className="relative inline-flex">
+                <UserAvatar
+                  imageUrl={formData.profile_image_url || null}
+                  displayName={formData.display_name}
+                  seed={profile.mocha_user_id}
+                  sizeClass="w-20 h-20 sm:w-24 sm:h-24"
+                  letterClassName="text-2xl sm:text-3xl font-semibold"
+                  className="border-4 border-momentum-teal/40"
                 />
                 <button
                   type="button"

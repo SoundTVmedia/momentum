@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
-import { MapPin, Loader2, Heart, Save, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { MapPin, Loader2, Heart, Save, X, Camera } from 'lucide-react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
+import UserAvatar from '@/react-app/components/UserAvatar';
+import { userProfileToSavePayload } from '@/react-app/utils/userProfileSavePayload';
+import type { UserProfile } from '@/shared/types';
 
 interface PersonalizationSettingsProps {
   onClose?: () => void;
@@ -9,7 +12,12 @@ interface PersonalizationSettingsProps {
 
 export default function PersonalizationSettings({ onClose }: PersonalizationSettingsProps) {
   const { getCurrentPosition } = useGeolocation();
-  
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const [profileSnapshot, setProfileSnapshot] = useState<UserProfile | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
   const [favoriteArtists, setFavoriteArtists] = useState<string[]>([]);
   const [homeLocation, setHomeLocation] = useState('');
   const [homeLatitude, setHomeLatitude] = useState<number | null>(null);
@@ -26,6 +34,7 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
         const data = await response.json();
         
         if (data.profile) {
+          setProfileSnapshot(data.profile as UserProfile);
           setFavoriteArtists(data.profile.favorite_artists ? JSON.parse(data.profile.favorite_artists) : []);
           setHomeLocation(data.profile.home_location || '');
           setHomeLatitude(data.profile.home_latitude);
@@ -41,6 +50,53 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
 
     fetchCurrentSettings();
   }, []);
+
+  const handleAvatarFile = async (file: File) => {
+    if (!profileSnapshot) return;
+    setAvatarError(null);
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Photo must be under 5MB.');
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('type', 'thumbnail');
+
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: fd,
+      });
+      if (!uploadRes.ok) {
+        throw new Error('Upload failed');
+      }
+      const { url } = (await uploadRes.json()) as { url?: string };
+      if (typeof url !== 'string' || !url.trim()) {
+        throw new Error('Invalid upload response');
+      }
+
+      const payload = userProfileToSavePayload(profileSnapshot, { profile_image_url: url.trim() });
+      const saveRes = await fetch('/api/users/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      if (!saveRes.ok) {
+        throw new Error('Could not save profile photo');
+      }
+      const updated = (await saveRes.json()) as UserProfile;
+      setProfileSnapshot(updated);
+    } catch (e) {
+      console.error(e);
+      setAvatarError('Could not update profile photo. Try again.');
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
 
   const handleGetCurrentLocation = async () => {
     setLoadingLocation(true);
@@ -133,6 +189,53 @@ export default function PersonalizationSettings({ onClose }: PersonalizationSett
           </button>
         )}
       </div>
+
+      {/* Profile photo */}
+      {profileSnapshot && (
+        <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4 sm:p-5 space-y-3">
+          <h3 className="text-lg font-semibold text-white">Profile photo</h3>
+          <p className="text-sm text-gray-400">
+            Used across Momentum. Without a photo we show your initial on a colored circle.
+          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <UserAvatar
+              imageUrl={profileSnapshot.profile_image_url}
+              displayName={profileSnapshot.display_name}
+              seed={profileSnapshot.mocha_user_id}
+              sizeClass="w-16 h-16 sm:w-20 sm:h-20"
+              letterClassName="text-xl sm:text-2xl font-semibold"
+              className="ring-2 ring-white/10"
+            />
+            <div className="flex flex-col gap-2">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleAvatarFile(f);
+                }}
+              />
+              <button
+                type="button"
+                disabled={avatarUploading}
+                onClick={() => avatarInputRef.current?.click()}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-medium hover:bg-white/15 transition-colors disabled:opacity-50"
+              >
+                {avatarUploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                ) : (
+                  <Camera className="w-4 h-4 shrink-0" />
+                )}
+                {avatarUploading ? 'Uploading…' : 'Upload photo'}
+              </button>
+              <p className="text-xs text-gray-500">Optional — JPG or PNG, max 5MB.</p>
+            </div>
+          </div>
+          {avatarError && <p className="text-sm text-red-400">{avatarError}</p>}
+        </div>
+      )}
 
       {/* Favorite Artists */}
       <FavoriteArtistsJamBaseField

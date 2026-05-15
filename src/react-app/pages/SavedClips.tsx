@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import { Bookmark, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
@@ -92,10 +93,14 @@ export default function SavedClips() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
-                    <img 
-                      src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+                    <UserAvatar
+                      imageUrl={clip.user_avatar}
+                      displayName={clip.user_display_name}
+                      seed={clip.mocha_user_id}
                       alt={clip.user_display_name || 'User'}
-                      className="w-10 h-10 rounded-full border-2 border-yellow-500/40"
+                      sizeClass="w-10 h-10"
+                      letterClassName="text-sm font-semibold"
+                      className="border-2 border-yellow-500/40"
                     />
                     <div>
                       <div className="font-medium text-white">{clip.user_display_name || 'Anonymous'}</div>

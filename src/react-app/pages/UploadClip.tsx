@@ -1,7 +1,21 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Upload, MapPin, Music, Calendar, Hash, Loader2, X, Film, Image as ImageIcon, Search, Edit2, Check } from 'lucide-react';
+import {
+  Upload,
+  MapPin,
+  Music,
+  Calendar,
+  Hash,
+  Loader2,
+  X,
+  Film,
+  Image as ImageIcon,
+  Search,
+  Edit2,
+  Check,
+  Disc3,
+} from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
@@ -22,7 +36,7 @@ import {
 } from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
-/** Stable single token from artist display name for `clips.hashtags` (no `#` prefix). */
+/** Stable single token from a display string for `clips.hashtags` (no `#` prefix). */
 function artistNameToHashtagToken(artist: string): string {
   return artist
     .trim()
@@ -31,8 +45,12 @@ function artistNameToHashtagToken(artist: string): string {
     .trim();
 }
 
-/** Parse `#` tags from the form and ensure the artist is included once (case-insensitive dedupe). */
-function buildHashtagsArrayForPost(hashtagInput: string, artistName: string): string[] {
+/** Parse `#` tags from the form and ensure artist / song tokens are included once (case-insensitive dedupe). */
+function buildHashtagsArrayForPost(
+  hashtagInput: string,
+  artistName: string,
+  songTitle: string,
+): string[] {
   const fromInput = hashtagInput
     .split(/\s+/)
     .filter((tag) => tag.startsWith('#'))
@@ -45,6 +63,13 @@ function buildHashtagsArrayForPost(hashtagInput: string, artistName: string): st
   const artistToken = artistNameToHashtagToken(artistName);
   if (artistToken.length > 0 && !seen.has(artistToken.toLowerCase())) {
     out.push(artistToken);
+    seen.add(artistToken.toLowerCase());
+  }
+
+  const songToken = artistNameToHashtagToken(songTitle);
+  if (songToken.length > 0 && !seen.has(songToken.toLowerCase())) {
+    out.push(songToken);
+    seen.add(songToken.toLowerCase());
   }
 
   return out;
@@ -158,6 +183,7 @@ export default function UploadClip() {
     venue_name: '',
     location: '',
     content_description: '',
+    song_title: '',
     hashtags: '',
   });
 
@@ -342,6 +368,7 @@ export default function UploadClip() {
           setFormData((prev) => ({
             ...prev,
             artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
+            song_title: prev.song_title?.trim() ? prev.song_title : title || prev.song_title,
             content_description: title
               ? mergeSongTitleIntoCaption(prev.content_description, title)
               : prev.content_description,
@@ -658,9 +685,11 @@ export default function UploadClip() {
       }
 
       const { artist, title, message } = result;
+      const titleTrim = typeof title === 'string' ? title.trim() : '';
       setFormData((prev) => ({
         ...prev,
         artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
+        song_title: prev.song_title?.trim() ? prev.song_title : titleTrim || prev.song_title,
         content_description: mergeSongTitleIntoCaption(prev.content_description, title),
       }));
       if (artist) {
@@ -872,7 +901,11 @@ export default function UploadClip() {
         setUploadProgress(prev => ({ ...prev, thumbnail: 100 }));
       }
 
-      const hashtagsArray = buildHashtagsArrayForPost(formData.hashtags, formData.artist_name);
+      const hashtagsArray = buildHashtagsArrayForPost(
+        formData.hashtags,
+        formData.artist_name,
+        formData.song_title,
+      );
 
       // Prepare clip data based on upload type (Stream or R2)
       const clipData: any = {
@@ -1237,7 +1270,8 @@ export default function UploadClip() {
                     {auddMessage?.trim() || 'Song and artist prefilled below.'}
                   </p>
                   <p className="text-gray-400 text-xs mt-1">
-                    Artist and song are prefilled below — pick a JamBase artist if you want a verified link.
+                    Artist and song title are prefilled below — pick a JamBase artist if you want a verified link. Song
+                    title is added as a tag for search.
                   </p>
                 </div>
               )}
@@ -1252,6 +1286,9 @@ export default function UploadClip() {
               {auddStatus === 'nomatch' && (
                 <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
                   <p className="text-gray-400 text-sm">No commercial match for this audio (AudD).</p>
+                  <p className="text-gray-500 text-xs mt-2">
+                    Optional: add the song title below — we&apos;ll tag it for search. Not required to post.
+                  </p>
                 </div>
               )}
               {auddStatus === 'error' && auddMessage && (
@@ -1293,6 +1330,23 @@ export default function UploadClip() {
                   placeholder="What was this moment?"
                 />
                 <p className="text-gray-400 text-xs mt-2">Caption is optional</p>
+              </div>
+
+              {/* Song title — optional; prefilled when AudD matches; adds a searchable tag */}
+              <div>
+                <label className="block text-gray-300 font-normal mb-2">
+                  Song title <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.song_title}
+                  onChange={(e) => handleInputChange('song_title', e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
+                  placeholder="What song was playing?"
+                />
+                <p className="text-gray-400 text-xs mt-2">
+                  Adds a tag for search (along with artist and venue). Leave blank if you prefer.
+                </p>
               </div>
 
               {/* Auto-Populated Tags */}
@@ -1427,6 +1481,10 @@ export default function UploadClip() {
                     <div className="flex items-center space-x-2 text-gray-300">
                       <Music className="w-4 h-4 text-purple-400" />
                       <span className="text-sm">{formData.artist_name || 'Artist not set'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-gray-300">
+                      <Disc3 className="w-4 h-4 text-fuchsia-400 shrink-0" />
+                      <span className="text-sm">{formData.song_title?.trim() ? formData.song_title : 'Song not set'}</span>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-300">
                       <MapPin className="w-4 h-4 text-green-400" />
@@ -1754,6 +1812,23 @@ export default function UploadClip() {
               </div>
             )}
             <p className="text-gray-400 text-sm mt-2">Who rocked the stage?</p>
+          </div>
+
+          {/* Song title (optional) — adds hashtag token for search when AudD or user fills it */}
+          <div>
+            <label className="flex items-center space-x-2 text-white font-medium mb-2">
+              <Disc3 className="w-5 h-5 text-fuchsia-400" />
+              <span>
+                Song title <span className="text-gray-400 font-normal text-sm">(optional)</span>
+              </span>
+            </label>
+            <input
+              type="text"
+              value={formData.song_title}
+              onChange={(e) => handleInputChange('song_title', e.target.value)}
+              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+              placeholder="Adds a searchable tag (e.g. after AudD or if you know the tune)"
+            />
           </div>
 
           {/* Venue and Location */}

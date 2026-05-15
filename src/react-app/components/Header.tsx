@@ -1,10 +1,11 @@
-import { Search, LogOut, User, Bell, Shield, Music, MapPin, Ticket, Loader2 } from 'lucide-react'
+import { Search, LogOut, Bell, Shield, Music, MapPin, Ticket, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
 import { useNavigate } from 'react-router'
 import { useNotifications } from '@/react-app/hooks/useNotifications'
 import NotificationPanel from './NotificationPanel'
 import ClipModal from './ClipModal'
+import UserAvatar from './UserAvatar'
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
 import { artistPath, venuePath } from '@/shared/app-paths'
@@ -45,6 +46,7 @@ export default function Header() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
+  const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null
   const { unreadCount } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
@@ -462,10 +464,25 @@ export default function Header() {
                 )}
                 <button
                   onClick={() => navigate(user ? `/users/${user.id}` : '/auth')}
-                  className="hidden md:inline-flex p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors"
-                  title="Dashboard"
+                  className="inline-flex items-center justify-center p-0.5 sm:p-1 rounded-full text-gray-400 hover:text-white transition-colors ring-2 ring-transparent hover:ring-white/20 tap-feedback"
+                  title="Your profile"
+                  type="button"
                 >
-                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <UserAvatar
+                    imageUrl={
+                      extendedUser?.profile?.profile_image_url ??
+                      oauthUser?.google_user_data?.picture ??
+                      null
+                    }
+                    displayName={
+                      extendedUser?.profile?.display_name ??
+                      oauthUser?.google_user_data?.name ??
+                      null
+                    }
+                    seed={user?.id}
+                    sizeClass="w-8 h-8 sm:w-9 sm:h-9"
+                    letterClassName="text-xs sm:text-sm font-semibold"
+                  />
                 </button>
                 <button
                   onClick={logout}

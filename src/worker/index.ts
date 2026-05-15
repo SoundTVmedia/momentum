@@ -1473,6 +1473,7 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
       CASE 
         WHEN clips.artist_name LIKE ? THEN 3
         WHEN clips.venue_name LIKE ? THEN 2
+        WHEN clips.hashtags LIKE ? THEN 2
         ELSE 1
       END as relevance
     FROM clips
@@ -1481,11 +1482,12 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
     AND (clips.artist_name LIKE ? 
        OR clips.venue_name LIKE ?
        OR clips.location LIKE ?
-       OR clips.content_description LIKE ?)
+       OR clips.content_description LIKE ?
+       OR clips.hashtags LIKE ?)
     ORDER BY relevance DESC, clips.created_at DESC
     LIMIT ?`
   )
-    .bind(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, limit)
+    .bind(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, limit)
     .all();
 
   cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300, staleWhileRevalidate: 600 });

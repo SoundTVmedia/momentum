@@ -6,6 +6,7 @@ import { useClipLike } from '@/react-app/hooks/useClipLike'
 import { useClipSave } from '@/react-app/hooks/useClipSave'
 import ClipModal from './ClipModal'
 import ClipFeedPreviewMedia from './ClipFeedPreviewMedia'
+import UserAvatar from './UserAvatar'
 import { ClipGridTileSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
@@ -264,10 +265,14 @@ export default function ConcertFeed({
                     }}
                     className="flex items-center space-x-1.5 sm:space-x-2 hover:opacity-80 transition-opacity"
                   >
-                    <img 
-                      src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+                    <UserAvatar
+                      imageUrl={clip.user_avatar}
+                      displayName={clip.user_display_name}
+                      seed={clip.mocha_user_id}
                       alt={clip.user_display_name || 'User'}
-                      className="w-8 h-8 sm:w-9 sm:h-9 md:w-6 md:h-6 lg:w-8 lg:h-8 rounded-full border-2 border-white/30 shadow-lg flex-shrink-0"
+                      sizeClass="w-8 h-8 sm:w-9 sm:h-9 md:w-6 md:h-6 lg:w-8 lg:h-8"
+                      letterClassName="text-[10px] sm:text-xs font-semibold"
+                      className="border-2 border-white/30 shadow-lg"
                     />
                     <div className="min-w-0">
                       <div className="font-bold text-white text-xs sm:text-sm md:text-[11px] lg:text-xs drop-shadow-lg truncate">{clip.user_display_name || 'Anonymous'}</div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Shield, Ban, UserX, AlertCircle, Loader2, Clock } from 'lucide-react';
+import UserAvatar from '@/react-app/components/UserAvatar';
 
 interface LiveSession {
   id: number;
@@ -195,10 +196,13 @@ export default function ChatModerationPanel() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <img
-                        src={ban.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=48&h=48&fit=crop&crop=face'}
+                      <UserAvatar
+                        imageUrl={ban.user_avatar}
+                        displayName={ban.user_display_name}
+                        seed={ban.mocha_user_id}
                         alt={ban.user_display_name || 'User'}
-                        className="w-12 h-12 rounded-full"
+                        sizeClass="w-12 h-12"
+                        letterClassName="text-lg font-semibold"
                       />
                       <div>
                         <div className="text-white font-semibold">

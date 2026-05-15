@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Shield, Flag, Trash2, Eye, EyeOff, CheckCircle, AlertTriangle, Loader2, Search } from 'lucide-react';
+import UserAvatar from '@/react-app/components/UserAvatar';
 
 interface FlaggedClip {
   id: number;
@@ -355,10 +356,13 @@ export default function ContentModerationPanel() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <img
-                      src={user.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=60&h=60&fit=crop&crop=face'}
+                    <UserAvatar
+                      imageUrl={user.profile_image_url}
+                      displayName={user.display_name}
+                      seed={user.mocha_user_id}
                       alt={user.display_name || 'User'}
-                      className="w-16 h-16 rounded-full object-cover"
+                      sizeClass="w-16 h-16"
+                      letterClassName="text-xl font-semibold"
                     />
                     <div>
                       <div className="text-white font-semibold mb-1">

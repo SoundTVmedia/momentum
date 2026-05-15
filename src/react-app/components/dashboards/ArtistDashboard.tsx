@@ -2,6 +2,7 @@ import { Music, Video, Users, TrendingUp, Calendar, MessageCircle, Heart, Eye, S
 import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import ArtistCurationPanel from '@/react-app/components/ArtistCurationPanel';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 interface ArtistDashboardProps {
@@ -214,10 +215,11 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
           <div className="space-y-4">
             <div className="p-4 bg-white/5 rounded-lg border border-white/10">
               <div className="flex items-center space-x-4">
-                <img
-                  src="https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face"
-                  alt="Fan"
-                  className="w-10 h-10 rounded-full"
+                <UserAvatar
+                  displayName="Sarah M."
+                  seed="artist-dash-demo-sarah"
+                  sizeClass="w-10 h-10"
+                  letterClassName="text-sm font-semibold"
                 />
                 <div className="flex-1">
                   <div className="text-white font-medium">Sarah M. started following you</div>
@@ -231,10 +233,11 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
 
             <div className="p-4 bg-white/5 rounded-lg border border-white/10">
               <div className="flex items-center space-x-4">
-                <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face"
-                  alt="Fan"
-                  className="w-10 h-10 rounded-full"
+                <UserAvatar
+                  displayName="Mike R."
+                  seed="artist-dash-demo-mike"
+                  sizeClass="w-10 h-10"
+                  letterClassName="text-sm font-semibold"
                 />
                 <div className="flex-1">
                   <div className="text-white font-medium">Mike R. commented on your show</div>
@@ -248,10 +251,11 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
 
             <div className="p-4 bg-white/5 rounded-lg border border-white/10">
               <div className="flex items-center space-x-4">
-                <img
-                  src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop&crop=face"
-                  alt="Fan"
-                  className="w-10 h-10 rounded-full"
+                <UserAvatar
+                  displayName="Emma L."
+                  seed="artist-dash-demo-emma"
+                  sizeClass="w-10 h-10"
+                  letterClassName="text-sm font-semibold"
                 />
                 <div className="flex-1">
                   <div className="text-white font-medium">Emma L. shared your concert clip</div>

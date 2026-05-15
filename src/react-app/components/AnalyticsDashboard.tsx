@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Users, Video, Heart, Eye, BarChart3, Activity, Calendar } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 
 interface PlatformStats {
@@ -315,10 +316,13 @@ export default function AnalyticsDashboard() {
                 <div className="flex-shrink-0 w-8 h-8 bg-cyan-500/20 rounded-full flex items-center justify-center">
                   <span className="text-cyan-400 font-bold text-sm">#{index + 1}</span>
                 </div>
-                <img
-                  src={user.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+                <UserAvatar
+                  imageUrl={user.profile_image_url}
+                  displayName={user.display_name}
+                  seed={user.mocha_user_id}
                   alt={user.display_name || 'User'}
-                  className="w-10 h-10 rounded-full"
+                  sizeClass="w-10 h-10"
+                  letterClassName="text-sm font-semibold"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-white font-medium truncate">

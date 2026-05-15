@@ -25,6 +25,7 @@ import CommentSection from './CommentSection';
 import StreamVideoPlayer from './StreamVideoPlayer';
 import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import StarRating from './StarRating';
+import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, venuePath } from '@/shared/app-paths';
 
@@ -227,10 +228,14 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
             <div className="p-3 sm:p-4 border-b border-white/10 flex-shrink-0">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-                  <img
-                    src={clip.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+                  <UserAvatar
+                    imageUrl={clip.user_avatar}
+                    displayName={clip.user_display_name}
+                    seed={clip.mocha_user_id}
                     alt={clip.user_display_name || 'User'}
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-momentum-teal/40 flex-shrink-0"
+                    sizeClass="w-8 h-8 sm:w-10 sm:h-10"
+                    letterClassName="text-xs sm:text-sm font-semibold"
+                    className="border-2 border-momentum-teal/40 flex-shrink-0"
                   />
                   <div className="min-w-0">
                     <div className="font-medium text-white text-sm sm:text-base truncate">

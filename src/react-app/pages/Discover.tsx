@@ -9,6 +9,7 @@ import DiscoverFavoriteArtistsPrompt from '@/react-app/components/DiscoverFavori
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
@@ -555,11 +556,16 @@ export default function DiscoverPage() {
                       onClick={() => navigate(`/users/${user.mocha_user_id}`)}
                       className="bg-black/40 backdrop-blur-lg border border-green-500/20 rounded-xl p-4 hover:border-green-400/50 transition-all text-center"
                     >
-                      <img
-                        src={user.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=100&h=100&fit=crop&crop=face'}
-                        alt={user.display_name || 'User'}
-                        className="w-20 h-20 rounded-full mx-auto mb-3 object-cover"
-                      />
+                      <div className="flex justify-center mb-3">
+                        <UserAvatar
+                          imageUrl={user.profile_image_url}
+                          displayName={user.display_name}
+                          seed={user.mocha_user_id}
+                          alt={user.display_name || 'User'}
+                          sizeClass="w-20 h-20"
+                          letterClassName="text-2xl font-semibold"
+                        />
+                      </div>
                       <div className="text-white font-medium text-sm truncate">
                         {user.display_name || 'Anonymous'}
                       </div>

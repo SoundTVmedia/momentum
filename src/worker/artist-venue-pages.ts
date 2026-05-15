@@ -469,6 +469,20 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     }
   }
 
+  /** Match clips by venue display name *or* JamBase venue id (clips often carry `jambase_venue_id`). */
+  const jambaseVenueIdsForClipMatch = new Set<string>();
+  const collectJbVenueId = (v: unknown) => {
+    if (typeof v === 'string' && v.trim()) jambaseVenueIdsForClipMatch.add(v.trim());
+  };
+  collectJbVenueId(venue?.jambase_id);
+  collectJbVenueId(jambaseVenue?.identifier);
+  const jbIdsForClips = [...jambaseVenueIdsForClipMatch];
+
+  const clipsJamBasePredicate =
+    jbIdsForClips.length > 0
+      ? ` OR TRIM(IFNULL(clips.jambase_venue_id, '')) IN (${jbIdsForClips.map(() => '?').join(', ')})`
+      : '';
+
   const clipsRes = await db
     .prepare(
       `SELECT 
@@ -482,11 +496,12 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
       AND (
         LOWER(REPLACE(TRIM(IFNULL(clips.venue_name, '')), ' ', '-')) = ?
         OR clips.venue_name = ?
+        ${clipsJamBasePredicate}
       )
       ORDER BY clips.created_at DESC
       LIMIT 50`
     )
-    .bind(slug, canonicalName)
+    .bind(slug, canonicalName, ...jbIdsForClips)
     .all();
 
   let upcomingEvents: Record<string, unknown>[] = [];

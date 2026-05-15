@@ -3,6 +3,8 @@ import { useAuth } from '@getmocha/users-service/react';
 import { MessageCircle, Send, Loader2 } from 'lucide-react';
 import { useComments } from '@/react-app/hooks/useComments';
 import { CommentSkeleton } from './LoadingSkeleton';
+import UserAvatar from './UserAvatar';
+import type { ExtendedMochaUser } from '@/shared/types';
 
 interface CommentSectionProps {
   clipId: number;
@@ -10,6 +12,8 @@ interface CommentSectionProps {
 
 export default function CommentSection({ clipId }: CommentSectionProps) {
   const { user } = useAuth();
+  const extendedUser = user as ExtendedMochaUser | null;
+  const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
   const { comments, loading, postComment } = useComments(clipId);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -72,10 +76,18 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
             </div>
           )}
           <div className="flex space-x-2">
-            <img
-              src={user.google_user_data.picture || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+            <UserAvatar
+              imageUrl={
+                extendedUser?.profile?.profile_image_url ?? oauthUser?.google_user_data?.picture ?? null
+              }
+              displayName={
+                extendedUser?.profile?.display_name ?? oauthUser?.google_user_data?.name ?? null
+              }
+              seed={user?.id}
               alt="Your avatar"
-              className="w-10 h-10 rounded-full border-2 border-momentum-teal/40"
+              sizeClass="w-10 h-10"
+              letterClassName="text-sm font-semibold"
+              className="border-2 border-momentum-teal/40"
             />
             <div className="flex-1 flex space-x-2">
               <input
@@ -126,10 +138,14 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
               className="flex space-x-3 animate-slide-up"
               style={{ animationDelay: `${index * 0.05}s` }}
             >
-              <img
-                src={comment.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=40&h=40&fit=crop&crop=face'}
+              <UserAvatar
+                imageUrl={comment.user_avatar}
+                displayName={comment.user_display_name}
+                seed={comment.mocha_user_id}
                 alt={comment.user_display_name || 'User'}
-                className="w-10 h-10 rounded-full border-2 border-momentum-teal/40"
+                sizeClass="w-10 h-10"
+                letterClassName="text-sm font-semibold"
+                className="border-2 border-momentum-teal/40"
               />
               <div className="flex-1">
                 <div className="bg-white/5 rounded-lg p-3 border border-white/10">

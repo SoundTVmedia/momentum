@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Shield, Check, X, Eye, Loader2, ExternalLink } from 'lucide-react';
+import UserAvatar from '@/react-app/components/UserAvatar';
 
 interface VerificationRequest {
   id: number;
@@ -123,10 +124,14 @@ export default function VerificationAdminPanel() {
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-4 flex-1">
-                  <img
-                    src={request.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=60&h=60&fit=crop&crop=face'}
+                  <UserAvatar
+                    imageUrl={request.profile_image_url || null}
+                    displayName={request.full_name || request.display_name}
+                    seed={request.mocha_user_id}
                     alt={request.display_name}
-                    className="w-12 h-12 rounded-full border-2 border-momentum-teal/40"
+                    sizeClass="w-12 h-12"
+                    letterClassName="text-base font-semibold"
+                    className="border-2 border-momentum-teal/40"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
@@ -208,10 +213,14 @@ export default function VerificationAdminPanel() {
 
             <div className="p-6 space-y-4">
               <div className="flex items-start space-x-4 mb-6">
-                <img
-                  src={selectedRequest.profile_image_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=80&h=80&fit=crop&crop=face'}
+                <UserAvatar
+                  imageUrl={selectedRequest.profile_image_url || null}
+                  displayName={selectedRequest.full_name || selectedRequest.display_name}
+                  seed={selectedRequest.mocha_user_id}
                   alt={selectedRequest.display_name}
-                  className="w-16 h-16 rounded-full border-2 border-momentum-teal/40"
+                  sizeClass="w-16 h-16"
+                  letterClassName="text-xl font-semibold"
+                  className="border-2 border-momentum-teal/40"
                 />
                 <div>
                   <h3 className="text-xl font-bold text-white mb-1">{selectedRequest.full_name}</h3>

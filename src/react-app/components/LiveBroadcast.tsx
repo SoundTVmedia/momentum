@@ -9,6 +9,7 @@ import { useLiveSchedule } from '@/react-app/hooks/useLiveSchedule';
 import LivePoll from '@/react-app/components/LivePoll';
 import { useLivePoll } from '@/react-app/hooks/useLivePoll';
 import LiveSchedulePreview from '@/react-app/components/LiveSchedulePreview';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import { artistPath } from '@/shared/app-paths';
 
 interface LiveBroadcastProps {
@@ -351,10 +352,14 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                 messages.map((message) => (
                   <div key={message.id} className="text-xs sm:text-sm break-words">
                     <div className="flex items-start space-x-1.5 sm:space-x-2">
-                      <img
-                        src={message.user_avatar || 'https://images.unsplash.com/photo-1494790108755-2616b612b830?w=24&h=24&fit=crop&crop=face'}
+                      <UserAvatar
+                        imageUrl={message.user_avatar}
+                        displayName={message.user_display_name}
+                        seed={message.mocha_user_id}
                         alt={message.user_display_name || 'User'}
-                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex-shrink-0"
+                        sizeClass="w-5 h-5 sm:w-6 sm:h-6"
+                        letterClassName="text-[9px] sm:text-[10px] font-semibold"
+                        className="flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
                         <span className="text-cyan-400 font-medium break-words">
