@@ -9,9 +9,6 @@ import {
 import { headlinerFromEvent } from './jambase-map';
 import type { ClipShowCandidate } from '../shared/types';
 
-/** If the second-closest venue is within this many miles of the closest, offer a disambiguation list. */
-const VENUE_TIE_MILES = 0.35;
-
 /** Extra miles beyond profile radius so GPS jitter does not drop the venue you are standing in front of. */
 const GPS_DISTANCE_SLACK_MILES = 1.25;
 
@@ -29,7 +26,7 @@ type CandidateGeoTrust = { trustJamBaseGeoList?: boolean };
 const VENUES_PER_PAGE = '100';
 const VENUE_GEO_CITY_MAX_PAGES = 5;
 
-type ClipResolveMatch = 'none' | 'single' | 'ambiguous';
+type ClipResolveMatch = 'none' | 'single';
 
 async function recordResolveTelemetry(
   c: Context,
@@ -197,15 +194,6 @@ function sortCandidatesByDistance(cands: ClipShowCandidate[]): ClipShowCandidate
   return [...cands].sort((a, b) => distanceSortKey(a.distance_miles) - distanceSortKey(b.distance_miles));
 }
 
-/** Group tied rows that refer to the same real venue (same JamBase venue id, or same name+location when id missing). */
-function venueIdentityKey(c: ClipShowCandidate): string {
-  const id = c.jambase_venue_id?.trim();
-  if (id) return `id:${id}`;
-  const name = (c.venue_name ?? '').toLowerCase().trim();
-  const loc = (c.location ?? '').toLowerCase().trim();
-  return `nm:${name}|${loc}`;
-}
-
 /** When JamBase returns a single venue row for this search but strict radius/city filters reject it, still trust that hit. */
 function soleRawVenueCandidate(
   v: Record<string, unknown>,
@@ -259,41 +247,16 @@ function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidat
   return sortCandidatesByDistance([...map.values()]);
 }
 
-function finalizeMatch(dedupedSorted: ClipShowCandidate[], radiusMiles: number): {
+/**
+ * Pick the single closest venue/event candidate after dedupe. We do not prompt the user to
+ * choose among nearby venues—the app assumes the nearest resolved row is correct.
+ */
+function finalizeMatch(dedupedSorted: ClipShowCandidate[]): {
   match: ClipResolveMatch;
   candidates: ClipShowCandidate[];
 } {
   if (dedupedSorted.length === 0) return { match: 'none', candidates: [] };
-  const best = dedupedSorted[0]!;
-  const second = dedupedSorted[1];
-  const da = best.distance_miles;
-  const db = second?.distance_miles;
-  // Resolve ambiguity when multiple venues are plausible. Use a radius-relative
-  // threshold so dense areas (small radii) don't require extremely close distances.
-  const tieWindowMiles = Math.max(VENUE_TIE_MILES, Math.min(5, radiusMiles * 0.2));
-  if (
-    second &&
-    da != null &&
-    db != null &&
-    Number.isFinite(da) &&
-    Number.isFinite(db) &&
-    db - da < tieWindowMiles
-  ) {
-    const tied = dedupedSorted.filter((c) => {
-      const d = c.distance_miles;
-      if (d == null || !Number.isFinite(d) || da == null) return false;
-      return d - da < tieWindowMiles;
-    });
-    if (tied.length >= 2) {
-      const identityKeys = new Set(tied.map(venueIdentityKey));
-      if (identityKeys.size === 1) {
-        const sortedTied = sortCandidatesByDistance(tied);
-        return { match: 'single', candidates: [sortedTied[0]!] };
-      }
-      return { match: 'ambiguous', candidates: tied.slice(0, 8) };
-    }
-  }
-  return { match: 'single', candidates: [best] };
+  return { match: 'single', candidates: [dedupedSorted[0]!] };
 }
 
 function candidateFromVenue(
@@ -526,11 +489,11 @@ function jamBaseVenueFetchFailureNotice(
 
 /**
  * POST /api/clips/resolve-show
- * Body: { latitude, longitude, at? (optional, ignored for matching), city?, state?, country? }
+ * Body: { latitude, longitude, at? (ISO; used for event fallback window only), city?, state?, country? }
  *
- * Picks the JamBase **venue** closest to the user's coordinates within their profile radius.
- * No show-time filter: upcoming events in the area are only used as a fallback when
- * `/venues` returns no usable rows.
+ * Picks the **closest** JamBase venue (or deduped event row) within the computed match radius.
+ * When multiple venues are nearby, **`match` is always `single`** — the geographically closest candidate wins;
+ * users are not asked to disambiguate in the picker flow.
  */
 export async function postResolveShowForClip(c: Context) {
   const mochaUser = c.get('user');
@@ -768,7 +731,7 @@ export async function postResolveShowForClip(c: Context) {
     working = dedupeKeepClosestPerVenue(fromEvents);
   }
 
-  const { match, candidates } = finalizeMatch(working, matchRadiusMiles);
+  const { match, candidates } = finalizeMatch(working);
   const nearbyVenues = working.slice(0, 15);
 
   const notice =

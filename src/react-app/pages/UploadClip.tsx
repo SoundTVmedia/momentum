@@ -94,9 +94,6 @@ export default function UploadClip() {
     artist: string | null;
     venue: string | null;
   } | null>(null);
-  const [ambiguousCandidates, setAmbiguousCandidates] = useState<ClipShowCandidate[]>([]);
-  /** JamBase venues near capture GPS (post-capture suggestions). */
-  const [nearbyVenueSuggestions, setNearbyVenueSuggestions] = useState<ClipShowCandidate[]>([]);
   const [recordingAtIso, setRecordingAtIso] = useState<string | null>(null);
   const [captureGeo, setCaptureGeo] = useState<{
     latitude: number;
@@ -230,7 +227,6 @@ export default function UploadClip() {
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
     if (location.state?.videoBlob) {
-      setNearbyVenueSuggestions([]);
       const blob = location.state.videoBlob as Blob;
       setFormData(prev => ({ ...prev, video_blob: blob }));
       setUploadMethod('file');
@@ -299,13 +295,6 @@ export default function UploadClip() {
     }
 
     const nav = location.state as Record<string, unknown> | undefined;
-    if (Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0) {
-      setAmbiguousCandidates(nav.ambiguousCandidates as ClipShowCandidate[]);
-      setResolveNotice('We found multiple nearby venues. Pick the right one below or edit manually.');
-    }
-    if (Array.isArray(nav?.nearbyVenuesFromCapture) && nav.nearbyVenuesFromCapture.length > 0) {
-      setNearbyVenueSuggestions(nav.nearbyVenuesFromCapture as ClipShowCandidate[]);
-    }
     if (typeof nav?.recordingStartedAt === 'string') {
       setRecordingAtIso(nav.recordingStartedAt);
     }
@@ -437,8 +426,7 @@ export default function UploadClip() {
     setShowArtistSuggestions(false);
   }, [showCaptionScreen, isEditingTags, formData.artist_name]);
 
-  const applyClipCandidate = useCallback((c: ClipShowCandidate, options?: { clearNearby?: boolean }) => {
-    const clearNearby = options?.clearNearby !== false;
+  const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
     setFormData((prev) => ({
       ...prev,
       artist_name: c.artist_name ?? '',
@@ -453,8 +441,6 @@ export default function UploadClip() {
       venue: c.jambase_venue_id,
     });
     captionCommittedArtistNameRef.current = c.artist_name ?? '';
-    setAmbiguousCandidates([]);
-    if (clearNearby) setNearbyVenueSuggestions([]);
     setResolveNotice(null);
   }, []);
 
@@ -469,12 +455,10 @@ export default function UploadClip() {
 
   useEffect(() => {
     if (!user) return;
-    if (ambiguousCandidates.length > 0) return;
 
     const nav = location.state as {
       videoBlob?: unknown;
       showData?: { jambase_event_id?: string; jambase_venue_id?: string };
-      ambiguousCandidates?: unknown[];
       recordingStartedAt?: string;
       captureGeo?: {
         latitude: number;
@@ -491,18 +475,10 @@ export default function UploadClip() {
     const resolveForFile =
       Boolean(formData.video_file && uploadMethod === 'file' && !fromQuick);
 
-    /** JamBase venue list for this clip’s capture coordinates (post-capture screen). */
-    const resolveForNearbyOnCaption =
-      isQuickCaption &&
-      !(Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0);
+    /** Auto-tag from GPS when QuickRecord did not preload show data */
+    const resolveForAutoTagQuick = isQuickCaption && !nav?.showData;
 
-    /** Apply single/ambiguous match only when navigation did not already carry show data. */
-    const resolveForAutoTagQuick =
-      isQuickCaption &&
-      !nav?.showData &&
-      !(Array.isArray(nav?.ambiguousCandidates) && nav.ambiguousCandidates.length > 0);
-
-    if (!resolveForFile && !resolveForNearbyOnCaption) return;
+    if (!resolveForFile && !resolveForAutoTagQuick) return;
 
     if (resolveForFile && (jambaseLink?.event || jambaseLink?.venue)) return;
 
@@ -603,52 +579,22 @@ export default function UploadClip() {
         };
         if (cancelled) return;
 
-        const nearbyList = Array.isArray(data.nearbyVenues) ? data.nearbyVenues : [];
-        const sortedNearby = [...nearbyList].sort((a, b) => {
-          const da = a.distance_miles;
-          const db = b.distance_miles;
-          if (da != null && db != null) return da - db;
-          if (da != null) return -1;
-          if (db != null) return 1;
-          return 0;
-        });
-        if (fromQuick) {
-          setNearbyVenueSuggestions(sortedNearby);
-        }
+        const applyClosest = () => {
+          if (data.match === 'single' && data.candidates?.[0]) {
+            applyClipCandidate(data.candidates[0]);
+            setResolveNotice(null);
+          } else if (data.match === 'none') {
+            setResolveNotice(
+              data.notice ??
+                'No nearby JamBase venue matched your location. You can enter venue and artist manually.',
+            );
+          }
+        };
 
         if (resolveForFile) {
-          if (data.match === 'single' && data.candidates?.[0]) {
-            applyClipCandidate(data.candidates[0], { clearNearby: false });
-            setResolveNotice(null);
-          } else if (data.match === 'ambiguous' && data.candidates?.length) {
-            setAmbiguousCandidates(data.candidates);
-            setResolveNotice(
-              data.notice ?? 'We found multiple nearby venues. Pick the right one below or edit manually.'
-            );
-          } else if (data.match === 'none') {
-            setResolveNotice(
-              data.notice ??
-                'No nearby JamBase venue found in your radius. You can enter details manually.'
-            );
-          }
-        } else if (
-          resolveForAutoTagQuick &&
-          !(jambaseLink?.event || jambaseLink?.venue)
-        ) {
-          if (data.match === 'single' && data.candidates?.[0]) {
-            applyClipCandidate(data.candidates[0], { clearNearby: false });
-            setResolveNotice(null);
-          } else if (data.match === 'ambiguous' && data.candidates?.length) {
-            setAmbiguousCandidates(data.candidates);
-            setResolveNotice(
-              data.notice ?? 'We found multiple nearby venues. Pick the right one below or edit manually.'
-            );
-          } else if (data.match === 'none') {
-            setResolveNotice(
-              data.notice ??
-                'No nearby JamBase venue found in your radius. You can enter details manually.'
-            );
-          }
+          applyClosest();
+        } else if (resolveForAutoTagQuick && !(jambaseLink?.event || jambaseLink?.venue)) {
+          applyClosest();
         }
       } catch (e) {
         console.error('resolve-show', e);
@@ -662,7 +608,6 @@ export default function UploadClip() {
     user,
     jambaseLink?.event,
     jambaseLink?.venue,
-    ambiguousCandidates.length,
     formData.video_file,
     uploadMethod,
     showCaptionScreen,
@@ -1019,8 +964,6 @@ export default function UploadClip() {
       thumbnail_url: '',
     }));
     setVideoMetadata({});
-    setAmbiguousCandidates([]);
-    setNearbyVenueSuggestions([]);
     setJambaseLink(null);
     setResolveNotice(null);
     setRecordingAtIso(null);
@@ -1351,68 +1294,6 @@ export default function UploadClip() {
                 />
                 <p className="text-gray-400 text-xs mt-2">Caption is optional</p>
               </div>
-
-              {ambiguousCandidates.length > 0 && !jambaseLink && (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-                  <p className="text-amber-200 text-sm font-medium">Which venue was this?</p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {ambiguousCandidates.map((c) => (
-                      <button
-                        key={c.jambase_event_id ?? c.jambase_venue_id ?? 'candidate'}
-                        type="button"
-                        onClick={() => applyClipCandidate(c, { clearNearby: true })}
-                        className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
-                      >
-                        <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
-                        <span className="text-gray-400"> · {c.venue_name}</span>
-                        <span className="block text-xs text-gray-500 mt-0.5">
-                          {c.location} · {c.startDate ? new Date(c.startDate).toLocaleString() : ''}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {nearbyVenueSuggestions.length > 0 && (
-                <div className="p-4 bg-cyan-500/10 border border-momentum-teal/25 rounded-lg space-y-2">
-                  <p className="text-cyan-100 text-sm font-medium">
-                    JamBase venues for your capture location
-                  </p>
-                  {captureGeo &&
-                  Number.isFinite(captureGeo.latitude) &&
-                  Number.isFinite(captureGeo.longitude) && (
-                    <p className="text-gray-300 text-xs leading-relaxed">
-                      <span className="text-cyan-200/90 font-medium">Your clip: </span>
-                      {[captureGeo.city, captureGeo.state].filter(Boolean).join(', ') ||
-                        `${captureGeo.latitude.toFixed(4)}, ${captureGeo.longitude.toFixed(4)}`}
-                      <span className="text-gray-500"> — list is ordered closest first.</span>
-                    </p>
-                  )}
-                  <p className="text-gray-400 text-xs">
-                    Tap a row to tag this clip, or use Change Artist/Venue below to search JamBase.
-                  </p>
-                  <div className="space-y-2 max-h-52 overflow-y-auto">
-                    {nearbyVenueSuggestions.map((c) => (
-                      <button
-                        key={`${c.jambase_event_id ?? ''}-${c.jambase_venue_id ?? ''}-${c.venue_name ?? ''}`}
-                        type="button"
-                        onClick={() => applyClipCandidate(c, { clearNearby: true })}
-                        className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
-                      >
-                        <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
-                        <span className="text-gray-400"> · {c.venue_name}</span>
-                        {c.distance_miles != null && Number.isFinite(c.distance_miles) ? (
-                          <span className="text-cyan-300/90 text-xs"> · {c.distance_miles.toFixed(1)} mi</span>
-                        ) : null}
-                        {c.location ? (
-                          <span className="block text-xs text-gray-500 mt-0.5">{c.location}</span>
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Auto-Populated Tags */}
               <div>
@@ -1820,28 +1701,6 @@ export default function UploadClip() {
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
                 placeholder="https://example.com/thumbnail.jpg"
               />
-            </div>
-          )}
-
-          {ambiguousCandidates.length > 0 && !jambaseLink && (
-            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-2">
-              <p className="text-amber-200 text-sm font-medium">Which venue was this?</p>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {ambiguousCandidates.map((c) => (
-                  <button
-                    key={c.jambase_event_id ?? c.jambase_venue_id ?? 'candidate'}
-                    type="button"
-                    onClick={() => applyClipCandidate(c)}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-white border border-white/10"
-                  >
-                    <span className="font-medium">{c.artist_name ?? 'Artist'}</span>
-                    <span className="text-gray-400"> · {c.venue_name}</span>
-                    <span className="block text-xs text-gray-500 mt-0.5">
-                      {c.location} · {c.startDate ? new Date(c.startDate).toLocaleString() : ''}
-                    </span>
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 
