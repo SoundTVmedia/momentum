@@ -249,6 +249,39 @@ function stripArtistIfEventNotOnCaptureDay(base: ClipShowCandidate, captureDayYm
 }
 
 /**
+ * Geo `/events` cannot use `expandPastEvents` unless combined with `venueId` or `artistId`. If
+ * `eventDateFrom` is before UTC "today", JamBase responds with HTTP 400.
+ */
+function jamBaseGeoEventDateFromUtc(anchorMs: number): string {
+  const todayUtc = new Date().toISOString().split('T')[0];
+  const win = new Date(anchorMs);
+  win.setUTCDate(win.getUTCDate() - 1);
+  const tentative = win.toISOString().split('T')[0];
+  return tentative < todayUtc ? todayUtc : tentative;
+}
+
+/** Venue-scoped listing: include past rows when the window starts before today (requires plan support). */
+function jamBaseVenueEventsQueryParams(
+  venueId: string,
+  captureMs: number
+): Record<string, string> {
+  const todayUtc = new Date().toISOString().split('T')[0];
+  const win = new Date(captureMs);
+  win.setUTCDate(win.getUTCDate() - 1);
+  const eventDateFrom = win.toISOString().split('T')[0];
+  const p: Record<string, string> = {
+    venueId,
+    eventDateFrom,
+    perPage: '50',
+    page: '1',
+  };
+  if (eventDateFrom < todayUtc) {
+    p.expandPastEvents = 'true';
+  }
+  return p;
+}
+
+/**
  * Closest venue is already chosen. Load shows at that venue and, if one starts on the capture
  * UTC calendar day, merge headliner + event id (pick start time nearest to capture instant).
  */
@@ -265,18 +298,10 @@ async function enrichWithSameDayShowAtVenue(
     return stripArtistIfEventNotOnCaptureDay(base, captureDay);
   }
 
-  /** Start JamBase listing one UTC day earlier so timezone edge cases still appear in results. */
-  const eventDateFrom = utcYmdFromMs(captureMs - 86400000);
-
   const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
     apiKey,
     '/events',
-    {
-      venueId,
-      eventDateFrom,
-      perPage: '50',
-      page: '1',
-    },
+    jamBaseVenueEventsQueryParams(venueId, captureMs),
     jbQ
   );
   const raw = data?.events ?? [];
@@ -515,10 +540,8 @@ export async function postResolveShowForClip(c: Context) {
 
   const userCityLower = city ? city.toLowerCase() : null;
 
-  const anchor = hasAt ? new Date(atMs) : new Date();
-  const windowStart = new Date(anchor);
-  windowStart.setUTCDate(windowStart.getUTCDate() - 1);
-  const eventDateFrom = windowStart.toISOString().split('T')[0];
+  const resolveAnchorMs = hasAt ? atMs : Date.now();
+  const eventDateFrom = jamBaseGeoEventDateFromUtc(resolveAnchorMs);
 
   const eventSearchMiles = Math.max(
     profileRadiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,

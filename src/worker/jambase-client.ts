@@ -245,7 +245,11 @@ export async function jamBaseFetch<T extends JamBaseJson>(
       }
 
       if (!res.ok) {
-        console.error('JamBase HTTP error', path, res.status, text.slice(0, 200));
+        const errBody = json as { errors?: unknown; success?: unknown };
+        console.error('JamBase HTTP error', path, res.status, text.slice(0, 800), {
+          errors: errBody.errors ?? null,
+          success: errBody.success,
+        });
         if (diag) {
           diag.failure = 'http';
           diag.httpStatus = res.status;
