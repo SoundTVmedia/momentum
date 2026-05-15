@@ -1369,7 +1369,7 @@ export default function QuickRecordButton({
               onChange={handlePickFromDevice}
             />
 
-            {hasPermission && cameraReady && !isRecording && !isProcessingTransition && (
+            {hasPermission && cameraReady && !isProcessingTransition && (
               <div className="mx-auto mb-3 w-full max-w-lg px-1">
                 {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
                   <p className="text-center text-cyan-200/90 text-xs mb-2 flex items-center justify-center gap-2">
