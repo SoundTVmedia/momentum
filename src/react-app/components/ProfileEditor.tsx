@@ -1,7 +1,20 @@
 import { useState, useRef } from 'react';
-import { X, Upload, Loader2, Camera, Image as ImageIcon, Check, AlertCircle } from 'lucide-react';
+import { X, Upload, Loader2, Camera, Image as ImageIcon, Check, AlertCircle, MapPin, Heart } from 'lucide-react';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
+import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import type { UserProfile } from '@/shared/types';
+
+function parseFavoriteArtistsJson(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const p = JSON.parse(json) as unknown;
+    if (!Array.isArray(p)) return [];
+    return p.map((x) => (typeof x === 'string' ? x : String(x ?? '')).trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 
 interface ProfileEditorProps {
   profile: UserProfile;
@@ -10,10 +23,25 @@ interface ProfileEditorProps {
 }
 
 export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEditorProps) {
+  const { getCurrentPosition } = useGeolocation();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [favoriteArtists, setFavoriteArtists] = useState<string[]>(() =>
+    parseFavoriteArtistsJson(profile.favorite_artists),
+  );
+  const [homeLocation, setHomeLocation] = useState(profile.home_location ?? '');
+  const [homeLatitude, setHomeLatitude] = useState<number | null>(
+    profile.home_latitude ?? null,
+  );
+  const [homeLongitude, setHomeLongitude] = useState<number | null>(
+    profile.home_longitude ?? null,
+  );
+  const [locationRadius, setLocationRadius] = useState(
+    profile.location_radius_miles ?? 50,
+  );
+  const [loadingHomeGeo, setLoadingHomeGeo] = useState(false);
   
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +68,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
 
       const response = await fetch('/api/upload', {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
 
@@ -72,6 +101,35 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
     }
   };
 
+  const handleUseHomeCoordinates = async () => {
+    setLoadingHomeGeo(true);
+    setError(null);
+    try {
+      const position = await getCurrentPosition();
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const response = await fetch(`/api/maps/reverse-geocode?lat=${lat}&lng=${lng}`, {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { formattedAddress?: string | null };
+        setHomeLocation(
+          data.formattedAddress?.trim() || `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+        );
+        setHomeLatitude(lat);
+        setHomeLongitude(lng);
+      } else if (response.status === 503) {
+        setHomeLocation('Current location');
+        setHomeLatitude(lat);
+        setHomeLongitude(lng);
+      }
+    } catch {
+      setError('Could not read your location. Allow location in your browser and try again.');
+    } finally {
+      setLoadingHomeGeo(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -80,6 +138,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
     try {
       const response = await fetch('/api/users/profile', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
@@ -89,7 +148,27 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        const errBody = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errBody.error || 'Failed to update profile');
+      }
+
+      const persResponse = await fetch('/api/personalization/update', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          favorite_artists: favoriteArtists,
+          home_location: homeLocation || null,
+          home_latitude: homeLatitude,
+          home_longitude: homeLongitude,
+          location_radius_miles: locationRadius,
+          personalization_enabled: true,
+        }),
+      });
+
+      if (!persResponse.ok) {
+        const errBody = (await persResponse.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errBody.error || 'Failed to save favorite artists and home feed settings');
       }
 
       setSuccess(true);
@@ -98,7 +177,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
         onClose();
       }, 1500);
     } catch (err) {
-      setError('Failed to update profile. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to update profile. Please try again.');
       console.error('Update error:', err);
     } finally {
       setLoading(false);
@@ -254,6 +333,82 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                 />
               </div>
             )}
+          </div>
+
+          {/* Feed personalization (favorite artists + home base for recommendations) */}
+          <div className="pt-2 border-t border-white/10 space-y-6">
+            <div className="flex items-center gap-2">
+              <Heart className="w-5 h-5 text-pink-400 shrink-0" />
+              <h3 className="text-lg font-semibold text-white">Home feed personalization</h3>
+            </div>
+            <p className="text-sm text-gray-400">
+              Power “From artists you follow,” picks near you, and Discover prompts — search JamBase and save from here or from your homepage favorites strip (both sync together).
+            </p>
+
+            <FavoriteArtistsJamBaseField
+              favoriteArtists={favoriteArtists}
+              setFavoriteArtists={setFavoriteArtists}
+              labelExtra={
+                <span className="text-gray-400 text-sm ml-2">
+                  (Get notified when they post new content)
+                </span>
+              }
+            />
+
+            <div>
+              <label className="block text-white font-medium mb-4">
+                Home location for concerts & clips near you
+                <span className="text-gray-400 text-sm ml-2 font-normal">
+                  (optional — improves recommendations)
+                </span>
+              </label>
+              <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={() => void handleUseHomeCoordinates()}
+                  disabled={loadingHomeGeo}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all disabled:opacity-50"
+                >
+                  {loadingHomeGeo ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Getting your location...</span>
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="w-5 h-5" />
+                      <span>Use current location</span>
+                    </>
+                  )}
+                </button>
+
+                {homeLocation ? (
+                  <div className="p-4 bg-cyan-500/10 border border-momentum-teal/20 rounded-lg">
+                    <p className="text-white font-medium mb-2">Selected:</p>
+                    <p className="text-gray-300 text-sm">{homeLocation}</p>
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="block text-gray-300 text-sm mb-2">
+                    Search radius: {locationRadius} miles
+                  </label>
+                  <input
+                    type="range"
+                    min={10}
+                    max={200}
+                    step={10}
+                    value={locationRadius}
+                    onChange={(e) => setLocationRadius(parseInt(e.target.value, 10))}
+                    className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>10 mi</span>
+                    <span>200 mi</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Genres */}

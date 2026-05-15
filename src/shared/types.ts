@@ -23,6 +23,13 @@ export const UserProfileSchema = z.object({
   commission_rate: z.number().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+  /** JSON array of artist display names (personalization / favorite artists feed) */
+  favorite_artists: z.string().nullable().optional(),
+  home_location: z.string().nullable().optional(),
+  home_latitude: z.number().nullable().optional(),
+  home_longitude: z.number().nullable().optional(),
+  location_radius_miles: z.number().nullable().optional(),
+  personalization_enabled: z.number().int().optional(),
 });
 
 export type UserProfile = z.infer<typeof UserProfileSchema>;

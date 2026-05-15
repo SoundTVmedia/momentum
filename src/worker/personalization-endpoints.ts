@@ -6,6 +6,26 @@ import { dedupeJamBaseEvents } from './jambase-events-search';
 import { syncUserFavoriteArtistRows } from './favorite-artists-sync';
 import { mochaUserIdKey } from './mocha-user-id';
 
+function normalizeFavoriteArtistNamesFromBody(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw
+        .map((x) => (typeof x === 'string' ? x : String(x ?? '')).trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 40);
+}
+
+type PersonalizationRow = {
+  favorite_artists: string | null;
+  home_location: string | null;
+  home_latitude: number | null;
+  home_longitude: number | null;
+  location_radius_miles: number | null;
+  personalization_enabled: number | null;
+};
+
 function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -56,21 +76,63 @@ export async function updatePersonalization(c: Context) {
 
   try {
     const body = await c.req.json();
-    const { 
-      favorite_artists, 
-      home_location, 
-      home_latitude, 
-      home_longitude, 
+    const {
+      favorite_artists,
+      home_location,
+      home_latitude,
+      home_longitude,
       location_radius_miles,
-      personalization_enabled 
+      personalization_enabled,
     } = body;
 
-    if (Array.isArray(favorite_artists) && favorite_artists.length > 0) {
-      await syncUserFavoriteArtistRows(c.env.DB, uid, favorite_artists);
+    const existing = (await c.env.DB.prepare(
+      `SELECT favorite_artists, home_location, home_latitude, home_longitude, location_radius_miles, personalization_enabled
+       FROM user_profiles WHERE mocha_user_id = ?`,
+    )
+      .bind(uid)
+      .first()) as PersonalizationRow | null;
+
+    const favProvided = Object.prototype.hasOwnProperty.call(body, 'favorite_artists');
+    let favoritesJson: string | null;
+    if (favProvided) {
+      const favStrings = normalizeFavoriteArtistNamesFromBody(favorite_artists);
+      await c.env.DB.prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ?').bind(uid).run();
+      if (favStrings.length > 0) {
+        await syncUserFavoriteArtistRows(c.env.DB, uid, favStrings);
+      }
+      favoritesJson = JSON.stringify(favStrings);
+    } else {
+      favoritesJson =
+        existing?.favorite_artists != null ? String(existing.favorite_artists) : null;
     }
 
-    // Update user profile with personalization settings
-    await c.env.DB.prepare(
+    const loc =
+      home_location !== undefined
+        ? home_location
+          ? String(home_location)
+          : null
+        : existing?.home_location ?? null;
+    const lat =
+      home_latitude !== undefined ? home_latitude ?? null : existing?.home_latitude ?? null;
+    const lng =
+      home_longitude !== undefined ? home_longitude ?? null : existing?.home_longitude ?? null;
+    const radius =
+      location_radius_miles !== undefined && location_radius_miles !== null
+        ? Number(location_radius_miles) || 50
+        : existing?.location_radius_miles ?? 50;
+    let penabled: number;
+    if (personalization_enabled !== undefined) {
+      penabled = personalization_enabled ? 1 : 0;
+    } else if (
+      existing?.personalization_enabled !== undefined &&
+      existing?.personalization_enabled !== null
+    ) {
+      penabled = Number(existing.personalization_enabled) === 0 ? 0 : 1;
+    } else {
+      penabled = 1;
+    }
+
+    const updated = await c.env.DB.prepare(
       `UPDATE user_profiles 
        SET favorite_artists = ?,
            home_location = ?,
@@ -79,18 +141,22 @@ export async function updatePersonalization(c: Context) {
            location_radius_miles = ?,
            personalization_enabled = ?,
            updated_at = CURRENT_TIMESTAMP
-       WHERE mocha_user_id = ?`
+       WHERE mocha_user_id = ?`,
     )
-      .bind(
-        favorite_artists ? JSON.stringify(favorite_artists) : null,
-        home_location || null,
-        home_latitude || null,
-        home_longitude || null,
-        location_radius_miles || 50,
-        personalization_enabled !== undefined ? (personalization_enabled ? 1 : 0) : 1,
-        uid
-      )
+      .bind(favoritesJson, loc, lat, lng, radius, penabled, uid)
       .run();
+
+    const changed = Number(updated.meta?.changes ?? 0);
+    if (changed === 0) {
+      await c.env.DB.prepare(
+        `INSERT INTO user_profiles (
+           mocha_user_id, role, favorite_artists, home_location, home_latitude, home_longitude,
+           location_radius_miles, personalization_enabled, created_at, updated_at
+         ) VALUES (?, 'fan', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      )
+        .bind(uid, favoritesJson, loc, lat, lng, radius, penabled)
+        .run();
+    }
 
     return c.json({ success: true });
   } catch (error) {

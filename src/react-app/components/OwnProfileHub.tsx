@@ -8,7 +8,6 @@ import DeviceManagement from '@/react-app/components/DeviceManagement';
 import PersonalizedFeed from '@/react-app/components/PersonalizedFeed';
 import MyClipsSection from '@/react-app/components/MyClipsSection';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
-import PersonalizationSettings from '@/react-app/components/PersonalizationSettings';
 import FanDashboard from '@/react-app/components/dashboards/FanDashboard';
 import ArtistDashboard from '@/react-app/components/dashboards/ArtistDashboard';
 import AmbassadorDashboard from '@/react-app/components/dashboards/AmbassadorDashboard';
@@ -26,7 +25,6 @@ export default function OwnProfileHub() {
   const [userData, setUserData] = useState<ExtendedMochaUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDeviceManagement, setShowDeviceManagement] = useState(false);
-  const [showPersonalizationSettings, setShowPersonalizationSettings] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -99,19 +97,6 @@ export default function OwnProfileHub() {
         </div>
 
         <div className="mb-8 space-y-4">
-          <button
-            type="button"
-            onClick={() => setShowPersonalizationSettings(!showPersonalizationSettings)}
-            className="flex items-center space-x-2 text-purple-400 hover:text-purple-300 transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-            <span>Personalization settings</span>
-          </button>
-
-          {showPersonalizationSettings && (
-            <PersonalizationSettings onClose={() => setShowPersonalizationSettings(false)} />
-          )}
-
           <button
             type="button"
             onClick={() => setShowDeviceManagement(!showDeviceManagement)}

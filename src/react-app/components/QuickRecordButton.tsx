@@ -142,6 +142,14 @@ export default function QuickRecordButton({
     lon: number;
   } | null>(null);
   const coordsForNearbyVenuesRef = useRef<{ lat: number; lon: number } | null>(null);
+  /** GPS frozen when recording starts — survives long async work before navigate (Chrome can lose gesture-linked geo reads after AudD). */
+  const clipGeoAtRecordingStartRef = useRef<{
+    latitude: number;
+    longitude: number;
+    city: string | null;
+    state: string | null;
+    country: string | null;
+  } | null>(null);
   /** Successful prefetch candidate → passed as `location.state.showData` so UploadClip skips resolve-show. */
   const captureResolveCandidateRef = useRef<ClipShowCandidate | null>(null);
 
@@ -359,6 +367,40 @@ export default function QuickRecordButton({
       state: prev?.state ?? null,
       country: prev?.country ?? null,
     };
+  };
+
+  /** Plain object for `navigate` state — prefers primed `lastGeoRef`, then nearby coords ref. */
+  const snapshotClipGeoForUpload = () => {
+    syncLastGeoFromNearbyCoordsRef();
+    const lg = lastGeoRef.current;
+    if (
+      lg &&
+      Number.isFinite(lg.latitude) &&
+      Number.isFinite(lg.longitude)
+    ) {
+      return {
+        latitude: lg.latitude,
+        longitude: lg.longitude,
+        city: lg.city ?? null,
+        state: lg.state ?? null,
+        country: lg.country ?? null,
+      };
+    }
+    const crd = coordsForNearbyVenuesRef.current;
+    if (
+      crd &&
+      Number.isFinite(crd.lat) &&
+      Number.isFinite(crd.lon)
+    ) {
+      return {
+        latitude: crd.lat,
+        longitude: crd.lon,
+        city: null,
+        state: null,
+        country: null,
+      };
+    }
+    return null;
   };
 
   const requestPermissions = async (facingOverride?: 'environment' | 'user') => {
@@ -721,8 +763,7 @@ export default function QuickRecordButton({
       return;
     }
 
-    syncLastGeoFromNearbyCoordsRef();
-    const geo = lastGeoRef.current;
+    const geo = snapshotClipGeoForUpload();
 
     setIsProcessingTransition(true);
     setProcessingHint('Identifying music before upload (~15s)…');
@@ -840,6 +881,7 @@ export default function QuickRecordButton({
     }
 
     recordingStartedAtRef.current = new Date().toISOString();
+    clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
 
     try {
       stopLiveAuddPipeline();
@@ -1063,8 +1105,9 @@ export default function QuickRecordButton({
       }
 
       const at = recordingStartedAtRef.current || new Date().toISOString();
-      syncLastGeoFromNearbyCoordsRef();
-      const geo = lastGeoRef.current;
+      const geo =
+        clipGeoAtRecordingStartRef.current ?? snapshotClipGeoForUpload();
+      clipGeoAtRecordingStartRef.current = null;
       setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
 
       setProcessingHint('Identifying music before upload (~15s)…');
@@ -1176,6 +1219,7 @@ export default function QuickRecordButton({
     setProcessingProgress(8);
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
+    clipGeoAtRecordingStartRef.current = null;
     lastAdoptedPrimedRef.current = null;
 
     // Call onClose callback if provided
