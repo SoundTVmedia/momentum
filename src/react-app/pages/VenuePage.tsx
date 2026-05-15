@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users, ChevronDown, Heart, MessageCircle } from 'lucide-react';
+import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users, ChevronDown, Heart, MessageCircle, Ticket } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ShowArchive from '@/react-app/components/ShowArchive';
 import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
+import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
@@ -261,6 +262,73 @@ export default function VenuePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
+            {/* Upcoming shows (JamBase-first; aligns with artist pages) */}
+            <div className="bg-black/35 backdrop-blur-lg border border-cyan-500/20 rounded-2xl p-5 sm:p-6">
+              <div className="flex flex-wrap items-center gap-2 mb-6">
+                <Calendar className="w-7 h-7 text-cyan-400 shrink-0" />
+                <h2 className="text-2xl sm:text-3xl font-bold text-white">Upcoming shows</h2>
+              </div>
+              {upcomingEvents.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {upcomingEvents.slice(0, 24).map((event) => (
+                      <div
+                        key={`${event.id}-${event.date}-${event.artist_name ?? ''}`}
+                        className="p-4 rounded-xl bg-white/5 border border-white/10 flex gap-3"
+                      >
+                        {event.artist_image ? (
+                          <img
+                            src={event.artist_image}
+                            alt=""
+                            className="w-14 h-14 rounded-full object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-full bg-white/10 shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              event.artist_name ? navigate(artistPath(event.artist_name)) : undefined
+                            }
+                            className="text-left font-bold text-white hover:text-cyan-300 truncate block w-full"
+                          >
+                            {event.artist_name || 'Artist TBA'}
+                          </button>
+                          <p className="text-sm text-gray-400 mt-1">{formatDate(event.date)}</p>
+                          {event.ticket_url ? (
+                            <a
+                              href={event.ticket_url}
+                              target="_blank"
+                              rel="nofollow noopener noreferrer"
+                              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-momentum-teal hover:text-momentum-mint"
+                            >
+                              <Ticket className="w-4 h-4" />
+                              Tickets / info
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {data.jambase_attribution ? (
+                    <p className="mt-6 text-center text-xs text-gray-500">
+                      <a
+                        href="https://www.jambase.com"
+                        target="_blank"
+                        rel="nofollow noopener noreferrer"
+                        className="text-gray-400 hover:text-cyan-300 underline"
+                      >
+                        Show listings powered by JamBase
+                      </a>
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <JamBaseEventGrid venueName={venue.name} maxEvents={12} />
+              )}
+            </div>
+
             {/* Live Clips/Moments Section */}
             <div>
               <div className="flex items-center space-x-3 mb-6">
@@ -442,69 +510,6 @@ export default function VenuePage() {
                 </div>
               </div>
             </div>
-
-            {/* Upcoming Events */}
-            {upcomingEvents.length > 0 && (
-              <div className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-6">
-                <div className="flex items-center space-x-2 mb-4">
-                  <Calendar className="w-5 h-5 text-blue-400" />
-                  <h3 className="text-xl font-bold text-white">Upcoming Events</h3>
-                </div>
-                <div className="space-y-4">
-                  {upcomingEvents.slice(0, 5).map((event) => (
-                    <div key={event.id} className="p-4 bg-white/5 rounded-lg border border-white/10">
-                      <div className="flex items-center space-x-3 mb-2">
-                        {event.artist_image && (
-                          <img
-                            src={event.artist_image}
-                            alt={event.artist_name || 'Artist'}
-                            className="w-12 h-12 rounded-full object-cover"
-                          />
-                        )}
-                        <div className="flex-1">
-                          <button
-                            type="button"
-                            onClick={() => event.artist_name && navigate(artistPath(event.artist_name))}
-                            className="text-left text-white font-bold hover:text-cyan-300 transition-colors"
-                          >
-                            {event.artist_name || 'Artist'}
-                          </button>
-                          <div className="text-sm text-gray-400">{formatDate(event.date)}</div>
-                        </div>
-                      </div>
-                      {event.ticket_url && (
-                        <a
-                          href={event.ticket_url}
-                          target="_blank"
-                          rel="nofollow noopener noreferrer"
-                          className="mt-2 flex items-center justify-center space-x-2 w-full px-3 py-2 bg-gradient-to-r from-momentum-teal to-momentum-mint rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
-                        >
-                          <Calendar className="w-4 h-4" />
-                          <span>Get Tickets</span>
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {upcomingEvents.length > 5 && (
-                  <button className="w-full mt-4 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors">
-                    View All Events
-                  </button>
-                )}
-                {data.jambase_attribution && (
-                  <p className="mt-4 text-center text-xs text-gray-500">
-                    <a
-                      href="https://www.jambase.com"
-                      target="_blank"
-                      rel="nofollow noopener noreferrer"
-                      className="text-gray-400 hover:text-cyan-300 underline"
-                    >
-                      Powered by JamBase
-                    </a>
-                  </p>
-                )}
-              </div>
-            )}
 
             {/* Follow Button */}
             <button 

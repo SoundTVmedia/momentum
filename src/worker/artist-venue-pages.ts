@@ -13,6 +13,7 @@ import {
   slugifyEntityName,
   titleCaseWords,
 } from '../shared/jambase-slug';
+import { fetchJamBaseEventsByVenueName } from './jambase-endpoints';
 
 export async function resolveArtistNameForClipsQuery(
   db: D1Database,
@@ -342,9 +343,48 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     }
   }
 
-  const canonicalName = jambaseVenue?.name
+  let canonicalName = jambaseVenue?.name
     ? String(jambaseVenue.name)
     : await resolveVenueNameForClipsQuery(db, apiKey, param, jbQ);
+
+  if ((!jambaseVenue || typeof jambaseVenue.identifier !== 'string') && apiKey?.trim() && canonicalName.trim()) {
+    const listFallback = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      apiKey,
+      '/venues',
+      {
+        venueName: canonicalName.trim().slice(0, 160),
+        perPage: '20',
+        page: '1',
+      },
+      jbQ
+    );
+    const fv = listFallback?.venues ?? [];
+    if (fv.length) {
+      const pick =
+        fv.find((v) => slugifyEntityName(String(v.name)) === slug) ??
+        fv.find(
+          (v) => String(v?.name ?? '').trim().toLowerCase() === canonicalName.trim().toLowerCase(),
+        ) ??
+        fv[0];
+      const jbSlug = jambaseVenue ? slugifyEntityName(String(jambaseVenue.name ?? '')) : '';
+      const wrongVenueGuess = jbSlug !== '' && jbSlug !== slug;
+      if (
+        pick &&
+        typeof pick.identifier === 'string' &&
+        pick.identifier.trim() &&
+        (!jambaseVenue ||
+          typeof jambaseVenue.identifier !== 'string' ||
+          wrongVenueGuess ||
+          slugifyEntityName(String(pick.name)) === slug)
+      ) {
+        jambaseVenue = pick as Record<string, unknown>;
+      }
+    }
+  }
+
+  if (!canonicalName.trim() && jambaseVenue?.name && typeof jambaseVenue.name === 'string') {
+    canonicalName = String(jambaseVenue.name).trim();
+  }
 
   let venue = (await db
     .prepare(
@@ -408,6 +448,12 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
       updates.push('image_url = ?');
       binds.push(image);
     }
+    const jbIdStr =
+      typeof jambaseVenue.identifier === 'string' ? jambaseVenue.identifier.trim() : '';
+    if (jbIdStr) {
+      updates.push('jambase_id = ?');
+      binds.push(jbIdStr);
+    }
     if (updates.length) {
       binds.push(venue.id);
       await db
@@ -446,12 +492,61 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
   let upcomingEvents: Record<string, unknown>[] = [];
   let jambase_attribution = false;
 
-  const vId =
+  const mapJamBaseVenueRows = (
+    events: Record<string, unknown>[],
+    localVenueNumericId: number,
+  ): Record<string, unknown>[] =>
+    events.map((ev, i) => jamBaseEventToVenueUpcomingRow(ev, localVenueNumericId, i));
+
+  const persistJamBaseVenueId = async (venueRowId: unknown, jbVenueUuid: string): Promise<void> => {
+    const jb = jbVenueUuid.trim();
+    if (venueRowId == null || !jb) return;
+    try {
+      await db
+        .prepare(`UPDATE venues SET jambase_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+        .bind(jb, venueRowId)
+        .run();
+    } catch (e) {
+      console.warn('[venue page] could not persist jambase_id (run migration 45.sql?)', e);
+    }
+  };
+
+  let vId =
     jambaseVenue && typeof jambaseVenue.identifier === 'string'
-      ? jambaseVenue.identifier
+      ? jambaseVenue.identifier.trim()
       : null;
 
-  if (apiKey?.trim() && vId && venue?.id != null) {
+  if (
+    (!vId || vId === '') &&
+    venue &&
+    typeof venue.jambase_id === 'string' &&
+    venue.jambase_id.trim()
+  ) {
+    vId = venue.jambase_id.trim();
+  }
+
+  if ((!vId || vId === '') && slug && canonicalName.trim()) {
+    const cidRow = (await db
+      .prepare(
+        `SELECT jambase_venue_id FROM clips
+         WHERE clips.is_hidden = 0
+         AND TRIM(IFNULL(jambase_venue_id,'')) != ''
+         AND (
+           LOWER(REPLACE(TRIM(IFNULL(clips.venue_name, '')), ' ', '-')) = ?
+           OR TRIM(IFNULL(clips.venue_name, '')) = ?
+         )
+         ORDER BY clips.updated_at DESC, clips.created_at DESC
+         LIMIT 1`,
+      )
+      .bind(slug, canonicalName.trim())
+      .first()) as { jambase_venue_id?: unknown } | null;
+    const cj = cidRow?.jambase_venue_id;
+    if (typeof cj === 'string' && cj.trim()) vId = cj.trim();
+  }
+
+  const localVidNum = venue?.id != null ? Number(venue.id) : NaN;
+
+  if (apiKey?.trim() && vId && Number.isFinite(localVidNum) && localVidNum > 0) {
     const eventsRes = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
       apiKey,
       '/events',
@@ -461,13 +556,37 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
         perPage: '50',
         page: '1',
       },
-      jbQ
+      jbQ,
     );
-    const events = eventsRes?.events ?? [];
-    if (events.length) {
-      const vid = Number(venue.id);
-      upcomingEvents = events.map((ev, i) => jamBaseEventToVenueUpcomingRow(ev, vid, i));
+    const eventsRaw = eventsRes?.events ?? [];
+    const eventsFiltered = eventsRaw.filter(
+      (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
+    );
+    if (eventsFiltered.length) {
+      upcomingEvents = mapJamBaseVenueRows(eventsFiltered, localVidNum);
       jambase_attribution = true;
+      await persistJamBaseVenueId(venue!.id, vId);
+    }
+  }
+
+  if (upcomingEvents.length === 0 && apiKey?.trim() && Number.isFinite(localVidNum) && localVidNum > 0) {
+    const fallbackName =
+      canonicalName.trim() ||
+      (() => {
+        try {
+          return decodeURIComponent(param).trim();
+        } catch {
+          return '';
+        }
+      })() ||
+      phrase ||
+      slug.replace(/-/g, ' ');
+    const { events: jbEventsFallback, venue: jbVenueFallback } =
+      await fetchJamBaseEventsByVenueName(apiKey, jbQ, fallbackName, '50');
+    if (jbEventsFallback.length) {
+      upcomingEvents = mapJamBaseVenueRows(jbEventsFallback, localVidNum);
+      jambase_attribution = true;
+      if (jbVenueFallback?.identifier) await persistJamBaseVenueId(venue!.id, jbVenueFallback.identifier);
     }
   }
 

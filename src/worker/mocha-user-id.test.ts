@@ -15,6 +15,9 @@ describe('parseD1LastRowId', () => {
     expect(parseD1LastRowId('12')).toBe(12);
   });
 
+  it('accepts bigint last_row_id', () => {
+    expect(parseD1LastRowId(42n)).toBe(42);
+  });
   it('rejects invalid values', () => {
     expect(parseD1LastRowId(null)).toBeNull();
     expect(parseD1LastRowId('')).toBeNull();

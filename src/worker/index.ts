@@ -1512,6 +1512,7 @@ app.get("/api/jambase/events/match", jambase.matchEventsByLocation);
 app.get("/api/jambase/events/upcoming", jambase.getUpcomingEvents);
 app.get("/api/jambase/events/live-tab", jambase.getLiveTabEvents);
 app.get("/api/jambase/events/by-artist-name", jambase.getEventsByArtistName);
+app.get("/api/jambase/events/by-venue-name", jambase.getEventsByVenueName);
 app.get("/api/jambase/search/events", jambase.searchEvents);
 
 // Get artist by slug (hyphenated name) — enriched with JamBase when JAMBASE_API_KEY is set

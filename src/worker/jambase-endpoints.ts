@@ -511,6 +511,78 @@ export async function fetchJamBaseEventsByArtistName(
   };
 }
 
+/**
+ * Resolve JamBase upcoming events for a venue display name (search /venues → /events).
+ */
+export async function fetchJamBaseEventsByVenueName(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  raw: string,
+  perPage: string,
+  page = '1'
+): Promise<{
+  events: Record<string, unknown>[];
+  venue: { name: unknown; identifier: string } | null;
+}> {
+  const trim = raw.trim();
+  if (!trim) {
+    return { events: [], venue: null };
+  }
+
+  const slug = slugifyEntityName(trim) || normalizedSlugFromRouteParam(trim);
+  const phraseFromSlug = searchPhraseFromSlug(slug);
+
+  const searchOnce = async (venueNameTerm: string) =>
+    jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      apiKey,
+      '/venues',
+      {
+        venueName: venueNameTerm,
+        perPage: '18',
+        page: '1',
+      },
+      jbQ
+    );
+
+  let venues = (await searchOnce(phraseFromSlug || trim))?.venues ?? [];
+  if (!venues.length && trim.toLowerCase() !== (phraseFromSlug || '').toLowerCase()) {
+    venues = (await searchOnce(trim))?.venues ?? [];
+  }
+
+  if (!venues.length) {
+    return { events: [], venue: null };
+  }
+
+  const exact =
+    venues.find((v) => slugifyEntityName(String(v.name)) === slug) ??
+    venues.find((v) => String(v?.name ?? '').trim().toLowerCase() === trim.toLowerCase());
+  const pick = exact ?? venues[0];
+  const id = pick?.identifier;
+  if (typeof id !== 'string') {
+    return { events: [], venue: null };
+  }
+
+  const ev = await jamBaseFetch<{ events?: unknown[] }>(
+    apiKey,
+    '/events',
+    {
+      venueId: id,
+      eventDateFrom: jamBaseEventDateFromToday(),
+      perPage,
+      page,
+    },
+    jbQ
+  );
+
+  const rawEvents = ev?.events ?? [];
+  const events = rawEvents.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
+
+  return {
+    events,
+    venue: { name: pick.name, identifier: id },
+  };
+}
+
 export async function getEventsByArtistName(c: Context) {
   const raw = (c.req.query('artistName') || '').trim();
   if (!raw) {
@@ -536,6 +608,34 @@ export async function getEventsByArtistName(c: Context) {
   } catch (error) {
     console.error('JamBase events by artist name error:', error);
     return c.json({ error: 'Failed to load shows', events: [], artist: null }, 500);
+  }
+}
+
+export async function getEventsByVenueName(c: Context) {
+  const raw = (c.req.query('venueName') || '').trim();
+  if (!raw) {
+    return c.json({ events: [], venue: null });
+  }
+
+  const key = c.env.JAMBASE_API_KEY;
+  if (!key?.trim()) {
+    return c.json({ events: [], venue: null });
+  }
+
+  try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
+    const perPage = c.req.query('perPage') || '32';
+    const page = c.req.query('page') || '1';
+    const { events, venue } = await fetchJamBaseEventsByVenueName(key, jbQ, raw, perPage, page);
+
+    cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
+    return c.json({
+      events,
+      venue,
+    });
+  } catch (error) {
+    console.error('JamBase events by venue name error:', error);
+    return c.json({ error: 'Failed to load shows', events: [], venue: null }, 500);
   }
 }
 

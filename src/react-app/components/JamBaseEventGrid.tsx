@@ -13,6 +13,8 @@ export interface JamBaseEventGridProps {
   genreSlug?: string;
   /** When set, loads that artist's upcoming dates from JamBase */
   artistName?: string;
+  /** When set, loads upcoming dates at venues matching this name from JamBase */
+  venueName?: string;
   /** When set, skips fetch and renders this list (e.g. server-merged favorites feed) */
   preloadedEvents?: Record<string, unknown>[];
 }
@@ -88,6 +90,7 @@ export default function JamBaseEventGrid({
   geoMetroId,
   genreSlug,
   artistName,
+  venueName,
   preloadedEvents,
 }: JamBaseEventGridProps) {
   const navigate = useNavigate();
@@ -108,6 +111,12 @@ export default function JamBaseEventGrid({
           perPage: String(Math.min(maxEvents + 8, 40)),
         });
         url = `/api/jambase/events/by-artist-name?${qs}`;
+      } else if (venueName?.trim()) {
+        const qs = new URLSearchParams({
+          venueName: venueName.trim(),
+          perPage: String(Math.min(maxEvents + 8, 40)),
+        });
+        url = `/api/jambase/events/by-venue-name?${qs}`;
       } else {
         const qs = new URLSearchParams({
           perPage: String(Math.min(maxEvents + 8, 40)),
@@ -138,7 +147,7 @@ export default function JamBaseEventGrid({
     } finally {
       setLoading(false);
     }
-  }, [artistName, city, country, geoMetroId, genreSlug, maxEvents]);
+  }, [artistName, venueName, city, country, geoMetroId, genreSlug, maxEvents]);
 
   useEffect(() => {
     if (preloadedEvents !== undefined) {

@@ -1,4 +1,4 @@
-import { mochaUserIdKey, parseD1LastRowId } from './mocha-user-id';
+import { mochaUserIdKey } from './mocha-user-id';
 
 export { mochaUserIdKey };
 
@@ -15,19 +15,17 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
   }
 
   try {
-    const ins = await db
+    await db
       .prepare(
         'INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
       )
       .bind(name)
       .run();
-    const n = parseD1LastRowId(ins.meta?.last_row_id);
-    if (n != null) {
-      const verify = (await db.prepare('SELECT id FROM artists WHERE id = ?').bind(n).first()) as { id: unknown } | null;
-      const vid = verify?.id != null ? Number(verify.id) : NaN;
-      if (Number.isFinite(vid) && vid > 0) {
-        return vid;
-      }
+
+    row = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as { id: unknown } | null;
+    id = row?.id != null ? Number(row.id) : NaN;
+    if (Number.isFinite(id) && id > 0) {
+      return id;
     }
   } catch {
     /* UNIQUE(name) race — re-select below */
@@ -95,22 +93,40 @@ export async function mergeProfileFavoriteArtistsJson(
   }
 
   const favoritesJson = JSON.stringify(mergedNames);
-  if (profile) {
-    await db
-      .prepare(
-        `UPDATE user_profiles
-         SET favorite_artists = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE mocha_user_id = ?`,
-      )
-      .bind(favoritesJson, uid)
-      .run();
-  } else {
-    await db
-      .prepare(
-        `INSERT INTO user_profiles (mocha_user_id, role, favorite_artists, created_at, updated_at)
-         VALUES (?, 'fan', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      )
-      .bind(uid, favoritesJson)
-      .run();
+
+  const updated = await db
+    .prepare(
+      `UPDATE user_profiles
+       SET favorite_artists = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE mocha_user_id = ?`,
+    )
+    .bind(favoritesJson, uid)
+    .run();
+
+  const rowsAffected = Number(updated.meta?.changes ?? 0);
+  if (rowsAffected === 0) {
+    try {
+      await db
+        .prepare(
+          `INSERT INTO user_profiles (mocha_user_id, role, favorite_artists, created_at, updated_at)
+           VALUES (?, 'fan', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        )
+        .bind(uid, favoritesJson)
+        .run();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.toLowerCase().includes('unique constraint')) {
+        await db
+          .prepare(
+            `UPDATE user_profiles
+             SET favorite_artists = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE mocha_user_id = ?`,
+          )
+          .bind(favoritesJson, uid)
+          .run();
+      } else {
+        throw e;
+      }
+    }
   }
 }
