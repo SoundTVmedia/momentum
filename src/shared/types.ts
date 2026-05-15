@@ -103,7 +103,7 @@ export interface JamBaseEvent {
   image?: string;
 }
 
-/** Server /api/clips/resolve-show candidate */
+/** Server /api/clips/resolve-show candidate (venue from GPS; artist/event when a same-day JamBase show matched). */
 export interface ClipShowCandidate {
   /** Present when the row came from an event; null for closest-venue-only matches. */
   jambase_event_id: string | null;

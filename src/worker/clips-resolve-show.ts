@@ -12,19 +12,16 @@ import type { ClipShowCandidate } from '../shared/types';
 /** Extra miles beyond profile radius so GPS jitter does not drop the venue you are standing in front of. */
 const GPS_DISTANCE_SLACK_MILES = 1.25;
 
-/** JamBase `/venues` lat+lon search uses at least this many miles so sparse areas still return rows. */
+/** JamBase geo `/events` search uses at least this many miles so sparse areas still return rows. */
 const VENUE_JAMBASE_SEARCH_MIN_MILES = 35;
 
-/** Optional JamBase radius beyond profile radius when calling `/venues` (still filter by profile radius when coords exist). */
+/** Optional JamBase radius beyond profile radius when calling `/events` geo search. */
 const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 25;
 
 /** Never match tighter than this when comparing GPS ↔ venue coords (profile can be 1–5 mi). */
 const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
 
 type CandidateGeoTrust = { trustJamBaseGeoList?: boolean };
-
-const VENUES_PER_PAGE = '100';
-const VENUE_GEO_CITY_MAX_PAGES = 5;
 
 type ClipResolveMatch = 'none' | 'single';
 
@@ -109,12 +106,6 @@ function extractVenueCoords(ev: Record<string, unknown>): { lat: number; lon: nu
   return null;
 }
 
-function venueRootIdentifier(v: Record<string, unknown>): string | null {
-  if (typeof v.identifier === 'string' && v.identifier.trim()) return v.identifier.trim();
-  if (typeof v.id === 'string' && v.id.trim()) return v.id.trim();
-  return null;
-}
-
 function venueCityStateLine(ev: Record<string, unknown>): string | null {
   const loc = ev.location as Record<string, unknown> | undefined;
   /** `/venues` returns `MusicVenue` with `address` at root; events nest under `location`. */
@@ -194,35 +185,6 @@ function sortCandidatesByDistance(cands: ClipShowCandidate[]): ClipShowCandidate
   return [...cands].sort((a, b) => distanceSortKey(a.distance_miles) - distanceSortKey(b.distance_miles));
 }
 
-/** When JamBase returns a single venue row for this search but strict radius/city filters reject it, still trust that hit. */
-function soleRawVenueCandidate(
-  v: Record<string, unknown>,
-  userLat: number,
-  userLon: number
-): ClipShowCandidate | null {
-  const venueId = venueRootIdentifier(v);
-  const venueName = typeof v.name === 'string' ? v.name : null;
-  if (!venueId) return null;
-
-  const locationLine = venueCityStateLine(v);
-  const coords = extractVenueCoords(v);
-  let distanceMiles: number | null = null;
-  if (coords) {
-    distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
-  }
-
-  return {
-    jambase_event_id: null,
-    jambase_artist_id: null,
-    jambase_venue_id: venueId,
-    artist_name: null,
-    venue_name: venueName,
-    location: locationLine,
-    startDate: '',
-    distance_miles: distanceMiles,
-  };
-}
-
 /** One row per venue (or per event if venue id missing), keeping the closest hit. */
 function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidate[] {
   const map = new Map<string, ClipShowCandidate>();
@@ -248,8 +210,7 @@ function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidat
 }
 
 /**
- * Pick the single closest venue/event candidate after dedupe. We do not prompt the user to
- * choose among nearby venues—the app assumes the nearest resolved row is correct.
+ * Pick the single closest event (hence venue with show data) after dedupe — nearest GPS ↔ venue coords.
  */
 function finalizeMatch(dedupedSorted: ClipShowCandidate[]): {
   match: ClipResolveMatch;
@@ -259,46 +220,107 @@ function finalizeMatch(dedupedSorted: ClipShowCandidate[]): {
   return { match: 'single', candidates: [dedupedSorted[0]!] };
 }
 
-function candidateFromVenue(
-  v: Record<string, unknown>,
-  userLat: number,
-  userLon: number,
-  matchRadiusMiles: number,
-  userCityLower: string | null,
-  opts?: CandidateGeoTrust
-): ClipShowCandidate | null {
-  const venueId = venueRootIdentifier(v);
-  const venueName = typeof v.name === 'string' ? v.name : null;
-  if (!venueId) return null;
+function utcYmdFromMs(ms: number): string {
+  const d = new Date(ms);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
-  const locationLine = venueCityStateLine(v);
-  const coords = extractVenueCoords(v);
-  let distanceMiles: number | null = null;
-  let withinRadius = false;
+function utcYmdFromStartDate(startDate: string): string | null {
+  const parsed = Date.parse(startDate);
+  if (!Number.isFinite(parsed)) return null;
+  return utcYmdFromMs(parsed);
+}
 
-  if (coords) {
-    distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
-    withinRadius = distanceMiles <= matchRadiusMiles + GPS_DISTANCE_SLACK_MILES;
-  } else if (userCityLower && locationLine) {
-    const locLower = locationLine.toLowerCase();
-    const venueCity = locationLine.split(',')[0]?.trim().toLowerCase() ?? '';
-    withinRadius = venueCity === userCityLower || locLower.includes(userCityLower);
-  } else {
-    // JamBase already scoped lat/lon results; without reverse-geocoded city we cannot string-match.
-    withinRadius = Boolean(opts?.trustJamBaseGeoList);
-  }
-
-  if (!withinRadius) return null;
-
+/** If we loaded a geo event on the wrong calendar day, drop event/artist and keep venue only. */
+function stripArtistIfEventNotOnCaptureDay(base: ClipShowCandidate, captureDayYmd: string): ClipShowCandidate {
+  if (!base.jambase_event_id || !base.startDate) return base;
+  const eventDay = utcYmdFromStartDate(base.startDate);
+  if (eventDay === captureDayYmd) return base;
   return {
+    ...base,
     jambase_event_id: null,
     jambase_artist_id: null,
-    jambase_venue_id: venueId,
     artist_name: null,
-    venue_name: venueName,
-    location: locationLine,
     startDate: '',
-    distance_miles: distanceMiles,
+  };
+}
+
+/**
+ * Closest venue is already chosen. Load shows at that venue and, if one starts on the capture
+ * UTC calendar day, merge headliner + event id (pick start time nearest to capture instant).
+ */
+async function enrichWithSameDayShowAtVenue(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  base: ClipShowCandidate,
+  captureMs: number
+): Promise<ClipShowCandidate> {
+  const venueId = base.jambase_venue_id?.trim();
+  const captureDay = utcYmdFromMs(captureMs);
+
+  if (!venueId) {
+    return stripArtistIfEventNotOnCaptureDay(base, captureDay);
+  }
+
+  /** Start JamBase listing one UTC day earlier so timezone edge cases still appear in results. */
+  const eventDateFrom = utcYmdFromMs(captureMs - 86400000);
+
+  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+    apiKey,
+    '/events',
+    {
+      venueId,
+      eventDateFrom,
+      perPage: '50',
+      page: '1',
+    },
+    jbQ
+  );
+  const raw = data?.events ?? [];
+  const sameDay: Record<string, unknown>[] = [];
+  for (const ev of raw) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const evo = ev as Record<string, unknown>;
+    const sd = typeof evo.startDate === 'string' ? evo.startDate : '';
+    const day = utcYmdFromStartDate(sd);
+    if (day === captureDay) sameDay.push(evo);
+  }
+
+  if (sameDay.length === 0) {
+    return stripArtistIfEventNotOnCaptureDay(base, captureDay);
+  }
+
+  let bestEv = sameDay[0]!;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const ev of sameDay) {
+    const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
+    const t = Date.parse(sd);
+    const score = Number.isFinite(t) ? Math.abs(t - captureMs) : Number.POSITIVE_INFINITY;
+    if (score < bestScore) {
+      bestScore = score;
+      bestEv = ev;
+    }
+  }
+
+  const head = headlinerFromEvent(bestEv);
+  const artistName = typeof head?.name === 'string' ? head.name : null;
+  const artistId = typeof head?.identifier === 'string' ? head.identifier : null;
+  const eventId = typeof bestEv.identifier === 'string' ? bestEv.identifier : null;
+  const startDate = typeof bestEv.startDate === 'string' ? bestEv.startDate : '';
+  const vName = venueNameFromEvent(bestEv);
+  const locLine = venueCityStateLine(bestEv);
+
+  return {
+    ...base,
+    jambase_event_id: eventId,
+    jambase_artist_id: artistId,
+    artist_name: artistName,
+    venue_name: base.venue_name ?? vName,
+    location: base.location ?? locLine,
+    startDate,
   };
 }
 
@@ -352,114 +374,8 @@ function candidateFromEvent(
   };
 }
 
-/** JamBase may return several cities for one name (e.g. suburbs); merge venues across a few IDs. */
-async function resolveGeoCityIds(
-  apiKey: string,
-  city: string,
-  countryIso2: string,
-  jbQ: JamBaseQuotaContext | undefined,
-  max: number
-): Promise<string[]> {
-  const trimmed = city.trim();
-  if (!trimmed) return [];
-  const cities = await jamBaseFetch<{ cities?: Record<string, unknown>[] }>(
-    apiKey,
-    '/geographies/cities',
-    {
-      geoCityName: trimmed,
-      geoCountryIso2: countryIso2.slice(0, 2).toUpperCase(),
-    },
-    jbQ
-  );
-  const ids: string[] = [];
-  for (const row of (cities?.cities ?? []).slice(0, max)) {
-    if (typeof row.identifier === 'string') ids.push(row.identifier);
-  }
-  return ids;
-}
-
-async function fetchVenuesPaginatedByGeoCity(
-  apiKey: string,
-  geoCityId: string,
-  jbQ: JamBaseQuotaContext | undefined
-): Promise<Record<string, unknown>[]> {
-  const out: Record<string, unknown>[] = [];
-  for (let page = 1; page <= VENUE_GEO_CITY_MAX_PAGES; page++) {
-    const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-      apiKey,
-      '/venues',
-      { geoCityId, perPage: VENUES_PER_PAGE, page: String(page) },
-      jbQ
-    );
-    const batch = data?.venues ?? [];
-    if (batch.length === 0) break;
-    for (const v of batch) out.push(v as Record<string, unknown>);
-    if (batch.length < parseInt(VENUES_PER_PAGE, 10)) break;
-  }
-  return out;
-}
-
-/**
- * JamBase v3 `/venues` requires `venueName` or geo filters — use lat/lon + radius (mi), not zipCode.
- * @see https://data.jambase.com/openapi.json searchVenues
- */
-async function fetchVenuesPaginatedByLatLon(
-  apiKey: string,
-  userLat: number,
-  userLon: number,
-  radiusMiles: number,
-  jbQ: JamBaseQuotaContext | undefined
-): Promise<{
-  venues: Record<string, unknown>[];
-  /** First `/venues` page failed (null) — JamBase unreachable, auth, quota mid-flight, etc. */
-  firstPageFailed: boolean;
-  firstPageFailure?: JamBaseFetchDiag['failure'];
-  firstPageHttpStatus?: number;
-}> {
-  const searchMiles = Math.max(
-    radiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
-    VENUE_JAMBASE_SEARCH_MIN_MILES
-  );
-  const radiusAmount = Math.min(5000, Math.max(1, Math.ceil(searchMiles)));
-  const out: Record<string, unknown>[] = [];
-  let firstPageFailed = false;
-  const firstDiag: JamBaseFetchDiag = {};
-  for (let page = 1; page <= VENUE_GEO_CITY_MAX_PAGES; page++) {
-    const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-      apiKey,
-      '/venues',
-      {
-        geoLatitude: String(userLat),
-        geoLongitude: String(userLon),
-        geoRadiusAmount: String(radiusAmount),
-        geoRadiusUnits: 'mi',
-        perPage: VENUES_PER_PAGE,
-        page: String(page),
-      },
-      jbQ,
-      page === 1 ? firstDiag : undefined
-    );
-    if (data == null) {
-      if (page === 1) {
-        firstPageFailed = true;
-      }
-      break;
-    }
-    const batch = data?.venues ?? [];
-    if (batch.length === 0) break;
-    for (const v of batch) out.push(v as Record<string, unknown>);
-    if (batch.length < parseInt(VENUES_PER_PAGE, 10)) break;
-  }
-  return {
-    venues: out,
-    firstPageFailed,
-    firstPageFailure: firstPageFailed ? firstDiag.failure : undefined,
-    firstPageHttpStatus: firstPageFailed ? firstDiag.httpStatus : undefined,
-  };
-}
-
-/** User-facing copy when the first geo `/venues` JamBase call returns null (see `JamBaseFetchDiag`). */
-function jamBaseVenueFetchFailureNotice(
+/** User-facing copy when a JamBase `/events` call returns null (see `JamBaseFetchDiag`). */
+function jamBaseFetchFailureNotice(
   failure?: JamBaseFetchDiag['failure'],
   httpStatus?: number
 ): string {
@@ -483,17 +399,16 @@ function jamBaseVenueFetchFailureNotice(
     case 'network':
       return 'Could not reach api.data.jambase.com from the worker (network or TLS). Try again; if local, check firewall/VPN.';
     default:
-      return 'JamBase venue lookup failed before returning data. Check worker logs and JAMBASE_API_KEY / JAMBASE_QUOTA_ENFORCEMENT in .dev.vars.';
+      return 'JamBase event lookup failed before returning data. Check worker logs and JAMBASE_API_KEY / JAMBASE_QUOTA_ENFORCEMENT in .dev.vars.';
   }
 }
 
 /**
  * POST /api/clips/resolve-show
- * Body: { latitude, longitude, at? (ISO; used for event fallback window only), city?, state?, country? }
+ * Body: { latitude, longitude, at? (ISO; capture instant for same-day show + artist merge), city?, state?, country? }
  *
- * Picks the **closest** JamBase venue (or deduped event row) within the computed match radius.
- * When multiple venues are nearby, **`match` is always `single`** — the geographically closest candidate wins;
- * users are not asked to disambiguate in the picker flow.
+ * **Only considers JamBase concerts** (geo `/events`): the closest event by GPS ↔ venue coordinates wins
+ * (deduped per venue). Then `/events?venueId=…` refines same **UTC calendar day** as `at` when possible.
  */
 export async function postResolveShowForClip(c: Context) {
   const mochaUser = c.get('user');
@@ -540,14 +455,11 @@ export async function postResolveShowForClip(c: Context) {
   }
 
   let city = typeof body.city === 'string' ? body.city.trim() : '';
-  let countryIso = typeof body.country === 'string' ? body.country.trim().toUpperCase() : 'US';
-  if (countryIso.length !== 2) countryIso = 'US';
 
   let postcode: string | null = null;
   const rev = await nominatimReverse(lat, lon);
   if (rev) {
     if (!city && rev.city) city = rev.city;
-    if (rev.country_code) countryIso = rev.country_code;
     if (rev.postcode) postcode = rev.postcode;
   }
 
@@ -589,9 +501,9 @@ export async function postResolveShowForClip(c: Context) {
         geoCityId: null,
         geoCityIds: [],
         postcodeFromNominatim: Boolean(postcode),
-        venuesLatLonSearch: true,
-        rawVenueCount: 0,
-        matchedVenueCount: 0,
+        eventsGeoSearch: false,
+        rawEventCount: 0,
+        matchedEventCandidateCount: 0,
         eventDateFrom: new Date().toISOString().split('T')[0],
         matchSource: 'quota',
         lat,
@@ -603,145 +515,81 @@ export async function postResolveShowForClip(c: Context) {
 
   const userCityLower = city ? city.toLowerCase() : null;
 
-  const seenVenueKeys = new Set<string>();
-  const rawVenueList: Record<string, unknown>[] = [];
-  /** Lat/lon + geoIp JamBase listings: trust rows without precise coords when city is unknown. */
-  const trustedGeoVenueIds = new Set<string>();
+  const anchor = hasAt ? new Date(atMs) : new Date();
+  const windowStart = new Date(anchor);
+  windowStart.setUTCDate(windowStart.getUTCDate() - 1);
+  const eventDateFrom = windowStart.toISOString().split('T')[0];
 
-  const pushVenueBatch = (venues: Record<string, unknown>[], markTrusted: boolean) => {
-    for (const v of venues) {
-      const id = venueRootIdentifier(v) ?? '';
-      if (!id || seenVenueKeys.has(id)) continue;
-      seenVenueKeys.add(id);
-      rawVenueList.push(v);
-      if (markTrusted) trustedGeoVenueIds.add(id);
-    }
+  const eventSearchMiles = Math.max(
+    profileRadiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
+    VENUE_JAMBASE_SEARCH_MIN_MILES
+  );
+  const eventRadius = Math.min(
+    5000,
+    Math.max(1, Math.ceil(eventSearchMiles + GPS_DISTANCE_SLACK_MILES))
+  );
+
+  const eventParams: Record<string, string> = {
+    eventDateFrom,
+    perPage: '80',
+    page: '1',
+    geoLatitude: String(lat),
+    geoLongitude: String(lon),
+    geoRadiusAmount: String(eventRadius),
+    geoRadiusUnits: 'mi',
   };
 
-  const latLonRes = await fetchVenuesPaginatedByLatLon(key, lat, lon, profileRadiusMiles, jbQ);
-  pushVenueBatch(latLonRes.venues, true);
+  const eventsDiag: JamBaseFetchDiag = {};
+  const geoEventsPayload = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+    key,
+    '/events',
+    eventParams,
+    jbQ,
+    eventsDiag
+  );
 
-  if (rawVenueList.length === 0 && !latLonRes.firstPageFailed) {
-    const cfIp =
-      c.req.header('cf-connecting-ip') ||
-      c.req.header('CF-Connecting-IP') ||
-      (typeof c.req.header('x-forwarded-for') === 'string'
-        ? c.req.header('x-forwarded-for')!.split(',')[0]!.trim()
-        : '');
-    if (cfIp.length > 5) {
-      const ipData = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-        key,
-        '/venues',
-        {
-          geoIp: cfIp,
-          perPage: VENUES_PER_PAGE,
-          page: '1',
-        },
-        jbQ
-      );
-      if (ipData != null) {
-        pushVenueBatch((ipData.venues ?? []) as Record<string, unknown>[], true);
-      }
-    }
-  }
+  const eventsFetchFailed = geoEventsPayload == null;
+  const rawEvents = geoEventsPayload?.events ?? [];
+  const rawUpstreamCount = rawEvents.length;
 
-  /** Only when lat/lon (+ IP) returned nothing — avoids extra JamBase calls when geo search already succeeded. */
-  let geoCityIds: string[] = [];
-  let primaryGeoCityId: string | null = null;
-  if (rawVenueList.length === 0) {
-    geoCityIds = city ? await resolveGeoCityIds(key, city, countryIso, jbQ, 4) : [];
-    primaryGeoCityId = geoCityIds[0] ?? null;
-    for (const gcid of geoCityIds) {
-      pushVenueBatch(await fetchVenuesPaginatedByGeoCity(key, gcid, jbQ), false);
-    }
-    if (rawVenueList.length === 0 && geoCityIds.length === 0) {
-      const metroPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-        key,
-        '/venues',
-        { geoMetroId: 'jambase:1', perPage: VENUES_PER_PAGE, page: '1' },
-        jbQ
-      );
-      pushVenueBatch((metroPayload?.venues ?? []) as Record<string, unknown>[], false);
-    }
-  }
+  const matchSource = 'events_geo' as const;
 
-  const fromVenues: ClipShowCandidate[] = [];
-  for (const v of rawVenueList) {
-    const vid = venueRootIdentifier(v) ?? '';
-    const cnd = candidateFromVenue(v, lat, lon, matchRadiusMiles, userCityLower, {
-      trustJamBaseGeoList: trustedGeoVenueIds.has(vid),
+  const fromEvents: ClipShowCandidate[] = [];
+  for (const ev of rawEvents) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const cnd = candidateFromEvent(ev as Record<string, unknown>, lat, lon, matchRadiusMiles, userCityLower, {
+      trustJamBaseGeoList: true,
     });
-    if (cnd) fromVenues.push(cnd);
+    if (cnd) fromEvents.push(cnd);
   }
 
-  if (fromVenues.length === 0) {
-    for (const v of rawVenueList) {
-      const vid = venueRootIdentifier(v) ?? '';
-      if (!vid || !trustedGeoVenueIds.has(vid)) continue;
-      const salvage = soleRawVenueCandidate(v, lat, lon);
-      if (salvage) fromVenues.push(salvage);
-    }
-  }
+  const working = dedupeKeepClosestPerVenue(fromEvents);
 
-  let matchSource: 'venues' | 'events' = 'venues';
-  let rawUpstreamCount = rawVenueList.length;
-  let working = dedupeKeepClosestPerVenue(fromVenues);
-
-  if (working.length === 0 && rawVenueList.length === 1) {
-    const sole = soleRawVenueCandidate(rawVenueList[0]!, lat, lon);
-    if (sole) {
-      working = dedupeKeepClosestPerVenue([sole]);
-    }
-  }
-
-  if (working.length === 0) {
-    matchSource = 'events';
-    const anchor = hasAt ? new Date(atMs) : new Date();
-    const from = new Date(anchor);
-    from.setUTCDate(from.getUTCDate() - 1);
-    const eventDateFrom = from.toISOString().split('T')[0];
-
-    const eventSearchMiles = Math.max(
-      profileRadiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
-      VENUE_JAMBASE_SEARCH_MIN_MILES
-    );
-    const eventRadius = Math.min(5000, Math.max(1, Math.ceil(eventSearchMiles + GPS_DISTANCE_SLACK_MILES)));
-    /** Prefer GPS radius over city/metro so fallback matches the same coordinates as venue search. */
-    const eventParams: Record<string, string> = {
-      eventDateFrom,
-      perPage: '80',
-      page: '1',
-      geoLatitude: String(lat),
-      geoLongitude: String(lon),
-      geoRadiusAmount: String(eventRadius),
-      geoRadiusUnits: 'mi',
-    };
-
-    const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(key, '/events', eventParams, jbQ);
-    const rawEvents = data?.events ?? [];
-    rawUpstreamCount = rawEvents.length;
-
-    const fromEvents: ClipShowCandidate[] = [];
-    for (const ev of rawEvents) {
-      const cnd = candidateFromEvent(ev, lat, lon, matchRadiusMiles, userCityLower, {
-        trustJamBaseGeoList: true,
-      });
-      if (cnd) fromEvents.push(cnd);
-    }
-    working = dedupeKeepClosestPerVenue(fromEvents);
-  }
-
-  const { match, candidates } = finalizeMatch(working);
+  let { match, candidates } = finalizeMatch(working);
   const nearbyVenues = working.slice(0, 15);
 
-  const notice =
-    match === 'none'
-      ? latLonRes.firstPageFailed
-        ? jamBaseVenueFetchFailureNotice(latLonRes.firstPageFailure, latLonRes.firstPageHttpStatus)
-        : rawVenueList.length === 0
-          ? 'JamBase returned no venues for this latitude and longitude. You can enter the venue manually.'
-          : 'JamBase returned nearby venues, but none could be matched to your coordinates. You can pick the venue manually.'
-      : null;
+  if (match === 'single' && candidates.length === 1) {
+    const anchorMs = hasAt ? atMs : Date.now();
+    try {
+      const enriched = await enrichWithSameDayShowAtVenue(key, jbQ, candidates[0]!, anchorMs);
+      candidates = [enriched];
+    } catch (e) {
+      console.error('resolve-show same-day venue events merge failed:', e);
+    }
+  }
+
+  let notice: string | null = null;
+  if (match === 'none') {
+    if (eventsFetchFailed) {
+      notice = jamBaseFetchFailureNotice(eventsDiag.failure, eventsDiag.httpStatus);
+    } else if (rawEvents.length === 0) {
+      notice =
+        'JamBase has no upcoming concerts near this location in the current search window. We only match venues that have JamBase show listings — you can enter the venue manually.';
+    } else {
+      notice =
+        'JamBase returned concerts in the area, but none within your location radius. You can enter the venue manually.';
+    }
+  }
 
   await recordResolveTelemetry(
     c,
@@ -750,17 +598,12 @@ export async function postResolveShowForClip(c: Context) {
     profileRadiusMiles,
     rawUpstreamCount,
     candidates.length,
-    primaryGeoCityId,
-    matchSource === 'venues' ? 'venues_geo' : 'events_fallback',
+    null,
+    matchSource,
     notice
   );
 
   c.header('Cache-Control', 'private, max-age=60');
-
-  const anchor = hasAt ? new Date(atMs) : new Date();
-  const from = new Date(anchor);
-  from.setUTCDate(from.getUTCDate() - 1);
-  const eventDateFrom = from.toISOString().split('T')[0];
 
   return c.json({
     match,
@@ -772,19 +615,19 @@ export async function postResolveShowForClip(c: Context) {
       matchRadiusMiles,
       city,
       postcode,
-      geoCityId: primaryGeoCityId,
-      geoCityIds,
+      geoCityId: null,
+      geoCityIds: [] as string[],
       postcodeFromNominatim: Boolean(postcode),
-      venuesLatLonSearch: true,
-      rawVenueCount: rawVenueList.length,
-      matchedVenueCount: fromVenues.length,
+      eventsGeoSearch: true,
+      rawEventCount: rawEvents.length,
+      matchedEventCandidateCount: fromEvents.length,
       eventDateFrom,
       matchSource,
       lat,
       lon,
-      jamBaseVenueFirstFetchFailed: latLonRes.firstPageFailed,
-      jamBaseVenueFirstFetchFailure: latLonRes.firstPageFailure ?? null,
-      jamBaseVenueFirstFetchHttpStatus: latLonRes.firstPageHttpStatus ?? null,
+      jamBaseEventsFetchFailed: eventsFetchFailed,
+      jamBaseEventsFetchFailure: eventsFetchFailed ? eventsDiag.failure ?? null : null,
+      jamBaseEventsFetchHttpStatus: eventsFetchFailed ? eventsDiag.httpStatus ?? null : null,
     },
   });
 }
