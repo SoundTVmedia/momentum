@@ -3,6 +3,8 @@ import { normalizeClipApiRows } from './clip-row-normalize';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { fetchJamBaseEventsByArtistName } from './jambase-endpoints';
 import { dedupeJamBaseEvents } from './jambase-events-search';
+import { syncUserFavoriteArtistRows } from './favorite-artists-sync';
+import { mochaUserIdKey } from './mocha-user-id';
 
 function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959;
@@ -47,6 +49,11 @@ export async function updatePersonalization(c: Context) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+  if (!uid) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
   try {
     const body = await c.req.json();
     const { 
@@ -57,6 +64,10 @@ export async function updatePersonalization(c: Context) {
       location_radius_miles,
       personalization_enabled 
     } = body;
+
+    if (Array.isArray(favorite_artists) && favorite_artists.length > 0) {
+      await syncUserFavoriteArtistRows(c.env.DB, uid, favorite_artists);
+    }
 
     // Update user profile with personalization settings
     await c.env.DB.prepare(
@@ -77,7 +88,7 @@ export async function updatePersonalization(c: Context) {
         home_longitude || null,
         location_radius_miles || 50,
         personalization_enabled !== undefined ? (personalization_enabled ? 1 : 0) : 1,
-        mochaUser.id
+        uid
       )
       .run();
 
@@ -99,6 +110,8 @@ export async function getPersonalizedFeed(c: Context) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+
   try {
     const page = parseInt(c.req.query('page') || '1');
     const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50);
@@ -110,7 +123,7 @@ export async function getPersonalizedFeed(c: Context) {
        FROM user_profiles 
        WHERE mocha_user_id = ?`
     )
-      .bind(mochaUser.id)
+      .bind(uid)
       .first();
 
     if (!profile || !profile.personalization_enabled) {
@@ -190,7 +203,7 @@ export async function getPersonalizedFeed(c: Context) {
     }
 
     // Exclude viewer's own uploads from "For You"
-    bindings.push(mochaUser.id);
+    bindings.push(uid);
 
     // Order by total score
     query += `
@@ -227,6 +240,8 @@ export async function getPersonalizedConcerts(c: Context) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+
   try {
     const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50);
 
@@ -235,7 +250,7 @@ export async function getPersonalizedConcerts(c: Context) {
        FROM user_profiles 
        WHERE mocha_user_id = ?`
     )
-      .bind(mochaUser.id)
+      .bind(uid)
       .first();
 
     if (!profile || !profile.personalization_enabled) {

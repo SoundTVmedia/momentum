@@ -2,10 +2,7 @@ import { Context } from 'hono';
 import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
-
-function mochaUserIdKey(user: { id: unknown }): string {
-  return String(user.id ?? '').trim();
-}
+import { mochaUserIdKey } from './mocha-user-id';
 
 /**
  * Get prioritized shows for discovery feed

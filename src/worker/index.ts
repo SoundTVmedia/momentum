@@ -12,6 +12,7 @@ import {
   revokeEmailSession,
   isLocalDevHost,
 } from "./hybrid-auth";
+import { mochaUserIdKey } from "./mocha-user-id";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
@@ -192,7 +193,7 @@ app.get("/api/users/me", authMiddleware, async (c) => {
   const profile = await c.env.DB.prepare(
     "SELECT * FROM user_profiles WHERE mocha_user_id = ?"
   )
-    .bind(mochaUser.id)
+    .bind(mochaUserIdKey(mochaUser))
     .first();
 
   return c.json({

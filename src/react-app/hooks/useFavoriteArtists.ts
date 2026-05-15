@@ -19,7 +19,7 @@ export function useFavoriteArtists() {
   const fetchFavoriteArtists = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/users/me/favorite-artists');
+      const response = await fetch('/api/users/me/favorite-artists', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setFavoriteArtists(data.artists || []);
@@ -36,6 +36,7 @@ export function useFavoriteArtists() {
       const response = await fetch('/api/users/favorite-artist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ artist_id: artistId }),
       });
 
