@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin } from 'lucide-react';
+import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin, Music } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
+import type { ClipShowCandidate } from '@/shared/types';
 import {
   identifyMusicWithAudD,
   auddSourceKey,
@@ -20,6 +21,19 @@ const MAX_AUDD_PARALLEL_RECORD_MS = 20_000;
 /** Sliding-window live ID: one AudD request per timeslice; overlapping calls skipped while a request is in flight. */
 const LIVE_AUDD_TIMESLICE_MS = 6000;
 const MIN_LIVE_AUDD_CHUNK_BYTES = 2000;
+
+/** Build `location.state.showData` so UploadClip prefills JamBase fields without calling resolve-show again. */
+function clipCandidateToNavShowData(c: ClipShowCandidate): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    artist_name: c.artist_name ?? '',
+    venue_name: c.venue_name ?? '',
+    location: c.location ?? '',
+  };
+  if (c.jambase_event_id) out.jambase_event_id = c.jambase_event_id;
+  if (c.jambase_artist_id) out.jambase_artist_id = c.jambase_artist_id;
+  if (c.jambase_venue_id) out.jambase_venue_id = c.jambase_venue_id;
+  return out;
+}
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -128,6 +142,21 @@ export default function QuickRecordButton({
     lon: number;
   } | null>(null);
   const coordsForNearbyVenuesRef = useRef<{ lat: number; lon: number } | null>(null);
+  /** Successful prefetch candidate → passed as `location.state.showData` so UploadClip skips resolve-show. */
+  const captureResolveCandidateRef = useRef<ClipShowCandidate | null>(null);
+
+  /** JamBase resolve-show preview on camera (before record). */
+  const [captureResolvePreview, setCaptureResolvePreview] = useState<{
+    status: 'idle' | 'loading' | 'ready' | 'none' | 'error';
+    venueName: string | null;
+    artistName: string | null;
+    locationLine: string | null;
+  }>({
+    status: 'idle',
+    venueName: null,
+    artistName: null,
+    locationLine: null,
+  });
 
   useEffect(() => {
     coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
@@ -181,8 +210,105 @@ export default function QuickRecordButton({
   useEffect(() => {
     if (!showModal) {
       setCoordsForNearbyVenues(null);
+      captureResolveCandidateRef.current = null;
+      setCaptureResolvePreview({
+        status: 'idle',
+        venueName: null,
+        artistName: null,
+        locationLine: null,
+      });
     }
   }, [showModal]);
+
+  /** Prefetch nearest JamBase show for camera HUD (same endpoint as upload caption resolve). */
+  useEffect(() => {
+    if (!showModal || !user || isPending) return;
+    const c = coordsForNearbyVenues;
+    if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) {
+      captureResolveCandidateRef.current = null;
+      setCaptureResolvePreview({
+        status: 'idle',
+        venueName: null,
+        artistName: null,
+        locationLine: null,
+      });
+      return;
+    }
+
+    const ac = new AbortController();
+    let cancelled = false;
+
+    void (async () => {
+      captureResolveCandidateRef.current = null;
+      setCaptureResolvePreview({
+        status: 'loading',
+        venueName: null,
+        artistName: null,
+        locationLine: null,
+      });
+      try {
+        const res = await fetch('/api/clips/resolve-show', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          signal: ac.signal,
+          body: JSON.stringify({
+            latitude: c.lat,
+            longitude: c.lon,
+            at: new Date().toISOString(),
+          }),
+        });
+        if (cancelled) return;
+        if (!res.ok) {
+          captureResolveCandidateRef.current = null;
+          setCaptureResolvePreview({
+            status: 'error',
+            venueName: null,
+            artistName: null,
+            locationLine: null,
+          });
+          return;
+        }
+        const data = (await res.json()) as {
+          match?: string;
+          candidates?: ClipShowCandidate[];
+        };
+        if (cancelled) return;
+        const cand = data.match === 'single' ? data.candidates?.[0] : undefined;
+        if (cand?.venue_name?.trim()) {
+          captureResolveCandidateRef.current = cand;
+          setCaptureResolvePreview({
+            status: 'ready',
+            venueName: cand.venue_name.trim(),
+            artistName: cand.artist_name?.trim() ?? null,
+            locationLine: cand.location?.trim() ?? null,
+          });
+        } else {
+          captureResolveCandidateRef.current = null;
+          setCaptureResolvePreview({
+            status: 'none',
+            venueName: null,
+            artistName: null,
+            locationLine: null,
+          });
+        }
+      } catch (e) {
+        if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return;
+        captureResolveCandidateRef.current = null;
+        setCaptureResolvePreview({
+          status: 'error',
+          venueName: null,
+          artistName: null,
+          locationLine: null,
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [showModal, user, isPending, coordsForNearbyVenues?.lat, coordsForNearbyVenues?.lon]);
 
   // Apply GPS from the same user gesture as camera launch (parent primed); no getCurrentPosition here.
   useEffect(() => {
@@ -603,6 +729,7 @@ export default function QuickRecordButton({
     try {
       const sourceKey = auddSourceKey(file);
       const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(file));
+      const prefetchShow = captureResolveCandidateRef.current;
       navigate({ pathname: '/upload', search: '' }, {
         state: {
           videoFile: file,
@@ -617,6 +744,7 @@ export default function QuickRecordButton({
               }
             : null,
           auddPrefill,
+          ...(prefetchShow ? { showData: clipCandidateToNavShowData(prefetchShow) } : {}),
         },
       });
       (onAfterCaptureNavigate ?? onClose)?.();
@@ -952,6 +1080,7 @@ export default function QuickRecordButton({
       const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(auddInput));
       setProcessingHint('');
 
+      const prefetchShow = captureResolveCandidateRef.current;
       navigate(
         { pathname: '/upload', search: '' },
         {
@@ -974,6 +1103,7 @@ export default function QuickRecordButton({
               video_resolution_h: videoResolution.height,
             },
             auddPrefill,
+            ...(prefetchShow ? { showData: clipCandidateToNavShowData(prefetchShow) } : {}),
           },
         }
       );
@@ -1250,10 +1380,47 @@ export default function QuickRecordButton({
                 {coordsForNearbyVenues && (
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
                     <MapPin className="w-3.5 h-3.5 shrink-0 text-cyan-400 mt-0.5" />
-                    <p className="text-gray-300 text-[11px] leading-snug text-left">
-                      Capture location is saved with this clip. After you record, we&apos;ll show JamBase venues for
-                      that spot on the upload screen.
-                    </p>
+                    <div className="min-w-0 flex-1 text-left space-y-1">
+                      {(captureResolvePreview.status === 'idle' ||
+                        captureResolvePreview.status === 'loading') && (
+                        <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-cyan-400" />
+                          Matching nearest JamBase show at your location…
+                        </p>
+                      )}
+                      {captureResolvePreview.status === 'ready' && (
+                        <>
+                          <p className="text-white text-xs font-semibold leading-snug truncate">
+                            {captureResolvePreview.venueName}
+                          </p>
+                          {captureResolvePreview.artistName ? (
+                            <p className="text-cyan-100/95 text-[11px] leading-snug flex items-start gap-1.5">
+                              <Music className="w-3 h-3 shrink-0 mt-0.5 text-purple-300" />
+                              <span>{captureResolvePreview.artistName}</span>
+                            </p>
+                          ) : null}
+                          {captureResolvePreview.locationLine ? (
+                            <p className="text-gray-500 text-[10px] leading-snug">
+                              {captureResolvePreview.locationLine}
+                            </p>
+                          ) : null}
+                          <p className="text-gray-500 text-[10px] leading-snug pt-0.5">
+                            Saved with this clip — you can edit on the next screen after you record.
+                          </p>
+                        </>
+                      )}
+                      {captureResolvePreview.status === 'none' && (
+                        <p className="text-gray-300 text-[11px] leading-snug">
+                          Location saved with this clip. No JamBase show matched here yet — add venue or artist after you
+                          record if needed.
+                        </p>
+                      )}
+                      {captureResolvePreview.status === 'error' && (
+                        <p className="text-gray-300 text-[11px] leading-snug">
+                          Couldn&apos;t preview venue here; we&apos;ll match again right after you record.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
