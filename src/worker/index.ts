@@ -13,6 +13,7 @@ import {
   isLocalDevHost,
 } from "./hybrid-auth";
 import { mochaUserIdKey } from "./mocha-user-id";
+import { replaceProfileFavoriteArtistsJsonFromTable } from "./favorite-artists-sync";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
@@ -1226,7 +1227,7 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
   return c.json(newComment, 201);
 });
 
-// Follow a user
+// Follow a user (or JamBase artist via `artist-{numericId}` — same rows as favorite / “artists you follow”)
 app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
   const mochaUser = c.get("user");
   
@@ -1235,8 +1236,37 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
   }
   
   const targetUserId = c.req.param('userId');
+  const uid = mochaUserIdKey(mochaUser);
+  const artistFollow = /^artist-(\d+)$/.exec(targetUserId);
 
-  if (targetUserId === mochaUser.id) {
+  if (artistFollow) {
+    const artistId = Number(artistFollow[1]);
+    if (!Number.isInteger(artistId) || artistId <= 0) {
+      return c.json({ error: 'Invalid artist' }, 400);
+    }
+    const row = await c.env.DB
+      .prepare('SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
+      .bind(uid, artistId)
+      .first();
+    if (row) {
+      await c.env.DB
+        .prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
+        .bind(uid, artistId)
+        .run();
+      await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
+      return c.json({ following: false });
+    }
+    await c.env.DB
+      .prepare(
+        'INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+      )
+      .bind(uid, artistId)
+      .run();
+    await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
+    return c.json({ following: true });
+  }
+
+  if (targetUserId === String(mochaUser.id) || targetUserId === uid) {
     return c.json({ error: "Cannot follow yourself" }, 400);
   }
 
@@ -1244,7 +1274,7 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
   const existingFollow = await c.env.DB.prepare(
     "SELECT id FROM follows WHERE follower_id = ? AND following_id = ?"
   )
-    .bind(mochaUser.id, targetUserId)
+    .bind(uid, targetUserId)
     .first();
 
   if (existingFollow) {
@@ -1252,7 +1282,7 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
     await c.env.DB.prepare(
       "DELETE FROM follows WHERE follower_id = ? AND following_id = ?"
     )
-      .bind(mochaUser.id, targetUserId)
+      .bind(uid, targetUserId)
       .run();
 
     return c.json({ following: false });
@@ -1261,7 +1291,7 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
     await c.env.DB.prepare(
       "INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)"
     )
-      .bind(mochaUser.id, targetUserId)
+      .bind(uid, targetUserId)
       .run();
 
     // Create notification
@@ -1269,7 +1299,7 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
       `INSERT INTO notifications (mocha_user_id, type, content, related_user_id, created_at)
        VALUES (?, 'follow', ?, ?, CURRENT_TIMESTAMP)`
     )
-      .bind(targetUserId, 'started following you', mochaUser.id)
+      .bind(targetUserId, 'started following you', uid)
       .run();
 
     // Fetch the notification to broadcast

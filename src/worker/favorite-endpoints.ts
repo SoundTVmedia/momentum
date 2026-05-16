@@ -1,8 +1,9 @@
 import { Context } from 'hono';
 import {
   getOrCreateArtistIdByName,
-  mergeProfileFavoriteArtistsJson,
+  mergeCanonicalNamesForFavoriteBatch,
   mochaUserIdKey,
+  replaceProfileFavoriteArtistsJsonFromTable,
   syncUserFavoriteArtistRows,
 } from './favorite-artists-sync';
 
@@ -75,6 +76,7 @@ export async function toggleFavoriteArtist(c: Context) {
         .bind(uid, artist_id)
         .run();
 
+      await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
       return c.json({ favorited: false });
     } else {
       // Add to favorites
@@ -84,6 +86,7 @@ export async function toggleFavoriteArtist(c: Context) {
         .bind(uid, artist_id)
         .run();
 
+      await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
       return c.json({ favorited: true });
     }
   } catch (error) {
@@ -137,6 +140,7 @@ export async function favoriteClip(c: Context) {
       )
         .bind(uid, artistId)
         .run();
+      await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
     }
 
     // Check if clip already favorited
@@ -280,7 +284,7 @@ export async function syncFavoriteArtistsByName(c: Context) {
 
   try {
     await syncUserFavoriteArtistRows(c.env.DB, uid, normalized);
-    await mergeProfileFavoriteArtistsJson(c.env.DB, uid, normalized);
+    await mergeCanonicalNamesForFavoriteBatch(c.env.DB, uid, normalized);
 
     return c.json({ success: true, synced: normalized.length });
   } catch (error) {

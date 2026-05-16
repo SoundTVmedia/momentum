@@ -261,10 +261,10 @@ export default function VenuePage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
+          {/* Main Content — mobile: latest clips above upcoming shows; lg: original order */}
+          <div className="lg:col-span-2 flex flex-col gap-8">
             {/* Upcoming shows (JamBase-first; aligns with artist pages) */}
-            <div className="bg-black/35 backdrop-blur-lg border border-cyan-500/20 rounded-2xl p-5 sm:p-6">
+            <div className="order-2 lg:order-1 bg-black/35 backdrop-blur-lg border border-cyan-500/20 rounded-2xl p-5 sm:p-6">
               <div className="flex flex-wrap items-center gap-2 mb-6">
                 <Calendar className="w-7 h-7 text-cyan-400 shrink-0" />
                 <h2 className="text-2xl sm:text-3xl font-bold text-white">Upcoming shows</h2>
@@ -331,7 +331,7 @@ export default function VenuePage() {
             </div>
 
             {/* Live Clips/Moments Section */}
-            <div>
+            <div className="order-1 lg:order-2">
               <div className="flex items-center space-x-3 mb-6">
                 <Music className="w-6 h-6 text-blue-400" />
                 <h2 className="text-3xl font-bold text-white">Live Moments</h2>
@@ -441,7 +441,7 @@ export default function VenuePage() {
 
             {/* Previous Shows at [Venue Name] Section */}
             {recentShow && recentShow.clips.length > 0 && (
-              <div>
+              <div className="order-3">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-2xl font-bold text-white flex items-center space-x-2">
                     <Calendar className="w-6 h-6 text-purple-400" />
@@ -488,7 +488,9 @@ export default function VenuePage() {
             )}
 
             {/* Full Show Archive */}
-            <ShowArchive venueName={venue.name} />
+            <div className="order-4">
+              <ShowArchive venueName={venue.name} />
+            </div>
           </div>
 
           {/* Sidebar */}

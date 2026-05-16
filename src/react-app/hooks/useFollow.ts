@@ -31,6 +31,35 @@ export function useFollow() {
     }
   }, [following, user])
 
+  /** JamBase “Follow artist” uses `artist-{id}` — keep UI in sync with `user_favorite_artists` after refresh. */
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/users/me/favorite-artists', { credentials: 'include' });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { artists?: { artist_id?: unknown }[] };
+        const rows = Array.isArray(data.artists) ? data.artists : [];
+        const keys = rows
+          .map((a) => (typeof a.artist_id === 'number' ? a.artist_id : Number(a.artist_id)))
+          .filter((id) => Number.isFinite(id) && (id as number) > 0)
+          .map((id) => `artist-${id}`);
+        if (keys.length === 0) return;
+        setFollowing((prev) => {
+          const next = new Set(prev);
+          for (const k of keys) next.add(k);
+          return next;
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   const toggleFollow = useCallback(
     async (userId: string): Promise<{ success: boolean; following: boolean }> => {
       if (!user) {
@@ -58,11 +87,12 @@ export function useFollow() {
       setLoading((prev) => new Set(prev).add(userId))
 
       try {
-        const response = await fetch(`/api/users/${userId}/follow`, {
+        const response = await fetch(`/api/users/${encodeURIComponent(userId)}/follow`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
         })
 
         if (!response.ok) {

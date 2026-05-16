@@ -3,7 +3,7 @@ import { normalizeClipApiRows } from './clip-row-normalize';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { fetchJamBaseEventsByArtistName } from './jambase-endpoints';
 import { dedupeJamBaseEvents } from './jambase-events-search';
-import { syncUserFavoriteArtistRows } from './favorite-artists-sync';
+import { syncUserFavoriteArtistRows, replaceProfileFavoriteArtistsJsonFromTable, normalizeArtistDisplayName } from './favorite-artists-sync';
 import { mochaUserIdKey } from './mocha-user-id';
 
 function normalizeFavoriteArtistNamesFromBody(raw: unknown): string[] {
@@ -11,7 +11,7 @@ function normalizeFavoriteArtistNamesFromBody(raw: unknown): string[] {
   return [
     ...new Set(
       raw
-        .map((x) => (typeof x === 'string' ? x : String(x ?? '')).trim())
+        .map((x) => normalizeArtistDisplayName(typeof x === 'string' ? x : String(x ?? '')))
         .filter(Boolean),
     ),
   ].slice(0, 40);
@@ -143,7 +143,13 @@ export async function updatePersonalization(c: Context) {
       if (favStrings.length > 0) {
         await syncUserFavoriteArtistRows(c.env.DB, uid, favStrings);
       }
-      favoritesJson = JSON.stringify(favStrings);
+      /** JSON must match canonical `artists.name` rows (same list as “artists you follow” / feed). */
+      await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
+      const profRow = (await c.env.DB
+        .prepare('SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?')
+        .bind(uid)
+        .first()) as { favorite_artists: string | null } | null;
+      favoritesJson = profRow?.favorite_artists ?? '[]';
     } else {
       favoritesJson =
         existing?.favorite_artists != null ? String(existing.favorite_artists) : null;
