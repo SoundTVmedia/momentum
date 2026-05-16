@@ -132,7 +132,7 @@ export async function updatePersonalization(c: Context) {
       penabled = 1;
     }
 
-    const updated = await c.env.DB.prepare(
+    await c.env.DB.prepare(
       `UPDATE user_profiles 
        SET favorite_artists = ?,
            home_location = ?,
@@ -146,8 +146,13 @@ export async function updatePersonalization(c: Context) {
       .bind(favoritesJson, loc, lat, lng, radius, penabled, uid)
       .run();
 
-    const changed = Number(updated.meta?.changes ?? 0);
-    if (changed === 0) {
+    /** Do not rely on `meta.changes` — D1/SQLite can report 0 when values are unchanged, which would wrongly INSERT and hit UNIQUE(mocha_user_id). */
+    const row = await c.env.DB.prepare(
+      'SELECT 1 AS ok FROM user_profiles WHERE mocha_user_id = ? LIMIT 1',
+    )
+      .bind(uid)
+      .first();
+    if (!row) {
       await c.env.DB.prepare(
         `INSERT INTO user_profiles (
            mocha_user_id, role, favorite_artists, home_location, home_latitude, home_longitude,

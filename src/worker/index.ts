@@ -472,11 +472,13 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
         : {}
     );
 
+    const uid = mochaUserIdKey(mochaUser);
+
     // Check if profile exists
     const existingProfile = await c.env.DB.prepare(
       "SELECT id FROM user_profiles WHERE mocha_user_id = ?"
     )
-      .bind(mochaUser.id)
+      .bind(uid)
       .first();
 
     if (existingProfile) {
@@ -498,7 +500,7 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
           nullIfUndef(city),
           genresJson,
           socialJson,
-          mochaUser.id
+          uid
         )
         .run();
     } else {
@@ -510,7 +512,7 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
       )
         .bind(
-          mochaUser.id,
+          uid,
           roleVal,
           nullIfUndef(display_name),
           nullIfUndef(bio),
@@ -528,7 +530,7 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
     const updatedProfile = await c.env.DB.prepare(
       "SELECT * FROM user_profiles WHERE mocha_user_id = ?"
     )
-      .bind(mochaUser.id)
+      .bind(uid)
       .first();
 
     return c.json(updatedProfile);

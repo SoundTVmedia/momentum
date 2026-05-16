@@ -21,6 +21,7 @@ import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
   primeGeolocationOnUserGesture,
+  isGeolocationSecureContext,
   type PrimedCaptureGeo,
 } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
@@ -1066,15 +1067,22 @@ export default function UploadClip() {
           Tap continue so your browser can ask for location (venue suggestions), then camera and microphone for your
           clip and song recognition.
         </p>
+        {!isGeolocationSecureContext() && (
+          <p className="text-amber-200/90 text-xs max-w-sm mb-6 leading-relaxed">
+            This page is not on HTTPS (or localhost). Chrome blocks location on insecure origins — use{' '}
+            <span className="font-mono">https://</span> or <span className="font-mono">localhost</span> for location to
+            work.
+          </p>
+        )}
         <button
           type="button"
           className="w-full max-w-xs px-6 py-4 rounded-xl momentum-grad-interactive text-white font-semibold active:scale-[0.98] transition-transform"
           onClick={() => {
+            const geoPromise = primeGeolocationOnUserGesture();
             setReRecordLaunchGeo(null);
             setReRecordLaunchGeoResolved(false);
             setReRecordPrimedStream(null);
             setReRecordGesturePending(true);
-            const geoPromise = primeGeolocationOnUserGesture();
             setShowQuickCapture(true);
             setQuickCaptureAwaitUserTap(false);
             void geoPromise

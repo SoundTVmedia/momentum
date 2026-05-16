@@ -4,6 +4,7 @@ import QuickRecordButton from './QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
   primeGeolocationOnUserGesture,
+  isGeolocationSecureContext,
   type PrimedCaptureGeo,
 } from '@/react-app/utils/primeGeolocationOnUserGesture';
 
@@ -48,14 +49,20 @@ export default function QuickRecordModal({ isOpen, onClose }: QuickRecordModalPr
           Tap continue so your browser can ask for location (venue suggestions), then camera and microphone for your clip
           and song recognition.
         </p>
+        {!isGeolocationSecureContext() && (
+          <p className="mb-6 max-w-sm text-xs leading-relaxed text-amber-200/90">
+            Chrome only allows location on HTTPS or localhost. Open the app over HTTPS (or use localhost) for the
+            location prompt to appear.
+          </p>
+        )}
         <button
           type="button"
           disabled={gesturePending}
           className="w-full max-w-xs rounded-xl momentum-grad-interactive px-6 py-4 font-semibold text-white active:scale-[0.98] transition-transform disabled:opacity-60"
           onClick={() => {
+            const geoPromise = primeGeolocationOnUserGesture();
             setGesturePending(true);
             setCaptureLaunchGeoResolved(false);
-            const geoPromise = primeGeolocationOnUserGesture();
             void geoPromise
               .then((g) => {
                 setCaptureLaunchGeo(g);

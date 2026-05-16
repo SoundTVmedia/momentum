@@ -33,14 +33,14 @@ export default function MobileBottomNav() {
       navigate('/auth');
       return;
     }
+    /** Must run before any setState so Chrome keeps this click as the user activation for geolocation. */
+    const geoPromise = primeGeolocationOnUserGesture();
+
     setCaptureLaunchGeo(null);
     setCaptureLaunchGeoResolved(false);
     setOpenedWithGestureCamera(false);
     setPrimedMediaStream(null);
     setGesturePrimePending(true);
-
-    // Register geolocation in this same tap *before* React opens the modal (Safari / iOS require a user gesture).
-    const geoPromise = primeGeolocationOnUserGesture();
 
     setShowQuickCapture(true);
 
