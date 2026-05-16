@@ -167,8 +167,13 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
       });
 
       if (!persResponse.ok) {
-        const errBody = (await persResponse.json().catch(() => ({}))) as { error?: string };
-        throw new Error(errBody.error || 'Failed to save favorite artists and home feed settings');
+        const errBody = (await persResponse.json().catch(() => ({}))) as {
+          error?: string;
+          detail?: string;
+        };
+        throw new Error(
+          errBody.detail || errBody.error || 'Failed to save favorite artists and home feed settings',
+        );
       }
 
       setSuccess(true);

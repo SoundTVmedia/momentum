@@ -57,8 +57,8 @@ export default function DiscoverFavoriteArtistsPrompt({ onSaved }: Props) {
         body: JSON.stringify({ names: favoriteArtists }),
       });
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error || 'Could not save artists');
+        const err = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+        throw new Error(err.detail || err.error || 'Could not save artists');
       }
       setFavoriteArtists([]);
       onSaved();

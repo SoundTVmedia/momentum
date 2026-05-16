@@ -285,6 +285,13 @@ export async function syncFavoriteArtistsByName(c: Context) {
     return c.json({ success: true, synced: normalized.length });
   } catch (error) {
     console.error('syncFavoriteArtistsByName error:', error);
-    return c.json({ error: 'Failed to sync favorite artists' }, 500);
+    const msg = error instanceof Error ? error.message : String(error);
+    return c.json(
+      {
+        error: 'Failed to sync favorite artists',
+        detail: msg.length > 180 ? `${msg.slice(0, 180)}…` : msg,
+      },
+      500,
+    );
   }
 }

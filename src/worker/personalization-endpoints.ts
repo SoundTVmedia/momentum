@@ -26,6 +26,49 @@ type PersonalizationRow = {
   personalization_enabled: number | null;
 };
 
+/** D1/SQLite REAL — reject NaN / bad strings from JSON so binds never throw. */
+function toSqlReal(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'bigint') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function toSqlRadiusMiles(v: unknown, existing: number | null | undefined): number {
+  if (v !== undefined && v !== null && v !== '') {
+    const raw = typeof v === 'bigint' ? Number(v) : typeof v === 'number' ? v : parseInt(String(v), 10);
+    if (Number.isFinite(raw) && raw > 0) return Math.min(5000, Math.max(1, Math.trunc(raw)));
+  }
+  const e =
+    existing != null
+      ? typeof existing === 'bigint'
+        ? Number(existing)
+        : Number(existing)
+      : NaN;
+  return Number.isFinite(e) && e > 0 ? Math.trunc(e) : 50;
+}
+
+function personalizationEnabledToInt(
+  bodyVal: unknown,
+  existing: number | null | undefined,
+): number {
+  if (bodyVal !== undefined) {
+    if (bodyVal === false || bodyVal === 0 || bodyVal === '0' || bodyVal === 'false') return 0;
+    return 1;
+  }
+  if (existing !== undefined && existing !== null) {
+    return Number(existing) === 0 ? 0 : 1;
+  }
+  return 1;
+}
+
 function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -113,60 +156,46 @@ export async function updatePersonalization(c: Context) {
           : null
         : existing?.home_location ?? null;
     const lat =
-      home_latitude !== undefined ? home_latitude ?? null : existing?.home_latitude ?? null;
+      home_latitude !== undefined
+        ? toSqlReal(home_latitude)
+        : toSqlReal(existing?.home_latitude ?? null);
     const lng =
-      home_longitude !== undefined ? home_longitude ?? null : existing?.home_longitude ?? null;
-    const radius =
-      location_radius_miles !== undefined && location_radius_miles !== null
-        ? Number(location_radius_miles) || 50
-        : existing?.location_radius_miles ?? 50;
-    let penabled: number;
-    if (personalization_enabled !== undefined) {
-      penabled = personalization_enabled ? 1 : 0;
-    } else if (
-      existing?.personalization_enabled !== undefined &&
-      existing?.personalization_enabled !== null
-    ) {
-      penabled = Number(existing.personalization_enabled) === 0 ? 0 : 1;
-    } else {
-      penabled = 1;
-    }
+      home_longitude !== undefined
+        ? toSqlReal(home_longitude)
+        : toSqlReal(existing?.home_longitude ?? null);
+    const radius = toSqlRadiusMiles(location_radius_miles, existing?.location_radius_miles);
+    const penabled = personalizationEnabledToInt(personalization_enabled, existing?.personalization_enabled);
 
+    /** Single upsert — avoids UPDATE row-count quirks and INSERT races on `mocha_user_id`. */
     await c.env.DB.prepare(
-      `UPDATE user_profiles 
-       SET favorite_artists = ?,
-           home_location = ?,
-           home_latitude = ?,
-           home_longitude = ?,
-           location_radius_miles = ?,
-           personalization_enabled = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE mocha_user_id = ?`,
+      `INSERT INTO user_profiles (
+         mocha_user_id, role, favorite_artists, home_location, home_latitude, home_longitude,
+         location_radius_miles, personalization_enabled, created_at, updated_at
+       ) VALUES (?, 'fan', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT(mocha_user_id) DO UPDATE SET
+         favorite_artists = excluded.favorite_artists,
+         home_location = excluded.home_location,
+         home_latitude = excluded.home_latitude,
+         home_longitude = excluded.home_longitude,
+         location_radius_miles = excluded.location_radius_miles,
+         personalization_enabled = excluded.personalization_enabled,
+         updated_at = CURRENT_TIMESTAMP`,
     )
-      .bind(favoritesJson, loc, lat, lng, radius, penabled, uid)
+      .bind(uid, favoritesJson, loc, lat, lng, radius, penabled)
       .run();
-
-    /** Do not rely on `meta.changes` — D1/SQLite can report 0 when values are unchanged, which would wrongly INSERT and hit UNIQUE(mocha_user_id). */
-    const row = await c.env.DB.prepare(
-      'SELECT 1 AS ok FROM user_profiles WHERE mocha_user_id = ? LIMIT 1',
-    )
-      .bind(uid)
-      .first();
-    if (!row) {
-      await c.env.DB.prepare(
-        `INSERT INTO user_profiles (
-           mocha_user_id, role, favorite_artists, home_location, home_latitude, home_longitude,
-           location_radius_miles, personalization_enabled, created_at, updated_at
-         ) VALUES (?, 'fan', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      )
-        .bind(uid, favoritesJson, loc, lat, lng, radius, penabled)
-        .run();
-    }
 
     return c.json({ success: true });
   } catch (error) {
     console.error('Update personalization error:', error);
-    return c.json({ error: 'Failed to update personalization settings' }, 500);
+    const msg = error instanceof Error ? error.message : String(error);
+    return c.json(
+      {
+        error: 'Failed to update personalization settings',
+        /** Short server hint for debugging (e.g. missing migration / SQL). */
+        detail: msg.length > 180 ? `${msg.slice(0, 180)}…` : msg,
+      },
+      500,
+    );
   }
 }
 

@@ -94,39 +94,14 @@ export async function mergeProfileFavoriteArtistsJson(
 
   const favoritesJson = JSON.stringify(mergedNames);
 
-  const updated = await db
+  await db
     .prepare(
-      `UPDATE user_profiles
-       SET favorite_artists = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE mocha_user_id = ?`,
+      `INSERT INTO user_profiles (mocha_user_id, role, favorite_artists, created_at, updated_at)
+       VALUES (?, 'fan', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT(mocha_user_id) DO UPDATE SET
+         favorite_artists = excluded.favorite_artists,
+         updated_at = CURRENT_TIMESTAMP`,
     )
-    .bind(favoritesJson, uid)
+    .bind(uid, favoritesJson)
     .run();
-
-  const rowsAffected = Number(updated.meta?.changes ?? 0);
-  if (rowsAffected === 0) {
-    try {
-      await db
-        .prepare(
-          `INSERT INTO user_profiles (mocha_user_id, role, favorite_artists, created_at, updated_at)
-           VALUES (?, 'fan', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        )
-        .bind(uid, favoritesJson)
-        .run();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg.toLowerCase().includes('unique constraint')) {
-        await db
-          .prepare(
-            `UPDATE user_profiles
-             SET favorite_artists = ?, updated_at = CURRENT_TIMESTAMP
-             WHERE mocha_user_id = ?`,
-          )
-          .bind(favoritesJson, uid)
-          .run();
-      } else {
-        throw e;
-      }
-    }
-  }
 }

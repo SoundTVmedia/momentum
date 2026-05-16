@@ -198,10 +198,9 @@ export default function Onboarding() {
       if (!personalizationRes.ok) {
         let msg = 'Profile saved, but personalization settings failed.';
         try {
-          const errBody = (await personalizationRes.json()) as { error?: string };
-          if (errBody.error) {
-            msg = errBody.error;
-          }
+          const errBody = (await personalizationRes.json()) as { error?: string; detail?: string };
+          if (errBody.detail) msg = errBody.detail;
+          else if (errBody.error) msg = errBody.error;
         } catch {
           /* use default */
         }

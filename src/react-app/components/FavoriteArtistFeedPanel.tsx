@@ -147,8 +147,8 @@ export default function FavoriteArtistFeedPanel({
         body: JSON.stringify({ names: draftFavoriteNames }),
       });
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error || 'Could not save artists');
+        const err = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+        throw new Error(err.detail || err.error || 'Could not save artists');
       }
       setDraftFavoriteNames([]);
       setShowAddArtists(false);
