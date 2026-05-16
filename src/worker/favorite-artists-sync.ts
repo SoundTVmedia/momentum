@@ -1,6 +1,31 @@
-import { mochaUserIdKey } from './mocha-user-id';
+import { mochaUserIdKey, parseD1LastRowId } from './mocha-user-id';
 
 export { mochaUserIdKey };
+
+function rowIdToNumber(id: unknown): number | null {
+  if (id == null) return null;
+  if (typeof id === 'bigint') {
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  }
+  const n = typeof id === 'number' ? id : Number(id);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+}
+
+/** Exact match, then case-insensitive (SQLite default UNIQUE on `name` is exact-only). */
+async function findArtistIdByName(db: D1Database, name: string): Promise<number | null> {
+  const exact = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as {
+    id: unknown;
+  } | null;
+  const eid = rowIdToNumber(exact?.id);
+  if (eid != null) return eid;
+
+  const fold = (await db
+    .prepare('SELECT id FROM artists WHERE lower(name) = lower(?) LIMIT 1')
+    .bind(name)
+    .first()) as { id: unknown } | null;
+  return rowIdToNumber(fold?.id);
+}
 
 export async function getOrCreateArtistIdByName(db: D1Database, displayName: string): Promise<number> {
   const name = displayName.trim();
@@ -8,36 +33,45 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
     throw new Error('empty artist name');
   }
 
-  let row = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as { id: unknown } | null;
-  let id = row?.id != null ? Number(row.id) : NaN;
-  if (Number.isFinite(id) && id > 0) {
-    return id;
-  }
+  const existing = await findArtistIdByName(db, name);
+  if (existing != null) return existing;
 
   try {
-    await db
+    const ins = await db
       .prepare(
         'INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
       )
       .bind(name)
       .run();
 
-    row = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as { id: unknown } | null;
-    id = row?.id != null ? Number(row.id) : NaN;
-    if (Number.isFinite(id) && id > 0) {
-      return id;
+    const insAny = ins as { success?: boolean; error?: string; meta?: { last_row_id?: unknown } };
+    if (insAny.success === false) {
+      const afterFail = await findArtistIdByName(db, name);
+      if (afterFail != null) return afterFail;
+      throw new Error(
+        `Artist insert failed (${JSON.stringify(name)}): ${insAny.error ?? 'D1 returned success: false'}`,
+      );
     }
-  } catch {
-    /* UNIQUE(name) race — re-select below */
+
+    const fromMeta = parseD1LastRowId(insAny.meta?.last_row_id);
+    if (fromMeta != null) return fromMeta;
+
+    const afterInsert = await findArtistIdByName(db, name);
+    if (afterInsert != null) return afterInsert;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isUniqueRace = /unique|constraint/i.test(msg);
+    const afterRace = await findArtistIdByName(db, name);
+    if (afterRace != null) return afterRace;
+    if (!isUniqueRace) {
+      throw new Error(`Artist insert failed (${JSON.stringify(name)}): ${msg}`);
+    }
   }
 
-  row = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(name).first()) as { id: unknown } | null;
-  id = row?.id != null ? Number(row.id) : NaN;
-  if (Number.isFinite(id) && id > 0) {
-    return id;
-  }
+  const last = await findArtistIdByName(db, name);
+  if (last != null) return last;
 
-  throw new Error('Could not resolve artist id');
+  throw new Error(`Could not resolve artist id for ${JSON.stringify(name)}`);
 }
 
 /** Ensure `user_favorite_artists` rows exist for each display name. */
