@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export type HorizontalClipCarouselProps = {
@@ -8,12 +15,24 @@ export type HorizontalClipCarouselProps = {
   ariaLabel?: string;
 };
 
-export default function HorizontalClipCarousel({
-  children,
-  className = '',
-  ariaLabel = 'Clips carousel',
-}: HorizontalClipCarouselProps) {
+const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarouselProps>(
+  function HorizontalClipCarousel(
+    { children, className = '', ariaLabel = 'Clips carousel' },
+    forwardedRef,
+  ) {
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const setScrollRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollRef.current = node;
+      if (typeof forwardedRef === 'function') {
+        forwardedRef(node);
+      } else if (forwardedRef) {
+        forwardedRef.current = node;
+      }
+    },
+    [forwardedRef],
+  );
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
@@ -87,7 +106,7 @@ export default function HorizontalClipCarousel({
       </button>
 
       <div
-        ref={scrollRef}
+        ref={setScrollRef}
         role="region"
         aria-label={ariaLabel}
         className={`flex gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x ${className}`}
@@ -105,7 +124,10 @@ export default function HorizontalClipCarousel({
       />
     </div>
   );
-}
+  },
+);
+
+export default HorizontalClipCarousel;
 
 export function HorizontalClipCarouselItem({
   children,

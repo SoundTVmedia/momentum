@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router'
 import { useClips } from '@/react-app/hooks/useClips'
 import ClipModal from './ClipModal'
 import ClipFeedGridTile from './ClipFeedGridTile'
+import HorizontalClipCarousel, {
+  HorizontalClipCarouselItem,
+} from './HorizontalClipCarousel'
 import { ClipGridTileSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
@@ -17,10 +20,27 @@ interface ConcertFeedProps {
   hideSectionHeader?: boolean
 }
 
-export default function ConcertFeed({ 
-  feedType = 'latest', 
-  artistName, 
-  venueName, 
+function feedCarouselLabel(
+  feedType: ConcertFeedProps['feedType'],
+  artistName?: string,
+): string {
+  if (artistName) return `Clips from ${artistName}`
+  switch (feedType) {
+    case 'trending':
+      return 'Trending clips'
+    case 'most_liked':
+      return 'Most liked clips'
+    case 'top_rated':
+      return 'Top rated clips'
+    default:
+      return 'Latest clips'
+  }
+}
+
+export default function ConcertFeed({
+  feedType = 'latest',
+  artistName,
+  venueName,
   userId,
   hideSectionHeader = false,
 }: ConcertFeedProps) {
@@ -32,32 +52,28 @@ export default function ConcertFeed({
     userId,
     enablePolling: feedType === 'latest' && !artistName && !venueName && !userId,
   })
-  
-  const observerTarget = useRef<HTMLDivElement>(null)
+
+  const carouselScrollRef = useRef<HTMLDivElement>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null)
 
-  // Infinite scroll observer
   useEffect(() => {
+    const root = carouselScrollRef.current
+    const target = loadMoreSentinelRef.current
+    if (!root || !target || clips.length === 0) return
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
+        if (entries[0]?.isIntersecting && hasMore && !loading) {
           loadMore()
         }
       },
-      { threshold: 0.1 }
+      { root, threshold: 0.1, rootMargin: '120px' },
     )
 
-    const currentTarget = observerTarget.current
-    if (currentTarget) {
-      observer.observe(currentTarget)
-    }
-
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget)
-      }
-    }
-  }, [hasMore, loading, loadMore])
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [clips.length, hasMore, loading, loadMore])
 
   return (
     <section className="py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8">
@@ -98,55 +114,61 @@ export default function ConcertFeed({
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
-          {error && clips.length === 0 ? (
-            // Show error state on initial load failure
-            <div className="col-span-full">
-              <NetworkError
-                onRetry={refetch}
-                message="Failed to load clips. Please check your connection and try again."
-              />
-            </div>
-          ) : loading && clips.length === 0 ? (
-            <>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <ClipGridTileSkeleton key={`sk-${i}`} />
-              ))}
-            </>
-          ) : (
-            <>
+        {error && clips.length === 0 ? (
+          <NetworkError
+            onRetry={refetch}
+            message="Failed to load clips. Please check your connection and try again."
+          />
+        ) : loading && clips.length === 0 ? (
+          <HorizontalClipCarousel
+            ariaLabel={feedCarouselLabel(feedType, artistName)}
+            className="-mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-1 md:pb-2"
+          >
+            {Array.from({ length: 4 }).map((_, i) => (
+              <HorizontalClipCarouselItem key={`sk-${i}`}>
+                <ClipGridTileSkeleton />
+              </HorizontalClipCarouselItem>
+            ))}
+          </HorizontalClipCarousel>
+        ) : clips.length > 0 ? (
+          <>
+            <HorizontalClipCarousel
+              ref={carouselScrollRef}
+              ariaLabel={feedCarouselLabel(feedType, artistName)}
+              className="-mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-1 md:pb-2"
+            >
               {clips.map((clip, index) => (
-                <ClipFeedGridTile
-                  key={clipListItemKey(clip, index)}
-                  clip={clip}
-                  onOpenClip={setSelectedClip}
-                />
+                <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
+                  <ClipFeedGridTile clip={clip} onOpenClip={setSelectedClip} />
+                </HorizontalClipCarouselItem>
               ))}
-              <div
-                key="feed-scroll-sentinel"
-                ref={observerTarget}
-                className="col-span-full h-12 flex flex-col items-center justify-center mt-4 gap-1"
-              >
-                {loading && clips.length > 0 && (
-                  <div className="text-cyan-400 text-sm font-medium">Loading more moments...</div>
-                )}
-                {!loading && !hasMore && clips.length > 0 && (
-                  <div className="text-gray-500 text-sm">You've reached the end</div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+              {hasMore ? (
+                <div
+                  ref={loadMoreSentinelRef}
+                  className="flex-shrink-0 w-px h-full min-h-[200px] snap-none"
+                  aria-hidden
+                />
+              ) : null}
+            </HorizontalClipCarousel>
+
+            <div className="mt-4 flex flex-col items-center justify-center gap-1 min-h-[2rem]">
+              {loading && clips.length > 0 ? (
+                <p className="text-cyan-400 text-sm font-medium">Loading more moments…</p>
+              ) : null}
+              {!loading && !hasMore && clips.length > 0 ? (
+                <p className="text-gray-500 text-sm">You&apos;ve reached the end</p>
+              ) : null}
+            </div>
+          </>
+        ) : null}
 
         {clips.length === 0 && !loading && !error && (
           <div className="text-center py-12 px-4">
             <div className="max-w-md mx-auto bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8 space-y-4">
               <div className="text-6xl mb-4">🎸</div>
-              <h3 className="text-2xl font-bold text-white mb-2">
-                No Clips Yet
-              </h3>
+              <h3 className="text-2xl font-bold text-white mb-2">No Clips Yet</h3>
               <p className="text-gray-300 mb-6">
-                Be the first to drop a moment from tonight's show!
+                Be the first to drop a moment from tonight&apos;s show!
               </p>
               <button
                 onClick={() => navigate('/upload')}
@@ -159,19 +181,15 @@ export default function ConcertFeed({
         )}
       </div>
 
-      {/* Clip Modal */}
-      {selectedClip && (
+      {selectedClip ? (
         <ClipModal
           clip={selectedClip}
           onClose={() => setSelectedClip(null)}
           feedNavigation={
-            clips.length > 1
-              ? { clips, onChangeClip: setSelectedClip }
-              : null
+            clips.length > 1 ? { clips, onChangeClip: setSelectedClip } : null
           }
         />
-      )}
-
+      ) : null}
     </section>
   )
 }
