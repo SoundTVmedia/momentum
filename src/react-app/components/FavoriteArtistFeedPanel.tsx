@@ -8,6 +8,9 @@ import { artistPath, venuePath } from '@/shared/app-paths';
 import ClipModal from '@/react-app/components/ClipModal';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
+import HorizontalClipCarousel, {
+  HorizontalClipCarouselItem,
+} from '@/react-app/components/HorizontalClipCarousel';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 
 type FavoriteFeedEvent = {
@@ -385,15 +388,16 @@ export default function FavoriteArtistFeedPanel({
                     : 'Tap + to add favorite artists and see their clips and tour picks here.'}
                 </p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
+                <HorizontalClipCarousel
+                  ariaLabel="Clips from artists you follow"
+                  className="-mx-5 px-5 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2"
+                >
                   {clips.map((clip, index) => (
-                    <ClipFeedGridTile
-                      key={clipListItemKey(clip, index)}
-                      clip={clip}
-                      onOpenClip={setSelectedClip}
-                    />
+                    <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
+                      <ClipFeedGridTile clip={clip} onOpenClip={setSelectedClip} />
+                    </HorizontalClipCarouselItem>
                   ))}
-                </div>
+                </HorizontalClipCarousel>
               )}
 
               {variant === 'feed' && !loading && hasFavoriteArtists ? (
