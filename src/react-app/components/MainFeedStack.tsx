@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
+import type { ExtendedMochaUser } from '@/shared/types'
+import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
 import ConcertFeed from '@/react-app/components/ConcertFeed'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
@@ -22,6 +24,7 @@ export default function MainFeedStack({
   const navigate = useNavigate()
   const { user } = useAuth()
   const [feedType, setFeedType] = useState(defaultFeedType)
+  const welcomeName = user ? resolveWelcomeName(user as ExtendedMochaUser) : null
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -47,7 +50,18 @@ export default function MainFeedStack({
 
       {variant === 'home' && user && (
         <div className="mb-8">
-          <h2 className="text-2xl sm:text-3xl font-headline text-white mb-2">Your feed</h2>
+          <h2 className="text-2xl sm:text-3xl font-headline text-white mb-2">
+            {welcomeName ? (
+              <>
+                <span>Welcome, </span>
+                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                  {welcomeName}
+                </span>
+              </>
+            ) : (
+              'Welcome'
+            )}
+          </h2>
           <p className="text-gray-400 text-sm sm:text-base">
             From artists you follow, shows near you, and what&apos;s hot on the platform
           </p>
