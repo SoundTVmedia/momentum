@@ -41,58 +41,125 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
   );
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  /** Tracks intended slide during smooth scroll so rapid clicks still advance. */
+  const activeIndexRef = useRef(0);
+  const isNavigatingRef = useRef(false);
 
-  const updateScrollState = useCallback(() => {
+  const getCarouselItems = useCallback((el: HTMLDivElement) => {
+    return [...el.querySelectorAll<HTMLElement>('[data-carousel-item]')];
+  }, []);
+
+  /** Item whose start edge is closest to the scrollport's leading edge. */
+  const getLeadingIndex = useCallback((el: HTMLDivElement, items: HTMLElement[]) => {
+    if (items.length === 0) return 0;
+
+    const scrollportLeft = el.getBoundingClientRect().left;
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+
+    for (let i = 0; i < items.length; i++) {
+      const distance = Math.abs(items[i].getBoundingClientRect().left - scrollportLeft);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = i;
+      }
+    }
+
+    return bestIndex;
+  }, []);
+
+  const applyNavState = useCallback((index: number, itemCount: number) => {
+    setCanScrollLeft(index > 0);
+    setCanScrollRight(index < itemCount - 1);
+  }, []);
+
+  const syncActiveIndexFromScroll = useCallback(() => {
+    if (isNavigatingRef.current) return;
+
     const el = scrollRef.current;
     if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    const maxScroll = scrollWidth - clientWidth;
-    setCanScrollLeft(scrollLeft > 4);
-    setCanScrollRight(scrollLeft < maxScroll - 4);
-  }, []);
+
+    const items = getCarouselItems(el);
+    if (items.length === 0) {
+      activeIndexRef.current = 0;
+      applyNavState(0, 0);
+      return;
+    }
+
+    const index = getLeadingIndex(el, items);
+    activeIndexRef.current = index;
+    applyNavState(index, items.length);
+  }, [applyNavState, getCarouselItems, getLeadingIndex]);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    updateScrollState();
+    syncActiveIndexFromScroll();
 
-    const onScroll = () => updateScrollState();
-    el.addEventListener('scroll', onScroll, { passive: true });
+    const onScrollEnd = () => {
+      if (isNavigatingRef.current) return;
+      syncActiveIndexFromScroll();
+    };
 
-    const ro = new ResizeObserver(() => updateScrollState());
+    el.addEventListener('scrollend', onScrollEnd);
+
+    const ro = new ResizeObserver(() => syncActiveIndexFromScroll());
     ro.observe(el);
 
     return () => {
-      el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('scrollend', onScrollEnd);
       ro.disconnect();
     };
-  }, [updateScrollState, children]);
+  }, [syncActiveIndexFromScroll, children]);
 
-  const getActiveIndex = (items: HTMLElement[], scrollLeft: number) => {
-    let index = 0;
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].offsetLeft <= scrollLeft + 16) {
-        index = i;
+  const scrollToIndex = useCallback(
+    (index: number, behavior: ScrollBehavior = 'smooth') => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      const items = getCarouselItems(el);
+      if (items.length === 0) return;
+
+      const targetIndex = Math.max(0, Math.min(index, items.length - 1));
+      activeIndexRef.current = targetIndex;
+      applyNavState(targetIndex, items.length);
+      isNavigatingRef.current = true;
+
+      items[targetIndex].scrollIntoView({
+        behavior,
+        inline: 'start',
+        block: 'nearest',
+      });
+
+      if (behavior === 'smooth') {
+        window.setTimeout(() => {
+          isNavigatingRef.current = false;
+          syncActiveIndexFromScroll();
+        }, 450);
+      } else {
+        isNavigatingRef.current = false;
       }
-    }
-    return index;
-  };
+    },
+    [applyNavState, getCarouselItems, syncActiveIndexFromScroll],
+  );
 
   const scrollByStep = (direction: 'left' | 'right') => {
     const el = scrollRef.current;
     if (!el) return;
 
-    const items = [...el.querySelectorAll<HTMLElement>('[data-carousel-item]')];
+    const items = getCarouselItems(el);
     if (items.length === 0) return;
 
-    const activeIndex = getActiveIndex(items, el.scrollLeft);
+    const currentIndex = activeIndexRef.current;
     const targetIndex =
       direction === 'right'
-        ? Math.min(activeIndex + 1, items.length - 1)
-        : Math.max(activeIndex - 1, 0);
+        ? Math.min(currentIndex + 1, items.length - 1)
+        : Math.max(currentIndex - 1, 0);
 
-    el.scrollTo({ left: items[targetIndex].offsetLeft, behavior: 'smooth' });
+    if (targetIndex === currentIndex) return;
+
+    scrollToIndex(targetIndex);
   };
 
   return (
