@@ -9,8 +9,8 @@
 # Create OAuth 2.0 Web client → Authorized redirect URIs must include:
 #   http://localhost:5173/auth/callback
 #   https://<your-production-domain>/auth/callback
-# GOOGLE_OAUTH_CLIENT_ID=
-# GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
 # Used when MOCHA_USERS_SERVICE_API_KEY is empty. Run: npm run db:migrate:local
 #
 # Optional fallback origin if the browser cannot send redirect_base:
