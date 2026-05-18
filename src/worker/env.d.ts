@@ -14,6 +14,8 @@ interface Env {
   MOCHA_USERS_SERVICE_API_KEY: string;
   /** Optional default for OAuth redirect_base when the client does not send ?redirect_base= */
   MOCHA_OAUTH_REDIRECT_ORIGIN?: string;
+  /** Optional full OAuth callback URL override (e.g. https://your-domain.com/auth/callback). */
+  OAUTH_REDIRECT_URI?: string;
 
   /** Web origin for password-reset links when Origin header is absent (e.g. server-side or non-browser clients). */
   PUBLIC_APP_URL?: string;

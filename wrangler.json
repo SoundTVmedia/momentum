@@ -4,6 +4,10 @@
   "main": "./src/worker/index.ts",
   "compatibility_date": "2025-06-17",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "PUBLIC_APP_URL": "https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev",
+    "OAUTH_REDIRECT_URI": "https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev/auth/callback"
+  },
   "observability": {
     "enabled": true
   },

@@ -12,5 +12,17 @@ export function normalizeOAuthCallbackUrl(originOrBase: string): string {
   if (trimmed.endsWith(OAUTH_CALLBACK_PATH)) {
     return trimmed;
   }
+  // Origin only (no path) — append callback
+  if (!trimmed.includes('://') || /^https?:\/\/[^/]+$/i.test(trimmed)) {
+    return `${trimmed}${OAUTH_CALLBACK_PATH}`;
+  }
   return `${trimmed}${OAUTH_CALLBACK_PATH}`;
+}
+
+/** Local dev URIs to register in Google Cloud (localhost vs 127.0.0.1 differ). */
+export function localGoogleOAuthRedirectUris(port = 5173): string[] {
+  return [
+    `http://localhost:${port}${OAUTH_CALLBACK_PATH}`,
+    `http://127.0.0.1:${port}${OAUTH_CALLBACK_PATH}`,
+  ];
 }

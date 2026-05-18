@@ -94,7 +94,7 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
     return c.json({ error: 'Unsupported OAuth provider' }, 400);
   }
 
-  const callbackUrl = resolveOAuthCallbackUrl(c, c.req.query('redirect_base') ?? undefined);
+  const callbackUrl = resolveOAuthCallbackUrl(c);
   const mochaApiKey =
     typeof c.env.MOCHA_USERS_SERVICE_API_KEY === 'string'
       ? c.env.MOCHA_USERS_SERVICE_API_KEY.trim()
@@ -103,7 +103,7 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
   if (provider === 'google' && !mochaApiKey && hasDirectGoogleOAuth(c.env)) {
     try {
       const redirectUrl = buildGoogleOAuthRedirectUrl(c, callbackUrl);
-      return c.json({ redirectUrl }, 200);
+      return c.json({ redirectUrl, callbackUrl }, 200);
     } catch (e) {
       console.error('Direct Google OAuth redirect error', e);
       return c.json({ error: 'Could not start Google sign-in.' }, 500);
@@ -118,6 +118,7 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
           provider === 'google'
             ? 'Google sign-in is not configured. Set MOCHA_USERS_SERVICE_API_KEY (Mocha) or GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET in .dev.vars / Worker secrets.'
             : 'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars (local) or Worker secrets (Cloudflare).',
+        callbackUrl,
       },
       503
     );

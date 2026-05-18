@@ -6,15 +6,17 @@
 # In Mocha app settings, allow redirect URL: http://localhost:5173/auth/callback (and your prod URL).
 #
 # Option B — Direct Google OAuth (Google Cloud Console):
-# Create OAuth 2.0 Web client → Authorized redirect URIs must include:
+# Create OAuth 2.0 Web client → Authorized redirect URIs (each must match EXACTLY):
 #   http://localhost:5173/auth/callback
-#   https://<your-production-domain>/auth/callback
+#   http://127.0.0.1:5173/auth/callback
+#   https://<your-workers-subdomain>.workers.dev/auth/callback
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
 # Used when MOCHA_USERS_SERVICE_API_KEY is empty. Run: npm run db:migrate:local
 #
-# Optional fallback origin if the browser cannot send redirect_base:
-# MOCHA_OAUTH_REDIRECT_ORIGIN=http://localhost:5173
+# Production: set this to your live app URL (no trailing slash) if needed:
+# PUBLIC_APP_URL=https://your-app.workers.dev
+# OAUTH_REDIRECT_URI=https://your-app.workers.dev/auth/callback
 #
 # Spotify (Mocha only): enable in Mocha project if supported.
 MOCHA_USERS_SERVICE_API_URL=

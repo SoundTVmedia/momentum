@@ -50,25 +50,53 @@ export function hasDirectGoogleOAuth(env: Env): boolean {
   return Boolean(id && secret);
 }
 
+function readRedirectFromQuery(c: Context<{ Bindings: Env }>): string | undefined {
+  const raw =
+    c.req.query('redirect_uri')?.trim() || c.req.query('redirect_base')?.trim();
+  return raw || undefined;
+}
+
+/**
+ * Resolve the exact redirect_uri sent to Google. Prefer the browser's current origin
+ * (redirect_uri query) so it matches where the user is actually signed in.
+ */
 export function resolveOAuthCallbackUrl(
   c: Context<{ Bindings: Env }>,
   redirectBaseQuery?: string,
 ): string {
-  const fromQuery = redirectBaseQuery?.trim();
+  const fromQuery = redirectBaseQuery?.trim() || readRedirectFromQuery(c);
   if (fromQuery) {
     return normalizeOAuthCallbackUrl(fromQuery);
   }
-  const fromEnv =
-    typeof c.env.MOCHA_OAUTH_REDIRECT_ORIGIN === 'string'
-      ? c.env.MOCHA_OAUTH_REDIRECT_ORIGIN.trim()
+
+  const explicit =
+    typeof c.env.OAUTH_REDIRECT_URI === 'string'
+      ? c.env.OAUTH_REDIRECT_URI.trim()
       : '';
-  if (fromEnv) {
-    return normalizeOAuthCallbackUrl(fromEnv);
+  if (explicit) {
+    return normalizeOAuthCallbackUrl(explicit);
   }
+
+  const publicApp =
+    typeof c.env.PUBLIC_APP_URL === 'string' ? c.env.PUBLIC_APP_URL.trim() : '';
+  if (publicApp) {
+    return normalizeOAuthCallbackUrl(publicApp);
+  }
+
   const origin = c.req.header('origin')?.trim();
   if (origin) {
     return normalizeOAuthCallbackUrl(origin);
   }
+
+  const referer = c.req.header('referer')?.trim();
+  if (referer) {
+    try {
+      return normalizeOAuthCallbackUrl(new URL(referer).origin);
+    } catch {
+      /* ignore */
+    }
+  }
+
   try {
     return normalizeOAuthCallbackUrl(new URL(c.req.url).origin);
   } catch {

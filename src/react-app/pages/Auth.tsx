@@ -213,7 +213,12 @@ export default function Auth() {
       window.location.href = await startGoogleSignIn();
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      const message = err instanceof Error ? err.message : 'Sign-in failed.';
+      const hint =
+        typeof window !== 'undefined' && message.includes('redirect')
+          ? ` Add ${window.location.origin}/auth/callback in Google Cloud Console if it is missing.`
+          : '';
+      setError(message + hint);
       setLoading(false);
     }
   };
