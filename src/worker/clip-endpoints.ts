@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { purgeClipFromDatabase } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
+import { buildHashtagsForClipBody, songFieldsFromBody } from './clip-song-fields';
 import { createRealtimeService } from './realtime-service';
 
 /** Resolve clip id from route params (Hono), query string, or URL path (fallback for some dev/proxy setups). */
@@ -375,26 +376,7 @@ export async function deleteOwnClipByBody(c: Context<{ Bindings: Env }>) {
   return deleteOwnClipForRow(c, clip);
 }
 
-/** Serialize hashtags for DB (same shape as POST /api/clips). */
-function serializeHashtagsForDb(input: unknown): string {
-  if (input == null) return JSON.stringify([]);
-  if (Array.isArray(input)) {
-    const tags = input
-      .map((x) => String(x).replace(/^#/, '').trim())
-      .filter(Boolean);
-    return JSON.stringify(tags);
-  }
-  if (typeof input === 'string') {
-    const tags = input
-      .split(/[,]+/)
-      .map((s) => s.replace(/^#/, '').trim())
-      .filter(Boolean);
-    return JSON.stringify(tags);
-  }
-  return JSON.stringify([]);
-}
-
-/** POST JSON: clipId + optional artist_name, venue_name, location, content_description, hashtags */
+/** POST JSON: clipId + optional artist_name, venue_name, location, content_description, hashtags, song_title */
 export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const user = c.get('user');
   if (!user) {
@@ -431,7 +413,8 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const venue_name = trimOrNull(body.venue_name);
   const location = trimOrNull(body.location);
   const content_description = trimOrNull(body.content_description);
-  const hashtagsJson = serializeHashtagsForDb(body.hashtags);
+  const { song_title, song_slug } = songFieldsFromBody(body);
+  const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
 
   await c.env.DB.prepare(
     `UPDATE clips SET
@@ -440,10 +423,21 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       location = ?,
       content_description = ?,
       hashtags = ?,
+      song_title = ?,
+      song_slug = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?`
   )
-    .bind(artist_name, venue_name, location, content_description, hashtagsJson, canonicalId)
+    .bind(
+      artist_name,
+      venue_name,
+      location,
+      content_description,
+      hashtagsJson,
+      song_title,
+      song_slug,
+      canonicalId,
+    )
     .run();
 
   const row = await c.env.DB.prepare(

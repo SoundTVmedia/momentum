@@ -14,6 +14,7 @@ import {
   Star,
   ChevronLeft,
   ChevronRight,
+  Disc3,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
@@ -27,7 +28,8 @@ import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio
 import StarRating from './StarRating';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, venuePath } from '@/shared/app-paths';
+import { artistPath, songPath, venuePath } from '@/shared/app-paths';
+import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 
 export type ClipModalFeedNavigation = {
@@ -248,6 +250,25 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
                   >
                     <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
                     <span className="text-white font-bold text-sm sm:text-base truncate">{clip.artist_name}</span>
+                  </button>
+                )}
+                {clip.song_title?.trim() && clip.artist_name && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      const slug =
+                        clip.song_slug?.trim() || songSlugFromTitle(clip.song_title);
+                      if (slug) {
+                        navigate(songPath(clip.artist_name, slug));
+                      }
+                    }}
+                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0 text-left"
+                  >
+                    <Disc3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-fuchsia-400 flex-shrink-0" />
+                    <span className="text-fuchsia-200 font-semibold text-sm sm:text-base truncate">
+                      {clip.song_title}
+                    </span>
                   </button>
                 )}
                 {clip.venue_name && (

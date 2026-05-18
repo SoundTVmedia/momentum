@@ -53,6 +53,8 @@ import {
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postClipIdentifyMusicAudD } from "./clip-audd-endpoints";
+import { buildHashtagsForClipBody, songFieldsFromBody } from "./clip-song-fields";
+import { buildSongPagePayload } from "./song-page-endpoints";
 import { normalizeClipApiRows } from "./clip-row-normalize";
 import { r2ForClipObjectKey } from "./r2-clip-key";
 import { serveR2ClipFile } from "./r2-serve";
@@ -653,7 +655,6 @@ app.post("/api/clips", authMiddleware, async (c) => {
     content_description, 
     video_url, 
     thumbnail_url, 
-    hashtags,
     stream_video_id,
     stream_playback_url,
     stream_thumbnail_url,
@@ -680,18 +681,21 @@ app.post("/api/clips", authMiddleware, async (c) => {
 
   // `clips.video_url` is NOT NULL; allow Stream-only payloads where playback URL carries the link.
   const resolvedVideoUrl = (video_url || stream_playback_url || "") as string;
+  const { song_title, song_slug } = songFieldsFromBody(body as Record<string, unknown>);
+  const hashtagList = buildHashtagsForClipBody(body as Record<string, unknown>);
 
   try {
     const result = await c.env.DB.prepare(
       `INSERT INTO clips 
        (mocha_user_id, artist_name, venue_name, location, timestamp, content_description, 
-        video_url, thumbnail_url, hashtags, stream_video_id, stream_playback_url, 
+        video_url, thumbnail_url, hashtags, song_title, song_slug,
+        stream_video_id, stream_playback_url, 
         stream_thumbnail_url, video_status, video_duration, status, 
         geolocation_latitude, geolocation_longitude, geolocation_accuracy_radius, 
         recording_orientation, video_resolution_w, video_resolution_h,
         jambase_event_id, jambase_artist_id, jambase_venue_id,
         is_draft, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     )
       .bind(
         mochaUser.id,
@@ -702,7 +706,9 @@ app.post("/api/clips", authMiddleware, async (c) => {
         content_description || null,
         resolvedVideoUrl,
         thumbnail_url || null,
-        JSON.stringify(hashtags || []),
+        JSON.stringify(hashtagList),
+        song_title,
+        song_slug,
         stream_video_id || null,
         stream_playback_url || null,
         stream_thumbnail_url || null,
@@ -790,6 +796,7 @@ app.get("/api/clips", async (c) => {
   const sortBy = c.req.query('sort_by') || 'latest';
   const artistName = c.req.query('artist_name');
   const venueName = c.req.query('venue_name');
+  const songSlug = c.req.query('song_slug');
   const userId = c.req.query('user_id');
   const since = c.req.query('since');
   
@@ -820,6 +827,11 @@ app.get("/api/clips", async (c) => {
   if (venueName) {
     query += ` AND clips.venue_name = ?`;
     bindings.push(venueName);
+  }
+
+  if (songSlug) {
+    query += ` AND clips.song_slug = ?`;
+    bindings.push(songSlug.trim().toLowerCase());
   }
   
   if (userId) {
@@ -863,7 +875,7 @@ app.get("/api/clips", async (c) => {
 
   // User-scoped or filtered feeds must not be cached publicly — stale JSON causes "My clips"
   // to show rows that no longer exist locally, so delete/update then return 404 Clip not found.
-  const scopedFeed = Boolean(userId || since || artistName || venueName);
+  const scopedFeed = Boolean(userId || since || artistName || venueName || songSlug);
   if (scopedFeed) {
     c.header('Cache-Control', 'private, no-store, must-revalidate');
     c.header('Pragma', 'no-cache');
@@ -2949,6 +2961,7 @@ app.get(
   rateLimiter(RateLimits.API),
   discoverPrioritized.getFavoriteArtistFeed,
 );
+app.get("/api/artists/:artistName/songs/:songSlug", buildSongPagePayload);
 app.get("/api/artists/:artistName/shows/:showId/clips", discoverPrioritized.getShowClips);
 app.get("/api/venues/:venueName/archive", discoverPrioritized.getVenueArchive);
 

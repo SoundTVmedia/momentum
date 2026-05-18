@@ -41,19 +41,20 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
   const navigate = useNavigate();
 
   return (
-    <div className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors flex flex-col">
-      {concert.artist_image ? (
-        <div className="relative h-40 overflow-hidden shrink-0">
+    <div className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors flex flex-col h-full">
+      <div className="relative h-48 overflow-hidden shrink-0">
+        {concert.artist_image ? (
           <img
             src={concert.artist_image}
             alt={concert.artist_name}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-        </div>
-      ) : null}
+        ) : (
+          <div className="w-full h-full bg-white/5" aria-hidden />
+        )}
+      </div>
 
-      <div className="p-4 space-y-3 flex flex-col">
+      <div className="p-4 flex flex-col flex-1">
         <button
           type="button"
           onClick={() => navigate(artistPath(concert.artist_name))}
@@ -62,7 +63,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           {concert.artist_name}
         </button>
 
-        <div className="space-y-2 text-sm">
+        <div className="space-y-2 text-sm flex-1 mt-3">
           <div className="flex items-start space-x-2 text-gray-300">
             <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
@@ -84,7 +85,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           </div>
         </div>
 
-        <div className="min-h-[44px] flex items-center">
+        <div className="mt-auto pt-2 min-h-[44px] flex items-end">
           {concert.ticket_url ? (
             <a
               href={concert.ticket_url}
@@ -197,12 +198,15 @@ export default function PersonalizedConcerts({
         />
       ) : (
         <HorizontalClipCarousel
+          stretchItems
           ariaLabel="Upcoming concerts from your favorite artists"
           className={carouselBleed}
         >
           {d1Concerts.map((concert) => (
-            <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96">
-              <D1ConcertCard concert={concert} />
+            <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96 h-full">
+              <div className="h-full">
+                <D1ConcertCard concert={concert} />
+              </div>
             </HorizontalClipCarouselItem>
           ))}
         </HorizontalClipCarousel>

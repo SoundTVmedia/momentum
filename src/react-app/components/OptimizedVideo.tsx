@@ -86,7 +86,7 @@ export default function OptimizedVideo({
 
       {/* Custom Controls Overlay */}
       <div 
-        className={`absolute inset-0 bg-gradient-to-t from-black/60 to-transparent transition-opacity duration-300 ${
+        className={`absolute inset-0 transition-opacity duration-300 ${
           showControls ? 'opacity-100' : 'opacity-0'
         }`}
       >

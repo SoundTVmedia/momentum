@@ -81,8 +81,8 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
                   alt="Artist interview"
                   className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end">
-                  <div className="p-4 w-full">
+                <div className="absolute inset-x-0 bottom-0 flex items-end">
+                  <div className="p-4 w-full bg-black/60">
                     <div className="flex items-center space-x-2 mb-2">
                       <Star className="w-4 h-4 text-yellow-400" />
                       <span className="text-yellow-400 text-xs font-medium">EXCLUSIVE</span>

@@ -7,6 +7,8 @@ import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
+import { artistPath, songPath } from '@/shared/app-paths';
+import { songSlugFromTitle } from '@/shared/song-tag';
 
 export type ClipFeedGridTileProps = {
   clip: ClipWithUser;
@@ -88,10 +90,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           mediaHovered={mediaHovered}
         />
 
-        <div className="pointer-events-none absolute -inset-px z-[1] rounded-t-2xl bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-        <div className="pointer-events-none absolute -inset-px z-[1] rounded-t-2xl bg-gradient-to-b from-black/40 via-transparent to-transparent" />
-
-        <div className="pointer-events-none absolute -inset-px z-[2] flex items-center justify-center rounded-t-2xl bg-black/30 opacity-0 transition-opacity group-hover/video:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:hidden">
+        <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center rounded-t-2xl opacity-0 transition-opacity group-hover/video:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:hidden">
           <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-14 lg:h-14 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
             <div className="w-0 h-0 border-l-[18px] sm:border-l-[22px] md:border-l-[16px] border-l-white border-y-[12px] sm:border-y-[14px] md:border-y-[11px] border-y-transparent ml-0.5 sm:ml-1" />
           </div>
@@ -150,11 +149,24 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenClip(clip);
+                navigate(artistPath(clip.artist_name));
               }}
               className="font-headline text-base sm:text-lg md:text-sm lg:text-lg text-white hover:text-purple-400 transition-colors drop-shadow-lg block text-left w-full truncate"
             >
               {clip.artist_name}
+            </button>
+          )}
+          {clip.song_title?.trim() && clip.artist_name && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const slug = clip.song_slug?.trim() || songSlugFromTitle(clip.song_title);
+                if (slug) navigate(songPath(clip.artist_name, slug));
+              }}
+              className="text-fuchsia-200 text-xs sm:text-sm md:text-[11px] font-semibold hover:text-fuchsia-100 transition-colors drop-shadow block text-left w-full truncate"
+            >
+              ♪ {clip.song_title}
             </button>
           )}
           {clip.venue_name && (

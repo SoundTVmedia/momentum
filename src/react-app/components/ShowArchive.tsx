@@ -143,8 +143,6 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
                     alt={`${show.artist_name} at ${venueName}`}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-                  
                   {/* Play overlay — hidden on fine-pointer desktop (no clip preview here) */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity [@media(hover:hover)_and_(pointer:fine)]:hidden">
                     <div className="w-12 h-12 bg-white/20 backdrop-blur-lg rounded-full flex items-center justify-center">

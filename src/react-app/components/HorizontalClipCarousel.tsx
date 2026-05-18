@@ -1,6 +1,8 @@
 import {
+  createContext,
   forwardRef,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -8,16 +10,20 @@ import {
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+const CarouselStretchContext = createContext(false);
+
 export type HorizontalClipCarouselProps = {
   children: ReactNode;
   /** Extra classes on the scroll viewport (e.g. negative margin to bleed within a padded card). */
   className?: string;
   ariaLabel?: string;
+  /** Stretch carousel items to equal height (e.g. event cards with aligned footers). */
+  stretchItems?: boolean;
 };
 
 const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarouselProps>(
   function HorizontalClipCarousel(
-    { children, className = '', ariaLabel = 'Clips carousel' },
+    { children, className = '', ariaLabel = 'Clips carousel', stretchItems = false },
     forwardedRef,
   ) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -84,6 +90,7 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
   };
 
   return (
+    <CarouselStretchContext.Provider value={stretchItems}>
     <div className={`relative group/carousel ${className}`}>
       <button
         type="button"
@@ -109,20 +116,12 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
         ref={setScrollRef}
         role="region"
         aria-label={ariaLabel}
-        className="flex items-start gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x"
+        className={`flex gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x ${stretchItems ? 'items-stretch' : 'items-start'}`}
       >
         {children}
       </div>
-
-      <div
-        className="hidden md:block pointer-events-none absolute inset-y-0 left-0 z-20 w-14 lg:w-20 bg-gradient-to-r from-black/80 via-black/40 to-transparent opacity-0 group-hover/carousel:opacity-100 transition-opacity"
-        aria-hidden
-      />
-      <div
-        className="hidden md:block pointer-events-none absolute inset-y-0 right-0 z-20 w-14 lg:w-20 bg-gradient-to-l from-black/80 via-black/40 to-transparent opacity-0 group-hover/carousel:opacity-100 transition-opacity"
-        aria-hidden
-      />
     </div>
+    </CarouselStretchContext.Provider>
   );
   },
 );
@@ -136,10 +135,11 @@ export function HorizontalClipCarouselItem({
   children: ReactNode;
   className?: string;
 }) {
+  const stretch = useContext(CarouselStretchContext);
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 self-start basis-full w-full max-w-full snap-start snap-always max-md:mr-3 max-md:last:mr-0 md:mr-0 md:basis-auto md:w-72 lg:w-80 ${className}`}
+      className={`flex-shrink-0 basis-full w-full max-w-full snap-start snap-always max-md:mr-3 max-md:last:mr-0 md:mr-0 md:basis-auto md:w-72 lg:w-80 ${stretch ? 'self-stretch' : 'self-start'} ${className}`}
     >
       {children}
     </div>

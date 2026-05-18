@@ -123,14 +123,13 @@ function JamBaseEventCard({
   const vLine = venueCityLine(event);
 
   return (
-    <div className="group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-colors duration-300 flex flex-col">
-      <div className="relative shrink-0">
+    <div className="group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-colors duration-300 flex flex-col h-full">
+      <div className="relative shrink-0 h-48 overflow-hidden">
         <img
           src={image}
           alt={title}
-          className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute top-3 left-3">
           <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
             {headlinerGenre(event)}
@@ -138,12 +137,12 @@ function JamBaseEventCard({
         </div>
       </div>
 
-      <div className="p-5 flex flex-col">
-        <h3 className="font-bold text-lg text-white mb-2 group-hover:text-amber-300 transition-colors line-clamp-2">
+      <div className="p-5 flex flex-col flex-1">
+        <h3 className="font-bold text-lg text-white mb-2 group-hover:text-amber-300 transition-colors line-clamp-2 shrink-0">
           {title}
         </h3>
 
-        <div className="space-y-2 mb-3 text-sm">
+        <div className="space-y-2 mb-3 text-sm flex-1">
           {head ? (
             <button
               type="button"
@@ -176,7 +175,7 @@ function JamBaseEventCard({
           ) : null}
         </div>
 
-        <div className="min-h-[44px] flex items-center">
+        <div className="mt-auto pt-2 min-h-[44px] flex items-end">
           {ticket ? (
             <a
               href={ticket}
@@ -300,10 +299,14 @@ export default function JamBaseEventGrid({
   if (loading && events.length === 0) {
     if (layout === 'carousel') {
       return (
-        <HorizontalClipCarousel ariaLabel={carouselAriaLabel} className={carouselClassName}>
+        <HorizontalClipCarousel
+          stretchItems
+          ariaLabel={carouselAriaLabel}
+          className={carouselClassName}
+        >
           {Array.from({ length: 3 }).map((_, i) => (
-            <HorizontalClipCarouselItem key={`sk-${i}`} className="md:w-80 lg:w-96">
-              {eventSkeleton}
+            <HorizontalClipCarouselItem key={`sk-${i}`} className="md:w-80 lg:w-96 h-full">
+              <div className="h-full">{eventSkeleton}</div>
             </HorizontalClipCarouselItem>
           ))}
         </HorizontalClipCarousel>
@@ -354,10 +357,14 @@ export default function JamBaseEventGrid({
   return (
     <div>
       {layout === 'carousel' ? (
-        <HorizontalClipCarousel ariaLabel={carouselAriaLabel} className={carouselClassName}>
+        <HorizontalClipCarousel
+          stretchItems
+          ariaLabel={carouselAriaLabel}
+          className={carouselClassName}
+        >
           {display.map((event) => (
-            <HorizontalClipCarouselItem key={eventId(event)} className="md:w-80 lg:w-96">
-              {renderEvent(event)}
+            <HorizontalClipCarouselItem key={eventId(event)} className="md:w-80 lg:w-96 h-full">
+              <div className="h-full">{renderEvent(event)}</div>
             </HorizontalClipCarouselItem>
           ))}
         </HorizontalClipCarousel>

@@ -80,11 +80,8 @@ export default function TrendingFilmstrip() {
                       mediaHovered={hoverClipId === clip.id}
                     />
 
-                    {/* Gradient overlay */}
-                    <div className="pointer-events-none absolute -inset-px z-[1] rounded-lg bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-
                     {/* Play hint: coarse / touch — hidden on fine-pointer desktop (video plays on hover) */}
-                    <div className="absolute inset-0 z-[1] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:hidden">
+                    <div className="absolute inset-0 z-[1] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:hidden">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 momentum-grad-interactive rounded-full flex items-center justify-center shadow-lg">
                         <Play className="w-5 h-5 sm:w-6 sm:h-6 text-white fill-white ml-0.5" />
                       </div>

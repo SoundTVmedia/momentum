@@ -123,8 +123,6 @@ export default function TicketmasterEventGrid({
               alt={event.name}
               className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-
             {/* Genre Tag */}
             <div className="absolute top-3 left-3">
               <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium">

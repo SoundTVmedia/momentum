@@ -173,8 +173,6 @@ export default function DiscoverSection() {
                       alt={show.artist_name || 'Concert'}
                       className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-
                     {/* Priority badge — trending uses fire icon only */}
                     {show.type === 'trending' ? (
                       <div className="absolute top-3 left-3" title="Trending">
