@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { getOrCreateArtistIdByName, normalizeArtistDisplayName } from './favorite-artists-sync';
+import {
+  getOrCreateArtistIdByName,
+  normalizeArtistDisplayName,
+  resolveArtistIdForFavoriteName,
+} from './favorite-artists-sync';
 
 type ArtistRow = { id: number; name: string };
 
-function createArtistsMockDb(initial: ArtistRow[] = []) {
+function createArtistsMockDb(initial: ArtistRow[] = [], opts?: { orIgnoreThrowsUnique?: boolean }) {
   const artists = [...initial];
   let nextId = artists.reduce((m, r) => Math.max(m, r.id), 0) + 1;
 
@@ -14,6 +18,11 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
         bind(...args: unknown[]) {
           return {
             async first() {
+              if (s.startsWith('select id from artists where name =') && s.includes('collate nocase')) {
+                const key = String(args[0]).toLowerCase();
+                const row = artists.find((a) => a.name.toLowerCase() === key);
+                return row ? { id: row.id } : null;
+              }
               if (s.startsWith('select id from artists where name =')) {
                 const key = String(args[0]);
                 const row = artists.find((a) => a.name === key);
@@ -22,6 +31,11 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
               if (s.includes('lower(trim(name)) = lower(trim')) {
                 const key = String(args[0]).toLowerCase().trim();
                 const row = artists.find((a) => a.name.toLowerCase().trim() === key);
+                return row ? { id: row.id } : null;
+              }
+              if (s.includes('lower(name) =')) {
+                const key = String(args[0]).toLowerCase();
+                const row = artists.find((a) => a.name.toLowerCase() === key);
                 return row ? { id: row.id } : null;
               }
               if (s.includes("lower(replace(trim(name), ' ', '-'))")) {
@@ -41,15 +55,13 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
             async run() {
               if (s.startsWith('insert or ignore into artists')) {
                 const name = String(args[0]);
-                if (!artists.some((a) => a.name === name)) {
-                  artists.push({ id: nextId++, name });
-                }
-                return { success: true, meta: { last_row_id: artists[artists.length - 1]?.id ?? 0 } };
-              }
-              if (s.startsWith('insert into artists')) {
-                const name = String(args[0]);
                 if (artists.some((a) => a.name === name)) {
-                  return { success: false, error: 'UNIQUE constraint failed: artists.name' };
+                  if (opts?.orIgnoreThrowsUnique) {
+                    throw new Error(
+                      'D1_ERROR: UNIQUE constraint failed: artists.name: SQLITE_CONSTRAINT',
+                    );
+                  }
+                  return { success: true, meta: { last_row_id: 0 } };
                 }
                 artists.push({ id: nextId++, name });
                 return { success: true, meta: { last_row_id: artists[artists.length - 1].id } };
@@ -57,6 +69,13 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
               return { success: true, meta: { last_row_id: 0 } };
             },
             async all() {
+              if (s.includes('lower(name) like')) {
+                const pattern = String(args[0]).replace(/%/g, '').toLowerCase();
+                const results = artists
+                  .filter((a) => a.name.toLowerCase().includes(pattern.split(' ')[0] ?? ''))
+                  .map((a) => ({ id: a.id, name: a.name }));
+                return { results };
+              }
               return { results: [] };
             },
           };
@@ -73,6 +92,13 @@ describe('normalizeArtistDisplayName', () => {
   });
 });
 
+describe('resolveArtistIdForFavoriteName', () => {
+  it('finds by case-insensitive name when DB row is lowercase', async () => {
+    const { db } = createArtistsMockDb([{ id: 9, name: 'olivia rodrigo' }]);
+    await expect(resolveArtistIdForFavoriteName(db, 'Olivia Rodrigo')).resolves.toBe(9);
+  });
+});
+
 describe('getOrCreateArtistIdByName', () => {
   it('returns existing id by case-insensitive name', async () => {
     const { db } = createArtistsMockDb([{ id: 5, name: 'Taylor Swift' }]);
@@ -86,8 +112,15 @@ describe('getOrCreateArtistIdByName', () => {
     expect(artists.some((a) => a.name === 'Billie Eilish')).toBe(true);
   });
 
-  it('resolves after insert-or-ignore race', async () => {
-    const { db } = createArtistsMockDb([{ id: 2, name: 'Drake' }]);
-    await expect(getOrCreateArtistIdByName(db, 'Drake')).resolves.toBe(2);
+  it('resolves Olivia Rodrigo when row exists with different casing', async () => {
+    const { db } = createArtistsMockDb([{ id: 3, name: 'olivia rodrigo' }]);
+    await expect(getOrCreateArtistIdByName(db, 'Olivia Rodrigo')).resolves.toBe(3);
+  });
+
+  it('recovers when INSERT OR IGNORE throws UNIQUE (D1)', async () => {
+    const { db } = createArtistsMockDb([{ id: 7, name: 'Olivia Rodrigo' }], {
+      orIgnoreThrowsUnique: true,
+    });
+    await expect(getOrCreateArtistIdByName(db, 'Olivia Rodrigo')).resolves.toBe(7);
   });
 });

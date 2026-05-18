@@ -31,6 +31,43 @@ function isSqliteUniqueError(msg: string): boolean {
   return /unique constraint|UNIQUE constraint failed|SQLITE_CONSTRAINT_UNIQUE/i.test(msg);
 }
 
+function normalizedNameKey(name: string): string {
+  return normalizeArtistDisplayName(name).toLowerCase();
+}
+
+function artistNameLikePattern(normalizedName: string): string {
+  const words = normalizedNameKey(normalizedName).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '%';
+  if (words.length === 1) return `%${words[0]}%`;
+  return `%${words.join('%')}%`;
+}
+
+function pickArtistIdFromNameRows(
+  rows: { id?: unknown; name?: unknown }[],
+  targetKey: string,
+): number | null {
+  for (const row of rows) {
+    if (normalizedNameKey(String(row.name ?? '')) === targetKey) {
+      const id = rowIdToNumber(row.id);
+      if (id != null) return id;
+    }
+  }
+  return null;
+}
+
+async function queryArtistId(
+  db: D1Database,
+  sql: string,
+  ...args: unknown[]
+): Promise<number | null> {
+  try {
+    const row = (await db.prepare(sql).bind(...args).first()) as { id?: unknown } | null;
+    return rowIdToNumber(row?.id);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Exact stored name, then case-insensitive + trim match (SQLite UNIQUE on `name` is exact-only).
  */
@@ -38,22 +75,17 @@ async function findArtistIdByName(db: D1Database, name: string): Promise<number 
   const key = normalizeArtistDisplayName(name);
   if (!key) return null;
 
-  const exact = (await db.prepare('SELECT id FROM artists WHERE name = ?').bind(key).first()) as {
-    id: unknown;
-  } | null;
-  const eid = rowIdToNumber(exact?.id);
-  if (eid != null) return eid;
+  const exact = await queryArtistId(db, 'SELECT id FROM artists WHERE name = ?', key);
+  if (exact != null) return exact;
 
-  const fold = (await db
-    .prepare(
-      `SELECT id FROM artists
-       WHERE lower(trim(name)) = lower(trim(?))
-       ORDER BY id ASC
-       LIMIT 1`,
-    )
-    .bind(key)
-    .first()) as { id: unknown } | null;
-  return rowIdToNumber(fold?.id);
+  return queryArtistId(
+    db,
+    `SELECT id FROM artists
+     WHERE lower(trim(name)) = lower(trim(?))
+     ORDER BY id ASC
+     LIMIT 1`,
+    key,
+  );
 }
 
 /** Match artist pages / slug URLs when spacing differs (e.g. "foo fighters" vs stored variant). */
@@ -62,20 +94,94 @@ async function findArtistIdBySlug(db: D1Database, name: string): Promise<number 
   const slug = artistNameSlug(key);
   if (!slug) return null;
 
-  const row = (await db
-    .prepare(
-      `SELECT id FROM artists
-       WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ?
-       ORDER BY id ASC
-       LIMIT 1`,
-    )
-    .bind(slug)
-    .first()) as { id: unknown } | null;
-  return rowIdToNumber(row?.id);
+  return queryArtistId(
+    db,
+    `SELECT id FROM artists
+     WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ?
+     ORDER BY id ASC
+     LIMIT 1`,
+    slug,
+  );
 }
 
-async function resolveArtistIdAfterWrite(db: D1Database, name: string): Promise<number | null> {
-  return (await findArtistIdByName(db, name)) ?? (await findArtistIdBySlug(db, name));
+/** COLLATE NOCASE / lower(name) — when UNIQUE treats names as equal but `=` does not. */
+async function findArtistIdByCaseInsensitive(db: D1Database, name: string): Promise<number | null> {
+  const key = normalizeArtistDisplayName(name);
+  if (!key) return null;
+
+  const nocase = await queryArtistId(
+    db,
+    'SELECT id FROM artists WHERE name = ? COLLATE NOCASE ORDER BY id ASC LIMIT 1',
+    key,
+  );
+  if (nocase != null) return nocase;
+
+  return queryArtistId(
+    db,
+    'SELECT id FROM artists WHERE lower(name) = ? ORDER BY id ASC LIMIT 1',
+    key.toLowerCase(),
+  );
+}
+
+/** NBSP / odd whitespace in legacy rows. */
+async function findArtistIdBySanitizedWhitespace(db: D1Database, name: string): Promise<number | null> {
+  const key = normalizeArtistDisplayName(name);
+  if (!key) return null;
+
+  return queryArtistId(
+    db,
+    `SELECT id FROM artists
+     WHERE lower(trim(replace(replace(replace(name, char(160), ' '), char(9), ' '), char(8203), ' ')))) = lower(?)
+     ORDER BY id ASC
+     LIMIT 1`,
+    key,
+  );
+}
+
+/** Last resort after UNIQUE: scan a small candidate set and compare in JS (NFC + spacing). */
+async function findArtistIdByLikeScan(db: D1Database, name: string): Promise<number | null> {
+  const key = normalizeArtistDisplayName(name);
+  const targetKey = normalizedNameKey(key);
+  if (!targetKey) return null;
+
+  const pattern = artistNameLikePattern(key);
+  const res = await db
+    .prepare(
+      `SELECT id, name FROM artists
+       WHERE lower(name) LIKE ?
+       ORDER BY id ASC
+       LIMIT 40`,
+    )
+    .bind(pattern)
+    .all();
+
+  return pickArtistIdFromNameRows((res.results || []) as { id?: unknown; name?: unknown }[], targetKey);
+}
+
+/**
+ * Resolve an existing `artists.id` for a display name (all strategies).
+ */
+export async function resolveArtistIdForFavoriteName(
+  db: D1Database,
+  displayName: string,
+): Promise<number | null> {
+  const key = normalizeArtistDisplayName(displayName);
+  if (!key) return null;
+
+  return (
+    (await findArtistIdByName(db, key)) ??
+    (await findArtistIdByCaseInsensitive(db, key)) ??
+    (await findArtistIdBySanitizedWhitespace(db, key)) ??
+    (await findArtistIdBySlug(db, key)) ??
+    (await findArtistIdByLikeScan(db, key))
+  );
+}
+
+async function resolveArtistIdAfterUniqueViolation(db: D1Database, name: string): Promise<number | null> {
+  return (
+    (await resolveArtistIdForFavoriteName(db, name)) ??
+    (await findArtistIdByLikeScan(db, name))
+  );
 }
 
 export async function getOrCreateArtistIdByName(db: D1Database, displayName: string): Promise<number> {
@@ -84,60 +190,38 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
     throw new Error('empty artist name');
   }
 
-  const existing = await resolveArtistIdAfterWrite(db, name);
-  if (existing != null) return existing;
-
-  // Idempotent — safe when RETURNING / last_row_id are flaky on D1
-  await db
-    .prepare(
-      `INSERT OR IGNORE INTO artists (name, created_at, updated_at)
-       VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-    )
-    .bind(name)
-    .run();
-
-  let id = await resolveArtistIdAfterWrite(db, name);
+  let id = await resolveArtistIdForFavoriteName(db, name);
   if (id != null) return id;
 
+  let ins: { meta?: { last_row_id?: unknown } };
   try {
-    const ins = await db
+    ins = await db
       .prepare(
-        `INSERT INTO artists (name, created_at, updated_at)
+        `INSERT OR IGNORE INTO artists (name, created_at, updated_at)
          VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       )
       .bind(name)
       .run();
-
-    const insAny = ins as { success?: boolean; error?: string; meta?: { last_row_id?: unknown } };
-    if (insAny.success === false) {
-      const retry = await resolveArtistIdAfterWrite(db, name);
-      if (retry != null) return retry;
-      throw new Error(
-        `Artist insert failed (${JSON.stringify(name)}): ${insAny.error ?? 'D1 returned success: false'}`,
-      );
-    }
-
-    const fromMeta = parseD1LastRowId(insAny.meta?.last_row_id);
-    if (fromMeta != null) {
-      const byId = (await db.prepare('SELECT id FROM artists WHERE id = ?').bind(fromMeta).first()) as {
-        id: unknown;
-      } | null;
-      const confirmed = rowIdToNumber(byId?.id);
-      if (confirmed != null) return confirmed;
-    }
-
-    id = await resolveArtistIdAfterWrite(db, name);
-    if (id != null) return id;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const retry = await resolveArtistIdAfterWrite(db, name);
-    if (retry != null) return retry;
     if (isSqliteUniqueError(msg)) {
-      const afterUnique = await resolveArtistIdAfterWrite(db, name);
-      if (afterUnique != null) return afterUnique;
+      id = await resolveArtistIdAfterUniqueViolation(db, name);
+      if (id != null) return id;
     }
     throw new Error(`Artist insert failed (${JSON.stringify(name)}): ${msg}`);
   }
+
+  const fromMeta = parseD1LastRowId(ins.meta?.last_row_id);
+  if (fromMeta != null) {
+    const confirmed = await queryArtistId(db, 'SELECT id FROM artists WHERE id = ?', fromMeta);
+    if (confirmed != null) return confirmed;
+  }
+
+  id = await resolveArtistIdForFavoriteName(db, name);
+  if (id != null) return id;
+
+  id = await resolveArtistIdAfterUniqueViolation(db, name);
+  if (id != null) return id;
 
   throw new Error(`Could not resolve artist id for ${JSON.stringify(name)}`);
 }
