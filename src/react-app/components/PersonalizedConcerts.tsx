@@ -7,6 +7,7 @@ import HorizontalClipCarousel, {
 } from '@/react-app/components/HorizontalClipCarousel';
 import { artistPath } from '@/shared/app-paths';
 import {
+  EVENT_CAROUSEL_CARD_CLASS,
   HOME_FEED_CAROUSEL_BLEED,
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
@@ -41,7 +42,9 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
   const navigate = useNavigate();
 
   return (
-    <div className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors flex flex-col h-full">
+    <div
+      className={`group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors ${EVENT_CAROUSEL_CARD_CLASS}`}
+    >
       <div className="relative h-48 overflow-hidden shrink-0">
         {concert.artist_image ? (
           <img
@@ -54,7 +57,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
         )}
       </div>
 
-      <div className="p-4 flex flex-col flex-1">
+      <div className="p-5 flex flex-col flex-1 min-h-0">
         <button
           type="button"
           onClick={() => navigate(artistPath(concert.artist_name))}
@@ -203,10 +206,8 @@ export default function PersonalizedConcerts({
           className={carouselBleed}
         >
           {d1Concerts.map((concert) => (
-            <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96 h-full">
-              <div className="h-full">
-                <D1ConcertCard concert={concert} />
-              </div>
+            <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96">
+              <D1ConcertCard concert={concert} />
             </HorizontalClipCarouselItem>
           ))}
         </HorizontalClipCarousel>

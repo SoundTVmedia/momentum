@@ -69,49 +69,35 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
     };
   }, [updateScrollState, children]);
 
+  const getActiveIndex = (items: HTMLElement[], scrollLeft: number) => {
+    let index = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].offsetLeft <= scrollLeft + 16) {
+        index = i;
+      }
+    }
+    return index;
+  };
+
   const scrollByStep = (direction: 'left' | 'right') => {
     const el = scrollRef.current;
     if (!el) return;
 
-    const items = el.querySelectorAll<HTMLElement>('[data-carousel-item]');
+    const items = [...el.querySelectorAll<HTMLElement>('[data-carousel-item]')];
     if (items.length === 0) return;
 
-    const { scrollLeft } = el;
-    const offsets = [...items].map((item) => item.offsetLeft);
+    const activeIndex = getActiveIndex(items, el.scrollLeft);
+    const targetIndex =
+      direction === 'right'
+        ? Math.min(activeIndex + 1, items.length - 1)
+        : Math.max(activeIndex - 1, 0);
 
-    if (direction === 'right') {
-      const next = offsets.find((left) => left > scrollLeft + 4);
-      el.scrollTo({ left: next ?? offsets[offsets.length - 1], behavior: 'smooth' });
-      return;
-    }
-
-    const prev = [...offsets].reverse().find((left) => left < scrollLeft - 4);
-    el.scrollTo({ left: prev ?? 0, behavior: 'smooth' });
+    el.scrollTo({ left: items[targetIndex].offsetLeft, behavior: 'smooth' });
   };
 
   return (
     <CarouselStretchContext.Provider value={stretchItems}>
     <div className={`relative group/carousel ${className}`}>
-      <button
-        type="button"
-        onClick={() => scrollByStep('left')}
-        disabled={!canScrollLeft}
-        className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-30 w-10 h-10 items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-purple-400/40 disabled:opacity-0 disabled:pointer-events-none -translate-x-1/2"
-        aria-label="Previous clip"
-      >
-        <ChevronLeft className="w-6 h-6" />
-      </button>
-
-      <button
-        type="button"
-        onClick={() => scrollByStep('right')}
-        disabled={!canScrollRight}
-        className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-30 w-10 h-10 items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-purple-400/40 disabled:opacity-0 disabled:pointer-events-none translate-x-1/2"
-        aria-label="Next clip"
-      >
-        <ChevronRight className="w-6 h-6" />
-      </button>
-
       <div
         ref={setScrollRef}
         role="region"
@@ -119,6 +105,28 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
         className={`flex gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x ${stretchItems ? 'items-stretch' : 'items-start'}`}
       >
         {children}
+      </div>
+
+      <div className="hidden md:block absolute inset-0 z-30 pointer-events-none" aria-hidden>
+        <button
+          type="button"
+          onClick={() => scrollByStep('left')}
+          disabled={!canScrollLeft}
+          className="pointer-events-auto absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-purple-400/40 disabled:opacity-0 disabled:pointer-events-none -translate-x-1/2"
+          aria-label="Previous clip"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => scrollByStep('right')}
+          disabled={!canScrollRight}
+          className="pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-purple-400/40 disabled:opacity-0 disabled:pointer-events-none translate-x-1/2"
+          aria-label="Next clip"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
       </div>
     </div>
     </CarouselStretchContext.Provider>
@@ -139,9 +147,9 @@ export function HorizontalClipCarouselItem({
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 basis-full w-full max-w-full snap-start snap-always max-md:mr-3 max-md:last:mr-0 md:mr-0 md:basis-auto md:w-72 lg:w-80 ${stretch ? 'self-stretch' : 'self-start'} ${className}`}
+      className={`flex-shrink-0 basis-full w-full max-w-full snap-start snap-always max-md:mr-3 max-md:last:mr-0 md:mr-0 md:basis-auto md:w-72 lg:w-80 ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
     >
-      {children}
+      {stretch ? <div className="flex h-full min-h-full w-full flex-col">{children}</div> : children}
     </div>
   );
 }

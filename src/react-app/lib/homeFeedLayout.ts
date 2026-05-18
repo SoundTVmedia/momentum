@@ -8,3 +8,7 @@ export const PAGE_CAROUSEL_BLEED =
 
 /** Spacing between unboxed home feed sections. */
 export const HOME_FEED_SECTION_CLASS = 'mb-10';
+
+/** Equal-height event cards in carousels (image + body + ticket row). */
+export const EVENT_CAROUSEL_CARD_CLASS =
+  'flex h-full min-h-[24rem] w-full flex-col';

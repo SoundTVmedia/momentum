@@ -5,6 +5,7 @@ import { artistPath, venuePath } from '@/shared/app-paths';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
+import { EVENT_CAROUSEL_CARD_CLASS } from '@/react-app/lib/homeFeedLayout';
 
 export interface JamBaseEventGridProps {
   maxEvents?: number;
@@ -123,7 +124,9 @@ function JamBaseEventCard({
   const vLine = venueCityLine(event);
 
   return (
-    <div className="group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-colors duration-300 flex flex-col h-full">
+    <div
+      className={`group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
+    >
       <div className="relative shrink-0 h-48 overflow-hidden">
         <img
           src={image}
@@ -305,8 +308,8 @@ export default function JamBaseEventGrid({
           className={carouselClassName}
         >
           {Array.from({ length: 3 }).map((_, i) => (
-            <HorizontalClipCarouselItem key={`sk-${i}`} className="md:w-80 lg:w-96 h-full">
-              <div className="h-full">{eventSkeleton}</div>
+            <HorizontalClipCarouselItem key={`sk-${i}`} className="md:w-80 lg:w-96">
+              {eventSkeleton}
             </HorizontalClipCarouselItem>
           ))}
         </HorizontalClipCarousel>
@@ -363,15 +366,17 @@ export default function JamBaseEventGrid({
           className={carouselClassName}
         >
           {display.map((event) => (
-            <HorizontalClipCarouselItem key={eventId(event)} className="md:w-80 lg:w-96 h-full">
-              <div className="h-full">{renderEvent(event)}</div>
+            <HorizontalClipCarouselItem key={eventId(event)} className="md:w-80 lg:w-96">
+              {renderEvent(event)}
             </HorizontalClipCarouselItem>
           ))}
         </HorizontalClipCarousel>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
           {display.map((event) => (
-            <div key={eventId(event)}>{renderEvent(event)}</div>
+            <div key={eventId(event)} className="h-full">
+              {renderEvent(event)}
+            </div>
           ))}
         </div>
       )}
