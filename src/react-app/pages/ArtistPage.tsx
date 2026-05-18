@@ -424,7 +424,7 @@ export default function ArtistPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 flex flex-col gap-8">
             <div className="mb-8">
               <div className="flex items-center space-x-3 mb-6">
                 <Music className="w-6 h-6 text-purple-400" />
@@ -448,83 +448,6 @@ export default function ArtistPage() {
                   <p className="text-gray-500 mt-2">Drop the first clip from {artist.name}!</p>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Links */}
-            <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Quick Links</h3>
-              <div className="space-y-3">
-                {socialLinks.website && (
-                  <a
-                    href={socialLinks.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
-                  >
-                    <ExternalLink className="w-5 h-5 text-purple-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-white font-medium">Official Website</span>
-                  </a>
-                )}
-                {socialLinks.spotify && (
-                  <a
-                    href={socialLinks.spotify}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
-                  >
-                    <Music className="w-5 h-5 text-green-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-white font-medium">Listen on Spotify</span>
-                  </a>
-                )}
-                {tourDates.length > 0 && tourDates[0].ticket_url && (
-                  <a
-                    href={tourDates[0].ticket_url}
-                    target="_blank"
-                    rel="nofollow noopener noreferrer"
-                    className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg hover:scale-105 transition-transform group"
-                  >
-                    <Ticket className="w-5 h-5 text-white" />
-                    <span className="text-white font-medium">Get Tickets</span>
-                  </a>
-                )}
-                {socialLinks.merch && (
-                  <a
-                    href={socialLinks.merch}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
-                  >
-                    <ShoppingBag className="w-5 h-5 text-yellow-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-white font-medium">Shop Merch</span>
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Stats */}
-            <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Stats</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Clips</span>
-                  <span className="text-white font-bold">{clips.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Likes</span>
-                  <span className="text-white font-bold">
-                    {clips.reduce((sum, clip) => sum + clip.likes_count, 0).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Views</span>
-                  <span className="text-white font-bold">
-                    {clips.reduce((sum, clip) => sum + clip.views_count, 0).toLocaleString()}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Tour Dates & Live Events Toggle */}
@@ -635,6 +558,84 @@ export default function ArtistPage() {
                   No tour dates available yet
                 </div>
               )}
+            </div>
+
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Quick Links */}
+            <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+              <h3 className="text-xl font-bold text-white mb-4">Quick Links</h3>
+              <div className="space-y-3">
+                {socialLinks.website && (
+                  <a
+                    href={socialLinks.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
+                  >
+                    <ExternalLink className="w-5 h-5 text-purple-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white font-medium">Official Website</span>
+                  </a>
+                )}
+                {socialLinks.spotify && (
+                  <a
+                    href={socialLinks.spotify}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
+                  >
+                    <Music className="w-5 h-5 text-green-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white font-medium">Listen on Spotify</span>
+                  </a>
+                )}
+                {tourDates.length > 0 && tourDates[0].ticket_url && (
+                  <a
+                    href={tourDates[0].ticket_url}
+                    target="_blank"
+                    rel="nofollow noopener noreferrer"
+                    className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg hover:scale-105 transition-transform group"
+                  >
+                    <Ticket className="w-5 h-5 text-white" />
+                    <span className="text-white font-medium">Get Tickets</span>
+                  </a>
+                )}
+                {socialLinks.merch && (
+                  <a
+                    href={socialLinks.merch}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
+                  >
+                    <ShoppingBag className="w-5 h-5 text-yellow-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white font-medium">Shop Merch</span>
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+              <h3 className="text-xl font-bold text-white mb-4">Stats</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Total Clips</span>
+                  <span className="text-white font-bold">{clips.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Total Likes</span>
+                  <span className="text-white font-bold">
+                    {clips.reduce((sum, clip) => sum + clip.likes_count, 0).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Total Views</span>
+                  <span className="text-white font-bold">
+                    {clips.reduce((sum, clip) => sum + clip.views_count, 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Follow Button */}
