@@ -28,6 +28,7 @@ import StarRating from './StarRating';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, venuePath } from '@/shared/app-paths';
+import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 
 export type ClipModalFeedNavigation = {
   clips: ClipWithUser[];
@@ -153,22 +154,6 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     window.open(url, '_blank', 'width=550,height=420');
   };
 
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  };
-
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-0 sm:p-4 animate-fade-in">
       <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-momentum-teal/20 sm:rounded-xl overflow-hidden animate-scale-in">
@@ -242,7 +227,7 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
                       {clip.user_display_name || 'Anonymous'}
                     </div>
                     <div className="text-xs sm:text-sm text-gray-400">
-                      {formatTimestamp(clip.created_at)}
+                      {formatRelativeTime(clipPostedAt(clip))}
                     </div>
                   </div>
                 </div>

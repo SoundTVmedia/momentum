@@ -1,5 +1,37 @@
 type ClipRow = Record<string, unknown>;
 
+function parseTimestampMs(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ms = value < 1e12 ? value * 1000 : value;
+    return Number.isFinite(ms) ? ms : null;
+  }
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (!s) return null;
+    if (/^\d+$/.test(s)) {
+      const n = Number(s);
+      if (!Number.isFinite(n)) return null;
+      const ms = n < 1e12 ? n * 1000 : n;
+      return Number.isFinite(ms) ? ms : null;
+    }
+    const t = Date.parse(s);
+    return Number.isFinite(t) ? t : null;
+  }
+  return null;
+}
+
+function isUsableTimestamp(value: unknown): boolean {
+  return parseTimestampMs(value) != null;
+}
+
+function coerceClipCreatedAt(row: ClipRow): void {
+  if (isUsableTimestamp(row.created_at)) return;
+  const ts = row.timestamp;
+  if (!isUsableTimestamp(ts)) return;
+  row.created_at = typeof ts === 'string' ? ts : String(ts);
+}
+
 function coercePositiveInt(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v) && v > 0 && Number.isInteger(v)) {
     return v;
@@ -56,6 +88,7 @@ export function normalizeClipApiRows(rows: ClipRow[]): ClipRow[] {
     if (id != null) {
       out.id = id;
     }
+    coerceClipCreatedAt(out);
     return out;
   });
 }

@@ -6,22 +6,7 @@ import { useClipSave } from '@/react-app/hooks/useClipSave';
 import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
-
-function formatClipFeedRelativeTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-
-  if (diffMins < 1) return 'just now';
-  if (diffMins < 60) return `${diffMins} min ago`;
-
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-}
+import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 
 export type ClipFeedGridTileProps = {
   clip: ClipWithUser;
@@ -151,7 +136,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               </div>
               <div className="flex items-center space-x-1 text-[10px] sm:text-xs md:text-[10px] text-white/80 drop-shadow">
                 <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" />
-                <span className="truncate">{formatClipFeedRelativeTime(clip.created_at)}</span>
+                <span className="truncate">{formatRelativeTime(clipPostedAt(clip))}</span>
               </div>
             </div>
           </button>
