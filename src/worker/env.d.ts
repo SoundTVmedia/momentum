@@ -43,6 +43,10 @@ interface Env {
   // Google Maps API
   GOOGLE_MAPS_API_KEY: string;
 
+  /** Direct Google OAuth (optional — used when Mocha Users Service key is not set). */
+  GOOGLE_OAUTH_CLIENT_ID?: string;
+  GOOGLE_OAUTH_CLIENT_SECRET?: string;
+
   /** Optional — [AudD](https://docs.audd.io/) music recognition for clip song/artist prefill */
   AUDD_API_TOKEN?: string;
 }

@@ -243,7 +243,7 @@ export default function FavoriteArtistFeedPanel({
             : 'mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 md:mb-5">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Star className="w-6 h-6 text-purple-400 shrink-0" />
             <h2 className="text-xl sm:text-2xl font-bold text-white">From artists you follow</h2>

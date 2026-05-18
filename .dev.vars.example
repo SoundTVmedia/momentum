@@ -1,17 +1,24 @@
-# --- Mocha (Google + Spotify OAuth) ---
-# Required for OAuth: API URL + key from your Mocha / GetMocha project.
-# Local + Cloudflare: same vars in .dev.vars (local) and wrangler secret / dashboard (prod).
+# --- Google Sign-In (pick one path) ---
+#
+# Option A — Mocha Users Service (apps created on getmocha.com):
+# MOCHA_USERS_SERVICE_API_URL=
+# MOCHA_USERS_SERVICE_API_KEY=
+# In Mocha app settings, allow redirect URL: http://localhost:5173/auth/callback (and your prod URL).
+#
+# Option B — Direct Google OAuth (Google Cloud Console):
+# Create OAuth 2.0 Web client → Authorized redirect URIs must include:
+#   http://localhost:5173/auth/callback
+#   https://<your-production-domain>/auth/callback
+# GOOGLE_OAUTH_CLIENT_ID=
+# GOOGLE_OAUTH_CLIENT_SECRET=
+# Used when MOCHA_USERS_SERVICE_API_KEY is empty. Run: npm run db:migrate:local
+#
+# Optional fallback origin if the browser cannot send redirect_base:
+# MOCHA_OAUTH_REDIRECT_ORIGIN=http://localhost:5173
+#
+# Spotify (Mocha only): enable in Mocha project if supported.
 MOCHA_USERS_SERVICE_API_URL=
 MOCHA_USERS_SERVICE_API_KEY=
-# Optional: if Mocha cannot infer return URL, set your app origin (e.g. http://localhost:5173 or https://your-domain.com).
-# The app normally sends ?redirect_base= automatically from the browser.
-# MOCHA_OAUTH_REDIRECT_ORIGIN=
-#
-# In your Mocha app settings, allow OAuth return to this app, e.g.:
-#   http://localhost:5173/auth/callback
-#   http://localhost:5173/auth   (some flows land ?code= here)
-#   https://<your-workers-or-pages-domain>/auth/callback
-# Spotify: enable Spotify for the project in Mocha if the provider is supported there.
 #
 # --- Email/password password reset (Resend) ---
 # Optional: without RESEND_API_KEY, local dev still works — the Worker logs the reset URL when the request is from a local host.

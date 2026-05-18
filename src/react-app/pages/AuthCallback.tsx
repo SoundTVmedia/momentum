@@ -3,30 +3,23 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Loader2 } from 'lucide-react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
-
-async function readErrorMessage(response: Response, fallback: string): Promise<string> {
-  try {
-    const data = (await response.json()) as { error?: string };
-    return data.error || fallback;
-  } catch {
-    return fallback;
-  }
-}
+import { exchangeOAuthCodeFromUrl, readApiError } from '@/react-app/lib/oauth-client';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const { exchangeCodeForSessionToken } = useAuth();
+  const { fetchUser } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        await exchangeCodeForSessionToken();
+        await exchangeOAuthCodeFromUrl();
+        await fetchUser();
         window.history.replaceState({}, document.title, '/auth/callback');
 
         const response = await apiFetch('/api/users/me');
         if (!response.ok) {
-          const msg = await readErrorMessage(
+          const msg = await readApiError(
             response,
             'Signed in but could not load your account. Try again.'
           );
@@ -53,7 +46,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [exchangeCodeForSessionToken, navigate]);
+  }, [fetchUser, navigate]);
 
   if (error) {
     return (

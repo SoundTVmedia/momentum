@@ -9,10 +9,18 @@ import {
   authMiddleware,
   optionalAuthMiddleware,
   EMAIL_SESSION_COOKIE_NAME,
+  GOOGLE_SESSION_COOKIE_NAME,
   clearEmailSessionCookie,
   revokeEmailSession,
+  revokeGoogleSession,
   isLocalDevHost,
 } from "./hybrid-auth";
+import {
+  buildGoogleOAuthRedirectUrl,
+  exchangeGoogleOAuthCode,
+  hasDirectGoogleOAuth,
+  resolveOAuthCallbackUrl,
+} from "./google-oauth";
 import { mochaUserIdKey } from "./mocha-user-id";
 import { replaceProfileFavoriteArtistsJsonFromTable } from "./favorite-artists-sync";
 import { getCookie, setCookie } from "hono/cookie";
@@ -79,11 +87,27 @@ app.use('*', async (c, next) => {
 
 const ALLOWED_OAUTH_PROVIDERS = new Set(['google', 'spotify']);
 
-// OAuth redirect URL (Google, Spotify — proxied to Mocha Users Service when enabled there)
+// OAuth redirect URL (Google via Mocha Users Service or direct Google OAuth credentials)
 app.get('/api/oauth/:provider/redirect_url', async (c) => {
   const provider = c.req.param('provider');
   if (!ALLOWED_OAUTH_PROVIDERS.has(provider)) {
     return c.json({ error: 'Unsupported OAuth provider' }, 400);
+  }
+
+  const callbackUrl = resolveOAuthCallbackUrl(c, c.req.query('redirect_base') ?? undefined);
+  const mochaApiKey =
+    typeof c.env.MOCHA_USERS_SERVICE_API_KEY === 'string'
+      ? c.env.MOCHA_USERS_SERVICE_API_KEY.trim()
+      : '';
+
+  if (provider === 'google' && !mochaApiKey && hasDirectGoogleOAuth(c.env)) {
+    try {
+      const redirectUrl = buildGoogleOAuthRedirectUrl(c, callbackUrl);
+      return c.json({ redirectUrl }, 200);
+    } catch (e) {
+      console.error('Direct Google OAuth redirect error', e);
+      return c.json({ error: 'Could not start Google sign-in.' }, 500);
+    }
   }
 
   const apiKey = c.env.MOCHA_USERS_SERVICE_API_KEY;
@@ -91,7 +115,9 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
     return c.json(
       {
         error:
-          'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars (local) or Worker secrets (Cloudflare).',
+          provider === 'google'
+            ? 'Google sign-in is not configured. Set MOCHA_USERS_SERVICE_API_KEY (Mocha) or GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET in .dev.vars / Worker secrets.'
+            : 'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars (local) or Worker secrets (Cloudflare).',
       },
       503
     );
@@ -100,17 +126,10 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
   const apiUrl =
     c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL;
 
-  const redirectBase =
-    c.req.query('redirect_base')?.trim() ||
-    (typeof c.env.MOCHA_OAUTH_REDIRECT_ORIGIN === 'string'
-      ? c.env.MOCHA_OAUTH_REDIRECT_ORIGIN.trim()
-      : '');
   const mochaParams = new URLSearchParams();
-  if (redirectBase.length > 0) {
-    mochaParams.set('redirect_base', redirectBase);
-  }
+  mochaParams.set('redirect_base', callbackUrl);
   const qs = mochaParams.toString();
-  const mochaRedirectUrl = `${apiUrl}/oauth/${provider}/redirect_url${qs ? `?${qs}` : ''}`;
+  const mochaRedirectUrl = `${apiUrl}/oauth/${provider}/redirect_url?${qs}`;
 
   const response = await fetch(mochaRedirectUrl, {
     method: 'GET',
@@ -128,7 +147,7 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
         error:
           provider === 'spotify'
             ? 'Spotify sign-in is not available. Try Google or email, enable Spotify in your Mocha project, and allow this app origin as a redirect URL.'
-            : 'Could not start Google sign-in. Check Mocha API URL and key, and register this app origin /auth/callback in your Mocha app settings.',
+            : `Could not start Google sign-in. Register ${callbackUrl} as an allowed redirect URL in your Mocha app settings and verify MOCHA_USERS_SERVICE_API_KEY.`,
       },
       502
     );
@@ -140,10 +159,46 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
 
 // Exchange code for session token
 app.post("/api/sessions", async (c) => {
-  const body = await c.req.json();
+  const body = (await c.req.json()) as { code?: string; state?: string };
 
   if (!body.code) {
     return c.json({ error: "No authorization code provided" }, 400);
+  }
+
+  const local = isLocalDevHost(c);
+  const cookieBase = {
+    httpOnly: true,
+    path: "/",
+    sameSite: local ? ("lax" as const) : ("none" as const),
+    secure: !local,
+    maxAge: 30 * 24 * 60 * 60,
+  };
+
+  if (hasDirectGoogleOAuth(c.env)) {
+    const stateCookie = getCookie(c, 'google_oauth_state');
+    if (stateCookie) {
+      try {
+        const googleSession = await exchangeGoogleOAuthCode(
+          c,
+          body.code,
+          body.state ?? null,
+        );
+        setCookie(c, GOOGLE_SESSION_COOKIE_NAME, googleSession, cookieBase);
+        setCookie(c, 'google_oauth_state', '', { ...cookieBase, maxAge: 0 });
+        return c.json({ success: true, provider: 'google' }, 200);
+      } catch (e) {
+        console.error('exchangeGoogleOAuthCode:', e);
+        return c.json(
+          {
+            error:
+              e instanceof Error
+                ? e.message
+                : 'Google sign-in could not be completed.',
+          },
+          502,
+        );
+      }
+    }
   }
 
   const apiKey = c.env.MOCHA_USERS_SERVICE_API_KEY;
@@ -151,7 +206,7 @@ app.post("/api/sessions", async (c) => {
     return c.json(
       {
         error:
-          'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars or Worker secrets.',
+          'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY or Google OAuth credentials.',
       },
       503
     );
@@ -168,22 +223,15 @@ app.post("/api/sessions", async (c) => {
     return c.json(
       {
         error:
-          'Could not exchange OAuth code. Confirm Mocha credentials and that this deployment URL is allowed for OAuth return.',
+          'Could not exchange OAuth code. Confirm Mocha credentials and that /auth/callback is allowed for OAuth return.',
       },
       502
     );
   }
 
-  const local = isLocalDevHost(c);
-  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, {
-    httpOnly: true,
-    path: "/",
-    sameSite: local ? "lax" : "none",
-    secure: !local,
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  });
+  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, cookieBase);
 
-  return c.json({ success: true }, 200);
+  return c.json({ success: true, provider: 'mocha' }, 200);
 });
 
 // Get current user (200 when logged out — AuthProvider probes this on every page load)
@@ -221,6 +269,18 @@ app.get('/api/logout', async (c) => {
 
   const localLogout = isLocalDevHost(c);
   setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, '', {
+    httpOnly: true,
+    path: '/',
+    sameSite: localLogout ? 'lax' : 'none',
+    secure: !localLogout,
+    maxAge: 0,
+  });
+
+  const googleToken = getCookie(c, GOOGLE_SESSION_COOKIE_NAME);
+  if (typeof googleToken === 'string' && googleToken.length > 0) {
+    await revokeGoogleSession(c.env.DB, googleToken);
+  }
+  setCookie(c, GOOGLE_SESSION_COOKIE_NAME, '', {
     httpOnly: true,
     path: '/',
     sameSite: localLogout ? 'lax' : 'none',

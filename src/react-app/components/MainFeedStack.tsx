@@ -4,7 +4,7 @@ import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
 import type { ExtendedMochaUser } from '@/shared/types'
 import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
-import ConcertFeed from '@/react-app/components/ConcertFeed'
+import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFeed'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
@@ -27,7 +27,7 @@ export default function MainFeedStack({
   const welcomeName = user ? resolveWelcomeName(user as ExtendedMochaUser) : null
   const isHome = variant === 'home'
   const containerClass = isHome
-    ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
+    ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-7'
     : 'max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
 
   return (
@@ -53,7 +53,7 @@ export default function MainFeedStack({
       )}
 
       {variant === 'home' && user && (
-        <div className="mb-8">
+        <div className="mb-6 md:mb-5">
           <h2 className="text-2xl sm:text-3xl font-headline text-white mb-2">
             {welcomeName ? (
               <>
@@ -80,12 +80,16 @@ export default function MainFeedStack({
         />
       ) : null}
 
-      <div className="mb-6">
-        <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
+      <div className="mb-5 md:mb-5">
+        <FeedSectionHeader feedType={feedType} />
+        <div className="mt-3 md:mt-4">
+          <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
+        </div>
       </div>
 
       <ConcertFeed
         feedType={feedType}
+        hideSectionHeader
         edgeBleed={isHome}
         edgeBleedScope="page"
       />

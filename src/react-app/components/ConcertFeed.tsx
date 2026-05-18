@@ -29,6 +29,58 @@ interface ConcertFeedProps {
   edgeBleedScope?: 'home' | 'page'
 }
 
+export function FeedSectionHeader({
+  feedType = 'latest',
+}: {
+  feedType?: ConcertFeedProps['feedType']
+}) {
+  return (
+    <div className="text-center mb-0">
+      <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
+        {feedType === 'trending' ? (
+          <>
+            What&apos;s{' '}
+            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              Hot Right Now
+            </span>
+          </>
+        ) : feedType === 'top_rated' ? (
+          <>
+            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              Top Rated
+            </span>{' '}
+            Moments
+          </>
+        ) : feedType === 'most_liked' ? (
+          <>
+            Most{' '}
+            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              Loved
+            </span>{' '}
+            Moments
+          </>
+        ) : (
+          <>
+            Live From{' '}
+            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              The Scene
+            </span>
+          </>
+        )}
+      </h2>
+      <p className="text-sm sm:text-base md:text-lg text-gray-400 px-4">
+        {feedType === 'trending'
+          ? "Fire moments the community can't stop watching"
+          : feedType === 'top_rated'
+            ? 'The highest rated concert moments'
+            : feedType === 'most_liked'
+              ? 'Clips the community hearts the most'
+              : "Fresh drops from tonight's shows"}
+      </p>
+    </div>
+  )
+}
+
 function feedCarouselLabel(
   feedType: ConcertFeedProps['feedType'],
   artistName?: string,
@@ -97,48 +149,8 @@ export default function ConcertFeed({
   const feedContent = (
     <>
         {!hideSectionHeader && (
-          <div className="text-center mb-4 sm:mb-6 md:mb-8">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
-              {feedType === 'trending' ? (
-                <>
-                  What&apos;s{' '}
-                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                    Hot Right Now
-                  </span>
-                </>
-              ) : feedType === 'top_rated' ? (
-                <>
-                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                    Top Rated
-                  </span>{' '}
-                  Moments
-                </>
-              ) : feedType === 'most_liked' ? (
-                <>
-                  Most{' '}
-                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                    Loved
-                  </span>{' '}
-                  Moments
-                </>
-              ) : (
-                <>
-                  Live From{' '}
-                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                    The Scene
-                  </span>
-                </>
-              )}
-            </h2>
-            <p className="text-sm sm:text-base md:text-lg text-gray-400 px-4">
-              {feedType === 'trending'
-                ? "Fire moments the community can't stop watching"
-                : feedType === 'top_rated'
-                  ? 'The highest rated concert moments'
-                  : feedType === 'most_liked'
-                    ? 'Clips the community hearts the most'
-                    : "Fresh drops from tonight's shows"}
-            </p>
+          <div className="text-center mb-4 sm:mb-6 md:mb-5">
+            <FeedSectionHeader feedType={feedType} />
           </div>
         )}
 
@@ -216,7 +228,7 @@ export default function ConcertFeed({
     <section
       className={
         edgeBleed
-          ? `${HOME_FEED_SECTION_CLASS} pb-20 md:pb-8`
+          ? `${HOME_FEED_SECTION_CLASS} pb-16 md:pb-6`
           : 'py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8'
       }
     >

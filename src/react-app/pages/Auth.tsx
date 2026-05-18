@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
+import {
+  exchangeOAuthCodeFromUrl,
+  readApiError,
+  startGoogleSignIn,
+} from '@/react-app/lib/oauth-client';
+import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
 import { Loader2, Music, Sparkles, Users, Award, Mail, Lock, UserCircle } from 'lucide-react';
 
 const DEVICE_TOKEN_COOKIE = 'momentum_device_token';
@@ -55,9 +61,14 @@ export default function Auth() {
   const [showRememberDevice, setShowRememberDevice] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [authMethod, setAuthMethod] = useState<OAuthProvider | 'email'>('google');
+  const authModeParam = searchParams.get('mode');
+  const [authMethod, setAuthMethod] = useState<OAuthProvider | 'email'>(() =>
+    authModeParam === 'signup' ? 'email' : 'google',
+  );
 
-  const [emailMode, setEmailMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
+  const [emailMode, setEmailMode] = useState<'signin' | 'signup' | 'forgot'>(() =>
+    authModeParam === 'signup' ? 'signup' : 'signin',
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -124,7 +135,8 @@ export default function Auth() {
       try {
         setLoading(true);
         setError(null);
-        await exchangeCodeForSessionToken();
+        await exchangeOAuthCodeFromUrl();
+        await fetchUser();
         window.history.replaceState({}, document.title, '/auth');
         setShowRememberDevice(true);
       } catch (err) {
@@ -138,6 +150,16 @@ export default function Auth() {
 
     handleCallback();
   }, [searchParams, exchangeCodeForSessionToken]);
+
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode === 'signup') {
+      setEmailMode('signup');
+      setAuthMethod('email');
+    } else if (mode === 'signin') {
+      setEmailMode('signin');
+    }
+  }, [searchParams]);
 
   const navigateAfterAuth = async (saveDevice: boolean) => {
     if (saveDevice && user) {
@@ -183,27 +205,41 @@ export default function Auth() {
     }
   }, [user, isPending, showRememberDevice, navigate, searchParams]);
 
+  const startGoogleAuth = async () => {
+    setError(null);
+    setLoading(true);
+    setAuthMethod('google');
+    try {
+      window.location.href = await startGoogleSignIn();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      setLoading(false);
+    }
+  };
+
   const startOAuth = async (provider: OAuthProvider) => {
+    if (provider === 'google') {
+      await startGoogleAuth();
+      return;
+    }
     setError(null);
     setLoading(true);
     setAuthMethod(provider);
     try {
       const params = new URLSearchParams();
       if (typeof window !== 'undefined' && window.location?.origin) {
-        params.set('redirect_base', window.location.origin);
+        params.set('redirect_base', `${window.location.origin}/auth/callback`);
       }
       const qs = params.toString();
       const response = await fetch(
         `/api/oauth/${provider}/redirect_url${qs ? `?${qs}` : ''}`,
-        { credentials: 'include' }
+        { credentials: 'include' },
       );
       if (!response.ok) {
-        const fallback =
-          provider === 'spotify'
-            ? 'Could not start Spotify sign-in.'
-            : 'Could not start Google sign-in.';
-        const msg = await readErrorMessage(response, fallback);
-        throw new Error(msg);
+        throw new Error(
+          await readApiError(response, 'Could not start Spotify sign-in.'),
+        );
       }
       const { redirectUrl } = (await response.json()) as { redirectUrl: string };
       window.location.href = redirectUrl;
@@ -432,21 +468,12 @@ export default function Auth() {
           </div>
 
           <div className="space-y-4 pt-4 border-t border-white/10">
-            <button
-              type="button"
-              onClick={() => startOAuth('google')}
-              disabled={loading || emailLoading}
-              className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-momentum-teal/35"
-            >
-              {loading && authMethod === 'google' ? (
-                <span className="flex items-center justify-center space-x-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Connecting...</span>
-                </span>
-              ) : (
-                'Sign In with Google'
-              )}
-            </button>
+            <GoogleSignInButton
+              onClick={() => void startGoogleAuth()}
+              disabled={emailLoading}
+              loading={loading && authMethod === 'google'}
+              label="Sign in with Google"
+            />
 
             <button
               type="button"

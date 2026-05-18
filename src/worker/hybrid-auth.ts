@@ -8,8 +8,10 @@ import {
   DEFAULT_MOCHA_USERS_SERVICE_API_URL,
 } from '@getmocha/users-service/backend';
 import type { MochaUser } from '@getmocha/users-service/shared';
+import { validateGoogleSession, revokeGoogleSession } from './google-oauth';
 
 export const EMAIL_SESSION_COOKIE_NAME = 'momentum_email_session';
+export const GOOGLE_SESSION_COOKIE_NAME = 'momentum_google_session';
 
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 
@@ -193,6 +195,16 @@ async function resolveUserFromRequest(c: Context): Promise<MochaUser | null> {
     }
   }
 
+  const googleToken = getCookie(c, GOOGLE_SESSION_COOKIE_NAME);
+  if (typeof googleToken === 'string' && googleToken.length > 0) {
+    try {
+      const googleUser = await validateGoogleSession(c.env.DB, googleToken);
+      if (googleUser) return googleUser;
+    } catch {
+      /* stale google session */
+    }
+  }
+
   const emailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
   if (typeof emailToken === 'string' && emailToken.length > 0) {
     const account = await validateEmailSession(c.env.DB, emailToken);
@@ -201,6 +213,8 @@ async function resolveUserFromRequest(c: Context): Promise<MochaUser | null> {
 
   return null;
 }
+
+export { revokeGoogleSession };
 
 /**
  * Sets `user` when a valid session exists; always continues (no 401).
