@@ -12,3 +12,7 @@ export const HOME_FEED_SECTION_CLASS = 'mb-10';
 /** Equal-height event cards in carousels (image + body + ticket row). */
 export const EVENT_CAROUSEL_CARD_CLASS =
   'flex h-full min-h-[24rem] w-full flex-col';
+
+/** Mobile carousel tiles: ~one card plus a peek of the next (swipe affordance). */
+export const MOBILE_CAROUSEL_ITEM_PEEK_CLASS =
+  'max-md:w-[82%] max-md:max-w-[82%] max-md:basis-[82%]';

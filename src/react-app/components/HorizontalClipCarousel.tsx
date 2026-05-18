@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { MOBILE_CAROUSEL_ITEM_PEEK_CLASS } from '@/react-app/lib/homeFeedLayout';
 
 const CarouselStretchContext = createContext(false);
 
@@ -169,7 +170,7 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
         ref={setScrollRef}
         role="region"
         aria-label={ariaLabel}
-        className={`flex gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x ${stretchItems ? 'items-stretch' : 'items-start'}`}
+        className={`flex max-md:gap-3 gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 max-md:scroll-ps-0 max-md:scroll-pe-4 md:px-10 md:touch-pan-x ${stretchItems ? 'items-stretch' : 'items-start'}`}
       >
         {children}
       </div>
@@ -214,7 +215,7 @@ export function HorizontalClipCarouselItem({
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 basis-full w-full max-w-full snap-start snap-always max-md:mr-3 max-md:last:mr-0 md:mr-0 md:basis-auto md:w-72 lg:w-80 ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
+      className={`flex-shrink-0 snap-start snap-always ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:basis-auto md:w-72 md:max-w-none lg:w-80 ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
     >
       {stretch ? <div className="flex h-full min-h-full w-full flex-col">{children}</div> : children}
     </div>
