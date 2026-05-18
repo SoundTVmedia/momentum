@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users, ChevronDown, Heart, MessageCircle, Ticket } from 'lucide-react';
+import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users, Ticket } from 'lucide-react';
 import Header from '@/react-app/components/Header';
-import ClipModal from '@/react-app/components/ClipModal';
+import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ShowArchive from '@/react-app/components/ShowArchive';
-import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
-import UserAvatar from '@/react-app/components/UserAvatar';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
@@ -51,8 +49,6 @@ interface RecentShow {
   clips: ClipWithUser[];
 }
 
-const CLIPS_PER_PAGE = 12; // 3-4 rows of clips (3 per row)
-
 export default function VenuePage() {
   const { venueName } = useParams<{ venueName: string }>();
   const navigate = useNavigate();
@@ -61,12 +57,7 @@ export default function VenuePage() {
   const [data, setData] = useState<VenueData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
-  const [venueModalFeed, setVenueModalFeed] = useState<ClipWithUser[] | null>(null);
-  const [displayedClips, setDisplayedClips] = useState<ClipWithUser[]>([]);
-  const [clipsPage, setClipsPage] = useState(1);
   const [recentShow, setRecentShow] = useState<RecentShow | null>(null);
-  const [hoverVenueClipId, setHoverVenueClipId] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchVenueData = async () => {
@@ -84,11 +75,7 @@ export default function VenuePage() {
 
         const venueData = await response.json();
         setData(venueData);
-        
-        // Set initial displayed clips
-        const allClips = venueData.clips || [];
-        setDisplayedClips(allClips.slice(0, CLIPS_PER_PAGE));
-        
+
         // Fetch most recent show
         await fetchMostRecentShow();
       } catch (err) {
@@ -138,18 +125,6 @@ export default function VenuePage() {
     }
   };
 
-  const loadMoreClips = () => {
-    if (!data) return;
-    
-    const nextPage = clipsPage + 1;
-    const startIndex = clipsPage * CLIPS_PER_PAGE;
-    const endIndex = startIndex + CLIPS_PER_PAGE;
-    const newClips = data.clips.slice(startIndex, endIndex);
-    
-    setDisplayedClips(prev => [...prev, ...newClips]);
-    setClipsPage(nextPage);
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -160,22 +135,6 @@ export default function VenuePage() {
       hour: 'numeric',
       minute: '2-digit'
     });
-  };
-
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
   if (loading) {
@@ -209,7 +168,6 @@ export default function VenuePage() {
   }
 
   const { venue, clips, upcomingEvents } = data;
-  const hasMoreClips = displayedClips.length < clips.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
@@ -340,96 +298,13 @@ export default function VenuePage() {
                 </span>
               </div>
               
-              {displayedClips.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {displayedClips.map((clip, index) => (
-                      <div
-                        key={clipListItemKey(clip, index)}
-                        className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all group cursor-pointer"
-                        onClick={() => {
-                          setSelectedClip(clip);
-                          setVenueModalFeed(clips.length > 1 ? clips : null);
-                        }}
-                      >
-                        <div
-                          className="relative aspect-video group/video overflow-hidden bg-black"
-                          onMouseEnter={() => setHoverVenueClipId(clip.id)}
-                          onMouseLeave={() =>
-                            setHoverVenueClipId((id) => (id === clip.id ? null : id))
-                          }
-                        >
-                          <ClipFeedPreviewMedia
-                            className="z-0"
-                            playbackUrl={clip.stream_playback_url}
-                            fallbackUrl={clip.video_url}
-                            posterUrl={clip.stream_thumbnail_url || clip.thumbnail_url}
-                            mediaHovered={hoverVenueClipId === clip.id}
-                          />
-
-                          {/* Play hint: coarse / touch only */}
-                          <div className="absolute inset-0 z-[1] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:hidden">
-                            <div className="w-12 h-12 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal rounded-full flex items-center justify-center shadow-2xl">
-                              <div className="w-0 h-0 border-l-[16px] border-l-white border-y-[12px] border-y-transparent ml-1"></div>
-                            </div>
-                          </div>
-
-                          {/* User info overlay */}
-                          <div className="absolute top-2 left-2 z-[2] flex items-center space-x-2 pointer-events-none">
-                            <UserAvatar
-                              imageUrl={clip.user_avatar}
-                              displayName={clip.user_display_name}
-                              seed={clip.mocha_user_id}
-                              alt={clip.user_display_name || 'User'}
-                              sizeClass="w-8 h-8"
-                              letterClassName="text-xs font-semibold"
-                              className="border-2 border-white/30"
-                            />
-                          </div>
-
-                          {/* Time overlay */}
-                          <div className="absolute top-2 right-2 z-[2] bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full pointer-events-none">
-                            <span className="text-white text-xs">{formatTimestamp(clip.created_at)}</span>
-                          </div>
-                        </div>
-
-                        <div className="p-3">
-                          {clip.artist_name && (
-                            <h4 className="text-white font-bold text-sm mb-1 line-clamp-1">{clip.artist_name}</h4>
-                          )}
-                          {clip.content_description && (
-                            <p className="text-gray-400 text-xs line-clamp-2 mb-2">{clip.content_description}</p>
-                          )}
-                          
-                          {/* Quick actions */}
-                          <div className="flex items-center space-x-3 text-xs">
-                            <div className="flex items-center space-x-1 text-gray-400">
-                              <Heart className="w-3 h-3" />
-                              <span>{clip.likes_count}</span>
-                            </div>
-                            <div className="flex items-center space-x-1 text-gray-400">
-                              <MessageCircle className="w-3 h-3" />
-                              <span>{clip.comments_count}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Load More Button */}
-                  {hasMoreClips && (
-                    <div className="flex justify-center mt-8">
-                      <button
-                        onClick={loadMoreClips}
-                        className="px-8 py-3 bg-gradient-to-r from-momentum-teal to-momentum-mint rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
-                      >
-                        <span>Load More</span>
-                        <ChevronDown className="w-5 h-5" />
-                      </button>
-                    </div>
-                  )}
-                </>
+              {clips.length > 0 ? (
+                <ConcertFeed
+                  venueName={venue.name}
+                  hideSectionHeader
+                  edgeBleed
+                  edgeBleedScope="page"
+                />
               ) : (
                 <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl">
                   <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
@@ -544,21 +419,6 @@ export default function VenuePage() {
         </div>
       </div>
 
-      {/* Clip Modal */}
-      {selectedClip && (
-        <ClipModal
-          clip={selectedClip}
-          onClose={() => {
-            setSelectedClip(null);
-            setVenueModalFeed(null);
-          }}
-          feedNavigation={
-            venueModalFeed && venueModalFeed.length > 1
-              ? { clips: venueModalFeed, onChangeClip: setSelectedClip }
-              : null
-          }
-        />
-      )}
     </div>
   );
 }

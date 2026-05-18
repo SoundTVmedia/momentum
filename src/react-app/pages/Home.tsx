@@ -35,7 +35,12 @@ export default function Home() {
                 <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
                   Fresh moments from shows across the platform
                 </p>
-                <ConcertFeed feedType="latest" hideSectionHeader />
+                <ConcertFeed
+                  feedType="latest"
+                  hideSectionHeader
+                  edgeBleed
+                  edgeBleedScope="page"
+                />
               </section>
               <section>
                 <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 text-center">
@@ -46,7 +51,12 @@ export default function Home() {
                 <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
                   What everyone&apos;s watching right now
                 </p>
-                <ConcertFeed feedType="trending" hideSectionHeader />
+                <ConcertFeed
+                  feedType="trending"
+                  hideSectionHeader
+                  edgeBleed
+                  edgeBleedScope="page"
+                />
               </section>
             </div>
           </div>

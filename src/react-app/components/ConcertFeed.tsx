@@ -10,6 +10,11 @@ import { ClipGridTileSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
+import {
+  HOME_FEED_CAROUSEL_BLEED,
+  HOME_FEED_SECTION_CLASS,
+  PAGE_CAROUSEL_BLEED,
+} from '@/react-app/lib/homeFeedLayout'
 
 interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
@@ -18,13 +23,19 @@ interface ConcertFeedProps {
   userId?: string
   /** When true, omit the large title/subtitle block (e.g. stacked sections on Home). */
   hideSectionHeader?: boolean
+  /** No outer max-width box; carousel bleeds to screen edge on mobile. */
+  edgeBleed?: boolean
+  /** Padding to counteract when `edgeBleed` is set (home vs max-w-7xl pages). */
+  edgeBleedScope?: 'home' | 'page'
 }
 
 function feedCarouselLabel(
   feedType: ConcertFeedProps['feedType'],
   artistName?: string,
+  venueName?: string,
 ): string {
   if (artistName) return `Clips from ${artistName}`
+  if (venueName) return `Clips from ${venueName}`
   switch (feedType) {
     case 'trending':
       return 'Trending clips'
@@ -43,6 +54,8 @@ export default function ConcertFeed({
   venueName,
   userId,
   hideSectionHeader = false,
+  edgeBleed = false,
+  edgeBleedScope = 'page',
 }: ConcertFeedProps) {
   const navigate = useNavigate()
   const { clips, loading, hasMore, loadMore, error, refetch } = useClips({
@@ -75,9 +88,14 @@ export default function ConcertFeed({
     return () => observer.disconnect()
   }, [clips.length, hasMore, loading, loadMore])
 
-  return (
-    <section className="py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+  const carouselClass = edgeBleed
+    ? edgeBleedScope === 'home'
+      ? HOME_FEED_CAROUSEL_BLEED
+      : PAGE_CAROUSEL_BLEED
+    : '-mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-1 md:pb-2'
+
+  const feedContent = (
+    <>
         {!hideSectionHeader && (
           <div className="text-center mb-4 sm:mb-6 md:mb-8">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
@@ -132,8 +150,8 @@ export default function ConcertFeed({
         ) : loading && clips.length === 0 ? (
           <HorizontalClipCarousel
             key={`${feedType}-loading`}
-            ariaLabel={feedCarouselLabel(feedType, artistName)}
-            className="-mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-1 md:pb-2"
+            ariaLabel={feedCarouselLabel(feedType, artistName, venueName)}
+            className={carouselClass}
           >
             {Array.from({ length: 4 }).map((_, i) => (
               <HorizontalClipCarouselItem key={`sk-${i}`}>
@@ -146,8 +164,8 @@ export default function ConcertFeed({
             <HorizontalClipCarousel
               key={feedType}
               ref={carouselScrollRef}
-              ariaLabel={feedCarouselLabel(feedType, artistName)}
-              className="-mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-1 md:pb-2"
+              ariaLabel={feedCarouselLabel(feedType, artistName, venueName)}
+              className={carouselClass}
             >
               {clips.map((clip, index) => (
                 <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
@@ -157,7 +175,7 @@ export default function ConcertFeed({
               {hasMore ? (
                 <div
                   ref={loadMoreSentinelRef}
-                  className="flex-shrink-0 w-px h-full min-h-[200px] snap-none"
+                  className="flex-shrink-0 w-px h-px opacity-0 snap-none"
                   aria-hidden
                 />
               ) : null}
@@ -191,7 +209,22 @@ export default function ConcertFeed({
             </div>
           </div>
         )}
-      </div>
+    </>
+  )
+
+  return (
+    <section
+      className={
+        edgeBleed
+          ? `${HOME_FEED_SECTION_CLASS} pb-20 md:pb-8`
+          : 'py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8'
+      }
+    >
+      {edgeBleed ? (
+        feedContent
+      ) : (
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">{feedContent}</div>
+      )}
 
       {selectedClip ? (
         <ClipModal

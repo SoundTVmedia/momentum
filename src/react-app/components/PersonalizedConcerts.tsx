@@ -6,6 +6,7 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { artistPath } from '@/shared/app-paths';
+import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 
 interface D1Concert {
   id: number;
@@ -31,7 +32,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
   const navigate = useNavigate();
 
   return (
-    <div className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all h-full flex flex-col">
+    <div className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors flex flex-col">
       {concert.artist_image ? (
         <div className="relative h-40 overflow-hidden shrink-0">
           <img
@@ -43,7 +44,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
         </div>
       ) : null}
 
-      <div className="p-4 space-y-3 flex flex-col flex-1">
+      <div className="p-4 space-y-3 flex flex-col">
         <button
           type="button"
           onClick={() => navigate(artistPath(concert.artist_name))}
@@ -52,7 +53,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           {concert.artist_name}
         </button>
 
-        <div className="space-y-2 text-sm flex-1">
+        <div className="space-y-2 text-sm">
           <div className="flex items-start space-x-2 text-gray-300">
             <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
@@ -74,17 +75,19 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           </div>
         </div>
 
-        {concert.ticket_url ? (
-          <a
-            href={concert.ticket_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center space-x-2 w-full px-4 py-2 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] transition-transform mt-auto"
-          >
-            <span>Get Tickets</span>
-            <ExternalLink className="w-4 h-4" />
-          </a>
-        ) : null}
+        <div className="min-h-[44px] flex items-center">
+          {concert.ticket_url ? (
+            <a
+              href={concert.ticket_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center justify-center space-x-2 px-4 py-2 momentum-grad-interactive rounded-lg text-white font-semibold hover:brightness-110 transition-all"
+            >
+              <span>Get Tickets</span>
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -119,7 +122,6 @@ export default function PersonalizedConcerts() {
     void fetchConcerts();
   }, []);
 
-  const carouselBleed = '-mx-4 px-4 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2';
 
   if (loading) {
     return (
@@ -157,7 +159,7 @@ export default function PersonalizedConcerts() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className={HOME_FEED_SECTION_CLASS}>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
@@ -178,12 +180,12 @@ export default function PersonalizedConcerts() {
           maxEvents={12}
           layout="carousel"
           carouselAriaLabel="Upcoming shows from your favorite artists"
-          carouselClassName={carouselBleed}
+          carouselClassName={HOME_FEED_CAROUSEL_BLEED}
         />
       ) : (
         <HorizontalClipCarousel
           ariaLabel="Upcoming concerts from your favorite artists"
-          className={carouselBleed}
+          className={HOME_FEED_CAROUSEL_BLEED}
         >
           {d1Concerts.map((concert) => (
             <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96">

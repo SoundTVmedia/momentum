@@ -435,7 +435,12 @@ export default function ArtistPage() {
               </div>
               
               {clips.length > 0 ? (
-                <ConcertFeed artistName={artist.name} />
+                <ConcertFeed
+                  artistName={artist.name}
+                  hideSectionHeader
+                  edgeBleed
+                  edgeBleedScope="page"
+                />
               ) : (
                 <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl">
                   <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />

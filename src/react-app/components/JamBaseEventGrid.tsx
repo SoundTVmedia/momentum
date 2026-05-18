@@ -123,7 +123,7 @@ function JamBaseEventCard({
   const vLine = venueCityLine(event);
 
   return (
-    <div className="group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 hover:scale-[1.02] transition-all duration-300 h-full flex flex-col">
+    <div className="group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-colors duration-300 flex flex-col">
       <div className="relative shrink-0">
         <img
           src={image}
@@ -138,12 +138,12 @@ function JamBaseEventCard({
         </div>
       </div>
 
-      <div className="p-5 flex flex-col flex-1">
+      <div className="p-5 flex flex-col">
         <h3 className="font-bold text-lg text-white mb-2 group-hover:text-amber-300 transition-colors line-clamp-2">
           {title}
         </h3>
 
-        <div className="space-y-2 mb-4 text-sm flex-1">
+        <div className="space-y-2 mb-3 text-sm">
           {head ? (
             <button
               type="button"
@@ -176,18 +176,20 @@ function JamBaseEventCard({
           ) : null}
         </div>
 
-        {ticket ? (
-          <a
-            href={ticket}
-            target="_blank"
-            rel="nofollow noopener noreferrer"
-            className="flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-medium hover:scale-[1.02] transition-transform shadow-lg shadow-amber-900/30 mt-auto"
-          >
-            <Ticket className="w-4 h-4" />
-            <span>Tickets</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        ) : null}
+        <div className="min-h-[44px] flex items-center">
+          {ticket ? (
+            <a
+              href={ticket}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              className="flex w-full items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-medium hover:brightness-110 transition-all shadow-lg shadow-amber-900/30"
+            >
+              <Ticket className="w-4 h-4" />
+              <span>Tickets</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          ) : null}
+        </div>
       </div>
     </div>
   );

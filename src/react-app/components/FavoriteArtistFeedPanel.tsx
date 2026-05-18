@@ -12,6 +12,11 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
+import {
+  HOME_FEED_CAROUSEL_BLEED,
+  HOME_FEED_SECTION_CLASS,
+  PAGE_CAROUSEL_BLEED,
+} from '@/react-app/lib/homeFeedLayout';
 
 type FavoriteFeedEvent = {
   artist_name?: string | null;
@@ -26,11 +31,19 @@ export type FavoriteArtistFeedPanelProps = {
   variant: 'feed' | 'discover';
   /** When true, scroll this block into view after data loads (e.g. `?from_favorites=1` on Discover). */
   scrollIntoViewOnMount?: boolean;
+  /** Feed variant: show link to Discover for more clips (default true). Set false when already on Discover. */
+  showExploreMore?: boolean;
+  /** No card border; carousel bleeds to screen edge on mobile. */
+  edgeBleed?: boolean;
+  edgeBleedScope?: 'home' | 'page';
 };
 
 export default function FavoriteArtistFeedPanel({
   variant,
   scrollIntoViewOnMount = false,
+  showExploreMore = true,
+  edgeBleed = false,
+  edgeBleedScope = 'page',
 }: FavoriteArtistFeedPanelProps) {
   const { user, isPending } = useAuth();
   const navigate = useNavigate();
@@ -224,7 +237,11 @@ export default function FavoriteArtistFeedPanel({
       <section
         ref={sectionRef}
         id="favorite-artist-clips"
-        className="mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg"
+        className={
+          edgeBleed
+            ? HOME_FEED_SECTION_CLASS
+            : 'mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
+        }
       >
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -390,7 +407,13 @@ export default function FavoriteArtistFeedPanel({
               ) : (
                 <HorizontalClipCarousel
                   ariaLabel="Clips from artists you follow"
-                  className="-mx-5 px-5 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2"
+                  className={
+                    edgeBleed
+                      ? edgeBleedScope === 'home'
+                        ? HOME_FEED_CAROUSEL_BLEED
+                        : PAGE_CAROUSEL_BLEED
+                      : '-mx-5 px-5 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2'
+                  }
                 >
                   {clips.map((clip, index) => (
                     <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
@@ -400,7 +423,7 @@ export default function FavoriteArtistFeedPanel({
                 </HorizontalClipCarousel>
               )}
 
-              {variant === 'feed' && !loading && hasFavoriteArtists ? (
+              {variant === 'feed' && showExploreMore && !loading && hasFavoriteArtists ? (
                 <div className="mt-6 flex justify-center">
                   <button
                     type="button"

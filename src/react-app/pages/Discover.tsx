@@ -5,14 +5,12 @@ import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel';
-import DiscoverFavoriteArtistsPrompt from '@/react-app/components/DiscoverFavoriteArtistsPrompt';
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
-import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
+import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import { artistPath, venuePath } from '@/shared/app-paths';
 
 interface SearchResults {
@@ -99,8 +97,6 @@ export default function DiscoverPage() {
   } | null>(null);
   const [showLiveEvents, setShowLiveEvents] = useState(false);
   const [liveEventCatalog, setLiveEventCatalog] = useState<'jambase' | 'ticketmaster'>('jambase');
-  const [favoriteArtistFeedKey, setFavoriteArtistFeedKey] = useState(0);
-
   const liveCity = filters.location.trim() || undefined;
   const liveGenre = filters.genre.trim() || undefined;
   const liveGenreSlug =
@@ -288,34 +284,11 @@ export default function DiscoverPage() {
                     {results.clips.length}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {results.clips.map((clip, index) => (
-                    <div
-                      key={clipListItemKey(clip, index)}
-                      onClick={() => openDiscoverClip(clip, results.clips)}
-                      className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
-                    >
-                      <div
-                        className="relative w-full bg-black"
-                        style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
-                      >
-                        <img
-                          src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
-                          alt="Concert moment"
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
-                      </div>
-                      <div className="p-4">
-                        {clip.artist_name && (
-                          <div className="font-bold text-purple-400 mb-1">{clip.artist_name}</div>
-                        )}
-                        {clip.content_description && (
-                          <p className="text-gray-300 text-sm line-clamp-2">{clip.content_description}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <ClipFeedCarousel
+                  clips={results.clips}
+                  onOpenClip={(clip) => openDiscoverClip(clip, results.clips)}
+                  ariaLabel="Search result clips"
+                />
               </div>
             )}
 
@@ -579,16 +552,11 @@ export default function DiscoverPage() {
         ) : trendingContent ? (
           <div className="space-y-12">
             {!searchQuery.trim() && user ? (
-              <>
-                <DiscoverFavoriteArtistsPrompt
-                  onSaved={() => setFavoriteArtistFeedKey((k) => k + 1)}
-                />
-                <FavoriteArtistFeedPanel
-                  key={favoriteArtistFeedKey}
-                  variant="discover"
-                  scrollIntoViewOnMount={searchParams.get('from_favorites') === '1'}
-                />
-              </>
+              <FavoriteArtistFeedPanel
+                variant="feed"
+                showExploreMore={false}
+                scrollIntoViewOnMount={searchParams.get('from_favorites') === '1'}
+              />
             ) : null}
 
             <div className="text-center mb-8">
@@ -678,37 +646,11 @@ export default function DiscoverPage() {
                 {trendingContent.clips.length > 0 && (
                   <div>
                     <h3 className="text-2xl font-bold text-white mb-6">🔥 Trending Clips</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {trendingContent.clips.map((clip, index) => (
-                        <div
-                          key={clipListItemKey(clip, index)}
-                          onClick={() => openDiscoverClip(clip, trendingContent.clips)}
-                          className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl overflow-hidden hover:border-orange-400/50 transition-all cursor-pointer group"
-                        >
-                          <div
-                            className="relative w-full bg-black"
-                            style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
-                          >
-                            <img
-                              src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
-                              alt="Concert moment"
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                            />
-                            <div className="absolute top-3 right-3 px-3 py-1 bg-gradient-to-r from-orange-500 to-red-500 rounded-full text-xs text-white font-bold">
-                              🔥 Trending
-                            </div>
-                          </div>
-                          <div className="p-4">
-                            {clip.artist_name && (
-                              <div className="font-bold text-purple-400 mb-1">{clip.artist_name}</div>
-                            )}
-                            {clip.content_description && (
-                              <p className="text-gray-300 text-sm line-clamp-2">{clip.content_description}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <ClipFeedCarousel
+                      clips={trendingContent.clips}
+                      onOpenClip={(clip) => openDiscoverClip(clip, trendingContent.clips)}
+                      ariaLabel="Trending clips"
+                    />
                   </div>
                 )}
 
