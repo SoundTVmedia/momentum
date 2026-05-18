@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { X, Upload, Loader2, Camera, Image as ImageIcon, Check, AlertCircle, MapPin, Heart } from 'lucide-react';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
+import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import type { UserProfile } from '@/shared/types';
 
@@ -136,9 +137,8 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
     setError(null);
 
     try {
-      const response = await fetch('/api/users/profile', {
+      const response = await apiFetch('/api/users/profile', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
@@ -152,9 +152,8 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
         throw new Error(errBody.error || 'Failed to update profile');
       }
 
-      const persResponse = await fetch('/api/personalization/update', {
+      const persResponse = await apiFetch('/api/personalization/update', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           favorite_artists: favoriteArtists,
@@ -182,7 +181,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
         onClose();
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile. Please try again.');
+      setError(apiFetchErrorMessage(err, 'Failed to update profile. Please try again.'));
       console.error('Update error:', err);
     } finally {
       setLoading(false);

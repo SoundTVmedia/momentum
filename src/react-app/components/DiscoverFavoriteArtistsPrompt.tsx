@@ -3,6 +3,7 @@ import { Heart, Loader2, Save, Star } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
+import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 
 type Props = {
   /** Bump parent key so FavoriteArtistFeedPanel refetches after save */
@@ -26,7 +27,7 @@ export default function DiscoverFavoriteArtistsPrompt({ onSaved }: Props) {
     }
     setChecking(true);
     try {
-      const res = await fetch('/api/users/me/favorite-artists', { credentials: 'include' });
+      const res = await apiFetch('/api/users/me/favorite-artists');
       if (!res.ok) {
         setShowPrompt(false);
         return;
@@ -50,10 +51,9 @@ export default function DiscoverFavoriteArtistsPrompt({ onSaved }: Props) {
     setSaving(true);
     setSaveError(null);
     try {
-      const res = await fetch('/api/users/favorite-artists/sync-by-name', {
+      const res = await apiFetch('/api/users/favorite-artists/sync-by-name', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ names: favoriteArtists }),
       });
       if (!res.ok) {
@@ -64,7 +64,7 @@ export default function DiscoverFavoriteArtistsPrompt({ onSaved }: Props) {
       onSaved();
       await refreshVisibility();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Save failed');
+      setSaveError(apiFetchErrorMessage(e, 'Save failed'));
     } finally {
       setSaving(false);
     }

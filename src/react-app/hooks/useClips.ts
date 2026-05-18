@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { ClipWithUser } from '@/shared/types'
+import { apiFetch } from '@/react-app/lib/apiFetch'
 
 interface UseClipsOptions {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'most_viewed' | 'top_rated'
@@ -48,8 +49,7 @@ export function useClips(options: UseClipsOptions = {}) {
         if (!mine && userId) params.append('user_id', userId)
 
         const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
-        const response = await fetch(listPath, {
-          credentials: 'include',
+        const response = await apiFetch(listPath, {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',
@@ -143,8 +143,7 @@ export function useClips(options: UseClipsOptions = {}) {
         if (!mine && userId) params.append('user_id', userId)
 
         const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
-        const response = await fetch(listPath, {
-          credentials: 'include',
+        const response = await apiFetch(listPath, {
           cache: 'no-store',
         })
         

@@ -58,6 +58,18 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
   if (existing != null) return existing;
 
   try {
+    const inserted = (await db
+      .prepare(
+        `INSERT INTO artists (name, created_at, updated_at)
+         VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         RETURNING id`,
+      )
+      .bind(name)
+      .first()) as { id?: unknown } | null;
+
+    const fromReturning = rowIdToNumber(inserted?.id);
+    if (fromReturning != null) return fromReturning;
+
     const ins = await db
       .prepare(
         'INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
@@ -65,7 +77,7 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
       .bind(name)
       .run();
 
-    const insAny = ins as { success?: boolean; error?: string; meta?: { last_row_id?: unknown; changes?: unknown } };
+    const insAny = ins as { success?: boolean; error?: string; meta?: { last_row_id?: unknown } };
     if (insAny.success === false) {
       const afterFail = await findArtistIdByName(db, name);
       if (afterFail != null) return afterFail;
@@ -74,15 +86,8 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
       );
     }
 
-    const changes = Number(insAny.meta?.changes ?? 0);
-    if (Number.isFinite(changes) && changes > 0) {
-      const fromMeta = parseD1LastRowId(insAny.meta?.last_row_id);
-      if (fromMeta != null) return fromMeta;
-
-      const ridRow = (await db.prepare('SELECT last_insert_rowid() AS lid').first()) as { lid?: unknown } | null;
-      const fromRid = rowIdToNumber(ridRow?.lid);
-      if (fromRid != null) return fromRid;
-    }
+    const fromMeta = parseD1LastRowId(insAny.meta?.last_row_id);
+    if (fromMeta != null) return fromMeta;
 
     const afterInsert = await findArtistIdByName(db, name);
     if (afterInsert != null) return afterInsert;

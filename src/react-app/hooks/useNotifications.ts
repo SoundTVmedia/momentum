@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
+import { apiFetch } from '@/react-app/lib/apiFetch'
 
 interface Notification {
   id: number
@@ -30,7 +31,7 @@ export function useNotifications() {
     setError(null)
 
     try {
-      const response = await fetch('/api/notifications', {
+      const response = await apiFetch('/api/notifications', {
         headers: {
           'Cache-Control': 'no-cache',
         },
@@ -54,7 +55,7 @@ export function useNotifications() {
 
   const markAsRead = useCallback(async (notificationId: number) => {
     try {
-      await fetch(`/api/notifications/${notificationId}/read`, {
+      await apiFetch(`/api/notifications/${notificationId}/read`, {
         method: 'POST',
       })
 
@@ -70,7 +71,7 @@ export function useNotifications() {
 
   const markAllAsRead = useCallback(async () => {
     try {
-      await fetch('/api/notifications/read-all', {
+      await apiFetch('/api/notifications/read-all', {
         method: 'POST',
       })
 

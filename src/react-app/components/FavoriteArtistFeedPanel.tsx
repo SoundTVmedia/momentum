@@ -8,6 +8,7 @@ import { artistPath, venuePath } from '@/shared/app-paths';
 import ClipModal from '@/react-app/components/ClipModal';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
+import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 
 type FavoriteFeedEvent = {
   artist_name?: string | null;
@@ -48,9 +49,9 @@ export default function FavoriteArtistFeedPanel({
 
   const fetchSlice = useCallback(
     async (offset: number, append: boolean) => {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/discover/favorite-artist-feed?events_limit=3&clips_limit=${clipsLimit}&clips_offset=${offset}`,
-        { credentials: 'include', cache: 'no-store' },
+        { cache: 'no-store' },
       );
       if (!res.ok) throw new Error('favorite-artist-feed');
       const data = (await res.json()) as {
@@ -140,10 +141,9 @@ export default function FavoriteArtistFeedPanel({
     setSavingArtists(true);
     setSaveArtistsError(null);
     try {
-      const res = await fetch('/api/users/favorite-artists/sync-by-name', {
+      const res = await apiFetch('/api/users/favorite-artists/sync-by-name', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ names: draftFavoriteNames }),
       });
       if (!res.ok) {
@@ -154,7 +154,7 @@ export default function FavoriteArtistFeedPanel({
       setShowAddArtists(false);
       await fetchSlice(0, false);
     } catch (e) {
-      setSaveArtistsError(e instanceof Error ? e.message : 'Save failed');
+      setSaveArtistsError(apiFetchErrorMessage(e, 'Save failed'));
     } finally {
       setSavingArtists(false);
     }

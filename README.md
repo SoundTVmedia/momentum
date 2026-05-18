@@ -23,9 +23,17 @@ npm install
 npm run dev
 ```
 
-`npm run dev` auto-detects unsupported older macOS versions (for Cloudflare's local worker runtime) and falls back to `frontend-only` mode so the React app still runs.
+`npm run dev` auto-detects unsupported older macOS versions (for Cloudflare's local worker runtime) and falls back to `frontend-only` mode. In that mode it **also starts `wrangler dev` on port 8787** so `/api/*` (favorites, notifications, clips) works — Vite proxies those requests to the worker.
 
-If you are on macOS `13.5+` (or Linux) and want full local worker emulation, run:
+If you see **`TypeError: Failed to fetch`** in the console for `/api/notifications` or saving favorite artists, the API worker is not running. Restart with `npm run dev`, or in a second terminal run `npm run dev:api` while Vite is up.
+
+First time on a fresh clone, apply local D1 migrations:
+
+```bash
+npm run db:migrate:local
+```
+
+If you are on macOS `13.5+` (or Linux) and want full local worker emulation inside Vite, run:
 
 ```bash
 npm run dev:worker
