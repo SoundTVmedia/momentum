@@ -90,7 +90,7 @@ export default function HorizontalClipCarousel({
         ref={scrollRef}
         role="region"
         aria-label={ariaLabel}
-        className={`flex gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory touch-pan-x pb-1 md:px-10 ${className}`}
+        className={`flex gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x ${className}`}
       >
         {children}
       </div>
@@ -117,7 +117,7 @@ export function HorizontalClipCarouselItem({
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 basis-full w-full max-w-full snap-start snap-always md:basis-auto md:w-72 lg:w-80 ${className}`}
+      className={`flex-shrink-0 basis-full w-full max-w-full snap-start snap-always max-md:mr-3 max-md:last:mr-0 md:mr-0 md:basis-auto md:w-72 lg:w-80 ${className}`}
     >
       {children}
     </div>
