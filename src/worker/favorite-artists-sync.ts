@@ -129,40 +129,20 @@ export async function resolveArtistIdForFavoriteName(
   return findArtistIdForName(db, displayName);
 }
 
-/**
- * Insert or return existing artist row id. Uses SQLite upsert so UNIQUE on `name` always yields an id.
- */
+function d1RowChanges(run: { meta?: { changes?: number } }): number {
+  const n = run.meta?.changes;
+  return typeof n === 'number' && n > 0 ? n : 0;
+}
+
+/** Insert or return existing artist row id (no throwing INSERT — D1-safe). */
 export async function getOrCreateArtistIdByName(db: D1Database, displayName: string): Promise<number> {
   const name = normalizeArtistDisplayName(displayName);
   if (!name) {
     throw new Error('empty artist name');
   }
 
-  const existing = await findArtistIdForName(db, name);
-  if (existing != null) return existing;
-
-  try {
-    const upserted = (await db
-      .prepare(
-        `INSERT INTO artists (name, created_at, updated_at)
-         VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-         ON CONFLICT(name) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
-         RETURNING id`,
-      )
-      .bind(name)
-      .first()) as { id?: unknown } | null;
-
-    const fromUpsert = rowIdToNumber(upserted?.id);
-    if (fromUpsert != null) return fromUpsert;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (!isSqliteUniqueError(msg)) {
-      throw new Error(`Artist insert failed (${JSON.stringify(name)}): ${msg}`);
-    }
-  }
-
-  const afterConflict = await findArtistIdForName(db, name);
-  if (afterConflict != null) return afterConflict;
+  let id = await findArtistIdForName(db, name);
+  if (id != null) return id;
 
   try {
     await db
@@ -172,31 +152,100 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
       )
       .bind(name)
       .run();
-  } catch {
-    /* ignore — lookup below */
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!isSqliteUniqueError(msg)) {
+      throw new Error(`Artist insert failed (${JSON.stringify(name)}): ${msg}`);
+    }
   }
 
-  const afterIgnore = await findArtistIdForName(db, name);
-  if (afterIgnore != null) return afterIgnore;
-
-  const ins = await db
-    .prepare(
-      `INSERT INTO artists (name, created_at, updated_at)
-       VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-    )
-    .bind(name)
-    .run();
-
-  const fromMeta = parseD1LastRowId((ins as { meta?: { last_row_id?: unknown } }).meta?.last_row_id);
-  if (fromMeta != null) {
-    const confirmed = await firstArtistId(db, 'SELECT id FROM artists WHERE id = ?', fromMeta);
-    if (confirmed != null) return confirmed;
-  }
-
-  const last = await findArtistIdForName(db, name);
-  if (last != null) return last;
+  id = await findArtistIdForName(db, name);
+  if (id != null) return id;
 
   throw new Error(`Could not resolve artist id for ${JSON.stringify(name)}`);
+}
+
+async function isFavoriteArtistLinked(
+  db: D1Database,
+  uid: string,
+  name: string,
+): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT ufa.id
+       FROM user_favorite_artists ufa
+       INNER JOIN artists a ON a.id = ufa.artist_id
+       WHERE ufa.mocha_user_id = ?
+         AND lower(trim(a.name)) = lower(trim(?))
+       LIMIT 1`,
+    )
+    .bind(uid, name)
+    .first();
+  return row != null;
+}
+
+/**
+ * Link `user_favorite_artists` by display name using INSERT…SELECT (avoids resolve-then-insert races).
+ */
+export async function linkFavoriteArtistByName(
+  db: D1Database,
+  uid: string,
+  displayName: string,
+): Promise<void> {
+  const name = normalizeArtistDisplayName(displayName);
+  if (!name) {
+    throw new Error('empty artist name');
+  }
+
+  if (await isFavoriteArtistLinked(db, uid, name)) {
+    return;
+  }
+
+  const linkSql = `INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at)
+    SELECT ?, a.id, CURRENT_TIMESTAMP
+    FROM artists a
+    WHERE lower(trim(a.name)) = lower(trim(?)) OR a.name = ?
+    ORDER BY a.id ASC
+    LIMIT 1`;
+
+  if (d1RowChanges(await db.prepare(linkSql).bind(uid, name, name).run()) > 0) {
+    return;
+  }
+
+  try {
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO artists (name, created_at, updated_at)
+         VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      )
+      .bind(name)
+      .run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!isSqliteUniqueError(msg)) {
+      throw new Error(`Artist insert failed (${JSON.stringify(name)}): ${msg}`);
+    }
+  }
+
+  if (d1RowChanges(await db.prepare(linkSql).bind(uid, name, name).run()) > 0) {
+    return;
+  }
+
+  const artistId = await findArtistIdForName(db, name);
+  if (artistId != null) {
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO user_favorite_artists (mocha_user_id, artist_id, created_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)`,
+      )
+      .bind(uid, artistId)
+      .run();
+    if (await isFavoriteArtistLinked(db, uid, name)) {
+      return;
+    }
+  }
+
+  throw new Error(`Could not link favorite artist ${JSON.stringify(name)}`);
 }
 
 export type SyncFavoriteArtistsResult = {
@@ -219,19 +268,7 @@ export async function syncUserFavoriteArtistRows(
 
   for (const name of normalized) {
     try {
-      const artistId = await getOrCreateArtistIdByName(db, name);
-      const existing = await db
-        .prepare('SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
-        .bind(uid, artistId)
-        .first();
-      if (!existing) {
-        await db
-          .prepare(
-            'INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
-          )
-          .bind(uid, artistId)
-          .run();
-      }
+      await linkFavoriteArtistByName(db, uid, name);
       synced.push(name);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

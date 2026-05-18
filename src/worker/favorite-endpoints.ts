@@ -291,25 +291,22 @@ export async function syncFavoriteArtistsByName(c: Context) {
     await mergeProfileFavoriteArtistsJson(c.env.DB, uid, normalized);
 
     const { synced, failed } = await syncUserFavoriteArtistRows(c.env.DB, uid, normalized);
-    await mergeCanonicalNamesForFavoriteBatch(c.env.DB, uid, normalized);
-
-    if (failed.length > 0 && synced.length === 0) {
-      const detail = failed.map((f) => `${f.name}: ${f.error}`).join('; ');
-      return c.json(
-        {
-          error: 'Failed to sync favorite artists',
-          detail: detail.length > 220 ? `${detail.slice(0, 220)}…` : detail,
-          failed: failed.map((f) => f.name),
-        },
-        500,
-      );
+    try {
+      await mergeCanonicalNamesForFavoriteBatch(c.env.DB, uid, normalized);
+    } catch (mergeErr) {
+      console.error('mergeCanonicalNamesForFavoriteBatch error:', mergeErr);
     }
 
     return c.json({
       success: true,
+      savedToProfile: true,
       synced: synced.length,
       partial: failed.length > 0,
       failed: failed.length > 0 ? failed.map((f) => f.name) : undefined,
+      warnings:
+        failed.length > 0
+          ? failed.map((f) => `${f.name}: ${f.error}`).slice(0, 5)
+          : undefined,
     });
   } catch (error) {
     console.error('syncFavoriteArtistsByName error:', error);

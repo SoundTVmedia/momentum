@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getOrCreateArtistIdByName,
+  linkFavoriteArtistByName,
   normalizeArtistDisplayName,
   resolveArtistIdForFavoriteName,
   syncUserFavoriteArtistRows,
@@ -10,6 +11,7 @@ type ArtistRow = { id: number; name: string };
 
 function createArtistsMockDb(initial: ArtistRow[] = []) {
   const artists = [...initial];
+  const links: { uid: string; artistId: number }[] = [];
   let nextId = artists.reduce((m, r) => Math.max(m, r.id), 0) + 1;
 
   const db = {
@@ -19,13 +21,15 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
         bind(...args: unknown[]) {
           return {
             async first() {
-              if (s.includes('on conflict(name) do update') && s.includes('returning id')) {
-                const name = String(args[0]);
-                const existing = artists.find((a) => a.name === name);
-                if (existing) return { id: existing.id };
-                const row = { id: nextId++, name };
-                artists.push(row);
-                return { id: row.id };
+              if (s.includes('from user_favorite_artists ufa') && s.includes('lower(trim(a.name))')) {
+                const uid = String(args[0]);
+                const name = String(args[1]).toLowerCase().trim();
+                const hit = links.find((l) => {
+                  if (l.uid !== uid) return false;
+                  const a = artists.find((x) => x.id === l.artistId);
+                  return a != null && a.name.toLowerCase().trim() === name;
+                });
+                return hit ? { id: 1 } : null;
               }
               if (s.startsWith('select id from artists where name =') && s.includes('collate nocase')) {
                 const key = String(args[0]).toLowerCase();
@@ -59,34 +63,42 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
                 const row = artists.find((a) => a.id === id);
                 return row ? { id: row.id } : null;
               }
-              if (s.includes('select id from user_favorite_artists')) {
+              if (s.includes('select id, favorite_artists from user_profiles')) {
                 return null;
               }
               return null;
             },
             async run() {
+              if (s.includes('insert into user_favorite_artists') && s.includes('select')) {
+                const uid = String(args[0]);
+                const name = String(args[1]).toLowerCase().trim();
+                const exact = String(args[2]);
+                const row =
+                  artists.find((a) => a.name.toLowerCase().trim() === name) ??
+                  artists.find((a) => a.name === exact);
+                if (row && !links.some((l) => l.uid === uid && l.artistId === row.id)) {
+                  links.push({ uid, artistId: row.id });
+                  return { success: true, meta: { changes: 1 } };
+                }
+                return { success: true, meta: { changes: 0 } };
+              }
               if (s.startsWith('insert or ignore into artists')) {
                 const name = String(args[0]);
                 if (!artists.some((a) => a.name === name)) {
                   artists.push({ id: nextId++, name });
                 }
-                return { success: true, meta: { last_row_id: artists[artists.length - 1]?.id ?? 0 } };
+                return { success: true, meta: { changes: 1, last_row_id: artists[artists.length - 1]?.id } };
               }
-              if (s.startsWith('insert into artists') && s.includes('user_favorite')) {
-                return { success: true };
-              }
-              if (s.startsWith('insert into user_favorite_artists')) {
-                return { success: true };
-              }
-              if (s.startsWith('insert into artists')) {
-                const name = String(args[0]);
-                if (artists.some((a) => a.name === name)) {
-                  return { success: false, error: 'UNIQUE constraint failed: artists.name' };
+              if (s.startsWith('insert or ignore into user_favorite_artists')) {
+                const uid = String(args[0]);
+                const artistId = Number(args[1]);
+                if (!links.some((l) => l.uid === uid && l.artistId === artistId)) {
+                  links.push({ uid, artistId });
+                  return { success: true, meta: { changes: 1 } };
                 }
-                artists.push({ id: nextId++, name });
-                return { success: true, meta: { last_row_id: artists[artists.length - 1].id } };
+                return { success: true, meta: { changes: 0 } };
               }
-              return { success: true, meta: { last_row_id: 0 } };
+              return { success: true, meta: { changes: 0 } };
             },
             async all() {
               if (s.includes("lower(name) like '%' ||")) {
@@ -103,7 +115,7 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
       };
     },
   };
-  return { db: db as unknown as D1Database, artists };
+  return { db: db as unknown as D1Database, artists, links };
 }
 
 describe('normalizeArtistDisplayName', () => {
@@ -131,18 +143,22 @@ describe('getOrCreateArtistIdByName', () => {
     expect(id).toBeGreaterThan(0);
     expect(artists.some((a) => a.name === 'Billie Eilish')).toBe(true);
   });
+});
 
-  it('resolves Olivia Rodrigo via upsert when exact row exists', async () => {
-    const { db } = createArtistsMockDb([{ id: 3, name: 'Olivia Rodrigo' }]);
-    await expect(getOrCreateArtistIdByName(db, 'Olivia Rodrigo')).resolves.toBe(3);
+describe('linkFavoriteArtistByName', () => {
+  it('links existing artist without creating duplicate', async () => {
+    const { db, links } = createArtistsMockDb([{ id: 3, name: 'Olivia Rodrigo' }]);
+    await linkFavoriteArtistByName(db, 'user-1', 'Olivia Rodrigo');
+    expect(links).toHaveLength(1);
+    expect(links[0]?.artistId).toBe(3);
   });
 });
 
 describe('syncUserFavoriteArtistRows', () => {
-  it('continues after one failure and reports partial result', async () => {
+  it('syncs multiple names', async () => {
     const { db } = createArtistsMockDb([{ id: 1, name: 'Drake' }]);
-    const result = await syncUserFavoriteArtistRows(db, 'user-1', ['Drake', '']);
+    const result = await syncUserFavoriteArtistRows(db, 'user-1', ['Drake', 'New Artist']);
     expect(result.synced).toContain('Drake');
-    expect(result.failed.length).toBeGreaterThanOrEqual(0);
+    expect(result.synced).toContain('New Artist');
   });
 });

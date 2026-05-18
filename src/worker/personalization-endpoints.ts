@@ -147,10 +147,11 @@ export async function updatePersonalization(c: Context) {
       await mergeProfileFavoriteArtistsJson(c.env.DB, uid, favStrings);
       await c.env.DB.prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ?').bind(uid).run();
       if (favStrings.length > 0) {
-        const { synced, failed } = await syncUserFavoriteArtistRows(c.env.DB, uid, favStrings);
-        if (synced.length === 0 && failed.length > 0) {
-          throw new Error(
-            failed.map((f) => `${f.name}: ${f.error}`).join('; ') || 'Failed to sync favorite artists',
+        const { failed } = await syncUserFavoriteArtistRows(c.env.DB, uid, favStrings);
+        if (failed.length > 0) {
+          console.warn(
+            'personalization: some favorite artists did not link to artists table',
+            failed.map((f) => f.name).join(', '),
           );
         }
       }
