@@ -197,10 +197,11 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
               onTouchEnd={onSwipeTouchEnd}
             >
               <StreamVideoPlayer
-                streamVideoId={(clip as any).stream_video_id}
-                playbackUrl={(clip as any).stream_playback_url}
-                fallbackUrl={clip.video_url}
-                poster={(clip as any).stream_thumbnail_url || clip.thumbnail_url || undefined}
+                stream_video_id={clip.stream_video_id}
+                stream_playback_url={clip.stream_playback_url}
+                stream_thumbnail_url={clip.stream_thumbnail_url}
+                video_url={clip.video_url}
+                thumbnail_url={clip.thumbnail_url}
                 autoPlay
                 className="absolute inset-0 w-full h-full"
               />

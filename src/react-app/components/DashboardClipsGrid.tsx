@@ -162,9 +162,10 @@ export default function DashboardClipsGrid({
 
           const thumb =
             clip.thumbnail_url || clip.stream_thumbnail_url || CLIP_THUMB_FALLBACK;
-          const playback =
-            typeof clip.stream_playback_url === 'string' ? clip.stream_playback_url : null;
           const videoUrl = typeof clip.video_url === 'string' ? clip.video_url : '';
+          const hasPlayback =
+            videoUrl ||
+            (typeof clip.stream_video_id === 'string' && clip.stream_video_id.trim());
 
           return (
             <div
@@ -174,11 +175,14 @@ export default function DashboardClipsGrid({
               onMouseEnter={() => setHoveredRowKey(rowKey)}
               onMouseLeave={() => setHoveredRowKey((k) => (k === rowKey ? null : k))}
             >
-              {videoUrl ? (
+              {hasPlayback ? (
                 <ClipFeedPreviewMedia
                   className="z-0"
-                  playbackUrl={playback}
-                  fallbackUrl={videoUrl}
+                  stream_video_id={clip.stream_video_id}
+                  stream_playback_url={clip.stream_playback_url}
+                  stream_thumbnail_url={clip.stream_thumbnail_url}
+                  video_url={clip.video_url}
+                  thumbnail_url={clip.thumbnail_url}
                   posterUrl={thumb === CLIP_THUMB_FALLBACK ? null : thumb}
                   thumbFallback={CLIP_THUMB_FALLBACK}
                   mediaHovered={hoveredRowKey === rowKey}

@@ -6,7 +6,16 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { artistPath } from '@/shared/app-paths';
-import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+import {
+  HOME_FEED_CAROUSEL_BLEED,
+  HOME_FEED_SECTION_CLASS,
+  PAGE_CAROUSEL_BLEED,
+} from '@/react-app/lib/homeFeedLayout';
+
+export type PersonalizedConcertsProps = {
+  /** Match Discover / home feed carousels (`page`) vs nested profile shell (`home`). */
+  carouselBleedScope?: 'home' | 'page';
+};
 
 interface D1Concert {
   id: number;
@@ -93,7 +102,11 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
   );
 }
 
-export default function PersonalizedConcerts() {
+export default function PersonalizedConcerts({
+  carouselBleedScope = 'home',
+}: PersonalizedConcertsProps) {
+  const carouselBleed =
+    carouselBleedScope === 'page' ? PAGE_CAROUSEL_BLEED : HOME_FEED_CAROUSEL_BLEED;
   const [payload, setPayload] = useState<ConcertsApi | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -180,12 +193,12 @@ export default function PersonalizedConcerts() {
           maxEvents={12}
           layout="carousel"
           carouselAriaLabel="Upcoming shows from your favorite artists"
-          carouselClassName={HOME_FEED_CAROUSEL_BLEED}
+          carouselClassName={carouselBleed}
         />
       ) : (
         <HorizontalClipCarousel
           ariaLabel="Upcoming concerts from your favorite artists"
-          className={HOME_FEED_CAROUSEL_BLEED}
+          className={carouselBleed}
         >
           {d1Concerts.map((concert) => (
             <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96">

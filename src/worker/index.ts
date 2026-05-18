@@ -54,7 +54,8 @@ import {
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postClipIdentifyMusicAudD } from "./clip-audd-endpoints";
 import { normalizeClipApiRows } from "./clip-row-normalize";
-import { getClipObjectFromR2, r2ForClipObjectKey } from "./r2-clip-key";
+import { r2ForClipObjectKey } from "./r2-clip-key";
+import { serveR2ClipFile } from "./r2-serve";
 export { RealtimeDurableObject } from "./realtime-durable-object";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -579,11 +580,12 @@ app.post("/api/upload", authMiddleware, rateLimiter(RateLimits.UPLOAD), async (c
           success: true,
           streamVideoId: videoDetails.uid,
           playbackUrl: videoDetails.playbackUrl,
+          mp4PlaybackUrl: videoDetails.mp4Url,
           thumbnailUrl: videoDetails.thumbnail,
           status: videoDetails.status,
           readyToStream: videoDetails.readyToStream,
           duration: videoDetails.duration,
-          type: 'stream'
+          type: 'stream',
         }, 201);
       } catch (streamError) {
         console.error('Stream upload failed, falling back to R2:', streamError);
@@ -622,28 +624,8 @@ app.post("/api/upload", authMiddleware, rateLimiter(RateLimits.UPLOAD), async (c
   }
 });
 
-// Retrieve file from R2
-app.get("/api/files/:key{.+}", async (c) => {
-  const key = decodeURIComponent(c.req.param('key'));
-
-  try {
-    const object = await getClipObjectFromR2(c.env, key);
-
-    if (!object) {
-      return c.json({ error: "File not found" }, 404);
-    }
-
-    const headers = new Headers();
-    object.writeHttpMetadata(headers);
-    headers.set("etag", object.httpEtag);
-    headers.set("cache-control", "public, max-age=31536000");
-
-    return c.body(object.body, { headers });
-  } catch (error) {
-    console.error('File retrieval error:', error);
-    return c.json({ error: "Failed to retrieve file" }, 500);
-  }
-});
+// Retrieve file from R2 (supports Range requests for video seeking / fast start)
+app.get("/api/files/:key{.+}", serveR2ClipFile);
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);

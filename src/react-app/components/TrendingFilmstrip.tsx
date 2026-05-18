@@ -72,9 +72,11 @@ export default function TrendingFilmstrip() {
                   >
                     <ClipFeedPreviewMedia
                       className="z-0"
-                      playbackUrl={clip.stream_playback_url}
-                      fallbackUrl={clip.video_url}
-                      posterUrl={clip.stream_thumbnail_url || clip.thumbnail_url}
+                      stream_video_id={clip.stream_video_id}
+                      stream_playback_url={clip.stream_playback_url}
+                      stream_thumbnail_url={clip.stream_thumbnail_url}
+                      video_url={clip.video_url}
+                      thumbnail_url={clip.thumbnail_url}
                       mediaHovered={hoverClipId === clip.id}
                     />
 

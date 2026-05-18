@@ -8,12 +8,13 @@ export function r2ForClipObjectKey(
 
 export async function getClipObjectFromR2(
   env: { R2_BUCKET: R2Bucket; R2_THUMBNAILS_BUCKET: R2Bucket },
-  key: string
+  key: string,
+  opts?: { range?: { offset: number; length: number } }
 ): Promise<R2ObjectBody | null> {
   const primary = r2ForClipObjectKey(env, key);
-  let object = await primary.get(key);
+  let object = await primary.get(key, opts);
   if (!object && key.includes('/thumbnail/')) {
-    object = await env.R2_BUCKET.get(key);
+    object = await env.R2_BUCKET.get(key, opts);
   }
   return object;
 }

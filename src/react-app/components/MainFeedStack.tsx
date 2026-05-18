@@ -25,9 +25,13 @@ export default function MainFeedStack({
   const { user } = useAuth()
   const [feedType, setFeedType] = useState(defaultFeedType)
   const welcomeName = user ? resolveWelcomeName(user as ExtendedMochaUser) : null
+  const isHome = variant === 'home'
+  const containerClass = isHome
+    ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
+    : 'max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className={containerClass}>
       {variant === 'page' && (
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -71,8 +75,8 @@ export default function MainFeedStack({
       {user ? (
         <FavoriteArtistFeedPanel
           variant="feed"
-          edgeBleed={variant === 'home'}
-          edgeBleedScope="home"
+          edgeBleed={isHome}
+          edgeBleedScope="page"
         />
       ) : null}
 
@@ -82,11 +86,11 @@ export default function MainFeedStack({
 
       <ConcertFeed
         feedType={feedType}
-        edgeBleed={variant === 'home'}
-        edgeBleedScope="home"
+        edgeBleed={isHome}
+        edgeBleedScope="page"
       />
 
-      {user && variant === 'home' ? <PersonalizedConcerts /> : null}
+      {user && isHome ? <PersonalizedConcerts carouselBleedScope="page" /> : null}
     </div>
   )
 }

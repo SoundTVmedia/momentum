@@ -935,7 +935,8 @@ export default function UploadClip() {
         clipData.stream_thumbnail_url = thumbnailUrl || videoData.thumbnailUrl;
         clipData.video_status = videoData.status;
         clipData.video_duration = videoData.duration;
-        clipData.video_url = videoData.playbackUrl; // Fallback for compatibility
+        clipData.video_url =
+          videoData.mp4PlaybackUrl || videoData.playbackUrl;
         clipData.thumbnail_url = thumbnailUrl || videoData.thumbnailUrl;
       } else {
         clipData.video_url = videoData?.url || formData.video_url;

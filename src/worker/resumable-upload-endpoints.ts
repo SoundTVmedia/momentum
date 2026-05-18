@@ -1,4 +1,6 @@
 import type { Context } from 'hono';
+import { createStreamService } from './stream-service';
+import { r2ForClipObjectKey } from './r2-clip-key';
 
 interface ChunkMetadata {
   uploadId: string;
@@ -24,7 +26,6 @@ export async function handleResumableUpload(c: Context) {
     return c.json({ error: 'Missing required fields' }, 400);
   }
 
-  // Get or create metadata
   let metadata = uploadMetadata.get(uploadId);
   if (!metadata) {
     metadata = {
@@ -38,56 +39,68 @@ export async function handleResumableUpload(c: Context) {
   }
 
   try {
-    // Store chunk in R2
     const chunkKey = `uploads/temp/${uploadId}/chunk_${chunkIndex}`;
     await c.env.R2_BUCKET.put(chunkKey, chunk.stream());
 
-    // Mark chunk as uploaded
     metadata.uploadedChunks.add(chunkIndex);
 
-    // Check if all chunks are uploaded
     if (metadata.uploadedChunks.size === totalChunks) {
-      // All chunks received, assemble the file
       const chunks: ArrayBuffer[] = [];
-      
+
       for (let i = 0; i < totalChunks; i++) {
-        const chunkKey = `uploads/temp/${uploadId}/chunk_${i}`;
-        const chunkObject = await c.env.R2_BUCKET.get(chunkKey);
-        
+        const tempKey = `uploads/temp/${uploadId}/chunk_${i}`;
+        const chunkObject = await c.env.R2_BUCKET.get(tempKey);
+
         if (!chunkObject) {
           throw new Error(`Missing chunk ${i}`);
         }
-        
+
         chunks.push(await chunkObject.arrayBuffer());
       }
 
-      // Combine chunks
-      const combinedBlob = new Blob(chunks);
-      
-      // Upload combined file to final location
+      const combinedBlob = new Blob(chunks, { type: 'video/mp4' });
       const mochaUser = c.get('user');
       const timestamp = Date.now();
       const sanitizedName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const finalKey = `clips/${mochaUser?.id || 'anonymous'}/video/${timestamp}_${sanitizedName}`;
 
-      await c.env.R2_BUCKET.put(finalKey, combinedBlob.stream(), {
+      for (let i = 0; i < totalChunks; i++) {
+        const tempKey = `uploads/temp/${uploadId}/chunk_${i}`;
+        await c.env.R2_BUCKET.delete(tempKey);
+      }
+      uploadMetadata.delete(uploadId);
+
+      try {
+        const streamService = createStreamService(c.env);
+        const file = new File([combinedBlob], sanitizedName, {
+          type: combinedBlob.type || 'video/mp4',
+        });
+        const videoDetails = await streamService.uploadVideo(file, { name: fileName });
+
+        return c.json({
+          success: true,
+          streamVideoId: videoDetails.uid,
+          playbackUrl: videoDetails.playbackUrl,
+          mp4PlaybackUrl: videoDetails.mp4Url,
+          thumbnailUrl: videoDetails.thumbnail,
+          status: videoDetails.status,
+          readyToStream: videoDetails.readyToStream,
+          duration: videoDetails.duration,
+          type: 'stream',
+        }, 201);
+      } catch (streamError) {
+        console.error('Resumable Stream upload failed, falling back to R2:', streamError);
+      }
+
+      const finalKey = `clips/${mochaUser?.id || 'anonymous'}/video/${timestamp}_${sanitizedName}`;
+      const r2 = r2ForClipObjectKey(c.env, finalKey);
+      await r2.put(finalKey, combinedBlob.stream(), {
         httpMetadata: {
           contentType: 'video/mp4',
         },
       });
 
-      // Clean up chunks
-      for (let i = 0; i < totalChunks; i++) {
-        const chunkKey = `uploads/temp/${uploadId}/chunk_${i}`;
-        await c.env.R2_BUCKET.delete(chunkKey);
-      }
-
-      // Clean up metadata
-      uploadMetadata.delete(uploadId);
-
-      // Return success with file URL
       const publicUrl = `/api/files/${encodeURIComponent(finalKey)}`;
-      
+
       return c.json({
         success: true,
         url: publicUrl,
@@ -97,7 +110,6 @@ export async function handleResumableUpload(c: Context) {
       }, 201);
     }
 
-    // Not all chunks uploaded yet
     return c.json({
       success: true,
       chunkIndex,

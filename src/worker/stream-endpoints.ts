@@ -39,6 +39,7 @@ export async function uploadFromUrl(c: Context) {
       success: true,
       streamVideoId: videoDetails.uid,
       playbackUrl: videoDetails.playbackUrl,
+      mp4PlaybackUrl: videoDetails.mp4Url,
       thumbnailUrl: videoDetails.thumbnail,
       status: videoDetails.status,
       readyToStream: videoDetails.readyToStream,

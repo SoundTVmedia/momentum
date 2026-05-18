@@ -35,6 +35,7 @@ interface StreamVideoDetails {
   thumbnail: string;
   playbackUrl: string;
   hlsUrl: string;
+  mp4Url: string;
   dashUrl: string;
   previewUrl: string;
   readyToStream: boolean;
@@ -179,45 +180,47 @@ export class StreamService {
     return data.success;
   }
 
+  /** Public Stream delivery host (account-agnostic). */
+  private deliveryOrigin(): string {
+    return 'https://videodelivery.net';
+  }
+
   /**
    * Generate a thumbnail URL for a specific timestamp
    */
   getThumbnailUrl(videoId: string, options?: { time?: string; width?: number; height?: number }): string {
     const params = new URLSearchParams();
-    
     if (options?.time) params.append('time', options.time);
     if (options?.width) params.append('width', options.width.toString());
     if (options?.height) params.append('height', options.height.toString());
-    
     const queryString = params.toString();
-    const baseUrl = `https://customer-${this.accountId.substring(0, 8)}.cloudflarestream.com/${videoId}/thumbnails/thumbnail.jpg`;
-    
+    const baseUrl = `${this.deliveryOrigin()}/${videoId}/thumbnails/thumbnail.jpg`;
     return queryString ? `${baseUrl}?${queryString}` : baseUrl;
   }
 
-  /**
-   * Get the embed iframe URL for a video
-   */
   getEmbedUrl(videoId: string): string {
-    return `https://customer-${this.accountId.substring(0, 8)}.cloudflarestream.com/${videoId}/iframe`;
+    return `${this.deliveryOrigin()}/${videoId}/iframe`;
   }
 
-  /**
-   * Get direct playback URL
-   */
   getPlaybackUrl(videoId: string): string {
-    return `https://customer-${this.accountId.substring(0, 8)}.cloudflarestream.com/${videoId}/manifest/video.m3u8`;
+    return `${this.deliveryOrigin()}/${videoId}/manifest/video.m3u8`;
+  }
+
+  getMp4Url(videoId: string): string {
+    return `${this.deliveryOrigin()}/${videoId}/downloads/default.mp4`;
   }
 
   /**
    * Format raw Stream API response into our internal format
    */
   private formatVideoDetails(rawData: StreamUploadResponse['result']): StreamVideoDetails {
+    const hls = rawData.playback?.hls || this.getPlaybackUrl(rawData.uid);
     return {
       uid: rawData.uid,
       thumbnail: rawData.thumbnail || this.getThumbnailUrl(rawData.uid),
-      playbackUrl: rawData.playback?.hls || this.getPlaybackUrl(rawData.uid),
-      hlsUrl: rawData.playback?.hls || this.getPlaybackUrl(rawData.uid),
+      playbackUrl: hls,
+      hlsUrl: hls,
+      mp4Url: this.getMp4Url(rawData.uid),
       dashUrl: rawData.playback?.dash || '',
       previewUrl: rawData.preview || '',
       readyToStream: rawData.ready_to_stream || false,
