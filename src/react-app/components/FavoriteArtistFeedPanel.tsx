@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Calendar, Loader2, MapPin, Save, Star, Ticket, Video } from 'lucide-react';
+import { Calendar, Loader2, MapPin, Plus, Save, Star, Ticket, Video, X } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
@@ -42,6 +42,7 @@ export default function FavoriteArtistFeedPanel({
   const [hasFavoriteArtists, setHasFavoriteArtists] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  const [showAddArtists, setShowAddArtists] = useState(false);
   const [draftFavoriteNames, setDraftFavoriteNames] = useState<string[]>([]);
   const [savingArtists, setSavingArtists] = useState(false);
   const [saveArtistsError, setSaveArtistsError] = useState<string | null>(null);
@@ -92,12 +93,6 @@ export default function FavoriteArtistFeedPanel({
       setLoadingSavedArtists(false);
     }
   }, [user]);
-
-  useEffect(() => {
-    if (variant === 'feed' && user) {
-      void loadSavedFavoriteNames();
-    }
-  }, [variant, user, loadSavedFavoriteNames]);
 
   const fetchSlice = useCallback(
     async (offset: number, append: boolean) => {
@@ -209,6 +204,7 @@ export default function FavoriteArtistFeedPanel({
       }
       await loadSavedFavoriteNames();
       await fetchSlice(0, false);
+      setShowAddArtists(false);
     } catch (e) {
       setSaveArtistsError(apiFetchErrorMessage(e, 'Save failed'));
     } finally {
@@ -227,12 +223,35 @@ export default function FavoriteArtistFeedPanel({
         id="favorite-artist-clips"
         className="mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg"
       >
-        <div className="flex flex-wrap items-center gap-2 min-w-0 mb-6">
-          <Star className="w-6 h-6 text-purple-400 shrink-0" />
-          <h2 className="text-xl sm:text-2xl font-bold text-white">From artists you follow</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Star className="w-6 h-6 text-purple-400 shrink-0" />
+            <h2 className="text-xl sm:text-2xl font-bold text-white">From artists you follow</h2>
+          </div>
+          {variant === 'feed' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddArtists((open) => {
+                  const next = !open;
+                  if (next) {
+                    setSaveArtistsError(null);
+                    void loadSavedFavoriteNames();
+                  }
+                  return next;
+                });
+              }}
+              className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full border border-purple-500/50 bg-purple-500/15 text-purple-200 hover:bg-purple-500/25 hover:border-purple-400/60 transition-colors"
+              title={showAddArtists ? 'Close manage artists' : 'Manage favorite artists'}
+              aria-expanded={showAddArtists}
+              aria-label={showAddArtists ? 'Close manage artists' : 'Manage favorite artists'}
+            >
+              {showAddArtists ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+            </button>
+          ) : null}
         </div>
 
-        {variant === 'feed' ? (
+        {variant === 'feed' && showAddArtists ? (
           <div className="mb-8 rounded-xl border border-purple-500/30 bg-black/50 p-4 sm:p-5">
             {loadingSavedArtists ? (
               <div className="flex items-center gap-2 text-gray-400 text-sm">
@@ -363,7 +382,7 @@ export default function FavoriteArtistFeedPanel({
                 <p className="text-gray-400 text-sm py-4">
                   {hasFavoriteArtists
                     ? 'No clips yet from these artists — check back after the next show.'
-                    : 'Add favorite artists above to see their clips and tour picks here.'}
+                    : 'Tap + to add favorite artists and see their clips and tour picks here.'}
                 </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
