@@ -2,6 +2,7 @@ import { Context } from 'hono';
 import {
   getOrCreateArtistIdByName,
   mergeCanonicalNamesForFavoriteBatch,
+  mergeProfileFavoriteArtistsJson,
   mochaUserIdKey,
   normalizeArtistDisplayName,
   replaceProfileFavoriteArtistsJsonFromTable,
@@ -286,10 +287,30 @@ export async function syncFavoriteArtistsByName(c: Context) {
   ].slice(0, 25);
 
   try {
-    await syncUserFavoriteArtistRows(c.env.DB, uid, normalized);
+    /** Profile JSON first so personalization / onboarding still persist if a row link fails. */
+    await mergeProfileFavoriteArtistsJson(c.env.DB, uid, normalized);
+
+    const { synced, failed } = await syncUserFavoriteArtistRows(c.env.DB, uid, normalized);
     await mergeCanonicalNamesForFavoriteBatch(c.env.DB, uid, normalized);
 
-    return c.json({ success: true, synced: normalized.length });
+    if (failed.length > 0 && synced.length === 0) {
+      const detail = failed.map((f) => `${f.name}: ${f.error}`).join('; ');
+      return c.json(
+        {
+          error: 'Failed to sync favorite artists',
+          detail: detail.length > 220 ? `${detail.slice(0, 220)}…` : detail,
+          failed: failed.map((f) => f.name),
+        },
+        500,
+      );
+    }
+
+    return c.json({
+      success: true,
+      synced: synced.length,
+      partial: failed.length > 0,
+      failed: failed.length > 0 ? failed.map((f) => f.name) : undefined,
+    });
   } catch (error) {
     console.error('syncFavoriteArtistsByName error:', error);
     const msg = error instanceof Error ? error.message : String(error);

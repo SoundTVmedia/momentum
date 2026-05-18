@@ -56,9 +56,17 @@ export default function DiscoverFavoriteArtistsPrompt({ onSaved }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ names: favoriteArtists }),
       });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        detail?: string;
+        partial?: boolean;
+        failed?: string[];
+      };
       if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
-        throw new Error(err.detail || err.error || 'Could not save artists');
+        throw new Error(body.detail || body.error || 'Could not save artists');
+      }
+      if (body.partial && body.failed?.length) {
+        setSaveError(`Saved most artists; could not link: ${body.failed.join(', ')}`);
       }
       setFavoriteArtists([]);
       onSaved();

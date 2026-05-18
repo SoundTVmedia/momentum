@@ -3,7 +3,12 @@ import { normalizeClipApiRows } from './clip-row-normalize';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { fetchJamBaseEventsByArtistName } from './jambase-endpoints';
 import { dedupeJamBaseEvents } from './jambase-events-search';
-import { syncUserFavoriteArtistRows, replaceProfileFavoriteArtistsJsonFromTable, normalizeArtistDisplayName } from './favorite-artists-sync';
+import {
+  syncUserFavoriteArtistRows,
+  replaceProfileFavoriteArtistsJsonFromTable,
+  mergeProfileFavoriteArtistsJson,
+  normalizeArtistDisplayName,
+} from './favorite-artists-sync';
 import { mochaUserIdKey } from './mocha-user-id';
 
 function normalizeFavoriteArtistNamesFromBody(raw: unknown): string[] {
@@ -139,12 +144,19 @@ export async function updatePersonalization(c: Context) {
     let favoritesJson: string | null;
     if (favProvided) {
       const favStrings = normalizeFavoriteArtistNamesFromBody(favorite_artists);
+      await mergeProfileFavoriteArtistsJson(c.env.DB, uid, favStrings);
       await c.env.DB.prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ?').bind(uid).run();
       if (favStrings.length > 0) {
-        await syncUserFavoriteArtistRows(c.env.DB, uid, favStrings);
+        const { synced, failed } = await syncUserFavoriteArtistRows(c.env.DB, uid, favStrings);
+        if (synced.length === 0 && failed.length > 0) {
+          throw new Error(
+            failed.map((f) => `${f.name}: ${f.error}`).join('; ') || 'Failed to sync favorite artists',
+          );
+        }
       }
-      /** JSON must match canonical `artists.name` rows (same list as “artists you follow” / feed). */
+      /** JSON must match canonical `artists.name` rows when links exist; merge requested names as fallback. */
       await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
+      await mergeProfileFavoriteArtistsJson(c.env.DB, uid, favStrings);
       const profRow = (await c.env.DB
         .prepare('SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?')
         .bind(uid)

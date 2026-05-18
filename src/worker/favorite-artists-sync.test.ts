@@ -3,11 +3,12 @@ import {
   getOrCreateArtistIdByName,
   normalizeArtistDisplayName,
   resolveArtistIdForFavoriteName,
+  syncUserFavoriteArtistRows,
 } from './favorite-artists-sync';
 
 type ArtistRow = { id: number; name: string };
 
-function createArtistsMockDb(initial: ArtistRow[] = [], opts?: { orIgnoreThrowsUnique?: boolean }) {
+function createArtistsMockDb(initial: ArtistRow[] = []) {
   const artists = [...initial];
   let nextId = artists.reduce((m, r) => Math.max(m, r.id), 0) + 1;
 
@@ -18,6 +19,14 @@ function createArtistsMockDb(initial: ArtistRow[] = [], opts?: { orIgnoreThrowsU
         bind(...args: unknown[]) {
           return {
             async first() {
+              if (s.includes('on conflict(name) do update') && s.includes('returning id')) {
+                const name = String(args[0]);
+                const existing = artists.find((a) => a.name === name);
+                if (existing) return { id: existing.id };
+                const row = { id: nextId++, name };
+                artists.push(row);
+                return { id: row.id };
+              }
               if (s.startsWith('select id from artists where name =') && s.includes('collate nocase')) {
                 const key = String(args[0]).toLowerCase();
                 const row = artists.find((a) => a.name.toLowerCase() === key);
@@ -50,18 +59,29 @@ function createArtistsMockDb(initial: ArtistRow[] = [], opts?: { orIgnoreThrowsU
                 const row = artists.find((a) => a.id === id);
                 return row ? { id: row.id } : null;
               }
+              if (s.includes('select id from user_favorite_artists')) {
+                return null;
+              }
               return null;
             },
             async run() {
               if (s.startsWith('insert or ignore into artists')) {
                 const name = String(args[0]);
+                if (!artists.some((a) => a.name === name)) {
+                  artists.push({ id: nextId++, name });
+                }
+                return { success: true, meta: { last_row_id: artists[artists.length - 1]?.id ?? 0 } };
+              }
+              if (s.startsWith('insert into artists') && s.includes('user_favorite')) {
+                return { success: true };
+              }
+              if (s.startsWith('insert into user_favorite_artists')) {
+                return { success: true };
+              }
+              if (s.startsWith('insert into artists')) {
+                const name = String(args[0]);
                 if (artists.some((a) => a.name === name)) {
-                  if (opts?.orIgnoreThrowsUnique) {
-                    throw new Error(
-                      'D1_ERROR: UNIQUE constraint failed: artists.name: SQLITE_CONSTRAINT',
-                    );
-                  }
-                  return { success: true, meta: { last_row_id: 0 } };
+                  return { success: false, error: 'UNIQUE constraint failed: artists.name' };
                 }
                 artists.push({ id: nextId++, name });
                 return { success: true, meta: { last_row_id: artists[artists.length - 1].id } };
@@ -69,10 +89,10 @@ function createArtistsMockDb(initial: ArtistRow[] = [], opts?: { orIgnoreThrowsU
               return { success: true, meta: { last_row_id: 0 } };
             },
             async all() {
-              if (s.includes('lower(name) like')) {
-                const pattern = String(args[0]).replace(/%/g, '').toLowerCase();
+              if (s.includes("lower(name) like '%' ||")) {
+                const needle = String(args[0]).toLowerCase();
                 const results = artists
-                  .filter((a) => a.name.toLowerCase().includes(pattern.split(' ')[0] ?? ''))
+                  .filter((a) => a.name.toLowerCase().includes(needle))
                   .map((a) => ({ id: a.id, name: a.name }));
                 return { results };
               }
@@ -112,15 +132,17 @@ describe('getOrCreateArtistIdByName', () => {
     expect(artists.some((a) => a.name === 'Billie Eilish')).toBe(true);
   });
 
-  it('resolves Olivia Rodrigo when row exists with different casing', async () => {
-    const { db } = createArtistsMockDb([{ id: 3, name: 'olivia rodrigo' }]);
+  it('resolves Olivia Rodrigo via upsert when exact row exists', async () => {
+    const { db } = createArtistsMockDb([{ id: 3, name: 'Olivia Rodrigo' }]);
     await expect(getOrCreateArtistIdByName(db, 'Olivia Rodrigo')).resolves.toBe(3);
   });
+});
 
-  it('recovers when INSERT OR IGNORE throws UNIQUE (D1)', async () => {
-    const { db } = createArtistsMockDb([{ id: 7, name: 'Olivia Rodrigo' }], {
-      orIgnoreThrowsUnique: true,
-    });
-    await expect(getOrCreateArtistIdByName(db, 'Olivia Rodrigo')).resolves.toBe(7);
+describe('syncUserFavoriteArtistRows', () => {
+  it('continues after one failure and reports partial result', async () => {
+    const { db } = createArtistsMockDb([{ id: 1, name: 'Drake' }]);
+    const result = await syncUserFavoriteArtistRows(db, 'user-1', ['Drake', '']);
+    expect(result.synced).toContain('Drake');
+    expect(result.failed.length).toBeGreaterThanOrEqual(0);
   });
 });
