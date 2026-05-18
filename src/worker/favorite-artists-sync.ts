@@ -1,4 +1,4 @@
-import { mochaUserIdKey, parseD1LastRowId } from './mocha-user-id';
+import { mochaUserIdKey } from './mocha-user-id';
 
 export { mochaUserIdKey };
 
