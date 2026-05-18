@@ -46,6 +46,35 @@ export default function FavoriteArtistFeedPanel({
   const [draftFavoriteNames, setDraftFavoriteNames] = useState<string[]>([]);
   const [savingArtists, setSavingArtists] = useState(false);
   const [saveArtistsError, setSaveArtistsError] = useState<string | null>(null);
+  const [loadingSavedArtists, setLoadingSavedArtists] = useState(false);
+
+  const loadSavedFavoriteNames = useCallback(async () => {
+    if (!user) return;
+    setLoadingSavedArtists(true);
+    try {
+      const res = await apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { artists?: { name?: string | null }[] };
+      const names = [
+        ...new Set(
+          (data.artists ?? [])
+            .map((a) => (typeof a.name === 'string' ? a.name.trim() : ''))
+            .filter(Boolean),
+        ),
+      ];
+      setDraftFavoriteNames(names);
+    } catch {
+      /* keep current draft */
+    } finally {
+      setLoadingSavedArtists(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (showAddArtists && user) {
+      void loadSavedFavoriteNames();
+    }
+  }, [showAddArtists, user, loadSavedFavoriteNames]);
 
   const fetchSlice = useCallback(
     async (offset: number, append: boolean) => {
@@ -136,29 +165,25 @@ export default function FavoriteArtistFeedPanel({
     })();
   };
 
-  const saveNewFavoriteArtists = async () => {
-    if (draftFavoriteNames.length === 0) return;
+  const saveFavoriteArtists = async () => {
     setSavingArtists(true);
     setSaveArtistsError(null);
     try {
-      const res = await apiFetch('/api/users/favorite-artists/sync-by-name', {
+      const res = await apiFetch('/api/personalization/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ names: draftFavoriteNames }),
+        body: JSON.stringify({
+          favorite_artists: draftFavoriteNames,
+          personalization_enabled: true,
+        }),
       });
       const body = (await res.json().catch(() => ({}))) as {
         error?: string;
         detail?: string;
-        partial?: boolean;
-        failed?: string[];
       };
       if (!res.ok) {
         throw new Error(body.detail || body.error || 'Could not save artists');
       }
-      if (body.partial && body.failed?.length) {
-        setSaveArtistsError(`Some artists could not be linked: ${body.failed.join(', ')}`);
-      }
-      setDraftFavoriteNames([]);
       setShowAddArtists(false);
       await fetchSlice(0, false);
     } catch (e) {
@@ -204,20 +229,28 @@ export default function FavoriteArtistFeedPanel({
         {variant === 'feed' && showAddArtists ? (
           <div className="mb-8 rounded-xl border border-purple-500/30 bg-black/50 p-4 sm:p-5">
             <p className="text-gray-400 text-sm mb-4">
-              Search JamBase or type a name, then save. Artists are added to your favorites and appear in this
-              feed.
+              Search JamBase or type a name to add artists. Tap <span className="text-white/80">×</span> to
+              remove from your list, then save when you&apos;re done.
             </p>
-            <FavoriteArtistsJamBaseField
-              favoriteArtists={draftFavoriteNames}
-              setFavoriteArtists={setDraftFavoriteNames}
-              labelExtra={null}
-            />
+            {loadingSavedArtists ? (
+              <div className="flex items-center gap-2 text-gray-400 text-sm mb-4">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading your favorites…
+              </div>
+            ) : (
+              <FavoriteArtistsJamBaseField
+                favoriteArtists={draftFavoriteNames}
+                setFavoriteArtists={setDraftFavoriteNames}
+                labelExtra={null}
+                savedListLabel="Your favorites"
+              />
+            )}
             {saveArtistsError ? <p className="text-red-400 text-sm mt-3">{saveArtistsError}</p> : null}
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
-                disabled={savingArtists || draftFavoriteNames.length === 0}
-                onClick={() => void saveNewFavoriteArtists()}
+                disabled={savingArtists || loadingSavedArtists}
+                onClick={() => void saveFavoriteArtists()}
                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5 momentum-grad-interactive rounded-lg font-semibold text-white text-sm hover:scale-[1.02] transition-transform disabled:opacity-45 disabled:hover:scale-100"
               >
                 {savingArtists ? (

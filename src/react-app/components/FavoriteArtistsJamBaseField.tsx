@@ -1,46 +1,23 @@
 import { useState, useEffect, useCallback, type Dispatch, type ReactNode, type SetStateAction } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, X } from 'lucide-react';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
 import type { JamBaseArtist } from '@/shared/types';
-
-export const DEFAULT_POPULAR_ARTISTS = [
-  'Taylor Swift',
-  'The Weeknd',
-  'Drake',
-  'Billie Eilish',
-  'Bad Bunny',
-  'Ed Sheeran',
-  'Ariana Grande',
-  'Beyoncé',
-  'Post Malone',
-  'Olivia Rodrigo',
-  'Travis Scott',
-  'Dua Lipa',
-  'Harry Styles',
-  'SZA',
-  'Morgan Wallen',
-  'Luke Combs',
-  'Peso Pluma',
-  'Karol G',
-  'Future',
-  '21 Savage',
-] as const;
 
 type Props = {
   favoriteArtists: string[];
   setFavoriteArtists: Dispatch<SetStateAction<string[]>>;
   /** Extra line after “Favorite Artists” (e.g. hint text). */
   labelExtra?: ReactNode;
-  /** Optional override for quick-pick chips (defaults to {@link DEFAULT_POPULAR_ARTISTS}). */
-  popularArtists?: readonly string[];
+  /** Label above saved chips (hidden when list is empty). */
+  savedListLabel?: string;
 };
 
 export default function FavoriteArtistsJamBaseField({
   favoriteArtists,
   setFavoriteArtists,
   labelExtra,
-  popularArtists = DEFAULT_POPULAR_ARTISTS,
+  savedListLabel = 'Your favorites',
 }: Props) {
   const [artistSearch, setArtistSearch] = useState('');
   const debouncedSearch = useDebounce(artistSearch.trim(), 350);
@@ -83,11 +60,6 @@ export default function FavoriteArtistsJamBaseField({
       cancelled = true;
     };
   }, [debouncedSearch, searchArtists]);
-
-  const filteredPopular = popularArtists.filter(
-    (artist) =>
-      artist.toLowerCase().includes(artistSearch.toLowerCase()) && !favoriteArtists.includes(artist),
-  );
 
   const showJamBaseDropdown = artistSearch.trim().length >= 2;
 
@@ -164,32 +136,30 @@ export default function FavoriteArtistsJamBaseField({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {favoriteArtists.map((artist) => (
-          <button
-            key={artist}
-            type="button"
-            onClick={() => removeArtist(artist)}
-            className="px-4 py-2 momentum-grad-interactive rounded-full text-white text-sm font-medium hover:scale-105 transition-transform"
-          >
-            {artist} ×
-          </button>
-        ))}
-      </div>
+      {favoriteArtists.length > 0 ? (
+        <div className="mb-4">
+          <p className="text-gray-500 text-xs mb-2">{savedListLabel}</p>
+          <div className="flex flex-wrap gap-2">
+            {favoriteArtists.map((artist) => (
+              <span
+                key={artist}
+                className="inline-flex items-center gap-0.5 pl-3 pr-1 py-1.5 momentum-grad-interactive rounded-full text-white text-sm font-medium"
+              >
+                <span className="max-w-[12rem] truncate">{artist}</span>
+                <button
+                  type="button"
+                  onClick={() => removeArtist(artist)}
+                  className="p-1 rounded-full hover:bg-black/25 transition-colors"
+                  aria-label={`Remove ${artist} from favorites`}
+                >
+                  <X className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
-      <p className="text-gray-500 text-xs mb-2">Quick picks</p>
-      <div className="flex flex-wrap gap-2">
-        {filteredPopular.map((artist) => (
-          <button
-            key={artist}
-            type="button"
-            onClick={() => addArtistName(artist)}
-            className="px-4 py-2 bg-white/10 border border-white/20 rounded-full text-gray-300 text-sm font-medium hover:bg-white/20 transition-all"
-          >
-            {artist}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
