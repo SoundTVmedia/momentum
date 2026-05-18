@@ -246,7 +246,6 @@ body {
 }
 
 .video-card:hover {
-  transform: scale(1.02);
   box-shadow:
     0 0 28px rgba(2, 170, 176, 0.35),
     0 0 52px rgba(0, 205, 172, 0.2);

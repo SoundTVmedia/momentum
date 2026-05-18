@@ -84,7 +84,7 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
   };
 
   return (
-    <div className="relative group/carousel">
+    <div className={`relative group/carousel ${className}`}>
       <button
         type="button"
         onClick={() => scrollByStep('left')}
@@ -109,17 +109,17 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
         ref={setScrollRef}
         role="region"
         aria-label={ariaLabel}
-        className={`flex items-start gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x ${className}`}
+        className="flex items-start gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 md:px-10 md:touch-pan-x"
       >
         {children}
       </div>
 
       <div
-        className="hidden md:block pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-black/70 to-transparent opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+        className="hidden md:block pointer-events-none absolute inset-y-0 left-0 z-20 w-14 lg:w-20 bg-gradient-to-r from-black/80 via-black/40 to-transparent opacity-0 group-hover/carousel:opacity-100 transition-opacity"
         aria-hidden
       />
       <div
-        className="hidden md:block pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-black/70 to-transparent opacity-0 group-hover/carousel:opacity-100 transition-opacity"
+        className="hidden md:block pointer-events-none absolute inset-y-0 right-0 z-20 w-14 lg:w-20 bg-gradient-to-l from-black/80 via-black/40 to-transparent opacity-0 group-hover/carousel:opacity-100 transition-opacity"
         aria-hidden
       />
     </div>

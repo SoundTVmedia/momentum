@@ -81,7 +81,7 @@ export default function TrendingFilmstrip() {
                     />
 
                     {/* Gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none z-[1]" />
+                    <div className="pointer-events-none absolute -inset-px z-[1] rounded-lg bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
                     {/* Play hint: coarse / touch — hidden on fine-pointer desktop (video plays on hover) */}
                     <div className="absolute inset-0 z-[1] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:hidden">

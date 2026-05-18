@@ -207,7 +207,7 @@ export default function DashboardClipsGrid({
                 }}
                 className="absolute inset-0 z-10 cursor-pointer"
               >
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="pointer-events-none absolute -inset-px z-[1] rounded-xl bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 transition-opacity group-hover:opacity-100">
                   <div className="absolute bottom-0 left-0 right-0 p-4">
                     <h3 className="text-white font-bold text-sm mb-1 truncate">
                       {clip.artist_name || 'Unknown Artist'}

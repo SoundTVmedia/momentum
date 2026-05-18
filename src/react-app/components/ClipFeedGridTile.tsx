@@ -73,7 +73,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
   return (
     <div className="video-card bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 p-0 hover:border-purple-500/50 transition-all group flex flex-col">
       <div
-        className="relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square"
+        className="relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-t-2xl"
         onClick={() => onOpenClip(clip)}
         onMouseEnter={() => setMediaHovered(true)}
         onMouseLeave={() => setMediaHovered(false)}
@@ -88,10 +88,10 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           mediaHovered={mediaHovered}
         />
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent pointer-events-none" />
+        <div className="pointer-events-none absolute -inset-px z-[1] rounded-t-2xl bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <div className="pointer-events-none absolute -inset-px z-[1] rounded-t-2xl bg-gradient-to-b from-black/40 via-transparent to-transparent" />
 
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/video:opacity-100 transition-opacity bg-black/30 pointer-events-none [@media(hover:hover)_and_(pointer:fine)]:hidden">
+        <div className="pointer-events-none absolute -inset-px z-[2] flex items-center justify-center rounded-t-2xl bg-black/30 opacity-0 transition-opacity group-hover/video:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:hidden">
           <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-14 lg:h-14 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
             <div className="w-0 h-0 border-l-[18px] sm:border-l-[22px] md:border-l-[16px] border-l-white border-y-[12px] sm:border-y-[14px] md:border-y-[11px] border-y-transparent ml-0.5 sm:ml-1" />
           </div>
