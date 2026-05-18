@@ -23,6 +23,14 @@ function rowIdToNumber(id: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 }
 
+function artistNameSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, '-').trim();
+}
+
+function isSqliteUniqueError(msg: string): boolean {
+  return /unique constraint|UNIQUE constraint failed|SQLITE_CONSTRAINT_UNIQUE/i.test(msg);
+}
+
 /**
  * Exact stored name, then case-insensitive + trim match (SQLite UNIQUE on `name` is exact-only).
  */
@@ -48,61 +56,88 @@ async function findArtistIdByName(db: D1Database, name: string): Promise<number 
   return rowIdToNumber(fold?.id);
 }
 
+/** Match artist pages / slug URLs when spacing differs (e.g. "foo fighters" vs stored variant). */
+async function findArtistIdBySlug(db: D1Database, name: string): Promise<number | null> {
+  const key = normalizeArtistDisplayName(name);
+  const slug = artistNameSlug(key);
+  if (!slug) return null;
+
+  const row = (await db
+    .prepare(
+      `SELECT id FROM artists
+       WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ?
+       ORDER BY id ASC
+       LIMIT 1`,
+    )
+    .bind(slug)
+    .first()) as { id: unknown } | null;
+  return rowIdToNumber(row?.id);
+}
+
+async function resolveArtistIdAfterWrite(db: D1Database, name: string): Promise<number | null> {
+  return (await findArtistIdByName(db, name)) ?? (await findArtistIdBySlug(db, name));
+}
+
 export async function getOrCreateArtistIdByName(db: D1Database, displayName: string): Promise<number> {
   const name = normalizeArtistDisplayName(displayName);
   if (!name) {
     throw new Error('empty artist name');
   }
 
-  const existing = await findArtistIdByName(db, name);
+  const existing = await resolveArtistIdAfterWrite(db, name);
   if (existing != null) return existing;
 
+  // Idempotent — safe when RETURNING / last_row_id are flaky on D1
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO artists (name, created_at, updated_at)
+       VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    )
+    .bind(name)
+    .run();
+
+  let id = await resolveArtistIdAfterWrite(db, name);
+  if (id != null) return id;
+
   try {
-    const inserted = (await db
-      .prepare(
-        `INSERT INTO artists (name, created_at, updated_at)
-         VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-         RETURNING id`,
-      )
-      .bind(name)
-      .first()) as { id?: unknown } | null;
-
-    const fromReturning = rowIdToNumber(inserted?.id);
-    if (fromReturning != null) return fromReturning;
-
     const ins = await db
       .prepare(
-        'INSERT INTO artists (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        `INSERT INTO artists (name, created_at, updated_at)
+         VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       )
       .bind(name)
       .run();
 
     const insAny = ins as { success?: boolean; error?: string; meta?: { last_row_id?: unknown } };
     if (insAny.success === false) {
-      const afterFail = await findArtistIdByName(db, name);
-      if (afterFail != null) return afterFail;
+      const retry = await resolveArtistIdAfterWrite(db, name);
+      if (retry != null) return retry;
       throw new Error(
         `Artist insert failed (${JSON.stringify(name)}): ${insAny.error ?? 'D1 returned success: false'}`,
       );
     }
 
     const fromMeta = parseD1LastRowId(insAny.meta?.last_row_id);
-    if (fromMeta != null) return fromMeta;
+    if (fromMeta != null) {
+      const byId = (await db.prepare('SELECT id FROM artists WHERE id = ?').bind(fromMeta).first()) as {
+        id: unknown;
+      } | null;
+      const confirmed = rowIdToNumber(byId?.id);
+      if (confirmed != null) return confirmed;
+    }
 
-    const afterInsert = await findArtistIdByName(db, name);
-    if (afterInsert != null) return afterInsert;
+    id = await resolveArtistIdAfterWrite(db, name);
+    if (id != null) return id;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const isUniqueRace = /unique|constraint/i.test(msg);
-    const afterRace = await findArtistIdByName(db, name);
-    if (afterRace != null) return afterRace;
-    if (!isUniqueRace) {
-      throw new Error(`Artist insert failed (${JSON.stringify(name)}): ${msg}`);
+    const retry = await resolveArtistIdAfterWrite(db, name);
+    if (retry != null) return retry;
+    if (isSqliteUniqueError(msg)) {
+      const afterUnique = await resolveArtistIdAfterWrite(db, name);
+      if (afterUnique != null) return afterUnique;
     }
+    throw new Error(`Artist insert failed (${JSON.stringify(name)}): ${msg}`);
   }
-
-  const last = await findArtistIdByName(db, name);
-  if (last != null) return last;
 
   throw new Error(`Could not resolve artist id for ${JSON.stringify(name)}`);
 }

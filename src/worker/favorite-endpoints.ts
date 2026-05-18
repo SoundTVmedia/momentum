@@ -3,6 +3,7 @@ import {
   getOrCreateArtistIdByName,
   mergeCanonicalNamesForFavoriteBatch,
   mochaUserIdKey,
+  normalizeArtistDisplayName,
   replaceProfileFavoriteArtistsJsonFromTable,
   syncUserFavoriteArtistRows,
 } from './favorite-artists-sync';
@@ -280,7 +281,9 @@ export async function syncFavoriteArtistsByName(c: Context) {
     return c.json({ error: 'names (non-empty array of strings) is required' }, 400);
   }
 
-  const normalized = [...new Set(raw.map((n) => String(n ?? '').trim()).filter(Boolean))].slice(0, 25);
+  const normalized = [
+    ...new Set(raw.map((n) => normalizeArtistDisplayName(String(n ?? ''))).filter(Boolean)),
+  ].slice(0, 25);
 
   try {
     await syncUserFavoriteArtistRows(c.env.DB, uid, normalized);
