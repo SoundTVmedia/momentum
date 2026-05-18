@@ -179,31 +179,50 @@ export function clearEmailSessionCookie(c: Context) {
   });
 }
 
-/**
- * Try Mocha session cookie, then email session cookie. Sets `user` on context.
- */
-export const authMiddleware = createMiddleware<{ Bindings: Env }>(async (c, next) => {
+async function resolveUserFromRequest(c: Context): Promise<MochaUser | null> {
   const mochaToken = getCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME);
   if (typeof mochaToken === 'string' && mochaToken.length > 0) {
-    const user = await getCurrentUser(mochaToken, {
-      apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL,
-      apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-    });
-    if (user) {
-      c.set('user', user);
-      await next();
-      return;
+    try {
+      const user = await getCurrentUser(mochaToken, {
+        apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL,
+        apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
+      });
+      if (user) return user;
+    } catch {
+      /* stale or invalid Mocha session cookie */
     }
   }
 
   const emailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
   if (typeof emailToken === 'string' && emailToken.length > 0) {
     const account = await validateEmailSession(c.env.DB, emailToken);
-    if (account) {
-      c.set('user', emailAccountToMochaUser(account));
-      await next();
-      return;
-    }
+    if (account) return emailAccountToMochaUser(account);
+  }
+
+  return null;
+}
+
+/**
+ * Sets `user` when a valid session exists; always continues (no 401).
+ * Use for session probe routes so logged-out clients do not get console 401 noise.
+ */
+export const optionalAuthMiddleware = createMiddleware<{ Bindings: Env }>(async (c, next) => {
+  const user = await resolveUserFromRequest(c);
+  if (user) {
+    c.set('user', user);
+  }
+  await next();
+});
+
+/**
+ * Try Mocha session cookie, then email session cookie. Sets `user` on context.
+ */
+export const authMiddleware = createMiddleware<{ Bindings: Env }>(async (c, next) => {
+  const user = await resolveUserFromRequest(c);
+  if (user) {
+    c.set('user', user);
+    await next();
+    return;
   }
 
   return c.json({ error: 'Unauthorized' }, 401);

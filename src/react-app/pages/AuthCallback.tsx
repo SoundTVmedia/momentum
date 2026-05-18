@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Loader2 } from 'lucide-react';
+import { apiFetch } from '@/react-app/lib/apiFetch';
 
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
@@ -23,7 +24,7 @@ export default function AuthCallback() {
         await exchangeCodeForSessionToken();
         window.history.replaceState({}, document.title, '/auth/callback');
 
-        const response = await fetch('/api/users/me', { credentials: 'include' });
+        const response = await apiFetch('/api/users/me');
         if (!response.ok) {
           const msg = await readErrorMessage(
             response,
@@ -33,7 +34,11 @@ export default function AuthCallback() {
           return;
         }
 
-        const userData = await response.json();
+        const userData = (await response.json()) as { profile?: unknown } | null;
+        if (!userData) {
+          setError('Signed in but could not load your account. Try again.');
+          return;
+        }
 
         if (userData.profile) {
           navigate('/', { replace: true });

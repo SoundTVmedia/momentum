@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
+import { apiFetch } from '@/react-app/lib/apiFetch';
 import { Loader2, Music, Sparkles, Users, Award, Mail, Lock, UserCircle } from 'lucide-react';
 
 const DEVICE_TOKEN_COOKIE = 'momentum_device_token';
+
+function clearDeviceTokenCookie() {
+  const local = isLocalBrowserHostname();
+  const secureAttr = local ? '' : 'secure; ';
+  const sameSite = local ? 'lax' : 'strict';
+  document.cookie = `${DEVICE_TOKEN_COOKIE}=; path=/; max-age=0; ${secureAttr}samesite=${sameSite}`;
+}
 
 /** Match worker `isLocalDevHost` for optional device cookies (localhost + LAN / Docker over http). */
 function isLocalBrowserHostname(): boolean {
@@ -67,22 +75,27 @@ export default function Auth() {
       if (deviceToken && !user) {
         try {
           setLoading(true);
-          const response = await fetch('/api/auth/verify-device-token', {
+          const response = await apiFetch('/api/auth/verify-device-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ deviceToken }),
-            credentials: 'include',
           });
 
           if (response.ok) {
+            const payload = (await response.json()) as { valid?: boolean; profile?: unknown };
+            if (payload.valid === false) {
+              clearDeviceTokenCookie();
+              return;
+            }
             try {
               await fetchUser();
             } catch {
-              // ignore; navigation below still attempts /api/users/me via page loads
+              /* ignore */
             }
-            const userData = await fetch('/api/users/me', { credentials: 'include' });
+            const userData = await apiFetch('/api/users/me');
             if (userData.ok) {
-              const data = await userData.json();
+              const data = (await userData.json()) as { profile?: unknown } | null;
+              if (!data) return;
               if (data.profile) {
                 navigate('/');
               } else {
@@ -147,8 +160,10 @@ export default function Auth() {
       }
     }
 
-    const userData = await fetch('/api/users/me', { credentials: 'include' });
-    const data = await userData.json();
+    const userData = await apiFetch('/api/users/me');
+    if (!userData.ok) return;
+    const data = (await userData.json()) as { profile?: unknown } | null;
+    if (!data) return;
 
     if (data.profile) {
       navigate('/');

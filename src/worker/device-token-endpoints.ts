@@ -68,7 +68,7 @@ export async function verifyDeviceToken(c: Context) {
       .first();
 
     if (!token) {
-      return c.json({ error: 'Invalid or expired device token' }, 401);
+      return c.json({ valid: false, error: 'Invalid or expired device token' }, 200);
     }
 
     // Update last_used_at

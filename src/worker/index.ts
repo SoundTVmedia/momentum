@@ -7,6 +7,7 @@ import {
 } from "@getmocha/users-service/backend";
 import {
   authMiddleware,
+  optionalAuthMiddleware,
   EMAIL_SESSION_COOKIE_NAME,
   clearEmailSessionCookie,
   revokeEmailSession,
@@ -182,15 +183,15 @@ app.post("/api/sessions", async (c) => {
   return c.json({ success: true }, 200);
 });
 
-// Get current user
-app.get("/api/users/me", authMiddleware, async (c) => {
+// Get current user (200 when logged out — AuthProvider probes this on every page load)
+app.get("/api/users/me", optionalAuthMiddleware, async (c) => {
   const mochaUser = c.get("user");
-  
+
   if (!mochaUser) {
-    return c.json({ error: "Unauthorized" }, 401);
+    /** JSON `null` — AuthProvider treats as logged out (object payloads would be truthy in JS). */
+    return c.json(null, 200);
   }
-  
-  // Fetch user profile from database
+
   const profile = await c.env.DB.prepare(
     "SELECT * FROM user_profiles WHERE mocha_user_id = ?"
   )
@@ -199,6 +200,7 @@ app.get("/api/users/me", authMiddleware, async (c) => {
 
   return c.json({
     ...mochaUser,
+    authenticated: true,
     profile: profile || null,
   });
 });
