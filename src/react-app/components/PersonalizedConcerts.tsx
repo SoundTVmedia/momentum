@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Calendar, MapPin, Music, ExternalLink, Loader2, Heart } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
+import HorizontalClipCarousel, {
+  HorizontalClipCarouselItem,
+} from '@/react-app/components/HorizontalClipCarousel';
+import { artistPath } from '@/shared/app-paths';
 
 interface D1Concert {
   id: number;
@@ -21,6 +26,69 @@ type ConcertsApi = {
   source?: 'jambase' | 'd1';
   message?: string;
 };
+
+function D1ConcertCard({ concert }: { concert: D1Concert }) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all h-full flex flex-col">
+      {concert.artist_image ? (
+        <div className="relative h-40 overflow-hidden shrink-0">
+          <img
+            src={concert.artist_image}
+            alt={concert.artist_name}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+        </div>
+      ) : null}
+
+      <div className="p-4 space-y-3 flex flex-col flex-1">
+        <button
+          type="button"
+          onClick={() => navigate(artistPath(concert.artist_name))}
+          className="text-lg font-bold text-white truncate text-left hover:text-cyan-300 transition-colors"
+        >
+          {concert.artist_name}
+        </button>
+
+        <div className="space-y-2 text-sm flex-1">
+          <div className="flex items-start space-x-2 text-gray-300">
+            <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate">{concert.venue_name}</div>
+              <div className="text-xs text-gray-400 truncate">{concert.venue_location}</div>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 text-gray-300">
+            <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
+            <span>
+              {new Date(concert.date).toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </span>
+          </div>
+        </div>
+
+        {concert.ticket_url ? (
+          <a
+            href={concert.ticket_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center space-x-2 w-full px-4 py-2 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] transition-transform mt-auto"
+          >
+            <span>Get Tickets</span>
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export default function PersonalizedConcerts() {
   const [payload, setPayload] = useState<ConcertsApi | null>(null);
@@ -50,6 +118,8 @@ export default function PersonalizedConcerts() {
 
     void fetchConcerts();
   }, []);
+
+  const carouselBleed = '-mx-4 px-4 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2';
 
   if (loading) {
     return (
@@ -103,65 +173,24 @@ export default function PersonalizedConcerts() {
       </div>
 
       {jbEvents.length > 0 ? (
-        <JamBaseEventGrid preloadedEvents={jbEvents} maxEvents={12} />
+        <JamBaseEventGrid
+          preloadedEvents={jbEvents}
+          maxEvents={12}
+          layout="carousel"
+          carouselAriaLabel="Upcoming shows from your favorite artists"
+          carouselClassName={carouselBleed}
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <HorizontalClipCarousel
+          ariaLabel="Upcoming concerts from your favorite artists"
+          className={carouselBleed}
+        >
           {d1Concerts.map((concert) => (
-            <div
-              key={concert.id}
-              className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all hover:scale-105"
-            >
-              {concert.artist_image && (
-                <div className="relative h-40 overflow-hidden">
-                  <img
-                    src={concert.artist_image}
-                    alt={concert.artist_name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                </div>
-              )}
-
-              <div className="p-4 space-y-3">
-                <h3 className="text-lg font-bold text-white truncate">{concert.artist_name}</h3>
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-start space-x-2 text-gray-300">
-                    <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <div className="font-medium">{concert.venue_name}</div>
-                      <div className="text-xs text-gray-400">{concert.venue_location}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 text-gray-300">
-                    <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                    <span>
-                      {new Date(concert.date).toLocaleDateString('en-US', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                </div>
-
-                {concert.ticket_url && (
-                  <a
-                    href={concert.ticket_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center space-x-2 w-full px-4 py-2 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
-                  >
-                    <span>Get Tickets</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                )}
-              </div>
-            </div>
+            <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96">
+              <D1ConcertCard concert={concert} />
+            </HorizontalClipCarouselItem>
           ))}
-        </div>
+        </HorizontalClipCarousel>
       )}
 
       {jbEvents.length >= 12 && (

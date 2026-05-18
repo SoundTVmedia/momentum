@@ -74,7 +74,7 @@ export default function MobileBottomNav() {
   };
 
   const navItems = [
-    { icon: Home, label: 'Home', path: '/', onClick: () => navigate('/') },
+    { icon: Home, label: 'The Feed', path: '/', onClick: () => navigate('/') },
     { icon: Search, label: 'Discover', path: '/discover', onClick: () => navigate('/discover') },
     { icon: Video, label: 'Capture Moment', path: '/capture', onClick: handleCaptureClick, special: true },
     { icon: Bell, label: 'Alerts', path: '/notifications', onClick: () => user ? navigate('/notifications') : navigate('/auth'), badge: unreadCount },

@@ -95,6 +95,14 @@ export default function ConcertFeed({
                   </span>{' '}
                   Moments
                 </>
+              ) : feedType === 'most_liked' ? (
+                <>
+                  Most{' '}
+                  <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+                    Loved
+                  </span>{' '}
+                  Moments
+                </>
               ) : (
                 <>
                   Live From{' '}
@@ -109,7 +117,9 @@ export default function ConcertFeed({
                 ? "Fire moments the community can't stop watching"
                 : feedType === 'top_rated'
                   ? 'The highest rated concert moments'
-                  : "Fresh drops from tonight's shows"}
+                  : feedType === 'most_liked'
+                    ? 'Clips the community hearts the most'
+                    : "Fresh drops from tonight's shows"}
             </p>
           </div>
         )}
@@ -121,6 +131,7 @@ export default function ConcertFeed({
           />
         ) : loading && clips.length === 0 ? (
           <HorizontalClipCarousel
+            key={`${feedType}-loading`}
             ariaLabel={feedCarouselLabel(feedType, artistName)}
             className="-mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-1 md:pb-2"
           >
@@ -133,6 +144,7 @@ export default function ConcertFeed({
         ) : clips.length > 0 ? (
           <>
             <HorizontalClipCarousel
+              key={feedType}
               ref={carouselScrollRef}
               ariaLabel={feedCarouselLabel(feedType, artistName)}
               className="-mx-3 px-3 sm:-mx-4 sm:px-4 md:mx-0 md:px-0 md:pt-1 md:pb-2"

@@ -2,9 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { Calendar, MapPin, Ticket, Clock, Loader2, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { artistPath, venuePath } from '@/shared/app-paths';
+import HorizontalClipCarousel, {
+  HorizontalClipCarouselItem,
+} from '@/react-app/components/HorizontalClipCarousel';
 
 export interface JamBaseEventGridProps {
   maxEvents?: number;
+  /** `carousel` = one-row horizontal scroll (mobile snap, desktop chevrons). */
+  layout?: 'grid' | 'carousel';
+  carouselAriaLabel?: string;
+  carouselClassName?: string;
   /** Browse by city (resolved via JamBase geographies) */
   city?: string;
   country?: string;
@@ -83,8 +90,114 @@ function headlinerGenre(ev: Record<string, unknown>): string {
   return 'Concert';
 }
 
+function formatEventDate(iso?: string) {
+  if (!iso) return 'TBA';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatEventTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function JamBaseEventCard({
+  event,
+  onArtist,
+  onVenue,
+}: {
+  event: Record<string, unknown>;
+  onArtist: (name: string) => void;
+  onVenue: (name: string) => void;
+}) {
+  const title = typeof event.name === 'string' ? event.name : 'Show';
+  const start = typeof event.startDate === 'string' ? event.startDate : '';
+  const image =
+    typeof event.image === 'string' && event.image.length > 0
+      ? event.image
+      : 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop';
+  const ticket = primaryTicketUrl(event);
+  const head = headlinerName(event);
+  const vn = venueLabel(event);
+  const vLine = venueCityLine(event);
+
+  return (
+    <div className="group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 hover:scale-[1.02] transition-all duration-300 h-full flex flex-col">
+      <div className="relative shrink-0">
+        <img
+          src={image}
+          alt={title}
+          className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute top-3 left-3">
+          <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
+            {headlinerGenre(event)}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-5 flex flex-col flex-1">
+        <h3 className="font-bold text-lg text-white mb-2 group-hover:text-amber-300 transition-colors line-clamp-2">
+          {title}
+        </h3>
+
+        <div className="space-y-2 mb-4 text-sm flex-1">
+          {head ? (
+            <button
+              type="button"
+              onClick={() => onArtist(head)}
+              className="flex items-center space-x-2 text-purple-300 hover:text-purple-200 text-left w-full"
+            >
+              <span className="truncate">{head}</span>
+            </button>
+          ) : null}
+          <div className="flex items-center space-x-2 text-gray-300">
+            <MapPin className="w-4 h-4 flex-shrink-0" />
+            <button
+              type="button"
+              onClick={() => onVenue(vn)}
+              className="truncate text-left hover:text-cyan-300 transition-colors"
+            >
+              {vn}
+            </button>
+          </div>
+          {vLine ? <div className="text-xs text-gray-400 pl-6 truncate">{vLine}</div> : null}
+          <div className="flex items-center space-x-2 text-gray-300">
+            <Calendar className="w-4 h-4 flex-shrink-0" />
+            <span>{formatEventDate(start)}</span>
+          </div>
+          {start ? (
+            <div className="flex items-center space-x-2 text-gray-300">
+              <Clock className="w-4 h-4 flex-shrink-0" />
+              <span>{formatEventTime(start)}</span>
+            </div>
+          ) : null}
+        </div>
+
+        {ticket ? (
+          <a
+            href={ticket}
+            target="_blank"
+            rel="nofollow noopener noreferrer"
+            className="flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-medium hover:scale-[1.02] transition-transform shadow-lg shadow-amber-900/30 mt-auto"
+          >
+            <Ticket className="w-4 h-4" />
+            <span>Tickets</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function JamBaseEventGrid({
   maxEvents = 20,
+  layout = 'grid',
+  carouselAriaLabel = 'Upcoming concerts',
+  carouselClassName = '',
   city,
   country = 'US',
   geoMetroId,
@@ -160,19 +273,40 @@ export default function JamBaseEventGrid({
     void load();
   }, [preloadedEvents, maxEvents, load]);
 
-  const formatDate = (iso?: string) => {
-    if (!iso) return 'TBA';
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+  const eventId = (event: Record<string, unknown>) =>
+    typeof event.identifier === 'string' ? event.identifier : String(event.startDate);
 
-  const formatTime = (iso?: string) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  };
+  const renderEvent = (event: Record<string, unknown>) => (
+    <JamBaseEventCard
+      event={event}
+      onArtist={(name) => navigate(artistPath(name))}
+      onVenue={(name) => navigate(venuePath(name))}
+    />
+  );
+
+  const eventSkeleton = (
+    <div className="rounded-xl border border-amber-500/25 overflow-hidden animate-pulse bg-white/5 h-full min-h-[320px]">
+      <div className="h-48 bg-white/10" />
+      <div className="p-5 space-y-3">
+        <div className="h-5 bg-white/10 rounded w-3/4" />
+        <div className="h-4 bg-white/10 rounded w-1/2" />
+        <div className="h-4 bg-white/10 rounded w-2/3" />
+      </div>
+    </div>
+  );
 
   if (loading && events.length === 0) {
+    if (layout === 'carousel') {
+      return (
+        <HorizontalClipCarousel ariaLabel={carouselAriaLabel} className={carouselClassName}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <HorizontalClipCarouselItem key={`sk-${i}`} className="md:w-80 lg:w-96">
+              {eventSkeleton}
+            </HorizontalClipCarouselItem>
+          ))}
+        </HorizontalClipCarousel>
+      );
+    }
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
@@ -217,97 +351,21 @@ export default function JamBaseEventGrid({
 
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {display.map((event) => {
-          const id =
-            typeof event.identifier === 'string' ? event.identifier : String(event.startDate);
-          const title = typeof event.name === 'string' ? event.name : 'Show';
-          const start = typeof event.startDate === 'string' ? event.startDate : '';
-          const image =
-            typeof event.image === 'string' && event.image.length > 0
-              ? event.image
-              : 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop';
-          const ticket = primaryTicketUrl(event);
-          const head = headlinerName(event);
-          const vn = venueLabel(event);
-          const vLine = venueCityLine(event);
-
-          return (
-            <div
-              key={id}
-              className="group bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 hover:scale-[1.02] transition-all duration-300"
-            >
-              <div className="relative">
-                <img
-                  src={image}
-                  alt={title}
-                  className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                <div className="absolute top-3 left-3">
-                  <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
-                    {headlinerGenre(event)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-5">
-                <h3 className="font-bold text-lg text-white mb-2 group-hover:text-amber-300 transition-colors line-clamp-2">
-                  {title}
-                </h3>
-
-                <div className="space-y-2 mb-4 text-sm">
-                  {head && (
-                    <button
-                      type="button"
-                      onClick={() => navigate(artistPath(head))}
-                      className="flex items-center space-x-2 text-purple-300 hover:text-purple-200 text-left w-full"
-                    >
-                      <span className="truncate">{head}</span>
-                    </button>
-                  )}
-                  <div className="flex items-center space-x-2 text-gray-300">
-                    <MapPin className="w-4 h-4 flex-shrink-0" />
-                    <button
-                      type="button"
-                      onClick={() => navigate(venuePath(vn))}
-                      className="truncate text-left hover:text-cyan-300 transition-colors"
-                    >
-                      {vn}
-                    </button>
-                  </div>
-                  {vLine ? <div className="text-xs text-gray-400 pl-6 truncate">{vLine}</div> : null}
-                  <div className="flex items-center space-x-2 text-gray-300">
-                    <Calendar className="w-4 h-4 flex-shrink-0" />
-                    <span>{formatDate(start)}</span>
-                  </div>
-                  {start ? (
-                    <div className="flex items-center space-x-2 text-gray-300">
-                      <Clock className="w-4 h-4 flex-shrink-0" />
-                      <span>{formatTime(start)}</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  {ticket ? (
-                    <a
-                      href={ticket}
-                      target="_blank"
-                      rel="nofollow noopener noreferrer"
-                      className="flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-medium hover:scale-[1.02] transition-transform shadow-lg shadow-amber-900/30"
-                    >
-                      <Ticket className="w-4 h-4" />
-                      <span>Tickets</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {layout === 'carousel' ? (
+        <HorizontalClipCarousel ariaLabel={carouselAriaLabel} className={carouselClassName}>
+          {display.map((event) => (
+            <HorizontalClipCarouselItem key={eventId(event)} className="md:w-80 lg:w-96">
+              {renderEvent(event)}
+            </HorizontalClipCarouselItem>
+          ))}
+        </HorizontalClipCarousel>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {display.map((event) => (
+            <div key={eventId(event)}>{renderEvent(event)}</div>
+          ))}
+        </div>
+      )}
       <p className="mt-6 text-center text-xs text-gray-500">
         <a
           href="https://www.jambase.com"

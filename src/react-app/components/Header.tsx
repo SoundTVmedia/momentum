@@ -195,7 +195,7 @@ export default function Header() {
               onClick={() => navigate('/')}
               className="flex items-center space-x-2 text-white hover:text-blue-400 transition-colors font-medium"
             >
-              Home
+              The Feed
             </button>
             <button
               type="button"
@@ -203,7 +203,7 @@ export default function Header() {
               className="flex items-center space-x-2 text-white hover:text-purple-400 transition-colors font-medium"
             >
                {/*<Search className="w-4 h-4" aria-hidden />*/}
-              Discover Shows
+              Discover
             </button>
             {/*{user && (
               <button

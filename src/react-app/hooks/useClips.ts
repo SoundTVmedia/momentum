@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ClipWithUser } from '@/shared/types'
 import { apiFetch } from '@/react-app/lib/apiFetch'
 
@@ -30,12 +30,23 @@ export function useClips(options: UseClipsOptions = {}) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const fetchGenerationRef = useRef(0)
+  const loadingMoreRef = useRef(false)
+
   const fetchClips = useCallback(
     async (pageNum: number, append: boolean = false) => {
-      if (loading) return
+      const generation = ++fetchGenerationRef.current
+
+      if (append) {
+        if (loadingMoreRef.current) return
+        loadingMoreRef.current = true
+      } else {
+        setClips([])
+        setHasMore(true)
+        setError(null)
+      }
 
       setLoading(true)
-      setError(null)
 
       try {
         const params = new URLSearchParams({
@@ -55,45 +66,61 @@ export function useClips(options: UseClipsOptions = {}) {
             'Cache-Control': 'no-cache',
           },
         })
-        
+
+        if (generation !== fetchGenerationRef.current) return
+
         if (!response.ok) {
           throw new Error('Failed to fetch clips')
         }
 
-        const data = await response.json()
+        const data = (await response.json()) as {
+          clips?: ClipWithUser[]
+          hasMore?: boolean
+        }
+
+        if (generation !== fetchGenerationRef.current) return
 
         if (append) {
-          // Use functional update to prevent duplicates
           setClips((prev) => {
-            const existingIds = new Set(prev.map(c => c.id))
-            const newClips = (data.clips || []).filter((c: any) => !existingIds.has(c.id))
+            const existingIds = new Set(prev.map((c) => c.id))
+            const newClips = (data.clips ?? []).filter((c) => !existingIds.has(c.id))
             return [...prev, ...newClips]
           })
         } else {
-          setClips(data.clips || [])
+          setClips(data.clips ?? [])
         }
 
-        setHasMore(data.hasMore || false)
+        setHasMore(Boolean(data.hasMore))
       } catch (err) {
+        if (generation !== fetchGenerationRef.current) return
         setError(err instanceof Error ? err.message : 'Unknown error')
         console.error('Failed to fetch clips:', err)
+        if (!append) {
+          setClips([])
+          setHasMore(false)
+        }
       } finally {
-        setLoading(false)
+        if (generation === fetchGenerationRef.current) {
+          setLoading(false)
+        }
+        if (append) {
+          loadingMoreRef.current = false
+        }
       }
     },
-    [feedType, artistName, venueName, userId, mine, limit, loading]
+    [feedType, artistName, venueName, userId, mine, limit],
   )
 
   const loadMore = useCallback(() => {
-    if (!hasMore || loading) return
+    if (!hasMore || loading || loadingMoreRef.current) return
     const nextPage = page + 1
     setPage(nextPage)
-    fetchClips(nextPage, true)
+    void fetchClips(nextPage, true)
   }, [page, hasMore, loading, fetchClips])
 
   const refresh = useCallback(() => {
     setPage(1)
-    fetchClips(1, false)
+    void fetchClips(1, false)
   }, [fetchClips])
 
   const removeClip = useCallback((clipId: number) => {
@@ -101,7 +128,7 @@ export function useClips(options: UseClipsOptions = {}) {
       prev.filter((c) => {
         const id = typeof c.id === 'number' ? c.id : Number(c.id)
         return !Number.isFinite(id) || id !== clipId
-      })
+      }),
     )
   }, [])
 
@@ -116,19 +143,17 @@ export function useClips(options: UseClipsOptions = {}) {
       prev.map((c) => {
         const id = typeof c.id === 'number' ? c.id : Number(c.id)
         return Number.isFinite(id) && id === uid ? ({ ...c, ...updated } as ClipWithUser) : c
-      })
+      }),
     )
   }, [])
 
-  // Initial load
   useEffect(() => {
     setPage(1)
-    fetchClips(1, false)
-  }, [feedType, artistName, venueName, userId, mine, limit])
+    void fetchClips(1, false)
+  }, [feedType, artistName, venueName, userId, mine, limit, fetchClips])
 
-  // Polling for new clips
   useEffect(() => {
-    if (!enablePolling || clips.length === 0) return
+    if (!enablePolling || feedType !== 'latest' || clips.length === 0) return
 
     const interval = setInterval(async () => {
       try {
@@ -146,18 +171,22 @@ export function useClips(options: UseClipsOptions = {}) {
         const response = await apiFetch(listPath, {
           cache: 'no-store',
         })
-        
+
         if (!response.ok) return
 
-        const data = await response.json()
+        const data = (await response.json()) as { clips?: ClipWithUser[] }
 
         if (data.clips && data.clips.length > 0) {
-          setClips((prev) => [...data.clips, ...prev])
+          setClips((prev) => {
+            const existingIds = new Set(prev.map((c) => c.id))
+            const fresh = data.clips!.filter((c) => !existingIds.has(c.id))
+            return fresh.length > 0 ? [...fresh, ...prev] : prev
+          })
         }
       } catch (err) {
         console.error('Failed to poll for new clips:', err)
       }
-    }, 15000) // Poll every 15 seconds
+    }, 15000)
 
     return () => clearInterval(interval)
   }, [enablePolling, feedType, artistName, venueName, userId, mine, clips, limit])
@@ -169,7 +198,7 @@ export function useClips(options: UseClipsOptions = {}) {
     hasMore,
     loadMore,
     refresh,
-    refetch: refresh, // Alias for clarity in error handling
+    refetch: refresh,
     removeClip,
     removeClipBy,
     updateClip,
