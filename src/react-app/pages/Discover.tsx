@@ -11,7 +11,7 @@ import DiscoverSectionTitle from '@/react-app/components/DiscoverSectionTitle';
 import DiscoverArtistCarousel, {
   type DiscoverArtist,
 } from '@/react-app/components/DiscoverArtistCarousel';
-import { artistPath, venuePath } from '@/shared/app-paths';
+import { venuePath } from '@/shared/app-paths';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 
