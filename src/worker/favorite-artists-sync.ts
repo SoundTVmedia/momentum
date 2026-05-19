@@ -281,7 +281,7 @@ export async function syncUserFavoriteArtistRows(
 
 /**
  * Overwrite `user_profiles.favorite_artists` JSON with canonical `artists.name` values
- * for every `user_favorite_artists` row (same source as “From artists you follow”).
+ * for every `user_favorite_artists` row (same source as “Your Artists” on the home feed).
  */
 export async function replaceProfileFavoriteArtistsJsonFromTable(db: D1Database, uid: string): Promise<void> {
   const res = await db

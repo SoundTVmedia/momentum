@@ -35,13 +35,12 @@ export function FeedSectionHeader({
 }: {
   feedType?: FeedFilterValue
 }) {
-  const { label, icon: Icon, iconClassName, description } = getFeedFilterMeta(feedType)
+  const { label, description } = getFeedFilterMeta(feedType)
 
   return (
     <div>
-      <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-        <Icon className={`w-6 h-6 shrink-0 ${iconClassName}`} aria-hidden />
-        <span>{label}</span>
+      <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+        {label}
       </h2>
       <p className="text-gray-400 text-sm mt-1">{description}</p>
     </div>

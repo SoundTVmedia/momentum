@@ -346,7 +346,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
               <h3 className="text-lg font-semibold text-white">Home feed personalization</h3>
             </div>
             <p className="text-sm text-gray-400">
-              Power “From artists you follow,” picks near you, and Discover prompts — search JamBase and save from here or from your homepage favorites strip (both sync together).
+              Power “Your Artists,” picks near you, and Discover prompts — search JamBase and save from here or from your homepage favorites strip (both sync together).
             </p>
 
             <FavoriteArtistsJamBaseField

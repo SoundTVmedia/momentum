@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Calendar, Loader2, MapPin, Plus, Save, Star, Ticket, Video, X } from 'lucide-react';
+import { Calendar, Loader2, MapPin, Plus, Save, Ticket, X } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
@@ -31,8 +31,6 @@ export type FavoriteArtistFeedPanelProps = {
   variant: 'feed' | 'discover';
   /** When true, scroll this block into view after data loads (e.g. `?from_favorites=1` on Discover). */
   scrollIntoViewOnMount?: boolean;
-  /** Feed variant: show link to Discover for more clips (default true). Set false when already on Discover. */
-  showExploreMore?: boolean;
   /** No card border; carousel bleeds to screen edge on mobile. */
   edgeBleed?: boolean;
   edgeBleedScope?: 'home' | 'page';
@@ -41,7 +39,6 @@ export type FavoriteArtistFeedPanelProps = {
 export default function FavoriteArtistFeedPanel({
   variant,
   scrollIntoViewOnMount = false,
-  showExploreMore = true,
   edgeBleed = false,
   edgeBleedScope = 'page',
 }: FavoriteArtistFeedPanelProps) {
@@ -228,6 +225,17 @@ export default function FavoriteArtistFeedPanel({
     }
   };
 
+  const toggleAddArtists = () => {
+    setShowAddArtists((open) => {
+      const next = !open;
+      if (next) {
+        setSaveArtistsError(null);
+        void loadSavedFavoriteNames();
+      }
+      return next;
+    });
+  };
+
   if (!user || isPending) return null;
   // Discover: avoid showing a loading shell that then vanishes when the user has no favorite artists.
   if (variant === 'discover' && (loading || !hasFavoriteArtists)) return null;
@@ -244,29 +252,35 @@ export default function FavoriteArtistFeedPanel({
         }
       >
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 md:mb-5">
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <Star className="w-6 h-6 text-purple-400 shrink-0" />
-            <h2 className="text-xl sm:text-2xl font-bold text-white">From artists you follow</h2>
-          </div>
+          <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent min-w-0">
+            Your Artists
+          </h2>
           {variant === 'feed' ? (
             <button
               type="button"
-              onClick={() => {
-                setShowAddArtists((open) => {
-                  const next = !open;
-                  if (next) {
-                    setSaveArtistsError(null);
-                    void loadSavedFavoriteNames();
-                  }
-                  return next;
-                });
-              }}
-              className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full border border-purple-500/50 bg-purple-500/15 text-purple-200 hover:bg-purple-500/25 hover:border-purple-400/60 transition-colors"
-              title={showAddArtists ? 'Close manage artists' : 'Manage favorite artists'}
+              onClick={toggleAddArtists}
+              className="shrink-0 inline-flex items-center gap-2 rounded-full border border-purple-500/50 bg-purple-500/15 px-3 py-2 text-purple-200 hover:bg-purple-500/25 hover:border-purple-400/60 transition-colors"
+              title={showAddArtists ? 'Close manage artists' : 'Add favorite artists'}
               aria-expanded={showAddArtists}
-              aria-label={showAddArtists ? 'Close manage artists' : 'Manage favorite artists'}
+              aria-label={
+                showAddArtists ? 'Close manage artists' : 'Click to add favorite artists'
+              }
             >
-              {showAddArtists ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+              {showAddArtists ? (
+                <>
+                  <span className="text-xs sm:text-sm font-medium text-purple-100/90">
+                    Close
+                  </span>
+                  <X className="w-5 h-5 shrink-0" aria-hidden />
+                </>
+              ) : (
+                <>
+                  <span className="text-xs sm:text-sm font-medium text-purple-100/90 whitespace-nowrap">
+                    Click to Add Artists
+                  </span>
+                  <Plus className="w-5 h-5 shrink-0" aria-hidden />
+                </>
+              )}
             </button>
           ) : null}
         </div>
@@ -394,19 +408,15 @@ export default function FavoriteArtistFeedPanel({
             )}
 
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3 flex items-center gap-2">
-                <Video className="w-4 h-4 text-cyan-400" />
-                Clips from your favorites
-              </h3>
               {clips.length === 0 ? (
                 <p className="text-gray-400 text-sm py-4">
                   {hasFavoriteArtists
                     ? 'No clips yet from these artists — check back after the next show.'
-                    : 'Tap + to add favorite artists and see their clips and tour picks here.'}
+                    : 'Add favorite artists to see their clips and tour picks here.'}
                 </p>
               ) : (
                 <HorizontalClipCarousel
-                  ariaLabel="Clips from artists you follow"
+                  ariaLabel="Clips from your artists"
                   className={
                     edgeBleed
                       ? edgeBleedScope === 'home'
@@ -422,18 +432,6 @@ export default function FavoriteArtistFeedPanel({
                   ))}
                 </HorizontalClipCarousel>
               )}
-
-              {variant === 'feed' && showExploreMore && !loading && hasFavoriteArtists ? (
-                <div className="mt-6 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/discover?from_favorites=1')}
-                    className="px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white text-sm hover:scale-[1.02] transition-transform"
-                  >
-                    Explore more clips
-                  </button>
-                </div>
-              ) : null}
 
               {variant === 'discover' && hasMoreClips ? (
                 <div className="mt-6 flex justify-center">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Music, Filter, Users, Video, X, Ticket, Flame } from 'lucide-react';
+import { Search, MapPin, Music, Filter, Users, Video, X, Ticket } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
@@ -395,8 +395,6 @@ export default function DiscoverPage() {
             {discoverFeed.clips.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle
-                  icon={Flame}
-                  iconClassName="text-orange-400"
                   title="Trending Clips"
                   subtitle="What the community is watching this week"
                 />
@@ -411,8 +409,6 @@ export default function DiscoverPage() {
             {discoverFeed.artists.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle
-                  icon={Music}
-                  iconClassName="text-purple-400"
                   title="Trending Artists"
                   subtitle="Artists with the most new clips — photos from JamBase when available"
                 />
@@ -423,8 +419,6 @@ export default function DiscoverPage() {
             {discoverFeed.nearbyEvents.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle
-                  icon={MapPin}
-                  iconClassName="text-cyan-400"
                   title="Upcoming Shows at Venues Near You"
                   subtitle={nearbyShowsSubtitle(discoverFeed)}
                 />
