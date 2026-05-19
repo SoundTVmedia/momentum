@@ -15,6 +15,7 @@ import {
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout'
+import { getFeedFilterMeta, type FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
 
 interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
@@ -32,51 +33,17 @@ interface ConcertFeedProps {
 export function FeedSectionHeader({
   feedType = 'latest',
 }: {
-  feedType?: ConcertFeedProps['feedType']
+  feedType?: FeedFilterValue
 }) {
+  const { label, icon: Icon, iconClassName, description } = getFeedFilterMeta(feedType)
+
   return (
-    <div className="text-center mb-0">
-      <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white mb-2 sm:mb-3">
-        {feedType === 'trending' ? (
-          <>
-            What&apos;s{' '}
-            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-              Hot Right Now
-            </span>
-          </>
-        ) : feedType === 'top_rated' ? (
-          <>
-            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-              Top Rated
-            </span>{' '}
-            Moments
-          </>
-        ) : feedType === 'most_liked' ? (
-          <>
-            Most{' '}
-            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-              Loved
-            </span>{' '}
-            Moments
-          </>
-        ) : (
-          <>
-            Live From{' '}
-            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-              The Scene
-            </span>
-          </>
-        )}
+    <div>
+      <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+        <Icon className={`w-6 h-6 shrink-0 ${iconClassName}`} aria-hidden />
+        <span>{label}</span>
       </h2>
-      <p className="text-sm sm:text-base md:text-lg text-gray-400 px-4">
-        {feedType === 'trending'
-          ? "Fire moments the community can't stop watching"
-          : feedType === 'top_rated'
-            ? 'The highest rated concert moments'
-            : feedType === 'most_liked'
-              ? 'Clips the community hearts the most'
-              : "Fresh drops from tonight's shows"}
-      </p>
+      <p className="text-gray-400 text-sm mt-1">{description}</p>
     </div>
   )
 }
@@ -149,7 +116,7 @@ export default function ConcertFeed({
   const feedContent = (
     <>
         {!hideSectionHeader && (
-          <div className="text-center mb-4 sm:mb-6 md:mb-5">
+          <div className="mb-4 sm:mb-5 md:mb-5">
             <FeedSectionHeader feedType={feedType} />
           </div>
         )}

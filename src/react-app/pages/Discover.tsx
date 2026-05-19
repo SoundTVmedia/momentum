@@ -1,74 +1,74 @@
 import { useState, useEffect } from 'react';
-import { Search, TrendingUp, MapPin, Music, Filter, Users, Video, X, Ticket } from 'lucide-react';
+import { Search, MapPin, Music, Filter, Users, Video, X, Ticket, Flame } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
-import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel';
-import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
-import PremiumCTA from '@/react-app/components/PremiumCTA';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
+import DiscoverSectionTitle from '@/react-app/components/DiscoverSectionTitle';
+import DiscoverArtistCarousel, {
+  type DiscoverArtist,
+} from '@/react-app/components/DiscoverArtistCarousel';
 import { artistPath, venuePath } from '@/shared/app-paths';
+import { apiFetch } from '@/react-app/lib/apiFetch';
+import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 
 interface SearchResults {
   clips: ClipWithUser[];
   artists: { name: string; image_url: string | null; clip_count: number }[];
   venues: { name: string; location: string | null; clip_count: number }[];
-  users: { mocha_user_id: string; display_name: string | null; profile_image_url: string | null; clip_count: number }[];
+  users: {
+    mocha_user_id: string;
+    display_name: string | null;
+    profile_image_url: string | null;
+    clip_count: number;
+  }[];
   jambase?: {
     artists: Record<string, unknown>[];
     venues: Record<string, unknown>[];
     events: Record<string, unknown>[];
   };
-  /** Worker hint when JamBase proxy returned no upstream data (key, errors, quota). */
   jambaseNotice?: string | null;
 }
 
-function jamBaseEventTicket(ev: Record<string, unknown>): string | null {
-  const offers = ev.offers;
-  if (!Array.isArray(offers) || offers.length === 0) {
-    return typeof ev.url === 'string' ? ev.url : null;
+type DiscoverFeed = {
+  clips: ClipWithUser[];
+  artists: DiscoverArtist[];
+  nearbyEvents: Record<string, unknown>[];
+  location: {
+    latitude: number;
+    longitude: number;
+    source: 'profile' | 'ip' | 'default';
+    label?: string;
+  };
+  jambaseNotice?: string | null;
+};
+
+
+function nearbyShowsSubtitle(feed: DiscoverFeed): string {
+  const loc = feed.location.label?.trim();
+  if (loc) {
+    return `Upcoming JamBase listings near ${loc}`;
   }
-  const primary = offers.find(
-    (o: unknown) =>
-      typeof o === 'object' &&
-      o !== null &&
-      (o as Record<string, unknown>).category === 'ticketingLinkPrimary'
-  ) as Record<string, unknown> | undefined;
-  const u = (primary?.url ?? (offers[0] as Record<string, unknown>)?.url) as string | undefined;
-  return typeof u === 'string' ? u : null;
-}
-
-function jamBaseEventHeadlinerName(ev: Record<string, unknown>): string | null {
-  const p = ev.performer;
-  if (!Array.isArray(p) || p.length === 0) return null;
-  const head = p.find(
-    (x: unknown) =>
-      typeof x === 'object' &&
-      x !== null &&
-      (x as Record<string, unknown>)['x-isHeadliner'] === true
-  ) as Record<string, unknown> | undefined;
-  const pick = head ?? (p[0] as Record<string, unknown>);
-  return typeof pick?.name === 'string' ? pick.name : null;
-}
-
-function jamBaseEventVenueName(ev: Record<string, unknown>): string | null {
-  const loc = ev.location as Record<string, unknown> | undefined;
-  return typeof loc?.name === 'string' ? loc.name : null;
+  if (feed.location.source === 'profile') {
+    return 'Upcoming shows near your home location';
+  }
+  if (feed.location.source === 'ip') {
+    return 'Upcoming shows near you (based on your area)';
+  }
+  return 'Upcoming shows in your area';
 }
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState<SearchResults | null>(null);
+  const [discoverFeed, setDiscoverFeed] = useState<DiscoverFeed | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
-  /** When set, ClipModal shows a vertical rail to browse this list (search results or trending clips). */
   const [discoverModalFeed, setDiscoverModalFeed] = useState<ClipWithUser[] | null>(null);
 
   const openDiscoverClip = (clip: ClipWithUser, list: ClipWithUser[]) => {
@@ -80,9 +80,9 @@ export default function DiscoverPage() {
     setSelectedClip(null);
     setDiscoverModalFeed(null);
   };
+
   const [showFilters, setShowFilters] = useState(false);
-  
-  // Filters
+
   const [filters, setFilters] = useState({
     genre: searchParams.get('genre') || '',
     location: searchParams.get('location') || '',
@@ -90,25 +90,12 @@ export default function DiscoverPage() {
     sortBy: searchParams.get('sortBy') || 'latest',
   });
 
-  const [trendingContent, setTrendingContent] = useState<{
-    artists: any[];
-    venues: any[];
-    clips: ClipWithUser[];
-  } | null>(null);
-  const [showLiveEvents, setShowLiveEvents] = useState(false);
-  const [liveEventCatalog, setLiveEventCatalog] = useState<'jambase' | 'ticketmaster'>('jambase');
-  const liveCity = filters.location.trim() || undefined;
-  const liveGenre = filters.genre.trim() || undefined;
-  const liveGenreSlug =
-    liveGenre != null && liveGenre.length > 0
-      ? liveGenre.toLowerCase().replace(/\s+/g, '-')
-      : undefined;
-
   useEffect(() => {
-    if (searchQuery) {
-      performSearch();
+    if (searchQuery.trim()) {
+      void performSearch();
     } else {
-      fetchTrendingContent();
+      setResults(null);
+      void fetchDiscoverFeed();
     }
   }, [searchQuery, filters]);
 
@@ -122,7 +109,7 @@ export default function DiscoverPage() {
 
       const response = await fetch(`/api/search/advanced?${params}`);
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as SearchResults;
         setResults(data);
       }
     } catch (error) {
@@ -132,16 +119,16 @@ export default function DiscoverPage() {
     }
   };
 
-  const fetchTrendingContent = async () => {
+  const fetchDiscoverFeed = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/discover/trending');
+      const response = await apiFetch('/api/discover/feed', { credentials: 'include' });
       if (response.ok) {
-        const data = await response.json();
-        setTrendingContent(data);
+        const data = (await response.json()) as DiscoverFeed;
+        setDiscoverFeed(data);
       }
     } catch (error) {
-      console.error('Failed to fetch trending content:', error);
+      console.error('Failed to fetch discover feed:', error);
     } finally {
       setLoading(false);
     }
@@ -158,20 +145,22 @@ export default function DiscoverPage() {
   };
 
   const updateFilter = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
       <Header />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Search Section */}
         <div className="mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 text-center">
-            Find <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">Your Next Show</span>
+            Find{' '}
+            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              Your Next Show
+            </span>
           </h1>
-          
+
           <form onSubmit={handleSearch} className="max-w-3xl mx-auto">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
@@ -198,19 +187,19 @@ export default function DiscoverPage() {
             </div>
           </form>
 
-          {/* Filters Panel */}
           {showFilters && (
             <div className="max-w-3xl mx-auto mt-4 p-6 bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-bold">Filters</h3>
                 <button
+                  type="button"
                   onClick={() => setShowFilters(false)}
                   className="text-gray-400 hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm text-gray-400 mb-2">Genre</label>
@@ -262,10 +251,9 @@ export default function DiscoverPage() {
           )}
         </div>
 
-        {/* Results or Trending Content */}
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+            <div className="inline-block w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : results ? (
           <div className="space-y-12">
@@ -274,16 +262,10 @@ export default function DiscoverPage() {
                 {results.jambaseNotice}
               </div>
             )}
-            {/* Clips Results */}
+
             {results.clips.length > 0 && (
               <div>
-                <div className="flex items-center space-x-2 mb-6">
-                  <Video className="w-6 h-6 text-cyan-400" />
-                  <h2 className="text-2xl font-bold text-white">Clips</h2>
-                  <span className="px-3 py-1 bg-cyan-500/20 text-cyan-400 text-sm rounded-full">
-                    {results.clips.length}
-                  </span>
-                </div>
+                <DiscoverSectionTitle icon={Video} title="Clips" />
                 <ClipFeedCarousel
                   clips={results.clips}
                   onOpenClip={(clip) => openDiscoverClip(clip, results.clips)}
@@ -292,50 +274,27 @@ export default function DiscoverPage() {
               </div>
             )}
 
-            {/* Artists Results */}
             {results.artists.length > 0 && (
               <div>
-                <div className="flex items-center space-x-2 mb-6">
-                  <Music className="w-6 h-6 text-purple-400" />
-                  <h2 className="text-2xl font-bold text-white">Artists</h2>
-                  <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-sm rounded-full">
-                    {results.artists.length}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {results.artists.map((artist) => (
-                    <button
-                      key={artist.name}
-                      onClick={() => navigate(artistPath(artist.name))}
-                      className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-all text-center"
-                    >
-                      <img
-                        src={artist.image_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop'}
-                        alt={artist.name}
-                        className="w-20 h-20 rounded-full mx-auto mb-3 object-cover"
-                      />
-                      <div className="text-white font-medium text-sm truncate">{artist.name}</div>
-                      <div className="text-gray-400 text-xs">{artist.clip_count} clips</div>
-                    </button>
-                  ))}
-                </div>
+                <DiscoverSectionTitle icon={Music} iconClassName="text-purple-400" title="Artists" />
+                <DiscoverArtistCarousel
+                  artists={results.artists.map((a) => ({
+                    name: a.name,
+                    image_url: a.image_url,
+                    clip_count: a.clip_count,
+                  }))}
+                />
               </div>
             )}
 
-            {/* Venues Results */}
             {results.venues.length > 0 && (
               <div>
-                <div className="flex items-center space-x-2 mb-6">
-                  <MapPin className="w-6 h-6 text-blue-400" />
-                  <h2 className="text-2xl font-bold text-white">Venues</h2>
-                  <span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-sm rounded-full">
-                    {results.venues.length}
-                  </span>
-                </div>
+                <DiscoverSectionTitle icon={MapPin} iconClassName="text-blue-400" title="Venues" />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {results.venues.map((venue) => (
                     <button
                       key={venue.name}
+                      type="button"
                       onClick={() => navigate(venuePath(venue.name))}
                       className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-4 hover:border-blue-400/50 transition-all text-left"
                     >
@@ -360,353 +319,122 @@ export default function DiscoverPage() {
                 results.jambase.venues.length > 0 ||
                 results.jambase.events.length > 0) && (
               <div className="rounded-2xl border border-amber-500/25 bg-amber-950/10 p-6 space-y-10">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center space-x-2">
-                    <Ticket className="w-6 h-6 text-amber-400" />
-                    <h2 className="text-2xl font-bold text-white">JamBase directory</h2>
-                  </div>
-                  <a
-                    href="https://www.jambase.com"
-                    target="_blank"
-                    rel="nofollow noopener noreferrer"
-                    className="text-xs text-amber-200/80 hover:text-amber-100 underline"
-                  >
-                    Powered by JamBase
-                  </a>
-                </div>
+                <DiscoverSectionTitle
+                  icon={Ticket}
+                  iconClassName="text-amber-400"
+                  title="JamBase directory"
+                  subtitle="Powered by JamBase"
+                />
 
                 {results.jambase.artists.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-                      <Music className="w-5 h-5 text-purple-400" />
-                      <span>Artists</span>
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {results.jambase.artists.map((a) => {
-                        const name = typeof a.name === 'string' ? a.name : 'Artist';
-                        const image = typeof a.image === 'string' ? a.image : null;
-                        return (
-                          <button
-                            key={typeof a.identifier === 'string' ? a.identifier : name}
-                            type="button"
-                            onClick={() => navigate(artistPath(name))}
-                            className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-all text-center"
-                          >
-                            <img
-                              src={
-                                image ||
-                                'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop'
-                              }
-                              alt={name}
-                              className="w-20 h-20 rounded-full mx-auto mb-3 object-cover"
-                            />
-                            <div className="text-white font-medium text-sm truncate">{name}</div>
-                            <div className="text-amber-200/70 text-xs">JamBase</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {results.jambase.venues.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-                      <MapPin className="w-5 h-5 text-blue-400" />
-                      <span>Venues</span>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {results.jambase.venues.map((v) => {
-                        const name = typeof v.name === 'string' ? v.name : 'Venue';
-                        const addr = v.address as Record<string, unknown> | undefined;
-                        const city =
-                          typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
-                        const region = addr?.addressRegion as Record<string, unknown> | undefined;
-                        const st =
-                          typeof region?.alternateName === 'string'
-                            ? region.alternateName
-                            : typeof region?.name === 'string'
-                              ? (region.name as string)
-                              : '';
-                        const loc = [city, st].filter(Boolean).join(', ');
-                        return (
-                          <button
-                            key={typeof v.identifier === 'string' ? v.identifier : name}
-                            type="button"
-                            onClick={() => navigate(venuePath(name))}
-                            className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-4 hover:border-blue-400/50 transition-all text-left"
-                          >
-                            <div className="text-white font-medium truncate">{name}</div>
-                            {loc ? (
-                              <div className="text-gray-400 text-sm truncate">{loc}</div>
-                            ) : null}
-                            <div className="text-amber-200/70 text-xs mt-1">JamBase</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <DiscoverArtistCarousel
+                    artists={results.jambase.artists.map((a) => {
+                      const name = typeof a.name === 'string' ? a.name : 'Artist';
+                      const image = typeof a.image === 'string' ? a.image : null;
+                      return {
+                        name,
+                        image_url: image,
+                        clip_count: 0,
+                        jambase_id:
+                          typeof a.identifier === 'string' ? a.identifier : null,
+                      };
+                    })}
+                  />
                 )}
 
                 {results.jambase.events.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-                      <Ticket className="w-5 h-5 text-cyan-400" />
-                      <span>Upcoming shows</span>
-                    </h3>
-                    <div className="space-y-3">
-                      {results.jambase.events.map((ev) => {
-                        const id = typeof ev.identifier === 'string' ? ev.identifier : String(ev.startDate);
-                        const title = typeof ev.name === 'string' ? ev.name : 'Show';
-                        const head = jamBaseEventHeadlinerName(ev);
-                        const venueNm = jamBaseEventVenueName(ev);
-                        const ticket = jamBaseEventTicket(ev);
-                        const start = typeof ev.startDate === 'string' ? ev.startDate : '';
-                        return (
-                          <div
-                            key={id}
-                            className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-black/40 border border-white/10"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="text-white font-medium truncate">{title}</div>
-                              <div className="text-sm text-gray-400">
-                                {start && new Date(start).toLocaleString()}
-                                {head ? ` · ` : ''}
-                                {head ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => navigate(artistPath(head))}
-                                    className="text-purple-300 hover:underline"
-                                  >
-                                    {head}
-                                  </button>
-                                ) : null}
-                                {venueNm ? ` @ ` : ''}
-                                {venueNm ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => navigate(venuePath(venueNm))}
-                                    className="text-blue-300 hover:underline"
-                                  >
-                                    {venueNm}
-                                  </button>
-                                ) : null}
-                              </div>
-                            </div>
-                            {ticket ? (
-                              <a
-                                href={ticket}
-                                target="_blank"
-                                rel="nofollow noopener noreferrer"
-                                className="shrink-0 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white text-sm font-medium text-center"
-                              >
-                                Tickets
-                              </a>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <JamBaseEventGrid
+                    layout="carousel"
+                    preloadedEvents={results.jambase.events}
+                    maxEvents={20}
+                    carouselAriaLabel="JamBase search events"
+                  />
                 )}
               </div>
             )}
 
-            {/* Users Results */}
             {results.users.length > 0 && (
               <div>
-                <div className="flex items-center space-x-2 mb-6">
-                  <Users className="w-6 h-6 text-green-400" />
-                  <h2 className="text-2xl font-bold text-white">Users</h2>
-                  <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full">
-                    {results.users.length}
-                  </span>
-                </div>
+                <DiscoverSectionTitle icon={Users} iconClassName="text-green-400" title="Users" />
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {results.users.map((user) => (
+                  {results.users.map((u) => (
                     <button
-                      key={user.mocha_user_id}
-                      onClick={() => navigate(`/users/${user.mocha_user_id}`)}
+                      key={u.mocha_user_id}
+                      type="button"
+                      onClick={() => navigate(`/users/${u.mocha_user_id}`)}
                       className="bg-black/40 backdrop-blur-lg border border-green-500/20 rounded-xl p-4 hover:border-green-400/50 transition-all text-center"
                     >
                       <div className="flex justify-center mb-3">
                         <UserAvatar
-                          imageUrl={user.profile_image_url}
-                          displayName={user.display_name}
-                          seed={user.mocha_user_id}
-                          alt={user.display_name || 'User'}
+                          imageUrl={u.profile_image_url}
+                          displayName={u.display_name}
+                          seed={u.mocha_user_id}
+                          alt={u.display_name || 'User'}
                           sizeClass="w-20 h-20"
                           letterClassName="text-2xl font-semibold"
                         />
                       </div>
                       <div className="text-white font-medium text-sm truncate">
-                        {user.display_name || 'Anonymous'}
+                        {u.display_name || 'Anonymous'}
                       </div>
-                      <div className="text-gray-400 text-xs">{user.clip_count} clips</div>
+                      <div className="text-gray-400 text-xs">{u.clip_count} clips</div>
                     </button>
                   ))}
                 </div>
               </div>
             )}
           </div>
-        ) : trendingContent ? (
-          <div className="space-y-12">
-            {!searchQuery.trim() && user ? (
-              <FavoriteArtistFeedPanel
-                variant="feed"
-                showExploreMore={false}
-                scrollIntoViewOnMount={searchParams.get('from_favorites') === '1'}
-              />
-            ) : null}
-
-            <div className="text-center mb-8">
-              <TrendingUp className="w-12 h-12 text-cyan-400 mx-auto mb-4" />
-              <h2 className="text-3xl font-bold text-white">What's Popping</h2>
-              <p className="text-gray-400 mt-2">See what the community's vibing to</p>
-            </div>
-
-            {/* Toggle between clips and live events */}
-            <div className="flex justify-center space-x-4 mb-8">
-              <button
-                onClick={() => setShowLiveEvents(false)}
-                className={`px-6 py-3 rounded-xl font-medium transition-all ${
-                  !showLiveEvents
-                    ? 'momentum-grad-interactive text-white'
-                    : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-teal/20'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Video className="w-5 h-5" />
-                  <span>Trending Clips</span>
-                </div>
-              </button>
-              <button
-                onClick={() => setShowLiveEvents(true)}
-                className={`px-6 py-3 rounded-xl font-medium transition-all ${
-                  showLiveEvents
-                    ? 'momentum-grad-interactive text-white'
-                    : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-teal/20'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Ticket className="w-5 h-5" />
-                  <span>Live Events</span>
-                </div>
-              </button>
-            </div>
-
-            {/* Premium CTA */}
-            <div className="max-w-4xl mx-auto">
-              <PremiumCTA variant="banner" context="discover" />
-            </div>
-
-            {showLiveEvents ? (
-              <div>
-                <h3 className="text-2xl font-bold text-white mb-4 flex items-center space-x-2">
-                  <Ticket className="w-6 h-6 text-cyan-400" />
-                  <span>Upcoming Shows</span>
-                </h3>
-                <p className="text-gray-400 text-sm mb-6 max-w-2xl mx-auto text-center">
-                  JamBase powers concert listings here; switch to Ticketmaster when your project has a
-                  Ticketmaster API key configured.
-                </p>
-                <div className="flex justify-center gap-2 mb-8 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setLiveEventCatalog('jambase')}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      liveEventCatalog === 'jambase'
-                        ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white'
-                        : 'bg-black/40 text-gray-300 border border-amber-500/30 hover:border-amber-400/50'
-                    }`}
-                  >
-                    JamBase
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLiveEventCatalog('ticketmaster')}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      liveEventCatalog === 'ticketmaster'
-                        ? 'momentum-grad-interactive text-white'
-                        : 'bg-black/40 text-gray-300 border border-momentum-teal/30 hover:border-momentum-mint/50'
-                    }`}
-                  >
-                    Ticketmaster
-                  </button>
-                </div>
-                {liveEventCatalog === 'jambase' ? (
-                  <JamBaseEventGrid maxEvents={20} city={liveCity} genreSlug={liveGenreSlug} />
-                ) : (
-                  <TicketmasterEventGrid maxEvents={20} city={liveCity} genre={liveGenre} />
-                )}
+        ) : discoverFeed ? (
+          <div className="space-y-10 md:space-y-8">
+            {discoverFeed.jambaseNotice && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-amber-100 text-sm">
+                {discoverFeed.jambaseNotice}
               </div>
-            ) : (
-              <>
-                {/* Trending Clips */}
-                {trendingContent.clips.length > 0 && (
-                  <div>
-                    <h3 className="text-2xl font-bold text-white mb-6">🔥 Trending Clips</h3>
-                    <ClipFeedCarousel
-                      clips={trendingContent.clips}
-                      onOpenClip={(clip) => openDiscoverClip(clip, trendingContent.clips)}
-                      ariaLabel="Trending clips"
-                    />
-                  </div>
-                )}
+            )}
 
-                {/* Trending Artists */}
-                {trendingContent.artists.length > 0 && (
-                  <div>
-                    <h3 className="text-2xl font-bold text-white mb-6">⭐ Trending Artists</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {trendingContent.artists.map((artist: any) => (
-                        <button
-                          key={artist.name}
-                          onClick={() => navigate(artistPath(artist.name))}
-                          className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 hover:border-purple-400/50 transition-all text-center group"
-                        >
-                          <div className="relative">
-                            <img
-                              src={artist.image_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=100&h=100&fit=crop'}
-                              alt={artist.name}
-                              className="w-20 h-20 rounded-full mx-auto mb-3 object-cover group-hover:scale-110 transition-transform"
-                            />
-                          </div>
-                          <div className="text-white font-medium text-sm truncate">{artist.name}</div>
-                          <div className="text-gray-400 text-xs">{artist.clip_count} clips</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {discoverFeed.clips.length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle
+                  icon={Flame}
+                  iconClassName="text-orange-400"
+                  title="Trending Clips"
+                  subtitle="What the community is watching this week"
+                />
+                <ClipFeedCarousel
+                  clips={discoverFeed.clips}
+                  onOpenClip={(clip) => openDiscoverClip(clip, discoverFeed.clips)}
+                  ariaLabel="Trending clips"
+                />
+              </section>
+            )}
 
-                {/* Trending Venues */}
-                {trendingContent.venues.length > 0 && (
-                  <div>
-                    <h3 className="text-2xl font-bold text-white mb-6">📍 Trending Venues</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {trendingContent.venues.map((venue: any) => (
-                        <button
-                          key={venue.name}
-                          onClick={() => navigate(venuePath(venue.name))}
-                          className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-4 hover:border-blue-400/50 transition-all text-left group"
-                        >
-                          <div className="flex items-start space-x-3">
-                            <MapPin className="w-8 h-8 text-blue-400 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-white font-medium truncate">{venue.name}</div>
-                              {venue.location && (
-                                <div className="text-gray-400 text-sm truncate">{venue.location}</div>
-                              )}
-                              <div className="text-gray-500 text-xs mt-1">{venue.clip_count} clips</div>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
+            {discoverFeed.artists.length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle
+                  icon={Music}
+                  iconClassName="text-purple-400"
+                  title="Trending Artists"
+                  subtitle="Artists with the most new clips — photos from JamBase when available"
+                />
+                <DiscoverArtistCarousel artists={discoverFeed.artists} />
+              </section>
+            )}
+
+            {discoverFeed.nearbyEvents.length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle
+                  icon={MapPin}
+                  iconClassName="text-cyan-400"
+                  title="Upcoming Shows at Venues Near You"
+                  subtitle={nearbyShowsSubtitle(discoverFeed)}
+                />
+                <JamBaseEventGrid
+                  layout="carousel"
+                  preloadedEvents={discoverFeed.nearbyEvents}
+                  maxEvents={20}
+                  carouselAriaLabel="Upcoming shows near you"
+                />
+              </section>
             )}
           </div>
         ) : null}

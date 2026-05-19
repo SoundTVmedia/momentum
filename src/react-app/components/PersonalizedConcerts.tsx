@@ -179,8 +179,8 @@ export default function PersonalizedConcerts({
     <div className={HOME_FEED_SECTION_CLASS}>
       <div className="flex items-center justify-between mb-4 md:mb-5">
         <div>
-          <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-            <Music className="w-6 h-6 text-cyan-400" />
+          <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+            <Music className="w-6 h-6 text-cyan-400 shrink-0" aria-hidden />
             <span>Your Artists Are Coming</span>
           </h2>
           <p className="text-gray-400 text-sm mt-1">

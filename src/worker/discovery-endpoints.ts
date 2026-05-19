@@ -1,10 +1,17 @@
 import { Context } from 'hono';
+import type { MochaUser } from '@getmocha/users-service/shared';
 import { jamBaseFetch, jamBaseQuotaFromEnv } from './jambase-client';
 import { cacheJsonProxy } from './performance-utils';
 import {
   buildTightJamBaseEventResults,
   jamBaseArtistVenueSearchPhrase,
 } from './jambase-events-search';
+import { resolveDiscoverLocation } from './discover-location';
+import {
+  enrichTrendingArtistsWithJamBase,
+  fetchNearbyJamBaseEvents,
+  type TrendingArtistRow,
+} from './discover-jambase-enrich';
 
 // Advanced search with filters
 export async function advancedSearch(c: Context) {
@@ -256,5 +263,74 @@ export async function getTrendingContent(c: Context) {
     clips: trendingClips.results || [],
     artists: trendingArtists.results || [],
     venues: trendingVenues.results || [],
+  });
+}
+
+/** Home Discover tab: trending clips, JamBase-enriched artists, nearby upcoming shows. */
+export async function getDiscoverFeed(c: Context) {
+  const mochaUser = c.get('user') as MochaUser | undefined;
+
+  const trendingClips = await c.env.DB.prepare(
+    `SELECT
+      clips.*,
+      user_profiles.display_name as user_display_name,
+      user_profiles.profile_image_url as user_avatar
+    FROM clips
+    LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+    WHERE clips.is_hidden = 0
+    AND clips.created_at >= date('now', '-7 days')
+    ORDER BY (clips.likes_count * 3 + clips.views_count * 0.1 + clips.comments_count * 5) DESC
+    LIMIT 12`,
+  ).all();
+
+  const trendingArtistsRaw = await c.env.DB.prepare(
+    `SELECT
+      clips.artist_name as name,
+      MAX(artists.image_url) as image_url,
+      MAX(clips.jambase_artist_id) as jambase_id,
+      COUNT(DISTINCT clips.id) as clip_count
+    FROM clips
+    LEFT JOIN artists ON clips.artist_name = artists.name
+    WHERE clips.artist_name IS NOT NULL
+    AND clips.is_hidden = 0
+    AND clips.created_at >= date('now', '-7 days')
+    GROUP BY clips.artist_name
+    ORDER BY clip_count DESC
+    LIMIT 12`,
+  ).all();
+
+  const location = await resolveDiscoverLocation(c, mochaUser ?? null);
+  const jbQ = jamBaseQuotaFromEnv(c.env);
+  const apiKey = c.env.JAMBASE_API_KEY;
+
+  const artistsBase = (trendingArtistsRaw.results ?? []) as TrendingArtistRow[];
+  const [artists, nearbyEvents] = await Promise.all([
+    enrichTrendingArtistsWithJamBase(apiKey, jbQ, artistsBase),
+    fetchNearbyJamBaseEvents(
+      apiKey,
+      jbQ,
+      location.latitude,
+      location.longitude,
+      50,
+      20,
+    ),
+  ]);
+
+  let jambaseNotice: string | null = null;
+  if (!apiKey?.trim()) {
+    jambaseNotice =
+      'JamBase is not configured — artist photos and nearby shows may be limited.';
+  } else if (nearbyEvents.length === 0 && artists.every((a) => !a.image_url)) {
+    jambaseNotice = 'No nearby shows or JamBase images returned for this area.';
+  }
+
+  cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+
+  return c.json({
+    clips: trendingClips.results || [],
+    artists,
+    nearbyEvents,
+    location,
+    jambaseNotice,
   });
 }

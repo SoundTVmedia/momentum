@@ -1,49 +1,27 @@
 import { useState } from 'react';
-import { TrendingUp, Clock, Heart, Star, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import {
+  FEED_FILTER_OPTIONS,
+  type FeedFilterValue,
+} from '@/react-app/lib/feedFilterMeta';
 
 interface FeedFiltersProps {
-  currentFilter: 'latest' | 'trending' | 'most_liked' | 'top_rated';
-  onFilterChange: (filter: 'latest' | 'trending' | 'most_liked' | 'top_rated') => void;
+  currentFilter: FeedFilterValue;
+  onFilterChange: (filter: FeedFilterValue) => void;
 }
-
-const filterOptions = [
-  {
-    value: 'latest' as const,
-    label: 'Latest',
-    icon: Clock,
-    description: 'Fresh drops from tonight\'s shows',
-  },
-  {
-    value: 'trending' as const,
-    label: 'Trending',
-    icon: TrendingUp,
-    description: 'What everyone\'s watching',
-  },
-  {
-    value: 'most_liked' as const,
-    label: 'Most Liked',
-    icon: Heart,
-    description: 'Fan favorites',
-  },
-  {
-    value: 'top_rated' as const,
-    label: 'Top Rated',
-    icon: Star,
-    description: 'Highest rated moments',
-  },
-];
 
 export default function FeedFilters({ currentFilter, onFilterChange }: FeedFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const currentOption = filterOptions.find(opt => opt.value === currentFilter) || filterOptions[0];
+  const currentOption =
+    FEED_FILTER_OPTIONS.find((opt) => opt.value === currentFilter) ?? FEED_FILTER_OPTIONS[0];
   const CurrentIcon = currentOption.icon;
 
   return (
     <div className="relative">
       {/* Desktop: Tabs */}
       <div className="hidden md:flex items-center space-x-2 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-2">
-        {filterOptions.map((option) => {
+        {FEED_FILTER_OPTIONS.map((option) => {
           const Icon = option.icon;
           const isActive = currentFilter === option.value;
           
@@ -87,7 +65,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
             
             {/* Dropdown Menu */}
             <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-momentum-teal/20 rounded-xl overflow-hidden z-50 shadow-2xl">
-              {filterOptions.map((option) => {
+              {FEED_FILTER_OPTIONS.map((option) => {
                 const Icon = option.icon;
                 const isActive = currentFilter === option.value;
                 
