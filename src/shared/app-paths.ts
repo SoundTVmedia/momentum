@@ -39,3 +39,24 @@ export function apiSongPath(
   if (!a || !s) return '';
   return `/api/artists/${a}/songs/${s}`;
 }
+
+/** Global song hub — clips with this `song_slug` (any artist). */
+export function globalSongPath(songSlug: string | null | undefined): string {
+  const s = typeof songSlug === 'string' ? songSlug.trim().toLowerCase() : '';
+  return s ? `/songs/${s}` : '/songs';
+}
+
+export function apiGlobalSongPath(songSlug: string | null | undefined): string {
+  const s = typeof songSlug === 'string' ? songSlug.trim().toLowerCase() : '';
+  return s ? `/api/songs/${s}` : '';
+}
+
+export function genrePath(genreSlug: string | null | undefined): string {
+  const g = typeof genreSlug === 'string' ? genreSlug.trim().toLowerCase() : '';
+  return g ? `/genres/${g}` : '/genres';
+}
+
+export function apiGenrePath(genreSlug: string | null | undefined): string {
+  const g = typeof genreSlug === 'string' ? genreSlug.trim().toLowerCase() : '';
+  return g ? `/api/genres/${g}` : '';
+}

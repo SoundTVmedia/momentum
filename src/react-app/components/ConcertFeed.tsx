@@ -21,6 +21,8 @@ interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
   artistName?: string
   venueName?: string
+  songSlug?: string
+  genreSlug?: string
   userId?: string
   /** When true, omit the large title/subtitle block (e.g. stacked sections on Home). */
   hideSectionHeader?: boolean
@@ -28,6 +30,8 @@ interface ConcertFeedProps {
   edgeBleed?: boolean
   /** Padding to counteract when `edgeBleed` is set (home vs max-w-7xl pages). */
   edgeBleedScope?: 'home' | 'page'
+  /** Drop extra bottom padding when another home section follows (e.g. shows carousel). */
+  suppressBottomPadding?: boolean
 }
 
 export function FeedSectionHeader({
@@ -51,9 +55,13 @@ function feedCarouselLabel(
   feedType: ConcertFeedProps['feedType'],
   artistName?: string,
   venueName?: string,
+  songSlug?: string,
+  genreSlug?: string,
 ): string {
   if (artistName) return `Clips from ${artistName}`
   if (venueName) return `Clips from ${venueName}`
+  if (songSlug) return `Clips for song ${songSlug.replace(/-/g, ' ')}`
+  if (genreSlug) return `Clips in ${genreSlug.replace(/-/g, ' ')}`
   switch (feedType) {
     case 'trending':
       return 'Trending clips'
@@ -70,18 +78,29 @@ export default function ConcertFeed({
   feedType = 'latest',
   artistName,
   venueName,
+  songSlug,
+  genreSlug,
   userId,
   hideSectionHeader = false,
   edgeBleed = false,
   edgeBleedScope = 'page',
+  suppressBottomPadding = false,
 }: ConcertFeedProps) {
   const navigate = useNavigate()
   const { clips, loading, hasMore, loadMore, error, refetch } = useClips({
     feedType,
     artistName,
     venueName,
+    songSlug,
+    genreSlug,
     userId,
-    enablePolling: feedType === 'latest' && !artistName && !venueName && !userId,
+    enablePolling:
+      feedType === 'latest' &&
+      !artistName &&
+      !venueName &&
+      !songSlug &&
+      !genreSlug &&
+      !userId,
   })
 
   const carouselScrollRef = useRef<HTMLDivElement>(null)
@@ -128,7 +147,7 @@ export default function ConcertFeed({
         ) : loading && clips.length === 0 ? (
           <HorizontalClipCarousel
             key={`${feedType}-loading`}
-            ariaLabel={feedCarouselLabel(feedType, artistName, venueName)}
+            ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
             className={carouselClass}
           >
             {Array.from({ length: 4 }).map((_, i) => (
@@ -142,7 +161,7 @@ export default function ConcertFeed({
             <HorizontalClipCarousel
               key={feedType}
               ref={carouselScrollRef}
-              ariaLabel={feedCarouselLabel(feedType, artistName, venueName)}
+              ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
               className={carouselClass}
             >
               {clips.map((clip, index) => (
@@ -194,7 +213,7 @@ export default function ConcertFeed({
     <section
       className={
         edgeBleed
-          ? `${HOME_FEED_SECTION_CLASS} pb-16 md:pb-6`
+          ? `${HOME_FEED_SECTION_CLASS}${suppressBottomPadding ? '' : ' pb-16 md:pb-6'}`
           : 'py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8'
       }
     >

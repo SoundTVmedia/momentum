@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Disc3,
+  Radio,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
@@ -28,7 +29,8 @@ import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio
 import StarRating from './StarRating';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, songPath, venuePath } from '@/shared/app-paths';
+import { artistPath, genrePath, globalSongPath, songPath, venuePath } from '@/shared/app-paths';
+import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 
@@ -252,15 +254,18 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
                     <span className="text-white font-bold text-sm sm:text-base truncate">{clip.artist_name}</span>
                   </button>
                 )}
-                {clip.song_title?.trim() && clip.artist_name && (
+                {clip.song_title?.trim() && (
                   <button
                     type="button"
                     onClick={() => {
                       onClose();
                       const slug =
                         clip.song_slug?.trim() || songSlugFromTitle(clip.song_title);
-                      if (slug) {
+                      if (!slug) return;
+                      if (clip.artist_name) {
                         navigate(songPath(clip.artist_name, slug));
+                      } else {
+                        navigate(globalSongPath(slug));
                       }
                     }}
                     className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0 text-left"
@@ -268,6 +273,23 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
                     <Disc3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-fuchsia-400 flex-shrink-0" />
                     <span className="text-fuchsia-200 font-semibold text-sm sm:text-base truncate">
                       {clip.song_title}
+                    </span>
+                  </button>
+                )}
+                {clip.genre_name?.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      const slug =
+                        clip.genre_slug?.trim() || genreSlugFromName(clip.genre_name);
+                      if (slug) navigate(genrePath(slug));
+                    }}
+                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0 text-left"
+                  >
+                    <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-momentum-mint flex-shrink-0" />
+                    <span className="text-momentum-mint/90 font-medium text-sm sm:text-base truncate">
+                      {clip.genre_name}
                     </span>
                   </button>
                 )}

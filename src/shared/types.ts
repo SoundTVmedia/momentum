@@ -54,6 +54,8 @@ export const ClipSchema = z.object({
   hashtags: z.string().nullable(), // JSON array stored as string
   song_title: z.string().nullable().optional(),
   song_slug: z.string().nullable().optional(),
+  genre_name: z.string().nullable().optional(),
+  genre_slug: z.string().nullable().optional(),
   is_trending_score: z.number(),
   jambase_artist_id: z.string().nullable().optional(),
   jambase_venue_id: z.string().nullable().optional(),

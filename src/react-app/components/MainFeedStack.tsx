@@ -92,6 +92,7 @@ export default function MainFeedStack({
         hideSectionHeader
         edgeBleed={isHome}
         edgeBleedScope="page"
+        suppressBottomPadding={isHome}
       />
 
       {isHome ? <PersonalizedConcerts carouselBleedScope="page" /> : null}

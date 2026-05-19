@@ -62,7 +62,13 @@ import {
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postClipIdentifyMusicAudD } from "./clip-audd-endpoints";
-import { buildHashtagsForClipBody, songFieldsFromBody } from "./clip-song-fields";
+import {
+  buildHashtagsForClipBody,
+  genreFieldsFromBody,
+  songFieldsFromBody,
+} from "./clip-tag-fields";
+import { buildGenrePagePayload } from "./genre-page-endpoints";
+import { buildGlobalSongPagePayload } from "./global-song-page-endpoints";
 import { buildSongPagePayload } from "./song-page-endpoints";
 import { normalizeClipApiRows } from "./clip-row-normalize";
 import { r2ForClipObjectKey } from "./r2-clip-key";
@@ -748,20 +754,21 @@ app.post("/api/clips", authMiddleware, async (c) => {
   // `clips.video_url` is NOT NULL; allow Stream-only payloads where playback URL carries the link.
   const resolvedVideoUrl = (video_url || stream_playback_url || "") as string;
   const { song_title, song_slug } = songFieldsFromBody(body as Record<string, unknown>);
+  const { genre_name, genre_slug } = genreFieldsFromBody(body as Record<string, unknown>);
   const hashtagList = buildHashtagsForClipBody(body as Record<string, unknown>);
 
   try {
     const result = await c.env.DB.prepare(
       `INSERT INTO clips 
        (mocha_user_id, artist_name, venue_name, location, timestamp, content_description, 
-        video_url, thumbnail_url, hashtags, song_title, song_slug,
+        video_url, thumbnail_url, hashtags, song_title, song_slug, genre_name, genre_slug,
         stream_video_id, stream_playback_url, 
         stream_thumbnail_url, video_status, video_duration, status, 
         geolocation_latitude, geolocation_longitude, geolocation_accuracy_radius, 
         recording_orientation, video_resolution_w, video_resolution_h,
         jambase_event_id, jambase_artist_id, jambase_venue_id,
         is_draft, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     )
       .bind(
         mochaUser.id,
@@ -775,6 +782,8 @@ app.post("/api/clips", authMiddleware, async (c) => {
         JSON.stringify(hashtagList),
         song_title,
         song_slug,
+        genre_name,
+        genre_slug,
         stream_video_id || null,
         stream_playback_url || null,
         stream_thumbnail_url || null,
@@ -863,6 +872,7 @@ app.get("/api/clips", async (c) => {
   const artistName = c.req.query('artist_name');
   const venueName = c.req.query('venue_name');
   const songSlug = c.req.query('song_slug');
+  const genreSlug = c.req.query('genre_slug');
   const userId = c.req.query('user_id');
   const since = c.req.query('since');
   
@@ -898,6 +908,11 @@ app.get("/api/clips", async (c) => {
   if (songSlug) {
     query += ` AND clips.song_slug = ?`;
     bindings.push(songSlug.trim().toLowerCase());
+  }
+
+  if (genreSlug) {
+    query += ` AND clips.genre_slug = ?`;
+    bindings.push(genreSlug.trim().toLowerCase());
   }
   
   if (userId) {
@@ -3029,6 +3044,8 @@ app.get(
   discoverPrioritized.getFavoriteArtistFeed,
 );
 app.get("/api/artists/:artistName/songs/:songSlug", buildSongPagePayload);
+app.get("/api/songs/:songSlug", buildGlobalSongPagePayload);
+app.get("/api/genres/:genreSlug", buildGenrePagePayload);
 app.get("/api/artists/:artistName/shows/:showId/clips", discoverPrioritized.getShowClips);
 app.get("/api/venues/:venueName/archive", discoverPrioritized.getVenueArchive);
 

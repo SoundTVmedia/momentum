@@ -19,6 +19,8 @@ import AnalyticsPage from "@/react-app/pages/Analytics";
 import PremiumPage from "@/react-app/pages/Premium";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import SongPage from "@/react-app/pages/SongPage";
+import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
+import GenrePage from "@/react-app/pages/GenrePage";
 import MobileBottomNav from "@/react-app/components/MobileBottomNav";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 
@@ -46,6 +48,8 @@ export default function App() {
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/premium" element={<PremiumPage />} />
           <Route path="/artists/:artistName/songs/:songSlug" element={<SongPage />} />
+          <Route path="/songs/:songSlug" element={<GlobalSongPage />} />
+          <Route path="/genres/:genreSlug" element={<GenrePage />} />
           <Route path="/artists/:artistName/shows/:showId/clips" element={<ShowClipsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

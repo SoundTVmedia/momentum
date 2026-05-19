@@ -6,6 +6,8 @@ interface UseClipsOptions {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'most_viewed' | 'top_rated'
   artistName?: string
   venueName?: string
+  songSlug?: string
+  genreSlug?: string
   userId?: string
   /** When true, uses GET /api/me/clips (session user) so list ids always match delete/update. */
   mine?: boolean
@@ -18,6 +20,8 @@ export function useClips(options: UseClipsOptions = {}) {
     feedType = 'latest',
     artistName,
     venueName,
+    songSlug,
+    genreSlug,
     userId,
     mine = false,
     limit = 10,
@@ -57,6 +61,8 @@ export function useClips(options: UseClipsOptions = {}) {
 
         if (artistName) params.append('artist_name', artistName)
         if (venueName) params.append('venue_name', venueName)
+        if (songSlug) params.append('song_slug', songSlug)
+        if (genreSlug) params.append('genre_slug', genreSlug)
         if (!mine && userId) params.append('user_id', userId)
 
         const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
@@ -108,7 +114,7 @@ export function useClips(options: UseClipsOptions = {}) {
         }
       }
     },
-    [feedType, artistName, venueName, userId, mine, limit],
+    [feedType, artistName, venueName, songSlug, genreSlug, userId, mine, limit],
   )
 
   const loadMore = useCallback(() => {
@@ -150,7 +156,7 @@ export function useClips(options: UseClipsOptions = {}) {
   useEffect(() => {
     setPage(1)
     void fetchClips(1, false)
-  }, [feedType, artistName, venueName, userId, mine, limit, fetchClips])
+  }, [feedType, artistName, venueName, songSlug, genreSlug, userId, mine, limit, fetchClips])
 
   useEffect(() => {
     if (!enablePolling || feedType !== 'latest' || clips.length === 0) return
@@ -165,6 +171,8 @@ export function useClips(options: UseClipsOptions = {}) {
 
         if (artistName) params.append('artist_name', artistName)
         if (venueName) params.append('venue_name', venueName)
+        if (songSlug) params.append('song_slug', songSlug)
+        if (genreSlug) params.append('genre_slug', genreSlug)
         if (!mine && userId) params.append('user_id', userId)
 
         const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
@@ -189,7 +197,7 @@ export function useClips(options: UseClipsOptions = {}) {
     }, 15000)
 
     return () => clearInterval(interval)
-  }, [enablePolling, feedType, artistName, venueName, userId, mine, clips, limit])
+  }, [enablePolling, feedType, artistName, venueName, songSlug, genreSlug, userId, mine, clips, limit])
 
   return {
     clips,

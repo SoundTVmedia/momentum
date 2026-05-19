@@ -154,14 +154,11 @@ export default function DiscoverPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 text-center">
-            Find{' '}
-            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-              Your Next Show
-            </span>
+          <h1 className="text-4xl md:text-5xl font-bold text-center mb-6 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+            Where Live Music Lives
           </h1>
 
-          <form onSubmit={handleSearch} className="max-w-3xl mx-auto">
+          <form onSubmit={handleSearch} className="w-full">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
               <input
@@ -188,7 +185,7 @@ export default function DiscoverPage() {
           </form>
 
           {showFilters && (
-            <div className="max-w-3xl mx-auto mt-4 p-6 bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl">
+            <div className="w-full mt-4 p-6 bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-bold">Filters</h3>
                 <button

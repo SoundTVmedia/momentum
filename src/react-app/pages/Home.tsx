@@ -26,15 +26,15 @@ export default function Home() {
           </div>
 
           <div className="bg-gradient-to-b from-slate-950 via-black to-black pb-8 sm:pb-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10">
               <section>
                 <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 text-center">
-                  Latest from the{' '}
+                  Latest{' '}
                   <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                    scene
+                    Feedback
                   </span>
                 </h2>
-                <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
+                <p className="text-gray-400 text-sm sm:text-base mb-6 text-center max-w-2xl mx-auto">
                   Fresh moments from shows across the platform
                 </p>
                 <ConcertFeed
@@ -42,6 +42,7 @@ export default function Home() {
                   hideSectionHeader
                   edgeBleed
                   edgeBleedScope="page"
+                  suppressBottomPadding
                 />
               </section>
               <section>
@@ -50,7 +51,7 @@ export default function Home() {
                     Trending
                   </span>
                 </h2>
-                <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
+                <p className="text-gray-400 text-sm sm:text-base mb-6 text-center max-w-2xl mx-auto">
                   What everyone&apos;s watching right now
                 </p>
                 <ConcertFeed
@@ -58,10 +59,13 @@ export default function Home() {
                   hideSectionHeader
                   edgeBleed
                   edgeBleedScope="page"
+                  suppressBottomPadding
                 />
               </section>
 
-              <PersonalizedConcerts carouselBleedScope="page" />
+              <section>
+                <PersonalizedConcerts carouselBleedScope="page" headingVariant="page" />
+              </section>
             </div>
           </div>
         </>

@@ -17,6 +17,11 @@ describe('song-tag', () => {
     expect(tags).toContain('song:wonderwall');
   });
 
+  it('adds genre tag when building hashtags', () => {
+    const tags = buildHashtagsArrayForPost('', 'Oasis', 'Wonderwall', 'Rock');
+    expect(tags).toContain('genre:rock');
+  });
+
   it('derives display title from slug', () => {
     expect(songTitleFromSlug('wonderwall')).toBe('Wonderwall');
   });

@@ -17,6 +17,8 @@ import {
 export type PersonalizedConcertsProps = {
   /** Match Discover / home feed carousels (`page`) vs nested profile shell (`home`). */
   carouselBleedScope?: 'home' | 'page';
+  /** Large centered headings (logged-out homepage); default is compact feed style. */
+  headingVariant?: 'compact' | 'page';
 };
 
 interface D1Concert {
@@ -109,6 +111,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
 
 export default function PersonalizedConcerts({
   carouselBleedScope = 'home',
+  headingVariant = 'compact',
 }: PersonalizedConcertsProps) {
   const { user, isPending: authPending } = useAuth();
   const carouselBleed =
@@ -174,6 +177,27 @@ export default function PersonalizedConcerts({
       : 'Upcoming concerts from artists you love'
     : 'Upcoming shows near you from JamBase';
 
+  const usePageHeading = headingVariant === 'page' && !isLoggedIn;
+
+  const sectionHeader = usePageHeading ? (
+    <>
+      <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 text-center">
+        <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+          Shows Near You
+        </span>
+      </h2>
+      <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
+        {sectionSubtitle}
+      </p>
+    </>
+  ) : (
+    <div className="mb-4 md:mb-5">
+      <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+        {sectionTitle}
+      </h2>
+      <p className="text-gray-400 text-sm mt-1">{sectionSubtitle}</p>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -214,20 +238,19 @@ export default function PersonalizedConcerts({
   }
 
   return (
-    <div className={HOME_FEED_SECTION_CLASS}>
-      <div className="mb-4 md:mb-5">
-        <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-          {sectionTitle}
-        </h2>
-        <p className="text-gray-400 text-sm mt-1">{sectionSubtitle}</p>
-      </div>
+    <div className={usePageHeading ? '' : HOME_FEED_SECTION_CLASS}>
+      {sectionHeader}
 
       {jbEvents.length > 0 ? (
         <JamBaseEventGrid
           preloadedEvents={jbEvents}
           maxEvents={12}
           layout="carousel"
-          carouselAriaLabel="Upcoming shows from your favorite artists"
+          carouselAriaLabel={
+            isLoggedIn
+              ? 'Upcoming shows from your favorite artists'
+              : 'Upcoming shows near you'
+          }
           carouselClassName={carouselBleed}
         />
       ) : (

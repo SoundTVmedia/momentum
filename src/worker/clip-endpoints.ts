@@ -1,7 +1,11 @@
 import type { Context } from 'hono';
 import { purgeClipFromDatabase } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
-import { buildHashtagsForClipBody, songFieldsFromBody } from './clip-song-fields';
+import {
+  buildHashtagsForClipBody,
+  genreFieldsFromBody,
+  songFieldsFromBody,
+} from './clip-tag-fields';
 import { createRealtimeService } from './realtime-service';
 
 /** Resolve clip id from route params (Hono), query string, or URL path (fallback for some dev/proxy setups). */
@@ -414,6 +418,7 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const location = trimOrNull(body.location);
   const content_description = trimOrNull(body.content_description);
   const { song_title, song_slug } = songFieldsFromBody(body);
+  const { genre_name, genre_slug } = genreFieldsFromBody(body);
   const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
 
   await c.env.DB.prepare(
@@ -425,6 +430,8 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       hashtags = ?,
       song_title = ?,
       song_slug = ?,
+      genre_name = ?,
+      genre_slug = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?`
   )
@@ -436,6 +443,8 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       hashtagsJson,
       song_title,
       song_slug,
+      genre_name,
+      genre_slug,
       canonicalId,
     )
     .run();

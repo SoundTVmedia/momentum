@@ -38,6 +38,7 @@ import {
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
 import { buildHashtagsArrayForPost } from '@/shared/clip-hashtags';
+import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -148,6 +149,7 @@ export default function UploadClip() {
     location: '',
     content_description: '',
     song_title: '',
+    genre_name: '',
     hashtags: '',
   });
 
@@ -869,6 +871,7 @@ export default function UploadClip() {
         formData.hashtags,
         formData.artist_name,
         formData.song_title,
+        formData.genre_name,
       );
 
       // Prepare clip data based on upload type (Stream or R2)
@@ -879,6 +882,7 @@ export default function UploadClip() {
         content_description: formData.content_description || null,
         hashtags: hashtagsArray,
         song_title: formData.song_title?.trim() || null,
+        genre_name: formData.genre_name?.trim() || null,
         status: 'published',
         timestamp: recordingAtIso || undefined,
         jambase_event_id: jambaseLink?.event ?? undefined,
@@ -1319,6 +1323,29 @@ export default function UploadClip() {
                 />
                 <p className="text-gray-400 text-xs mt-2">
                   Adds a tag for search (along with artist and venue). Leave blank if you prefer.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 font-normal mb-2">
+                  Genre <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <select
+                  value={formData.genre_name}
+                  onChange={(e) => handleInputChange('genre_name', e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint transition-colors"
+                >
+                  <option value="" className="bg-slate-900">
+                    Select a genre
+                  </option>
+                  {CLIP_GENRE_OPTIONS.map((genre) => (
+                    <option key={genre} value={genre} className="bg-slate-900">
+                      {genre}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-gray-400 text-xs mt-2">
+                  Tags this clip with a genre hub page fans can browse.
                 </p>
               </div>
 
