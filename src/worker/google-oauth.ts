@@ -3,6 +3,12 @@ import * as crypto from 'crypto';
 import { setCookie, getCookie } from 'hono/cookie';
 import type { MochaUser } from '@getmocha/users-service/shared';
 import { normalizeOAuthCallbackUrl } from '../shared/oauth-redirect';
+import { normalizeEmail } from './auth-password-utils';
+import {
+  findEmailAccountByGoogleEmail,
+  linkGoogleSubOnEmailAccount,
+  reassignMochaUserId,
+} from './account-linking';
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 
 function hashOpaqueToken(raw: string): string {
@@ -178,12 +184,18 @@ export function googleAccountToMochaUser(row: {
   };
 }
 
+export type GoogleSignInResult = {
+  sessionToken: string;
+  /** Use `momentum_email_session` when linked to an existing email/password account. */
+  sessionType: 'google' | 'email';
+};
+
 async function upsertGoogleAccount(
   db: D1Database,
   info: GoogleUserInfo,
 ): Promise<{ id: string; email: string; display_name: string | null }> {
   const sub = info.sub?.trim();
-  const email = info.email?.trim().toLowerCase();
+  const email = normalizeEmail(info.email ?? '');
   if (!sub || !email) {
     throw new Error('Google account is missing required profile fields');
   }
@@ -235,11 +247,59 @@ async function createGoogleSession(
   return rawToken;
 }
 
+async function createEmailSessionToken(
+  db: D1Database,
+  userId: string,
+): Promise<string> {
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashOpaqueToken(rawToken);
+  const expiresAt = new Date();
+  expiresAt.setSeconds(expiresAt.getSeconds() + SESSION_MAX_AGE_SEC);
+
+  await db
+    .prepare(
+      `INSERT INTO email_sessions (user_id, token_hash, expires_at)
+       VALUES (?, ?, ?)`,
+    )
+    .bind(userId, tokenHash, expiresAt.toISOString())
+    .run();
+
+  return rawToken;
+}
+
+/**
+ * If Google email matches an existing email/password account, sign in as that user
+ * (email session) and merge Google-only data onto the canonical id.
+ */
+async function resolveGoogleSignInSession(
+  db: D1Database,
+  info: GoogleUserInfo,
+): Promise<GoogleSignInResult> {
+  const sub = info.sub?.trim();
+  const email = info.email?.trim();
+  if (!sub || !email) {
+    throw new Error('Google account is missing required profile fields');
+  }
+
+  const emailAccount = await findEmailAccountByGoogleEmail(db, email);
+  if (emailAccount) {
+    await linkGoogleSubOnEmailAccount(db, emailAccount.id, sub);
+    await reassignMochaUserId(db, sub, emailAccount.id);
+    await upsertGoogleAccount(db, info);
+    const sessionToken = await createEmailSessionToken(db, emailAccount.id);
+    return { sessionToken, sessionType: 'email' };
+  }
+
+  const account = await upsertGoogleAccount(db, info);
+  const sessionToken = await createGoogleSession(db, account.id);
+  return { sessionToken, sessionType: 'google' };
+}
+
 export async function exchangeGoogleOAuthCode(
   c: Context<{ Bindings: Env }>,
   code: string,
   stateFromQuery?: string | null,
-): Promise<string> {
+): Promise<GoogleSignInResult> {
   const stateRaw = getCookie(c, GOOGLE_OAUTH_STATE_COOKIE);
   if (!stateRaw) {
     throw new Error('OAuth session expired. Please try signing in again.');
@@ -290,8 +350,7 @@ export async function exchangeGoogleOAuthCode(
     throw new Error('Could not load your Google profile');
   }
 
-  const account = await upsertGoogleAccount(c.env.DB, userInfo);
-  return createGoogleSession(c.env.DB, account.id);
+  return resolveGoogleSignInSession(c.env.DB, userInfo);
 }
 
 export async function validateGoogleSession(

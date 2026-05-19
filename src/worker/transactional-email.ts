@@ -13,10 +13,9 @@ export async function sendPasswordResetEmail(opts: SendPasswordResetEmailOpts): 
   if (!key) {
     if (logResetLinkForDev) {
       console.info('[password reset] RESEND_API_KEY unset; reset link (dev only):', resetUrl);
-    } else {
-      console.warn('password reset: RESEND_API_KEY not set; email not sent');
+      return;
     }
-    return;
+    throw new Error('email_not_configured');
   }
 
   const res = await fetch('https://api.resend.com/emails', {
@@ -28,10 +27,11 @@ export async function sendPasswordResetEmail(opts: SendPasswordResetEmailOpts): 
     body: JSON.stringify({
       from,
       to: [to],
-      subject: 'Reset your Feedback password',
-      html: `<p>You requested a password reset for your Feedback account.</p>
+      subject: 'Reset your Momentum password',
+      html: `<p>You requested a password reset for your Momentum account.</p>
 <p><a href="${resetUrl}">Choose a new password</a></p>
-<p>This link expires in one hour. If you did not request a reset, you can ignore this email.</p>`,
+<p>This link expires in one hour. If you did not request a reset, you can ignore this email.</p>
+<p>After updating your password, you will be redirected to sign in again.</p>`,
     }),
   });
 

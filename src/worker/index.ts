@@ -14,6 +14,7 @@ import {
   revokeEmailSession,
   revokeGoogleSession,
   isLocalDevHost,
+  setEmailSessionCookie,
 } from "./hybrid-auth";
 import {
   buildGoogleOAuthRedirectUrl,
@@ -85,7 +86,7 @@ app.use('*', async (c, next) => {
   monitor.setHeaders(c);
 });
 
-const ALLOWED_OAUTH_PROVIDERS = new Set(['google', 'spotify']);
+const ALLOWED_OAUTH_PROVIDERS = new Set(['google']);
 
 // OAuth redirect URL (Google via Mocha Users Service or direct Google OAuth credentials)
 app.get('/api/oauth/:provider/redirect_url', async (c) => {
@@ -145,10 +146,7 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
     console.error('Mocha OAuth redirect error', provider, response.status, errBody);
     return c.json(
       {
-        error:
-          provider === 'spotify'
-            ? 'Spotify sign-in is not available. Try Google or email, enable Spotify in your Mocha project, and allow this app origin as a redirect URL.'
-            : `Could not start Google sign-in. Register ${callbackUrl} as an allowed redirect URL in your Mocha app settings and verify MOCHA_USERS_SERVICE_API_KEY.`,
+        error: `Could not start Google sign-in. Register ${callbackUrl} as an allowed redirect URL in your Mocha app settings and verify MOCHA_USERS_SERVICE_API_KEY.`,
       },
       502
     );
@@ -179,14 +177,21 @@ app.post("/api/sessions", async (c) => {
     const stateCookie = getCookie(c, 'google_oauth_state');
     if (stateCookie) {
       try {
-        const googleSession = await exchangeGoogleOAuthCode(
+        const signIn = await exchangeGoogleOAuthCode(
           c,
           body.code,
           body.state ?? null,
         );
-        setCookie(c, GOOGLE_SESSION_COOKIE_NAME, googleSession, cookieBase);
+        if (signIn.sessionType === 'email') {
+          setEmailSessionCookie(c, signIn.sessionToken);
+        } else {
+          setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
+        }
         setCookie(c, 'google_oauth_state', '', { ...cookieBase, maxAge: 0 });
-        return c.json({ success: true, provider: 'google' }, 200);
+        return c.json(
+          { success: true, provider: signIn.sessionType === 'email' ? 'email' : 'google' },
+          200,
+        );
       } catch (e) {
         console.error('exchangeGoogleOAuthCode:', e);
         return c.json(

@@ -4,7 +4,6 @@ import { useAuth } from '@getmocha/users-service/react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import {
   exchangeOAuthCodeFromUrl,
-  readApiError,
   startGoogleSignIn,
 } from '@/react-app/lib/oauth-client';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
@@ -42,8 +41,6 @@ function isLocalBrowserHostname(): boolean {
   return /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(h);
 }
 
-type OAuthProvider = 'google' | 'spotify';
-
 async function readErrorMessage(response: Response, fallback: string): Promise<string> {
   try {
     const data = (await response.json()) as { error?: string };
@@ -62,10 +59,6 @@ export default function Auth() {
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const authModeParam = searchParams.get('mode');
-  const [authMethod, setAuthMethod] = useState<OAuthProvider | 'email'>(() =>
-    authModeParam === 'signup' ? 'email' : 'google',
-  );
-
   const [emailMode, setEmailMode] = useState<'signin' | 'signup' | 'forgot'>(() =>
     authModeParam === 'signup' ? 'signup' : 'signin',
   );
@@ -75,7 +68,7 @@ export default function Auth() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [forgotMessage, setForgotMessage] = useState<string | null>(null);
 
-  // Restore session from device token (works for email-based accounts; OAuth users still need Google/Spotify)
+  // Restore session from device token (works for email-based accounts; OAuth users still need Google)
   useEffect(() => {
     const checkDeviceToken = async () => {
       const deviceToken = document.cookie
@@ -155,7 +148,6 @@ export default function Auth() {
     const mode = searchParams.get('mode');
     if (mode === 'signup') {
       setEmailMode('signup');
-      setAuthMethod('email');
     } else if (mode === 'signin') {
       setEmailMode('signin');
     }
@@ -208,7 +200,6 @@ export default function Auth() {
   const startGoogleAuth = async () => {
     setError(null);
     setLoading(true);
-    setAuthMethod('google');
     try {
       window.location.href = await startGoogleSignIn();
     } catch (err) {
@@ -219,38 +210,6 @@ export default function Auth() {
           ? ` Add ${window.location.origin}/auth/callback in Google Cloud Console if it is missing.`
           : '';
       setError(message + hint);
-      setLoading(false);
-    }
-  };
-
-  const startOAuth = async (provider: OAuthProvider) => {
-    if (provider === 'google') {
-      await startGoogleAuth();
-      return;
-    }
-    setError(null);
-    setLoading(true);
-    setAuthMethod(provider);
-    try {
-      const params = new URLSearchParams();
-      if (typeof window !== 'undefined' && window.location?.origin) {
-        params.set('redirect_base', `${window.location.origin}/auth/callback`);
-      }
-      const qs = params.toString();
-      const response = await fetch(
-        `/api/oauth/${provider}/redirect_url${qs ? `?${qs}` : ''}`,
-        { credentials: 'include' },
-      );
-      if (!response.ok) {
-        throw new Error(
-          await readApiError(response, 'Could not start Spotify sign-in.'),
-        );
-      }
-      const { redirectUrl } = (await response.json()) as { redirectUrl: string };
-      window.location.href = redirectUrl;
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : 'Sign-in failed.');
       setLoading(false);
     }
   };
@@ -476,25 +435,9 @@ export default function Auth() {
             <GoogleSignInButton
               onClick={() => void startGoogleAuth()}
               disabled={emailLoading}
-              loading={loading && authMethod === 'google'}
+              loading={loading}
               label="Sign in with Google"
             />
-
-            <button
-              type="button"
-              onClick={() => startOAuth('spotify')}
-              disabled={loading || emailLoading}
-              className="w-full px-6 py-4 bg-[#1DB954] hover:bg-[#1ed760] rounded-xl font-bold text-black text-lg transition-colors disabled:opacity-50 disabled:hover:bg-[#1DB954]"
-            >
-              {loading && authMethod === 'spotify' ? (
-                <span className="flex items-center justify-center space-x-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Connecting...</span>
-                </span>
-              ) : (
-                'Sign In with Spotify'
-              )}
-            </button>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">

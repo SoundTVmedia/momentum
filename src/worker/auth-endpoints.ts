@@ -228,11 +228,12 @@ export async function requestPasswordReset(c: Context<{ Bindings: Env }>) {
   const from =
     typeof c.env.TRANSACTIONAL_EMAIL_FROM === 'string' && c.env.TRANSACTIONAL_EMAIL_FROM.trim()
       ? c.env.TRANSACTIONAL_EMAIL_FROM.trim()
-      : 'Feedback <onboarding@resend.dev>';
+      : 'Momentum <onboarding@resend.dev>';
+
+  const hasResendKey =
+    typeof c.env.RESEND_API_KEY === 'string' && c.env.RESEND_API_KEY.trim() !== '';
 
   try {
-    const hasResendKey =
-      typeof c.env.RESEND_API_KEY === 'string' && c.env.RESEND_API_KEY.trim() !== '';
     await sendPasswordResetEmail({
       apiKey: c.env.RESEND_API_KEY,
       from,
@@ -240,7 +241,20 @@ export async function requestPasswordReset(c: Context<{ Bindings: Env }>) {
       resetUrl,
       logResetLinkForDev: isLocalDevHost(c) && !hasResendKey,
     });
-  } catch {
+  } catch (e) {
+    const code = e instanceof Error ? e.message : '';
+    if (code === 'email_not_configured') {
+      console.error(
+        'requestPasswordReset: RESEND_API_KEY is not set — password reset emails cannot be sent',
+      );
+      return c.json(
+        {
+          error:
+            'Password reset email is not configured on the server. Set RESEND_API_KEY and TRANSACTIONAL_EMAIL_FROM (verified no-reply sender).',
+        },
+        503,
+      );
+    }
     return c.json({ error: 'Could not send reset email. Try again later.' }, 500);
   }
 
