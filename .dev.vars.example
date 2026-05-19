@@ -22,10 +22,11 @@ MOCHA_USERS_SERVICE_API_URL=
 MOCHA_USERS_SERVICE_API_KEY=
 #
 # --- Email/password password reset (Resend) ---
-# Required in production for forgot-password. Without RESEND_API_KEY, local dev logs the reset link to the Worker console.
+# Production: wrangler secret put RESEND_API_KEY  (and optionally TRANSACTIONAL_EMAIL_FROM)
+# Local without a key: reset links are logged to the Worker console when the browser Origin is localhost/LAN.
 # RESEND_API_KEY=re_...
 # Verified sender in Resend (use your domain), e.g. no-reply@yourdomain.com:
-# TRANSACTIONAL_EMAIL_FROM=Momentum <no-reply@yourdomain.com>
+# TRANSACTIONAL_EMAIL_FROM=FEEDBACK <no-reply@yourdomain.com>
 # If the Worker cannot infer your SPA origin, set the public app URL (password reset links).
 # PUBLIC_APP_URL=http://localhost:5173
 # JamBase Data API v3 — Worker→JamBase requests use Cloudflare edge cache (see jambase-client.ts TTLs).

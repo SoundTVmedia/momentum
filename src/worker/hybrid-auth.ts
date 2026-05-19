@@ -15,7 +15,7 @@ export const GOOGLE_SESSION_COOKIE_NAME = 'momentum_google_session';
 
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 
-function isRfc1918PrivateHost(host: string): boolean {
+export function isRfc1918PrivateHost(host: string): boolean {
   if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) {
     return true;
   }
@@ -55,6 +55,42 @@ export function isLocalDevHost(c: Context): boolean {
     return false;
   }
   return isRfc1918PrivateHost(host);
+}
+
+/** Browser app origin (Origin header or redirect_base) — local Vite, LAN, etc. */
+export function isLocalDevAppOrigin(url: string | null | undefined): boolean {
+  const raw = url?.trim();
+  if (!raw) return false;
+  try {
+    const u = new URL(raw);
+    const host = u.hostname.toLowerCase();
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '[::1]' ||
+      host.endsWith('.local')
+    ) {
+      return true;
+    }
+    if (u.protocol === 'http:' && isRfc1918PrivateHost(host)) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/** Log reset URL to console instead of Resend when API key is unset (local dev only). */
+export function shouldLogPasswordResetLinkInsteadOfEmail(
+  c: Context,
+  opts: { hasResendKey: boolean; redirectBase?: string },
+): boolean {
+  if (opts.hasResendKey) return false;
+  if (isLocalDevHost(c)) return true;
+  if (isLocalDevAppOrigin(c.req.header('origin'))) return true;
+  if (isLocalDevAppOrigin(opts.redirectBase)) return true;
+  return false;
 }
 
 function sessionCookieOptions(c: Context) {

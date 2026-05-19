@@ -1,4 +1,5 @@
 import { Music, Instagram, Twitter, Youtube, Download, Smartphone } from 'lucide-react'
+import { SHOW_FEEDBACK_LIVE_SCHEDULE } from '@/shared/feature-flags'
 
 export default function Footer() {
   return (
@@ -93,21 +94,25 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Show Schedule */}
-        <div className="border-t border-purple-500/20 pt-8 mb-8">
-          <div className="text-center">
-            <h3 className="font-bold text-white mb-4">FEEDBACK Live Schedule</h3>
-            <div className="grid grid-cols-1 md:grid-cols-7 gap-2 max-w-4xl mx-auto">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-                <div key={day} className="bg-black/40 border border-momentum-teal/20 rounded-lg p-3 text-center">
-                  <div className="font-medium text-cyan-400 text-sm">{day}</div>
-                  <div className="text-white text-xs mt-1">8PM-12AM</div>
-                  <div className="text-gray-300 text-xs">EST</div>
-                </div>
-              ))}
+        {SHOW_FEEDBACK_LIVE_SCHEDULE ? (
+          <div className="border-t border-purple-500/20 pt-8 mb-8">
+            <div className="text-center">
+              <h3 className="font-bold text-white mb-4">FEEDBACK Live Schedule</h3>
+              <div className="grid grid-cols-1 md:grid-cols-7 gap-2 max-w-4xl mx-auto">
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                  <div
+                    key={day}
+                    className="bg-black/40 border border-momentum-teal/20 rounded-lg p-3 text-center"
+                  >
+                    <div className="font-medium text-cyan-400 text-sm">{day}</div>
+                    <div className="text-white text-xs mt-1">8PM-12AM</div>
+                    <div className="text-gray-300 text-xs">EST</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
 
         {/* Copyright */}
         <div className="border-t border-purple-500/20 pt-8 text-center">

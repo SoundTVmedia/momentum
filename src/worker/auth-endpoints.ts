@@ -5,7 +5,7 @@ import {
   setEmailSessionCookie,
   hashOpaqueToken,
   revokeAllEmailSessionsForUser,
-  isLocalDevHost,
+  shouldLogPasswordResetLinkInsteadOfEmail,
 } from './hybrid-auth';
 import {
   hashPassword,
@@ -233,13 +233,18 @@ export async function requestPasswordReset(c: Context<{ Bindings: Env }>) {
   const hasResendKey =
     typeof c.env.RESEND_API_KEY === 'string' && c.env.RESEND_API_KEY.trim() !== '';
 
+  const logResetLinkForDev = shouldLogPasswordResetLinkInsteadOfEmail(c, {
+    hasResendKey,
+    redirectBase: body.redirect_base,
+  });
+
   try {
     await sendPasswordResetEmail({
       apiKey: c.env.RESEND_API_KEY,
       from,
       to: row.email,
       resetUrl,
-      logResetLinkForDev: isLocalDevHost(c) && !hasResendKey,
+      logResetLinkForDev,
     });
   } catch (e) {
     const code = e instanceof Error ? e.message : '';
@@ -250,9 +255,18 @@ export async function requestPasswordReset(c: Context<{ Bindings: Env }>) {
       return c.json(
         {
           error:
-            'Password reset email is not configured on the server. Set RESEND_API_KEY and TRANSACTIONAL_EMAIL_FROM (verified no-reply sender).',
+            'Password reset email is not configured on the server. Set RESEND_API_KEY and TRANSACTIONAL_EMAIL_FROM (verified no-reply sender), or use the app from localhost to log reset links in the Worker console during development.',
         },
         503,
+      );
+    }
+    if (code === 'email_provider_error') {
+      return c.json(
+        {
+          error:
+            'Could not send reset email. Check RESEND_API_KEY and that TRANSACTIONAL_EMAIL_FROM uses a verified sender domain in Resend.',
+        },
+        502,
       );
     }
     return c.json({ error: 'Could not send reset email. Try again later.' }, 500);
