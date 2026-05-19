@@ -1,6 +1,11 @@
 import { Context } from 'hono';
 import type { MochaUser } from '@getmocha/users-service/shared';
-import { jamBaseFetch, jamBaseQuotaFromEnv } from './jambase-client';
+import {
+  jamBaseFetch,
+  jamBaseMissingKeyNotice,
+  jamBaseApiKeyConfigured,
+  jamBaseQuotaFromEnv,
+} from './jambase-client';
 import { cacheJsonProxy } from './performance-utils';
 import {
   buildTightJamBaseEventResults,
@@ -193,8 +198,8 @@ export async function advancedSearch(c: Context) {
       jambaseNotice =
         'JamBase artist/venue search did not complete (network error, invalid API key, or JAMBASE_QUOTA_ENFORCEMENT may have blocked upstream calls). Your Feedback clips and on-platform matches below are unchanged — check worker logs.';
     }
-  } else if (query.trim().length >= 2 && !jbKey?.trim()) {
-    jambaseNotice = 'JamBase is not configured (missing JAMBASE_API_KEY).';
+  } else if (query.trim().length >= 2 && !jamBaseApiKeyConfigured(jbKey)) {
+    jambaseNotice = jamBaseMissingKeyNotice();
   }
 
   cacheJsonProxy(c, { browserMaxAge: 90, cdnMaxAge: 600, staleWhileRevalidate: 900 });
@@ -317,9 +322,8 @@ export async function getDiscoverFeed(c: Context) {
   ]);
 
   let jambaseNotice: string | null = null;
-  if (!apiKey?.trim()) {
-    jambaseNotice =
-      'JamBase is not configured — artist photos and nearby shows may be limited.';
+  if (!jamBaseApiKeyConfigured(apiKey)) {
+    jambaseNotice = jamBaseMissingKeyNotice();
   } else if (nearbyEvents.length === 0 && artists.every((a) => !a.image_url)) {
     jambaseNotice = 'No nearby shows or JamBase images returned for this area.';
   }
@@ -331,6 +335,49 @@ export async function getDiscoverFeed(c: Context) {
     artists,
     nearbyEvents,
     location,
+    jambaseNotice,
+  });
+}
+
+/** IP or profile-based nearby JamBase events (home feed, logged in or out). */
+export async function getNearbyShows(c: Context) {
+  const mochaUser = c.get('user') as MochaUser | undefined;
+  const limit = Math.min(parseInt(c.req.query('limit') || '12', 10), 40);
+  const radiusMiles = Math.min(
+    100,
+    Math.max(10, parseInt(c.req.query('radius_miles') || '50', 10)),
+  );
+
+  const location = await resolveDiscoverLocation(c, mochaUser ?? null);
+  const jbQ = jamBaseQuotaFromEnv(c.env);
+  const apiKey = c.env.JAMBASE_API_KEY;
+
+  let jambaseNotice: string | null = null;
+  if (!jamBaseApiKeyConfigured(apiKey)) {
+    jambaseNotice = jamBaseMissingKeyNotice();
+  }
+
+  const events = await fetchNearbyJamBaseEvents(
+    apiKey,
+    jbQ,
+    location.latitude,
+    location.longitude,
+    radiusMiles,
+    limit,
+  );
+
+  if (!jambaseNotice && events.length === 0 && jamBaseApiKeyConfigured(apiKey)) {
+    jambaseNotice =
+      'No upcoming JamBase shows were returned for this location. Try a larger radius or check worker logs for upstream errors.';
+  }
+
+  cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+
+  return c.json({
+    events,
+    location,
+    personalized: true,
+    source: 'jambase' as const,
     jambaseNotice,
   });
 }

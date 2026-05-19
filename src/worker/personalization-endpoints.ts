@@ -1,6 +1,10 @@
 import { Context } from 'hono';
 import { normalizeClipApiRows } from './clip-row-normalize';
-import { jamBaseQuotaFromEnv } from './jambase-client';
+import {
+  jamBaseApiKeyConfigured,
+  jamBaseMissingKeyNotice,
+  jamBaseQuotaFromEnv,
+} from './jambase-client';
 import { fetchJamBaseEventsByArtistName } from './jambase-endpoints';
 import { dedupeJamBaseEvents } from './jambase-events-search';
 import {
@@ -402,6 +406,16 @@ export async function getPersonalizedConcerts(c: Context) {
 
     const uniqueArtists = [...new Set(favoriteArtists)].slice(0, 8);
     const key = c.env.JAMBASE_API_KEY;
+
+    if (!jamBaseApiKeyConfigured(key)) {
+      return c.json({
+        events: [],
+        concerts: [],
+        personalized: true,
+        source: 'jambase' as const,
+        message: jamBaseMissingKeyNotice(),
+      });
+    }
 
     if (key?.trim()) {
       const jbQ = jamBaseQuotaFromEnv(c.env);

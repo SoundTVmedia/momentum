@@ -2,7 +2,6 @@ import { Link } from 'react-router'
 import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
 import Footer from '@/react-app/components/Footer'
-import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA'
 import ConcertFeed from '@/react-app/components/ConcertFeed'
 import MainFeedStack from '@/react-app/components/MainFeedStack'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
@@ -19,12 +18,6 @@ export default function Home() {
 
       {!user && (
         <>
-          <div className="bg-gradient-to-b from-black via-momentum-teal/8 to-slate-950 py-8 sm:py-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <NearbyShowsCTA variant="banner" maxShows={1} />
-            </div>
-          </div>
-
           <div className="bg-gradient-to-b from-slate-950 via-black to-black pb-8 sm:pb-12">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10">
               <section>
@@ -59,7 +52,11 @@ export default function Home() {
               </section>
 
               <section>
-                <PersonalizedConcerts carouselBleedScope="page" headingVariant="page" />
+                <PersonalizedConcerts
+                  carouselBleedScope="page"
+                  headingVariant="page"
+                  mode="nearby"
+                />
               </section>
             </div>
           </div>

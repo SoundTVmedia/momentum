@@ -122,10 +122,52 @@ export default function DiscoverPage() {
   const fetchDiscoverFeed = async () => {
     setLoading(true);
     try {
-      const response = await apiFetch('/api/discover/feed', { credentials: 'include' });
-      if (response.ok) {
-        const data = (await response.json()) as DiscoverFeed;
-        setDiscoverFeed(data);
+      const [feedRes, nearbyRes] = await Promise.all([
+        apiFetch('/api/discover/feed', { credentials: 'include' }),
+        apiFetch('/api/shows/nearby?limit=20', { credentials: 'include' }),
+      ]);
+
+      let feed: DiscoverFeed | null = null;
+      if (feedRes.ok) {
+        feed = (await feedRes.json()) as DiscoverFeed;
+      }
+
+      if (nearbyRes.ok) {
+        const nearby = (await nearbyRes.json()) as {
+          events?: Record<string, unknown>[];
+          location?: DiscoverFeed['location'];
+          jambaseNotice?: string | null;
+        };
+        const events = Array.isArray(nearby.events) ? nearby.events : [];
+        const nearbyNotice =
+          typeof nearby.jambaseNotice === 'string' && nearby.jambaseNotice.trim()
+            ? nearby.jambaseNotice.trim()
+            : null;
+        if (feed) {
+          feed = {
+            ...feed,
+            nearbyEvents: events.length > 0 ? events : feed.nearbyEvents,
+            location: nearby.location ?? feed.location,
+            jambaseNotice: feed.jambaseNotice ?? nearbyNotice,
+          };
+        } else {
+          feed = {
+            clips: [],
+            artists: [],
+            nearbyEvents: events,
+            location: nearby.location ?? {
+              latitude: 40.7505,
+              longitude: -73.9934,
+              source: 'default',
+              label: 'New York, NY',
+            },
+            jambaseNotice: nearbyNotice,
+          };
+        }
+      }
+
+      if (feed) {
+        setDiscoverFeed(feed);
       }
     } catch (error) {
       console.error('Failed to fetch discover feed:', error);
@@ -413,20 +455,29 @@ export default function DiscoverPage() {
               </section>
             )}
 
-            {discoverFeed.nearbyEvents.length > 0 && (
-              <section className={HOME_FEED_SECTION_CLASS}>
-                <DiscoverSectionTitle
-                  title="Upcoming Shows at Venues Near You"
-                  subtitle={nearbyShowsSubtitle(discoverFeed)}
-                />
+            <section className={HOME_FEED_SECTION_CLASS}>
+              <DiscoverSectionTitle
+                icon={Ticket}
+                iconClassName="text-momentum-mint"
+                title="Upcoming Shows at Venues Near You"
+                subtitle={nearbyShowsSubtitle(discoverFeed)}
+              />
+              {discoverFeed.nearbyEvents.length > 0 ? (
                 <JamBaseEventGrid
                   layout="carousel"
                   preloadedEvents={discoverFeed.nearbyEvents}
                   maxEvents={20}
                   carouselAriaLabel="Upcoming shows near you"
                 />
-              </section>
-            )}
+              ) : (
+                <div className="rounded-xl border border-momentum-teal/25 bg-black/40 px-6 py-10 text-center">
+                  <p className="text-gray-300 text-sm max-w-lg mx-auto">
+                    {discoverFeed.jambaseNotice?.trim() ||
+                      'No upcoming shows found near your area right now. Try again later or search for an artist or venue above.'}
+                  </p>
+                </div>
+              )}
+            </section>
           </div>
         ) : null}
       </div>

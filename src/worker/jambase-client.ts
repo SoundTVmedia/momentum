@@ -281,6 +281,15 @@ export function jamBaseEventDateFromToday(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+export function jamBaseApiKeyConfigured(apiKey: string | undefined): boolean {
+  return typeof apiKey === 'string' && apiKey.trim().length > 0;
+}
+
+/** User-facing notice when the worker has no JamBase token loaded. */
+export function jamBaseMissingKeyNotice(): string {
+  return 'JamBase is not configured. Set JAMBASE_API_KEY in .dev.vars (local) or run `wrangler secret put JAMBASE_API_KEY` (production), then restart the worker.';
+}
+
 /**
  * Housekeeping for `jambase_api_usage`.
  * - Removes legacy `jam:h:*` buckets from older quota experiments.

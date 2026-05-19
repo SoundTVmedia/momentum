@@ -65,7 +65,7 @@ export default function MainFeedStack({
             )}
           </h2>
           <p className="text-gray-400 text-sm sm:text-base">
-            Your artists, shows near you, and what&apos;s hot on the platform
+            Your artists, nearby venues, and what&apos;s hot on the platform
           </p>
         </div>
       )}
@@ -93,7 +93,12 @@ export default function MainFeedStack({
         suppressBottomPadding={isHome}
       />
 
-      {isHome ? <PersonalizedConcerts carouselBleedScope="page" /> : null}
+      {isHome ? (
+        <div className="space-y-8 md:space-y-6">
+          <PersonalizedConcerts carouselBleedScope="page" mode="favorite-artists" />
+          <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
+        </div>
+      ) : null}
     </div>
   )
 }

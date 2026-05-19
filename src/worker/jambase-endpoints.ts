@@ -2,6 +2,8 @@ import { Context } from 'hono';
 import {
   jamBaseFetch,
   jamBaseEventDateFromToday,
+  jamBaseApiKeyConfigured,
+  jamBaseMissingKeyNotice,
   jamBaseQuotaFromEnv,
   type JamBaseFetchDiag,
   type JamBaseQuotaContext,
@@ -18,6 +20,20 @@ import {
  * JamBase Data API v3 — proxy endpoints for the SPA.
  * @see https://data.jambase.com/api/docs/getting-started
  */
+
+/** Public config check (does not call JamBase upstream). */
+export async function getJamBaseStatus(c: Context) {
+  cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 60 });
+  const configured = jamBaseApiKeyConfigured(c.env.JAMBASE_API_KEY);
+  return c.json({
+    configured,
+    apiVersion: 3,
+    baseUrl: 'https://api.data.jambase.com/v3',
+    hint: configured
+      ? 'API key is loaded on the worker. Use GET /api/jambase/connection-test (signed in) to verify upstream.'
+      : jamBaseMissingKeyNotice(),
+  });
+}
 
 /** Authenticated smoke test: one geo `/venues` call using server `JAMBASE_API_KEY` (key is never returned). */
 export async function connectionTest(c: Context) {

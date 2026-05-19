@@ -1613,8 +1613,10 @@ app.get("/api/search/advanced", discovery.advancedSearch);
 // Get trending content
 app.get("/api/discover/trending", discovery.getTrendingContent);
 app.get("/api/discover/feed", optionalAuthMiddleware, discovery.getDiscoverFeed);
+app.get("/api/shows/nearby", optionalAuthMiddleware, discovery.getNearbyShows);
 
 // JamBase API Integration Endpoints
+app.get("/api/jambase/status", jambase.getJamBaseStatus);
 app.get("/api/jambase/connection-test", authMiddleware, jambase.connectionTest);
 app.get("/api/jambase/search/artists", jambase.searchArtists);
 app.get("/api/jambase/search/venues", jambase.searchVenues);

@@ -14,11 +14,15 @@ import {
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
 
+export type ShowsSectionMode = 'favorite-artists' | 'nearby' | 'auto';
+
 export type PersonalizedConcertsProps = {
   /** Match Discover / home feed carousels (`page`) vs nested profile shell (`home`). */
   carouselBleedScope?: 'home' | 'page';
   /** Large centered headings (logged-out homepage); default is compact feed style. */
   headingVariant?: 'compact' | 'page';
+  /** `auto`: favorites when logged in, nearby when logged out. */
+  mode?: ShowsSectionMode;
 };
 
 interface D1Concert {
@@ -39,6 +43,7 @@ type ConcertsApi = {
   personalized?: boolean;
   source?: 'jambase' | 'd1';
   message?: string;
+  location?: { label?: string; source?: string };
 };
 
 function D1ConcertCard({ concert }: { concert: D1Concert }) {
@@ -109,9 +114,17 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
   );
 }
 
+function resolveMode(mode: ShowsSectionMode, isLoggedIn: boolean): 'favorite-artists' | 'nearby' {
+  if (mode === 'auto') {
+    return isLoggedIn ? 'favorite-artists' : 'nearby';
+  }
+  return mode;
+}
+
 export default function PersonalizedConcerts({
   carouselBleedScope = 'home',
   headingVariant = 'compact',
+  mode = 'auto',
 }: PersonalizedConcertsProps) {
   const { user, isPending: authPending } = useAuth();
   const carouselBleed =
@@ -120,14 +133,21 @@ export default function PersonalizedConcerts({
   const [loading, setLoading] = useState(true);
 
   const isLoggedIn = Boolean(user);
+  const resolvedMode = resolveMode(mode, isLoggedIn);
 
   useEffect(() => {
     if (authPending) return;
 
+    if (resolvedMode === 'favorite-artists' && !isLoggedIn) {
+      setPayload(null);
+      setLoading(false);
+      return;
+    }
+
     const fetchConcerts = async () => {
       setLoading(true);
       try {
-        if (isLoggedIn) {
+        if (resolvedMode === 'favorite-artists') {
           const response = await fetch('/api/personalization/concerts?limit=12', {
             credentials: 'include',
           });
@@ -140,20 +160,27 @@ export default function PersonalizedConcerts({
             message: typeof data.message === 'string' ? data.message : undefined,
           });
         } else {
-          const response = await fetch('/api/discover/feed', { credentials: 'include' });
-          const data = (await response.json()) as {
-            nearbyEvents?: Record<string, unknown>[];
-            location?: { label?: string };
+          const response = await fetch('/api/shows/nearby?limit=12', {
+            credentials: 'include',
+          });
+          const data = (await response.json()) as ConcertsApi & {
+            jambaseNotice?: string | null;
           };
+          const notice =
+            typeof data.jambaseNotice === 'string' && data.jambaseNotice.trim()
+              ? data.jambaseNotice.trim()
+              : null;
           setPayload({
             personalized: true,
             concerts: [],
-            events: Array.isArray(data.nearbyEvents) ? data.nearbyEvents : [],
+            events: Array.isArray(data.events) ? data.events : [],
             source: 'jambase',
+            location: data.location,
             message:
-              (data.nearbyEvents?.length ?? 0) === 0
+              notice ??
+              ((data.events?.length ?? 0) === 0
                 ? 'No upcoming shows found near your area.'
-                : undefined,
+                : undefined),
           });
         }
       } catch (error) {
@@ -165,24 +192,35 @@ export default function PersonalizedConcerts({
     };
 
     void fetchConcerts();
-  }, [authPending, isLoggedIn]);
+  }, [authPending, isLoggedIn, resolvedMode]);
 
-  const sectionTitle = isLoggedIn
-    ? 'Shows from Your Favorite Artists'
-    : 'Shows Near You';
+  const locationLabel =
+    typeof payload?.location?.label === 'string' && payload.location.label.trim()
+      ? payload.location.label.trim()
+      : null;
 
-  const sectionSubtitle = isLoggedIn
-    ? payload?.source === 'jambase'
-      ? 'Upcoming shows from JamBase for your favorite artists'
-      : 'Upcoming concerts from artists you love'
-    : 'Upcoming shows near you from JamBase';
+  const sectionTitle =
+    resolvedMode === 'favorite-artists'
+      ? 'Shows from Your Favorite Artists'
+      : headingVariant === 'page'
+        ? 'Shows Near You'
+        : 'Shows at Venues Near You';
 
-  const usePageHeading = headingVariant === 'page' && !isLoggedIn;
+  const sectionSubtitle =
+    resolvedMode === 'favorite-artists'
+      ? payload?.source === 'jambase'
+        ? 'Upcoming shows from JamBase for your favorite artists'
+        : 'Upcoming concerts from artists you love'
+      : locationLabel
+        ? `Upcoming shows at venues near ${locationLabel}`
+        : 'Upcoming shows at venues near you from JamBase';
+
+  const usePageHeading = headingVariant === 'page' && resolvedMode === 'nearby';
 
   const sectionHeader = usePageHeading ? (
     <>
       <h2 className="text-4xl md:text-5xl font-bold mb-4 text-center momentum-grad-text">
-        Shows Near You
+        {sectionTitle}
       </h2>
       <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
         {sectionSubtitle}
@@ -190,19 +228,21 @@ export default function PersonalizedConcerts({
     </>
   ) : (
     <div className="mb-4 md:mb-5">
-      <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">
-        {sectionTitle}
-      </h2>
+      <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">{sectionTitle}</h2>
       <p className="text-gray-400 text-sm mt-1">{sectionSubtitle}</p>
     </div>
   );
+
+  if (resolvedMode === 'favorite-artists' && !isLoggedIn) {
+    return null;
+  }
 
   if (loading) {
     return (
       <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8">
         <div className="flex items-center justify-center space-x-2 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Loading your recommendations...</span>
+          <span>Loading shows…</span>
         </div>
       </div>
     );
@@ -212,8 +252,8 @@ export default function PersonalizedConcerts({
   const d1Concerts = payload?.concerts ?? [];
   const hasShows = jbEvents.length > 0 || d1Concerts.length > 0;
 
-  if (!loading && (!payload?.personalized || !hasShows)) {
-    if (!isLoggedIn) {
+  if (!payload?.personalized || !hasShows) {
+    if (resolvedMode === 'nearby') {
       return null;
     }
     return (
@@ -235,6 +275,11 @@ export default function PersonalizedConcerts({
     );
   }
 
+  const carouselAriaLabel =
+    resolvedMode === 'favorite-artists'
+      ? 'Upcoming shows from your favorite artists'
+      : 'Upcoming shows near you';
+
   return (
     <div className={usePageHeading ? '' : HOME_FEED_SECTION_CLASS}>
       {sectionHeader}
@@ -244,11 +289,7 @@ export default function PersonalizedConcerts({
           preloadedEvents={jbEvents}
           maxEvents={12}
           layout="carousel"
-          carouselAriaLabel={
-            isLoggedIn
-              ? 'Upcoming shows from your favorite artists'
-              : 'Upcoming shows near you'
-          }
+          carouselAriaLabel={carouselAriaLabel}
           carouselClassName={carouselBleed}
         />
       ) : (
@@ -265,13 +306,13 @@ export default function PersonalizedConcerts({
         </HorizontalClipCarousel>
       )}
 
-      {jbEvents.length >= 12 && (
+      {jbEvents.length >= 12 ? (
         <div className="text-center pt-4">
           <a href="/discover" className="text-cyan-400 hover:text-cyan-300 font-medium">
             See more on Discover →
           </a>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
