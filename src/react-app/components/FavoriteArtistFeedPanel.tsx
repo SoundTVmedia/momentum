@@ -251,10 +251,15 @@ export default function FavoriteArtistFeedPanel({
             : 'mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 md:mb-5">
-          <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent min-w-0">
-            Your Artists
-          </h2>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4 md:mb-5">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              Your Artists
+            </h2>
+            <p className="text-gray-400 text-sm mt-1">
+              Clips and upcoming shows from the artists you follow
+            </p>
+          </div>
           {variant === 'feed' ? (
             <button
               type="button"
@@ -337,7 +342,7 @@ export default function FavoriteArtistFeedPanel({
             {upcomingEvents.length > 0 && (
               <div className="mb-8">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3 flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-amber-400" />
+                  <Ticket className="w-4 h-4 text-momentum-mint" />
                   Upcoming shows
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -395,9 +400,9 @@ export default function FavoriteArtistFeedPanel({
                             href={ev.ticket_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mt-auto text-center text-sm font-medium py-2 rounded-lg momentum-grad-interactive text-white"
+                            className="mt-auto text-center text-sm font-semibold py-2.5 rounded-lg momentum-ticket-btn"
                           >
-                            Tickets
+                            Get Tickets
                           </a>
                         ) : null}
                       </div>

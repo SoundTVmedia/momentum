@@ -8,7 +8,6 @@ import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFe
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
-import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
 
 export type MainFeedStackVariant = 'page' | 'home'
 
@@ -88,27 +87,14 @@ export default function MainFeedStack({
         </div>
       </div>
 
-      <div className={isHome ? HOME_FEED_SECTION_CLASS : undefined}>
-        <ConcertFeed
-          feedType={feedType}
-          hideSectionHeader
-          edgeBleed={isHome}
-          edgeBleedScope="page"
-        />
-        {user && isHome ? (
-          <div className="mt-6 flex justify-center">
-            <button
-              type="button"
-              onClick={() => navigate('/discover')}
-              className="px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white text-sm hover:scale-[1.02] transition-transform"
-            >
-              Discover more clips
-            </button>
-          </div>
-        ) : null}
-      </div>
+      <ConcertFeed
+        feedType={feedType}
+        hideSectionHeader
+        edgeBleed={isHome}
+        edgeBleedScope="page"
+      />
 
-      {user && isHome ? <PersonalizedConcerts carouselBleedScope="page" /> : null}
+      {isHome ? <PersonalizedConcerts carouselBleedScope="page" /> : null}
     </div>
   )
 }

@@ -279,7 +279,7 @@ export default function DiscoverSection() {
                               e.stopPropagation()
                               window.open(show.ticket_url, '_blank')
                             }}
-                            className="flex-1 px-4 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
+                            className="flex-1 px-4 py-2 momentum-ticket-btn rounded-lg font-semibold hover:scale-[1.02] transition-transform"
                           >
                             Get Tickets
                           </button>

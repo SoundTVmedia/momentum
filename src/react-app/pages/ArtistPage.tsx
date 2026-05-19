@@ -511,7 +511,7 @@ export default function ArtistPage() {
                               href={tourDate.ticket_url}
                               target="_blank"
                               rel="nofollow noopener noreferrer"
-                              className="flex items-center justify-center space-x-2 w-full px-3 py-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
+                              className="flex items-center justify-center space-x-2 w-full px-3 py-2 momentum-ticket-btn rounded-lg text-sm font-semibold hover:scale-[1.02] transition-transform"
                             >
                               <Ticket className="w-4 h-4" />
                               <span>Get Tickets</span>

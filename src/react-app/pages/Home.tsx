@@ -5,6 +5,7 @@ import Footer from '@/react-app/components/Footer'
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA'
 import ConcertFeed from '@/react-app/components/ConcertFeed'
 import MainFeedStack from '@/react-app/components/MainFeedStack'
+import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
 import { useAuth } from '@getmocha/users-service/react'
 
 export default function Home() {
@@ -59,6 +60,8 @@ export default function Home() {
                   edgeBleedScope="page"
                 />
               </section>
+
+              <PersonalizedConcerts carouselBleedScope="page" />
             </div>
           </div>
         </>

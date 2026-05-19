@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Calendar, MapPin, Music, ExternalLink, Loader2, Heart } from 'lucide-react';
+import { Calendar, MapPin, ExternalLink, Loader2, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { useAuth } from '@getmocha/users-service/react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
@@ -94,7 +95,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
               href={concert.ticket_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex w-full items-center justify-center space-x-2 px-4 py-2 momentum-grad-interactive rounded-lg text-white font-semibold hover:brightness-110 transition-all"
+              className="flex w-full items-center justify-center gap-2 px-4 py-2.5 momentum-ticket-btn rounded-lg font-semibold hover:scale-[1.02] transition-transform"
             >
               <span>Get Tickets</span>
               <ExternalLink className="w-4 h-4" />
@@ -109,27 +110,51 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
 export default function PersonalizedConcerts({
   carouselBleedScope = 'home',
 }: PersonalizedConcertsProps) {
+  const { user, isPending: authPending } = useAuth();
   const carouselBleed =
     carouselBleedScope === 'page' ? PAGE_CAROUSEL_BLEED : HOME_FEED_CAROUSEL_BLEED;
   const [payload, setPayload] = useState<ConcertsApi | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const isLoggedIn = Boolean(user);
+
   useEffect(() => {
+    if (authPending) return;
+
     const fetchConcerts = async () => {
+      setLoading(true);
       try {
-        const response = await fetch('/api/personalization/concerts?limit=12', {
-          credentials: 'include',
-        });
-        const data = (await response.json()) as ConcertsApi;
-        setPayload({
-          personalized: Boolean(data.personalized),
-          concerts: Array.isArray(data.concerts) ? data.concerts : [],
-          events: Array.isArray(data.events) ? data.events : [],
-          source: data.source,
-          message: typeof data.message === 'string' ? data.message : undefined,
-        });
+        if (isLoggedIn) {
+          const response = await fetch('/api/personalization/concerts?limit=12', {
+            credentials: 'include',
+          });
+          const data = (await response.json()) as ConcertsApi;
+          setPayload({
+            personalized: Boolean(data.personalized),
+            concerts: Array.isArray(data.concerts) ? data.concerts : [],
+            events: Array.isArray(data.events) ? data.events : [],
+            source: data.source,
+            message: typeof data.message === 'string' ? data.message : undefined,
+          });
+        } else {
+          const response = await fetch('/api/discover/feed', { credentials: 'include' });
+          const data = (await response.json()) as {
+            nearbyEvents?: Record<string, unknown>[];
+            location?: { label?: string };
+          };
+          setPayload({
+            personalized: true,
+            concerts: [],
+            events: Array.isArray(data.nearbyEvents) ? data.nearbyEvents : [],
+            source: 'jambase',
+            message:
+              (data.nearbyEvents?.length ?? 0) === 0
+                ? 'No upcoming shows found near your area.'
+                : undefined,
+          });
+        }
       } catch (error) {
-        console.error('Failed to fetch personalized concerts:', error);
+        console.error('Failed to fetch concerts:', error);
         setPayload({ personalized: false, concerts: [], events: [] });
       } finally {
         setLoading(false);
@@ -137,7 +162,17 @@ export default function PersonalizedConcerts({
     };
 
     void fetchConcerts();
-  }, []);
+  }, [authPending, isLoggedIn]);
+
+  const sectionTitle = isLoggedIn
+    ? 'Shows from Your Favorite Artists'
+    : 'Shows Near You';
+
+  const sectionSubtitle = isLoggedIn
+    ? payload?.source === 'jambase'
+      ? 'Upcoming shows from JamBase for your favorite artists'
+      : 'Upcoming concerts from artists you love'
+    : 'Upcoming shows near you from JamBase';
 
 
   if (loading) {
@@ -155,7 +190,10 @@ export default function PersonalizedConcerts({
   const d1Concerts = payload?.concerts ?? [];
   const hasShows = jbEvents.length > 0 || d1Concerts.length > 0;
 
-  if (!payload?.personalized || !hasShows) {
+  if (!loading && (!payload?.personalized || !hasShows)) {
+    if (!isLoggedIn) {
+      return null;
+    }
     return (
       <div className="bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8">
         <div className="text-center">
@@ -177,18 +215,11 @@ export default function PersonalizedConcerts({
 
   return (
     <div className={HOME_FEED_SECTION_CLASS}>
-      <div className="flex items-center justify-between mb-4 md:mb-5">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <Music className="w-6 h-6 text-cyan-400 shrink-0" aria-hidden />
-            <span>Your Artists Are Coming</span>
-          </h2>
-          <p className="text-gray-400 text-sm mt-1">
-            {payload?.source === 'jambase'
-              ? 'Upcoming shows from JamBase for your favorite artists'
-              : 'Upcoming concerts from artists you love'}
-          </p>
-        </div>
+      <div className="mb-4 md:mb-5">
+        <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+          {sectionTitle}
+        </h2>
+        <p className="text-gray-400 text-sm mt-1">{sectionSubtitle}</p>
       </div>
 
       {jbEvents.length > 0 ? (

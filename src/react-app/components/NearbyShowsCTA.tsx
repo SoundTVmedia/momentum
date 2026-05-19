@@ -206,7 +206,7 @@ export default function NearbyShowsCTA({
             <div className="flex flex-col items-end space-y-2">
               <button
                 onClick={() => handleTicketClick(event)}
-                className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-pink-600 text-white rounded-lg font-bold hover:scale-105 transition-transform shadow-lg shadow-orange-500/50"
+                className="flex items-center space-x-2 px-6 py-3 momentum-ticket-btn rounded-lg font-bold hover:scale-[1.02] transition-transform"
               >
                 <Ticket className="w-5 h-5" />
                 <span>Get Tickets</span>
@@ -276,7 +276,7 @@ export default function NearbyShowsCTA({
 
                 <button
                   onClick={() => handleTicketClick(event)}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 momentum-grad-interactive text-white rounded-lg font-medium hover:scale-105 transition-transform"
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 momentum-ticket-btn rounded-lg font-semibold hover:scale-[1.02] transition-transform"
                 >
                   <Ticket className="w-4 h-4" />
                   <span>Get Tickets</span>
