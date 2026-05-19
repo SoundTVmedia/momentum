@@ -253,9 +253,7 @@ export default function FavoriteArtistFeedPanel({
       >
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4 md:mb-5">
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-              Your Artists
-            </h2>
+            <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">Your Artists</h2>
             <p className="text-gray-400 text-sm mt-1">
               Clips and upcoming shows from the artists you follow
             </p>

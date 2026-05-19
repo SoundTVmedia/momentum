@@ -19,9 +19,7 @@ export default function DiscoverSectionTitle({
         {Icon ? (
           <Icon className={`w-6 h-6 shrink-0 ${iconClassName}`} aria-hidden />
         ) : null}
-        <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-          {title}
-        </span>
+        <span className="momentum-grad-text">{title}</span>
       </h2>
       {subtitle ? <p className="text-gray-400 text-sm mt-1">{subtitle}</p> : null}
     </div>

@@ -58,9 +58,7 @@ export default function MainFeedStack({
             {welcomeName ? (
               <>
                 <span>Welcome, </span>
-                <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-                  {welcomeName}
-                </span>
+                <span className="momentum-grad-text">{welcomeName}</span>
               </>
             ) : (
               'Welcome'

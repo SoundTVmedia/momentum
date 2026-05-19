@@ -154,7 +154,7 @@ export default function DiscoverPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-center mb-6 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold text-center mb-6 momentum-grad-text">
             Where Live Music Lives
           </h1>
 

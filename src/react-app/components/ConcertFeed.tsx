@@ -43,9 +43,7 @@ export function FeedSectionHeader({
 
   return (
     <div>
-      <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-        {label}
-      </h2>
+      <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">{label}</h2>
       <p className="text-gray-400 text-sm mt-1">{description}</p>
     </div>
   )

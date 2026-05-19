@@ -181,10 +181,8 @@ export default function PersonalizedConcerts({
 
   const sectionHeader = usePageHeading ? (
     <>
-      <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 text-center">
-        <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
-          Shows Near You
-        </span>
+      <h2 className="text-4xl md:text-5xl font-bold mb-4 text-center momentum-grad-text">
+        Shows Near You
       </h2>
       <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
         {sectionSubtitle}
@@ -192,7 +190,7 @@ export default function PersonalizedConcerts({
     </>
   ) : (
     <div className="mb-4 md:mb-5">
-      <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+      <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">
         {sectionTitle}
       </h2>
       <p className="text-gray-400 text-sm mt-1">{sectionSubtitle}</p>

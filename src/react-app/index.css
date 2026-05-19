@@ -89,6 +89,7 @@ body {
 
 .momentum-grad-text {
   background-image: var(--momentum-grad);
+  background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
