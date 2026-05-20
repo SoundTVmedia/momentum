@@ -14,6 +14,8 @@ export default function Header() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const isHome = pathname === '/'
+  const isDiscover = pathname === '/discover'
+  const hideHeaderSearch = isHome || isDiscover
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null
@@ -102,7 +104,7 @@ export default function Header() {
               </button>
             </nav>
             <div
-              className={`relative z-[100] hidden lg:block ${isHome ? 'lg:hidden' : ''}`}
+              className={`relative z-[100] hidden lg:block ${hideHeaderSearch ? 'lg:hidden' : ''}`}
               ref={searchDropdownRef}
             >
               <form onSubmit={handleHeaderSearchSubmit} className="relative">

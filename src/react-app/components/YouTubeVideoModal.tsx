@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { X, Heart, Eye, ChevronLeft, ChevronRight, ExternalLink, Music } from 'lucide-react';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
@@ -59,8 +59,24 @@ export default function YouTubeVideoModal({
     if (nextVideo && feedNavigation) feedNavigation.onChangeVideo(nextVideo);
   }, [nextVideo, feedNavigation]);
 
-  const swipeHandlers = useHorizontalFeedSwipe({
-    enabled: canFeedNav,
+  const [mobileViewport, setMobileViewport] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(max-width: 767px)').matches
+      : false,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => setMobileViewport(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  const mobileSwipeEnabled = canFeedNav && mobileViewport;
+
+  const { containerRef: mobileSwipeRef } = useHorizontalFeedSwipe({
+    enabled: mobileSwipeEnabled,
     onPrev: goPrev,
     onNext: goNext,
   });
@@ -98,7 +114,10 @@ export default function YouTubeVideoModal({
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-0 sm:p-4 animate-fade-in">
-      <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-momentum-teal/20 sm:rounded-xl overflow-hidden animate-scale-in">
+      <div
+        ref={mobileSwipeRef}
+        className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-momentum-teal/20 sm:rounded-xl overflow-hidden animate-scale-in"
+      >
         <div className="flex flex-col md:flex-row h-full sm:max-h-[90vh]">
           <div className="md:w-2/3 bg-black flex items-center justify-center relative flex-shrink-0 min-h-[36vh] md:min-h-0 p-2 sm:p-4">
             <button
@@ -131,10 +150,7 @@ export default function YouTubeVideoModal({
               </button>
             ) : null}
 
-            <div
-              className="relative mx-auto aspect-video w-full max-h-[min(85dvh,100%)] overflow-hidden rounded-none bg-black sm:rounded-lg md:max-h-[min(90vh,72vw)]"
-              {...swipeHandlers}
-            >
+            <div className="relative mx-auto aspect-video w-full max-h-[min(85dvh,100%)] overflow-hidden rounded-none bg-black sm:rounded-lg md:max-h-[min(90vh,72vw)]">
               <iframe
                 key={video.videoId}
                 title={video.title}
@@ -144,6 +160,13 @@ export default function YouTubeVideoModal({
                 allowFullScreen
                 referrerPolicy="strict-origin-when-cross-origin"
               />
+              {mobileSwipeEnabled ? (
+                <div
+                  className="absolute inset-0 z-10 touch-none"
+                  aria-hidden
+                  tabIndex={-1}
+                />
+              ) : null}
             </div>
           </div>
 
