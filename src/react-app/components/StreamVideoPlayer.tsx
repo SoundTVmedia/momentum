@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, Loader2 } from 'lucide-react';
 import {
   type ClipPlaybackFields,
@@ -18,6 +18,29 @@ export type StreamVideoPlayerPlaybackState = {
 };
 
 export type StreamVideoPlayerControlsPlacement = 'bottom' | 'top' | 'hidden';
+
+type HlsInstance = {
+  destroy: () => void;
+  loadSource: (url: string) => void;
+  startLoad: (startPosition?: number) => void;
+  attachMedia: (element: HTMLMediaElement) => void;
+  on: (event: string, handler: () => void) => void;
+};
+
+let hlsModulePromise: Promise<{
+  default: {
+    isSupported: () => boolean;
+    new (config?: Record<string, unknown>): HlsInstance;
+    Events: { ERROR: string; MANIFEST_PARSED: string };
+  };
+}> | null = null;
+
+function loadHlsModule() {
+  if (!hlsModulePromise) {
+    hlsModulePromise = import('hls.js');
+  }
+  return hlsModulePromise;
+}
 
 interface StreamVideoPlayerProps extends ClipPlaybackFields {
   /** @deprecated Pass clip fields or use playbackUrl with stream_video_id */
@@ -56,7 +79,10 @@ function StreamVideoPlayer(
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<{ destroy: () => void } | null>(null);
+  const hlsRef = useRef<HlsInstance | null>(null);
+  const attachedSrcRef = useRef<string | null>(null);
+  const autoPlayRef = useRef(autoPlay);
+  autoPlayRef.current = autoPlay;
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -79,54 +105,81 @@ function StreamVideoPlayer(
     resolveModalPlaybackSource(clipFields);
   const displayPoster = poster || posterSrc || undefined;
 
+  const tryAutoplay = useCallback(() => {
+    if (!autoPlayRef.current) return;
+    const video = videoRef.current;
+    if (!video || !videoSrc) return;
+    void video.play().catch(() => {});
+  }, [videoSrc]);
+
+  const destroyHls = useCallback(() => {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoSrc) return;
 
     let cancelled = false;
     setLoadError(false);
-    setIsLoading(true);
 
-    const cleanup = () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-      video.removeAttribute('src');
-      video.load();
-    };
-
-    const attachNative = (url: string) => {
-      video.src = url;
-    };
+    if (attachedSrcRef.current !== videoSrc) {
+      setIsLoading(false);
+    }
 
     const setup = async () => {
-      cleanup();
+      if (cancelled) return;
+      if (attachedSrcRef.current === videoSrc) {
+        tryAutoplay();
+        return;
+      }
 
-      if (isHls && isHlsPlaybackUrl(videoSrc)) {
-        if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          attachNative(videoSrc);
-          return;
-        }
+      const useHls = isHls && isHlsPlaybackUrl(videoSrc);
 
+      if (useHls && video.canPlayType('application/vnd.apple.mpegurl')) {
+        destroyHls();
+        video.src = videoSrc;
+        attachedSrcRef.current = videoSrc;
+        tryAutoplay();
+        return;
+      }
+
+      if (useHls) {
         try {
-          const { default: Hls } = await import('hls.js');
+          const { default: Hls } = await loadHlsModule();
           if (cancelled) return;
+
           if (Hls.isSupported()) {
+            if (hlsRef.current) {
+              hlsRef.current.loadSource(videoSrc);
+              hlsRef.current.startLoad(0);
+              attachedSrcRef.current = videoSrc;
+              tryAutoplay();
+              return;
+            }
+
             const hls = new Hls({
               enableWorker: true,
               lowLatencyMode: true,
+              maxBufferLength: 8,
+              maxMaxBufferLength: 16,
             });
-            hls.loadSource(videoSrc);
             hls.attachMedia(video);
-            hls.on(Hls.Events.ERROR, (_e, data) => {
+            hls.on(Hls.Events.MANIFEST_PARSED, tryAutoplay);
+            hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
               if (data.fatal) {
                 console.error('HLS fatal error', data);
                 setLoadError(true);
                 setIsLoading(false);
               }
             });
+            hls.loadSource(videoSrc);
             hlsRef.current = hls;
+            attachedSrcRef.current = videoSrc;
+            tryAutoplay();
             return;
           }
         } catch (e) {
@@ -134,24 +187,42 @@ function StreamVideoPlayer(
         }
       }
 
-      attachNative(videoSrc);
+      destroyHls();
+      video.src = videoSrc;
+      attachedSrcRef.current = videoSrc;
+      tryAutoplay();
     };
 
     void setup();
 
     return () => {
       cancelled = true;
-      cleanup();
     };
-  }, [videoSrc, isHls]);
+  }, [videoSrc, isHls, tryAutoplay, destroyHls]);
+
+  useEffect(() => {
+    return () => {
+      destroyHls();
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+      attachedSrcRef.current = null;
+    };
+  }, [destroyHls]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const handlePlay = () => setIsPlaying(true);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      setIsLoading(false);
+    };
     const handlePause = () => setIsPlaying(false);
-    const handleLoadStart = () => setIsLoading(true);
+    const handleWaiting = () => setIsLoading(true);
     const handleCanPlay = () => setIsLoading(false);
     const handleError = () => {
       setLoadError(true);
@@ -160,15 +231,17 @@ function StreamVideoPlayer(
 
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
-    video.addEventListener('loadstart', handleLoadStart);
+    video.addEventListener('waiting', handleWaiting);
     video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('playing', handleCanPlay);
     video.addEventListener('error', handleError);
 
     return () => {
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
-      video.removeEventListener('loadstart', handleLoadStart);
+      video.removeEventListener('waiting', handleWaiting);
       video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('playing', handleCanPlay);
       video.removeEventListener('error', handleError);
     };
   }, [videoSrc]);
@@ -178,18 +251,14 @@ function StreamVideoPlayer(
     const video = videoRef.current;
     if (!video || !videoSrc) return;
 
-    const tryPlay = () => {
-      void video.play().catch(() => {});
-    };
-
-    tryPlay();
-    video.addEventListener('canplay', tryPlay);
-    video.addEventListener('loadeddata', tryPlay);
+    tryAutoplay();
+    video.addEventListener('canplay', tryAutoplay);
+    video.addEventListener('loadeddata', tryAutoplay);
     return () => {
-      video.removeEventListener('canplay', tryPlay);
-      video.removeEventListener('loadeddata', tryPlay);
+      video.removeEventListener('canplay', tryAutoplay);
+      video.removeEventListener('loadeddata', tryAutoplay);
     };
-  }, [autoPlay, videoSrc]);
+  }, [autoPlay, videoSrc, tryAutoplay]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -212,13 +281,11 @@ function StreamVideoPlayer(
     else void video.requestFullscreen();
   };
 
-  const play = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    void video.play().catch(() => {});
-  };
+  const play = useCallback(() => {
+    tryAutoplay();
+  }, [tryAutoplay]);
 
-  useImperativeHandle(ref, () => ({ togglePlay, toggleMute, play }), [isPlaying]);
+  useImperativeHandle(ref, () => ({ togglePlay, toggleMute, play }), [isPlaying, play]);
 
   if (!videoSrc) {
     return (
@@ -246,7 +313,7 @@ function StreamVideoPlayer(
       />
 
       {isLoading && !loadError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
           <Loader2 className="w-12 h-12 text-momentum-teal animate-spin" />
         </div>
       )}

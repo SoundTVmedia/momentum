@@ -38,6 +38,7 @@ import { artistPath, genrePath, globalSongPath, songPath, venuePath } from '@/sh
 import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
+import { prefetchModalPlayback } from '@/shared/clip-playback';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export type ClipModalFeedNavigation = {
@@ -126,14 +127,20 @@ export default function ClipModal({
   });
 
   useEffect(() => {
+    prefetchModalPlayback(clip);
+    if (nextClip) prefetchModalPlayback(nextClip);
+    if (prevClip) prefetchModalPlayback(prevClip);
+  }, [clip, nextClip, prevClip]);
+
+  useEffect(() => {
     setShowShareMenu(false);
     setLinkCopied(false);
     setMobileCommentsOpen(false);
     setEditOpen(false);
     setPlayback({ isPlaying: true, isMuted: false });
-    mobilePlayerRef.current?.play();
-    desktopPlayerRef.current?.play();
   }, [clip.id]);
+
+  const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
 
   const handleClipSaved = useCallback(
     (updated: ClipWithUser) => {
@@ -142,8 +149,6 @@ export default function ClipModal({
     },
     [feedNavigation, onClipUpdated],
   );
-
-  const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
 
   const togglePlayback = () => activePlayerRef.current?.togglePlay();
   const toggleMute = () => activePlayerRef.current?.toggleMute();
@@ -431,12 +436,14 @@ export default function ClipModal({
         }`}
       >
         <div className="relative min-h-0 flex-1">
-          <ClipModalMaximizedVideo
-            ref={mobilePlayerRef}
-            clip={clip}
-            overlay={mobileVideoOverlay}
-            onPlaybackStateChange={setPlayback}
-          />
+          {mobileViewport ? (
+            <ClipModalMaximizedVideo
+              ref={mobilePlayerRef}
+              clip={clip}
+              overlay={mobileVideoOverlay}
+              onPlaybackStateChange={setPlayback}
+            />
+          ) : null}
         </div>
 
         {mobileCommentsOpen ? (
@@ -505,11 +512,13 @@ export default function ClipModal({
             ) : null}
 
             <div className="relative h-full w-full min-h-0">
-              <ClipModalMaximizedVideo
-                ref={desktopPlayerRef}
-                clip={clip}
-                onPlaybackStateChange={setPlayback}
-              />
+              {!mobileViewport ? (
+                <ClipModalMaximizedVideo
+                  ref={desktopPlayerRef}
+                  clip={clip}
+                  onPlaybackStateChange={setPlayback}
+                />
+              ) : null}
             </div>
           </div>
 

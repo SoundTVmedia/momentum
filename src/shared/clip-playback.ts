@@ -114,3 +114,26 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
     streamVideoId: null,
   };
 }
+
+const prefetchedModalSrc = new Set<string>();
+
+/** Warm the network cache for the next/prev clip in a modal feed (best-effort). */
+export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
+  const { src, isHls } = resolveModalPlaybackSource(clip);
+  if (!src || prefetchedModalSrc.has(src)) return;
+  prefetchedModalSrc.add(src);
+
+  if (isHls) {
+    void fetch(src, { mode: 'cors', credentials: 'omit' }).catch(() => {
+      prefetchedModalSrc.delete(src);
+    });
+    return;
+  }
+
+  const el = document.createElement('video');
+  el.preload = 'auto';
+  el.muted = true;
+  el.playsInline = true;
+  el.src = src;
+  el.load();
+}
