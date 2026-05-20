@@ -11,20 +11,23 @@ import {
   Copy,
   Facebook,
   Twitter,
-  Star,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
   ChevronLeft,
   ChevronRight,
   Disc3,
   Radio,
   Pencil,
 } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
-import { useFavoriteClip } from '@/react-app/hooks/useFavoriteClip';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
+import type { StreamVideoPlayerHandle, StreamVideoPlayerPlaybackState } from '@/react-app/components/StreamVideoPlayer';
 import CommentSection from './CommentSection';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
@@ -60,7 +63,12 @@ export default function ClipModal({
   const { user } = useAuth();
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
-  const { isFavorited, toggleFavorite } = useFavoriteClip(clip.id);
+  const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
+  const desktopPlayerRef = useRef<StreamVideoPlayerHandle>(null);
+  const [playback, setPlayback] = useState<StreamVideoPlayerPlaybackState>({
+    isPlaying: true,
+    isMuted: false,
+  });
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
@@ -115,6 +123,7 @@ export default function ClipModal({
     setLinkCopied(false);
     setMobileCommentsOpen(false);
     setEditOpen(false);
+    setPlayback({ isPlaying: true, isMuted: false });
   }, [clip.id]);
 
   const handleClipSaved = useCallback(
@@ -123,6 +132,40 @@ export default function ClipModal({
       onClipUpdated?.(updated);
     },
     [feedNavigation, onClipUpdated],
+  );
+
+  const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
+
+  const togglePlayback = () => activePlayerRef.current?.togglePlay();
+  const toggleMute = () => activePlayerRef.current?.toggleMute();
+
+  const playbackControls = (
+    <div className="mt-2 flex items-center gap-1">
+      <button
+        type="button"
+        onClick={togglePlayback}
+        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        aria-label={playback.isPlaying ? 'Pause' : 'Play'}
+      >
+        {playback.isPlaying ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={toggleMute}
+        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
+      >
+        {playback.isMuted ? (
+          <VolumeX className="h-4 w-4" />
+        ) : (
+          <Volume2 className="h-4 w-4" />
+        )}
+      </button>
+    </div>
   );
 
   const editClipButton = isOwnClip ? (
@@ -247,6 +290,7 @@ export default function ClipModal({
               <p className="text-xs text-white/70">
                 {formatRelativeTime(clipPostedAt(clip))}
               </p>
+              {playbackControls}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -318,15 +362,6 @@ export default function ClipModal({
         >
           <Bookmark className={`h-7 w-7 ${isSaved(clip.id) ? 'fill-current' : ''}`} />
         </button>
-        <button
-          type="button"
-          onClick={toggleFavorite}
-          className={`pointer-events-auto ${
-            isFavorited ? 'text-pink-400' : 'text-white'
-          }`}
-        >
-          <Star className={`h-7 w-7 ${isFavorited ? 'fill-current' : ''}`} />
-        </button>
         <div className="relative pointer-events-auto">
           <button
             type="button"
@@ -387,7 +422,12 @@ export default function ClipModal({
         }`}
       >
         <div className="relative min-h-0 flex-1">
-          <ClipModalMaximizedVideo clip={clip} overlay={mobileVideoOverlay} />
+          <ClipModalMaximizedVideo
+            ref={mobilePlayerRef}
+            clip={clip}
+            overlay={mobileVideoOverlay}
+            onPlaybackStateChange={setPlayback}
+          />
         </div>
 
         {mobileCommentsOpen ? (
@@ -456,7 +496,11 @@ export default function ClipModal({
             ) : null}
 
             <div className="relative h-full w-full min-h-0">
-              <ClipModalMaximizedVideo clip={clip} />
+              <ClipModalMaximizedVideo
+                ref={desktopPlayerRef}
+                clip={clip}
+                onPlaybackStateChange={setPlayback}
+              />
             </div>
           </div>
 
@@ -479,6 +523,32 @@ export default function ClipModal({
                   </div>
                   <div className="text-sm text-gray-400">
                     {formatRelativeTime(clipPostedAt(clip))}
+                  </div>
+                  <div className="mt-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={togglePlayback}
+                      className="rounded-full p-2 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                      aria-label={playback.isPlaying ? 'Pause' : 'Play'}
+                    >
+                      {playback.isPlaying ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className="rounded-full p-2 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+                      aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
+                    >
+                      {playback.isMuted ? (
+                        <VolumeX className="h-4 w-4" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -574,16 +644,6 @@ export default function ClipModal({
                     <Bookmark
                       className={`h-5 w-5 ${isSaved(clip.id) ? 'fill-current' : ''}`}
                     />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleFavorite}
-                    className={`p-2 transition-all tap-feedback ${
-                      isFavorited ? 'text-pink-400' : 'text-gray-400 hover:text-pink-400'
-                    }`}
-                    title={isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}
-                  >
-                    <Star className={`h-5 w-5 ${isFavorited ? 'fill-current' : ''}`} />
                   </button>
                   <div className="relative">
                     <button

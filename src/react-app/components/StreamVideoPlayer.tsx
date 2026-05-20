@@ -1,10 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, Loader2 } from 'lucide-react';
 import {
   type ClipPlaybackFields,
   isHlsPlaybackUrl,
   resolveModalPlaybackSource,
 } from '@/shared/clip-playback';
+
+export type StreamVideoPlayerHandle = {
+  togglePlay: () => void;
+  toggleMute: () => void;
+};
+
+export type StreamVideoPlayerPlaybackState = {
+  isPlaying: boolean;
+  isMuted: boolean;
+};
+
+export type StreamVideoPlayerControlsPlacement = 'bottom' | 'top' | 'hidden';
 
 interface StreamVideoPlayerProps extends ClipPlaybackFields {
   /** @deprecated Pass clip fields or use playbackUrl with stream_video_id */
@@ -14,13 +26,18 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   poster?: string | null;
   autoPlay?: boolean;
   className?: string;
+  /** Where play/mute/fullscreen chrome renders; `hidden` for parent-rendered controls (e.g. clip modal). */
+  controlsPlacement?: StreamVideoPlayerControlsPlacement;
+  onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
 }
 
 /**
  * Full clip player: HLS adaptive playback via Cloudflare Stream when available,
  * progressive MP4 / R2 with Range support as fallback.
  */
-export default function StreamVideoPlayer({
+const StreamVideoPlayer = forwardRef<StreamVideoPlayerHandle, StreamVideoPlayerProps>(
+function StreamVideoPlayer(
+  {
   stream_video_id,
   stream_playback_url,
   stream_thumbnail_url,
@@ -32,7 +49,11 @@ export default function StreamVideoPlayer({
   poster,
   autoPlay = false,
   className = '',
-}: StreamVideoPlayerProps) {
+  controlsPlacement = 'bottom',
+  onPlaybackStateChange,
+}: StreamVideoPlayerProps,
+  ref,
+) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
@@ -40,6 +61,10 @@ export default function StreamVideoPlayer({
   const [showControls, setShowControls] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    onPlaybackStateChange?.({ isPlaying, isMuted });
+  }, [isPlaying, isMuted, onPlaybackStateChange]);
 
   const clipFields: ClipPlaybackFields = {
     stream_video_id: stream_video_id ?? streamVideoId,
@@ -175,6 +200,8 @@ export default function StreamVideoPlayer({
     else void video.requestFullscreen();
   };
 
+  useImperativeHandle(ref, () => ({ togglePlay, toggleMute }), [isPlaying]);
+
   if (!videoSrc) {
     return (
       <div
@@ -229,39 +256,48 @@ export default function StreamVideoPlayer({
           )}
         </button>
 
-        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2 sm:space-x-3">
+        {controlsPlacement !== 'hidden' ? (
+          <div
+            className={`absolute left-0 right-0 flex items-center justify-between p-3 sm:p-4 ${
+              controlsPlacement === 'top' ? 'top-0' : 'bottom-0'
+            }`}
+          >
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <button
+                type="button"
+                onClick={togglePlay}
+                className="rounded-full p-1.5 transition-colors hover:bg-white/20 sm:p-2"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? (
+                  <Pause className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+                ) : (
+                  <Play className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={toggleMute}
+                className="rounded-full p-1.5 transition-colors hover:bg-white/20 sm:p-2"
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? (
+                  <VolumeX className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+                ) : (
+                  <Volume2 className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+                )}
+              </button>
+            </div>
             <button
               type="button"
-              onClick={togglePlay}
-              className="p-1.5 sm:p-2 hover:bg-white/20 rounded-full transition-colors"
+              onClick={toggleFullscreen}
+              className="rounded-full p-1.5 transition-colors hover:bg-white/20 sm:p-2"
+              aria-label="Fullscreen"
             >
-              {isPlaying ? (
-                <Pause className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              ) : (
-                <Play className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={toggleMute}
-              className="p-1.5 sm:p-2 hover:bg-white/20 rounded-full transition-colors"
-            >
-              {isMuted ? (
-                <VolumeX className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              ) : (
-                <Volume2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              )}
+              <Maximize className="h-5 w-5 text-white sm:h-6 sm:w-6" />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="p-1.5 sm:p-2 hover:bg-white/20 rounded-full transition-colors"
-          >
-            <Maximize className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-          </button>
-        </div>
+        ) : null}
       </div>
 
       {streamId && (
@@ -271,4 +307,6 @@ export default function StreamVideoPlayer({
       )}
     </div>
   );
-}
+});
+
+export default StreamVideoPlayer;

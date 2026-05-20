@@ -24,7 +24,7 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative isolate min-h-[32vh] overflow-hidden bg-black sm:min-h-[34vh] md:min-h-[36vh] lg:min-h-[38vh]"
+      className="relative isolate overflow-hidden bg-black"
       aria-label="Search"
     >
       <div className="absolute inset-0">
@@ -53,7 +53,7 @@ export default function HeroSection() {
 
       <div className="hero-scanline pointer-events-none absolute inset-0 opacity-[0.07]" aria-hidden />
 
-      <div className="relative z-10 flex min-h-[inherit] flex-col justify-center px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
+      <div className="relative z-10 flex flex-col justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <div className="mx-auto w-full max-w-4xl">
           <HeroSearchBar />
         </div>
