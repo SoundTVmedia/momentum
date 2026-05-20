@@ -505,6 +505,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     .all();
 
   let upcomingEvents: Record<string, unknown>[] = [];
+  let upcomingJamBaseEvents: Record<string, unknown>[] | null = null;
   let jambase_attribution = false;
 
   const mapJamBaseVenueRows = (
@@ -578,6 +579,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
       (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
     );
     if (eventsFiltered.length) {
+      upcomingJamBaseEvents = eventsFiltered;
       upcomingEvents = mapJamBaseVenueRows(eventsFiltered, localVidNum);
       jambase_attribution = true;
       await persistJamBaseVenueId(venue!.id, vId);
@@ -599,6 +601,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     const { events: jbEventsFallback, venue: jbVenueFallback } =
       await fetchJamBaseEventsByVenueName(apiKey, jbQ, fallbackName, '50');
     if (jbEventsFallback.length) {
+      upcomingJamBaseEvents = jbEventsFallback;
       upcomingEvents = mapJamBaseVenueRows(jbEventsFallback, localVidNum);
       jambase_attribution = true;
       if (jbVenueFallback?.identifier) await persistJamBaseVenueId(venue!.id, jbVenueFallback.identifier);
@@ -627,6 +630,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     venue,
     clips: normalizeClipApiRows((clipsRes.results ?? []) as Record<string, unknown>[]),
     upcomingEvents,
+    upcomingJamBaseEvents,
     jambase_attribution,
   };
 }

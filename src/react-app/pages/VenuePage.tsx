@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users, Ticket } from 'lucide-react';
+import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ShowArchive from '@/react-app/components/ShowArchive';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
+import SectionHeading from '@/react-app/components/SectionHeading';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { HOME_FEED_SECTION_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { venueUpcomingCarouselProps } from '@/react-app/lib/venue-upcoming-events';
 import { apiArtistPath, apiVenuePath, artistPath } from '@/shared/app-paths';
 
 interface Venue {
@@ -39,6 +42,7 @@ interface VenueData {
   venue: Venue;
   clips: ClipWithUser[];
   upcomingEvents: UpcomingEvent[];
+  upcomingJamBaseEvents?: Record<string, unknown>[] | null;
   jambase_attribution?: boolean;
 }
 
@@ -247,72 +251,42 @@ export default function VenuePage() {
               )}
             </div>
 
-            {/* Upcoming shows (JamBase-first; aligns with artist pages) */}
-            <div className="bg-black/35 backdrop-blur-lg border border-cyan-500/20 rounded-2xl p-5 sm:p-6">
-              <div className="flex flex-wrap items-center gap-2 mb-6">
-                <Calendar className="w-7 h-7 text-cyan-400 shrink-0" />
-                <h2 className="text-2xl sm:text-3xl font-bold text-white">Upcoming shows</h2>
-              </div>
-              {upcomingEvents.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {upcomingEvents.slice(0, 24).map((event) => (
-                      <div
-                        key={`${event.id}-${event.date}-${event.artist_name ?? ''}`}
-                        className="p-4 rounded-xl bg-white/5 border border-white/10 flex gap-3"
-                      >
-                        {event.artist_image ? (
-                          <img
-                            src={event.artist_image}
-                            alt=""
-                            className="w-14 h-14 rounded-full object-cover shrink-0"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-full bg-white/10 shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              event.artist_name ? navigate(artistPath(event.artist_name)) : undefined
-                            }
-                            className="text-left font-bold text-white hover:text-cyan-300 truncate block w-full"
-                          >
-                            {event.artist_name || 'Artist TBA'}
-                          </button>
-                          <p className="text-sm text-gray-400 mt-1">{formatDate(event.date)}</p>
-                          {event.ticket_url ? (
-                            <a
-                              href={event.ticket_url}
-                              target="_blank"
-                              rel="nofollow noopener noreferrer"
-                              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-momentum-teal hover:text-momentum-mint"
-                            >
-                              <Ticket className="w-4 h-4" />
-                              Tickets / info
-                            </a>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {data.jambase_attribution ? (
-                    <p className="mt-6 text-center text-xs text-gray-500">
-                      <a
-                        href="https://www.jambase.com"
-                        target="_blank"
-                        rel="nofollow noopener noreferrer"
-                        className="text-gray-400 hover:text-cyan-300 underline"
-                      >
-                        Show listings powered by JamBase
-                      </a>
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <JamBaseEventGrid venueName={venue.name} maxEvents={12} />
-              )}
-            </div>
+            <section className={HOME_FEED_SECTION_CLASS}>
+              <SectionHeading
+                title="Upcoming shows"
+                subtitle={
+                  data.jambase_attribution
+                    ? 'Live dates at this venue from JamBase'
+                    : 'Upcoming dates at this venue'
+                }
+                icon={Calendar}
+                iconClassName="text-cyan-400"
+                size="page"
+              />
+              <JamBaseEventGrid
+                {...venueUpcomingCarouselProps(
+                  venue,
+                  upcomingEvents,
+                  data.upcomingJamBaseEvents,
+                  24,
+                )}
+                layout="carousel"
+                carouselAriaLabel={`Upcoming shows at ${venue.name}`}
+                carouselClassName={PAGE_CAROUSEL_BLEED}
+              />
+              {data.jambase_attribution ? (
+                <p className="mt-4 text-center text-xs text-gray-500">
+                  <a
+                    href="https://www.jambase.com"
+                    target="_blank"
+                    rel="nofollow noopener noreferrer"
+                    className="text-gray-400 hover:text-cyan-300 underline"
+                  >
+                    Show listings powered by JamBase
+                  </a>
+                </p>
+              ) : null}
+            </section>
 
             {/* Previous Shows at [Venue Name] Section */}
             {recentShow && recentShow.clips.length > 0 && (

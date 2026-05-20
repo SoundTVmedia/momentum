@@ -59,7 +59,7 @@ export default function Home() {
       )}
 
       {user && (
-        <div className="bg-gradient-to-b from-black via-slate-900 to-black">
+        <div className="relative z-0 bg-gradient-to-b from-black via-slate-900 to-black">
           <MainFeedStack variant="home" defaultFeedType="latest" />
         </div>
       )}

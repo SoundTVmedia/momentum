@@ -22,6 +22,7 @@ export default function HeroSearchBar({
   const [showResults, setShowResults] = useState(false);
   const { results, loading, scheduleSearch, cancelSearch, reset } = useAdvancedSearch();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [clipModal, setClipModal] = useState<{
     clip: ClipWithUser;
     feed: ClipWithUser[];
@@ -29,11 +30,11 @@ export default function HeroSearchBar({
 
   useEffect(() => {
     const onDocDown = (e: MouseEvent) => {
-      const el = containerRef.current;
-      if (!el || !showResults) return;
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        setShowResults(false);
-      }
+      if (!showResults) return;
+      const t = e.target;
+      if (!(t instanceof Node)) return;
+      if (containerRef.current?.contains(t) || dropdownRef.current?.contains(t)) return;
+      setShowResults(false);
     };
     document.addEventListener('mousedown', onDocDown);
     return () => document.removeEventListener('mousedown', onDocDown);
@@ -77,10 +78,7 @@ export default function HeroSearchBar({
         onSubmit={submit}
         className={`w-full max-w-2xl mx-auto ${className}`.trim()}
       >
-        <div
-          ref={containerRef}
-          className={`relative group ${showResults ? 'z-[100]' : 'z-10'}`}
-        >
+        <div ref={containerRef} className="relative group z-10">
           <div
             className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-teal/50 via-momentum-mint/40 to-momentum-teal/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
             aria-hidden
@@ -119,6 +117,8 @@ export default function HeroSearchBar({
             onDiscoverAll={goToDiscover}
             onClipSelect={(clip, feed) => setClipModal({ clip, feed })}
             variant="hero"
+            anchorRef={containerRef}
+            dropdownRef={dropdownRef}
           />
         </div>
         <p className="mt-3 text-center text-xs text-gray-500 sm:text-sm">

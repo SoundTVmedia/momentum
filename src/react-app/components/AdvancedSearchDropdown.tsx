@@ -1,3 +1,5 @@
+import { useLayoutEffect, useState, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, MapPin, Music, Ticket } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { ClipWithUser } from '@/shared/types';
@@ -17,32 +19,36 @@ type Props = {
   onClose: () => void;
   onDiscoverAll: () => void;
   onClipSelect: (clip: ClipWithUser, feed: ClipWithUser[]) => void;
-  /** `header` = fixed width panel; `hero` = full width under search bar */
+  /** `header` = fixed width panel; `hero` = portaled fixed panel under search bar */
   variant?: 'header' | 'hero';
+  /** Hero home search: anchor for fixed positioning (escapes hero stacking context). */
+  anchorRef?: RefObject<HTMLElement | null>;
+  /** Optional ref on the dropdown root (for outside-click handling when portaled). */
+  dropdownRef?: RefObject<HTMLDivElement | null>;
 };
 
-export default function AdvancedSearchDropdown({
-  query,
-  open,
+type PanelProps = {
+  loading: boolean;
+  results: AdvancedSearchPayload | null;
+  onClose: () => void;
+  onDiscoverAll: () => void;
+  onClipSelect: (clip: ClipWithUser, feed: ClipWithUser[]) => void;
+  className: string;
+};
+
+function SearchDropdownPanel({
   loading,
   results,
   onClose,
   onDiscoverAll,
   onClipSelect,
-  variant = 'header',
-}: Props) {
+  className,
+}: PanelProps) {
   const navigate = useNavigate();
-
-  if (!open || query.trim().length < 2) return null;
-
   const hasHits = advancedSearchHasHits(results);
-  const panelClass =
-    variant === 'hero'
-      ? 'absolute left-0 right-0 top-full z-[100] mt-2 rounded-2xl border border-white/20 bg-black/95 shadow-2xl shadow-black/60 backdrop-blur-lg overflow-hidden'
-      : 'absolute top-full mt-2 w-[28rem] max-w-[90vw] z-[100] bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden shadow-xl shadow-cyan-950/40';
 
   return (
-    <div className={panelClass} role="listbox" aria-label="Search suggestions">
+    <div className={className} role="listbox" aria-label="Search suggestions">
       {loading && (
         <div className="flex items-center justify-center gap-2 py-8 text-gray-400 text-sm">
           <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
@@ -230,5 +236,94 @@ export default function AdvancedSearchDropdown({
         </div>
       )}
     </div>
+  );
+}
+
+const HERO_PANEL_CLASS =
+  'rounded-2xl border border-white/20 bg-black/95 shadow-2xl shadow-black/60 backdrop-blur-lg overflow-hidden';
+
+const HEADER_PANEL_CLASS =
+  'absolute top-full mt-2 w-[28rem] max-w-[90vw] z-[100] bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden shadow-xl shadow-cyan-950/40';
+
+export default function AdvancedSearchDropdown({
+  query,
+  open,
+  loading,
+  results,
+  onClose,
+  onDiscoverAll,
+  onClipSelect,
+  variant = 'header',
+  anchorRef,
+  dropdownRef,
+}: Props) {
+  const [portalStyle, setPortalStyle] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || variant !== 'hero' || !anchorRef?.current) {
+      setPortalStyle(null);
+      return;
+    }
+
+    const update = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setPortalStyle({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, variant, anchorRef, query]);
+
+  if (!open || query.trim().length < 2) return null;
+
+  const panelProps = {
+    loading,
+    results,
+    onClose,
+    onDiscoverAll,
+    onClipSelect,
+  };
+
+  if (variant === 'hero' && anchorRef && portalStyle) {
+    return createPortal(
+      <div
+        ref={dropdownRef}
+        className="fixed z-[200]"
+        style={{
+          top: portalStyle.top,
+          left: portalStyle.left,
+          width: portalStyle.width,
+        }}
+      >
+        <SearchDropdownPanel {...panelProps} className={HERO_PANEL_CLASS} />
+      </div>,
+      document.body,
+    );
+  }
+
+  if (variant === 'hero') {
+    return null;
+  }
+
+  return (
+    <SearchDropdownPanel
+      {...panelProps}
+      className={HEADER_PANEL_CLASS}
+    />
   );
 }

@@ -24,7 +24,7 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative z-40 isolate overflow-x-hidden bg-black"
+      className="relative z-30 overflow-x-hidden overflow-y-visible bg-black"
       aria-label="Search"
     >
       <div className="absolute inset-0">
