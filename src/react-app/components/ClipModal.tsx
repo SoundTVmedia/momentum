@@ -76,8 +76,24 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     if (nextClip && feedNavigation) feedNavigation.onChangeClip(nextClip);
   }, [nextClip, feedNavigation]);
 
-  const swipeHandlers = useHorizontalFeedSwipe({
-    enabled: canFeedNav,
+  const [mobileViewport, setMobileViewport] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia('(max-width: 767px)').matches
+      : false,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => setMobileViewport(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  const mobileSwipeEnabled = canFeedNav && mobileViewport && !mobileCommentsOpen;
+
+  const { containerRef: mobileSwipeRef } = useHorizontalFeedSwipe({
+    enabled: mobileSwipeEnabled,
     onPrev: goPrev,
     onNext: goNext,
   });
@@ -329,13 +345,14 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
   return (
     <div className="fixed inset-0 z-[100] flex animate-fade-in bg-black/90 backdrop-blur-sm">
       {/* ——— Mobile: full-viewport video + overlays ——— */}
-      <div className="relative flex h-[100dvh] w-full flex-col md:hidden">
+      <div
+        ref={mobileSwipeRef}
+        className={`relative flex h-[100dvh] w-full flex-col md:hidden overscroll-none ${
+          mobileSwipeEnabled ? 'touch-none' : ''
+        }`}
+      >
         <div className="relative min-h-0 flex-1">
-          <ClipModalMaximizedVideo
-            clip={clip}
-            swipeHandlers={swipeHandlers}
-            overlay={mobileVideoOverlay}
-          />
+          <ClipModalMaximizedVideo clip={clip} overlay={mobileVideoOverlay} />
         </div>
 
         {mobileCommentsOpen ? (
@@ -404,7 +421,7 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
             ) : null}
 
             <div className="relative h-full w-full min-h-0">
-              <ClipModalMaximizedVideo clip={clip} swipeHandlers={swipeHandlers} />
+              <ClipModalMaximizedVideo clip={clip} />
             </div>
           </div>
 

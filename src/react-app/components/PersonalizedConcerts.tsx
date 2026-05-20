@@ -219,10 +219,10 @@ export default function PersonalizedConcerts({
 
   const sectionHeader = usePageHeading ? (
     <>
-      <h2 className="text-4xl md:text-5xl font-bold mb-4 text-center momentum-grad-text">
+      <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-center momentum-grad-text">
         {sectionTitle}
       </h2>
-      <p className="text-gray-400 text-sm sm:text-base mb-8 text-center max-w-2xl mx-auto">
+      <p className="text-gray-400 text-sm sm:text-base mb-6 text-center max-w-2xl mx-auto">
         {sectionSubtitle}
       </p>
     </>
