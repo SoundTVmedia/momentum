@@ -210,10 +210,6 @@ export default function DiscoverPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-center mb-6 momentum-grad-text">
-            Where Live Music Lives
-          </h1>
-
           <form onSubmit={handleSearch} className="w-full">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
