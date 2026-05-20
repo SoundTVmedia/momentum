@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserCheck, Share2, Radio, ShoppingBag, Play } from 'lucide-react';
+import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserCheck, Radio, ShoppingBag, Play } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
-import ReferralLinkGenerator from '@/react-app/components/ReferralLinkGenerator';
 import PremiumPresaleAlert from '@/react-app/components/PremiumPresaleAlert';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
@@ -13,6 +12,7 @@ import ArtistYouTubeSection from '@/react-app/components/ArtistYouTubeSection';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import { apiArtistPath, artistPath, venuePath } from '@/shared/app-paths';
+import { HOME_FEED_SECTION_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 interface Artist {
   id: number;
@@ -86,12 +86,9 @@ export default function ArtistPage() {
   const [data, setData] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTourDate, setSelectedTourDate] = useState<TourDate | null>(null);
-  const [showLiveEvents, setShowLiveEvents] = useState(false);
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
   const [previousShows, setPreviousShows] = useState<PreviousShow[]>([]);
   
-  const isAmbassador = extendedUser?.profile?.role === 'ambassador';
   const isPremium = extendedUser?.profile?.is_premium === 1;
 
   useEffect(() => {
@@ -418,6 +415,24 @@ export default function ArtistPage() {
           </div>
         )}
 
+        <section className={`${HOME_FEED_SECTION_CLASS} w-full`}>
+          <div className="flex items-center space-x-3 mb-6">
+            <Calendar className="w-6 h-6 text-purple-400" />
+            <h2 className="text-3xl font-bold text-white">Upcoming Shows</h2>
+          </div>
+          <JamBaseEventGrid
+            artistName={artist.name}
+            maxEvents={12}
+            layout="carousel"
+            carouselAriaLabel={`Upcoming shows for ${artist.name}`}
+            carouselClassName={PAGE_CAROUSEL_BLEED}
+          />
+        </section>
+
+        <section className={`${HOME_FEED_SECTION_CLASS} w-full`}>
+          <ArtistYouTubeSection artistName={artist.name} />
+        </section>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 flex flex-col gap-8">
@@ -442,118 +457,6 @@ export default function ArtistPage() {
                   <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
                   <p className="text-gray-400 text-lg">Nothing here yet</p>
                   <p className="text-gray-500 mt-2">Drop the first clip from {artist.name}!</p>
-                </div>
-              )}
-            </div>
-
-            <ArtistYouTubeSection artistName={artist.name} />
-
-            {/* Tour Dates & Live Events Toggle */}
-            <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5 text-purple-400" />
-                  <h3 className="text-xl font-bold text-white">Upcoming Shows</h3>
-                </div>
-                {tourDates.length > 0 && (
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => setShowLiveEvents(false)}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                        !showLiveEvents
-                          ? 'bg-purple-500/30 text-purple-300'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      Our Data
-                    </button>
-                    <button
-                      onClick={() => setShowLiveEvents(true)}
-                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                        showLiveEvents
-                          ? 'bg-purple-500/30 text-purple-300'
-                          : 'text-gray-400 hover:text-white'
-                      }`}
-                    >
-                      Live Events
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {showLiveEvents ? (
-                <div className="mt-4">
-                  <JamBaseEventGrid artistName={artist.name} maxEvents={8} />
-                </div>
-              ) : tourDates.length > 0 ? (
-                <>
-                  <div className="space-y-4">
-                    {tourDates.slice(0, 5).map((tourDate) => (
-                      <div key={tourDate.id} className="p-4 bg-white/5 rounded-lg border border-white/10">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <div className="text-white font-medium mb-1">
-                              {formatDate(tourDate.date)}
-                            </div>
-                            {tourDate.venue_name && (
-                              <div className="flex items-center space-x-1 text-sm text-gray-400 mb-1">
-                                <MapPin className="w-3 h-3" />
-                                <span>{tourDate.venue_name}</span>
-                              </div>
-                            )}
-                            {tourDate.city && (
-                              <div className="text-xs text-gray-500">
-                                {tourDate.city}{tourDate.country ? `, ${tourDate.country}` : ''}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {tourDate.ticket_url && (
-                          <div className="mt-2 space-y-2">
-                            <a
-                              href={tourDate.ticket_url}
-                              target="_blank"
-                              rel="nofollow noopener noreferrer"
-                              className="flex items-center justify-center space-x-2 w-full px-3 py-2 momentum-ticket-btn rounded-lg text-sm font-semibold hover:scale-[1.02] transition-transform"
-                            >
-                              <Ticket className="w-4 h-4" />
-                              <span>Get Tickets</span>
-                            </a>
-                            {isAmbassador && (
-                              <button
-                                onClick={() => setSelectedTourDate(tourDate)}
-                                className="flex items-center justify-center space-x-2 w-full px-3 py-2 bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 text-sm font-medium hover:bg-orange-500/30 transition-colors"
-                              >
-                                <Share2 className="w-4 h-4" />
-                                <span>Get Referral Link</span>
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {tourDates.length > 5 && (
-                    <button className="w-full mt-4 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors">
-                      View All Tour Dates
-                    </button>
-                  )}
-                  {data.jambase_attribution && (
-                    <p className="mt-4 text-center text-xs text-gray-500">
-                      <a
-                        href="https://www.jambase.com"
-                        target="_blank"
-                        rel="nofollow noopener noreferrer"
-                        className="text-gray-400 hover:text-purple-300 underline"
-                      >
-                        Powered by JamBase
-                      </a>
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8 text-gray-400">
-                  No tour dates available yet
                 </div>
               )}
             </div>
@@ -662,28 +565,6 @@ export default function ArtistPage() {
         </div>
       </div>
 
-      {/* Referral Link Modal for Ambassadors */}
-      {selectedTourDate && isAmbassador && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full bg-black/95 border border-orange-500/20 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-white">Generate Referral Link</h3>
-              <button
-                onClick={() => setSelectedTourDate(null)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <ExternalLink className="w-6 h-6 rotate-45" />
-              </button>
-            </div>
-            
-            <ReferralLinkGenerator
-              eventName={`${artist?.name} at ${selectedTourDate.venue_name || 'Unknown Venue'}`}
-              eventDate={selectedTourDate.date}
-              ticketUrl={selectedTourDate.ticket_url || undefined}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

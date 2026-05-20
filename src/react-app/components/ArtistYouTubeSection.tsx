@@ -59,7 +59,7 @@ export default function ArtistYouTubeSection({ artistName }: ArtistYouTubeSectio
   }
 
   return (
-    <div className="mb-8">
+    <div className="w-full">
       <YouTubeVideoCarousel
         videos={mostViewed}
         title="On YouTube"
