@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, Loader2 } from 'lucide-react';
+import type Hls from 'hls.js';
 import {
   type ClipPlaybackFields,
   isHlsPlaybackUrl,
@@ -19,25 +20,11 @@ export type StreamVideoPlayerPlaybackState = {
 
 export type StreamVideoPlayerControlsPlacement = 'bottom' | 'top' | 'hidden';
 
-type HlsInstance = {
-  destroy: () => void;
-  loadSource: (url: string) => void;
-  startLoad: (startPosition?: number) => void;
-  attachMedia: (element: HTMLMediaElement) => void;
-  on: (event: string, handler: () => void) => void;
-};
+let hlsModulePromise: Promise<typeof Hls> | null = null;
 
-let hlsModulePromise: Promise<{
-  default: {
-    isSupported: () => boolean;
-    new (config?: Record<string, unknown>): HlsInstance;
-    Events: { ERROR: string; MANIFEST_PARSED: string };
-  };
-}> | null = null;
-
-function loadHlsModule() {
+async function loadHlsConstructor(): Promise<typeof Hls> {
   if (!hlsModulePromise) {
-    hlsModulePromise = import('hls.js');
+    hlsModulePromise = import('hls.js').then((mod) => mod.default);
   }
   return hlsModulePromise;
 }
@@ -79,7 +66,7 @@ function StreamVideoPlayer(
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<HlsInstance | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const attachedSrcRef = useRef<string | null>(null);
   const autoPlayRef = useRef(autoPlay);
   autoPlayRef.current = autoPlay;
@@ -149,7 +136,7 @@ function StreamVideoPlayer(
 
       if (useHls) {
         try {
-          const { default: Hls } = await loadHlsModule();
+          const Hls = await loadHlsConstructor();
           if (cancelled) return;
 
           if (Hls.isSupported()) {

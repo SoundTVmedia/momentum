@@ -5,7 +5,6 @@ import {
   setEmailSessionCookie,
   hashOpaqueToken,
   revokeAllEmailSessionsForUser,
-  shouldLogPasswordResetLinkInsteadOfEmail,
 } from './hybrid-auth';
 import {
   hashPassword,
@@ -13,7 +12,11 @@ import {
   normalizeEmail,
   isValidEmail,
 } from './auth-password-utils';
-import { sendPasswordResetEmail } from './transactional-email';
+import {
+  PASSWORD_RESET_EMAIL_NOT_CONFIGURED,
+  resolvePasswordResetEmailDelivery,
+} from './transactional-email-config';
+import { logPasswordResetLinkDev, sendPasswordResetEmail } from './transactional-email';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -225,50 +228,43 @@ export async function requestPasswordReset(c: Context<{ Bindings: Env }>) {
   }
 
   const resetUrl = `${base}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
-  const from =
-    typeof c.env.TRANSACTIONAL_EMAIL_FROM === 'string' && c.env.TRANSACTIONAL_EMAIL_FROM.trim()
-      ? c.env.TRANSACTIONAL_EMAIL_FROM.trim()
-      : 'Momentum <onboarding@resend.dev>';
-
-  const hasResendKey =
-    typeof c.env.RESEND_API_KEY === 'string' && c.env.RESEND_API_KEY.trim() !== '';
-
-  const logResetLinkForDev = shouldLogPasswordResetLinkInsteadOfEmail(c, {
-    hasResendKey,
+  const delivery = resolvePasswordResetEmailDelivery(c, {
     redirectBase: body.redirect_base,
+    resetUrl,
   });
+
+  if (delivery.mode === 'unconfigured') {
+    console.error('requestPasswordReset: RESEND_API_KEY is not set — password reset emails cannot be sent');
+    return c.json({ error: PASSWORD_RESET_EMAIL_NOT_CONFIGURED }, 503);
+  }
+
+  if (delivery.mode === 'dev_log') {
+    logPasswordResetLinkDev(delivery.resetUrl);
+    return c.json({ success: true, message: FORGOT_PASSWORD_OK_MESSAGE }, 200);
+  }
 
   try {
     await sendPasswordResetEmail({
-      apiKey: c.env.RESEND_API_KEY,
-      from,
+      apiKey: delivery.apiKey,
+      from: delivery.from,
       to: row.email,
       resetUrl,
-      logResetLinkForDev,
     });
   } catch (e) {
     const code = e instanceof Error ? e.message : '';
-    if (code === 'email_not_configured') {
-      console.error(
-        'requestPasswordReset: RESEND_API_KEY is not set — password reset emails cannot be sent',
-      );
-      return c.json(
-        {
-          error:
-            'Password reset email is not configured on the server. Set RESEND_API_KEY and TRANSACTIONAL_EMAIL_FROM (verified no-reply sender), or use the app from localhost to log reset links in the Worker console during development.',
-        },
-        503,
-      );
-    }
+    const detail = (e as Error & { providerDetail?: string }).providerDetail;
     if (code === 'email_provider_error') {
+      const hint = detail
+        ? ` Resend: ${detail}`
+        : ' Verify TRANSACTIONAL_EMAIL_FROM uses a domain verified in Resend (e.g. FEEDBACK <no-reply@yourdomain.com>).';
       return c.json(
         {
-          error:
-            'Could not send reset email. Check RESEND_API_KEY and that TRANSACTIONAL_EMAIL_FROM uses a verified sender domain in Resend.',
+          error: `Could not send reset email.${hint}`,
         },
         502,
       );
     }
+    console.error('requestPasswordReset send:', e);
     return c.json({ error: 'Could not send reset email. Try again later.' }, 500);
   }
 

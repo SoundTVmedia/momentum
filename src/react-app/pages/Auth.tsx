@@ -596,7 +596,7 @@ export default function Auth() {
                   }}
                   className="w-full text-center text-[11px] text-momentum-teal hover:text-momentum-mint"
                 >
-                  Forgot Passoword
+                  Forgot password
                 </button>
               )}
             </form>
