@@ -124,6 +124,8 @@ export default function ClipModal({
     setMobileCommentsOpen(false);
     setEditOpen(false);
     setPlayback({ isPlaying: true, isMuted: false });
+    mobilePlayerRef.current?.play();
+    desktopPlayerRef.current?.play();
   }, [clip.id]);
 
   const handleClipSaved = useCallback(

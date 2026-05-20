@@ -9,6 +9,7 @@ import {
 export type StreamVideoPlayerHandle = {
   togglePlay: () => void;
   toggleMute: () => void;
+  play: () => void;
 };
 
 export type StreamVideoPlayerPlaybackState = {
@@ -176,7 +177,18 @@ function StreamVideoPlayer(
     if (!autoPlay) return;
     const video = videoRef.current;
     if (!video || !videoSrc) return;
-    void video.play().catch(() => {});
+
+    const tryPlay = () => {
+      void video.play().catch(() => {});
+    };
+
+    tryPlay();
+    video.addEventListener('canplay', tryPlay);
+    video.addEventListener('loadeddata', tryPlay);
+    return () => {
+      video.removeEventListener('canplay', tryPlay);
+      video.removeEventListener('loadeddata', tryPlay);
+    };
   }, [autoPlay, videoSrc]);
 
   const togglePlay = () => {
@@ -200,7 +212,13 @@ function StreamVideoPlayer(
     else void video.requestFullscreen();
   };
 
-  useImperativeHandle(ref, () => ({ togglePlay, toggleMute }), [isPlaying]);
+  const play = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    void video.play().catch(() => {});
+  };
+
+  useImperativeHandle(ref, () => ({ togglePlay, toggleMute, play }), [isPlaying]);
 
   if (!videoSrc) {
     return (
