@@ -166,7 +166,7 @@ export default function ArtistPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen text-white">
         <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
@@ -177,7 +177,7 @@ export default function ArtistPage() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen text-white">
         <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center">
@@ -196,7 +196,7 @@ export default function ArtistPage() {
 
   if (!data.artist) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen text-white">
         <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center">
@@ -217,7 +217,7 @@ export default function ArtistPage() {
   const socialLinks = parseArtistSocialLinks(artist.social_links);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <Header />
       
       {/* Hero Section */}
@@ -321,7 +321,7 @@ export default function ArtistPage() {
                 edgeBleedScope="page"
               />
             ) : (
-              <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl">
+              <div className="text-center py-12 glass-panel border border-purple-500/20 rounded-xl">
                 <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
                 <p className="text-gray-400 text-lg">Nothing here yet</p>
                 <p className="text-gray-500 mt-2">Drop the first clip from {artist.name}!</p>
@@ -329,7 +329,7 @@ export default function ArtistPage() {
             )}
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6 h-fit">
+          <div className="glass-panel border border-purple-500/20 rounded-xl p-6 h-fit">
             <h3 className="fb-panel-title mb-4">Quick Stats</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -423,7 +423,7 @@ export default function ArtistPage() {
                 <button
                   key={show.show_id}
                   onClick={() => navigate(`${artistPath(show.artist_name)}/shows/${show.show_id}/clips`)}
-                  className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl overflow-hidden hover:border-purple-400/50 transition-all group"
+                  className="glass-panel border border-purple-500/20 rounded-xl overflow-hidden hover:border-purple-400/50 transition-all group"
                 >
                   <div className="relative aspect-video">
                     <img
@@ -478,7 +478,7 @@ export default function ArtistPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+            <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
               <h3 className="fb-panel-title mb-4">Quick Links</h3>
               <div className="space-y-3">
                 {socialLinks.website && (

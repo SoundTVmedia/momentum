@@ -236,7 +236,7 @@ export default function AdminDashboard() {
                 <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
               </div>
             ) : sessions.length === 0 ? (
-              <div className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-12 text-center">
+              <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
                 <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-4" />
                 <p className="text-gray-400">No live sessions yet. Create your first one!</p>
               </div>
@@ -245,7 +245,7 @@ export default function AdminDashboard() {
                 {sessions.map((session) => (
                   <div
                     key={session.id}
-                    className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-momentum-teal/30 transition-colors"
+                    className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-teal/30 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">

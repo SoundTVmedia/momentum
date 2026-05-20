@@ -313,7 +313,7 @@ export default function YouTubeVideoModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-black/50 p-2 text-white"
+            className="rounded-full glass-icon-btn p-2 text-white"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -385,7 +385,7 @@ export default function YouTubeVideoModal({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 z-30 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+              className="absolute right-4 top-4 z-30 rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
               aria-label="Close"
             >
               <X className="h-6 w-6" />

@@ -6,7 +6,7 @@ export default function NotFound() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <Header />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
@@ -35,7 +35,7 @@ export default function NotFound() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8">
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center space-x-2 px-6 py-3 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors"
+              className="flex items-center space-x-2 px-6 py-3 glass-input rounded-xl text-white hover:bg-white/10 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Go Back</span>
@@ -51,7 +51,7 @@ export default function NotFound() {
 
             <button
               onClick={() => navigate('/discover')}
-              className="flex items-center space-x-2 px-6 py-3 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors"
+              className="flex items-center space-x-2 px-6 py-3 glass-input rounded-xl text-white hover:bg-white/10 transition-colors"
             >
               <Search className="w-5 h-5" />
               <span>Discover Shows</span>
@@ -74,7 +74,7 @@ export default function NotFound() {
 
               <button
                 onClick={() => navigate('/discover')}
-                className="p-4 bg-black/40 border border-purple-500/20 rounded-lg hover:border-purple-500/50 transition-colors text-left"
+                className="p-4 glass-panel border-purple-500/25 glass-panel-hover rounded-xl transition-colors text-left"
               >
                 <h3 className="font-bold text-white mb-1">Discover</h3>
                 <p className="text-sm text-gray-400">Find shows and artists</p>
@@ -82,7 +82,7 @@ export default function NotFound() {
 
               <button
                 onClick={() => navigate('/upload')}
-                className="p-4 bg-black/40 border border-pink-500/20 rounded-lg hover:border-pink-500/50 transition-colors text-left"
+                className="p-4 glass-panel border-pink-500/25 glass-panel-hover rounded-xl transition-colors text-left"
               >
                 <h3 className="font-bold text-white mb-1">Share a Moment</h3>
                 <p className="text-sm text-gray-400">Upload your concert clip</p>

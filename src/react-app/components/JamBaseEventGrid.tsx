@@ -141,7 +141,7 @@ function JamBaseEventCard({
 
   return (
     <div
-      className={`group bg-black/40 backdrop-blur-lg border border-momentum-teal/25 rounded-xl overflow-hidden hover:border-momentum-mint/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
+      className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
       <div className="relative shrink-0 h-48 overflow-hidden">
         {head ? (

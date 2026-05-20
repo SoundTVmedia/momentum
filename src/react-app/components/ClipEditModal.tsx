@@ -104,13 +104,13 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
 
   return (
     <div
-      className="fixed inset-0 z-[260] flex items-center justify-center bg-black/80 px-4 py-8"
+      className="fixed inset-0 z-[260] flex items-center justify-center glass-modal-overlay px-4 py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="clip-edit-title"
     >
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-momentum-teal/20 bg-slate-950 shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur">
+      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl glass-dropdown">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 glass-chrome px-5 py-4">
           <h2 id="clip-edit-title" className="text-lg font-bold text-white">
             Edit Clip Details
           </h2>
@@ -138,7 +138,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={artistName}
               onChange={(e) => setArtistName(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
+              className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
               placeholder="Artist name"
               maxLength={200}
             />
@@ -153,7 +153,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={venueName}
               onChange={(e) => setVenueName(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
+              className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
               placeholder="Venue name"
               maxLength={200}
             />
@@ -168,7 +168,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
+              className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
               placeholder="City, state"
               maxLength={200}
             />
@@ -183,7 +183,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={songTitle}
               onChange={(e) => setSongTitle(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
+              className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
               placeholder="What song was playing?"
               maxLength={200}
             />
@@ -197,7 +197,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               id="edit-genre"
               value={genreName}
               onChange={(e) => setGenreName(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white focus:border-momentum-mint focus:outline-none"
+              className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white focus:border-momentum-mint focus:outline-none"
             >
               <option value="" className="bg-slate-900">
                 Select a genre
@@ -219,7 +219,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
-              className="w-full resize-y rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
+              className="w-full resize-y rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
               placeholder="What was this moment?"
               maxLength={2000}
             />
@@ -234,7 +234,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               type="text"
               value={hashtags}
               onChange={(e) => setHashtags(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
+              className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
               placeholder="livemusic, tour2025 (comma-separated)"
               maxLength={500}
             />

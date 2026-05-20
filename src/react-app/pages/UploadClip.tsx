@@ -1014,7 +1014,7 @@ export default function UploadClip() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen text-white flex items-center justify-center">
         <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
       </div>
     );
@@ -1029,7 +1029,7 @@ export default function UploadClip() {
 
   if (quickCaptureAwaitUserTap && wantQuickCaptureUrl && !showCaptionScreen) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6 text-center">
+      <div className="min-h-screen text-white flex flex-col items-center justify-center px-6 text-center">
         <MapPin className="w-14 h-14 text-cyan-400 mb-4 shrink-0" aria-hidden />
         <h1 className="text-xl font-bold text-white mb-2">Location and camera</h1>
         <p className="text-gray-400 text-sm max-w-sm mb-8 leading-relaxed">
@@ -1084,7 +1084,7 @@ export default function UploadClip() {
   // Show quick capture modal if requested
   if (showQuickCapture) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen text-white">
         <QuickRecordButton
           isOpen={true}
           primedMediaStream={reRecordPrimedStream}
@@ -1127,7 +1127,7 @@ export default function UploadClip() {
     });
 
     return (
-      <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+      <div className="min-h-screen text-white">
         <Header />
 
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-fade-in">
@@ -1149,7 +1149,7 @@ export default function UploadClip() {
             </button>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden">
+          <div className="glass-panel rounded-xl overflow-hidden">
             {/* Video Preview with Controls */}
             <div className="relative aspect-video bg-black group">
               {videoBlobUrl && (
@@ -1578,7 +1578,7 @@ export default function UploadClip() {
 
   // FULL UPLOAD FORM - Original interface
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <Header />
       
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -1597,7 +1597,7 @@ export default function UploadClip() {
           <p className="text-gray-300 text-lg">Drop that fire from last night's show</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="glass-panel rounded-xl p-8 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>

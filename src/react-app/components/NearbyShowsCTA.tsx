@@ -98,7 +98,7 @@ export default function NearbyShowsCTA({
   // Location prompt
   if (!location && !hasRequestedLocation) {
     return (
-      <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl p-6 relative">
+      <div className="glass-banner rounded-xl p-6 relative">
         <button
           onClick={() => setIsDismissed(true)}
           className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
@@ -131,7 +131,7 @@ export default function NearbyShowsCTA({
   // Loading state
   if (eventsLoading) {
     return (
-      <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl p-6">
+      <div className="glass-banner rounded-xl p-6">
         <div className="text-center">
           <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-2"></div>
           <p className="text-gray-300">Finding shows near you...</p>
@@ -248,7 +248,7 @@ export default function NearbyShowsCTA({
           {displayEvents.map((event) => (
             <div
               key={event.id}
-              className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-4 hover:border-momentum-mint/50 transition-all"
+              className="glass-panel rounded-xl p-4 hover:border-momentum-mint/50 transition-all"
             >
               <div className="space-y-3">
                 <div>

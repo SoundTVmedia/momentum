@@ -77,7 +77,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
     <div className="space-y-8">
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+        <div className="glass-panel rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-cyan-500/20 rounded-lg">
               <Users className="w-6 h-6 text-cyan-400" />
@@ -89,7 +89,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           <div className="text-sm text-gray-400">Followers</div>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-purple-500/20 rounded-lg">
               <Eye className="w-6 h-6 text-purple-400" />
@@ -101,7 +101,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           <div className="text-sm text-gray-400">Profile Views (30d)</div>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-blue-500/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-blue-500/20 rounded-lg">
               <Video className="w-6 h-6 text-blue-400" />
@@ -113,7 +113,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           <div className="text-sm text-gray-400">Total Clips</div>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-lg border border-red-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-red-500/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-red-500/20 rounded-lg">
               <Heart className="w-6 h-6 text-red-400" />
@@ -128,7 +128,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
 
       {/* Detailed Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+        <div className="glass-panel rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Average Engagement</h3>
           <div className="space-y-4">
             <div>
@@ -161,7 +161,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           </div>
         </div>
 
-        <div className="md:col-span-2 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+        <div className="md:col-span-2 glass-panel rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Engagement Over Time</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={data.engagementOverTime}>
@@ -204,7 +204,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
 
       {/* Top Performing Clips */}
       {data.topClips.length > 0 && (
-        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+        <div className="glass-panel rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Top Performing Clips</h3>
           <div className="space-y-4">
             {data.topClips.map((clip, index) => (

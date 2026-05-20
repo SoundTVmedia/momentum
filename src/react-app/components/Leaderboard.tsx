@@ -51,7 +51,7 @@ export default function Leaderboard() {
   };
 
   return (
-    <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+    <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
           <Trophy className="w-6 h-6 text-yellow-400" />

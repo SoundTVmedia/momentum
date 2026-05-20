@@ -42,14 +42,14 @@ export default function SavedClips() {
 
   if (isPending || (loading && user)) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen text-white flex items-center justify-center">
         <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <Header />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -69,7 +69,7 @@ export default function SavedClips() {
             <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
           </div>
         ) : clips.length === 0 ? (
-          <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl">
+          <div className="text-center py-12 glass-panel border border-yellow-500/20 rounded-xl">
             <Bookmark className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">No saved clips yet</p>
             <p className="text-gray-500 mt-2">Click the bookmark icon on any clip to save it here</p>
@@ -89,7 +89,7 @@ export default function SavedClips() {
                   setSelectedClip(clip);
                   setSavedModalFeed(clips.length > 1 ? clips : null);
                 }}
-                className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all cursor-pointer group"
+                className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">

@@ -82,7 +82,7 @@ export default function ArtistCurationPanel() {
   }
 
   return (
-    <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+    <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white">Fan Submissions</h2>
         <div className="text-sm text-gray-400">

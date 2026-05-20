@@ -18,7 +18,7 @@ export default function DashboardRedirect() {
   }, [user, isPending, navigate]);
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="min-h-screen text-white flex items-center justify-center">
       <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
     </div>
   );

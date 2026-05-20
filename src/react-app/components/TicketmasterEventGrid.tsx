@@ -115,7 +115,7 @@ export default function TicketmasterEventGrid({
       {displayEvents.map((event) => (
         <div
           key={event.id}
-          className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300"
+          className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300"
         >
           <div className="relative">
             <img

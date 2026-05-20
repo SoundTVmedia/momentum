@@ -205,7 +205,7 @@ export default function DiscoverPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -237,7 +237,7 @@ export default function DiscoverPage() {
           </form>
 
           {showFilters && (
-            <div className="w-full mt-4 p-6 bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl">
+            <div className="w-full mt-4 p-6 glass-panel border border-white/10 rounded-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-white font-bold">Filters</h3>
                 <button
@@ -345,7 +345,7 @@ export default function DiscoverPage() {
                       key={venue.jambase_id ?? venue.name}
                       type="button"
                       onClick={() => navigate(venuePath(venue.name))}
-                      className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all text-left group"
+                      className="glass-panel border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all text-left group"
                     >
                       <div className="relative aspect-[4/3] overflow-hidden">
                         <img
@@ -426,7 +426,7 @@ export default function DiscoverPage() {
                             key={typeof v.identifier === 'string' ? v.identifier : name}
                             type="button"
                             onClick={() => navigate(venuePath(name))}
-                            className="bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-all text-left group"
+                            className="glass-panel border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-all text-left group"
                           >
                             <div className="relative aspect-[4/3] overflow-hidden">
                               <img
@@ -469,7 +469,7 @@ export default function DiscoverPage() {
                       key={u.mocha_user_id}
                       type="button"
                       onClick={() => navigate(`/users/${u.mocha_user_id}`)}
-                      className="bg-black/40 backdrop-blur-lg border border-green-500/20 rounded-xl p-4 hover:border-green-400/50 transition-all text-center"
+                      className="glass-panel border border-green-500/20 rounded-xl p-4 hover:border-green-400/50 transition-all text-center"
                     >
                       <div className="flex justify-center mb-3">
                         <UserAvatar

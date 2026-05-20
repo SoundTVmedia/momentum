@@ -246,7 +246,7 @@ export default function ContentModerationPanel() {
       ) : activeTab === 'clips' ? (
         <div className="space-y-4">
           {filteredClips.length === 0 ? (
-            <div className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-12 text-center">
+            <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
               <Shield className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400">No flagged clips found</p>
             </div>
@@ -254,7 +254,7 @@ export default function ContentModerationPanel() {
             filteredClips.map((flag) => (
               <div
                 key={flag.id}
-                className="bg-black/40 backdrop-blur-lg border border-red-500/20 rounded-xl p-6"
+                className="glass-panel border border-red-500/20 rounded-xl p-6"
               >
                 <div className="flex flex-col lg:flex-row gap-6">
                   {/* Clip Preview */}
@@ -344,7 +344,7 @@ export default function ContentModerationPanel() {
       ) : (
         <div className="space-y-4">
           {filteredUsers.length === 0 ? (
-            <div className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-12 text-center">
+            <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
               <Shield className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400">No flagged users found</p>
             </div>
@@ -352,7 +352,7 @@ export default function ContentModerationPanel() {
             filteredUsers.map((user) => (
               <div
                 key={user.mocha_user_id}
-                className="bg-black/40 backdrop-blur-lg border border-red-500/20 rounded-xl p-6"
+                className="glass-panel border border-red-500/20 rounded-xl p-6"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">

@@ -119,7 +119,7 @@ export default function GDPRSettings() {
       </div>
 
       {/* Privacy Settings */}
-      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+      <div className="glass-panel rounded-xl p-6">
         <h3 className="text-xl font-bold text-white mb-6">Privacy Settings</h3>
         
         <div className="space-y-4">
@@ -222,7 +222,7 @@ export default function GDPRSettings() {
       </div>
 
       {/* Data Export */}
-      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+      <div className="glass-panel rounded-xl p-6">
         <h3 className="text-xl font-bold text-white mb-4">Export Your Data</h3>
         <p className="text-gray-300 mb-6">
           Download a copy of all your data including clips, comments, likes, and account information.

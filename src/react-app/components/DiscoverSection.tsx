@@ -85,7 +85,7 @@ export default function DiscoverSection() {
 
         {/* Location Request Banner */}
         {user && !hasLocation && (
-          <div className="mb-8 p-4 bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl">
+          <div className="mb-8 p-4 glass-banner rounded-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Navigation className="w-6 h-6 text-cyan-400" />
@@ -165,7 +165,7 @@ export default function DiscoverSection() {
                 <div
                   key={`${show.type}-${index}`}
                   onClick={() => handleShowClick(show)}
-                  className="group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300 cursor-pointer"
+                  className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300 cursor-pointer"
                 >
                   <div className="relative">
                     <img

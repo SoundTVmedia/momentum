@@ -111,7 +111,7 @@ export default function UserProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen text-white">
         <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
@@ -122,7 +122,7 @@ export default function UserProfilePage() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen text-white">
         <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center">
@@ -143,7 +143,7 @@ export default function UserProfilePage() {
   const genres = profile.genres ? JSON.parse(profile.genres) : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <Header />
       
       {/* Profile Header */}
@@ -264,7 +264,7 @@ export default function UserProfilePage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mt-6 sm:mt-8">
-              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Video className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
                 </div>
@@ -272,7 +272,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Clips</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
                 </div>
@@ -280,7 +280,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Likes</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
                 </div>
@@ -288,7 +288,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Views</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Users className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
                 </div>
@@ -296,7 +296,7 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Followers</div>
               </div>
               
-              <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 text-center">
+              <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
                   <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
                 </div>
@@ -350,7 +350,7 @@ export default function UserProfilePage() {
             
             <div className="space-y-8">
               {favoriteArtists.map((favoriteArtist) => (
-                <div key={favoriteArtist.artist.artist_id} className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 sm:p-6">
+                <div key={favoriteArtist.artist.artist_id} className="glass-panel border border-purple-500/20 rounded-xl p-4 sm:p-6">
                   <button
                     onClick={() => navigate(artistPath(favoriteArtist.artist.name))}
                     className="flex items-center space-x-4 mb-4 hover:opacity-80 transition-opacity"
@@ -379,7 +379,7 @@ export default function UserProfilePage() {
                             setSelectedClip(clip);
                             setProfileModalFeed(favoriteArtist.clips.length > 1 ? favoriteArtist.clips : null);
                           }}
-                          className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-lg overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
+                          className="glass-panel border border-purple-500/20 rounded-lg overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
                         >
                           <div
                             className="relative w-full bg-black"
@@ -414,7 +414,7 @@ export default function UserProfilePage() {
         </h2>
         
         {clips.length === 0 ? (
-          <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl">
+          <div className="text-center py-12 glass-panel rounded-xl">
             <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">
               {isOwnProfile ? "No clips yet. Time to share!" : "Nothing here yet"}
@@ -437,7 +437,7 @@ export default function UserProfilePage() {
                   setSelectedClip(clip);
                   setProfileModalFeed(clips.length > 1 ? clips : null);
                 }}
-                className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
+                className="glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
               >
                 <div
                   className="relative w-full bg-black"

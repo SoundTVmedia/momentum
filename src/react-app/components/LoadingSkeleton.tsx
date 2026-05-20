@@ -4,7 +4,7 @@
 
 export function ClipGridTileSkeleton() {
   return (
-    <div className="rounded-xl border border-momentum-teal/20 overflow-hidden animate-pulse bg-white/5">
+    <div className="glass-panel rounded-xl overflow-hidden animate-pulse">
       <div className="aspect-square bg-gradient-to-br from-slate-800 to-slate-900" />
       <div className="h-14 sm:h-16 bg-black/40 border-t border-white/5" />
     </div>
@@ -13,7 +13,7 @@ export function ClipGridTileSkeleton() {
 
 export function ClipCardSkeleton() {
   return (
-    <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-3 sm:p-4 md:p-6 animate-pulse">
+    <div className="glass-panel rounded-xl p-3 sm:p-4 md:p-6 animate-pulse">
       {/* Header */}
       <div className="flex items-start justify-between mb-3 sm:mb-4">
         <div className="flex items-center space-x-2 sm:space-x-3">
@@ -107,7 +107,7 @@ export function GridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden animate-pulse">
+        <div key={i} className="glass-panel rounded-xl overflow-hidden animate-pulse">
           <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900" />
           <div className="p-4 space-y-3">
             <div className="h-4 w-3/4 bg-white/10 rounded" />

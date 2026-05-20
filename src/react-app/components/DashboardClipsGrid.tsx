@@ -114,7 +114,7 @@ export default function DashboardClipsGrid({
 
   if (loading && clips.length === 0) {
     return (
-      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8">
+      <div className="glass-panel rounded-xl p-8">
         <div className="flex items-center justify-center space-x-2 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>{initialLoadingLabel}</span>

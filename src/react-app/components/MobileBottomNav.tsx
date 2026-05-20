@@ -105,7 +105,7 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-strong border-t border-white/10 bottom-nav">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-chrome border-t border-white/10 bottom-nav">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -132,7 +132,7 @@ export default function MobileBottomNav() {
                 key={item.label}
                 onClick={item.onClick}
                 className={`flex flex-col items-center justify-center flex-1 h-full relative transition-all ${
-                  active ? 'text-blue-500' : 'text-gray-400'
+                  active ? 'text-momentum-mint' : 'text-gray-400'
                 }`}
               >
                 <div className="relative">

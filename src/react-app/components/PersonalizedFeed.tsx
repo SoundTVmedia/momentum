@@ -35,7 +35,7 @@ export default function PersonalizedFeed() {
 
   if (!personalized || clips.length === 0) {
     return (
-      <div className="bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8">
+      <div className="glass-highlight rounded-xl p-8">
         <div className="text-center">
           <Sparkles className="w-12 h-12 text-purple-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">Personalize Your Feed</h3>

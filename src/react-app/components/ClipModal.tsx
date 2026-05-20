@@ -159,7 +159,7 @@ export default function ClipModal({
       <button
         type="button"
         onClick={togglePlayback}
-        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        className="rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
         aria-label={playback.isPlaying ? 'Pause' : 'Play'}
       >
         {playback.isPlaying ? (
@@ -171,7 +171,7 @@ export default function ClipModal({
       <button
         type="button"
         onClick={toggleMute}
-        className="rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        className="rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
         aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
       >
         {playback.isMuted ? (
@@ -313,7 +313,7 @@ export default function ClipModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-black/50 p-2 text-white"
+              className="rounded-full glass-icon-btn p-2 text-white"
               aria-label="Close"
             >
               <X className="h-5 w-5" />
@@ -386,7 +386,7 @@ export default function ClipModal({
             <Share className="h-7 w-7" />
           </button>
           {showShareMenu ? (
-            <div className="absolute bottom-full right-0 mb-2 min-w-[180px] overflow-hidden rounded-lg border border-white/15 bg-black/95 shadow-xl">
+            <div className="absolute bottom-full right-0 mb-2 min-w-[180px] overflow-hidden rounded-lg glass-dropdown shadow-xl">
               <button
                 type="button"
                 onClick={handleCopyLink}
@@ -428,7 +428,7 @@ export default function ClipModal({
   );
 
   const modal = (
-    <div className="fixed inset-0 z-[250] flex animate-fade-in bg-black/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay">
       {/* ——— Mobile: full-viewport video + overlays ——— */}
       <div
         ref={mobileSwipeRef}
@@ -449,7 +449,7 @@ export default function ClipModal({
 
         {mobileCommentsOpen ? (
           <div
-            className="absolute inset-0 z-30 flex flex-col bg-black/60"
+            className="absolute inset-0 z-30 flex flex-col glass-modal-overlay"
             role="dialog"
             aria-label="Comments"
           >
@@ -459,7 +459,7 @@ export default function ClipModal({
               aria-label="Close comments"
               onClick={() => setMobileCommentsOpen(false)}
             />
-            <div className="flex max-h-[58dvh] min-h-[40dvh] flex-col rounded-t-2xl border-t border-white/10 bg-slate-950/98">
+            <div className="flex max-h-[58dvh] min-h-[40dvh] flex-col rounded-t-2xl border-t border-white/10 glass-chrome">
               <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                 <span className="font-semibold text-white">Comments</span>
                 <button
@@ -480,12 +480,12 @@ export default function ClipModal({
 
       {/* ——— Desktop ——— */}
       <div className="mx-auto hidden h-full w-full max-w-6xl items-center justify-center p-4 md:flex">
-        <div className="flex h-full max-h-[90vh] w-full overflow-hidden rounded-xl border border-momentum-teal/20 bg-black/95 animate-scale-in">
+        <div className="flex h-full max-h-[90vh] w-full overflow-hidden rounded-2xl glass-dropdown animate-scale-in">
           <div className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black p-4">
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 z-10 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+              className="absolute right-4 top-4 z-10 rounded-full glass-icon-btn p-2 text-white"
               aria-label="Close"
             >
               <X className="h-6 w-6" />
@@ -495,7 +495,7 @@ export default function ClipModal({
               <button
                 type="button"
                 onClick={goPrev}
-                className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-3 text-white transition-colors hover:bg-black/75"
+                className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full glass-icon-btn p-3 text-white"
                 aria-label="Previous clip"
               >
                 <ChevronLeft className="h-7 w-7" />
@@ -505,7 +505,7 @@ export default function ClipModal({
               <button
                 type="button"
                 onClick={goNext}
-                className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-3 text-white transition-colors hover:bg-black/75"
+                className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full glass-icon-btn p-3 text-white"
                 aria-label="Next clip"
               >
                 <ChevronRight className="h-7 w-7" />
@@ -674,7 +674,7 @@ export default function ClipModal({
                       <Share className="h-5 w-5" />
                     </button>
                     {showShareMenu ? (
-                      <div className="absolute bottom-full right-0 z-10 mb-2 min-w-[200px] animate-scale-in overflow-hidden rounded-lg border border-momentum-teal/20 bg-black/95 shadow-xl">
+                      <div className="absolute bottom-full right-0 z-10 mb-2 min-w-[200px] animate-scale-in overflow-hidden rounded-lg glass-dropdown shadow-xl">
                         <button
                           type="button"
                           onClick={handleCopyLink}

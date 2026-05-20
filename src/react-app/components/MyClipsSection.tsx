@@ -98,7 +98,7 @@ export default function MyClipsSection() {
 
   const emptyContent =
     !loading && clips.length === 0 ? (
-      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8">
+      <div className="glass-panel rounded-xl p-8">
         <div className="text-center">
           <Upload className="w-12 h-12 text-cyan-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">Your moments live here</h3>

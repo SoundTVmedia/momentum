@@ -26,6 +26,7 @@ import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 export default function App() {
   return (
     <ErrorBoundary>
+      <div className="momentum-ambient" aria-hidden />
       <AuthProvider>
         <MobileChromeProvider>
         <Router>

@@ -4,7 +4,7 @@ import AdminDashboard from '@/react-app/components/AdminDashboard';
 
 export default function AdminPage() {
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen text-white">
       <Header />
       <AdminDashboard />
       <Footer />

@@ -111,7 +111,7 @@ export default function VerificationAdminPanel() {
           <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
         </div>
       ) : requests.length === 0 ? (
-        <div className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-12 text-center">
+        <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
           <Shield className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <p className="text-gray-400">No {statusFilter !== 'all' ? statusFilter : ''} verification requests</p>
         </div>
@@ -120,7 +120,7 @@ export default function VerificationAdminPanel() {
           {requests.map((request) => (
             <div
               key={request.id}
-              className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-momentum-teal/30 transition-colors"
+              className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-teal/30 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-4 flex-1">

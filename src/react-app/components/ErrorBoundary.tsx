@@ -67,9 +67,9 @@ export default class ErrorBoundary extends Component<Props, State> {
 
       // Default error UI
       return (
-        <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black flex items-center justify-center px-4">
+        <div className="min-h-screen text-white flex items-center justify-center px-4">
           <div className="max-w-lg w-full">
-            <div className="bg-black/40 backdrop-blur-lg border border-red-500/30 rounded-xl p-8 text-center space-y-6">
+            <div className="glass-panel border border-red-500/30 rounded-xl p-8 text-center space-y-6">
               <div className="flex justify-center">
                 <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center">
                   <AlertTriangle className="w-10 h-10 text-red-400" />

@@ -240,10 +240,10 @@ function SearchDropdownPanel({
 }
 
 const HERO_PANEL_CLASS =
-  'rounded-2xl border border-white/20 bg-black/95 shadow-2xl shadow-black/60 backdrop-blur-lg overflow-hidden';
+  'glass-dropdown rounded-2xl overflow-hidden shadow-2xl shadow-black/60';
 
 const HEADER_PANEL_CLASS =
-  'absolute top-full mt-2 w-[28rem] max-w-[90vw] z-[100] bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden shadow-xl shadow-cyan-950/40';
+  'absolute top-full mt-2 w-[28rem] max-w-[90vw] z-[100] glass-dropdown rounded-xl overflow-hidden shadow-xl shadow-cyan-950/40';
 
 export default function AdvancedSearchDropdown({
   query,

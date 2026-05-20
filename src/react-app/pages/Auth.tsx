@@ -311,7 +311,7 @@ export default function Auth() {
 
   if (isPending || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center">
+      <div className="min-h-screen text-white flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-momentum-teal animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading...</p>
@@ -322,7 +322,7 @@ export default function Auth() {
 
   if (showRememberDevice) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center px-4">
+      <div className="min-h-screen text-white flex items-center justify-center px-4">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
             <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent mb-4">
@@ -331,7 +331,7 @@ export default function Auth() {
             <p className="text-xl text-white">Welcome back!</p>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
+          <div className="glass-panel rounded-xl p-8 space-y-6">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white mb-2">Remember this device?</h2>
               <p className="text-gray-400">Stay signed in for easy access</p>
@@ -376,7 +376,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center px-4">
+    <div className="min-h-screen text-white flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent mb-4">
@@ -385,7 +385,7 @@ export default function Auth() {
           <p className="text-xl text-gray-300">Where Live Music Lives</p>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
+        <div className="glass-panel rounded-xl p-8 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>

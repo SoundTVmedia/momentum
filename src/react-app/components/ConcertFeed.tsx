@@ -185,7 +185,7 @@ export default function ConcertFeed({
 
         {clips.length === 0 && !loading && !error && (
           <div className="text-center py-12 px-4">
-            <div className="max-w-md mx-auto bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8 space-y-4">
+            <div className="max-w-md mx-auto glass-highlight rounded-xl p-8 space-y-4">
               <div className="text-6xl mb-4">🎸</div>
               <h3 className="text-2xl font-bold text-white mb-2">No Clips Yet</h3>
               <p className="text-gray-300 mb-6">

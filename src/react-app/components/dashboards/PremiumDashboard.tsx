@@ -9,7 +9,7 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Member';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -47,19 +47,19 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
             <div className="text-black/80 text-sm">First access</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
+          <button className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
             <Video className="w-8 h-8 text-yellow-400 mb-2" />
             <div className="text-white font-bold">Exclusive Videos</div>
             <div className="text-gray-300 text-sm">VIP content</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
+          <button className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
             <Gift className="w-8 h-8 text-yellow-400 mb-2" />
             <div className="text-white font-bold">Merch Drops</div>
             <div className="text-gray-300 text-sm">Limited edition</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
+          <button className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
             <MessageCircle className="w-8 h-8 text-yellow-400 mb-2" />
             <div className="text-white font-bold">Priority Chat</div>
             <div className="text-gray-300 text-sm">Live shows</div>
@@ -69,7 +69,7 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
         {/* Content Sections */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Exclusive Artist Interviews */}
-          <div className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Exclusive Interviews</h2>
               <Crown className="w-6 h-6 text-yellow-400" />
@@ -121,7 +121,7 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
           </div>
 
           {/* Early Access Tickets */}
-          <div className="bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Early Access Tickets</h2>
               <Zap className="w-6 h-6 text-yellow-400" />
@@ -188,7 +188,7 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
         </div>
 
         {/* Exclusive Merchandise */}
-        <div className="mt-8 bg-black/40 backdrop-blur-lg border border-yellow-500/20 rounded-xl p-6">
+        <div className="mt-8 glass-panel border border-yellow-500/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-white">Exclusive Merchandise Drops</h2>
             <Gift className="w-6 h-6 text-yellow-400" />

@@ -121,7 +121,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
       </div>
 
       {displayedShows.length === 0 ? (
-        <div className="text-center py-12 bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl">
+        <div className="text-center py-12 glass-panel border border-blue-500/20 rounded-xl">
           <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-3" />
           <p className="text-gray-400">No archived shows yet</p>
         </div>
@@ -132,7 +132,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
               <button
                 key={show.show_id}
                 onClick={() => handleShowClick(show)}
-                className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all group text-left"
+                className="glass-panel border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all group text-left"
               >
                 <div className="relative aspect-video">
                   <img

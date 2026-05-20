@@ -91,7 +91,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
   // Compact mode for when not live
   if (!isLive && layoutMode === 'compact') {
     return (
-      <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-momentum-teal/25">
+      <div className="glass-banner rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-momentum-teal/25">
         {/* Subtle background glow */}
         <div className="absolute inset-0 opacity-20">
           <div className="absolute left-0 w-32 h-32 bg-cyan-500/30 rounded-full blur-2xl animate-pulse"></div>
@@ -139,7 +139,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
     return (
       <section className="py-3 sm:py-4 bg-gradient-to-r from-black via-momentum-teal/14 to-black">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-          <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/15 backdrop-blur-lg border border-momentum-teal/40 rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-momentum-teal/25">
+          <div className="glass-banner rounded-xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-momentum-teal/25">
             {/* Subtle background glow */}
             <div className="absolute inset-0 opacity-20">
               <div className="absolute left-0 w-32 h-32 bg-cyan-500/30 rounded-full blur-2xl animate-pulse"></div>
@@ -334,7 +334,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
           </div>
 
           {/* Live Chat */}
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-lg sm:rounded-xl flex flex-col h-[400px] sm:h-[450px] lg:h-auto">
+          <div className="glass-panel rounded-lg sm:rounded-xl flex flex-col h-[400px] sm:h-[450px] lg:h-auto">
             <div className="p-3 sm:p-4 border-b border-white/10 flex-shrink-0">
               <div className="flex items-center space-x-1.5 sm:space-x-2">
                 <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 flex-shrink-0" />

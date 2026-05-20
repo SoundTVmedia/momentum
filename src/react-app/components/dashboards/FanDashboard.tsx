@@ -11,7 +11,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Fan';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -34,7 +34,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
 
           <button 
             onClick={() => navigate('/')}
-            className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6 hover:border-momentum-mint/50 transition-all"
+            className="glass-panel rounded-xl p-6 hover:border-momentum-mint/50 transition-all"
           >
             <Play className="w-8 h-8 text-cyan-400 mb-2" />
             <div className="text-white font-bold">Jump In Live</div>
@@ -43,14 +43,14 @@ export default function FanDashboard({ user }: FanDashboardProps) {
 
           <button 
             onClick={() => navigate('/')}
-            className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6 hover:border-momentum-mint/50 transition-all"
+            className="glass-panel rounded-xl p-6 hover:border-momentum-mint/50 transition-all"
           >
             <Ticket className="w-8 h-8 text-cyan-400 mb-2" />
             <div className="text-white font-bold">Find Shows</div>
             <div className="text-gray-300 text-sm">See who's playing</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6 hover:border-momentum-mint/50 transition-all">
+          <button className="glass-panel rounded-xl p-6 hover:border-momentum-mint/50 transition-all">
             <Users className="w-8 h-8 text-cyan-400 mb-2" />
             <div className="text-white font-bold">Follow Artists</div>
             <div className="text-gray-300 text-sm">Never miss a drop</div>
@@ -59,7 +59,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+          <div className="glass-panel rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Clips Uploaded</span>
               <Upload className="w-5 h-5 text-cyan-400" />
@@ -67,7 +67,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
             <div className="text-3xl font-bold text-white">0</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+          <div className="glass-panel rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Total Likes</span>
               <Heart className="w-5 h-5 text-red-400" />
@@ -75,7 +75,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
             <div className="text-3xl font-bold text-white">0</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+          <div className="glass-panel rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Following</span>
               <Users className="w-5 h-5 text-blue-400" />
@@ -83,7 +83,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
             <div className="text-3xl font-bold text-white">0</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+          <div className="glass-panel rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Featured</span>
               <TrendingUp className="w-5 h-5 text-purple-400" />
@@ -95,7 +95,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
         {/* Content Sections */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Your Clips */}
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+          <div className="glass-panel rounded-xl p-6">
             <h2 className="text-2xl font-bold text-white mb-4">Your Clips</h2>
             <div className="text-center py-12">
               <Upload className="w-16 h-16 text-gray-600 mx-auto mb-4" />
@@ -110,7 +110,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
           </div>
 
           {/* Feed */}
-          <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-6">
+          <div className="glass-panel rounded-xl p-6">
             <h2 className="text-2xl font-bold text-white mb-4">Concert Feed</h2>
             <div className="space-y-4">
               <div className="p-4 bg-white/5 rounded-lg border border-white/10">

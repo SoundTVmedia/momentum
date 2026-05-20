@@ -69,7 +69,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
     : notifications;
 
   return (
-    <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-teal/15">
+    <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 glass-dropdown rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-teal/15">
       {/* Header */}
       <div className="p-3 sm:p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">

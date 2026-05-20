@@ -59,7 +59,7 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center px-4">
+    <div className="min-h-screen text-white flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent mb-4">
@@ -68,7 +68,7 @@ export default function ResetPassword() {
           <p className="text-xl text-gray-300">Set a new password</p>
         </div>
 
-        <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
+        <div className="glass-panel rounded-xl p-8 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
               <p className="text-red-400">{error}</p>

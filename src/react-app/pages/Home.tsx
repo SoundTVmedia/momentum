@@ -12,14 +12,14 @@ export default function Home() {
   const { user } = useAuth()
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen text-white">
       <Header />
 
       <HeroSection />
 
       {!user && (
         <>
-          <div className="bg-gradient-to-b from-slate-950 via-black to-black pb-8 sm:pb-12">
+          <div className="pb-8 sm:pb-12">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10">
               <section className="pt-6 md:pt-8">
                 <SectionHeading

@@ -15,7 +15,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'curation'>('overview');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -66,19 +66,19 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
             <div className="text-white/80 text-sm">Show them what's up</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6 hover:border-purple-400/50 transition-all">
+          <button className="glass-panel border border-purple-500/20 rounded-xl p-6 hover:border-purple-400/50 transition-all">
             <Calendar className="w-8 h-8 text-purple-400 mb-2" />
             <div className="text-white font-bold">Tour Dates</div>
             <div className="text-gray-300 text-sm">Manage schedule</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6 hover:border-purple-400/50 transition-all">
+          <button className="glass-panel border border-purple-500/20 rounded-xl p-6 hover:border-purple-400/50 transition-all">
             <MessageCircle className="w-8 h-8 text-purple-400 mb-2" />
             <div className="text-white font-bold">Fan Chat</div>
             <div className="text-gray-300 text-sm">Talk to your people</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6 hover:border-purple-400/50 transition-all">
+          <button className="glass-panel border border-purple-500/20 rounded-xl p-6 hover:border-purple-400/50 transition-all">
             <Users className="w-8 h-8 text-purple-400 mb-2" />
             <div className="text-white font-bold">Analytics</div>
             <div className="text-gray-300 text-sm">Track growth</div>
@@ -87,7 +87,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Total Followers</span>
               <Users className="w-5 h-5 text-purple-400" />
@@ -96,7 +96,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
             <div className="text-sm text-green-400">+847 this month</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Total Views</span>
               <Eye className="w-5 h-5 text-cyan-400" />
@@ -105,7 +105,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
             <div className="text-sm text-green-400">+23K this month</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Engagement Rate</span>
               <Heart className="w-5 h-5 text-red-400" />
@@ -114,7 +114,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
             <div className="text-sm text-green-400">+0.8% this month</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Content Pieces</span>
               <Video className="w-5 h-5 text-orange-400" />
@@ -127,7 +127,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
         {/* Content Sections */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Recent Content */}
-          <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Your Content</h2>
               <button 
@@ -150,7 +150,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
           </div>
 
           {/* Upcoming Shows */}
-          <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Upcoming Shows</h2>
               <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
@@ -210,7 +210,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
         </div>
 
         {/* Fan Engagement */}
-        <div className="mt-8 bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+        <div className="mt-8 glass-panel border border-purple-500/20 rounded-xl p-6">
           <h2 className="text-2xl font-bold text-white mb-4">Recent Fan Activity</h2>
           <div className="space-y-4">
             <div className="p-4 bg-white/5 rounded-lg border border-white/10">
@@ -270,7 +270,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
         </div>
 
         {/* Growth Chart Placeholder */}
-        <div className="mt-8 bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
+        <div className="mt-8 glass-panel border border-purple-500/20 rounded-xl p-6">
           <h2 className="text-2xl font-bold text-white mb-4">Growth Overview</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">

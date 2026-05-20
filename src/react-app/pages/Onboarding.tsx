@@ -212,7 +212,7 @@ export default function Onboarding() {
 
   if (isPending || !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black flex items-center justify-center">
+      <div className="min-h-screen text-white flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-momentum-teal animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading...</p>
@@ -222,7 +222,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <div className="max-w-4xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-12">
@@ -306,7 +306,7 @@ export default function Onboarding() {
               </button>
             </div>
 
-            <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-6">
+            <div className="glass-panel rounded-xl p-8 space-y-6">
               <div>
                 <label className="block text-white font-medium mb-2">Display Name</label>
                 <input
@@ -410,7 +410,7 @@ export default function Onboarding() {
               </button>
             </div>
 
-            <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8 space-y-8">
+            <div className="glass-panel rounded-xl p-8 space-y-8">
               <FavoriteArtistsJamBaseField
                 favoriteArtists={favoriteArtists}
                 setFavoriteArtists={setFavoriteArtists}

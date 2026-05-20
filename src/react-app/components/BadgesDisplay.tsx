@@ -68,7 +68,7 @@ export default function BadgesDisplay({ compact = false }: BadgesDisplayProps) {
           {badges.map((badge) => (
             <div
               key={badge.id}
-              className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 text-center"
+              className="glass-panel border border-purple-500/20 rounded-xl p-4 text-center"
             >
               <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Award className="w-8 h-8 text-white" />
@@ -100,7 +100,7 @@ export default function BadgesDisplay({ compact = false }: BadgesDisplayProps) {
               {badges.map((badge) => (
                 <div
                   key={badge.id}
-                  className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-4 text-center"
+                  className="glass-panel border border-purple-500/20 rounded-xl p-4 text-center"
                 >
                   <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2">
                     <Award className="w-8 h-8 text-white" />

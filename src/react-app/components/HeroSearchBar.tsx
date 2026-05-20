@@ -83,7 +83,7 @@ export default function HeroSearchBar({
             className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-teal/50 via-momentum-mint/40 to-momentum-teal/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
             aria-hidden
           />
-          <div className="relative flex items-center rounded-2xl border border-white/20 bg-black/50 backdrop-blur-md shadow-xl shadow-black/40">
+          <div className="relative flex items-center rounded-2xl glass-input shadow-glass-lg">
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-momentum-mint/80 sm:h-6 sm:w-6"
               aria-hidden

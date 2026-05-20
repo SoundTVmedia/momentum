@@ -23,7 +23,7 @@ export default function EmptyState({
 }: EmptyStateProps) {
   return (
     <div className="text-center py-12 px-4">
-      <div className="max-w-md mx-auto bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8 space-y-4 animate-fade-in">
+      <div className="max-w-md mx-auto glass-highlight rounded-2xl p-8 space-y-4 animate-fade-in">
         {/* Icon or Emoji */}
         <div className="mb-4">
           {emoji ? (

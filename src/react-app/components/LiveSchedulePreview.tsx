@@ -47,7 +47,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
   }
 
   return (
-    <div className="bg-gradient-to-br from-momentum-teal/15 via-slate-900/40 to-momentum-mint/8 backdrop-blur-lg border border-momentum-teal/30 rounded-xl p-4 sm:p-6">
+    <div className="glass-banner rounded-xl p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-start gap-2 sm:gap-3">
           <Sparkles className="w-5 h-5 text-momentum-mint animate-pulse shrink-0 mt-0.5" />

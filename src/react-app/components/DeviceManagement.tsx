@@ -143,7 +143,7 @@ export default function DeviceManagement() {
       )}
 
       {devices.length === 0 ? (
-        <div className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-8 text-center">
+        <div className="glass-panel border border-white/10 rounded-xl p-8 text-center">
           <Smartphone className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">No Trusted Devices</h3>
           <p className="text-gray-400">
@@ -159,7 +159,7 @@ export default function DeviceManagement() {
             return (
               <div
                 key={device.id}
-                className="bg-black/40 backdrop-blur-lg border border-white/10 rounded-xl p-6 hover:border-momentum-teal/20 transition-colors"
+                className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-teal/20 transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">

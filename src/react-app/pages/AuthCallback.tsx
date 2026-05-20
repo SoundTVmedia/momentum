@@ -50,7 +50,7 @@ export default function AuthCallback() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center px-4">
+      <div className="min-h-screen text-white flex items-center justify-center px-4">
         <div className="text-center max-w-md">
           <p className="text-red-400 mb-4">{error}</p>
           <button
@@ -66,7 +66,7 @@ export default function AuthCallback() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="min-h-screen text-white flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
         <p className="text-white text-lg">Completing sign in...</p>

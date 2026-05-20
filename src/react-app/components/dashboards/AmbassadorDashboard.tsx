@@ -45,7 +45,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -72,19 +72,19 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
             <div className="text-white/80 text-sm">Share local shows</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
+          <button className="glass-panel border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
             <Calendar className="w-8 h-8 text-orange-400 mb-2" />
             <div className="text-white font-bold">Events</div>
             <div className="text-gray-300 text-sm">Promote shows</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
+          <button className="glass-panel border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
             <Users className="w-8 h-8 text-orange-400 mb-2" />
             <div className="text-white font-bold">Community</div>
             <div className="text-gray-300 text-sm">Build network</div>
           </button>
 
-          <button className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
+          <button className="glass-panel border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
             <DollarSign className="w-8 h-8 text-orange-400 mb-2" />
             <div className="text-white font-bold">Earnings</div>
             <div className="text-gray-300 text-sm">Track commission</div>
@@ -93,7 +93,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Local Followers</span>
               <Users className="w-5 h-5 text-orange-400" />
@@ -102,7 +102,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
             <div className="text-sm text-green-400">+156 this month</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Events Promoted</span>
               <Calendar className="w-5 h-5 text-cyan-400" />
@@ -111,7 +111,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
             <div className="text-sm text-green-400">+8 this month</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Total Reach</span>
               <TrendingUp className="w-5 h-5 text-purple-400" />
@@ -120,7 +120,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
             <div className="text-sm text-green-400">+12K this month</div>
           </div>
 
-          <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Commission Earned</span>
               <DollarSign className="w-5 h-5 text-green-400" />
@@ -137,7 +137,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         {/* Content Sections */}
         <div className="grid grid-cols-1 gap-8">
           {/* Live Events to Promote */}
-          <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <h2 className="text-2xl font-bold text-white">Events to Promote in {city}</h2>
               <div className="text-sm text-gray-400">Earn 15% commission per sale</div>
@@ -174,7 +174,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
           </div>
 
           {/* Local Events */}
-          <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Local Events in {city}</h2>
               <button className="text-orange-400 hover:text-orange-300 text-sm font-medium">
@@ -235,7 +235,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
           {/* Commission Opportunities */}
-          <div className="bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Commission Opportunities</h2>
               <Zap className="w-6 h-6 text-orange-400" />
@@ -293,7 +293,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         </div>
 
         {/* Performance Metrics */}
-        <div className="mt-8 bg-black/40 backdrop-blur-lg border border-orange-500/20 rounded-xl p-6">
+        <div className="mt-8 glass-panel border border-orange-500/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white">This Month's Performance</h2>
             <button

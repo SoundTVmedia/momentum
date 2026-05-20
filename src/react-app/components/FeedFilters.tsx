@@ -18,7 +18,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
 
   return (
     <div className="relative">
-      <div className="hidden md:flex items-center space-x-2 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-2">
+      <div className="hidden md:flex items-center space-x-2 glass-panel rounded-xl p-2">
         {FEED_FILTER_OPTIONS.map((option) => {
           const isActive = currentFilter === option.value;
 
@@ -43,7 +43,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl text-white"
+          className="w-full flex items-center justify-between px-4 py-3 glass-panel rounded-xl text-white"
         >
           <span className="font-medium">{currentOption.label}</span>
           <ChevronDown className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -52,12 +52,12 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
         {isOpen && (
           <>
             <div
-              className="fixed inset-0 bg-black/50 z-40"
+              className="fixed inset-0 glass-modal-overlay z-40"
               onClick={() => setIsOpen(false)}
               aria-hidden
             />
 
-            <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-momentum-teal/20 rounded-xl overflow-hidden z-50 shadow-2xl">
+            <div className="absolute top-full left-0 right-0 mt-2 glass-dropdown rounded-xl overflow-hidden z-50">
               {FEED_FILTER_OPTIONS.map((option) => {
                 const isActive = currentFilter === option.value;
 

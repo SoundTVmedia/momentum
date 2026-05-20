@@ -93,7 +93,7 @@ export default function PremiumPage() {
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
+    <div className="min-h-screen text-white">
       <Header />
       
       {/* Hero Section */}
@@ -146,7 +146,7 @@ export default function PremiumPage() {
           {plans.map((plan) => (
             <div
               key={plan.id}
-              className={`relative bg-black/40 backdrop-blur-lg border rounded-2xl p-8 transition-all duration-300 hover:scale-105 cursor-pointer ${
+              className={`relative glass-panel border rounded-2xl p-8 transition-all duration-300 hover:scale-105 cursor-pointer ${
                 selectedPlan === plan.id
                   ? 'border-yellow-400/50 shadow-2xl shadow-yellow-500/20'
                   : 'border-white/10 hover:border-yellow-400/30'
@@ -210,7 +210,7 @@ export default function PremiumPage() {
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-black/40 backdrop-blur-lg border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
+            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
               <Video className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Exclusive Videos</h3>
               <p className="text-gray-400 text-sm">
@@ -218,7 +218,7 @@ export default function PremiumPage() {
               </p>
             </div>
 
-            <div className="bg-black/40 backdrop-blur-lg border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
+            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
               <Calendar className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Early Tickets</h3>
               <p className="text-gray-400 text-sm">
@@ -226,7 +226,7 @@ export default function PremiumPage() {
               </p>
             </div>
 
-            <div className="bg-black/40 backdrop-blur-lg border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
+            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
               <Gift className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Exclusive Merch</h3>
               <p className="text-gray-400 text-sm">
@@ -234,7 +234,7 @@ export default function PremiumPage() {
               </p>
             </div>
 
-            <div className="bg-black/40 backdrop-blur-lg border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
+            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
               <MessageCircle className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Priority Chat</h3>
               <p className="text-gray-400 text-sm">
@@ -294,7 +294,7 @@ export default function PremiumPage() {
 
       {/* Checkout Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-modal-overlay animate-fade-in">
           <div className="bg-slate-900 border border-yellow-400/30 rounded-2xl max-w-md w-full p-8 animate-scale-in">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white">Confirm Upgrade</h3>

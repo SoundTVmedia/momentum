@@ -39,7 +39,7 @@ export default function DiscoverArtistCarousel({
           <button
             type="button"
             onClick={() => navigate(artistPath(artist.name))}
-            className="w-full h-full text-left bg-black/40 backdrop-blur-lg border border-purple-500/25 rounded-xl overflow-hidden hover:border-purple-400/50 transition-colors group"
+            className="w-full h-full text-left glass-panel border border-purple-500/25 rounded-xl overflow-hidden hover:border-purple-400/50 transition-colors group"
           >
             <div className="relative aspect-square overflow-hidden">
               <img

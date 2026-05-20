@@ -52,7 +52,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
 
   return (
     <div
-      className={`group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors ${EVENT_CAROUSEL_CARD_CLASS}`}
+      className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
       <button
         type="button"
@@ -231,7 +231,7 @@ export default function PersonalizedConcerts({
 
   if (loading) {
     return (
-      <div className="bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl p-8">
+      <div className="glass-panel rounded-xl p-8">
         <div className="flex items-center justify-center space-x-2 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading shows…</span>
@@ -249,7 +249,7 @@ export default function PersonalizedConcerts({
       return null;
     }
     return (
-      <div className="bg-gradient-to-br from-momentum-teal/18 to-momentum-mint/10 backdrop-blur-lg border border-momentum-teal/25 rounded-xl p-8">
+      <div className="glass-highlight rounded-xl p-8">
         <div className="text-center">
           <Heart className="w-12 h-12 text-purple-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">
