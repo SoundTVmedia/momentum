@@ -268,7 +268,7 @@ export default function PersonalizedConcerts({
       : 'Upcoming shows near you';
 
   return (
-    <div className={usePageHeading ? '' : HOME_FEED_SECTION_CLASS}>
+    <div className={headingVariant === 'page' ? '' : HOME_FEED_SECTION_CLASS}>
       {sectionHeader}
 
       {jbEvents.length > 0 ? (
