@@ -38,8 +38,8 @@ export default function AdvancedSearchDropdown({
   const hasHits = advancedSearchHasHits(results);
   const panelClass =
     variant === 'hero'
-      ? 'absolute left-0 right-0 top-full z-50 mt-2 rounded-2xl border border-white/20 bg-black/95 shadow-2xl shadow-black/60 backdrop-blur-lg overflow-hidden'
-      : 'absolute top-full mt-2 w-[28rem] max-w-[90vw] bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden z-50 shadow-xl shadow-cyan-950/40';
+      ? 'absolute left-0 right-0 top-full z-[100] mt-2 rounded-2xl border border-white/20 bg-black/95 shadow-2xl shadow-black/60 backdrop-blur-lg overflow-hidden'
+      : 'absolute top-full mt-2 w-[28rem] max-w-[90vw] z-[100] bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden shadow-xl shadow-cyan-950/40';
 
   return (
     <div className={panelClass} role="listbox" aria-label="Search suggestions">

@@ -77,7 +77,10 @@ export default function HeroSearchBar({
         onSubmit={submit}
         className={`w-full max-w-2xl mx-auto ${className}`.trim()}
       >
-        <div ref={containerRef} className="relative group">
+        <div
+          ref={containerRef}
+          className={`relative group ${showResults ? 'z-[100]' : 'z-10'}`}
+        >
           <div
             className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-teal/50 via-momentum-mint/40 to-momentum-teal/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
             aria-hidden

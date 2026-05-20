@@ -102,7 +102,7 @@ export default function Header() {
               </button>
             </nav>
             <div
-              className={`relative hidden lg:block ${isHome ? 'lg:hidden' : ''}`}
+              className={`relative z-[100] hidden lg:block ${isHome ? 'lg:hidden' : ''}`}
               ref={searchDropdownRef}
             >
               <form onSubmit={handleHeaderSearchSubmit} className="relative">
