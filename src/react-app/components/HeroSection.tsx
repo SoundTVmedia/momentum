@@ -5,27 +5,10 @@ const HERO_POSTER_URL =
   'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1920&h=1080&fit=crop';
 const HERO_VIDEO_SRC: string | null = null;
 
-function HeroBrandMark() {
-  return (
-    <div className="hero-brand-mark mx-auto mb-4 sm:mb-5" aria-hidden>
-      <div className="relative mx-auto h-[4.5rem] w-[4.5rem] sm:h-20 sm:w-20">
-        <div className="hero-brand-ring absolute inset-0 rounded-full border border-momentum-mint/30" />
-        <div className="hero-brand-ring-delay absolute inset-1 rounded-full border border-momentum-teal/20" />
-        <div className="absolute inset-2 flex items-center justify-center rounded-full momentum-grad-interactive shadow-lg shadow-momentum-teal/30">
-          <span className="font-headline text-2xl tracking-tight text-white sm:text-3xl">F</span>
-        </div>
-      </div>
-      <p className="mt-3 text-center font-headline text-sm font-bold tracking-[0.35em] text-momentum-mint/90 sm:text-base">
-        FEEDBACK
-      </p>
-    </div>
-  );
-}
-
 export default function HeroSection() {
   return (
     <section
-      className="relative isolate min-h-[44vh] overflow-hidden bg-black sm:min-h-[48vh] md:min-h-[52vh] lg:min-h-[56vh]"
+      className="relative isolate min-h-[32vh] overflow-hidden bg-black sm:min-h-[34vh] md:min-h-[36vh] lg:min-h-[38vh]"
       aria-label="Welcome"
     >
       {/* Background — poster now; optional video layer for brand footage later */}
@@ -68,11 +51,9 @@ export default function HeroSection() {
       {/* Scan line — subtle “live broadcast” feel */}
       <div className="hero-scanline pointer-events-none absolute inset-0 opacity-[0.07]" aria-hidden />
 
-      <div className="relative z-10 flex min-h-[inherit] flex-col justify-center px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+      <div className="relative z-10 flex min-h-[inherit] flex-col justify-center px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
         <div className="mx-auto w-full max-w-4xl text-center">
-          <HeroBrandMark />
-
-          <h1 className="font-headline text-3xl font-bold leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
+          <h1 className="font-headline text-3xl font-bold leading-[1.1] tracking-tight sm:text-4xl md:text-5xl">
             <span className="block momentum-grad-text">Where live</span>
             <span className="block text-white drop-shadow-lg">music lives</span>
           </h1>
@@ -81,7 +62,7 @@ export default function HeroSection() {
             Real clips from real shows. Find your next artist, venue, or moment.
           </p>
 
-          <HeroSearchBar className="mt-6 sm:mt-8" />
+          <HeroSearchBar className="mt-5 sm:mt-6" />
         </div>
       </div>
 

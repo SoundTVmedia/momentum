@@ -316,14 +316,6 @@ body {
     animation: hero-light-pulse 5s ease-in-out infinite;
   }
 
-  .hero-brand-ring {
-    animation: hero-ring-spin 10s linear infinite;
-  }
-
-  .hero-brand-ring-delay {
-    animation: hero-ring-spin 14s linear infinite reverse;
-  }
-
   .hero-scanline {
     background: repeating-linear-gradient(
       0deg,
@@ -354,15 +346,6 @@ body {
   50% {
     opacity: 0.85;
     transform: scale(1.08);
-  }
-}
-
-@keyframes hero-ring-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
   }
 }
 
