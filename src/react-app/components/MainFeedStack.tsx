@@ -16,7 +16,7 @@ export type MainFeedStackVariant = 'page' | 'home'
 type MainFeedStackProps = {
   variant?: MainFeedStackVariant
   /** Initial filter for the main clip grid on home and feed-style stacks. */
-  defaultFeedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
+  defaultFeedType?: 'latest' | 'trending' | 'most_liked'
 }
 
 export default function MainFeedStack({
@@ -40,7 +40,7 @@ export default function MainFeedStack({
             <SectionHeading
               title="The Feed"
               subtitle="Live moments from concerts happening right now"
-              size="hero"
+              size="section"
               className="mb-0"
             />
           </div>
@@ -70,7 +70,7 @@ export default function MainFeedStack({
             )
           }
           subtitle="Your artists, nearby venues, and what's hot on the platform"
-          size="page"
+          size="section"
         />
       )}
 

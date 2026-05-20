@@ -216,16 +216,8 @@ export default function PersonalizedConcerts({
         ? `Upcoming shows at venues near ${locationLabel}`
         : 'Upcoming shows at venues near you from JamBase';
 
-  const usePageHeading = headingVariant === 'page' && resolvedMode === 'nearby';
-
   const sectionHeader = (
-    <SectionHeading
-      title={sectionTitle}
-      subtitle={sectionSubtitle}
-      align={usePageHeading ? 'center' : 'left'}
-      size={usePageHeading ? 'page' : 'section'}
-      className={usePageHeading ? 'mb-6' : undefined}
-    />
+    <SectionHeading title={sectionTitle} subtitle={sectionSubtitle} size="section" />
   );
 
   if (resolvedMode === 'favorite-artists' && !isLoggedIn) {

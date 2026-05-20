@@ -282,7 +282,6 @@ export default function DiscoverPage() {
                     <option value="trending">Trending</option>
                     <option value="most_liked">Most Liked</option>
                     <option value="most_viewed">Most Viewed</option>
-                    <option value="top_rated">Top Rated</option>
                   </select>
                 </div>
               </div>
@@ -457,8 +456,6 @@ export default function DiscoverPage() {
 
             <section className={HOME_FEED_SECTION_CLASS}>
               <DiscoverSectionTitle
-                icon={Ticket}
-                iconClassName="text-momentum-mint"
                 title="Upcoming Shows at Venues Near You"
                 subtitle={nearbyShowsSubtitle(discoverFeed)}
               />

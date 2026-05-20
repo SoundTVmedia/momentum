@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Calendar, MapPin, Star, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
@@ -12,7 +12,7 @@ export default function ShowClipsPage() {
   const navigate = useNavigate();
   const [clips, setClips] = useState<ClipWithUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState<'time_posted' | 'clip_rating'>('time_posted');
+  const [sortBy, setSortBy] = useState<'time_posted' | 'most_liked'>('time_posted');
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [showModalFeed, setShowModalFeed] = useState<ClipWithUser[] | null>(null);
 
@@ -50,10 +50,6 @@ export default function ShowClipsPage() {
 
   const venueName = clips.length > 0 ? clips[0].venue_name : '';
   const location = clips.length > 0 ? clips[0].location : '';
-
-  const averageRating = clips.length > 0
-    ? clips.reduce((sum, clip) => sum + ((clip as any).average_rating || 0), 0) / clips.length
-    : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-slate-900 to-black">
@@ -96,22 +92,15 @@ export default function ShowClipsPage() {
               <span className="text-gray-400">
                 {clips.length} moment{clips.length !== 1 ? 's' : ''}
               </span>
-              {averageRating > 0 && (
-                <div className="flex items-center space-x-1">
-                  <Star className="w-5 h-5 text-yellow-400 fill-current" />
-                  <span className="text-white font-medium">{averageRating.toFixed(1)}</span>
-                  <span className="text-gray-400">average rating</span>
-                </div>
-              )}
             </div>
 
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'time_posted' | 'clip_rating')}
+              onChange={(e) => setSortBy(e.target.value as 'time_posted' | 'most_liked')}
               className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-momentum-mint"
             >
               <option value="time_posted">Time Posted</option>
-              <option value="clip_rating">Highest Rated</option>
+              <option value="most_liked">Most Liked</option>
             </select>
           </div>
         </div>
@@ -145,16 +134,6 @@ export default function ShowClipsPage() {
                     alt="Concert moment"
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   />
-                  
-                  {/* Rating badge */}
-                  {(clip as any).average_rating > 0 && (
-                    <div className="absolute top-3 right-3 flex items-center space-x-1 bg-black/80 backdrop-blur-sm px-2 py-1 rounded-full">
-                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                      <span className="text-white text-sm font-medium">
-                        {(clip as any).average_rating.toFixed(1)}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 <div className="p-4">

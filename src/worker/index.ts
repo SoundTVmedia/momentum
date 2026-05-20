@@ -949,8 +949,8 @@ app.get("/api/clips", async (c) => {
       query += ` ORDER BY clips.views_count DESC, clips.created_at DESC`;
       break;
     case 'top_rated':
-      query += ` AND clips.rating_count > 0`;
-      query += ` ORDER BY clips.average_rating DESC, clips.rating_count DESC, clips.created_at DESC`;
+      // Legacy: star ratings retired from feeds — treat as most liked
+      query += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
       break;
     case 'latest':
     default:

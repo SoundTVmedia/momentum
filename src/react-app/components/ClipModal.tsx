@@ -23,14 +23,12 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
-import { useClipRating } from '@/react-app/hooks/useClipRating';
 import { useFavoriteClip } from '@/react-app/hooks/useFavoriteClip';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
 import CommentSection from './CommentSection';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
-import StarRating from './StarRating';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, genrePath, globalSongPath, songPath, venuePath } from '@/shared/app-paths';
@@ -62,7 +60,6 @@ export default function ClipModal({
   const { user } = useAuth();
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
-  const { rating, rateClip } = useClipRating(clip.id);
   const { isFavorited, toggleFavorite } = useFavoriteClip(clip.id);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -542,17 +539,6 @@ export default function ClipModal({
               {clip.content_description ? (
                 <p className="mt-3 text-base text-gray-200">{clip.content_description}</p>
               ) : null}
-
-              <div className="mt-4 border-t border-white/10 pt-4">
-                <div className="mb-2 text-sm text-gray-400">Rate this moment</div>
-                <StarRating
-                  rating={rating}
-                  averageRating={(clip as { average_rating?: number }).average_rating || 0}
-                  ratingCount={(clip as { rating_count?: number }).rating_count || 0}
-                  onRate={rateClip}
-                  size="md"
-                />
-              </div>
 
               <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
                 <div className="flex items-center space-x-4">

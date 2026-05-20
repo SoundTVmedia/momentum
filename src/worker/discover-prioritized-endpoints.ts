@@ -520,8 +520,9 @@ export async function getShowClips(c: Context) {
 
     // Apply sorting
     switch (sortBy) {
+      case 'most_liked':
       case 'clip_rating':
-        query += ' ORDER BY clips.average_rating DESC, clips.created_at DESC';
+        query += ' ORDER BY clips.likes_count DESC, clips.created_at DESC';
         break;
       case 'time_posted':
       default:

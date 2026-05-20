@@ -19,7 +19,7 @@ import {
 import { getFeedFilterMeta, type FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
 
 interface ConcertFeedProps {
-  feedType?: 'latest' | 'trending' | 'most_liked' | 'top_rated'
+  feedType?: 'latest' | 'trending' | 'most_liked'
   artistName?: string
   venueName?: string
   songSlug?: string
@@ -40,16 +40,10 @@ export function FeedSectionHeader({
 }: {
   feedType?: FeedFilterValue
 }) {
-  const { label, description, icon, iconClassName } = getFeedFilterMeta(feedType)
-  const Icon = icon
+  const { label, description } = getFeedFilterMeta(feedType)
 
   return (
-    <SectionHeading
-      title={label}
-      subtitle={description}
-      icon={Icon}
-      iconClassName={iconClassName}
-    />
+    <SectionHeading title={label} subtitle={description} size="section" />
   )
 }
 
@@ -69,8 +63,6 @@ function feedCarouselLabel(
       return 'Trending clips'
     case 'most_liked':
       return 'Most liked clips'
-    case 'top_rated':
-      return 'Top rated clips'
     default:
       return 'Latest clips'
   }

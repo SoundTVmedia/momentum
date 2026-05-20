@@ -25,8 +25,6 @@ export default function Home() {
                 <SectionHeading
                   title="Latest Feedback"
                   subtitle="Fresh moments from shows across the platform"
-                  align="center"
-                  size="page"
                   className="mb-6"
                 />
                 <ConcertFeed
@@ -41,8 +39,6 @@ export default function Home() {
                 <SectionHeading
                   title="Trending"
                   subtitle="What everyone&apos;s watching right now"
-                  align="center"
-                  size="page"
                   className="mb-6"
                 />
                 <ConcertFeed
@@ -55,11 +51,7 @@ export default function Home() {
               </section>
 
               <section className="pt-6 md:pt-8">
-                <PersonalizedConcerts
-                  carouselBleedScope="page"
-                  headingVariant="page"
-                  mode="nearby"
-                />
+                <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
               </section>
             </div>
           </div>

@@ -3,7 +3,7 @@ import type { ClipWithUser } from '@/shared/types'
 import { apiFetch } from '@/react-app/lib/apiFetch'
 
 interface UseClipsOptions {
-  feedType?: 'latest' | 'trending' | 'most_liked' | 'most_viewed' | 'top_rated'
+  feedType?: 'latest' | 'trending' | 'most_liked' | 'most_viewed'
   artistName?: string
   venueName?: string
   songSlug?: string

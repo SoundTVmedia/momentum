@@ -12,6 +12,7 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
+import SectionHeading from '@/react-app/components/SectionHeading';
 import {
   HOME_FEED_CAROUSEL_BLEED,
   HOME_FEED_SECTION_CLASS,
@@ -251,12 +252,13 @@ export default function FavoriteArtistFeedPanel({
             : 'mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4 md:mb-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">Your Artists</h2>
-            <p className="text-gray-400 text-sm mt-1">
-              Clips and upcoming shows from the artists you follow
-            </p>
+            <SectionHeading
+              title="Your Artists"
+              subtitle="Clips and upcoming shows from the artists you follow"
+              className="mb-0"
+            />
           </div>
           {variant === 'feed' ? (
             <button
