@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
-import * as crypto from 'crypto';
 import { setCookie, getCookie } from 'hono/cookie';
-import type { MochaUser } from '@getmocha/users-service/shared';
+import * as nodeCrypto from 'node:crypto';
+import type { MochaUser } from '@/shared/mocha-user';
 import { normalizeOAuthCallbackUrl } from '../shared/oauth-redirect';
 import { normalizeEmail } from './auth-password-utils';
 import {
@@ -12,7 +12,7 @@ import {
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 
 function hashOpaqueToken(raw: string): string {
-  return crypto.createHash('sha256').update(raw, 'utf8').digest('hex');
+  return nodeCrypto.createHash('sha256').update(raw, 'utf8').digest('hex');
 }
 
 function isLocalDevHost(c: Context<{ Bindings: Env }>): boolean {
@@ -126,7 +126,7 @@ export function buildGoogleOAuthRedirectUrl(
   redirectUri: string,
 ): string {
   const clientId = c.env.GOOGLE_OAUTH_CLIENT_ID!.trim();
-  const state = crypto.randomBytes(24).toString('hex');
+  const state = nodeCrypto.randomBytes(24).toString('hex');
   setCookie(
     c,
     GOOGLE_OAUTH_STATE_COOKIE,
@@ -175,7 +175,7 @@ export function googleAccountToMochaUser(row: {
       email: row.email,
       email_verified: true,
       name,
-      picture: undefined,
+      picture: null,
       sub: row.id,
     },
     last_signed_in_at: new Date().toISOString(),
@@ -231,7 +231,7 @@ async function createGoogleSession(
   db: D1Database,
   userId: string,
 ): Promise<string> {
-  const rawToken = crypto.randomBytes(32).toString('hex');
+  const rawToken = nodeCrypto.randomBytes(32).toString('hex');
   const tokenHash = hashOpaqueToken(rawToken);
   const expiresAt = new Date();
   expiresAt.setSeconds(expiresAt.getSeconds() + SESSION_MAX_AGE_SEC);
@@ -251,7 +251,7 @@ async function createEmailSessionToken(
   db: D1Database,
   userId: string,
 ): Promise<string> {
-  const rawToken = crypto.randomBytes(32).toString('hex');
+  const rawToken = nodeCrypto.randomBytes(32).toString('hex');
   const tokenHash = hashOpaqueToken(rawToken);
   const expiresAt = new Date();
   expiresAt.setSeconds(expiresAt.getSeconds() + SESSION_MAX_AGE_SEC);

@@ -1,8 +1,10 @@
 import type { Context } from 'hono';
 import { mochaUserIdKey } from './mocha-user-id';
+import { loadFavoriteArtistsForYoutube } from './youtube-favorite-artists';
 import {
   aggregateFavoriteArtistVideos,
   fetchChannelVideoPool,
+  fetchVideosByArtistSearch,
   resolveYoutubeChannelId,
   youtubeApiKeyConfigured,
   youtubeMissingKeyNotice,
@@ -14,13 +16,7 @@ const MAX_FAVORITE_ARTISTS = 8;
 const PER_LIST_DEFAULT = 6;
 const PER_LIST_MAX = 12;
 const VIDEO_POOL_PER_CHANNEL = 35;
-
-type FavoriteArtistRow = {
-  artist_id: number;
-  name: string;
-  social_links: string | null;
-  youtube_channel_id: string | null;
-};
+const SEARCH_FALLBACK_PER_ARTIST = 15;
 
 export async function getFavoriteArtistYoutubeVideos(c: Context) {
   const mochaUser = c.get('user');
@@ -47,23 +43,11 @@ export async function getFavoriteArtistYoutubeVideos(c: Context) {
   const uid = mochaUserIdKey(mochaUser);
 
   try {
-    const favorites = await c.env.DB.prepare(
-      `SELECT
-        user_favorite_artists.artist_id,
-        artists.name,
-        artists.social_links,
-        artists.youtube_channel_id
-      FROM user_favorite_artists
-      LEFT JOIN artists ON user_favorite_artists.artist_id = artists.id
-      WHERE user_favorite_artists.mocha_user_id = ?
-      ORDER BY user_favorite_artists.created_at DESC
-      LIMIT ?`,
-    )
-      .bind(uid, MAX_FAVORITE_ARTISTS)
-      .all();
-
-    const rows = (favorites.results ?? []) as FavoriteArtistRow[];
-    const artists = rows.filter((r) => typeof r.name === 'string' && r.name.trim().length > 0);
+    const artists = await loadFavoriteArtistsForYoutube(
+      c.env.DB,
+      uid,
+      MAX_FAVORITE_ARTISTS,
+    );
 
     if (artists.length === 0) {
       cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 120 });
@@ -76,51 +60,94 @@ export async function getFavoriteArtistYoutubeVideos(c: Context) {
     }
 
     const pools: { artistName: string; videos: YoutubeVideoDto[] }[] = [];
+    let channelsResolved = 0;
+    const failures: string[] = [];
 
     for (const artist of artists) {
-      const artistName = String(artist.name).trim();
-      let channelId =
-        typeof artist.youtube_channel_id === 'string' && artist.youtube_channel_id.trim()
-          ? artist.youtube_channel_id.trim()
-          : null;
+      const artistName = artist.name.trim();
+      let channelId = artist.youtube_channel_id;
+      let videos: YoutubeVideoDto[] = [];
 
       if (!channelId) {
-        channelId = await resolveYoutubeChannelId(
-          apiKey,
-          artistName,
-          artist.social_links,
-        );
-        if (channelId && artist.artist_id) {
-          await c.env.DB.prepare(
-            `UPDATE artists SET youtube_channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-          )
-            .bind(channelId, artist.artist_id)
-            .run();
+        try {
+          channelId = await resolveYoutubeChannelId(apiKey, artistName, artist.social_links);
+          if (channelId && artist.artist_id) {
+            await c.env.DB.prepare(
+              `UPDATE artists SET youtube_channel_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            )
+              .bind(channelId, artist.artist_id)
+              .run();
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('YouTube channel resolve failed for', artistName, e);
+          failures.push(`${artistName}: ${msg}`);
         }
       }
 
-      if (!channelId) continue;
+      if (channelId) {
+        channelsResolved += 1;
+        try {
+          videos = await fetchChannelVideoPool(apiKey, channelId, VIDEO_POOL_PER_CHANNEL);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('YouTube channel pool failed for', artistName, e);
+          failures.push(`${artistName}: ${msg}`);
+        }
+      }
 
-      try {
-        const videos = await fetchChannelVideoPool(apiKey, channelId, VIDEO_POOL_PER_CHANNEL);
-        const withArtist = videos.map((v) => ({ ...v, artistName }));
-        pools.push({ artistName, videos: withArtist });
-      } catch (e) {
-        console.error('YouTube channel pool failed for', artistName, e);
+      if (videos.length === 0) {
+        try {
+          videos = await fetchVideosByArtistSearch(
+            apiKey,
+            artistName,
+            SEARCH_FALLBACK_PER_ARTIST,
+          );
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error('YouTube search fallback failed for', artistName, e);
+          failures.push(`${artistName}: ${msg}`);
+        }
+      }
+
+      if (videos.length > 0) {
+        pools.push({
+          artistName,
+          videos: videos.map((v) => ({ ...v, artistName })),
+        });
       }
     }
 
     const { mostViewed, mostLiked } = aggregateFavoriteArtistVideos(pools, perListLimit);
+
+    let message: string | undefined;
+    if (mostViewed.length === 0 && mostLiked.length === 0) {
+      const hint = failures[0] ?? '';
+      if (/quota|dailyLimit|rateLimit/i.test(hint)) {
+        message = 'YouTube API quota exceeded. Try again tomorrow or raise quota in Google Cloud Console.';
+      } else if (/referer|referrer|API key not valid|forbidden|403/i.test(hint)) {
+        message =
+          'YouTube API key rejected (often HTTP referrer restrictions). Use a server key with no referrer restriction.';
+      } else if (channelsResolved === 0) {
+        message =
+          'Could not match your favorite artists to YouTube channels. Try adding official YouTube links on artist profiles.';
+      } else {
+        message = 'No YouTube videos found for your favorite artists right now.';
+      }
+    }
 
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 900 });
     return c.json({
       configured: true,
       mostViewed,
       mostLiked,
-      artistCount: pools.length,
+      artistCount: artists.length,
+      channelsResolved,
+      message,
     });
   } catch (error) {
     console.error('getFavoriteArtistYoutubeVideos error:', error);
-    return c.json({ error: 'Failed to load YouTube videos' }, 500);
+    const msg = error instanceof Error ? error.message : 'Failed to load YouTube videos';
+    return c.json({ error: msg }, 500);
   }
 }

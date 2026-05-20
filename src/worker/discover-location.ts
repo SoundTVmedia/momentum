@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import type { MochaUser } from '@getmocha/users-service/shared';
+import type { MochaUser } from '@/shared/mocha-user';
 import { mochaUserIdKey } from './mocha-user-id';
 
 export type DiscoverLocationSource = 'profile' | 'ip' | 'default';

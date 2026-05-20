@@ -7,7 +7,7 @@ import {
   MOCHA_SESSION_TOKEN_COOKIE_NAME,
   DEFAULT_MOCHA_USERS_SERVICE_API_URL,
 } from '@getmocha/users-service/backend';
-import type { MochaUser } from '@getmocha/users-service/shared';
+import type { MochaUser } from '@/shared/mocha-user';
 import { validateGoogleSession, revokeGoogleSession } from './google-oauth';
 
 export const EMAIL_SESSION_COOKIE_NAME = 'momentum_email_session';

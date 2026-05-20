@@ -1,5 +1,6 @@
 import z from "zod";
-import { MochaUser } from "@getmocha/users-service/shared";
+import type { MochaUser } from './mocha-user';
+export type { MochaUser } from './mocha-user';
 
 export const UserRoleSchema = z.enum(['fan', 'artist', 'venue', 'ambassador', 'influencer', 'premium']);
 export type UserRole = z.infer<typeof UserRoleSchema>;

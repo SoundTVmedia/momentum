@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import type { MochaUser } from '@getmocha/users-service/shared';
+import type { MochaUser } from '@/shared/mocha-user';
 import {
   jamBaseFetch,
   jamBaseMissingKeyNotice,

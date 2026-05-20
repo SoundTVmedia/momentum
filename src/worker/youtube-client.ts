@@ -22,6 +22,10 @@ type SearchChannelItem = {
   snippet?: { channelTitle?: string; title?: string };
 };
 
+type SearchVideoItem = {
+  id?: { videoId?: string };
+};
+
 type ChannelItem = {
   id?: string;
   contentDetails?: { relatedPlaylists?: { uploads?: string } };
@@ -61,6 +65,34 @@ export function parseYoutubeChannelIdFromUrl(raw: string): string | null {
     if (!u.hostname.includes('youtube')) return null;
     const channelMatch = u.pathname.match(/\/channel\/(UC[\w-]{10,})/i);
     if (channelMatch) return channelMatch[1];
+    const handleMatch = u.pathname.match(/^\/@([^/?#]+)/);
+    if (handleMatch) return `@${handleMatch[1]}`;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** YouTube @handle from social link (not a UC channel id). */
+export function parseYoutubeHandleFromSocialLinks(raw: string | null | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null;
+  try {
+    const parsed = JSON.parse(String(raw)) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+    for (const value of Object.values(parsed as Record<string, unknown>)) {
+      if (typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      const withProto = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+      try {
+        const u = new URL(withProto);
+        if (!u.hostname.includes('youtube')) continue;
+        const handleMatch = u.pathname.match(/^\/@([^/?#]+)/);
+        if (handleMatch) return handleMatch[1];
+      } catch {
+        /* ignore */
+      }
+    }
   } catch {
     /* ignore */
   }
@@ -131,6 +163,16 @@ function channelTitleMatchesArtist(channelTitle: string, artistName: string): bo
   return c.includes(a) || a.includes(c);
 }
 
+async function resolveChannelIdByHandle(apiKey: string, handle: string): Promise<string | null> {
+  const clean = handle.startsWith('@') ? handle.slice(1) : handle;
+  if (!clean.trim()) return null;
+  const data = await youtubeGet<YoutubeListResponse<ChannelItem>>(apiKey, '/channels', {
+    part: 'id',
+    forHandle: clean,
+  });
+  return data.items?.[0]?.id ?? null;
+}
+
 /** Resolve a YouTube channel id for an artist display name. */
 export async function resolveYoutubeChannelId(
   apiKey: string,
@@ -138,12 +180,25 @@ export async function resolveYoutubeChannelId(
   socialLinksJson?: string | null,
 ): Promise<string | null> {
   const fromSocial = parseYoutubeChannelIdFromSocialLinks(socialLinksJson);
-  if (fromSocial) return fromSocial;
+  if (fromSocial) {
+    if (fromSocial.startsWith('@')) {
+      const byHandle = await resolveChannelIdByHandle(apiKey, fromSocial);
+      if (byHandle) return byHandle;
+    } else {
+      return fromSocial;
+    }
+  }
+
+  const handle = parseYoutubeHandleFromSocialLinks(socialLinksJson);
+  if (handle) {
+    const byHandle = await resolveChannelIdByHandle(apiKey, handle);
+    if (byHandle) return byHandle;
+  }
 
   const data = await youtubeGet<YoutubeListResponse<SearchChannelItem>>(apiKey, '/search', {
     part: 'snippet',
     type: 'channel',
-    q: artistName,
+    q: `${artistName} official`,
     maxResults: '8',
   });
 
@@ -207,6 +262,32 @@ function toDto(item: VideoItem, artistName: string): YoutubeVideoDto | null {
     artistName,
     watchUrl: `https://www.youtube.com/watch?v=${videoId}`,
   };
+}
+
+/** Fallback: search YouTube for high-view videos matching the artist name. */
+export async function fetchVideosByArtistSearch(
+  apiKey: string,
+  artistName: string,
+  maxResults: number,
+): Promise<YoutubeVideoDto[]> {
+  const data = await youtubeGet<YoutubeListResponse<SearchVideoItem>>(apiKey, '/search', {
+    part: 'snippet',
+    type: 'video',
+    q: artistName,
+    order: 'viewCount',
+    maxResults: String(Math.min(25, Math.max(1, maxResults))),
+  });
+
+  const ids = (data.items ?? [])
+    .map((item) => item.id?.videoId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+  if (ids.length === 0) return [];
+
+  const details = await fetchVideoDetails(apiKey, ids);
+  return details
+    .map((v) => toDto(v, artistName))
+    .filter((v): v is YoutubeVideoDto => v !== null);
 }
 
 /** Pool of recent uploads for a channel (used to rank globally). */

@@ -2,11 +2,16 @@
   "extends": "./tsconfig.node.json",
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.worker.tsbuildinfo",
-    "types": ["vite/client", "./worker-configuration.d.ts"],
+    "types": ["@types/node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/worker"]
+  "include": [
+    "src/worker",
+    "src/shared/mocha-user.ts",
+    "src/shared/oauth-redirect.ts",
+    "worker-configuration.d.ts"
+  ]
 }

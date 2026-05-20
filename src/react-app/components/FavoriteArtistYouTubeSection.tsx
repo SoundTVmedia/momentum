@@ -146,10 +146,27 @@ export default function FavoriteArtistYouTubeSection({
         if (res.ok) {
           setPayload((await res.json()) as YoutubeVideosResponse);
         } else {
-          setPayload({ configured: false, mostViewed: [], mostLiked: [] });
+          let message = 'Could not load YouTube videos.';
+          try {
+            const errBody = (await res.json()) as { error?: string; message?: string };
+            message = errBody.error ?? errBody.message ?? message;
+          } catch {
+            /* ignore */
+          }
+          setPayload({
+            configured: true,
+            mostViewed: [],
+            mostLiked: [],
+            message,
+          });
         }
       } catch {
-        setPayload({ configured: false, mostViewed: [], mostLiked: [] });
+        setPayload({
+          configured: true,
+          mostViewed: [],
+          mostLiked: [],
+          message: 'Could not reach the API. Restart the worker if developing locally.',
+        });
       } finally {
         setLoading(false);
       }
@@ -180,24 +197,34 @@ export default function FavoriteArtistYouTubeSection({
   const hasVideos = mostViewed.length > 0 || mostLiked.length > 0;
 
   if (!payload?.configured) {
-    return null;
+    return (
+      <div className={HOME_FEED_SECTION_CLASS}>
+        <div className="mb-4 md:mb-5">
+          <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
+          <p className="mt-1 text-sm text-gray-400">
+            {payload?.message ??
+              'YouTube API key is not loaded on the worker. Add YOUTUBE_API_KEY to .dev.vars (local) or Wrangler secrets (production), then restart.'}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (!hasVideos) {
-    const msg = payload?.message;
-    if (msg === 'No favorite artists set') {
-      return (
-        <div className={HOME_FEED_SECTION_CLASS}>
-          <div className="mb-4 md:mb-5">
-            <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
-            <p className="mt-1 text-sm text-gray-400">
-              Add favorite artists to see their most viewed and most liked videos here.
-            </p>
-          </div>
+    const msg = payload?.message ?? 'No YouTube videos found for your favorite artists yet.';
+    const isNoFavorites = msg === 'No favorite artists set';
+    return (
+      <div className={HOME_FEED_SECTION_CLASS}>
+        <div className="mb-4 md:mb-5">
+          <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
+          <p className="mt-1 text-sm text-gray-400">
+            {isNoFavorites
+              ? 'Add favorite artists to see their most viewed and most liked videos here.'
+              : msg}
+          </p>
         </div>
-      );
-    }
-    return null;
+      </div>
+    );
   }
 
   return (
