@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   aggregateFavoriteArtistVideos,
+  buildFavoriteArtistMostLikedFeed,
   parseYoutubeChannelIdFromSocialLinks,
   parseYoutubeChannelIdFromUrl,
 } from './youtube-client';
@@ -78,5 +79,58 @@ describe('aggregateFavoriteArtistVideos', () => {
     const { mostViewed, mostLiked } = aggregateFavoriteArtistVideos(pools, 2);
     expect(mostViewed.map((v) => v.videoId)).toEqual(['v3', 'v1']);
     expect(mostLiked.map((v) => v.videoId)).toEqual(['v2', 'v1']);
+  });
+});
+
+describe('buildFavoriteArtistMostLikedFeed', () => {
+  const mk = (
+    id: string,
+    artist: string,
+    likes: number,
+  ): {
+    videoId: string;
+    title: string;
+    thumbnailUrl: string;
+    viewCount: number;
+    likeCount: number;
+    publishedAt: string;
+    channelTitle: string;
+    artistName: string;
+    watchUrl: string;
+  } => ({
+    videoId: id,
+    title: id,
+    thumbnailUrl: '',
+    viewCount: 0,
+    likeCount: likes,
+    publishedAt: '',
+    channelTitle: artist,
+    artistName: artist,
+    watchUrl: `https://youtu.be/${id}`,
+  });
+
+  it('includes one top-liked per artist before filling', () => {
+    const pools = [
+      {
+        artistName: 'A',
+        videos: [mk('a1', 'A', 50), mk('a2', 'A', 100)],
+      },
+      {
+        artistName: 'B',
+        videos: [mk('b1', 'B', 30)],
+      },
+    ];
+
+    const feed = buildFavoriteArtistMostLikedFeed(pools, 4);
+    expect(feed.map((v) => v.videoId)).toEqual(['a2', 'b1', 'a1']);
+  });
+
+  it('caps at totalLimit when many artists', () => {
+    const pools = [
+      { artistName: 'A', videos: [mk('a1', 'A', 10)] },
+      { artistName: 'B', videos: [mk('b1', 'B', 20)] },
+      { artistName: 'C', videos: [mk('c1', 'C', 30)] },
+    ];
+    expect(buildFavoriteArtistMostLikedFeed(pools, 2).map((v) => v.videoId)).toEqual(['a1', 'b1']);
   });
 });

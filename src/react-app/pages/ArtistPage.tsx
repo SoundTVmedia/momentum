@@ -9,6 +9,7 @@ import PremiumPresaleAlert from '@/react-app/components/PremiumPresaleAlert';
 import PremiumCTA from '@/react-app/components/PremiumCTA';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA';
+import ArtistYouTubeSection from '@/react-app/components/ArtistYouTubeSection';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import { apiArtistPath, artistPath, venuePath } from '@/shared/app-paths';
@@ -444,6 +445,8 @@ export default function ArtistPage() {
                 </div>
               )}
             </div>
+
+            <ArtistYouTubeSection artistName={artist.name} />
 
             {/* Tour Dates & Live Events Toggle */}
             <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">

@@ -15,6 +15,11 @@ export function apiArtistPath(name: string | null | undefined): string {
   return slug ? `/api/artists/${slug}` : '/api/artists';
 }
 
+export function apiArtistYoutubeVideosPath(name: string | null | undefined): string {
+  const slug = slugifyEntityName(name);
+  return slug ? `/api/youtube/artist/${encodeURIComponent(slug)}/videos` : '';
+}
+
 export function apiVenuePath(name: string | null | undefined): string {
   const slug = slugifyEntityName(name);
   return slug ? `/api/venues/${slug}` : '/api/venues';

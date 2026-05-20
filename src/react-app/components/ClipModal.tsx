@@ -17,15 +17,15 @@ import {
   Disc3,
   Radio,
 } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
 import { useClipRating } from '@/react-app/hooks/useClipRating';
 import { useFavoriteClip } from '@/react-app/hooks/useFavoriteClip';
+import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
 import CommentSection from './CommentSection';
-import StreamVideoPlayer from './StreamVideoPlayer';
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
+import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
 import StarRating from './StarRating';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
@@ -42,7 +42,7 @@ export type ClipModalFeedNavigation = {
 interface ClipModalProps {
   clip: ClipWithUser;
   onClose: () => void;
-  /** Desktop: chevron prev/next. Mobile: swipe up/down. Multiple clips only. */
+  /** Desktop: chevrons. Mobile: swipe left/right once to change clip. */
   feedNavigation?: ClipModalFeedNavigation | null;
 }
 
@@ -54,10 +54,8 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
   const { isFavorited, toggleFavorite } = useFavoriteClip(clip.id);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-
+  const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
-  const touchStartY = useRef<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
 
   const navIndex =
     feedNavigation && feedNavigation.clips.length > 0
@@ -66,7 +64,9 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
   const canFeedNav = navIndex >= 0 && feedNavigation != null && feedNavigation.clips.length > 1;
   const prevClip = canFeedNav && navIndex > 0 ? feedNavigation!.clips[navIndex - 1] : null;
   const nextClip =
-    canFeedNav && navIndex < feedNavigation!.clips.length - 1 ? feedNavigation!.clips[navIndex + 1] : null;
+    canFeedNav && navIndex < feedNavigation!.clips.length - 1
+      ? feedNavigation!.clips[navIndex + 1]
+      : null;
 
   const goPrev = useCallback(() => {
     if (prevClip && feedNavigation) feedNavigation.onChangeClip(prevClip);
@@ -76,14 +76,25 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     if (nextClip && feedNavigation) feedNavigation.onChangeClip(nextClip);
   }, [nextClip, feedNavigation]);
 
+  const swipeHandlers = useHorizontalFeedSwipe({
+    enabled: canFeedNav,
+    onPrev: goPrev,
+    onNext: goNext,
+  });
+
   useEffect(() => {
     setShowShareMenu(false);
     setLinkCopied(false);
+    setMobileCommentsOpen(false);
   }, [clip.id]);
 
   useEffect(() => {
-    if (!canFeedNav) return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (!canFeedNav) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) {
         return;
@@ -98,29 +109,14 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [canFeedNav, goPrev, goNext]);
+  }, [canFeedNav, goPrev, goNext, onClose]);
 
-  const SWIPE_MIN_PX = 56;
-
-  const onSwipeTouchStart = (e: React.TouchEvent) => {
-    if (!canFeedNav) return;
-    const t = e.targetTouches[0];
-    touchStartY.current = t.clientY;
-    touchStartX.current = t.clientX;
-  };
-
-  const onSwipeTouchEnd = (e: React.TouchEvent) => {
-    if (!canFeedNav || touchStartY.current == null) return;
-    const t = e.changedTouches[0];
-    const dy = touchStartY.current - t.clientY;
-    const dx = (touchStartX.current ?? t.clientX) - t.clientX;
-    touchStartY.current = null;
-    touchStartX.current = null;
-    if (Math.abs(dy) < SWIPE_MIN_PX) return;
-    if (Math.abs(dy) < Math.abs(dx) * 1.15) return;
-    if (dy > 0) goNext();
-    else goPrev();
-  };
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   const handleLike = async () => {
     setIsLiking(true);
@@ -158,273 +154,447 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     window.open(url, '_blank', 'width=550,height=420');
   };
 
+  const goArtist = () => {
+    onClose();
+    if (clip.artist_name) navigate(artistPath(clip.artist_name));
+  };
+
+  const goVenue = () => {
+    onClose();
+    if (clip.venue_name) navigate(venuePath(clip.venue_name));
+  };
+
+  const goSong = () => {
+    onClose();
+    const slug = clip.song_slug?.trim() || songSlugFromTitle(clip.song_title);
+    if (!slug) return;
+    if (clip.artist_name) navigate(songPath(clip.artist_name, slug));
+    else navigate(globalSongPath(slug));
+  };
+
+  const goGenre = () => {
+    onClose();
+    const slug = clip.genre_slug?.trim() || genreSlugFromName(clip.genre_name);
+    if (slug) navigate(genrePath(slug));
+  };
+
+  const mobileVideoOverlay = (
+    <>
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-16 pt-3">
+        <div className="pointer-events-auto flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <UserAvatar
+              imageUrl={clip.user_avatar}
+              displayName={clip.user_display_name}
+              seed={clip.mocha_user_id}
+              alt={clip.user_display_name || 'User'}
+              sizeClass="w-9 h-9"
+              letterClassName="text-xs font-semibold"
+              className="border-2 border-white/30 shrink-0"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">
+                {clip.user_display_name || 'Anonymous'}
+              </p>
+              <p className="text-xs text-white/70">
+                {formatRelativeTime(clipPostedAt(clip))}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-full bg-black/50 p-2 text-white"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-4 pt-20">
+        <div className="pointer-events-auto pr-14">
+          {clip.artist_name ? (
+            <button type="button" onClick={goArtist} className="block max-w-full text-left">
+              <p className="truncate text-lg font-bold text-white">{clip.artist_name}</p>
+            </button>
+          ) : null}
+          {clip.venue_name ? (
+            <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
+              <p className="truncate text-sm text-white/80">{clip.venue_name}</p>
+            </button>
+          ) : null}
+          {clip.content_description ? (
+            <p className="mt-2 line-clamp-2 text-sm text-white/90">{clip.content_description}</p>
+          ) : null}
+          {canFeedNav ? (
+            <p className="mt-2 text-[11px] uppercase tracking-wide text-white/45">
+              Swipe left or right for next clip
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute bottom-20 right-2 z-20 flex flex-col items-center gap-4">
+        <button
+          type="button"
+          onClick={handleLike}
+          className={`pointer-events-auto flex flex-col items-center gap-0.5 ${
+            isLiked(clip.id) ? 'text-red-400' : 'text-white'
+          }`}
+        >
+          <Heart
+            className={`h-7 w-7 ${isLiked(clip.id) ? 'fill-current' : ''} ${
+              isLiking ? 'animate-heart-pop' : ''
+            }`}
+          />
+          <span className="text-xs font-medium">{clip.likes_count}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileCommentsOpen(true)}
+          className="pointer-events-auto flex flex-col items-center gap-0.5 text-white"
+        >
+          <MessageCircle className="h-7 w-7" />
+          <span className="text-xs font-medium">{clip.comments_count}</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          className={`pointer-events-auto ${
+            isSaved(clip.id) ? 'text-yellow-400' : 'text-white'
+          }`}
+        >
+          <Bookmark className={`h-7 w-7 ${isSaved(clip.id) ? 'fill-current' : ''}`} />
+        </button>
+        <button
+          type="button"
+          onClick={toggleFavorite}
+          className={`pointer-events-auto ${
+            isFavorited ? 'text-pink-400' : 'text-white'
+          }`}
+        >
+          <Star className={`h-7 w-7 ${isFavorited ? 'fill-current' : ''}`} />
+        </button>
+        <div className="relative pointer-events-auto">
+          <button
+            type="button"
+            onClick={() => setShowShareMenu(!showShareMenu)}
+            className="text-white"
+          >
+            <Share className="h-7 w-7" />
+          </button>
+          {showShareMenu ? (
+            <div className="absolute bottom-full right-0 mb-2 min-w-[180px] overflow-hidden rounded-lg border border-white/15 bg-black/95 shadow-xl">
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-white hover:bg-white/10"
+              >
+                {linkCopied ? (
+                  <>
+                    <Check className="h-4 w-4 text-green-400" />
+                    <span className="text-green-400">Copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    <span>Copy link</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleShareTwitter}
+                className="flex w-full items-center gap-2 border-t border-white/10 px-3 py-2.5 text-sm text-white hover:bg-white/10"
+              >
+                <Twitter className="h-4 w-4 text-blue-400" />
+                <span>Twitter</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleShareFacebook}
+                className="flex w-full items-center gap-2 border-t border-white/10 px-3 py-2.5 text-sm text-white hover:bg-white/10"
+              >
+                <Facebook className="h-4 w-4 text-blue-600" />
+                <span>Facebook</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-0 sm:p-4 animate-fade-in">
-      <div className="max-w-6xl w-full h-full sm:h-auto sm:max-h-[90vh] bg-black/95 border-0 sm:border border-momentum-teal/20 sm:rounded-xl overflow-hidden animate-scale-in">
-        <div className="flex flex-col md:flex-row h-full sm:max-h-[90vh]">
-          {/* Video side */}
-          <div className="md:w-2/3 bg-black flex items-center justify-center relative flex-shrink-0 min-h-[36vh] md:min-h-0 p-2 sm:p-4">
+    <div className="fixed inset-0 z-[100] flex animate-fade-in bg-black/90 backdrop-blur-sm">
+      {/* ——— Mobile: full-viewport video + overlays ——— */}
+      <div className="relative flex h-[100dvh] w-full flex-col md:hidden">
+        <div className="relative min-h-0 flex-1">
+          <ClipModalMaximizedVideo
+            clip={clip}
+            swipeHandlers={swipeHandlers}
+            overlay={mobileVideoOverlay}
+          />
+        </div>
+
+        {mobileCommentsOpen ? (
+          <div
+            className="absolute inset-0 z-30 flex flex-col bg-black/60"
+            role="dialog"
+            aria-label="Comments"
+          >
             <button
+              type="button"
+              className="flex-1"
+              aria-label="Close comments"
+              onClick={() => setMobileCommentsOpen(false)}
+            />
+            <div className="flex max-h-[58dvh] min-h-[40dvh] flex-col rounded-t-2xl border-t border-white/10 bg-slate-950/98">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <span className="font-semibold text-white">Comments</span>
+                <button
+                  type="button"
+                  onClick={() => setMobileCommentsOpen(false)}
+                  className="rounded-full p-1.5 text-white hover:bg-white/10"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 pb-4">
+                <CommentSection key={clip.id} clipId={clip.id} />
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* ——— Desktop ——— */}
+      <div className="mx-auto hidden h-full w-full max-w-6xl items-center justify-center p-4 md:flex">
+        <div className="flex h-full max-h-[90vh] w-full overflow-hidden rounded-xl border border-momentum-teal/20 bg-black/95 animate-scale-in">
+          <div className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black p-4">
+            <button
+              type="button"
               onClick={onClose}
-              className="absolute top-2 right-2 sm:top-4 sm:right-4 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors z-10"
+              className="absolute right-4 top-4 z-10 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+              aria-label="Close"
             >
-              <X className="w-5 h-5 sm:w-6 sm:h-6" />
+              <X className="h-6 w-6" />
             </button>
 
-            {prevClip && (
+            {prevClip ? (
               <button
                 type="button"
                 onClick={goPrev}
-                className="hidden md:flex absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/55 hover:bg-black/75 text-white border border-white/15 transition-colors"
+                className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-3 text-white transition-colors hover:bg-black/75"
                 aria-label="Previous clip"
               >
-                <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
+                <ChevronLeft className="h-7 w-7" />
               </button>
-            )}
-            {nextClip && (
+            ) : null}
+            {nextClip ? (
               <button
                 type="button"
                 onClick={goNext}
-                className="hidden md:flex absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 rounded-full bg-black/55 hover:bg-black/75 text-white border border-white/15 transition-colors"
+                className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-3 text-white transition-colors hover:bg-black/75"
                 aria-label="Next clip"
               >
-                <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
+                <ChevronRight className="h-7 w-7" />
               </button>
-            )}
+            ) : null}
 
-            <div
-              className="relative w-full max-h-[min(85dvh,100%)] md:max-h-[min(90vh,72vw)] mx-auto bg-black rounded-none sm:rounded-lg overflow-hidden touch-pan-y"
-              style={{
-                aspectRatio: clipDisplayAspectRatio(clip) ?? '16 / 9',
-              }}
-              onTouchStart={onSwipeTouchStart}
-              onTouchEnd={onSwipeTouchEnd}
-            >
-              <StreamVideoPlayer
-                stream_video_id={clip.stream_video_id}
-                stream_playback_url={clip.stream_playback_url}
-                stream_thumbnail_url={clip.stream_thumbnail_url}
-                video_url={clip.video_url}
-                thumbnail_url={clip.thumbnail_url}
-                autoPlay
-                className="absolute inset-0 w-full h-full"
-              />
+            <div className="relative h-full w-full min-h-0">
+              <ClipModalMaximizedVideo clip={clip} swipeHandlers={swipeHandlers} />
             </div>
           </div>
 
-          {/* Content Side */}
-          <div className="md:w-1/3 flex flex-col bg-slate-900/50 flex-1 overflow-hidden">
-            {/* Header */}
-            <div className="p-3 sm:p-4 border-b border-white/10 flex-shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-                  <UserAvatar
-                    imageUrl={clip.user_avatar}
-                    displayName={clip.user_display_name}
-                    seed={clip.mocha_user_id}
-                    alt={clip.user_display_name || 'User'}
-                    sizeClass="w-8 h-8 sm:w-10 sm:h-10"
-                    letterClassName="text-xs sm:text-sm font-semibold"
-                    className="border-2 border-momentum-teal/40 flex-shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="font-medium text-white text-sm sm:text-base truncate">
-                      {clip.user_display_name || 'Anonymous'}
-                    </div>
-                    <div className="text-xs sm:text-sm text-gray-400">
-                      {formatRelativeTime(clipPostedAt(clip))}
-                    </div>
+          <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
+            <div className="flex-shrink-0 border-b border-white/10 p-4">
+              <div className="mb-3 flex items-center space-x-3">
+                <UserAvatar
+                  imageUrl={clip.user_avatar}
+                  displayName={clip.user_display_name}
+                  seed={clip.mocha_user_id}
+                  alt={clip.user_display_name || 'User'}
+                  sizeClass="w-10 h-10"
+                  letterClassName="text-sm font-semibold"
+                  className="border-2 border-momentum-teal/40 flex-shrink-0"
+                />
+                <div className="min-w-0">
+                  <div className="truncate text-base font-medium text-white">
+                    {clip.user_display_name || 'Anonymous'}
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {formatRelativeTime(clipPostedAt(clip))}
                   </div>
                 </div>
               </div>
 
-              {/* Artist/Venue Info */}
-              <div className="space-y-1.5 sm:space-y-2">
-                {clip.artist_name && (
-                  <button
-                    onClick={() => {
-                      onClose()
-                      if (clip.artist_name) {
-                        navigate(artistPath(clip.artist_name))
-                      }
-                    }}
-                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0"
-                  >
-                    <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 flex-shrink-0" />
-                    <span className="text-white font-bold text-sm sm:text-base truncate">{clip.artist_name}</span>
-                  </button>
-                )}
-                {clip.song_title?.trim() && (
+              <div className="space-y-2">
+                {clip.artist_name ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      onClose();
-                      const slug =
-                        clip.song_slug?.trim() || songSlugFromTitle(clip.song_title);
-                      if (!slug) return;
-                      if (clip.artist_name) {
-                        navigate(songPath(clip.artist_name, slug));
-                      } else {
-                        navigate(globalSongPath(slug));
-                      }
-                    }}
-                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0 text-left"
+                    onClick={goArtist}
+                    className="flex min-w-0 items-center space-x-2 transition-opacity hover:opacity-80"
                   >
-                    <Disc3 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-fuchsia-400 flex-shrink-0" />
-                    <span className="text-fuchsia-200 font-semibold text-sm sm:text-base truncate">
+                    <Music className="h-4 w-4 shrink-0 text-purple-400" />
+                    <span className="truncate text-base font-bold text-white">{clip.artist_name}</span>
+                  </button>
+                ) : null}
+                {clip.song_title?.trim() ? (
+                  <button
+                    type="button"
+                    onClick={goSong}
+                    className="flex min-w-0 items-center space-x-2 text-left transition-opacity hover:opacity-80"
+                  >
+                    <Disc3 className="h-4 w-4 shrink-0 text-fuchsia-400" />
+                    <span className="truncate text-base font-semibold text-fuchsia-200">
                       {clip.song_title}
                     </span>
                   </button>
-                )}
-                {clip.genre_name?.trim() && (
+                ) : null}
+                {clip.genre_name?.trim() ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      onClose();
-                      const slug =
-                        clip.genre_slug?.trim() || genreSlugFromName(clip.genre_name);
-                      if (slug) navigate(genrePath(slug));
-                    }}
-                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0 text-left"
+                    onClick={goGenre}
+                    className="flex min-w-0 items-center space-x-2 text-left transition-opacity hover:opacity-80"
                   >
-                    <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-momentum-mint flex-shrink-0" />
-                    <span className="text-momentum-mint/90 font-medium text-sm sm:text-base truncate">
+                    <Radio className="h-4 w-4 shrink-0 text-momentum-mint" />
+                    <span className="truncate text-base font-medium text-momentum-mint/90">
                       {clip.genre_name}
                     </span>
                   </button>
-                )}
-                {clip.venue_name && (
+                ) : null}
+                {clip.venue_name ? (
                   <button
-                    onClick={() => {
-                      onClose()
-                      if (clip.venue_name) {
-                        navigate(venuePath(clip.venue_name))
-                      }
-                    }}
-                    className="flex items-center space-x-2 hover:opacity-80 transition-opacity min-w-0"
+                    type="button"
+                    onClick={goVenue}
+                    className="flex min-w-0 items-center space-x-2 transition-opacity hover:opacity-80"
                   >
-                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400 flex-shrink-0" />
-                    <span className="text-gray-300 text-sm sm:text-base truncate">{clip.venue_name}</span>
+                    <Calendar className="h-4 w-4 shrink-0 text-blue-400" />
+                    <span className="truncate text-base text-gray-300">{clip.venue_name}</span>
                   </button>
-                )}
-                {clip.location && (
-                  <div className="flex items-center space-x-2 min-w-0">
-                    <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-400 flex-shrink-0" />
-                    <span className="text-gray-300 text-sm sm:text-base truncate">{clip.location}</span>
+                ) : null}
+                {clip.location ? (
+                  <div className="flex min-w-0 items-center space-x-2">
+                    <MapPin className="h-4 w-4 shrink-0 text-green-400" />
+                    <span className="truncate text-base text-gray-300">{clip.location}</span>
                   </div>
-                )}
+                ) : null}
               </div>
 
-              {/* Description */}
-              {clip.content_description && (
-                <p className="text-gray-200 mt-3 text-sm sm:text-base line-clamp-3 sm:line-clamp-none">{clip.content_description}</p>
-              )}
+              {clip.content_description ? (
+                <p className="mt-3 text-base text-gray-200">{clip.content_description}</p>
+              ) : null}
 
-              {/* Star Rating */}
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <div className="text-sm text-gray-400 mb-2">Rate this moment</div>
+              <div className="mt-4 border-t border-white/10 pt-4">
+                <div className="mb-2 text-sm text-gray-400">Rate this moment</div>
                 <StarRating
                   rating={rating}
-                  averageRating={(clip as any).average_rating || 0}
-                  ratingCount={(clip as any).rating_count || 0}
+                  averageRating={(clip as { average_rating?: number }).average_rating || 0}
+                  ratingCount={(clip as { rating_count?: number }).rating_count || 0}
                   onRate={rateClip}
                   size="md"
                 />
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
-                <div className="flex items-center space-x-3 sm:space-x-4">
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+                <div className="flex items-center space-x-4">
                   <button
+                    type="button"
                     onClick={handleLike}
-                    className={`flex items-center space-x-1.5 sm:space-x-2 transition-all tap-feedback ${
+                    className={`flex items-center space-x-2 transition-all tap-feedback ${
                       isLiked(clip.id) ? 'text-red-400' : 'text-gray-400 hover:text-red-400'
                     }`}
                   >
-                    <Heart className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${
-                      isLiked(clip.id) ? 'fill-current' : ''
-                    } ${isLiking ? 'animate-heart-pop' : ''}`} />
-                    <span className="font-medium text-sm sm:text-base">{clip.likes_count}</span>
+                    <Heart
+                      className={`h-5 w-5 transition-transform ${
+                        isLiked(clip.id) ? 'fill-current' : ''
+                      } ${isLiking ? 'animate-heart-pop' : ''}`}
+                    />
+                    <span className="text-base font-medium">{clip.likes_count}</span>
                   </button>
-
-                  <div className="flex items-center space-x-1.5 sm:space-x-2 text-gray-400">
-                    <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="font-medium text-sm sm:text-base">{clip.comments_count}</span>
+                  <div className="flex items-center space-x-2 text-gray-400">
+                    <MessageCircle className="h-5 w-5" />
+                    <span className="text-base font-medium">{clip.comments_count}</span>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-1 sm:space-x-2">
+                <div className="flex items-center space-x-2">
                   <button
+                    type="button"
                     onClick={handleSave}
-                    className={`p-1.5 sm:p-2 transition-all tap-feedback ${
+                    className={`p-2 transition-all tap-feedback ${
                       isSaved(clip.id) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
                     }`}
                     title={isSaved(clip.id) ? 'Unsave' : 'Save'}
                   >
-                    <Bookmark className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform hover:scale-110 ${isSaved(clip.id) ? 'fill-current' : ''}`} />
+                    <Bookmark
+                      className={`h-5 w-5 ${isSaved(clip.id) ? 'fill-current' : ''}`}
+                    />
                   </button>
-
                   <button
+                    type="button"
                     onClick={toggleFavorite}
-                    className={`p-1.5 sm:p-2 transition-all tap-feedback ${
+                    className={`p-2 transition-all tap-feedback ${
                       isFavorited ? 'text-pink-400' : 'text-gray-400 hover:text-pink-400'
                     }`}
                     title={isFavorited ? 'Remove from Favorites' : 'Add to Favorites'}
                   >
-                    <Star className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform hover:scale-110 ${isFavorited ? 'fill-current' : ''}`} />
+                    <Star className={`h-5 w-5 ${isFavorited ? 'fill-current' : ''}`} />
                   </button>
-
                   <div className="relative">
-                    <button 
+                    <button
+                      type="button"
                       onClick={() => setShowShareMenu(!showShareMenu)}
-                      className="p-1.5 sm:p-2 text-gray-400 hover:text-green-400 transition-colors"
+                      className="p-2 text-gray-400 transition-colors hover:text-green-400"
                       title="Share"
                     >
-                      <Share className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <Share className="h-5 w-5" />
                     </button>
-
-                    {/* Share Menu */}
-                    {showShareMenu && (
-                      <div className="absolute right-0 bottom-full mb-2 bg-black/95 backdrop-blur-lg border border-momentum-teal/20 rounded-lg overflow-hidden shadow-xl z-10 min-w-[200px] animate-scale-in">
+                    {showShareMenu ? (
+                      <div className="absolute bottom-full right-0 z-10 mb-2 min-w-[200px] animate-scale-in overflow-hidden rounded-lg border border-momentum-teal/20 bg-black/95 shadow-xl">
                         <button
+                          type="button"
                           onClick={handleCopyLink}
-                          className="w-full px-3 sm:px-4 py-2 sm:py-3 hover:bg-white/10 transition-colors flex items-center space-x-2 sm:space-x-3 text-white whitespace-nowrap"
+                          className="flex w-full items-center space-x-3 whitespace-nowrap px-4 py-3 text-white transition-colors hover:bg-white/10"
                         >
                           {linkCopied ? (
                             <>
-                              <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
-                              <span className="text-green-400 text-sm sm:text-base">Link Copied!</span>
+                              <Check className="h-5 w-5 text-green-400" />
+                              <span className="text-green-400">Link Copied!</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="w-4 h-4 sm:w-5 sm:h-5" />
-                              <span className="text-sm sm:text-base">Copy Link</span>
+                              <Copy className="h-5 w-5" />
+                              <span>Copy Link</span>
                             </>
                           )}
                         </button>
                         <button
+                          type="button"
                           onClick={handleShareTwitter}
-                          className="w-full px-3 sm:px-4 py-2 sm:py-3 hover:bg-white/10 transition-colors flex items-center space-x-2 sm:space-x-3 text-white border-t border-white/10 whitespace-nowrap"
+                          className="flex w-full items-center space-x-3 border-t border-white/10 whitespace-nowrap px-4 py-3 text-white transition-colors hover:bg-white/10"
                         >
-                          <Twitter className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
-                          <span className="text-sm sm:text-base">Twitter</span>
+                          <Twitter className="h-5 w-5 text-blue-400" />
+                          <span>Twitter</span>
                         </button>
                         <button
+                          type="button"
                           onClick={handleShareFacebook}
-                          className="w-full px-3 sm:px-4 py-2 sm:py-3 hover:bg-white/10 transition-colors flex items-center space-x-2 sm:space-x-3 text-white border-t border-white/10 whitespace-nowrap"
+                          className="flex w-full items-center space-x-3 border-t border-white/10 whitespace-nowrap px-4 py-3 text-white transition-colors hover:bg-white/10"
                         >
-                          <Facebook className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-                          <span className="text-sm sm:text-base">Facebook</span>
+                          <Facebook className="h-5 w-5 text-blue-600" />
+                          <span>Facebook</span>
                         </button>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Comments Section */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+            <div className="flex-1 overflow-y-auto p-4">
               <CommentSection key={clip.id} clipId={clip.id} />
             </div>
           </div>

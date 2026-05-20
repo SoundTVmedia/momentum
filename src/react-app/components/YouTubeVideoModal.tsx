@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { X, Heart, Eye, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router';
+import { X, Heart, Eye, ChevronLeft, ChevronRight, ExternalLink, Music } from 'lucide-react';
+import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
+import { artistPath } from '@/shared/app-paths';
 export type YoutubeVideoItem = {
   videoId: string;
   title: string;
@@ -34,8 +37,7 @@ export default function YouTubeVideoModal({
   onClose,
   feedNavigation = null,
 }: YouTubeVideoModalProps) {
-  const touchStartY = useRef<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
+  const navigate = useNavigate();
 
   const navIndex =
     feedNavigation && feedNavigation.videos.length > 0
@@ -56,6 +58,12 @@ export default function YouTubeVideoModal({
   const goNext = useCallback(() => {
     if (nextVideo && feedNavigation) feedNavigation.onChangeVideo(nextVideo);
   }, [nextVideo, feedNavigation]);
+
+  const swipeHandlers = useHorizontalFeedSwipe({
+    enabled: canFeedNav,
+    onPrev: goPrev,
+    onNext: goNext,
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -80,29 +88,13 @@ export default function YouTubeVideoModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [canFeedNav, goPrev, goNext, onClose]);
 
-  const SWIPE_MIN_PX = 56;
-
-  const onSwipeTouchStart = (e: React.TouchEvent) => {
-    if (!canFeedNav) return;
-    const t = e.targetTouches[0];
-    touchStartY.current = t.clientY;
-    touchStartX.current = t.clientX;
-  };
-
-  const onSwipeTouchEnd = (e: React.TouchEvent) => {
-    if (!canFeedNav || touchStartY.current == null) return;
-    const t = e.changedTouches[0];
-    const dy = touchStartY.current - t.clientY;
-    const dx = (touchStartX.current ?? t.clientX) - t.clientX;
-    touchStartY.current = null;
-    touchStartX.current = null;
-    if (Math.abs(dy) < SWIPE_MIN_PX) return;
-    if (Math.abs(dy) < Math.abs(dx) * 1.15) return;
-    if (dy > 0) goNext();
-    else goPrev();
-  };
-
   const embedSrc = `https://www.youtube.com/embed/${encodeURIComponent(video.videoId)}?autoplay=1&rel=0`;
+
+  const goArtistPage = () => {
+    if (!video.artistName?.trim()) return;
+    onClose();
+    navigate(artistPath(video.artistName));
+  };
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-0 sm:p-4 animate-fade-in">
@@ -140,9 +132,8 @@ export default function YouTubeVideoModal({
             ) : null}
 
             <div
-              className="relative w-full max-h-[min(85dvh,100%)] md:max-h-[min(90vh,72vw)] mx-auto bg-black rounded-none sm:rounded-lg overflow-hidden touch-pan-y aspect-video"
-              onTouchStart={onSwipeTouchStart}
-              onTouchEnd={onSwipeTouchEnd}
+              className="relative mx-auto aspect-video w-full max-h-[min(85dvh,100%)] overflow-hidden rounded-none bg-black sm:rounded-lg md:max-h-[min(90vh,72vw)]"
+              {...swipeHandlers}
             >
               <iframe
                 key={video.videoId}
@@ -162,7 +153,16 @@ export default function YouTubeVideoModal({
                 YouTube
               </p>
               <h2 className="text-lg sm:text-xl font-bold text-white leading-snug">{video.title}</h2>
-              <p className="mt-2 text-cyan-300 text-sm font-medium">{video.artistName}</p>
+              {video.artistName ? (
+                <button
+                  type="button"
+                  onClick={goArtistPage}
+                  className="mt-2 inline-flex max-w-full items-center gap-1.5 text-left text-sm font-medium text-cyan-300 transition-colors hover:text-cyan-200"
+                >
+                  <Music className="h-4 w-4 shrink-0 text-purple-400" />
+                  <span className="truncate">{video.artistName}</span>
+                </button>
+              ) : null}
               {video.channelTitle ? (
                 <p className="mt-1 text-gray-400 text-sm truncate">{video.channelTitle}</p>
               ) : null}

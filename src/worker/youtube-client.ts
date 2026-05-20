@@ -338,3 +338,49 @@ export function aggregateFavoriteArtistVideos(
 
   return { mostViewed, mostLiked };
 }
+
+/**
+ * Most-liked home feed: one top-liked video per artist first, then fill to `totalLimit`
+ * with the next highest-liked videos overall (deduped by videoId).
+ */
+export function buildFavoriteArtistMostLikedFeed(
+  pools: { artistName: string; videos: YoutubeVideoDto[] }[],
+  totalLimit: number,
+): YoutubeVideoDto[] {
+  const seen = new Set<string>();
+  const perArtist: YoutubeVideoDto[] = [];
+
+  for (const { artistName, videos } of pools) {
+    if (videos.length === 0) continue;
+
+    const sorted = [...videos]
+      .map((v) => ({ ...v, artistName: v.artistName || artistName }))
+      .sort((a, b) => b.likeCount - a.likeCount);
+
+    const top = sorted[0];
+    if (!top || seen.has(top.videoId)) continue;
+
+    seen.add(top.videoId);
+    perArtist.push(top);
+  }
+
+  if (perArtist.length >= totalLimit) {
+    return perArtist.slice(0, totalLimit);
+  }
+
+  const result = [...perArtist];
+  const rest = pools
+    .flatMap(({ artistName, videos }) =>
+      videos.map((v) => ({ ...v, artistName: v.artistName || artistName })),
+    )
+    .filter((v) => !seen.has(v.videoId))
+    .sort((a, b) => b.likeCount - a.likeCount);
+
+  for (const v of rest) {
+    if (result.length >= totalLimit) break;
+    seen.add(v.videoId);
+    result.push(v);
+  }
+
+  return result;
+}

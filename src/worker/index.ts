@@ -348,6 +348,11 @@ app.get(
   authMiddleware,
   youtube.getFavoriteArtistYoutubeVideos,
 );
+app.get(
+  "/api/youtube/artist/:artistName/videos",
+  optionalAuthMiddleware,
+  youtube.getArtistYoutubeVideos,
+);
 
 // Submit verification request
 app.post("/api/users/verification-request", authMiddleware, async (c) => {
