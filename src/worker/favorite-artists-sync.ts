@@ -165,7 +165,7 @@ export async function getOrCreateArtistIdByName(db: D1Database, displayName: str
   throw new Error(`Could not resolve artist id for ${JSON.stringify(name)}`);
 }
 
-async function isFavoriteArtistLinked(
+export async function isFavoriteArtistLinked(
   db: D1Database,
   uid: string,
   name: string,

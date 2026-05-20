@@ -5,6 +5,7 @@ import {
   artistNameFollowKey,
   isArtistFollowTarget,
 } from '@/react-app/lib/artist-follow-key'
+import { artistFollowApiTarget } from '@/react-app/lib/artist-follow-key'
 
 export type ToggleFollowOptions = {
   /** Required when following JamBase-only artists (`artist.id === 0`). */
@@ -89,28 +90,48 @@ export function useFollow() {
         return { success: false, following: following.has(userId) }
       }
 
-      const wasFollowing = following.has(userId)
       const artistName = options?.artistName?.trim()
+      const artistKeys =
+        isArtistFollowTarget(userId) && artistName
+          ? [
+              userId,
+              artistNameFollowKey(artistName),
+              artistFollowTarget(0, artistName),
+            ]
+          : [userId]
+      const wasFollowing = artistKeys.some((k) => following.has(k))
 
       setFollowing((prev) => {
         const newSet = new Set(prev)
-        if (wasFollowing) {
-          newSet.delete(userId)
-        } else {
-          newSet.add(userId)
+        for (const k of artistKeys) {
+          if (wasFollowing) newSet.delete(k)
+          else newSet.add(k)
         }
         return newSet
       })
 
-      setLoading((prev) => new Set(prev).add(userId))
+      setLoading((prev) => {
+        const next = new Set(prev)
+        for (const k of artistKeys) next.add(k)
+        return next
+      })
 
       try {
+        const apiTarget =
+          isArtistFollowTarget(userId) && artistName
+            ? artistFollowApiTarget(
+                /^artist-(\d+)$/.exec(userId)?.[1]
+                  ? Number(/^artist-(\d+)$/.exec(userId)![1])
+                  : 0,
+              )
+            : userId
+
         const body: { artist_name?: string } = {}
         if (isArtistFollowTarget(userId) && artistName) {
           body.artist_name = artistName
         }
 
-        const response = await fetch(`/api/users/${encodeURIComponent(userId)}/follow`, {
+        const response = await fetch(`/api/users/${encodeURIComponent(apiTarget)}/follow`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -133,17 +154,17 @@ export function useFollow() {
 
         setFollowing((prev) => {
           const next = new Set(prev)
-          next.delete(userId)
-          if (resolvedArtistKey) next.delete(resolvedArtistKey)
+          for (const k of artistKeys) next.delete(k)
           if (nowFollowing) {
-            next.add(resolvedArtistKey ?? userId)
+            next.add(resolvedArtistKey ?? artistFollowApiTarget(0))
+            if (artistName) next.add(artistNameFollowKey(artistName))
           }
           return next
         })
 
         setLoading((prev) => {
           const newSet = new Set(prev)
-          newSet.delete(userId)
+          for (const k of artistKeys) newSet.delete(k)
           if (resolvedArtistKey) newSet.delete(resolvedArtistKey)
           return newSet
         })
@@ -156,17 +177,16 @@ export function useFollow() {
 
         setFollowing((prev) => {
           const newSet = new Set(prev)
-          if (wasFollowing) {
-            newSet.add(userId)
-          } else {
-            newSet.delete(userId)
+          for (const k of artistKeys) {
+            if (wasFollowing) newSet.add(k)
+            else newSet.delete(k)
           }
           return newSet
         })
 
         setLoading((prev) => {
           const newSet = new Set(prev)
-          newSet.delete(userId)
+          for (const k of artistKeys) newSet.delete(k)
           return newSet
         })
 
@@ -178,8 +198,7 @@ export function useFollow() {
 
   const toggleFollowArtist = useCallback(
     (artistId: number, artistName: string) => {
-      const target = artistFollowTarget(artistId, artistName)
-      return toggleFollow(target, { artistName })
+      return toggleFollow(artistFollowApiTarget(artistId), { artistName })
     },
     [toggleFollow],
   )

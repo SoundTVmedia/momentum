@@ -25,7 +25,10 @@ import {
 import { mochaUserIdKey } from "./mocha-user-id";
 import {
   getOrCreateArtistIdByName,
+  isFavoriteArtistLinked,
   replaceProfileFavoriteArtistsJsonFromTable,
+  resolveArtistIdForFavoriteName,
+  unlinkFavoriteArtistByName,
 } from "./favorite-artists-sync";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
@@ -1351,17 +1354,33 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
     if (!Number.isInteger(artistId) || artistId <= 0) {
       return c.json({ error: 'Invalid artist' }, 400);
     }
-    const row = await c.env.DB
+    const artistName =
+      typeof followBody.artist_name === 'string' ? followBody.artist_name.trim() : '';
+
+    const rowById = await c.env.DB
       .prepare('SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
       .bind(uid, artistId)
       .first();
-    if (row) {
-      await c.env.DB
-        .prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
-        .bind(uid, artistId)
-        .run();
+
+    const linkedByName = artistName
+      ? await isFavoriteArtistLinked(c.env.DB, uid, artistName)
+      : false;
+
+    if (rowById || linkedByName) {
+      if (rowById) {
+        await c.env.DB
+          .prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
+          .bind(uid, artistId)
+          .run();
+      }
+      if (linkedByName && artistName) {
+        await unlinkFavoriteArtistByName(c.env.DB, uid, artistName);
+      }
       await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
-      return c.json({ following: false, artist_id: artistId });
+      const resolvedId = artistName
+        ? (await resolveArtistIdForFavoriteName(c.env.DB, artistName)) ?? artistId
+        : artistId;
+      return c.json({ following: false, artist_id: resolvedId });
     }
     await c.env.DB
       .prepare(

@@ -6,7 +6,7 @@ import ConcertFeed from '@/react-app/components/ConcertFeed';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA';
 import ArtistYouTubeSection from '@/react-app/components/ArtistYouTubeSection';
-import { useFollow } from '@/react-app/hooks/useFollow';
+import { useArtistFavorite } from '@/react-app/hooks/useArtistFavorite';
 import type { ClipWithUser } from '@/shared/types';
 import { apiArtistPath, artistPath, venuePath } from '@/shared/app-paths';
 import SectionHeading from '@/react-app/components/SectionHeading';
@@ -76,10 +76,16 @@ interface PreviousShow {
 }
 
 export default function ArtistPage() {
-  const { artistName } = useParams<{ artistName: string }>();
+  const { artistName: artistNameParam } = useParams<{ artistName: string }>();
   const navigate = useNavigate();
-  const { toggleFollowArtist, isFollowingArtist, isArtistFollowLoading } = useFollow();
   const [data, setData] = useState<ArtistData | null>(null);
+  const routeArtistLabel = artistNameParam
+    ? decodeURIComponent(artistNameParam).replace(/-/g, ' ')
+    : '';
+  const { favorited, favoritedKnown, loading: favoriteLoading, toggleFavorite } = useArtistFavorite(
+    data?.artist?.id ?? 0,
+    data?.artist?.name ?? routeArtistLabel,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
@@ -87,13 +93,13 @@ export default function ArtistPage() {
   
   useEffect(() => {
     const fetchArtistData = async () => {
-      if (!artistName) return;
+      if (!artistNameParam) return;
 
       setLoading(true);
       setError(null);
 
       try {
-        const response = await fetch(apiArtistPath(artistName));
+        const response = await fetch(apiArtistPath(artistNameParam));
         
         if (!response.ok) {
           throw new Error('Failed to fetch artist data');
@@ -116,13 +122,13 @@ export default function ArtistPage() {
     };
 
     fetchArtistData();
-  }, [artistName]);
+  }, [artistNameParam]);
 
   const fetchLiveShow = async () => {
-    if (!artistName) return;
+    if (!artistNameParam) return;
 
     try {
-      const response = await fetch(`${apiArtistPath(artistName)}/live-status`);
+      const response = await fetch(`${apiArtistPath(artistNameParam)}/live-status`);
       if (response.ok) {
         const data = await response.json();
         if (data.isLive) {
@@ -135,10 +141,10 @@ export default function ArtistPage() {
   };
 
   const fetchPreviousShows = async () => {
-    if (!artistName) return;
+    if (!artistNameParam) return;
 
     try {
-      const response = await fetch(`${apiArtistPath(artistName)}/previous-shows?limit=8`);
+      const response = await fetch(`${apiArtistPath(artistNameParam)}/previous-shows?limit=8`);
       if (response.ok) {
         const data = await response.json();
         setPreviousShows(data.shows || []);
@@ -526,18 +532,23 @@ export default function ArtistPage() {
           <div>
             <button
               type="button"
-              onClick={() => artist && void toggleFollowArtist(artist.id, artist.name)}
-              disabled={artist ? isArtistFollowLoading(artist.id, artist.name) : true}
-              className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 ${
-                artist && isFollowingArtist(artist.id, artist.name)
+              onClick={() => void toggleFavorite()}
+              disabled={!favoritedKnown || favoriteLoading}
+              className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
+                favorited
                   ? 'bg-white/10 border border-purple-500/50 text-white'
                   : 'bg-gradient-to-r from-purple-500 to-pink-600 text-white'
               }`}
             >
-              {artist && isFollowingArtist(artist.id, artist.name) ? (
+              {favoriteLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{favorited ? 'Updating…' : 'Saving…'}</span>
+                </>
+              ) : favorited ? (
                 <>
                   <UserCheck className="w-5 h-5" />
-                  <span>Following</span>
+                  <span>Unfollow</span>
                 </>
               ) : (
                 <>
