@@ -96,9 +96,9 @@ export default function MainFeedStack({
 
       {isHome ? (
         <div className="space-y-8 md:space-y-6">
-          <FavoriteArtistYouTubeSection carouselBleedScope="page" />
           <PersonalizedConcerts carouselBleedScope="page" mode="favorite-artists" />
           <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
+          <FavoriteArtistYouTubeSection carouselBleedScope="page" />
         </div>
       ) : null}
     </div>

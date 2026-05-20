@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
+import YouTubeVideoModal, { type YoutubeVideoItem } from '@/react-app/components/YouTubeVideoModal';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import {
   HOME_FEED_CAROUSEL_BLEED,
@@ -12,22 +13,11 @@ import {
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
 
-export type YoutubeVideoItem = {
-  videoId: string;
-  title: string;
-  thumbnailUrl: string;
-  viewCount: number;
-  likeCount: number;
-  publishedAt: string;
-  channelTitle: string;
-  artistName: string;
-  watchUrl: string;
-};
+export type { YoutubeVideoItem } from '@/react-app/components/YouTubeVideoModal';
 
 type YoutubeVideosResponse = {
   configured?: boolean;
   message?: string;
-  mostViewed?: YoutubeVideoItem[];
   mostLiked?: YoutubeVideoItem[];
 };
 
@@ -37,13 +27,18 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function YouTubeVideoCard({ video }: { video: YoutubeVideoItem }) {
+function YouTubeVideoCard({
+  video,
+  onOpen,
+}: {
+  video: YoutubeVideoItem;
+  onOpen: (video: YoutubeVideoItem) => void;
+}) {
   return (
-    <a
-      href={video.watchUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`group flex h-full min-h-[18rem] w-full flex-col overflow-hidden rounded-xl border border-red-500/25 bg-black/40 backdrop-blur-lg transition-colors hover:border-red-400/50 ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS}`}
+    <button
+      type="button"
+      onClick={() => onOpen(video)}
+      className={`group flex h-full min-h-[18rem] w-full flex-col overflow-hidden rounded-xl border border-red-500/25 bg-black/40 backdrop-blur-lg text-left transition-colors hover:border-red-400/50 ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS}`}
     >
       <div className="relative aspect-video shrink-0 overflow-hidden bg-white/5">
         {video.thumbnailUrl ? (
@@ -70,48 +65,16 @@ function YouTubeVideoCard({ video }: { video: YoutubeVideoItem }) {
         <p className="mt-1 truncate text-xs text-cyan-300/90">{video.artistName}</p>
         <div className="mt-auto flex flex-wrap items-center gap-3 pt-3 text-xs text-gray-400">
           <span className="inline-flex items-center gap-1">
-            <Eye className="h-3.5 w-3.5" />
-            {formatCount(video.viewCount)}
-          </span>
-          <span className="inline-flex items-center gap-1">
             <Heart className="h-3.5 w-3.5" />
             {formatCount(video.likeCount)}
           </span>
+          <span className="inline-flex items-center gap-1">
+            <Eye className="h-3.5 w-3.5" />
+            {formatCount(video.viewCount)}
+          </span>
         </div>
       </div>
-    </a>
-  );
-}
-
-function VideoCarousel({
-  title,
-  subtitle,
-  videos,
-  ariaLabel,
-  carouselClassName,
-}: {
-  title: string;
-  subtitle: string;
-  videos: YoutubeVideoItem[];
-  ariaLabel: string;
-  carouselClassName: string;
-}) {
-  if (videos.length === 0) return null;
-
-  return (
-    <div className="mb-6 md:mb-5">
-      <h3 className="text-lg sm:text-xl font-bold text-white">{title}</h3>
-      <p className="mt-1 text-sm text-gray-400">{subtitle}</p>
-      <div className="mt-3 md:mt-4">
-        <HorizontalClipCarousel stretchItems ariaLabel={ariaLabel} className={carouselClassName}>
-          {videos.map((video) => (
-            <HorizontalClipCarouselItem key={video.videoId} className="md:w-80 lg:w-96">
-              <YouTubeVideoCard video={video} />
-            </HorizontalClipCarouselItem>
-          ))}
-        </HorizontalClipCarousel>
-      </div>
-    </div>
+    </button>
   );
 }
 
@@ -128,6 +91,7 @@ export default function FavoriteArtistYouTubeSection({
 
   const [loading, setLoading] = useState(true);
   const [payload, setPayload] = useState<YoutubeVideosResponse | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<YoutubeVideoItem | null>(null);
 
   useEffect(() => {
     if (authPending) return;
@@ -153,17 +117,11 @@ export default function FavoriteArtistYouTubeSection({
           } catch {
             /* ignore */
           }
-          setPayload({
-            configured: true,
-            mostViewed: [],
-            mostLiked: [],
-            message,
-          });
+          setPayload({ configured: true, mostLiked: [], message });
         }
       } catch {
         setPayload({
           configured: true,
-          mostViewed: [],
           mostLiked: [],
           message: 'Could not reach the API. Restart the worker if developing locally.',
         });
@@ -177,13 +135,22 @@ export default function FavoriteArtistYouTubeSection({
 
   if (!user) return null;
 
+  const mostLiked = payload?.mostLiked ?? [];
+  const hasVideos = mostLiked.length > 0;
+
+  const sectionHeader = (
+    <div className="mb-4 md:mb-5">
+      <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
+      <p className="mt-1 text-sm text-gray-400">
+        Most liked videos from artists you follow
+      </p>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className={HOME_FEED_SECTION_CLASS}>
-        <div className="mb-4 md:mb-5">
-          <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
-          <p className="mt-1 text-sm text-gray-400">Most viewed and most liked from your favorite artists</p>
-        </div>
+        {sectionHeader}
         <div className="flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-black/40 p-8 text-gray-400">
           <Loader2 className="h-5 w-5 animate-spin" />
           <span>Loading YouTube picks…</span>
@@ -192,20 +159,14 @@ export default function FavoriteArtistYouTubeSection({
     );
   }
 
-  const mostViewed = payload?.mostViewed ?? [];
-  const mostLiked = payload?.mostLiked ?? [];
-  const hasVideos = mostViewed.length > 0 || mostLiked.length > 0;
-
   if (!payload?.configured) {
     return (
       <div className={HOME_FEED_SECTION_CLASS}>
-        <div className="mb-4 md:mb-5">
-          <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
-          <p className="mt-1 text-sm text-gray-400">
-            {payload?.message ??
-              'YouTube API key is not loaded on the worker. Add YOUTUBE_API_KEY to .dev.vars (local) or Wrangler secrets (production), then restart.'}
-          </p>
-        </div>
+        {sectionHeader}
+        <p className="text-sm text-gray-400">
+          {payload?.message ??
+            'YouTube API key is not loaded on the worker. Add YOUTUBE_API_KEY to .dev.vars (local) or Wrangler secrets (production), then restart.'}
+        </p>
       </div>
     );
   }
@@ -215,42 +176,43 @@ export default function FavoriteArtistYouTubeSection({
     const isNoFavorites = msg === 'No favorite artists set';
     return (
       <div className={HOME_FEED_SECTION_CLASS}>
-        <div className="mb-4 md:mb-5">
-          <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
-          <p className="mt-1 text-sm text-gray-400">
-            {isNoFavorites
-              ? 'Add favorite artists to see their most viewed and most liked videos here.'
-              : msg}
-          </p>
-        </div>
+        {sectionHeader}
+        <p className="text-sm text-gray-400">
+          {isNoFavorites
+            ? 'Add favorite artists to see their most liked videos here.'
+            : msg}
+        </p>
       </div>
     );
   }
 
   return (
     <section className={HOME_FEED_SECTION_CLASS}>
-      <div className="mb-4 md:mb-5">
-        <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
-        <p className="mt-1 text-sm text-gray-400">
-          Most viewed and most liked videos from artists you follow
-        </p>
-      </div>
+      {sectionHeader}
 
-      <VideoCarousel
-        title="Most viewed"
-        subtitle="Top view counts across your favorite artists"
-        videos={mostViewed}
-        ariaLabel="Most viewed YouTube videos from your favorite artists"
-        carouselClassName={carouselBleed}
-      />
-
-      <VideoCarousel
-        title="Most liked"
-        subtitle="Top like counts across your favorite artists"
-        videos={mostLiked}
+      <HorizontalClipCarousel
+        stretchItems
         ariaLabel="Most liked YouTube videos from your favorite artists"
-        carouselClassName={carouselBleed}
-      />
+        className={carouselBleed}
+      >
+        {mostLiked.map((video) => (
+          <HorizontalClipCarouselItem key={video.videoId} className="md:w-80 lg:w-96">
+            <YouTubeVideoCard video={video} onOpen={setSelectedVideo} />
+          </HorizontalClipCarouselItem>
+        ))}
+      </HorizontalClipCarousel>
+
+      {selectedVideo ? (
+        <YouTubeVideoModal
+          video={selectedVideo}
+          onClose={() => setSelectedVideo(null)}
+          feedNavigation={
+            mostLiked.length > 1
+              ? { videos: mostLiked, onChangeVideo: setSelectedVideo }
+              : null
+          }
+        />
+      ) : null}
     </section>
   );
 }
