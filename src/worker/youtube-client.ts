@@ -1,4 +1,35 @@
+import {
+  youtubeQuotaPrecheck,
+  youtubeRecordUpstream,
+  youtubeRequestUnits,
+  type YoutubeQuotaContext,
+} from './youtube-cache';
+
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
+
+/** Edge cache TTLs (seconds) — identical URLs share hits across users. */
+const TTL_CHANNELS_SEC = 604_800; // 7d — channel id / uploads playlist
+const TTL_SEARCH_SEC = 86_400; // 24h — channel & video search
+const TTL_VIDEOS_SEC = 21_600; // 6h — video stats/snippets
+const TTL_PLAYLIST_ITEMS_SEC = 21_600; // 6h
+const TTL_DEFAULT_SEC = 3600;
+
+const inflight = new Map<string, Promise<unknown>>();
+
+function youtubeCacheTtlSeconds(path: string, _params?: Record<string, string>): number {
+  if (path === '/search') return TTL_SEARCH_SEC;
+  if (path === '/channels') return TTL_CHANNELS_SEC;
+  if (path === '/videos') return TTL_VIDEOS_SEC;
+  if (path === '/playlistItems') return TTL_PLAYLIST_ITEMS_SEC;
+  return TTL_DEFAULT_SEC;
+}
+
+function youtubeResponseCountsAsUpstream(res: Response): boolean {
+  const s = res.headers.get('cf-cache-status')?.toUpperCase() ?? '';
+  return s !== 'HIT';
+}
+
+export type { YoutubeQuotaContext };
 
 export type YoutubeVideoDto = {
   videoId: string;
@@ -132,6 +163,7 @@ async function youtubeGet<T>(
   apiKey: string,
   path: string,
   params: Record<string, string>,
+  quota?: YoutubeQuotaContext,
 ): Promise<T> {
   const url = new URL(`${YOUTUBE_API_BASE}${path}`);
   url.searchParams.set('key', apiKey.trim());
@@ -139,16 +171,52 @@ async function youtubeGet<T>(
     url.searchParams.set(k, v);
   }
 
-  const res = await fetch(url.toString(), {
-    headers: { Accept: 'application/json' },
-  });
+  const urlKey = url.toString();
+  const existing = inflight.get(urlKey) as Promise<T> | undefined;
+  if (existing) return existing;
 
-  const body = (await res.json()) as T & { error?: { message?: string } };
-  if (!res.ok) {
-    const msg = body?.error?.message ?? `YouTube API HTTP ${res.status}`;
-    throw new Error(msg);
+  const units = youtubeRequestUnits(path, params);
+  const cacheTtl = youtubeCacheTtlSeconds(path, params);
+
+  const promise = (async (): Promise<T> => {
+    if (quota && !(await youtubeQuotaPrecheck(quota, units))) {
+      throw new Error('YouTube API quota exceeded for today. Cached results may still be available.');
+    }
+
+    const res = await fetch(urlKey, {
+      headers: { Accept: 'application/json' },
+      cf: {
+        cacheEverything: true,
+        cacheTtl,
+        cacheTtlByStatus: {
+          '200-299': cacheTtl,
+          '400-499': 300,
+          '403': 60,
+          '429': 0,
+          '500-599': 0,
+        },
+      },
+    });
+
+    const body = (await res.json()) as T & { error?: { message?: string } };
+    if (!res.ok) {
+      const msg = body?.error?.message ?? `YouTube API HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    if (quota && youtubeResponseCountsAsUpstream(res)) {
+      await youtubeRecordUpstream(quota, units);
+    }
+
+    return body;
+  })();
+
+  inflight.set(urlKey, promise);
+  try {
+    return await promise;
+  } finally {
+    inflight.delete(urlKey);
   }
-  return body;
 }
 
 function channelTitleMatchesArtist(channelTitle: string, artistName: string): boolean {
@@ -163,13 +231,22 @@ function channelTitleMatchesArtist(channelTitle: string, artistName: string): bo
   return c.includes(a) || a.includes(c);
 }
 
-async function resolveChannelIdByHandle(apiKey: string, handle: string): Promise<string | null> {
+async function resolveChannelIdByHandle(
+  apiKey: string,
+  handle: string,
+  quota?: YoutubeQuotaContext,
+): Promise<string | null> {
   const clean = handle.startsWith('@') ? handle.slice(1) : handle;
   if (!clean.trim()) return null;
-  const data = await youtubeGet<YoutubeListResponse<ChannelItem>>(apiKey, '/channels', {
-    part: 'id',
-    forHandle: clean,
-  });
+  const data = await youtubeGet<YoutubeListResponse<ChannelItem>>(
+    apiKey,
+    '/channels',
+    {
+      part: 'id',
+      forHandle: clean,
+    },
+    quota,
+  );
   return data.items?.[0]?.id ?? null;
 }
 
@@ -178,11 +255,12 @@ export async function resolveYoutubeChannelId(
   apiKey: string,
   artistName: string,
   socialLinksJson?: string | null,
+  quota?: YoutubeQuotaContext,
 ): Promise<string | null> {
   const fromSocial = parseYoutubeChannelIdFromSocialLinks(socialLinksJson);
   if (fromSocial) {
     if (fromSocial.startsWith('@')) {
-      const byHandle = await resolveChannelIdByHandle(apiKey, fromSocial);
+      const byHandle = await resolveChannelIdByHandle(apiKey, fromSocial, quota);
       if (byHandle) return byHandle;
     } else {
       return fromSocial;
@@ -191,16 +269,21 @@ export async function resolveYoutubeChannelId(
 
   const handle = parseYoutubeHandleFromSocialLinks(socialLinksJson);
   if (handle) {
-    const byHandle = await resolveChannelIdByHandle(apiKey, handle);
+    const byHandle = await resolveChannelIdByHandle(apiKey, handle, quota);
     if (byHandle) return byHandle;
   }
 
-  const data = await youtubeGet<YoutubeListResponse<SearchChannelItem>>(apiKey, '/search', {
-    part: 'snippet',
-    type: 'channel',
-    q: `${artistName} official`,
-    maxResults: '8',
-  });
+  const data = await youtubeGet<YoutubeListResponse<SearchChannelItem>>(
+    apiKey,
+    '/search',
+    {
+      part: 'snippet',
+      type: 'channel',
+      q: `${artistName} official`,
+      maxResults: '8',
+    },
+    quota,
+  );
 
   const items = data.items ?? [];
   if (items.length === 0) return null;
@@ -213,20 +296,39 @@ export async function resolveYoutubeChannelId(
   return pick?.id?.channelId ?? null;
 }
 
-async function getUploadsPlaylistId(apiKey: string, channelId: string): Promise<string | null> {
-  const data = await youtubeGet<YoutubeListResponse<ChannelItem>>(apiKey, '/channels', {
-    part: 'contentDetails',
-    id: channelId,
-  });
+async function getUploadsPlaylistId(
+  apiKey: string,
+  channelId: string,
+  quota?: YoutubeQuotaContext,
+): Promise<string | null> {
+  const data = await youtubeGet<YoutubeListResponse<ChannelItem>>(
+    apiKey,
+    '/channels',
+    {
+      part: 'contentDetails',
+      id: channelId,
+    },
+    quota,
+  );
   return data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads ?? null;
 }
 
-async function listUploadVideoIds(apiKey: string, playlistId: string, maxResults: number): Promise<string[]> {
-  const data = await youtubeGet<YoutubeListResponse<PlaylistItem>>(apiKey, '/playlistItems', {
-    part: 'contentDetails',
-    playlistId,
-    maxResults: String(Math.min(50, Math.max(1, maxResults))),
-  });
+async function listUploadVideoIds(
+  apiKey: string,
+  playlistId: string,
+  maxResults: number,
+  quota?: YoutubeQuotaContext,
+): Promise<string[]> {
+  const data = await youtubeGet<YoutubeListResponse<PlaylistItem>>(
+    apiKey,
+    '/playlistItems',
+    {
+      part: 'contentDetails',
+      playlistId,
+      maxResults: String(Math.min(50, Math.max(1, maxResults))),
+    },
+    quota,
+  );
   const ids: string[] = [];
   for (const item of data.items ?? []) {
     const id = item.contentDetails?.videoId;
@@ -235,12 +337,21 @@ async function listUploadVideoIds(apiKey: string, playlistId: string, maxResults
   return ids;
 }
 
-async function fetchVideoDetails(apiKey: string, videoIds: string[]): Promise<VideoItem[]> {
+async function fetchVideoDetails(
+  apiKey: string,
+  videoIds: string[],
+  quota?: YoutubeQuotaContext,
+): Promise<VideoItem[]> {
   if (videoIds.length === 0) return [];
-  const data = await youtubeGet<YoutubeListResponse<VideoItem>>(apiKey, '/videos', {
-    part: 'snippet,statistics',
-    id: videoIds.join(','),
-  });
+  const data = await youtubeGet<YoutubeListResponse<VideoItem>>(
+    apiKey,
+    '/videos',
+    {
+      part: 'snippet,statistics',
+      id: videoIds.join(','),
+    },
+    quota,
+  );
   return data.items ?? [];
 }
 
@@ -269,14 +380,20 @@ export async function fetchVideosByArtistSearch(
   apiKey: string,
   artistName: string,
   maxResults: number,
+  quota?: YoutubeQuotaContext,
 ): Promise<YoutubeVideoDto[]> {
-  const data = await youtubeGet<YoutubeListResponse<SearchVideoItem>>(apiKey, '/search', {
-    part: 'snippet',
-    type: 'video',
-    q: artistName,
-    order: 'viewCount',
-    maxResults: String(Math.min(25, Math.max(1, maxResults))),
-  });
+  const data = await youtubeGet<YoutubeListResponse<SearchVideoItem>>(
+    apiKey,
+    '/search',
+    {
+      part: 'snippet',
+      type: 'video',
+      q: artistName,
+      order: 'viewCount',
+      maxResults: String(Math.min(25, Math.max(1, maxResults))),
+    },
+    quota,
+  );
 
   const ids = (data.items ?? [])
     .map((item) => item.id?.videoId)
@@ -284,7 +401,7 @@ export async function fetchVideosByArtistSearch(
 
   if (ids.length === 0) return [];
 
-  const details = await fetchVideoDetails(apiKey, ids);
+  const details = await fetchVideoDetails(apiKey, ids, quota);
   return details
     .map((v) => toDto(v, artistName))
     .filter((v): v is YoutubeVideoDto => v !== null);
@@ -295,12 +412,13 @@ export async function fetchChannelVideoPool(
   apiKey: string,
   channelId: string,
   poolSize = 40,
+  quota?: YoutubeQuotaContext,
 ): Promise<YoutubeVideoDto[]> {
-  const playlistId = await getUploadsPlaylistId(apiKey, channelId);
+  const playlistId = await getUploadsPlaylistId(apiKey, channelId, quota);
   if (!playlistId) return [];
 
-  const videoIds = await listUploadVideoIds(apiKey, playlistId, poolSize);
-  const details = await fetchVideoDetails(apiKey, videoIds);
+  const videoIds = await listUploadVideoIds(apiKey, playlistId, poolSize, quota);
+  const details = await fetchVideoDetails(apiKey, videoIds, quota);
   return details
     .map((v) => toDto(v, ''))
     .filter((v): v is YoutubeVideoDto => v !== null);

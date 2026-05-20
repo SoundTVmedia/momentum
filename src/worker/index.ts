@@ -89,6 +89,7 @@ app.use('/api/*', rateLimiter(RateLimits.GENERAL));
 
 // JamBase-backed routes: shared hourly bucket per user/IP (protects upstream quota)
 app.use('/api/jambase/*', rateLimiter(RateLimits.JAMBASE_PROXY_HOURLY));
+app.use('/api/youtube/*', rateLimiter(RateLimits.YOUTUBE_PROXY_HOURLY));
 // Discover advanced search may call JamBase artists/venues/events per query
 app.use('/api/search/advanced', rateLimiter(RateLimits.ADVANCED_SEARCH_HOURLY));
 

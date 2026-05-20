@@ -1,6 +1,17 @@
 import { slugifyEntityName } from '../shared/jambase-slug';
 import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
 import {
+  getCachedArtistVideoPool,
+  getYoutubeCachedPayload,
+  isYoutubeQuotaExceededError,
+  setCachedArtistVideoPool,
+  setYoutubeCachedPayload,
+  youtubeChannelResolveCacheKey,
+  youtubeQuotaFromEnv,
+  type YoutubeQuotaContext,
+  type YoutubeQuotaEnv,
+} from './youtube-cache';
+import {
   fetchChannelVideoPool,
   fetchVideosByArtistSearch,
   resolveYoutubeChannelId,
@@ -80,18 +91,43 @@ export async function lookupArtistForYoutube(
   };
 }
 
-/** Load a pool of videos for one artist (channel uploads, then search fallback). */
+/** Load a pool of videos for one artist (D1 cache → channel uploads → search fallback). */
 export async function fetchYoutubeVideosForArtist(
   db: D1Database,
   apiKey: string,
   artist: ArtistYoutubeRow,
+  quota?: YoutubeQuotaContext,
 ): Promise<YoutubeVideoDto[]> {
   const artistName = artist.name.trim();
   let channelId = artist.youtube_channel_id;
+
+  const cached = await getCachedArtistVideoPool(db, channelId, artistName, true);
+  if (cached && cached.length > 0) {
+    return cached.map((v) => ({ ...v, artistName }));
+  }
+
   let videos: YoutubeVideoDto[] = [];
 
   if (!channelId) {
-    channelId = await resolveYoutubeChannelId(apiKey, artistName, artist.social_links);
+    const channelCacheKey = youtubeChannelResolveCacheKey(artistName);
+    const cachedChannel = await getYoutubeCachedPayload<string>(db, channelCacheKey, {
+      allowStaleDays: 14,
+    });
+    if (cachedChannel) {
+      channelId = cachedChannel;
+    } else {
+      try {
+        channelId = await resolveYoutubeChannelId(apiKey, artistName, artist.social_links, quota);
+        if (channelId) {
+          await setYoutubeCachedPayload(db, channelCacheKey, channelId, 14 * 86_400);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (isYoutubeQuotaExceededError(msg)) throw e;
+        console.error('YouTube channel resolve failed for', artistName, e);
+      }
+    }
+
     if (channelId && artist.artist_id) {
       await db
         .prepare(
@@ -104,21 +140,37 @@ export async function fetchYoutubeVideosForArtist(
 
   if (channelId) {
     try {
-      videos = await fetchChannelVideoPool(apiKey, channelId, VIDEO_POOL_PER_CHANNEL);
+      videos = await fetchChannelVideoPool(apiKey, channelId, VIDEO_POOL_PER_CHANNEL, quota);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (isYoutubeQuotaExceededError(msg)) throw e;
       console.error('YouTube channel pool failed for', artistName, e);
     }
   }
 
   if (videos.length === 0) {
     try {
-      videos = await fetchVideosByArtistSearch(apiKey, artistName, SEARCH_FALLBACK_MAX);
+      videos = await fetchVideosByArtistSearch(apiKey, artistName, SEARCH_FALLBACK_MAX, quota);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (isYoutubeQuotaExceededError(msg)) throw e;
       console.error('YouTube search fallback failed for', artistName, e);
     }
   }
 
-  return videos.map((v) => ({ ...v, artistName }));
+  const withNames = videos.map((v) => ({ ...v, artistName }));
+  if (withNames.length > 0) {
+    await setCachedArtistVideoPool(db, channelId, artistName, withNames);
+  }
+
+  return withNames;
+}
+
+export function youtubeQuotaForEnv(
+  db: D1Database,
+  env: YoutubeQuotaEnv,
+): YoutubeQuotaContext | undefined {
+  return youtubeQuotaFromEnv({ ...env, DB: db });
 }
 
 export function topYoutubeVideosByViews(videos: YoutubeVideoDto[], limit: number): YoutubeVideoDto[] {

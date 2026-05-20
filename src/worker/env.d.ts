@@ -54,4 +54,8 @@ interface Env {
 
   /** YouTube Data API v3 — favorite-artist video carousels (server-side only). */
   YOUTUBE_API_KEY?: string;
+  /** Set to `1` / `true` / `on` to cap daily YouTube API units in D1 (requires migration 50). */
+  YOUTUBE_QUOTA_ENFORCEMENT?: string;
+  /** Max units per UTC day when enforcement is on (default 9500). Search costs 100 units each. */
+  YOUTUBE_QUOTA_MAX?: string;
 }

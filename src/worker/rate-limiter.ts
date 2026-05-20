@@ -157,4 +157,12 @@ export const RateLimits = {
     sharedBucket: 'advanced-search',
     message: 'Too many searches this hour. Please try again later.',
   },
+
+  /** YouTube carousels — limits burst traffic that burns the 10k/day Data API quota. */
+  YOUTUBE_PROXY_HOURLY: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 40,
+    sharedBucket: 'youtube-proxy',
+    message: 'Too many YouTube requests this hour. Cached results may still load — try again shortly.',
+  },
 };
