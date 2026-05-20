@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
-import type { ExtendedMochaUser } from '@/shared/types'
-import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
 import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFeed'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
@@ -26,7 +24,6 @@ export default function MainFeedStack({
   const navigate = useNavigate()
   const { user } = useAuth()
   const [feedType, setFeedType] = useState(defaultFeedType)
-  const welcomeName = user ? resolveWelcomeName(user as ExtendedMochaUser) : null
   const isHome = variant === 'home'
   const containerClass = isHome
     ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-7'
@@ -56,22 +53,6 @@ export default function MainFeedStack({
             </button>
           )}
         </div>
-      )}
-
-      {variant === 'home' && user && (
-        <SectionHeading
-          title={
-            welcomeName ? (
-              <>
-                Welcome, <span className="momentum-grad-text">{welcomeName}</span>
-              </>
-            ) : (
-              'Welcome'
-            )
-          }
-          subtitle="Your artists, nearby venues, and what's hot on the platform"
-          size="section"
-        />
       )}
 
       {user ? (

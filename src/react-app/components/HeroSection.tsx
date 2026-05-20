@@ -25,7 +25,7 @@ export default function HeroSection() {
   return (
     <section
       className="relative isolate min-h-[32vh] overflow-hidden bg-black sm:min-h-[34vh] md:min-h-[36vh] lg:min-h-[38vh]"
-      aria-label="Welcome"
+      aria-label="Search"
     >
       <div className="absolute inset-0">
         <video
@@ -54,18 +54,8 @@ export default function HeroSection() {
       <div className="hero-scanline pointer-events-none absolute inset-0 opacity-[0.07]" aria-hidden />
 
       <div className="relative z-10 flex min-h-[inherit] flex-col justify-center px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
-        <div className="mx-auto w-full max-w-4xl text-center">
-          <h1 className="font-headline text-[clamp(1.35rem,4.5vw,3rem)] font-bold leading-tight tracking-tight whitespace-nowrap momentum-grad-text drop-shadow-lg">
-            Where Live Music Lives
-          </h1>
-
-          <p className="mx-auto mt-3 max-w-xl px-2 text-sm font-medium leading-relaxed text-gray-300 sm:mt-4 sm:text-base md:text-lg">
-            Real clips from real shows.
-            <br />
-            Find your next artist, venue, or moment.
-          </p>
-
-          <HeroSearchBar className="mt-5 sm:mt-6" />
+        <div className="mx-auto w-full max-w-4xl">
+          <HeroSearchBar />
         </div>
       </div>
 
