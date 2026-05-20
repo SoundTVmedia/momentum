@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   X,
@@ -8,11 +8,11 @@ import {
   ChevronRight,
   ExternalLink,
   Music,
-  Play,
 } from 'lucide-react';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { artistPath } from '@/shared/app-paths';
+import { loadYoutubeIframeApi, type YTPlayer } from '@/react-app/lib/youtube-iframe-api';
 
 export type YoutubeVideoItem = {
   videoId: string;
@@ -43,67 +43,67 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function youtubeEmbedSrc(videoId: string): string {
-  const params = new URLSearchParams({
-    autoplay: '1',
-    mute: '1',
-    playsinline: '1',
-    rel: '0',
-    modestbranding: '1',
-    enablejsapi: '1',
-  });
-  if (typeof window !== 'undefined') {
-    params.set('origin', window.location.origin);
-  }
-  return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
-}
-
 function YouTubeEmbed({
   video,
-  embedActive,
-  onActivateEmbed,
   edgeSwipeHandlers,
 }: {
   video: YoutubeVideoItem;
-  embedActive: boolean;
-  onActivateEmbed: () => void;
   edgeSwipeHandlers?: {
     onTouchStart: (e: React.TouchEvent) => void;
     onTouchEnd: (e: React.TouchEvent) => void;
   };
 }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    let cancelled = false;
+
+    const mountPlayer = async () => {
+      try {
+        await loadYoutubeIframeApi();
+      } catch {
+        return;
+      }
+      if (cancelled || !hostRef.current || !window.YT?.Player) return;
+
+      playerRef.current?.destroy();
+      playerRef.current = new window.YT.Player(hostRef.current, {
+        videoId: video.videoId,
+        width: '100%',
+        height: '100%',
+        playerVars: {
+          autoplay: 1,
+          playsinline: 1,
+          rel: 0,
+          modestbranding: 1,
+          enablejsapi: 1,
+          origin: typeof window !== 'undefined' ? window.location.origin : '',
+        },
+        events: {
+          onReady: (event) => {
+            event.target.unMute();
+            event.target.playVideo();
+          },
+        },
+      });
+    };
+
+    void mountPlayer();
+
+    return () => {
+      cancelled = true;
+      playerRef.current?.destroy();
+      playerRef.current = null;
+    };
+  }, [video.videoId]);
+
   return (
-    <div className="relative h-full w-full min-h-0 bg-black">
-      {embedActive ? (
-        <iframe
-          key={video.videoId}
-          title={video.title}
-          src={youtubeEmbedSrc(video.videoId)}
-          className="absolute inset-0 h-full w-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={onActivateEmbed}
-          className="absolute inset-0 flex h-full w-full flex-col items-center justify-center bg-black"
-          aria-label={`Play ${video.title}`}
-        >
-          {video.thumbnailUrl ? (
-            <img
-              src={video.thumbnailUrl}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover opacity-80"
-            />
-          ) : null}
-          <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-red-600/95 text-white shadow-lg">
-            <Play className="ml-1 h-8 w-8 fill-current" />
-          </span>
-          <span className="relative z-10 mt-3 text-sm font-medium text-white/90">Tap to play</span>
-        </button>
-      )}
+    <div className="absolute inset-0 bg-black">
+      <div ref={hostRef} className="absolute inset-0 h-full w-full" title={video.title} />
       {edgeSwipeHandlers ? (
         <>
           <div
@@ -132,8 +132,8 @@ function YouTubeModalSidebar({
   goArtistPage: () => void;
 }) {
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden bg-slate-900/50 md:w-1/3">
-      <div className="flex-shrink-0 border-b border-white/10 p-3 sm:p-4">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-900/50 md:w-1/3">
+      <div className="flex-shrink-0 border-b border-white/10 p-4">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-red-400/90">
           YouTube
         </p>
@@ -153,7 +153,7 @@ function YouTubeModalSidebar({
         ) : null}
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
         <div className="flex flex-wrap gap-4 text-sm text-gray-300">
           <span className="inline-flex items-center gap-1.5">
             <Heart className="h-4 w-4 text-red-400" />
@@ -177,7 +177,7 @@ function YouTubeModalSidebar({
         ) : null}
       </div>
 
-      <div className="flex-shrink-0 border-t border-white/10 p-3 sm:p-4">
+      <div className="flex-shrink-0 border-t border-white/10 p-4">
         <a
           href={video.watchUrl}
           target="_blank"
@@ -239,9 +239,6 @@ export default function YouTubeVideoModal({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  /** Card open is a user gesture; keep true so the embed can autoplay on mobile when allowed. */
-  const [mobileEmbedActive, setMobileEmbedActive] = useState(true);
-
   const mobileSwipeEnabled = canFeedNav && mobileViewport;
 
   const { containerRef: mobileSwipeRef, onTouchStart, onTouchEnd } = useHorizontalFeedSwipe({
@@ -289,65 +286,110 @@ export default function YouTubeVideoModal({
         <button
           type="button"
           onClick={goPrev}
-          className="absolute left-1 top-1/2 z-20 hidden -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-2 text-white transition-colors hover:bg-black/75 sm:left-2 sm:p-3 md:flex"
+          className="absolute left-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-3 text-white transition-colors hover:bg-black/75 md:flex"
           aria-label="Previous video"
         >
-          <ChevronLeft className="h-6 w-6 sm:h-7 sm:w-7" />
+          <ChevronLeft className="h-7 w-7" />
         </button>
       ) : null}
       {nextVideo ? (
         <button
           type="button"
           onClick={goNext}
-          className="absolute right-1 top-1/2 z-20 hidden -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-2 text-white transition-colors hover:bg-black/75 sm:right-2 sm:p-3 md:flex"
+          className="absolute right-2 top-1/2 z-20 hidden -translate-y-1/2 rounded-full border border-white/15 bg-black/55 p-3 text-white transition-colors hover:bg-black/75 md:flex"
           aria-label="Next video"
         >
-          <ChevronRight className="h-6 w-6 sm:h-7 sm:w-7" />
+          <ChevronRight className="h-7 w-7" />
         </button>
       ) : null}
     </>
   );
 
-  const closeButton = (
-    <button
-      type="button"
-      onClick={onClose}
-      className="absolute right-2 top-2 z-30 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70 sm:right-4 sm:top-4"
-      aria-label="Close"
-    >
-      <X className="h-5 w-5 sm:h-6 sm:w-6" />
-    </button>
+  const mobileOverlay = (
+    <>
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-12 pt-3">
+        <div className="pointer-events-auto flex items-start justify-between gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-red-400/90">YouTube</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-black/50 p-2 text-white"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-16">
+        <div className="pointer-events-auto pr-2">
+          <h2 className="line-clamp-2 text-lg font-bold leading-snug text-white">{video.title}</h2>
+          {video.artistName ? (
+            <button
+              type="button"
+              onClick={goArtistPage}
+              className="mt-1 inline-flex max-w-full items-center gap-1.5 text-left text-sm font-medium text-cyan-300"
+            >
+              <Music className="h-4 w-4 shrink-0 text-purple-400" />
+              <span className="truncate">{video.artistName}</span>
+            </button>
+          ) : null}
+          {video.channelTitle ? (
+            <p className="mt-0.5 truncate text-xs text-gray-400">{video.channelTitle}</p>
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-300">
+            <span className="inline-flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5 text-red-400" />
+              {formatCount(video.likeCount)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Eye className="h-3.5 w-3.5 text-gray-400" />
+              {formatCount(video.viewCount)}
+            </span>
+          </div>
+          <a
+            href={video.watchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-red-400 hover:text-red-300"
+          >
+            Open on YouTube
+            <ExternalLink className="h-4 w-4" />
+          </a>
+          {canFeedNav ? (
+            <p className="mt-2 text-[11px] uppercase tracking-wide text-white/45">
+              Swipe left or right for next video
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </>
   );
 
   return (
-    <div className="fixed inset-0 z-[110] flex animate-fade-in bg-black">
-      {/* Mobile: video fills viewport; details scroll below */}
+    <div className="fixed inset-0 z-[110] overflow-hidden bg-black">
+      {/* Mobile: full-viewport video (same pattern as ClipModal) */}
       <div
         ref={mobileSwipeRef}
-        className="flex h-[100dvh] w-full flex-col md:hidden"
+        className="relative h-[100dvh] w-full overflow-hidden md:hidden"
       >
-        <div className="relative min-h-0 flex-1">
-          <YouTubeEmbed
-            video={video}
-            embedActive={mobileEmbedActive}
-            onActivateEmbed={() => setMobileEmbedActive(true)}
-            edgeSwipeHandlers={edgeSwipeHandlers}
-          />
-          {closeButton}
-        </div>
-        <YouTubeModalSidebar video={video} goArtistPage={goArtistPage} />
+        <YouTubeEmbed video={video} edgeSwipeHandlers={edgeSwipeHandlers} />
+        {mobileOverlay}
       </div>
 
       {/* Desktop */}
-      <div className="mx-auto hidden h-full w-full max-w-6xl items-stretch justify-center md:flex">
-        <div className="flex h-full max-h-[100dvh] w-full overflow-hidden border border-momentum-teal/20 bg-black/95">
-          <div className="relative flex min-h-0 w-2/3 flex-shrink-0 bg-black">
-            <YouTubeEmbed
-              video={video}
-              embedActive={true}
-              onActivateEmbed={() => {}}
-            />
-            {closeButton}
+      <div className="relative hidden h-[100dvh] w-full md:block">
+        <div className="mx-auto flex h-full max-w-6xl">
+          <div className="relative h-full min-h-0 flex-1 bg-black">
+            <YouTubeEmbed video={video} />
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-4 z-30 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+              aria-label="Close"
+            >
+              <X className="h-6 w-6" />
+            </button>
             {navButtons}
           </div>
           <YouTubeModalSidebar video={video} goArtistPage={goArtistPage} />
