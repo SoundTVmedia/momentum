@@ -1,4 +1,5 @@
-import { Radio, Users, Volume2, Heart, MessageSquare, Send, Loader2 } from 'lucide-react';
+import { Radio, Users, Volume2, MessageSquare, Send, Loader2 } from 'lucide-react';
+import { ClipLikeHeart } from '@/react-app/components/ClipLikeHeart';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNavigate } from 'react-router';
@@ -265,7 +266,11 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                                   : 'text-white hover:text-red-400'
                               }`}
                             >
-                              <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${isLiked(currentClip.id) ? 'fill-current' : ''}`} />
+                              <ClipLikeHeart
+                                liked={isLiked(currentClip.id)}
+                                size="sm"
+                                className={isLiked(currentClip.id) ? '' : 'text-white'}
+                              />
                             </button>
                             <button className="text-white hover:text-cyan-400 transition-colors p-1 sm:p-0 hidden sm:block">
                               <Volume2 className="w-5 h-5" />

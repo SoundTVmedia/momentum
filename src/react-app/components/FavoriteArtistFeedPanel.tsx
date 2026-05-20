@@ -229,6 +229,7 @@ export default function FavoriteArtistFeedPanel({
       await loadSavedFavoriteNames();
       await fetchSlice(0, false);
       setShowAddArtists(false);
+      window.dispatchEvent(new CustomEvent('favorite-artists-changed'));
     } catch (e) {
       setSaveArtistsError(apiFetchErrorMessage(e, 'Save failed'));
     } finally {

@@ -1,6 +1,5 @@
 import {
   X,
-  Heart,
   MessageCircle,
   Share,
   Bookmark,
@@ -29,6 +28,7 @@ import { useClipSave } from '@/react-app/hooks/useClipSave';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
 import type { StreamVideoPlayerHandle, StreamVideoPlayerPlaybackState } from '@/react-app/components/StreamVideoPlayer';
 import CommentSection from './CommentSection';
+import { ClipLikeHeart } from './ClipLikeHeart';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
@@ -347,10 +347,10 @@ export default function ClipModal({
             isLiked(clip.id) ? 'text-red-400' : 'text-white'
           }`}
         >
-          <Heart
-            className={`h-7 w-7 ${isLiked(clip.id) ? 'fill-current' : ''} ${
-              isLiking ? 'animate-heart-pop' : ''
-            }`}
+          <ClipLikeHeart
+            liked={isLiked(clip.id)}
+            size="lg"
+            className={isLiking ? 'animate-heart-pop' : ''}
           />
           <span className="text-xs font-medium">{clip.likes_count}</span>
         </button>
@@ -628,10 +628,10 @@ export default function ClipModal({
                       isLiked(clip.id) ? 'text-red-400' : 'text-gray-400 hover:text-red-400'
                     }`}
                   >
-                    <Heart
-                      className={`h-5 w-5 transition-transform ${
-                        isLiked(clip.id) ? 'fill-current' : ''
-                      } ${isLiking ? 'animate-heart-pop' : ''}`}
+                    <ClipLikeHeart
+                      liked={isLiked(clip.id)}
+                      size="sm"
+                      className={`transition-transform ${isLiking ? 'animate-heart-pop' : ''}`}
                     />
                     <span className="text-base font-medium">{clip.likes_count}</span>
                   </button>

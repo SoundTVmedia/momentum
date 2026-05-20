@@ -1022,6 +1022,24 @@ app.get("/api/clips/:id", async (c) => {
   return c.json(normalizedClip);
 });
 
+// Clip ids the signed-in user has liked (for consistent heart UI)
+app.get("/api/users/me/liked-clips", authMiddleware, async (c) => {
+  const mochaUser = c.get("user");
+  if (!mochaUser) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const uid = mochaUserIdKey(mochaUser);
+  const rows = await c.env.DB.prepare(
+    "SELECT clip_id FROM clip_likes WHERE mocha_user_id = ?",
+  )
+    .bind(uid)
+    .all();
+  const clip_ids = (rows.results ?? [])
+    .map((r) => Number((r as { clip_id: unknown }).clip_id))
+    .filter((id) => Number.isFinite(id));
+  return c.json({ clip_ids });
+});
+
 // Like a clip
 app.post("/api/clips/:id/like", authMiddleware, async (c) => {
   const mochaUser = c.get("user");

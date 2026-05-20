@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
 
 /**
- * Enhanced clip like hook with local storage persistence for better UX
+ * Clip likes — synced from the server on sign-in and persisted locally for fast UI.
  */
 export function useClipLike() {
   const { user } = useAuth()
@@ -19,6 +19,35 @@ export function useClipLike() {
     return new Set()
   })
   const [loading, setLoading] = useState<Set<number>>(new Set())
+
+  useEffect(() => {
+    if (!user) {
+      setLikedClips(new Set())
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/users/me/liked-clips', { credentials: 'include' })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as { clip_ids?: unknown }
+        const ids = Array.isArray(data.clip_ids)
+          ? data.clip_ids.filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+          : []
+        if (cancelled) return
+        setLikedClips((prev) => {
+          const next = new Set(prev)
+          for (const id of ids) next.add(id)
+          return next
+        })
+      } catch {
+        /* keep local cache */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   // Persist liked clips to localStorage
   useEffect(() => {

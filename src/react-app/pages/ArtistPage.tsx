@@ -548,7 +548,7 @@ export default function ArtistPage() {
               ) : favorited ? (
                 <>
                   <UserCheck className="w-5 h-5" />
-                  <span>Unfollow</span>
+                  <span>Unfollow Artist</span>
                 </>
               ) : (
                 <>

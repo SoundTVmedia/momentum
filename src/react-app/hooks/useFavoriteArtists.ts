@@ -42,6 +42,7 @@ export function useFavoriteArtists() {
 
       if (response.ok) {
         await fetchFavoriteArtists();
+        window.dispatchEvent(new CustomEvent('favorite-artists-changed'));
       }
     } catch (error) {
       console.error('Failed to toggle favorite artist:', error);

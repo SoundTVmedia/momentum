@@ -1,4 +1,5 @@
-import { Heart, MessageCircle, Share, MapPin, Clock, Bookmark, Flame } from 'lucide-react';
+import { MessageCircle, Share, MapPin, Clock, Bookmark, Flame } from 'lucide-react';
+import { ClipLikeHeart } from '@/react-app/components/ClipLikeHeart';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
@@ -205,9 +206,10 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               isLiked(clip.id) ? 'text-pink-500' : 'text-white hover:text-pink-400'
             }`}
           >
-            <Heart
-              className={`w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform ${
-                isLiked(clip.id) ? 'fill-current' : ''
+            <ClipLikeHeart
+              liked={isLiked(clip.id)}
+              className={`group-hover:scale-110 transition-transform ${
+                isLiked(clip.id) ? '' : 'text-white hover:text-pink-400'
               } ${likingClip === clip.id ? 'animate-heart-pop' : ''}`}
             />
             <span className="font-bold text-[10px] sm:text-xs">{clip.likes_count}</span>

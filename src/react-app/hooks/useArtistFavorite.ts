@@ -23,24 +23,54 @@ export function useArtistFavorite(artistId: number, artistName: string) {
     }
 
     try {
-      const res = await apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' });
-      if (!res.ok) {
-        setFavorited(false);
-        return;
+      const [favRes, meRes] = await Promise.all([
+        apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' }),
+        apiFetch('/api/users/me', { cache: 'no-store' }),
+      ]);
+
+      const names = new Set<string>();
+      if (favRes.ok) {
+        const data = (await favRes.json()) as {
+          artists?: { artist_id?: unknown; name?: unknown }[];
+        };
+        const rows = Array.isArray(data.artists) ? data.artists : [];
+        const nameKey = normalizeArtistName(name);
+        const match = rows.some((row) => {
+          const rowId =
+            typeof row.artist_id === 'number' ? row.artist_id : Number(row.artist_id);
+          if (artistId > 0 && Number.isFinite(rowId) && rowId === artistId) return true;
+          const rowName = typeof row.name === 'string' ? row.name.trim() : '';
+          if (rowName.length > 0) names.add(normalizeArtistName(rowName));
+          return rowName.length > 0 && normalizeArtistName(rowName) === nameKey;
+        });
+        if (match) {
+          setFavorited(true);
+          return;
+        }
       }
-      const data = (await res.json()) as {
-        artists?: { artist_id?: unknown; name?: unknown }[];
-      };
-      const rows = Array.isArray(data.artists) ? data.artists : [];
+
+      if (meRes.ok) {
+        const me = (await meRes.json()) as {
+          profile?: { favorite_artists?: string | null } | null;
+        } | null;
+        const json = me?.profile?.favorite_artists;
+        if (json) {
+          try {
+            const parsed = JSON.parse(json) as unknown;
+            if (Array.isArray(parsed)) {
+              for (const x of parsed) {
+                const n = typeof x === 'string' ? x.trim() : String(x ?? '').trim();
+                if (n) names.add(normalizeArtistName(n));
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
       const nameKey = normalizeArtistName(name);
-      const match = rows.some((row) => {
-        const rowId =
-          typeof row.artist_id === 'number' ? row.artist_id : Number(row.artist_id);
-        if (artistId > 0 && Number.isFinite(rowId) && rowId === artistId) return true;
-        const rowName = typeof row.name === 'string' ? row.name.trim() : '';
-        return rowName.length > 0 && normalizeArtistName(rowName) === nameKey;
-      });
-      setFavorited(match);
+      setFavorited(names.has(nameKey));
     } catch {
       setFavorited(false);
     }
