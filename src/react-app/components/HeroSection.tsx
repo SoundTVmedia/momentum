@@ -1,43 +1,94 @@
-export default function HeroSection() {
+import HeroSearchBar from '@/react-app/components/HeroSearchBar';
 
+/** Swap these when you have brand hero video (mp4/webm) + poster. */
+const HERO_POSTER_URL =
+  'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1920&h=1080&fit=crop';
+const HERO_VIDEO_SRC: string | null = null;
+
+function HeroBrandMark() {
   return (
-    <div className="relative bg-black overflow-hidden h-[25vh] sm:h-[28vh] md:h-[32vh]">
-      {/* Background Video Placeholder */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/80">
-        <div 
-          className="w-full h-full bg-cover bg-center opacity-40"
-          style={{
-            backgroundImage: "url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&h=1080&fit=crop')"
-          }}
+    <div className="hero-brand-mark mx-auto mb-4 sm:mb-5" aria-hidden>
+      <div className="relative mx-auto h-[4.5rem] w-[4.5rem] sm:h-20 sm:w-20">
+        <div className="hero-brand-ring absolute inset-0 rounded-full border border-momentum-mint/30" />
+        <div className="hero-brand-ring-delay absolute inset-1 rounded-full border border-momentum-teal/20" />
+        <div className="absolute inset-2 flex items-center justify-center rounded-full momentum-grad-interactive shadow-lg shadow-momentum-teal/30">
+          <span className="font-headline text-2xl tracking-tight text-white sm:text-3xl">F</span>
+        </div>
+      </div>
+      <p className="mt-3 text-center font-headline text-sm font-bold tracking-[0.35em] text-momentum-mint/90 sm:text-base">
+        FEEDBACK
+      </p>
+    </div>
+  );
+}
+
+export default function HeroSection() {
+  return (
+    <section
+      className="relative isolate min-h-[44vh] overflow-hidden bg-black sm:min-h-[48vh] md:min-h-[52vh] lg:min-h-[56vh]"
+      aria-label="Welcome"
+    >
+      {/* Background — poster now; optional video layer for brand footage later */}
+      <div className="absolute inset-0">
+        {HERO_VIDEO_SRC ? (
+          <video
+            className="hero-bg-media h-full w-full object-cover"
+            src={HERO_VIDEO_SRC}
+            poster={HERO_POSTER_URL}
+            autoPlay
+            muted
+            loop
+            playsInline
+          />
+        ) : (
+          <div
+            className="hero-bg-media h-full w-full bg-cover bg-center"
+            style={{ backgroundImage: `url('${HERO_POSTER_URL}')` }}
+            role="img"
+            aria-label=""
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/55 to-black/90" />
+        <div className="absolute inset-0 bg-gradient-to-r from-momentum-teal/10 via-transparent to-purple-900/15" />
+      </div>
+
+      {/* Stage lights */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="absolute -left-20 top-1/4 h-56 w-56 rounded-full bg-momentum-teal/25 blur-3xl hero-light-pulse" />
+        <div
+          className="absolute -right-16 top-1/3 h-72 w-72 rounded-full bg-purple-600/20 blur-3xl hero-light-pulse"
+          style={{ animationDelay: '1.2s' }}
+        />
+        <div
+          className="absolute bottom-0 left-1/3 h-48 w-48 rounded-full bg-cyan-500/15 blur-3xl hero-light-pulse"
+          style={{ animationDelay: '2.4s' }}
         />
       </div>
 
-      {/* Animated Background Elements - Concert Lighting */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-momentum-teal/22 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-3/4 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '700ms'}}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-48 h-48 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1400ms'}}></div>
-        <div className="absolute top-1/2 right-1/3 w-72 h-72 bg-blue-500/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2100ms'}}></div>
-      </div>
+      {/* Scan line — subtle “live broadcast” feel */}
+      <div className="hero-scanline pointer-events-none absolute inset-0 opacity-[0.07]" aria-hidden />
 
-      <div className="relative z-10 flex flex-col justify-center h-full px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          {/* Main Headline - Smaller */}
-          <div className="mb-1 sm:mb-2">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-headline mb-1 sm:mb-2 leading-tight">
-              <span className="block momentum-grad-text">
-                WHERE LIVE
-              </span>
-              <span className="block text-white drop-shadow-2xl">
-                MUSIC LIVES
-              </span>
-            </h1>
-            <p className="text-sm sm:text-base md:text-lg text-gray-300 max-w-2xl mx-auto leading-relaxed px-4 font-medium">
-              Your nightly home for live music. Real moments, real fans, real artists.
-            </p>
-          </div>
+      <div className="relative z-10 flex min-h-[inherit] flex-col justify-center px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+        <div className="mx-auto w-full max-w-4xl text-center">
+          <HeroBrandMark />
+
+          <h1 className="font-headline text-3xl font-bold leading-[1.1] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
+            <span className="block momentum-grad-text">Where live</span>
+            <span className="block text-white drop-shadow-lg">music lives</span>
+          </h1>
+
+          <p className="mx-auto mt-3 max-w-xl px-2 text-sm font-medium leading-relaxed text-gray-300 sm:mt-4 sm:text-base md:text-lg">
+            Real clips from real shows. Find your next artist, venue, or moment.
+          </p>
+
+          <HeroSearchBar className="mt-6 sm:mt-8" />
         </div>
       </div>
-    </div>
-  )
+
+      <div
+        className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black to-transparent"
+        aria-hidden
+      />
+    </section>
+  );
 }

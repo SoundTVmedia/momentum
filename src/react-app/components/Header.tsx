@@ -1,7 +1,7 @@
 import { Search, LogOut, Bell, Shield, Music, MapPin, Ticket, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { useNotifications } from '@/react-app/hooks/useNotifications'
 import NotificationPanel from './NotificationPanel'
 import ClipModal from './ClipModal'
@@ -44,6 +44,8 @@ function jamBaseEventTicket(ev: Record<string, unknown>): string | null {
 
 export default function Header() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const isHome = pathname === '/'
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null
@@ -230,7 +232,10 @@ export default function Header() {
 
           {/* Search & Profile */}
           <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
-            <div className="relative hidden lg:block" ref={searchDropdownRef}>
+            <div
+              className={`relative hidden lg:block ${isHome ? 'lg:hidden' : ''}`}
+              ref={searchDropdownRef}
+            >
               <form onSubmit={handleHeaderSearchSubmit} className="relative">
                 <input
                   type="text"

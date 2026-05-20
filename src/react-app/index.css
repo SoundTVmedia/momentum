@@ -305,6 +305,74 @@ body {
   .fb-panel-title {
     @apply font-headline text-lg font-bold text-white tracking-tight;
   }
+
+  /* Home hero — cinematic background + brand mark */
+  .hero-bg-media {
+    animation: hero-bg-kenburns 22s ease-in-out infinite alternate;
+    transform-origin: center center;
+  }
+
+  .hero-light-pulse {
+    animation: hero-light-pulse 5s ease-in-out infinite;
+  }
+
+  .hero-brand-ring {
+    animation: hero-ring-spin 10s linear infinite;
+  }
+
+  .hero-brand-ring-delay {
+    animation: hero-ring-spin 14s linear infinite reverse;
+  }
+
+  .hero-scanline {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 205, 172, 0.15) 2px,
+      rgba(0, 205, 172, 0.15) 4px
+    );
+    animation: hero-scan-drift 8s linear infinite;
+  }
+}
+
+@keyframes hero-bg-kenburns {
+  0% {
+    transform: scale(1.05) translate(0, 0);
+  }
+  100% {
+    transform: scale(1.14) translate(-1.5%, -1%);
+  }
+}
+
+@keyframes hero-light-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes hero-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hero-scan-drift {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+  }
 }
 
 /* Video-first card styles */

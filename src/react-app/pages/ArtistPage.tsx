@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserCheck, Radio, ShoppingBag, Play } from 'lucide-react';
-import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
@@ -79,7 +78,6 @@ interface PreviousShow {
 export default function ArtistPage() {
   const { artistName } = useParams<{ artistName: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { toggleFollow, isFollowing, isLoading: followLoading } = useFollow();
   const [data, setData] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
