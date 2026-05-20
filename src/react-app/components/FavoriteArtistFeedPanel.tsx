@@ -176,6 +176,16 @@ export default function FavoriteArtistFeedPanel({
   }, [user, isPending, fetchSlice]);
 
   useEffect(() => {
+    if (!user) return;
+    const refresh = () => {
+      void loadSavedFavoriteNames();
+      void fetchSlice(0, false);
+    };
+    window.addEventListener('favorite-artists-changed', refresh);
+    return () => window.removeEventListener('favorite-artists-changed', refresh);
+  }, [user, fetchSlice, loadSavedFavoriteNames]);
+
+  useEffect(() => {
     if (!scrollIntoViewOnMount || loading || !hasFavoriteArtists) return;
     const id = requestAnimationFrame(() => {
       sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });

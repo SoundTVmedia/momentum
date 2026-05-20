@@ -248,6 +248,30 @@ export async function linkFavoriteArtistByName(
   throw new Error(`Could not link favorite artist ${JSON.stringify(name)}`);
 }
 
+/** Remove `user_favorite_artists` rows for every artist row matching this display name. */
+export async function unlinkFavoriteArtistByName(
+  db: D1Database,
+  uid: string,
+  displayName: string,
+): Promise<boolean> {
+  const name = normalizeArtistDisplayName(displayName);
+  if (!name) return false;
+
+  const run = await db
+    .prepare(
+      `DELETE FROM user_favorite_artists
+       WHERE mocha_user_id = ?
+         AND artist_id IN (
+           SELECT id FROM artists
+           WHERE lower(trim(name)) = lower(trim(?)) OR name = ?
+         )`,
+    )
+    .bind(uid, name, name)
+    .run();
+
+  return d1RowChanges(run) > 0;
+}
+
 export type SyncFavoriteArtistsResult = {
   synced: string[];
   failed: { name: string; error: string }[];

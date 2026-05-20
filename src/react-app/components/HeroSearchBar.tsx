@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import AdvancedSearchDropdown from '@/react-app/components/AdvancedSearchDropdown';
+import ClipModal from '@/react-app/components/ClipModal';
+import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch';
+import type { ClipWithUser } from '@/shared/types';
 
 export type HeroSearchBarProps = {
   /** Prefill from URL when landing with ?q= */
@@ -8,17 +12,53 @@ export type HeroSearchBarProps = {
   className?: string;
 };
 
-/** Primary discovery entry — submits to full Discover search results. */
+/** Primary discovery entry — live JamBase + Feedback search with dropdown, Enter → Discover. */
 export default function HeroSearchBar({
   initialQuery = '',
   className = '',
 }: HeroSearchBarProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState(initialQuery);
+  const [showResults, setShowResults] = useState(false);
+  const { results, loading, scheduleSearch, cancelSearch, reset } = useAdvancedSearch();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [clipModal, setClipModal] = useState<{
+    clip: ClipWithUser;
+    feed: ClipWithUser[];
+  } | null>(null);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    const onDocDown = (e: MouseEvent) => {
+      const el = containerRef.current;
+      if (!el || !showResults) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [showResults]);
+
+  const closeSearchUi = useCallback(() => {
+    setShowResults(false);
+    reset();
+  }, [reset]);
+
+  const handleInput = (value: string) => {
+    setQuery(value);
+    const trimmed = value.trim();
+    if (trimmed.length >= 2) {
+      setShowResults(true);
+      scheduleSearch(value);
+    } else {
+      cancelSearch();
+      setShowResults(false);
+    }
+  };
+
+  const goToDiscover = () => {
     const q = query.trim();
+    closeSearchUi();
     if (q) {
       navigate(`/discover?q=${encodeURIComponent(q)}`);
     } else {
@@ -26,45 +66,85 @@ export default function HeroSearchBar({
     }
   };
 
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    goToDiscover();
+  };
+
   return (
-    <form onSubmit={submit} className={`w-full max-w-2xl mx-auto ${className}`.trim()}>
-      <div className="relative group">
-        <div
-          className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-teal/50 via-momentum-mint/40 to-momentum-teal/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
-          aria-hidden
-        />
-        <div className="relative flex items-center rounded-2xl border border-white/20 bg-black/50 backdrop-blur-md shadow-xl shadow-black/40">
-          <Search
-            className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-momentum-mint/80 sm:h-6 sm:w-6"
+    <>
+      <form
+        onSubmit={submit}
+        className={`w-full max-w-2xl mx-auto ${className}`.trim()}
+      >
+        <div ref={containerRef} className="relative group">
+          <div
+            className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-teal/50 via-momentum-mint/40 to-momentum-teal/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
             aria-hidden
           />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search artists, venues, songs, clips…"
-            className="w-full min-w-0 flex-1 bg-transparent py-3.5 pl-12 pr-28 text-base text-white placeholder:text-gray-400 focus:outline-none sm:py-4 sm:text-lg"
-            autoComplete="off"
-            enterKeyHint="search"
+          <div className="relative flex items-center rounded-2xl border border-white/20 bg-black/50 backdrop-blur-md shadow-xl shadow-black/40">
+            <Search
+              className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-momentum-mint/80 sm:h-6 sm:w-6"
+              aria-hidden
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => handleInput(e.target.value)}
+              onFocus={() => query.trim().length >= 2 && setShowResults(true)}
+              placeholder="Search artists, venues, songs, clips…"
+              className="w-full min-w-0 flex-1 bg-transparent py-3.5 pl-12 pr-28 text-base text-white placeholder:text-gray-400 focus:outline-none sm:py-4 sm:text-lg"
+              autoComplete="off"
+              enterKeyHint="search"
+              aria-autocomplete="list"
+              aria-expanded={showResults}
+            />
+            <button
+              type="submit"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl px-4 py-2 text-sm font-semibold text-white momentum-grad-interactive transition-transform hover:scale-[1.02] sm:px-5 sm:py-2.5 sm:text-base"
+            >
+              Search
+            </button>
+          </div>
+
+          <AdvancedSearchDropdown
+            query={query}
+            open={showResults}
+            loading={loading}
+            results={results}
+            onClose={closeSearchUi}
+            onDiscoverAll={goToDiscover}
+            onClipSelect={(clip, feed) => setClipModal({ clip, feed })}
+            variant="hero"
           />
-          <button
-            type="submit"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl px-4 py-2 text-sm font-semibold text-white momentum-grad-interactive transition-transform hover:scale-[1.02] sm:px-5 sm:py-2.5 sm:text-base"
-          >
-            Search
-          </button>
         </div>
-      </div>
-      <p className="mt-3 text-center text-xs text-gray-500 sm:text-sm">
-        Or{' '}
-        <button
-          type="button"
-          onClick={() => navigate('/discover')}
-          className="text-momentum-mint/90 underline-offset-2 hover:text-momentum-mint hover:underline"
-        >
-          browse everything on Discover
-        </button>
-      </p>
-    </form>
+        <p className="mt-3 text-center text-xs text-gray-500 sm:text-sm">
+          Or{' '}
+          <button
+            type="button"
+            onClick={() => navigate('/discover')}
+            className="text-momentum-mint/90 underline-offset-2 hover:text-momentum-mint hover:underline"
+          >
+            browse everything on Discover
+          </button>
+        </p>
+      </form>
+
+      {clipModal ? (
+        <ClipModal
+          clip={clipModal.clip}
+          onClose={() => setClipModal(null)}
+          feedNavigation={
+            clipModal.feed.length > 1
+              ? {
+                  clips: clipModal.feed,
+                  onChangeClip: (c) =>
+                    setClipModal((m) => (m ? { ...m, clip: c } : null)),
+                }
+              : null
+          }
+        />
+      ) : null}
+    </>
   );
 }

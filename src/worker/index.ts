@@ -23,7 +23,10 @@ import {
   resolveOAuthCallbackUrl,
 } from "./google-oauth";
 import { mochaUserIdKey } from "./mocha-user-id";
-import { replaceProfileFavoriteArtistsJsonFromTable } from "./favorite-artists-sync";
+import {
+  getOrCreateArtistIdByName,
+  replaceProfileFavoriteArtistsJsonFromTable,
+} from "./favorite-artists-sync";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
@@ -1328,8 +1331,23 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
   const uid = mochaUserIdKey(mochaUser);
   const artistFollow = /^artist-(\d+)$/.exec(targetUserId);
 
+  let followBody: { artist_name?: string } = {};
+  try {
+    followBody = (await c.req.json()) as { artist_name?: string };
+  } catch {
+    /* empty body is fine */
+  }
+
   if (artistFollow) {
-    const artistId = Number(artistFollow[1]);
+    let artistId = Number(artistFollow[1]);
+    if ((!Number.isInteger(artistId) || artistId <= 0) && typeof followBody.artist_name === 'string') {
+      try {
+        artistId = await getOrCreateArtistIdByName(c.env.DB, followBody.artist_name);
+      } catch (err) {
+        console.error('follow artist getOrCreateArtistIdByName:', err);
+        return c.json({ error: 'Could not resolve artist' }, 400);
+      }
+    }
     if (!Number.isInteger(artistId) || artistId <= 0) {
       return c.json({ error: 'Invalid artist' }, 400);
     }
@@ -1343,7 +1361,7 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
         .bind(uid, artistId)
         .run();
       await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
-      return c.json({ following: false });
+      return c.json({ following: false, artist_id: artistId });
     }
     await c.env.DB
       .prepare(
@@ -1352,7 +1370,7 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
       .bind(uid, artistId)
       .run();
     await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
-    return c.json({ following: true });
+    return c.json({ following: true, artist_id: artistId });
   }
 
   if (targetUserId === String(mochaUser.id) || targetUserId === uid) {

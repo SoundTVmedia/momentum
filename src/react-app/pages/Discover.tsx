@@ -17,8 +17,19 @@ import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 
 interface SearchResults {
   clips: ClipWithUser[];
-  artists: { name: string; image_url: string | null; clip_count: number }[];
-  venues: { name: string; location: string | null; clip_count: number }[];
+  artists: {
+    name: string;
+    image_url: string | null;
+    clip_count: number;
+    jambase_id?: string | null;
+  }[];
+  venues: {
+    name: string;
+    location: string | null;
+    clip_count: number;
+    image_url: string | null;
+    jambase_id?: string | null;
+  }[];
   users: {
     mocha_user_id: string;
     display_name: string | null;
@@ -46,6 +57,9 @@ type DiscoverFeed = {
   jambaseNotice?: string | null;
 };
 
+
+const FALLBACK_VENUE_IMAGE =
+  'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=300&fit=crop';
 
 function nearbyShowsSubtitle(feed: DiscoverFeed): string {
   const loc = feed.location.label?.trim();
@@ -320,6 +334,7 @@ export default function DiscoverPage() {
                     name: a.name,
                     image_url: a.image_url,
                     clip_count: a.clip_count,
+                    jambase_id: a.jambase_id ?? null,
                   }))}
                 />
               </div>
@@ -328,22 +343,32 @@ export default function DiscoverPage() {
             {results.venues.length > 0 && (
               <div>
                 <DiscoverSectionTitle icon={MapPin} iconClassName="text-blue-400" title="Venues" />
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {results.venues.map((venue) => (
                     <button
-                      key={venue.name}
+                      key={venue.jambase_id ?? venue.name}
                       type="button"
                       onClick={() => navigate(venuePath(venue.name))}
-                      className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl p-4 hover:border-blue-400/50 transition-all text-left"
+                      className="bg-black/40 backdrop-blur-lg border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all text-left group"
                     >
-                      <div className="flex items-start space-x-3">
-                        <MapPin className="w-8 h-8 text-blue-400 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-white font-medium truncate">{venue.name}</div>
+                      <div className="relative aspect-[4/3] overflow-hidden">
+                        <img
+                          src={venue.image_url?.trim() || FALLBACK_VENUE_IMAGE}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <div className="flex items-center gap-1.5 text-white font-semibold text-sm truncate">
+                            <MapPin className="w-4 h-4 text-blue-300 shrink-0" aria-hidden />
+                            <span className="truncate">{venue.name}</span>
+                          </div>
                           {venue.location && (
-                            <div className="text-gray-400 text-sm truncate">{venue.location}</div>
+                            <p className="text-gray-300 text-xs mt-0.5 truncate">{venue.location}</p>
                           )}
-                          <div className="text-gray-500 text-xs mt-1">{venue.clip_count} clips</div>
+                          <p className="text-gray-400 text-xs mt-0.5">
+                            {venue.clip_count} clip{venue.clip_count === 1 ? '' : 's'}
+                          </p>
                         </div>
                       </div>
                     </button>
@@ -378,6 +403,54 @@ export default function DiscoverPage() {
                       };
                     })}
                   />
+                )}
+
+                {results.jambase.venues.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-200/90 uppercase tracking-wide mb-3 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" /> Venues
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {results.jambase.venues.map((v) => {
+                        const name = typeof v.name === 'string' ? v.name : 'Venue';
+                        const image = typeof v.image === 'string' ? v.image : null;
+                        const addr = v.address as Record<string, unknown> | undefined;
+                        const region = addr?.addressRegion as Record<string, unknown> | undefined;
+                        const locality =
+                          typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
+                        const regionName =
+                          typeof region?.alternateName === 'string'
+                            ? region.alternateName
+                            : typeof region?.name === 'string'
+                              ? String(region.name)
+                              : '';
+                        const locationLine = [locality, regionName].filter(Boolean).join(', ');
+                        return (
+                          <button
+                            key={typeof v.identifier === 'string' ? v.identifier : name}
+                            type="button"
+                            onClick={() => navigate(venuePath(name))}
+                            className="bg-black/40 backdrop-blur-lg border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-all text-left group"
+                          >
+                            <div className="relative aspect-[4/3] overflow-hidden">
+                              <img
+                                src={image?.trim() || FALLBACK_VENUE_IMAGE}
+                                alt=""
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+                              <div className="absolute bottom-0 left-0 right-0 p-3">
+                                <div className="text-white font-semibold text-sm truncate">{name}</div>
+                                {locationLine ? (
+                                  <p className="text-gray-300 text-xs mt-0.5 truncate">{locationLine}</p>
+                                ) : null}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
 
                 {results.jambase.events.length > 0 && (

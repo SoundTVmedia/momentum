@@ -78,7 +78,7 @@ interface PreviousShow {
 export default function ArtistPage() {
   const { artistName } = useParams<{ artistName: string }>();
   const navigate = useNavigate();
-  const { toggleFollow, isFollowing, isLoading: followLoading } = useFollow();
+  const { toggleFollowArtist, isFollowingArtist, isArtistFollowLoading } = useFollow();
   const [data, setData] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -526,15 +526,15 @@ export default function ArtistPage() {
           <div>
             <button
               type="button"
-              onClick={() => artist && toggleFollow(`artist-${artist.id}`)}
-              disabled={followLoading(`artist-${artist?.id || 0}`)}
+              onClick={() => artist && void toggleFollowArtist(artist.id, artist.name)}
+              disabled={artist ? isArtistFollowLoading(artist.id, artist.name) : true}
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 ${
-                isFollowing(`artist-${artist?.id || 0}`)
+                artist && isFollowingArtist(artist.id, artist.name)
                   ? 'bg-white/10 border border-purple-500/50 text-white'
                   : 'bg-gradient-to-r from-purple-500 to-pink-600 text-white'
               }`}
             >
-              {isFollowing(`artist-${artist?.id || 0}`) ? (
+              {artist && isFollowingArtist(artist.id, artist.name) ? (
                 <>
                   <UserCheck className="w-5 h-5" />
                   <span>Following</span>

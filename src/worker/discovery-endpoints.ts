@@ -13,8 +13,11 @@ import {
 } from './jambase-events-search';
 import { resolveDiscoverLocation } from './discover-location';
 import {
+  enrichSearchArtistsWithJamBase,
+  enrichSearchVenuesWithJamBase,
   enrichTrendingArtistsWithJamBase,
   fetchNearbyJamBaseEvents,
+  type SearchVenueRow,
   type TrendingArtistRow,
 } from './discover-jambase-enrich';
 
@@ -99,7 +102,8 @@ export async function advancedSearch(c: Context) {
   const artists = await c.env.DB.prepare(
     `SELECT 
       clips.artist_name as name,
-      artists.image_url,
+      MAX(artists.image_url) as image_url,
+      MAX(clips.jambase_artist_id) as jambase_id,
       COUNT(DISTINCT clips.id) as clip_count
     FROM clips
     LEFT JOIN artists ON clips.artist_name = artists.name
@@ -117,7 +121,9 @@ export async function advancedSearch(c: Context) {
   const venues = await c.env.DB.prepare(
     `SELECT 
       clips.venue_name as name,
-      venues.location,
+      MAX(venues.location) as location,
+      MAX(venues.image_url) as image_url,
+      MAX(clips.jambase_venue_id) as jambase_id,
       COUNT(DISTINCT clips.id) as clip_count
     FROM clips
     LEFT JOIN venues ON clips.venue_name = venues.name
@@ -202,12 +208,22 @@ export async function advancedSearch(c: Context) {
     jambaseNotice = jamBaseMissingKeyNotice();
   }
 
+  const artistsBase = (artists.results ?? []) as TrendingArtistRow[];
+  const venuesBase = (venues.results ?? []) as SearchVenueRow[];
+  const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
+  const jbQ = jamBaseQuotaFromEnv(c.env);
+
+  const [enrichedArtists, enrichedVenues] = await Promise.all([
+    enrichSearchArtistsWithJamBase(jbKeyTrimmed || undefined, jbQ, artistsBase, jambase.artists),
+    enrichSearchVenuesWithJamBase(jbKeyTrimmed || undefined, jbQ, venuesBase, jambase.venues),
+  ]);
+
   cacheJsonProxy(c, { browserMaxAge: 90, cdnMaxAge: 600, staleWhileRevalidate: 900 });
 
   return c.json({
     clips: clips.results || [],
-    artists: artists.results || [],
-    venues: venues.results || [],
+    artists: enrichedArtists,
+    venues: enrichedVenues,
     users: users.results || [],
     jambase,
     jambaseNotice,
