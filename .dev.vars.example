@@ -40,6 +40,8 @@ MOCHA_USERS_SERVICE_API_KEY=
 JAMBASE_API_KEY=
 # Optional — AudD music recognition (https://docs.audd.io/). Used by POST /api/clips/identify-music.
 # AUDD_API_TOKEN=
+# YouTube Data API v3 — home feed carousels for favorite artists (Google Cloud → enable API → API key).
+# YOUTUBE_API_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 CLOUDFLARE_ACCOUNT_ID=

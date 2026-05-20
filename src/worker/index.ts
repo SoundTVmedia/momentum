@@ -50,6 +50,7 @@ import * as discoverPrioritized from "./discover-prioritized-endpoints";
 import * as deviceToken from "./device-token-endpoints";
 import * as authEndpoints from "./auth-endpoints";
 import * as personalization from "./personalization-endpoints";
+import * as youtube from "./youtube-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -342,6 +343,11 @@ app.delete("/api/auth/device-tokens", authMiddleware, deviceToken.revokeAllDevic
 app.post("/api/personalization/update", authMiddleware, personalization.updatePersonalization);
 app.get("/api/feed/personalized", authMiddleware, personalization.getPersonalizedFeed);
 app.get("/api/personalization/concerts", authMiddleware, personalization.getPersonalizedConcerts);
+app.get(
+  "/api/youtube/favorite-artist-videos",
+  authMiddleware,
+  youtube.getFavoriteArtistYoutubeVideos,
+);
 
 // Submit verification request
 app.post("/api/users/verification-request", authMiddleware, async (c) => {

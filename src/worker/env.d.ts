@@ -51,4 +51,7 @@ interface Env {
 
   /** Optional — [AudD](https://docs.audd.io/) music recognition for clip song/artist prefill */
   AUDD_API_TOKEN?: string;
+
+  /** YouTube Data API v3 — favorite-artist video carousels (server-side only). */
+  YOUTUBE_API_KEY?: string;
 }

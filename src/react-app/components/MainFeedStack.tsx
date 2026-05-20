@@ -8,6 +8,7 @@ import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFe
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
+import FavoriteArtistYouTubeSection from '@/react-app/components/FavoriteArtistYouTubeSection'
 
 export type MainFeedStackVariant = 'page' | 'home'
 
@@ -95,6 +96,7 @@ export default function MainFeedStack({
 
       {isHome ? (
         <div className="space-y-8 md:space-y-6">
+          <FavoriteArtistYouTubeSection carouselBleedScope="page" />
           <PersonalizedConcerts carouselBleedScope="page" mode="favorite-artists" />
           <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
         </div>

@@ -22,6 +22,8 @@ declare namespace Cloudflare {
 		GOOGLE_MAPS_API_KEY: string;
 		/** Optional — clip song lookup via AudD when unset at build/runtime */
 		AUDD_API_TOKEN?: string;
+		/** Optional — YouTube Data API v3 for favorite-artist video carousels */
+		YOUTUBE_API_KEY?: string;
 		DATABASE_URL: string;
 		REALTIME: DurableObjectNamespace<import("./src/worker/index").RealtimeDurableObject>;
 	}

@@ -1,0 +1,229 @@
+import { useEffect, useState } from 'react';
+import { Eye, Heart, Loader2, Play, Youtube } from 'lucide-react';
+import { useAuth } from '@getmocha/users-service/react';
+import HorizontalClipCarousel, {
+  HorizontalClipCarouselItem,
+} from '@/react-app/components/HorizontalClipCarousel';
+import { apiFetch } from '@/react-app/lib/apiFetch';
+import {
+  HOME_FEED_CAROUSEL_BLEED,
+  HOME_FEED_SECTION_CLASS,
+  MOBILE_CAROUSEL_ITEM_PEEK_CLASS,
+  PAGE_CAROUSEL_BLEED,
+} from '@/react-app/lib/homeFeedLayout';
+
+export type YoutubeVideoItem = {
+  videoId: string;
+  title: string;
+  thumbnailUrl: string;
+  viewCount: number;
+  likeCount: number;
+  publishedAt: string;
+  channelTitle: string;
+  artistName: string;
+  watchUrl: string;
+};
+
+type YoutubeVideosResponse = {
+  configured?: boolean;
+  message?: string;
+  mostViewed?: YoutubeVideoItem[];
+  mostLiked?: YoutubeVideoItem[];
+};
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  return String(n);
+}
+
+function YouTubeVideoCard({ video }: { video: YoutubeVideoItem }) {
+  return (
+    <a
+      href={video.watchUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`group flex h-full min-h-[18rem] w-full flex-col overflow-hidden rounded-xl border border-red-500/25 bg-black/40 backdrop-blur-lg transition-colors hover:border-red-400/50 ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS}`}
+    >
+      <div className="relative aspect-video shrink-0 overflow-hidden bg-white/5">
+        {video.thumbnailUrl ? (
+          <img
+            src={video.thumbnailUrl}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-gray-500" aria-hidden>
+            <Youtube className="h-12 w-12 opacity-40" />
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600/90 text-white shadow-lg">
+            <Play className="ml-0.5 h-6 w-6 fill-current" />
+          </span>
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col p-4">
+        <p className="line-clamp-2 text-sm font-semibold text-white group-hover:text-red-200">
+          {video.title}
+        </p>
+        <p className="mt-1 truncate text-xs text-cyan-300/90">{video.artistName}</p>
+        <div className="mt-auto flex flex-wrap items-center gap-3 pt-3 text-xs text-gray-400">
+          <span className="inline-flex items-center gap-1">
+            <Eye className="h-3.5 w-3.5" />
+            {formatCount(video.viewCount)}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <Heart className="h-3.5 w-3.5" />
+            {formatCount(video.likeCount)}
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function VideoCarousel({
+  title,
+  subtitle,
+  videos,
+  ariaLabel,
+  carouselClassName,
+}: {
+  title: string;
+  subtitle: string;
+  videos: YoutubeVideoItem[];
+  ariaLabel: string;
+  carouselClassName: string;
+}) {
+  if (videos.length === 0) return null;
+
+  return (
+    <div className="mb-6 md:mb-5">
+      <h3 className="text-lg sm:text-xl font-bold text-white">{title}</h3>
+      <p className="mt-1 text-sm text-gray-400">{subtitle}</p>
+      <div className="mt-3 md:mt-4">
+        <HorizontalClipCarousel stretchItems ariaLabel={ariaLabel} className={carouselClassName}>
+          {videos.map((video) => (
+            <HorizontalClipCarouselItem key={video.videoId} className="md:w-80 lg:w-96">
+              <YouTubeVideoCard video={video} />
+            </HorizontalClipCarouselItem>
+          ))}
+        </HorizontalClipCarousel>
+      </div>
+    </div>
+  );
+}
+
+export type FavoriteArtistYouTubeSectionProps = {
+  carouselBleedScope?: 'home' | 'page';
+};
+
+export default function FavoriteArtistYouTubeSection({
+  carouselBleedScope = 'page',
+}: FavoriteArtistYouTubeSectionProps) {
+  const { user, isPending: authPending } = useAuth();
+  const carouselBleed =
+    carouselBleedScope === 'page' ? PAGE_CAROUSEL_BLEED : HOME_FEED_CAROUSEL_BLEED;
+
+  const [loading, setLoading] = useState(true);
+  const [payload, setPayload] = useState<YoutubeVideosResponse | null>(null);
+
+  useEffect(() => {
+    if (authPending) return;
+    if (!user) {
+      setPayload(null);
+      setLoading(false);
+      return;
+    }
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await apiFetch('/api/youtube/favorite-artist-videos?limit=6', {
+          cache: 'no-store',
+        });
+        if (res.ok) {
+          setPayload((await res.json()) as YoutubeVideosResponse);
+        } else {
+          setPayload({ configured: false, mostViewed: [], mostLiked: [] });
+        }
+      } catch {
+        setPayload({ configured: false, mostViewed: [], mostLiked: [] });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+  }, [user, authPending]);
+
+  if (!user) return null;
+
+  if (loading) {
+    return (
+      <div className={HOME_FEED_SECTION_CLASS}>
+        <div className="mb-4 md:mb-5">
+          <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
+          <p className="mt-1 text-sm text-gray-400">Most viewed and most liked from your favorite artists</p>
+        </div>
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-black/40 p-8 text-gray-400">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading YouTube picks…</span>
+        </div>
+      </div>
+    );
+  }
+
+  const mostViewed = payload?.mostViewed ?? [];
+  const mostLiked = payload?.mostLiked ?? [];
+  const hasVideos = mostViewed.length > 0 || mostLiked.length > 0;
+
+  if (!payload?.configured) {
+    return null;
+  }
+
+  if (!hasVideos) {
+    const msg = payload?.message;
+    if (msg === 'No favorite artists set') {
+      return (
+        <div className={HOME_FEED_SECTION_CLASS}>
+          <div className="mb-4 md:mb-5">
+            <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
+            <p className="mt-1 text-sm text-gray-400">
+              Add favorite artists to see their most viewed and most liked videos here.
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  return (
+    <section className={HOME_FEED_SECTION_CLASS}>
+      <div className="mb-4 md:mb-5">
+        <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">On YouTube</h2>
+        <p className="mt-1 text-sm text-gray-400">
+          Most viewed and most liked videos from artists you follow
+        </p>
+      </div>
+
+      <VideoCarousel
+        title="Most viewed"
+        subtitle="Top view counts across your favorite artists"
+        videos={mostViewed}
+        ariaLabel="Most viewed YouTube videos from your favorite artists"
+        carouselClassName={carouselBleed}
+      />
+
+      <VideoCarousel
+        title="Most liked"
+        subtitle="Top like counts across your favorite artists"
+        videos={mostLiked}
+        ariaLabel="Most liked YouTube videos from your favorite artists"
+        carouselClassName={carouselBleed}
+      />
+    </section>
+  );
+}
