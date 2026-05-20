@@ -104,7 +104,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 px-4 py-8"
+      className="fixed inset-0 z-[260] flex items-center justify-center bg-black/80 px-4 py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="clip-edit-title"

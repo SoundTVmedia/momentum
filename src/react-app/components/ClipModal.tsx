@@ -21,6 +21,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
@@ -426,8 +427,8 @@ export default function ClipModal({
     </>
   );
 
-  return (
-    <div className="fixed inset-0 z-[100] flex animate-fade-in bg-black/90 backdrop-blur-sm">
+  const modal = (
+    <div className="fixed inset-0 z-[250] flex animate-fade-in bg-black/90 backdrop-blur-sm">
       {/* ——— Mobile: full-viewport video + overlays ——— */}
       <div
         ref={mobileSwipeRef}
@@ -730,4 +731,6 @@ export default function ClipModal({
       ) : null}
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

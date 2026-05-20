@@ -54,17 +54,22 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
     <div
       className={`group bg-black/40 backdrop-blur-lg border border-momentum-teal/20 rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
-      <div className="relative h-48 overflow-hidden shrink-0">
+      <button
+        type="button"
+        onClick={() => navigate(artistPath(concert.artist_name))}
+        className="relative block w-full h-48 overflow-hidden shrink-0 text-left"
+        aria-label={`View ${concert.artist_name}`}
+      >
         {concert.artist_image ? (
           <img
             src={concert.artist_image}
-            alt={concert.artist_name}
+            alt=""
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
           />
         ) : (
           <div className="w-full h-full bg-white/5" aria-hidden />
         )}
-      </div>
+      </button>
 
       <div className="p-5 flex flex-col flex-1 min-h-0">
         <button
@@ -292,14 +297,6 @@ export default function PersonalizedConcerts({
           ))}
         </HorizontalClipCarousel>
       )}
-
-      {jbEvents.length >= 12 ? (
-        <div className="text-center pt-4">
-          <a href="/discover" className="text-cyan-400 hover:text-cyan-300 font-medium">
-            See more on Discover →
-          </a>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -144,16 +144,38 @@ function JamBaseEventCard({
       className={`group bg-black/40 backdrop-blur-lg border border-momentum-teal/25 rounded-xl overflow-hidden hover:border-momentum-mint/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
       <div className="relative shrink-0 h-48 overflow-hidden">
-        <img
-          src={image}
-          alt={title}
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-        />
-        <div className="absolute top-3 left-3">
-          <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
-            {headlinerGenre(event)}
-          </span>
-        </div>
+        {head ? (
+          <button
+            type="button"
+            onClick={() => onArtist(head)}
+            className="relative block h-full w-full text-left"
+            aria-label={`View ${head}`}
+          >
+            <img
+              src={image}
+              alt=""
+              className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+            />
+            <div className="pointer-events-none absolute top-3 left-3">
+              <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
+                {headlinerGenre(event)}
+              </span>
+            </div>
+          </button>
+        ) : (
+          <>
+            <img
+              src={image}
+              alt={title}
+              className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+            />
+            <div className="absolute top-3 left-3">
+              <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
+                {headlinerGenre(event)}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="p-5 flex flex-col flex-1">
