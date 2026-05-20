@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { X, Heart, Eye, ChevronLeft, ChevronRight, ExternalLink, Music } from 'lucide-react';
+import {
+  X,
+  Heart,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Music,
+  Play,
+} from 'lucide-react';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
+import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { artistPath } from '@/shared/app-paths';
 
 export type YoutubeVideoItem = {
@@ -42,29 +52,73 @@ function youtubeEmbedSrc(videoId: string): string {
     modestbranding: '1',
     enablejsapi: '1',
   });
+  if (typeof window !== 'undefined') {
+    params.set('origin', window.location.origin);
+  }
   return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
 }
 
 function YouTubeEmbed({
   video,
-  swipeOverlay,
+  embedActive,
+  onActivateEmbed,
+  edgeSwipeHandlers,
 }: {
   video: YoutubeVideoItem;
-  swipeOverlay: boolean;
+  embedActive: boolean;
+  onActivateEmbed: () => void;
+  edgeSwipeHandlers?: {
+    onTouchStart: (e: React.TouchEvent) => void;
+    onTouchEnd: (e: React.TouchEvent) => void;
+  };
 }) {
   return (
     <div className="relative h-full w-full min-h-0 bg-black">
-      <iframe
-        key={video.videoId}
-        title={video.title}
-        src={youtubeEmbedSrc(video.videoId)}
-        className="absolute inset-0 h-full w-full border-0"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
-      {swipeOverlay ? (
-        <div className="absolute inset-0 z-10 touch-none" aria-hidden tabIndex={-1} />
+      {embedActive ? (
+        <iframe
+          key={video.videoId}
+          title={video.title}
+          src={youtubeEmbedSrc(video.videoId)}
+          className="absolute inset-0 h-full w-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={onActivateEmbed}
+          className="absolute inset-0 flex h-full w-full flex-col items-center justify-center bg-black"
+          aria-label={`Play ${video.title}`}
+        >
+          {video.thumbnailUrl ? (
+            <img
+              src={video.thumbnailUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-80"
+            />
+          ) : null}
+          <span className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-red-600/95 text-white shadow-lg">
+            <Play className="ml-1 h-8 w-8 fill-current" />
+          </span>
+          <span className="relative z-10 mt-3 text-sm font-medium text-white/90">Tap to play</span>
+        </button>
+      )}
+      {edgeSwipeHandlers ? (
+        <>
+          <div
+            className="absolute bottom-0 left-0 top-0 z-20 w-[20%] max-w-[4.5rem]"
+            aria-hidden
+            onTouchStart={edgeSwipeHandlers.onTouchStart}
+            onTouchEnd={edgeSwipeHandlers.onTouchEnd}
+          />
+          <div
+            className="absolute bottom-0 right-0 top-0 z-20 w-[20%] max-w-[4.5rem]"
+            aria-hidden
+            onTouchStart={edgeSwipeHandlers.onTouchStart}
+            onTouchEnd={edgeSwipeHandlers.onTouchEnd}
+          />
+        </>
       ) : null}
     </div>
   );
@@ -144,6 +198,12 @@ export default function YouTubeVideoModal({
   feedNavigation = null,
 }: YouTubeVideoModalProps) {
   const navigate = useNavigate();
+  const { setHideBottomNav } = useMobileChrome();
+
+  useEffect(() => {
+    setHideBottomNav(true);
+    return () => setHideBottomNav(false);
+  }, [setHideBottomNav]);
 
   const navIndex =
     feedNavigation && feedNavigation.videos.length > 0
@@ -179,13 +239,20 @@ export default function YouTubeVideoModal({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
+  /** Card open is a user gesture; keep true so the embed can autoplay on mobile when allowed. */
+  const [mobileEmbedActive, setMobileEmbedActive] = useState(true);
+
   const mobileSwipeEnabled = canFeedNav && mobileViewport;
 
-  const { containerRef: mobileSwipeRef } = useHorizontalFeedSwipe({
+  const { containerRef: mobileSwipeRef, onTouchStart, onTouchEnd } = useHorizontalFeedSwipe({
     enabled: mobileSwipeEnabled,
     onPrev: goPrev,
     onNext: goNext,
   });
+
+  const edgeSwipeHandlers = mobileSwipeEnabled
+    ? { onTouchStart, onTouchEnd }
+    : undefined;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -253,14 +320,19 @@ export default function YouTubeVideoModal({
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex animate-fade-in bg-black">
+    <div className="fixed inset-0 z-[110] flex animate-fade-in bg-black">
       {/* Mobile: video fills viewport; details scroll below */}
       <div
         ref={mobileSwipeRef}
         className="flex h-[100dvh] w-full flex-col md:hidden"
       >
         <div className="relative min-h-0 flex-1">
-          <YouTubeEmbed video={video} swipeOverlay={mobileSwipeEnabled} />
+          <YouTubeEmbed
+            video={video}
+            embedActive={mobileEmbedActive}
+            onActivateEmbed={() => setMobileEmbedActive(true)}
+            edgeSwipeHandlers={edgeSwipeHandlers}
+          />
           {closeButton}
         </div>
         <YouTubeModalSidebar video={video} goArtistPage={goArtistPage} />
@@ -270,7 +342,11 @@ export default function YouTubeVideoModal({
       <div className="mx-auto hidden h-full w-full max-w-6xl items-stretch justify-center md:flex">
         <div className="flex h-full max-h-[100dvh] w-full overflow-hidden border border-momentum-teal/20 bg-black/95">
           <div className="relative flex min-h-0 w-2/3 flex-shrink-0 bg-black">
-            <YouTubeEmbed video={video} swipeOverlay={false} />
+            <YouTubeEmbed
+              video={video}
+              embedActive={true}
+              onActivateEmbed={() => {}}
+            />
             {closeButton}
             {navButtons}
           </div>

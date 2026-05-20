@@ -38,6 +38,7 @@ import { artistPath, genrePath, globalSongPath, songPath, venuePath } from '@/sh
 import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
+import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export type ClipModalFeedNavigation = {
   clips: ClipWithUser[];
@@ -60,7 +61,13 @@ export default function ClipModal({
   onClipUpdated,
 }: ClipModalProps) {
   const navigate = useNavigate();
+  const { setHideBottomNav } = useMobileChrome();
   const { user } = useAuth();
+
+  useEffect(() => {
+    setHideBottomNav(true);
+    return () => setHideBottomNav(false);
+  }, [setHideBottomNav]);
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
   const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
