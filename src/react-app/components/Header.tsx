@@ -190,48 +190,23 @@ export default function Header() {
             </div>
           </button>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="flex items-center space-x-2 text-white hover:text-blue-400 transition-colors font-medium"
-            >
-              The Feed
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/discover')}
-              className="flex items-center space-x-2 text-white hover:text-purple-400 transition-colors font-medium"
-            >
-               {/*<Search className="w-4 h-4" aria-hidden />*/}
-              Discover
-            </button>
-            {/*{user && (
+          <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
+            <nav className="hidden md:flex items-center gap-4 lg:gap-6 shrink-0">
               <button
                 type="button"
-                onClick={() => navigate('/dashboard')}
-                className="flex items-center space-x-2 text-white hover:text-cyan-400 transition-colors font-medium"
+                onClick={() => navigate('/')}
+                className="text-white hover:text-momentum-mint transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
               >
-                <User className="w-4 h-4" aria-hidden />
-                Profile
+                The Feed
               </button>
-            )}*/}
-            {/*{extendedUser?.profile?.is_premium !== 1 && (
               <button
                 type="button"
-                onClick={() => navigate('/premium')}
-                className="flex items-center space-x-2 text-yellow-400 hover:text-yellow-300 transition-colors font-medium"
-                title="Upgrade to Premium"
+                onClick={() => navigate('/discover')}
+                className="text-white hover:text-momentum-mint transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
               >
-                <Crown className="w-4 h-4" aria-hidden />
-                Premium
+                Discover
               </button>
-            )}*/}
-          </nav>
-
-          {/* Search & Profile */}
-          <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
+            </nav>
             <div
               className={`relative hidden lg:block ${isHome ? 'lg:hidden' : ''}`}
               ref={searchDropdownRef}
