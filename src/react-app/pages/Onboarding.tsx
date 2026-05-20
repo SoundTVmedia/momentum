@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Users, Music, Star, Award, Crown, X, MapPin, Loader2 } from 'lucide-react';
+import { Users, Music, Star, Award, X, MapPin, Loader2 } from 'lucide-react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 
-type UserRole = 'fan' | 'artist' | 'ambassador' | 'influencer' | 'premium';
+type UserRole = 'fan' | 'artist' | 'ambassador' | 'influencer';
 
 interface RoleOption {
   value: UserRole;
@@ -44,13 +44,6 @@ const roleOptions: RoleOption[] = [
     description: 'Curate the best moments, collab with artists, build your following',
     color: 'from-yellow-500 to-orange-600'
   },
-  {
-    value: 'premium',
-    icon: Crown,
-    label: 'Premium Member',
-    description: 'VIP treatment, exclusive drops, early tickets, all the perks',
-    color: 'from-yellow-400 to-amber-600'
-  }
 ];
 
 export default function Onboarding() {

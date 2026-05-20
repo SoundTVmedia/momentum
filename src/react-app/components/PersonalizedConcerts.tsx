@@ -7,6 +7,7 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { artistPath } from '@/shared/app-paths';
+import SectionHeading from '@/react-app/components/SectionHeading';
 import {
   EVENT_CAROUSEL_CARD_CLASS,
   HOME_FEED_CAROUSEL_BLEED,
@@ -217,20 +218,14 @@ export default function PersonalizedConcerts({
 
   const usePageHeading = headingVariant === 'page' && resolvedMode === 'nearby';
 
-  const sectionHeader = usePageHeading ? (
-    <>
-      <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-center momentum-grad-text">
-        {sectionTitle}
-      </h2>
-      <p className="text-gray-400 text-sm sm:text-base mb-6 text-center max-w-2xl mx-auto">
-        {sectionSubtitle}
-      </p>
-    </>
-  ) : (
-    <div className="mb-4 md:mb-5">
-      <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">{sectionTitle}</h2>
-      <p className="text-gray-400 text-sm mt-1">{sectionSubtitle}</p>
-    </div>
+  const sectionHeader = (
+    <SectionHeading
+      title={sectionTitle}
+      subtitle={sectionSubtitle}
+      align={usePageHeading ? 'center' : 'left'}
+      size={usePageHeading ? 'page' : 'section'}
+      className={usePageHeading ? 'mb-6' : undefined}
+    />
   );
 
   if (resolvedMode === 'favorite-artists' && !isLoggedIn) {

@@ -52,6 +52,7 @@ type DashboardClipsGridProps = {
   onDeleteClip?: (clip: DashboardGridClip) => Promise<void>;
   showEditOnEach?: boolean;
   onEditClip?: (clip: DashboardGridClip) => void;
+  onClipUpdated?: (clip: ClipWithUser) => void;
 };
 
 export default function DashboardClipsGrid({
@@ -71,6 +72,7 @@ export default function DashboardClipsGrid({
   onDeleteClip,
   showEditOnEach = false,
   onEditClip,
+  onClipUpdated,
 }: DashboardClipsGridProps) {
   const [selectedClip, setSelectedClip] = useState<DashboardGridClip | null>(null);
   const [clipPendingDelete, setClipPendingDelete] = useState<DashboardGridClip | null>(null);
@@ -299,6 +301,10 @@ export default function DashboardClipsGrid({
                 }
               : null
           }
+          onClipUpdated={(updated) => {
+            setSelectedClip(updated as unknown as DashboardGridClip);
+            onClipUpdated?.(updated);
+          }}
         />
       )}
 

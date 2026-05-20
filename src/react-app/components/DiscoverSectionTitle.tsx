@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import SectionHeading from '@/react-app/components/SectionHeading';
 
 type DiscoverSectionTitleProps = {
   icon?: LucideIcon;
@@ -8,20 +9,17 @@ type DiscoverSectionTitleProps = {
 };
 
 export default function DiscoverSectionTitle({
-  icon: Icon,
-  iconClassName = 'text-cyan-400',
+  icon,
+  iconClassName = 'text-momentum-mint',
   title,
   subtitle,
 }: DiscoverSectionTitleProps) {
   return (
-    <div className="mb-4 md:mb-5">
-      <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2 min-w-0">
-        {Icon ? (
-          <Icon className={`w-6 h-6 shrink-0 ${iconClassName}`} aria-hidden />
-        ) : null}
-        <span className="momentum-grad-text">{title}</span>
-      </h2>
-      {subtitle ? <p className="text-gray-400 text-sm mt-1">{subtitle}</p> : null}
-    </div>
+    <SectionHeading
+      title={title}
+      subtitle={subtitle}
+      icon={icon}
+      iconClassName={iconClassName}
+    />
   );
 }

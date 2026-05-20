@@ -135,6 +135,7 @@ export default function MyClipsSection() {
         onDeleteClip={onDeleteClip}
         showEditOnEach
         onEditClip={(c) => setEditingClip(c)}
+        onClipUpdated={(updated) => updateClip(updated)}
       />
       {editingClip && (
         <ClipEditModal

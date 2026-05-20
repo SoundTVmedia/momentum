@@ -255,6 +255,58 @@ body {
   letter-spacing: -0.02em;
 }
 
+@layer components {
+  /* Section & page headings — one rhythm app-wide */
+  .fb-section-title {
+    @apply font-headline text-xl sm:text-2xl font-bold tracking-tight momentum-grad-text;
+  }
+
+  .fb-page-section-title {
+    @apply font-headline text-2xl sm:text-3xl font-bold tracking-tight momentum-grad-text;
+  }
+
+  .fb-hero-title {
+    @apply font-headline text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white;
+  }
+
+  .fb-section-subtitle {
+    @apply text-sm sm:text-base text-gray-400/90 leading-relaxed;
+  }
+
+  .fb-section-subtitle--center {
+    @apply max-w-2xl mx-auto text-center;
+  }
+
+  /* Clip card overlay metadata */
+  .fb-clip-artist-name {
+    @apply font-headline text-base sm:text-lg md:text-sm lg:text-base font-bold text-white hover:text-momentum-mint transition-colors drop-shadow-lg block text-left w-full truncate;
+  }
+
+  .fb-clip-song {
+    @apply text-xs sm:text-sm md:text-[11px] font-semibold text-fuchsia-200/95 hover:text-fuchsia-100 transition-colors drop-shadow block text-left w-full truncate;
+  }
+
+  .fb-clip-venue {
+    @apply flex items-center gap-1 text-xs sm:text-sm md:text-[11px] text-white/90 hover:text-white transition-colors drop-shadow w-full min-w-0;
+  }
+
+  .fb-clip-caption {
+    @apply text-xs sm:text-sm md:text-[11px] text-white/80 leading-snug drop-shadow line-clamp-2;
+  }
+
+  .fb-clip-user {
+    @apply text-xs sm:text-sm font-semibold text-white truncate drop-shadow-lg;
+  }
+
+  .fb-clip-meta-muted {
+    @apply text-[10px] sm:text-xs text-white/70 drop-shadow;
+  }
+
+  .fb-panel-title {
+    @apply font-headline text-lg font-bold text-white tracking-tight;
+  }
+}
+
 /* Video-first card styles */
 .video-card {
   position: relative;

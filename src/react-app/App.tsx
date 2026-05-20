@@ -16,7 +16,6 @@ import AdminPage from "@/react-app/pages/Admin";
 import UserProfilePage from "@/react-app/pages/UserProfile";
 import DiscoverPage from "@/react-app/pages/Discover";
 import AnalyticsPage from "@/react-app/pages/Analytics";
-import PremiumPage from "@/react-app/pages/Premium";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
@@ -46,7 +45,7 @@ export default function App() {
           <Route path="/discover" element={<DiscoverPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/premium" element={<PremiumPage />} />
+          <Route path="/premium" element={<Navigate to="/" replace />} />
           <Route path="/artists/:artistName/songs/:songSlug" element={<SongPage />} />
           <Route path="/songs/:songSlug" element={<GlobalSongPage />} />
           <Route path="/genres/:genreSlug" element={<GenrePage />} />

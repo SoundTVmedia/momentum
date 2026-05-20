@@ -4,6 +4,7 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import YouTubeVideoModal, { type YoutubeVideoItem } from '@/react-app/components/YouTubeVideoModal';
+import SectionHeading from '@/react-app/components/SectionHeading';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 function formatCount(n: number): string {
@@ -122,10 +123,7 @@ export default function YouTubeVideoCarousel({
 
   return (
     <>
-      <div className="mb-4 md:mb-5">
-        <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">{title}</h2>
-        <p className="mt-1 text-sm text-gray-400">{subtitle}</p>
-      </div>
+      <SectionHeading title={title} subtitle={subtitle} />
 
       <HorizontalClipCarousel ariaLabel={ariaLabel} className={carouselClassName}>
         {videos.map((video) => (

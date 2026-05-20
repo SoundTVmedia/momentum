@@ -9,6 +9,7 @@ import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPa
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
 import FavoriteArtistYouTubeSection from '@/react-app/components/FavoriteArtistYouTubeSection'
+import SectionHeading from '@/react-app/components/SectionHeading'
 
 export type MainFeedStackVariant = 'page' | 'home'
 
@@ -36,8 +37,12 @@ export default function MainFeedStack({
       {variant === 'page' && (
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-headline text-white mb-2">The Feed</h1>
-            <p className="text-gray-400">Live moments from concerts happening right now</p>
+            <SectionHeading
+              title="The Feed"
+              subtitle="Live moments from concerts happening right now"
+              size="hero"
+              className="mb-0"
+            />
           </div>
 
           {user && (
@@ -54,21 +59,19 @@ export default function MainFeedStack({
       )}
 
       {variant === 'home' && user && (
-        <div className="mb-6 md:mb-5">
-          <h2 className="text-2xl sm:text-3xl font-headline text-white mb-2">
-            {welcomeName ? (
+        <SectionHeading
+          title={
+            welcomeName ? (
               <>
-                <span>Welcome, </span>
-                <span className="momentum-grad-text">{welcomeName}</span>
+                Welcome, <span className="momentum-grad-text">{welcomeName}</span>
               </>
             ) : (
               'Welcome'
-            )}
-          </h2>
-          <p className="text-gray-400 text-sm sm:text-base">
-            Your artists, nearby venues, and what&apos;s hot on the platform
-          </p>
-        </div>
+            )
+          }
+          subtitle="Your artists, nearby venues, and what's hot on the platform"
+          size="page"
+        />
       )}
 
       {user ? (

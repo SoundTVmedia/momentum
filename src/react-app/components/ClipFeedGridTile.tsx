@@ -132,10 +132,10 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               className="border-2 border-white/30 shadow-lg"
             />
             <div className="min-w-0">
-              <div className="font-bold text-white text-xs sm:text-sm md:text-[11px] lg:text-xs drop-shadow-lg truncate">
+              <div className="fb-clip-user truncate">
                 {clip.user_display_name || 'Anonymous'}
               </div>
-              <div className="flex items-center space-x-1 text-[10px] sm:text-xs md:text-[10px] text-white/80 drop-shadow">
+              <div className="flex items-center space-x-1 fb-clip-meta-muted">
                 <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" />
                 <span className="truncate">{formatRelativeTime(clipPostedAt(clip))}</span>
               </div>
@@ -151,7 +151,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
                 e.stopPropagation();
                 navigate(artistPath(clip.artist_name));
               }}
-              className="font-headline text-base sm:text-lg md:text-sm lg:text-lg text-white hover:text-purple-400 transition-colors drop-shadow-lg block text-left w-full truncate"
+              className="fb-clip-artist-name"
             >
               {clip.artist_name}
             </button>
@@ -164,7 +164,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
                 const slug = clip.song_slug?.trim() || songSlugFromTitle(clip.song_title);
                 if (slug) navigate(songPath(clip.artist_name, slug));
               }}
-              className="text-fuchsia-200 text-xs sm:text-sm md:text-[11px] font-semibold hover:text-fuchsia-100 transition-colors drop-shadow block text-left w-full truncate"
+              className="fb-clip-song"
             >
               ♪ {clip.song_title}
             </button>
@@ -176,7 +176,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
                 e.stopPropagation();
                 onOpenClip(clip);
               }}
-              className="flex items-center space-x-1 text-xs md:text-[11px] lg:text-xs text-white/90 hover:text-white transition-colors drop-shadow w-full min-w-0"
+              className="fb-clip-venue"
             >
               <MapPin className="w-3 h-3 md:w-2.5 md:h-2.5 flex-shrink-0" />
               <span className="font-medium truncate">{clip.venue_name}</span>
@@ -186,7 +186,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
             </button>
           )}
           {clip.content_description ? (
-            <p className="text-white text-xs sm:text-sm md:text-[11px] lg:text-xs leading-snug drop-shadow line-clamp-2">
+            <p className="fb-clip-caption">
               {clip.content_description}
             </p>
           ) : null}

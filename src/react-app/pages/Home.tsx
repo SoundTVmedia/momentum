@@ -5,6 +5,7 @@ import Footer from '@/react-app/components/Footer'
 import ConcertFeed from '@/react-app/components/ConcertFeed'
 import MainFeedStack from '@/react-app/components/MainFeedStack'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
+import SectionHeading from '@/react-app/components/SectionHeading'
 import { useAuth } from '@getmocha/users-service/react'
 
 export default function Home() {
@@ -21,12 +22,13 @@ export default function Home() {
           <div className="bg-gradient-to-b from-slate-950 via-black to-black pb-8 sm:pb-12">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10">
               <section className="pt-6 md:pt-8">
-                <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-center momentum-grad-text">
-                  Latest Feedback
-                </h2>
-                <p className="text-gray-400 text-sm sm:text-base mb-6 text-center max-w-2xl mx-auto">
-                  Fresh moments from shows across the platform
-                </p>
+                <SectionHeading
+                  title="Latest Feedback"
+                  subtitle="Fresh moments from shows across the platform"
+                  align="center"
+                  size="page"
+                  className="mb-6"
+                />
                 <ConcertFeed
                   feedType="latest"
                   hideSectionHeader
@@ -36,12 +38,13 @@ export default function Home() {
                 />
               </section>
               <section className="pt-6 md:pt-8">
-                <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-center momentum-grad-text">
-                  Trending
-                </h2>
-                <p className="text-gray-400 text-sm sm:text-base mb-6 text-center max-w-2xl mx-auto">
-                  What everyone&apos;s watching right now
-                </p>
+                <SectionHeading
+                  title="Trending"
+                  subtitle="What everyone&apos;s watching right now"
+                  align="center"
+                  size="page"
+                  className="mb-6"
+                />
                 <ConcertFeed
                   feedType="trending"
                   hideSectionHeader

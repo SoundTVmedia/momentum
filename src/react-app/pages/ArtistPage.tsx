@@ -4,14 +4,13 @@ import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserC
 import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
-import PremiumPresaleAlert from '@/react-app/components/PremiumPresaleAlert';
-import PremiumCTA from '@/react-app/components/PremiumCTA';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA';
 import ArtistYouTubeSection from '@/react-app/components/ArtistYouTubeSection';
 import { useFollow } from '@/react-app/hooks/useFollow';
-import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
+import type { ClipWithUser } from '@/shared/types';
 import { apiArtistPath, artistPath, venuePath } from '@/shared/app-paths';
+import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_SECTION_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 interface Artist {
@@ -81,7 +80,6 @@ export default function ArtistPage() {
   const { artistName } = useParams<{ artistName: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const extendedUser = user as ExtendedMochaUser | null;
   const { toggleFollow, isFollowing, isLoading: followLoading } = useFollow();
   const [data, setData] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,8 +87,6 @@ export default function ArtistPage() {
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
   const [previousShows, setPreviousShows] = useState<PreviousShow[]>([]);
   
-  const isPremium = extendedUser?.profile?.is_premium === 1;
-
   useEffect(() => {
     const fetchArtistData = async () => {
       if (!artistName) return;
@@ -244,7 +240,7 @@ export default function ArtistPage() {
             <div className="flex-1">
               <div className="flex items-center space-x-3 mb-4">
                 <Music className="w-8 h-8 text-purple-400" />
-                <h1 className="text-5xl font-bold text-white">{artist.name}</h1>
+                <h1 className="fb-hero-title">{artist.name}</h1>
                 {artist.is_verified === 1 && (
                   <span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-sm rounded-full font-medium">
                     Verified
@@ -301,13 +297,17 @@ export default function ArtistPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           <div className="lg:col-span-2">
-            <div className="flex items-center space-x-3 mb-6">
-              <Music className="w-6 h-6 text-purple-400" />
-              <h2 className="text-3xl font-bold text-white">Concert Moments</h2>
-              <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-sm rounded-full font-medium">
-                {clips.length} clips
-              </span>
-            </div>
+            <SectionHeading
+              title="Concert Moments"
+              subtitle="Fan-captured moments from live shows"
+              icon={Music}
+              iconClassName="text-purple-400"
+              badge={
+                <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-sm rounded-full font-medium">
+                  {clips.length} clips
+                </span>
+              }
+            />
 
             {clips.length > 0 ? (
               <ConcertFeed
@@ -326,7 +326,7 @@ export default function ArtistPage() {
           </div>
 
           <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6 h-fit">
-            <h3 className="text-xl font-bold text-white mb-4">Quick Stats</h3>
+            <h3 className="fb-panel-title mb-4">Quick Stats</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-gray-400">Total Clips</span>
@@ -398,22 +398,6 @@ export default function ArtistPage() {
           </div>
         )}
 
-        {/* Premium Presale Alert */}
-        {isPremium && tourDates.length > 0 && tourDates[0].ticket_url && (
-          <PremiumPresaleAlert
-            artistName={artist?.name || ''}
-            eventDate={tourDates[0].date}
-            venueName={tourDates[0].venue_name || 'Unknown Venue'}
-            presaleUrl={tourDates[0].ticket_url}
-            presaleEnds={new Date(new Date(tourDates[0].date).getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()}
-          />
-        )}
-
-        {/* Premium CTA for non-premium users */}
-        {!isPremium && tourDates.length > 0 && (
-          <PremiumCTA variant="banner" context="artist-tickets" />
-        )}
-
         {/* Nearby Shows CTA - Show if artist is performing near user */}
         <div className="mb-8">
           <NearbyShowsCTA artistName={artist.name} variant="banner" maxShows={1} />
@@ -422,10 +406,13 @@ export default function ArtistPage() {
         {/* Previous Shows Section */}
         {previousShows.length > 0 && (
           <div className="mb-8">
-            <div className="flex items-center space-x-3 mb-6">
-              <Calendar className="w-6 h-6 text-purple-400" />
-              <h2 className="text-3xl font-bold text-white">Previous Shows on Tour</h2>
-            </div>
+            <SectionHeading
+              title="Previous Shows on Tour"
+              subtitle="Past shows with clips on Feedback"
+              icon={Calendar}
+              iconClassName="text-purple-400"
+              size="page"
+            />
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {previousShows.map((show) => (
@@ -465,10 +452,13 @@ export default function ArtistPage() {
         )}
 
         <section className={`${HOME_FEED_SECTION_CLASS} w-full`}>
-          <div className="flex items-center space-x-3 mb-6">
-            <Calendar className="w-6 h-6 text-purple-400" />
-            <h2 className="text-3xl font-bold text-white">Upcoming Shows</h2>
-          </div>
+          <SectionHeading
+            title="Upcoming Shows"
+            subtitle="Live dates from JamBase"
+            icon={Calendar}
+            iconClassName="text-purple-400"
+            size="page"
+          />
           <JamBaseEventGrid
             artistName={artist.name}
             maxEvents={12}
@@ -485,7 +475,7 @@ export default function ArtistPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-black/40 backdrop-blur-lg border border-purple-500/20 rounded-xl p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Quick Links</h3>
+              <h3 className="fb-panel-title mb-4">Quick Links</h3>
               <div className="space-y-3">
                 {socialLinks.website && (
                   <a

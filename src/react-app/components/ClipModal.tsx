@@ -16,16 +16,20 @@ import {
   ChevronRight,
   Disc3,
   Radio,
+  Pencil,
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router';
+import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
 import { useClipRating } from '@/react-app/hooks/useClipRating';
 import { useFavoriteClip } from '@/react-app/hooks/useFavoriteClip';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
 import CommentSection from './CommentSection';
+import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
+import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import StarRating from './StarRating';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
@@ -44,10 +48,18 @@ interface ClipModalProps {
   onClose: () => void;
   /** Desktop: chevrons. Mobile: swipe left/right once to change clip. */
   feedNavigation?: ClipModalFeedNavigation | null;
+  /** Called after the owner saves edits (e.g. refresh feed tiles). */
+  onClipUpdated?: (clip: ClipWithUser) => void;
 }
 
-export default function ClipModal({ clip, onClose, feedNavigation = null }: ClipModalProps) {
+export default function ClipModal({
+  clip,
+  onClose,
+  feedNavigation = null,
+  onClipUpdated,
+}: ClipModalProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
   const { rating, rateClip } = useClipRating(clip.id);
@@ -55,7 +67,10 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
+
+  const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
 
   const navIndex =
     feedNavigation && feedNavigation.clips.length > 0
@@ -102,7 +117,27 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
     setShowShareMenu(false);
     setLinkCopied(false);
     setMobileCommentsOpen(false);
+    setEditOpen(false);
   }, [clip.id]);
+
+  const handleClipSaved = useCallback(
+    (updated: ClipWithUser) => {
+      feedNavigation?.onChangeClip(updated);
+      onClipUpdated?.(updated);
+    },
+    [feedNavigation, onClipUpdated],
+  );
+
+  const editClipButton = isOwnClip ? (
+    <button
+      type="button"
+      onClick={() => setEditOpen(true)}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-momentum-teal/40 bg-momentum-teal/15 px-3 py-1.5 text-sm font-semibold text-momentum-mint transition-colors hover:bg-momentum-teal/25"
+    >
+      <Pencil className="h-4 w-4" />
+      Edit clip
+    </button>
+  ) : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -209,7 +244,7 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
               className="border-2 border-white/30 shrink-0"
             />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">
+              <p className="fb-clip-user truncate text-sm">
                 {clip.user_display_name || 'Anonymous'}
               </p>
               <p className="text-xs text-white/70">
@@ -217,14 +252,17 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-full bg-black/50 p-2 text-white"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {editClipButton}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full bg-black/50 p-2 text-white"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -232,16 +270,16 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
         <div className="pointer-events-auto pr-14">
           {clip.artist_name ? (
             <button type="button" onClick={goArtist} className="block max-w-full text-left">
-              <p className="truncate text-lg font-bold text-white">{clip.artist_name}</p>
+              <p className="fb-clip-artist-name text-lg">{clip.artist_name}</p>
             </button>
           ) : null}
           {clip.venue_name ? (
             <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
-              <p className="truncate text-sm text-white/80">{clip.venue_name}</p>
+              <p className="fb-clip-venue text-sm">{clip.venue_name}</p>
             </button>
           ) : null}
           {clip.content_description ? (
-            <p className="mt-2 line-clamp-2 text-sm text-white/90">{clip.content_description}</p>
+            <p className="fb-clip-caption mt-2">{clip.content_description}</p>
           ) : null}
           {canFeedNav ? (
             <p className="mt-2 text-[11px] uppercase tracking-wide text-white/45">
@@ -427,6 +465,7 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
 
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
+              {isOwnClip ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
               <div className="mb-3 flex items-center space-x-3">
                 <UserAvatar
                   imageUrl={clip.user_avatar}
@@ -617,6 +656,14 @@ export default function ClipModal({ clip, onClose, feedNavigation = null }: Clip
           </div>
         </div>
       </div>
+
+      {editOpen ? (
+        <ClipEditModal
+          clip={clip}
+          onClose={() => setEditOpen(false)}
+          onSaved={handleClipSaved}
+        />
+      ) : null}
     </div>
   );
 }

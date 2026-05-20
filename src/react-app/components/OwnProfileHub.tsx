@@ -12,7 +12,6 @@ import FanDashboard from '@/react-app/components/dashboards/FanDashboard';
 import ArtistDashboard from '@/react-app/components/dashboards/ArtistDashboard';
 import AmbassadorDashboard from '@/react-app/components/dashboards/AmbassadorDashboard';
 import InfluencerDashboard from '@/react-app/components/dashboards/InfluencerDashboard';
-import PremiumDashboard from '@/react-app/components/dashboards/PremiumDashboard';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 /**
@@ -79,7 +78,7 @@ export default function OwnProfileHub() {
       case 'influencer':
         return <InfluencerDashboard user={userData} />;
       case 'premium':
-        return <PremiumDashboard user={userData} />;
+        return <FanDashboard user={userData} />;
       default:
         return <FanDashboard user={userData} />;
     }

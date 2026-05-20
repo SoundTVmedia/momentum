@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import type { ClipWithUser } from '@/shared/types';
+import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
 import type { DashboardGridClip } from '@/react-app/components/DashboardClipsGrid';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 
@@ -32,6 +33,8 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [hashtags, setHashtags] = useState('');
+  const [songTitle, setSongTitle] = useState('');
+  const [genreName, setGenreName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +44,8 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
     setLocation((clip.location as string) ?? '');
     setDescription((clip.content_description as string) ?? '');
     setHashtags(hashtagsToInput(clip.hashtags));
+    setSongTitle((clip.song_title as string) ?? '');
+    setGenreName((clip.genre_name as string) ?? '');
     setError(null);
   }, [clip]);
 
@@ -64,6 +69,8 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
         location,
         content_description: description,
         hashtags,
+        song_title: songTitle,
+        genre_name: genreName,
       };
       if (clipId != null) payload.clipId = clipId;
       if (streamVideoId) payload.streamVideoId = streamVideoId;
@@ -97,7 +104,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 px-4 py-8"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 px-4 py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="clip-edit-title"
@@ -105,7 +112,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
       <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-momentum-teal/20 bg-slate-950 shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-5 py-4 backdrop-blur">
           <h2 id="clip-edit-title" className="text-lg font-bold text-white">
-            Edit clip details
+            Edit Clip Details
           </h2>
           <button
             type="button"
@@ -165,6 +172,42 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               placeholder="City, state"
               maxLength={200}
             />
+          </div>
+
+          <div>
+            <label htmlFor="edit-song" className="mb-1 block text-sm font-medium text-gray-300">
+              Song <span className="font-normal text-gray-500">(optional)</span>
+            </label>
+            <input
+              id="edit-song"
+              type="text"
+              value={songTitle}
+              onChange={(e) => setSongTitle(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-mint focus:outline-none"
+              placeholder="What song was playing?"
+              maxLength={200}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="edit-genre" className="mb-1 block text-sm font-medium text-gray-300">
+              Genre <span className="font-normal text-gray-500">(optional)</span>
+            </label>
+            <select
+              id="edit-genre"
+              value={genreName}
+              onChange={(e) => setGenreName(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white focus:border-momentum-mint focus:outline-none"
+            >
+              <option value="" className="bg-slate-900">
+                Select a genre
+              </option>
+              {CLIP_GENRE_OPTIONS.map((genre) => (
+                <option key={genre} value={genre} className="bg-slate-900">
+                  {genre}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

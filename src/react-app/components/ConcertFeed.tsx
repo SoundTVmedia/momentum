@@ -10,6 +10,7 @@ import { ClipGridTileSkeleton } from './LoadingSkeleton'
 import NetworkError from './NetworkError'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
+import SectionHeading from '@/react-app/components/SectionHeading'
 import {
   HOME_FEED_CAROUSEL_BLEED,
   HOME_FEED_SECTION_CLASS,
@@ -39,13 +40,16 @@ export function FeedSectionHeader({
 }: {
   feedType?: FeedFilterValue
 }) {
-  const { label, description } = getFeedFilterMeta(feedType)
+  const { label, description, icon, iconClassName } = getFeedFilterMeta(feedType)
+  const Icon = icon
 
   return (
-    <div>
-      <h2 className="text-xl sm:text-2xl font-bold momentum-grad-text">{label}</h2>
-      <p className="text-gray-400 text-sm mt-1">{description}</p>
-    </div>
+    <SectionHeading
+      title={label}
+      subtitle={description}
+      icon={Icon}
+      iconClassName={iconClassName}
+    />
   )
 }
 
@@ -85,7 +89,7 @@ export default function ConcertFeed({
   suppressBottomPadding = false,
 }: ConcertFeedProps) {
   const navigate = useNavigate()
-  const { clips, loading, hasMore, loadMore, error, refetch } = useClips({
+  const { clips, loading, hasMore, loadMore, error, refetch, updateClip } = useClips({
     feedType,
     artistName,
     venueName,
@@ -228,6 +232,10 @@ export default function ConcertFeed({
           feedNavigation={
             clips.length > 1 ? { clips, onChangeClip: setSelectedClip } : null
           }
+          onClipUpdated={(updated) => {
+            setSelectedClip(updated)
+            updateClip(updated)
+          }}
         />
       ) : null}
     </section>
