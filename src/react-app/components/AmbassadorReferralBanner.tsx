@@ -27,10 +27,10 @@ export default function AmbassadorReferralBanner() {
   };
 
   return (
-    <div className="bg-gradient-to-r from-orange-500/20 to-red-600/20 border border-orange-500/40 rounded-xl p-4 sm:p-6 mb-6">
+    <div className="bg-gradient-to-r from-momentum-ember/15 to-momentum-rose/15 border border-momentum-ember/35 rounded-xl p-4 sm:p-6 mb-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start space-x-3">
-          <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+          <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-momentum-ember to-momentum-rose rounded-full flex items-center justify-center">
             <DollarSign className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -58,13 +58,13 @@ export default function AmbassadorReferralBanner() {
           </div>
           <button
             onClick={handleCopy}
-            className="p-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg transition-colors flex-shrink-0"
+            className="p-2 bg-momentum-ember/15 hover:bg-momentum-ember/25 border border-momentum-ember/25 rounded-lg transition-colors flex-shrink-0"
             title="Copy link"
           >
             {copied ? (
               <Check className="w-5 h-5 text-green-400" />
             ) : (
-              <Copy className="w-5 h-5 text-orange-400" />
+              <Copy className="w-5 h-5 text-momentum-ember" />
             )}
           </button>
           <button
@@ -83,10 +83,10 @@ export default function AmbassadorReferralBanner() {
                 console.error('Share failed:', err);
               }
             }}
-            className="p-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg transition-colors flex-shrink-0"
+            className="p-2 bg-momentum-ember/15 hover:bg-momentum-ember/25 border border-momentum-ember/25 rounded-lg transition-colors flex-shrink-0"
             title="Share link"
           >
-            <Share2 className="w-5 h-5 text-orange-400" />
+            <Share2 className="w-5 h-5 text-momentum-ember" />
           </button>
         </div>
       </div>

@@ -34,7 +34,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
             onClick={() => setActiveTab('overview')}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
               activeTab === 'overview'
-                ? 'bg-gradient-to-r from-momentum-rose to-pink-600 text-white'
+                ? 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
@@ -44,7 +44,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
             onClick={() => setActiveTab('curation')}
             className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center space-x-2 ${
               activeTab === 'curation'
-                ? 'bg-gradient-to-r from-momentum-rose to-pink-600 text-white'
+                ? 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
@@ -59,7 +59,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button 
             onClick={() => navigate('/upload')}
-            className="bg-gradient-to-r from-momentum-rose to-pink-600 rounded-xl p-6 hover:scale-105 transition-transform"
+            className="bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-xl p-6 hover:scale-105 transition-transform"
           >
             <Video className="w-8 h-8 text-white mb-2" />
             <div className="text-white font-bold">Drop Content</div>
@@ -117,7 +117,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
           <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Content Pieces</span>
-              <Video className="w-5 h-5 text-orange-400" />
+              <Video className="w-5 h-5 text-momentum-ember" />
             </div>
             <div className="text-3xl font-bold text-white">0</div>
             <div className="text-sm text-gray-400">Start uploading</div>
@@ -142,7 +142,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
               <p className="text-gray-400 mb-4">You haven't uploaded any content yet</p>
               <button 
                 onClick={() => navigate('/upload')}
-                className="px-6 py-3 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-xl font-semibold text-white hover:scale-105 transition-transform"
+                className="px-6 py-3 bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Upload Your First Clip
               </button>

@@ -78,7 +78,7 @@ export default function CollaborationRequest({
         );
       default:
         return (
-          <div className="px-3 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded-full text-yellow-400 text-xs font-medium">
+          <div className="px-3 py-1 bg-momentum-ember/15 border border-momentum-ember/25 rounded-full text-momentum-ember text-xs font-medium">
             Pending
           </div>
         );
@@ -86,13 +86,13 @@ export default function CollaborationRequest({
   };
 
   return (
-    <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-6">
+    <div className="bg-gradient-to-r from-momentum-ember/10 to-momentum-flare/10 border border-momentum-ember/25 rounded-xl p-6">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center space-x-3">
           <img
             src={request.artist_avatar || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop'}
             alt={request.artist_name}
-            className="w-12 h-12 rounded-full border-2 border-yellow-500/40"
+            className="w-12 h-12 rounded-full border-2 border-momentum-ember/35"
           />
           <div>
             <div className="text-white font-bold text-lg">{request.artist_name}</div>
@@ -105,7 +105,7 @@ export default function CollaborationRequest({
       <div className="space-y-4 mb-6">
         <div>
           <div className="flex items-center space-x-2 mb-2">
-            <Briefcase className="w-4 h-4 text-yellow-400" />
+            <Briefcase className="w-4 h-4 text-momentum-ember" />
             <div className="text-sm font-medium text-gray-300">Brief</div>
           </div>
           <p className="text-white">{request.brief}</p>
@@ -122,7 +122,7 @@ export default function CollaborationRequest({
 
           <div>
             <div className="flex items-center space-x-2 mb-2">
-              <Star className="w-4 h-4 text-yellow-400" />
+              <Star className="w-4 h-4 text-momentum-ember" />
               <div className="text-sm font-medium text-gray-300">Deadline</div>
             </div>
             <div className="text-white font-medium">
@@ -150,7 +150,7 @@ export default function CollaborationRequest({
           <button
             onClick={handleAccept}
             disabled={responding}
-            className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-lg text-white font-bold hover:scale-105 transition-transform disabled:opacity-50 flex items-center justify-center space-x-2"
+            className="flex-1 px-4 py-3 momentum-grad-interactive rounded-lg text-white font-bold hover:scale-105 transition-transform disabled:opacity-50 flex items-center justify-center space-x-2"
           >
             <Check className="w-5 h-5" />
             <span>Accept</span>

@@ -63,9 +63,9 @@ export default function ReferralLinkGenerator({
   }
 
   return (
-    <div className="bg-gradient-to-r from-orange-500/10 to-red-600/10 border border-orange-500/30 rounded-xl p-4 sm:p-6">
+    <div className="bg-gradient-to-r from-momentum-ember/10 to-momentum-rose/10 border border-momentum-ember/25 rounded-xl p-4 sm:p-6">
       <div className="flex items-center space-x-2 mb-3">
-        <Share2 className="w-5 h-5 text-orange-400" />
+        <Share2 className="w-5 h-5 text-momentum-ember" />
         <h3 className="font-bold text-white text-lg">Your Commission Link</h3>
       </div>
       
@@ -85,32 +85,32 @@ export default function ReferralLinkGenerator({
         
         <button
           onClick={handleCopy}
-          className="p-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg transition-colors flex-shrink-0"
+          className="p-2 bg-momentum-ember/15 hover:bg-momentum-ember/25 border border-momentum-ember/25 rounded-lg transition-colors flex-shrink-0"
           title="Copy link"
         >
           {copied ? (
             <Check className="w-5 h-5 text-green-400" />
           ) : (
-            <Copy className="w-5 h-5 text-orange-400" />
+            <Copy className="w-5 h-5 text-momentum-ember" />
           )}
         </button>
 
         <button
           onClick={handleShare}
-          className="p-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg transition-colors flex-shrink-0"
+          className="p-2 bg-momentum-ember/15 hover:bg-momentum-ember/25 border border-momentum-ember/25 rounded-lg transition-colors flex-shrink-0"
           title="Share link"
         >
-          <Share2 className="w-5 h-5 text-orange-400" />
+          <Share2 className="w-5 h-5 text-momentum-ember" />
         </button>
 
         <a
           href={ticketUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="p-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg transition-colors flex-shrink-0"
+          className="p-2 bg-momentum-ember/15 hover:bg-momentum-ember/25 border border-momentum-ember/25 rounded-lg transition-colors flex-shrink-0"
           title="Open ticket page"
         >
-          <ExternalLink className="w-5 h-5 text-orange-400" />
+          <ExternalLink className="w-5 h-5 text-momentum-ember" />
         </a>
       </div>
 

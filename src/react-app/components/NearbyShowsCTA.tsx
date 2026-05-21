@@ -147,9 +147,9 @@ export default function NearbyShowsCTA({
     const event = displayEvents[0];
     
     return (
-      <div className="bg-gradient-to-r from-orange-600/30 to-pink-600/30 backdrop-blur-lg border-2 border-orange-500/50 rounded-xl p-6 relative overflow-hidden shadow-lg shadow-orange-500/20">
+      <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-rose/20 backdrop-blur-lg border-2 border-momentum-ember/40 rounded-xl p-6 relative overflow-hidden shadow-lg shadow-momentum-ember/20">
         {/* Background gradient effect */}
-        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-pink-500/10 animate-pulse"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-momentum-ember/10 to-momentum-rose/10 animate-pulse"></div>
         
         <button
           onClick={() => setIsDismissed(true)}
@@ -163,8 +163,8 @@ export default function NearbyShowsCTA({
             {/* Event Info */}
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
-                <Ticket className="w-6 h-6 text-orange-400 animate-pulse" />
-                <span className="px-3 py-1 bg-orange-500 rounded-full text-white text-xs font-bold">
+                <Ticket className="w-6 h-6 text-momentum-ember animate-pulse" />
+                <span className="px-3 py-1 momentum-grad-interactive rounded-full text-white text-xs font-bold">
                   COMING TO YOUR AREA
                 </span>
               </div>

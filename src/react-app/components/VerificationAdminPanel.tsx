@@ -70,7 +70,7 @@ export default function VerificationAdminPanel() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+        return 'bg-momentum-ember/15 text-momentum-ember border-momentum-ember/25';
       case 'approved':
         return 'bg-green-500/20 text-green-400 border-green-500/30';
       case 'rejected':

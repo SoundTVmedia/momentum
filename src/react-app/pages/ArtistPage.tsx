@@ -357,7 +357,7 @@ export default function ArtistPage() {
           <div className="mb-8">
             <button
               onClick={() => navigate(venuePath(liveShow.venue_name))}
-              className="w-full bg-gradient-to-r from-red-600 via-orange-600 to-pink-600 rounded-2xl overflow-hidden hover:scale-[1.02] transition-transform group"
+              className="w-full bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-rose rounded-2xl overflow-hidden hover:scale-[1.02] transition-transform group"
             >
               <div className="relative aspect-[21/9]">
                 <img
@@ -508,7 +508,7 @@ export default function ArtistPage() {
                     href={tourDates[0].ticket_url}
                     target="_blank"
                     rel="nofollow noopener noreferrer"
-                    className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-lg hover:scale-105 transition-transform group"
+                    className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-lg hover:scale-105 transition-transform group"
                   >
                     <Ticket className="w-5 h-5 text-white" />
                     <span className="text-white font-medium">Get Tickets</span>
@@ -521,7 +521,7 @@ export default function ArtistPage() {
                     rel="noopener noreferrer"
                     className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
                   >
-                    <ShoppingBag className="w-5 h-5 text-yellow-400 group-hover:scale-110 transition-transform" />
+                    <ShoppingBag className="w-5 h-5 text-momentum-ember group-hover:scale-110 transition-transform" />
                     <span className="text-white font-medium">Shop Merch</span>
                   </a>
                 )}
@@ -537,7 +537,7 @@ export default function ArtistPage() {
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
                 favorited
                   ? 'bg-white/10 border border-momentum-rose/50 text-white'
-                  : 'bg-gradient-to-r from-momentum-rose to-pink-600 text-white'
+                  : 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
               }`}
             >
               {favoriteLoading ? (

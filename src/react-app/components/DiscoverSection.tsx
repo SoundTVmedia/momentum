@@ -50,10 +50,10 @@ export default function DiscoverSection() {
   }
 
   const getPriorityColor = (show: any) => {
-    if (show.type === 'live') return 'from-red-500 to-orange-500'
+    if (show.type === 'live') return 'from-red-600 to-momentum-flare'
     if (show.type === 'nearby_upcoming') return 'from-momentum-ember to-momentum-flare'
-    if (show.is_favorite) return 'from-momentum-rose to-pink-500'
-    if (show.type === 'trending') return 'from-orange-500 to-yellow-500'
+    if (show.is_favorite) return 'from-momentum-flare to-momentum-rose'
+    if (show.type === 'trending') return 'from-momentum-ember to-momentum-glacier'
     return 'from-momentum-ember via-momentum-flare to-momentum-ember'
   }
 
@@ -133,7 +133,7 @@ export default function DiscoverSection() {
               onClick={() => setFilter('favorites')}
               className={`px-4 py-2 rounded-full font-medium transition-all ${
                 filter === 'favorites'
-                  ? 'bg-gradient-to-r from-momentum-rose to-pink-500 text-white'
+                  ? 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
                   : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-rose/20 hover:border-momentum-rose/40'
               }`}
             >
@@ -268,7 +268,7 @@ export default function DiscoverSection() {
                                 navigate(venuePath(show.venue_name))
                               }
                             }}
-                            className="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg text-white font-medium hover:scale-105 transition-transform"
+                            className="flex-1 px-4 py-2 bg-gradient-to-r from-red-600 to-momentum-flare rounded-lg text-white font-medium hover:scale-105 transition-transform"
                           >
                             Join Show Now
                           </button>

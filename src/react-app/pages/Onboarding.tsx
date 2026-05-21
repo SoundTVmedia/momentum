@@ -28,21 +28,21 @@ const roleOptions: RoleOption[] = [
     icon: Music,
     label: 'Artist/Venue',
     description: 'Connect with your fans, share exclusive content, promote shows',
-    color: 'from-momentum-rose to-pink-600'
+    color: 'from-momentum-flare to-momentum-rose'
   },
   {
     value: 'ambassador',
     icon: Award,
     label: 'Ambassador',
     description: 'Rep your city\'s scene, earn commissions, get featured',
-    color: 'from-orange-500 to-red-600'
+    color: 'from-momentum-ember to-momentum-rose'
   },
   {
     value: 'influencer',
     icon: Star,
     label: 'Influencer',
     description: 'Curate the best moments, collab with artists, build your following',
-    color: 'from-yellow-500 to-orange-600'
+    color: 'from-momentum-ember to-momentum-flare'
   },
 ];
 

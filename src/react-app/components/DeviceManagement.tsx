@@ -181,7 +181,7 @@ export default function DeviceManagement() {
                           <span>Added: {formatDate(device.created_at)}</span>
                         </div>
                         {isExpiringSoon && (
-                          <div className="flex items-center space-x-2 text-sm text-yellow-400">
+                          <div className="flex items-center space-x-2 text-sm text-momentum-ember">
                             <span>⚠️ Expires in {daysLeft} {daysLeft === 1 ? 'day' : 'days'}</span>
                           </div>
                         )}

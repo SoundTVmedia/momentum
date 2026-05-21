@@ -1037,7 +1037,7 @@ export default function UploadClip() {
           clip and song recognition.
         </p>
         {!isGeolocationSecureContext() && (
-          <p className="text-amber-200/90 text-xs max-w-sm mb-6 leading-relaxed">
+          <p className="text-momentum-glacier/90 text-xs max-w-sm mb-6 leading-relaxed">
             This page is not on HTTPS (or localhost). Chrome blocks location on insecure origins — use{' '}
             <span className="font-mono">https://</span> or <span className="font-mono">localhost</span> for location to
             work.
@@ -1231,8 +1231,8 @@ export default function UploadClip() {
                 </div>
               )}
               {resolveNotice && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                  <p className="text-amber-200 text-sm">{resolveNotice}</p>
+                <div className="p-3 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
+                  <p className="text-momentum-glacier/90 text-sm">{resolveNotice}</p>
                 </div>
               )}
               {auddStatus === 'loading' && (
@@ -1604,8 +1604,8 @@ export default function UploadClip() {
             </div>
           )}
           {resolveNotice && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-              <p className="text-amber-200 text-sm">{resolveNotice}</p>
+            <div className="p-3 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
+              <p className="text-momentum-glacier/90 text-sm">{resolveNotice}</p>
             </div>
           )}
 
@@ -1911,7 +1911,7 @@ export default function UploadClip() {
           {/* Hashtags */}
           <div>
             <label className="flex items-center space-x-2 text-white font-medium mb-2">
-              <Hash className="w-5 h-5 text-orange-400" />
+              <Hash className="w-5 h-5 text-momentum-ember" />
               <span>Hashtags</span>
             </label>
             <input

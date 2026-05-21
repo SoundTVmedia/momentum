@@ -306,7 +306,7 @@ export default function DiscoverPage() {
         ) : results ? (
           <div className="space-y-12">
             {results.jambaseNotice && (
-              <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-amber-100 text-sm max-w-3xl mx-auto">
+              <div className="rounded-xl border border-momentum-ember/40 bg-momentum-ink/50 px-4 py-3 text-momentum-glacier/95 text-sm max-w-3xl mx-auto">
                 {results.jambaseNotice}
               </div>
             )}
@@ -377,10 +377,10 @@ export default function DiscoverPage() {
               (results.jambase.artists.length > 0 ||
                 results.jambase.venues.length > 0 ||
                 results.jambase.events.length > 0) && (
-              <div className="rounded-2xl border border-amber-500/25 bg-amber-950/10 p-6 space-y-10">
+              <div className="rounded-2xl border border-momentum-ember/25 bg-momentum-ink/30 p-6 space-y-10">
                 <DiscoverSectionTitle
                   icon={Ticket}
-                  iconClassName="text-amber-400"
+                  iconClassName="text-momentum-ember"
                   title="JamBase directory"
                   subtitle="Powered by JamBase"
                 />
@@ -403,7 +403,7 @@ export default function DiscoverPage() {
 
                 {results.jambase.venues.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-semibold text-amber-200/90 uppercase tracking-wide mb-3 flex items-center gap-1">
+                    <h3 className="text-sm font-semibold text-momentum-glacier/90 uppercase tracking-wide mb-3 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" /> Venues
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -426,7 +426,7 @@ export default function DiscoverPage() {
                             key={typeof v.identifier === 'string' ? v.identifier : name}
                             type="button"
                             onClick={() => navigate(venuePath(name))}
-                            className="glass-panel border border-amber-500/25 rounded-xl overflow-hidden hover:border-amber-400/50 transition-all text-left group"
+                            className="glass-panel border border-momentum-ember/25 rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-all text-left group"
                           >
                             <div className="relative aspect-[4/3] overflow-hidden">
                               <img
@@ -494,7 +494,7 @@ export default function DiscoverPage() {
         ) : discoverFeed ? (
           <div className="space-y-10 md:space-y-8">
             {discoverFeed.jambaseNotice && (
-              <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-amber-100 text-sm">
+              <div className="rounded-xl border border-momentum-ember/40 bg-momentum-ink/50 px-4 py-3 text-momentum-glacier/95 text-sm">
                 {discoverFeed.jambaseNotice}
               </div>
             )}

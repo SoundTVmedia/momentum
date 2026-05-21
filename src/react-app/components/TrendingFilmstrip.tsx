@@ -19,20 +19,20 @@ export default function TrendingFilmstrip() {
   return (
     <section className="relative pt-4 pb-8 sm:pb-10 md:pb-12">
       {/* Prominent background accent */}
-      <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 via-pink-600/5 to-momentum-rose/5" />
+      <div className="absolute inset-0 bg-gradient-to-r from-momentum-ember/5 via-momentum-flare/5 to-momentum-rose/8" />
       <div className="absolute inset-0">
-        <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-momentum-ember/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-momentum-flare/10 rounded-full blur-3xl" />
       </div>
       
       <div className="relative max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="relative">
-              <Flame className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-orange-500 animate-pulse" />
-              <div className="absolute inset-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-orange-500/30 rounded-full blur-lg animate-pulse" />
+              <Flame className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-momentum-ember animate-pulse" />
+              <div className="absolute inset-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-momentum-ember/25 rounded-full blur-lg animate-pulse" />
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline bg-gradient-to-r from-orange-500 via-pink-600 to-momentum-rose bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-rose bg-clip-text text-transparent">
               Trending Moments
             </h2>
           </div>
@@ -88,7 +88,7 @@ export default function TrendingFilmstrip() {
                     </div>
 
                     {/* Trending badge */}
-                    <div className="absolute top-2 right-2 z-[2] px-2 py-1 bg-gradient-to-r from-orange-500 to-pink-600 rounded-full text-xs font-bold text-white shadow-lg flex items-center space-x-1">
+                    <div className="absolute top-2 right-2 z-[2] px-2 py-1 bg-gradient-to-r from-momentum-ember to-momentum-flare rounded-full text-xs font-bold text-white shadow-lg flex items-center space-x-1">
                       <Flame className="w-3 h-3" />
                       <span className="hidden sm:inline">Hot</span>
                     </div>

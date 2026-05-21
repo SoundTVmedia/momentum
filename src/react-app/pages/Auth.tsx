@@ -421,7 +421,7 @@ export default function Auth() {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Award className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-1" />
+              <Award className="w-6 h-6 text-momentum-ember flex-shrink-0 mt-1" />
               <div>
                 <h3 className="text-white font-semibold">Earn Rewards</h3>
                 <p className="text-gray-400 text-sm">

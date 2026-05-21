@@ -306,7 +306,7 @@ export default function VenuePage() {
                     </div>
                     <button
                       onClick={() => navigate(`${artistPath(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
-                      className="px-4 py-2 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
+                      className="px-4 py-2 bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
                     >
                       View Full Show
                     </button>

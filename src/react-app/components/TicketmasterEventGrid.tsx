@@ -174,8 +174,8 @@ export default function TicketmasterEventGrid({
             </div>
 
             {isAmbassador && (
-              <div className="mt-3 p-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-                <p className="text-orange-400 text-xs text-center">
+              <div className="mt-3 p-2 bg-momentum-ember/10 border border-momentum-ember/25 rounded-lg">
+                <p className="text-momentum-ember text-xs text-center">
                   💰 Earn commission on ticket sales
                 </p>
               </div>

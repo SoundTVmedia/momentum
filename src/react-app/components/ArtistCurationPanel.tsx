@@ -105,7 +105,7 @@ export default function ArtistCurationPanel() {
                 key={clipListItemKey(clip, index)}
                 className={`p-4 rounded-lg border transition-all ${
                   isPinned
-                    ? 'bg-gradient-to-r from-momentum-rose/10 to-pink-500/10 border-momentum-rose/30'
+                    ? 'bg-gradient-to-r from-momentum-flare/10 to-momentum-rose/10 border-momentum-rose/30'
                     : 'bg-white/5 border-white/10 hover:border-white/20'
                 }`}
               >

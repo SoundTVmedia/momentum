@@ -190,7 +190,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-1/4 left-1/4 h-72 w-72 rounded-full bg-momentum-ember/22 blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 h-80 w-80 rounded-full bg-violet-600/15 blur-3xl" />
-        <div className="absolute top-1/2 right-1/3 h-56 w-56 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="absolute top-1/2 right-1/3 h-56 w-56 rounded-full bg-momentum-ember/10 blur-3xl" />
       </div>
       <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="text-center mb-4 sm:mb-6 md:mb-8">

@@ -100,41 +100,41 @@ export default function PremiumPage() {
       <div className="relative py-20 overflow-hidden">
         {/* Animated Background */}
         <div className="absolute inset-0">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-yellow-400/10 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-momentum-ember/10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-momentum-ember/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="inline-block mb-6 animate-bounce-slow">
-            <Crown className="w-20 h-20 text-yellow-400 mx-auto filter drop-shadow-glow" />
+            <Crown className="w-20 h-20 text-momentum-ember mx-auto filter drop-shadow-glow" />
           </div>
           
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6">
-            Level Up to <span className="bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600 bg-clip-text text-transparent">Premium</span>
+            Level Up to <span className="momentum-grad-interactive bg-clip-text text-transparent">Premium</span>
           </h1>
           
           <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed mb-8">
             Join the inner circle. Get early access to tickets, exclusive artist content, and VIP experiences before anyone else.
           </p>
 
-          <div className="flex items-center justify-center space-x-2 text-yellow-400 mb-8">
+          <div className="flex items-center justify-center space-x-2 text-momentum-ember mb-8">
             <Sparkles className="w-5 h-5 animate-pulse" />
             <span className="font-medium">Limited time: First month FREE</span>
             <Sparkles className="w-5 h-5 animate-pulse" />
           </div>
 
           <div className="flex flex-wrap justify-center gap-4 mb-12">
-            <div className="flex items-center space-x-2 px-4 py-2 bg-yellow-400/10 border border-yellow-400/30 rounded-full">
-              <Sparkles className="w-5 h-5 text-yellow-400" />
-              <span className="text-yellow-400 font-medium">No Ads</span>
+            <div className="flex items-center space-x-2 px-4 py-2 bg-momentum-ember/10 border border-momentum-ember/30 rounded-full">
+              <Sparkles className="w-5 h-5 text-momentum-ember" />
+              <span className="text-momentum-ember font-medium">No Ads</span>
             </div>
-            <div className="flex items-center space-x-2 px-4 py-2 bg-yellow-400/10 border border-yellow-400/30 rounded-full">
-              <Zap className="w-5 h-5 text-yellow-400" />
-              <span className="text-yellow-400 font-medium">Early Access</span>
+            <div className="flex items-center space-x-2 px-4 py-2 bg-momentum-ember/10 border border-momentum-ember/30 rounded-full">
+              <Zap className="w-5 h-5 text-momentum-ember" />
+              <span className="text-momentum-ember font-medium">Early Access</span>
             </div>
-            <div className="flex items-center space-x-2 px-4 py-2 bg-yellow-400/10 border border-yellow-400/30 rounded-full">
-              <Star className="w-5 h-5 text-yellow-400" />
-              <span className="text-yellow-400 font-medium">Exclusive Content</span>
+            <div className="flex items-center space-x-2 px-4 py-2 bg-momentum-ember/10 border border-momentum-ember/30 rounded-full">
+              <Star className="w-5 h-5 text-momentum-ember" />
+              <span className="text-momentum-ember font-medium">Exclusive Content</span>
             </div>
           </div>
         </div>
@@ -148,14 +148,14 @@ export default function PremiumPage() {
               key={plan.id}
               className={`relative glass-panel border rounded-2xl p-8 transition-all duration-300 hover:scale-105 cursor-pointer ${
                 selectedPlan === plan.id
-                  ? 'border-yellow-400/50 shadow-2xl shadow-yellow-500/20'
-                  : 'border-white/10 hover:border-yellow-400/30'
+                  ? 'border-momentum-ember/40 shadow-2xl shadow-momentum-ember/20'
+                  : 'border-white/10 hover:border-momentum-ember/30'
               } ${plan.popular ? 'lg:scale-105' : ''}`}
               onClick={() => setSelectedPlan(plan.id)}
             >
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <div className="px-4 py-1 bg-gradient-to-r from-yellow-400 to-amber-600 rounded-full text-black text-sm font-bold">
+                  <div className="px-4 py-1 momentum-grad-interactive rounded-full text-white text-sm font-bold">
                     ⭐ MOST POPULAR
                   </div>
                 </div>
@@ -178,7 +178,7 @@ export default function PremiumPage() {
                 {plan.features.map((feature, index) => (
                   <div key={index} className="flex items-start space-x-3">
                     <div className="flex-shrink-0 mt-0.5">
-                      <Check className="w-5 h-5 text-yellow-400" />
+                      <Check className="w-5 h-5 text-momentum-ember" />
                     </div>
                     <span className="text-gray-300">{feature}</span>
                   </div>
@@ -193,7 +193,7 @@ export default function PremiumPage() {
                 }}
                 className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
                   selectedPlan === plan.id
-                    ? 'bg-gradient-to-r from-yellow-400 to-amber-600 text-black hover:scale-105 shadow-lg shadow-yellow-500/30'
+                    ? 'momentum-grad-interactive text-white hover:scale-105 shadow-lg shadow-momentum-ember/30'
                     : 'bg-white/10 text-white hover:bg-white/20'
                 }`}
               >
@@ -210,32 +210,32 @@ export default function PremiumPage() {
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
-              <Video className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
+            <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6 text-center hover:border-momentum-ember/50 transition-all hover:scale-105">
+              <Video className="w-12 h-12 text-momentum-ember mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Exclusive Videos</h3>
               <p className="text-gray-400 text-sm">
                 Behind-the-scenes content and artist interviews
               </p>
             </div>
 
-            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
-              <Calendar className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
+            <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6 text-center hover:border-momentum-ember/50 transition-all hover:scale-105">
+              <Calendar className="w-12 h-12 text-momentum-ember mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Early Tickets</h3>
               <p className="text-gray-400 text-sm">
                 Get first access to concert tickets before general sale
               </p>
             </div>
 
-            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
-              <Gift className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
+            <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6 text-center hover:border-momentum-ember/50 transition-all hover:scale-105">
+              <Gift className="w-12 h-12 text-momentum-ember mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Exclusive Merch</h3>
               <p className="text-gray-400 text-sm">
                 Limited edition merchandise drops for members only
               </p>
             </div>
 
-            <div className="glass-panel border border-yellow-400/20 rounded-xl p-6 text-center hover:border-yellow-400/50 transition-all hover:scale-105">
-              <MessageCircle className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
+            <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6 text-center hover:border-momentum-ember/50 transition-all hover:scale-105">
+              <MessageCircle className="w-12 h-12 text-momentum-ember mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">Priority Chat</h3>
               <p className="text-gray-400 text-sm">
                 Stand out in live chats with priority messaging
@@ -258,7 +258,7 @@ export default function PremiumPage() {
               ))}
             </div>
             <span className="text-gray-300">
-              <span className="font-bold text-yellow-400">10,000+</span> members and counting
+              <span className="font-bold text-momentum-ember">10,000+</span> members and counting
             </span>
           </div>
 
@@ -272,7 +272,7 @@ export default function PremiumPage() {
               <span>Cancel anytime</span>
             </div>
             <div className="flex items-center space-x-2">
-              <Sparkles className="w-4 h-4 text-yellow-400" />
+              <Sparkles className="w-4 h-4 text-momentum-ember" />
               <span>30-day money back</span>
             </div>
           </div>
@@ -282,7 +282,7 @@ export default function PremiumPage() {
         <div className="mt-16 text-center">
           <button
             onClick={() => setShowModal(true)}
-            className="px-12 py-6 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600 rounded-2xl font-bold text-xl text-black hover:scale-105 transition-all shadow-2xl shadow-yellow-500/30 animate-pulse-glow"
+            className="px-12 py-6 momentum-grad-interactive rounded-2xl font-bold text-xl text-white hover:scale-105 transition-all shadow-2xl shadow-momentum-ember/30 animate-pulse-glow"
           >
             Join Premium Today
           </button>
@@ -295,7 +295,7 @@ export default function PremiumPage() {
       {/* Checkout Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 glass-modal-overlay animate-fade-in">
-          <div className="bg-slate-900 border border-yellow-400/30 rounded-2xl max-w-md w-full p-8 animate-scale-in">
+          <div className="bg-slate-900 border border-momentum-ember/30 rounded-2xl max-w-md w-full p-8 animate-scale-in">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white">Confirm Upgrade</h3>
               <button
@@ -308,7 +308,7 @@ export default function PremiumPage() {
 
             {selectedPlanData && (
               <div className="mb-6">
-                <div className="bg-black/40 border border-yellow-400/20 rounded-xl p-6">
+                <div className="bg-black/40 border border-momentum-ember/20 rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-gray-400">Plan</span>
                     <span className="text-white font-bold">{selectedPlanData.name}</span>
@@ -320,7 +320,7 @@ export default function PremiumPage() {
                   <div className="border-t border-white/10 pt-4">
                     <div className="flex items-center justify-between">
                       <span className="text-white font-bold">Total</span>
-                      <span className="text-2xl font-bold text-yellow-400">
+                      <span className="text-2xl font-bold text-momentum-ember">
                         ${selectedPlanData.price}
                       </span>
                     </div>
@@ -332,7 +332,7 @@ export default function PremiumPage() {
             <button
               onClick={handleUpgrade}
               disabled={loading}
-              className="w-full py-4 bg-gradient-to-r from-yellow-400 to-amber-600 rounded-xl font-bold text-black hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 mb-4"
+              className="w-full py-4 momentum-grad-interactive rounded-xl font-bold text-white hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 mb-4"
             >
               {loading ? (
                 <span className="flex items-center justify-center space-x-2">

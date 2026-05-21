@@ -1270,7 +1270,7 @@ export default function QuickRecordButton({
       {/* Floating Action Button - Hidden on all screen sizes (functionality moved to MobileBottomNav) */}
       {/* <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-gradient-to-br from-red-500 via-pink-500 to-momentum-rose rounded-full shadow-2xl shadow-red-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform group hidden"
+        className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-gradient-to-br from-momentum-ember via-momentum-flare to-momentum-rose rounded-full shadow-2xl shadow-momentum-ember/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform group hidden"
         title="Film your moment"
       >
         <Film className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
@@ -1385,7 +1385,7 @@ export default function QuickRecordButton({
                     : '8rem'
                 }}
               >
-                <div className="bg-orange-500/20 backdrop-blur-md border border-orange-500/50 px-4 py-2 rounded-lg">
+                <div className="bg-momentum-ember/15 backdrop-blur-md border border-momentum-ember/40 px-4 py-2 rounded-lg">
                   <p className="text-white text-xs">Slow connection—your clip will upload when you post</p>
                 </div>
               </div>

@@ -85,7 +85,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
         <div className="flex items-center justify-center">
           <button
             onClick={() => setShowArchive(true)}
-            className="px-6 py-3 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
+            className="px-6 py-3 bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
           >
             <Calendar className="w-5 h-5" />
             <span>View All Previous Shows</span>
@@ -158,7 +158,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
                     </div>
                     {show.average_show_rating > 0 && (
                       <div className="flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
-                        <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                        <Star className="w-4 h-4 text-momentum-ember fill-current" />
                         <span className="text-white text-sm font-medium">
                           {show.average_show_rating.toFixed(1)}
                         </span>

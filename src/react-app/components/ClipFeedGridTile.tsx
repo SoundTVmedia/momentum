@@ -100,7 +100,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
         {clip.is_trending_score != null && clip.is_trending_score >= 100 && (
           <div className="absolute top-2 right-2 md:top-1.5 md:right-1.5 z-10" title="Trending">
             <div
-              className="bg-gradient-to-r from-orange-500 to-pink-600 text-white w-8 h-8 md:w-7 md:h-7 rounded-full shadow-lg flex items-center justify-center animate-slide-up"
+              className="bg-gradient-to-r from-momentum-ember to-momentum-flare text-white w-8 h-8 md:w-7 md:h-7 rounded-full shadow-lg flex items-center justify-center animate-slide-up"
               aria-label="Trending"
             >
               <Flame className="w-4 h-4 md:w-3.5 md:h-3.5 shrink-0" strokeWidth={2} />
@@ -246,7 +246,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               void toggleSave(clip.id);
             }}
             className={`flex flex-col items-center space-y-0.5 transition-all group tap-feedback flex-1 min-w-0 ${
-              isSaved(clip.id) ? 'text-yellow-400' : 'text-white hover:text-yellow-400'
+              isSaved(clip.id) ? 'text-momentum-ember' : 'text-white hover:text-momentum-ember'
             }`}
           >
             <Bookmark

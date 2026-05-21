@@ -55,9 +55,9 @@ export default function SavedClips() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
           <div className="flex items-center space-x-3 mb-4">
-            <Bookmark className="w-8 h-8 text-yellow-400" />
+            <Bookmark className="w-8 h-8 text-momentum-ember" />
             <h1 className="text-4xl font-bold text-white">Saved Clips</h1>
-            <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-sm rounded-full font-medium">
+            <span className="px-3 py-1 bg-momentum-ember/15 text-momentum-ember text-sm rounded-full font-medium">
               {clips.length} clips
             </span>
           </div>
@@ -69,7 +69,7 @@ export default function SavedClips() {
             <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
           </div>
         ) : clips.length === 0 ? (
-          <div className="text-center py-12 glass-panel border border-yellow-500/20 rounded-xl">
+          <div className="text-center py-12 glass-panel border border-momentum-ember/20 rounded-xl">
             <Bookmark className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">No saved clips yet</p>
             <p className="text-gray-500 mt-2">Click the bookmark icon on any clip to save it here</p>
@@ -89,7 +89,7 @@ export default function SavedClips() {
                   setSelectedClip(clip);
                   setSavedModalFeed(clips.length > 1 ? clips : null);
                 }}
-                className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all cursor-pointer group"
+                className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-ember/50 transition-all cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center space-x-3">
@@ -100,7 +100,7 @@ export default function SavedClips() {
                       alt={clip.user_display_name || 'User'}
                       sizeClass="w-10 h-10"
                       letterClassName="text-sm font-semibold"
-                      className="border-2 border-yellow-500/40"
+                      className="border-2 border-momentum-ember/35"
                     />
                     <div>
                       <div className="font-medium text-white">{clip.user_display_name || 'Anonymous'}</div>
@@ -136,7 +136,7 @@ export default function SavedClips() {
                       </button>
                     </div>
                     <div className="absolute top-3 right-3">
-                      <Bookmark className="w-6 h-6 text-yellow-400 fill-current" />
+                      <Bookmark className="w-6 h-6 text-momentum-ember fill-current" />
                     </div>
                   </div>
                   {clip.content_description && (

@@ -369,7 +369,7 @@ export default function ClipModal({
           type="button"
           onClick={handleSave}
           className={`pointer-events-auto ${
-            isSaved(clip.id) ? 'text-yellow-400' : 'text-white'
+            isSaved(clip.id) ? 'text-momentum-ember' : 'text-white'
           }`}
         >
           <Bookmark className={`h-7 w-7 ${isSaved(clip.id) ? 'fill-current' : ''}`} />
@@ -653,7 +653,7 @@ export default function ClipModal({
                     type="button"
                     onClick={handleSave}
                     className={`p-2 transition-all tap-feedback ${
-                      isSaved(clip.id) ? 'text-yellow-400' : 'text-gray-400 hover:text-yellow-400'
+                      isSaved(clip.id) ? 'text-momentum-ember' : 'text-gray-400 hover:text-momentum-ember'
                     }`}
                     title={isSaved(clip.id) ? 'Unsave' : 'Save'}
                   >

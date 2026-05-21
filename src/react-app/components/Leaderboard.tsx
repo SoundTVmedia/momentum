@@ -40,11 +40,11 @@ export default function Leaderboard() {
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1:
-        return <Trophy className="w-6 h-6 text-yellow-400" />;
+        return <Trophy className="w-6 h-6 text-momentum-ember" />;
       case 2:
         return <Medal className="w-6 h-6 text-gray-400" />;
       case 3:
-        return <Medal className="w-6 h-6 text-orange-400" />;
+        return <Medal className="w-6 h-6 text-momentum-ember" />;
       default:
         return <span className="text-gray-500 font-bold">#{rank}</span>;
     }
@@ -54,7 +54,7 @@ export default function Leaderboard() {
     <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-          <Trophy className="w-6 h-6 text-yellow-400" />
+          <Trophy className="w-6 h-6 text-momentum-ember" />
           <span>Leaderboard</span>
         </h2>
         
@@ -63,7 +63,7 @@ export default function Leaderboard() {
             onClick={() => setTimeframe('weekly')}
             className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
               timeframe === 'weekly'
-                ? 'bg-gradient-to-r from-momentum-rose to-pink-600 text-white'
+                ? 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
                 : 'bg-white/10 text-gray-300 hover:bg-white/20'
             }`}
           >
@@ -73,7 +73,7 @@ export default function Leaderboard() {
             onClick={() => setTimeframe('monthly')}
             className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
               timeframe === 'monthly'
-                ? 'bg-gradient-to-r from-momentum-rose to-pink-600 text-white'
+                ? 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
                 : 'bg-white/10 text-gray-300 hover:bg-white/20'
             }`}
           >
@@ -83,7 +83,7 @@ export default function Leaderboard() {
             onClick={() => setTimeframe('all_time')}
             className={`px-4 py-2 rounded-lg font-medium transition-all text-sm ${
               timeframe === 'all_time'
-                ? 'bg-gradient-to-r from-momentum-rose to-pink-600 text-white'
+                ? 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
                 : 'bg-white/10 text-gray-300 hover:bg-white/20'
             }`}
           >
@@ -104,7 +104,7 @@ export default function Leaderboard() {
               onClick={() => navigate(`/users/${entry.mocha_user_id}`)}
               className={`flex items-center space-x-4 p-4 rounded-xl cursor-pointer transition-all ${
                 index < 3
-                  ? 'bg-gradient-to-r from-momentum-rose/20 to-pink-600/20 border border-momentum-rose/30 hover:border-momentum-rose/50'
+                  ? 'bg-gradient-to-r from-momentum-rose/20 to-momentum-rose/20 border border-momentum-rose/30 hover:border-momentum-rose/50'
                   : 'bg-white/5 hover:bg-white/10'
               }`}
             >

@@ -48,7 +48,7 @@ export default function StarRating({
             <Star
               className={`${sizeClasses[size]} transition-colors ${
                 star <= displayRating
-                  ? 'fill-yellow-400 text-yellow-400'
+                  ? 'fill-momentum-ember text-momentum-ember'
                   : 'text-gray-500'
               }`}
             />
@@ -58,7 +58,7 @@ export default function StarRating({
       
       {averageRating !== undefined && ratingCount !== undefined && (
         <div className="flex items-center space-x-2 text-xs text-gray-400">
-          <span className="font-medium text-yellow-400">
+          <span className="font-medium text-momentum-ember">
             {averageRating > 0 ? averageRating.toFixed(1) : 'No ratings'}
           </span>
           {ratingCount > 0 && (

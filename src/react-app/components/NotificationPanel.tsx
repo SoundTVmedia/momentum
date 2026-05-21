@@ -24,7 +24,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
       case 'verification':
         return { icon: <Shield className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-flare/20 text-momentum-flare', ringColor: 'ring-momentum-flare/30' };
       case 'trending':
-        return { icon: <Star className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-orange-500/20 text-orange-400', ringColor: 'ring-orange-500/30' };
+        return { icon: <Star className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/15 text-momentum-ember', ringColor: 'ring-momentum-ember/30' };
       case 'achievement':
         return { icon: <Award className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-rose/20 text-momentum-rose', ringColor: 'ring-momentum-rose/30' };
       case 'clip':
@@ -82,7 +82,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             </div>
             <span className="text-base sm:text-lg">Notifications</span>
             {unreadCount > 0 && (
-              <span className="px-2 py-0.5 bg-gradient-to-r from-red-500 to-orange-500 rounded-full text-xs font-bold">
+              <span className="px-2 py-0.5 bg-gradient-to-r from-red-600 to-momentum-flare rounded-full text-xs font-bold">
                 {unreadCount}
               </span>
             )}

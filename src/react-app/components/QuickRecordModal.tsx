@@ -50,7 +50,7 @@ export default function QuickRecordModal({ isOpen, onClose }: QuickRecordModalPr
           and song recognition.
         </p>
         {!isGeolocationSecureContext() && (
-          <p className="mb-6 max-w-sm text-xs leading-relaxed text-amber-200/90">
+          <p className="mb-6 max-w-sm text-xs leading-relaxed text-momentum-glacier/90">
             Chrome only allows location on HTTPS or localhost. Open the app over HTTPS (or use localhost) for the
             location prompt to appear.
           </p>

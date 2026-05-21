@@ -82,7 +82,7 @@ export default function NotFound() {
 
               <button
                 onClick={() => navigate('/upload')}
-                className="p-4 glass-panel border-pink-500/25 glass-panel-hover rounded-xl transition-colors text-left"
+                className="p-4 glass-panel border-momentum-flare/25 glass-panel-hover rounded-xl transition-colors text-left"
               >
                 <h3 className="font-bold text-white mb-1">Share a Moment</h3>
                 <p className="text-sm text-gray-400">Upload your concert clip</p>

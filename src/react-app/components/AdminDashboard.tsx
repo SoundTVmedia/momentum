@@ -300,7 +300,7 @@ export default function AdminDashboard() {
                             </button>
                             <button
                               onClick={() => handleUpdateStatus(session.id, 'ended')}
-                              className="p-2 bg-yellow-500/20 border border-yellow-500/30 rounded-lg text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                              className="p-2 bg-momentum-ember/15 border border-momentum-ember/25 rounded-lg text-momentum-ember hover:bg-momentum-ember/20 transition-colors"
                               title="End Session"
                             >
                               <PauseCircle className="w-5 h-5" />

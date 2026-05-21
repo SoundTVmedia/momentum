@@ -40,7 +40,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
         {/* Welcome Section */}
         <div className="mb-8">
           <div className="flex items-center space-x-3 mb-2">
-            <Star className="w-10 h-10 text-yellow-400" />
+            <Star className="w-10 h-10 text-momentum-ember" />
             <h1 className="text-4xl font-bold text-white">
               {displayName}'s Creator Hub
             </h1>
@@ -52,27 +52,27 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button 
             onClick={() => navigate('/upload')}
-            className="bg-gradient-to-r from-yellow-500 to-orange-600 rounded-xl p-6 hover:scale-105 transition-transform"
+            className="momentum-grad-interactive rounded-xl p-6 hover:scale-105 transition-transform"
           >
             <Video className="w-8 h-8 text-white mb-2" />
             <div className="text-white font-bold">Make a Reel</div>
             <div className="text-white/80 text-sm">Curate the best moments</div>
           </button>
 
-          <button className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
-            <Calendar className="w-8 h-8 text-yellow-400 mb-2" />
+          <button className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-ember/50 transition-all">
+            <Calendar className="w-8 h-8 text-momentum-ember mb-2" />
             <div className="text-white font-bold">Content Calendar</div>
             <div className="text-gray-300 text-sm">Plan posts</div>
           </button>
 
-          <button className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
-            <Users className="w-8 h-8 text-yellow-400 mb-2" />
+          <button className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-ember/50 transition-all">
+            <Users className="w-8 h-8 text-momentum-ember mb-2" />
             <div className="text-white font-bold">Collaborations</div>
             <div className="text-gray-300 text-sm">Partner requests</div>
           </button>
 
-          <button className="glass-panel border border-yellow-500/20 rounded-xl p-6 hover:border-yellow-400/50 transition-all">
-            <DollarSign className="w-8 h-8 text-yellow-400 mb-2" />
+          <button className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-ember/50 transition-all">
+            <DollarSign className="w-8 h-8 text-momentum-ember mb-2" />
             <div className="text-white font-bold">Monetization</div>
             <div className="text-gray-300 text-sm">Track earnings</div>
           </button>
@@ -80,16 +80,16 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Total Followers</span>
-              <Users className="w-5 h-5 text-yellow-400" />
+              <Users className="w-5 h-5 text-momentum-ember" />
             </div>
             <div className="text-3xl font-bold text-white">45.2K</div>
             <div className="text-sm text-green-400">+2.3K this month</div>
           </div>
 
-          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Monthly Reach</span>
               <TrendingUp className="w-5 h-5 text-momentum-flare" />
@@ -98,16 +98,16 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
             <div className="text-sm text-green-400">+47K this week</div>
           </div>
 
-          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Engagement Rate</span>
-              <Zap className="w-5 h-5 text-orange-400" />
+              <Zap className="w-5 h-5 text-momentum-ember" />
             </div>
             <div className="text-3xl font-bold text-white">8.4%</div>
             <div className="text-sm text-green-400">+1.2% this week</div>
           </div>
 
-          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Monthly Revenue</span>
               <DollarSign className="w-5 h-5 text-green-400" />
@@ -120,17 +120,17 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
         {/* Content Sections */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Content Performance */}
-          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Recent Content</h2>
-              <button className="text-yellow-400 hover:text-yellow-300 text-sm font-medium">
+              <button className="text-momentum-ember hover:text-momentum-glacier text-sm font-medium">
                 View All
               </button>
             </div>
             <div className="space-y-4">
               <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                 <div className="flex items-center space-x-4">
-                  <div className="w-24 h-24 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
+                  <div className="w-24 h-24 bg-gradient-to-br from-momentum-ember to-momentum-flare rounded-lg flex items-center justify-center">
                     <Video className="w-8 h-8 text-white" />
                   </div>
                   <div className="flex-1">
@@ -147,7 +147,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
 
               <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                 <div className="flex items-center space-x-4">
-                  <div className="w-24 h-24 bg-gradient-to-br from-momentum-rose to-pink-600 rounded-lg flex items-center justify-center">
+                  <div className="w-24 h-24 bg-gradient-to-br from-momentum-flare to-momentum-rose rounded-lg flex items-center justify-center">
                     <Video className="w-8 h-8 text-white" />
                   </div>
                   <div className="flex-1">
@@ -165,10 +165,10 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
           </div>
 
           {/* Collaboration Requests */}
-          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Collaboration Requests</h2>
-              <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-sm rounded-full font-medium">
+              <span className="px-3 py-1 bg-momentum-ember/15 text-momentum-ember text-sm rounded-full font-medium">
                 {collaborations.filter(c => c.status === 'pending').length} Pending
               </span>
             </div>
@@ -180,7 +180,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
           </div>
 
           {/* Brand Partnerships - Legacy */}
-          <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Ongoing Partnerships</h2>
             </div>
@@ -191,7 +191,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
                     <div className="text-white font-bold mb-1">Fender Guitars</div>
                     <div className="text-gray-400 text-sm">Sponsored content opportunity</div>
                   </div>
-                  <Award className="w-6 h-6 text-yellow-400" />
+                  <Award className="w-6 h-6 text-momentum-ember" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-green-400 font-bold">$2,500</span>

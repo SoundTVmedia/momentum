@@ -16,9 +16,9 @@ export default function NetworkError({
       case 'offline':
         return <WifiOff className="w-12 h-12 text-red-400" />;
       case 'slow':
-        return <AlertCircle className="w-12 h-12 text-yellow-400" />;
+        return <AlertCircle className="w-12 h-12 text-momentum-ember" />;
       default:
-        return <AlertCircle className="w-12 h-12 text-orange-400" />;
+        return <AlertCircle className="w-12 h-12 text-momentum-ember" />;
     }
   };
 

@@ -154,9 +154,9 @@ export default function ContentModerationPanel() {
 
   const getReasonColor = (reason: string) => {
     const lower = reason.toLowerCase();
-    if (lower.includes('spam')) return 'text-yellow-400';
+    if (lower.includes('spam')) return 'text-momentum-ember';
     if (lower.includes('inappropriate') || lower.includes('nsfw')) return 'text-red-400';
-    if (lower.includes('copyright')) return 'text-orange-400';
+    if (lower.includes('copyright')) return 'text-momentum-ember';
     return 'text-gray-400';
   };
 
@@ -292,7 +292,7 @@ export default function ContentModerationPanel() {
                         </div>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        flag.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                        flag.status === 'pending' ? 'bg-momentum-ember/15 text-momentum-ember' :
                         flag.status === 'approved' ? 'bg-green-500/20 text-green-400' :
                         'bg-red-500/20 text-red-400'
                       }`}>
@@ -312,7 +312,7 @@ export default function ContentModerationPanel() {
                         </button>
                         <button
                           onClick={() => handleReviewClip(flag.id, 'remove')}
-                          className="px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 hover:bg-orange-500/30 transition-colors flex items-center space-x-2"
+                          className="px-4 py-2 bg-momentum-ember/15 border border-momentum-ember/25 rounded-lg text-momentum-ember hover:bg-momentum-ember/25 transition-colors flex items-center space-x-2"
                         >
                           <EyeOff className="w-4 h-4" />
                           <span>Hide Clip</span>
@@ -398,7 +398,7 @@ export default function ContentModerationPanel() {
                       <>
                         <button
                           onClick={() => handleBanUser(user.mocha_user_id, 7)}
-                          className="px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 hover:bg-orange-500/30 transition-colors"
+                          className="px-4 py-2 bg-momentum-ember/15 border border-momentum-ember/25 rounded-lg text-momentum-ember hover:bg-momentum-ember/25 transition-colors"
                         >
                           Ban 7 Days
                         </button>

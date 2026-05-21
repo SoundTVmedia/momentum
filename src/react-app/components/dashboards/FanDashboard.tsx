@@ -126,7 +126,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
 
               <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                 <div className="flex items-center space-x-3 mb-2">
-                  <div className="w-8 h-8 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-full"></div>
+                  <div className="w-8 h-8 bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-full"></div>
                   <div>
                     <div className="text-white font-medium">concert_queen</div>
                     <div className="text-gray-400 text-sm">5 min ago</div>

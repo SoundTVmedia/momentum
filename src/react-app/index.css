@@ -115,6 +115,21 @@ body {
   color: transparent;
 }
 
+/** Role / section accents — always use active palette (green option 2) */
+.brand-border {
+  border-color: var(--glass-border-accent);
+}
+.brand-border-subtle {
+  border-color: rgba(132, 204, 22, 0.25);
+}
+.brand-surface-tint {
+  background: linear-gradient(
+    135deg,
+    rgba(132, 204, 22, 0.12) 0%,
+    rgba(15, 118, 110, 0.08) 100%
+  );
+}
+
 .momentum-surface-soft {
   background: var(--glass-highlight);
   backdrop-filter: blur(var(--glass-blur)) saturate(160%);

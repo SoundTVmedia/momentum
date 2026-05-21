@@ -195,10 +195,10 @@ export default function AnalyticsDashboard() {
           <div className="text-sm text-gray-400">Active Sessions</div>
         </div>
 
-        <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-orange-500/20 rounded-lg">
-              <Calendar className="w-6 h-6 text-orange-400" />
+            <div className="p-3 bg-momentum-ember/15 rounded-lg">
+              <Calendar className="w-6 h-6 text-momentum-ember" />
             </div>
           </div>
           <div className="text-3xl font-bold text-white mb-1">

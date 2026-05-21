@@ -163,8 +163,8 @@ function SearchDropdownPanel({
             (results.jambase.artists.length > 0 ||
               results.jambase.venues.length > 0 ||
               results.jambase.events.length > 0) && (
-              <div className="bg-amber-950/20">
-                <div className="px-3 py-2 text-xs font-semibold text-amber-200/90 uppercase tracking-wide flex items-center gap-1">
+              <div className="bg-momentum-ink/40">
+                <div className="px-3 py-2 text-xs font-semibold text-momentum-glacier/90 uppercase tracking-wide flex items-center gap-1">
                   <Ticket className="w-3.5 h-3.5" /> JamBase
                 </div>
                 {results.jambase.artists.map((a) => {
@@ -215,7 +215,7 @@ function SearchDropdownPanel({
                           href={ticket}
                           target="_blank"
                           rel="nofollow noopener noreferrer"
-                          className="text-xs text-amber-300 hover:underline flex-shrink-0"
+                          className="text-xs text-momentum-glacier hover:underline flex-shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         >
                           Tickets

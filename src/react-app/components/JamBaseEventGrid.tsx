@@ -188,7 +188,7 @@ function JamBaseEventCard({
             <button
               type="button"
               onClick={() => onArtist(head)}
-              className="flex items-center space-x-2 text-momentum-rose/80 hover:text-momentum-flare/80 text-left w-full"
+              className="flex items-center space-x-2 text-white hover:text-momentum-flare text-left w-full"
             >
               <span className="truncate">{head}</span>
             </button>
@@ -327,7 +327,7 @@ export default function JamBaseEventGrid({
   );
 
   const eventSkeleton = (
-    <div className="rounded-xl border border-amber-500/25 overflow-hidden animate-pulse bg-white/5 h-full min-h-[320px]">
+    <div className="rounded-xl border border-momentum-ember/25 overflow-hidden animate-pulse bg-white/5 h-full min-h-[320px]">
       <div className="h-48 bg-white/10" />
       <div className="p-5 space-y-3">
         <div className="h-5 bg-white/10 rounded w-3/4" />
@@ -355,7 +355,7 @@ export default function JamBaseEventGrid({
     }
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-momentum-ember animate-spin" />
       </div>
     );
   }
@@ -364,7 +364,7 @@ export default function JamBaseEventGrid({
     return (
       <div className="text-center py-10 text-gray-400 text-sm">
         {error}.{' '}
-        <button type="button" onClick={load} className="text-amber-300 underline">
+        <button type="button" onClick={load} className="text-momentum-glacier underline">
           Retry
         </button>
       </div>
@@ -377,14 +377,14 @@ export default function JamBaseEventGrid({
         <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-4" />
         <p className="text-gray-400">No upcoming shows from JamBase for this view.</p>
         {upstreamNotice && (
-          <p className="text-amber-200/90 text-sm mt-3 max-w-lg mx-auto leading-relaxed">{upstreamNotice}</p>
+          <p className="text-momentum-glacier/90 text-sm mt-3 max-w-lg mx-auto leading-relaxed">{upstreamNotice}</p>
         )}
         <p className="text-gray-500 text-sm mt-2">
           <a
             href="https://www.jambase.com"
             target="_blank"
             rel="nofollow noopener noreferrer"
-            className="text-amber-400/90 underline"
+            className="text-momentum-ember/90 underline"
           >
             Browse JamBase
           </a>
@@ -423,7 +423,7 @@ export default function JamBaseEventGrid({
           href="https://www.jambase.com"
           target="_blank"
           rel="nofollow noopener noreferrer"
-          className="text-gray-400 hover:text-amber-300 underline"
+          className="text-gray-400 hover:text-momentum-glacier underline"
         >
           Powered by JamBase
         </a>

@@ -50,7 +50,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         {/* Welcome Section */}
         <div className="mb-8">
           <div className="flex items-center space-x-3 mb-2">
-            <Award className="w-10 h-10 text-orange-400" />
+            <Award className="w-10 h-10 text-momentum-ember" />
             <h1 className="text-4xl font-bold text-white">
               Ambassador Hub - {displayName}
             </h1>
@@ -65,27 +65,27 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button 
             onClick={() => navigate('/upload')}
-            className="bg-gradient-to-r from-orange-500 to-red-600 rounded-xl p-6 hover:scale-105 transition-transform"
+            className="bg-gradient-to-r from-momentum-ember to-momentum-rose rounded-xl p-6 hover:scale-105 transition-transform"
           >
             <Video className="w-8 h-8 text-white mb-2" />
             <div className="text-white font-bold">Upload Clip</div>
             <div className="text-white/80 text-sm">Share local shows</div>
           </button>
 
-          <button className="glass-panel border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
-            <Calendar className="w-8 h-8 text-orange-400 mb-2" />
+          <button className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-flare/50 transition-all">
+            <Calendar className="w-8 h-8 text-momentum-ember mb-2" />
             <div className="text-white font-bold">Events</div>
             <div className="text-gray-300 text-sm">Promote shows</div>
           </button>
 
-          <button className="glass-panel border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
-            <Users className="w-8 h-8 text-orange-400 mb-2" />
+          <button className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-flare/50 transition-all">
+            <Users className="w-8 h-8 text-momentum-ember mb-2" />
             <div className="text-white font-bold">Community</div>
             <div className="text-gray-300 text-sm">Build network</div>
           </button>
 
-          <button className="glass-panel border border-orange-500/20 rounded-xl p-6 hover:border-orange-400/50 transition-all">
-            <DollarSign className="w-8 h-8 text-orange-400 mb-2" />
+          <button className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-flare/50 transition-all">
+            <DollarSign className="w-8 h-8 text-momentum-ember mb-2" />
             <div className="text-white font-bold">Earnings</div>
             <div className="text-gray-300 text-sm">Track commission</div>
           </button>
@@ -93,16 +93,16 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Local Followers</span>
-              <Users className="w-5 h-5 text-orange-400" />
+              <Users className="w-5 h-5 text-momentum-ember" />
             </div>
             <div className="text-3xl font-bold text-white">1.2K</div>
             <div className="text-sm text-green-400">+156 this month</div>
           </div>
 
-          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Events Promoted</span>
               <Calendar className="w-5 h-5 text-momentum-flare" />
@@ -111,7 +111,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
             <div className="text-sm text-green-400">+8 this month</div>
           </div>
 
-          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Total Reach</span>
               <TrendingUp className="w-5 h-5 text-momentum-rose" />
@@ -120,7 +120,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
             <div className="text-sm text-green-400">+12K this month</div>
           </div>
 
-          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Commission Earned</span>
               <DollarSign className="w-5 h-5 text-green-400" />
@@ -137,7 +137,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         {/* Content Sections */}
         <div className="grid grid-cols-1 gap-8">
           {/* Live Events to Promote */}
-          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <h2 className="text-2xl font-bold text-white">Events to Promote in {city}</h2>
               <div className="text-sm text-gray-400">Earn 15% commission per sale</div>
@@ -148,8 +148,8 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                 onClick={() => setPromoEventCatalog('jambase')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   promoEventCatalog === 'jambase'
-                    ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white'
-                    : 'bg-white/5 text-gray-300 border border-orange-500/20'
+                    ? 'bg-gradient-to-r from-momentum-flare to-momentum-ember text-white'
+                    : 'bg-white/5 text-gray-300 border border-momentum-ember/20'
                 }`}
               >
                 JamBase
@@ -160,7 +160,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   promoEventCatalog === 'ticketmaster'
                     ? 'momentum-grad-interactive text-white'
-                    : 'bg-white/5 text-gray-300 border border-orange-500/20'
+                    : 'bg-white/5 text-gray-300 border border-momentum-ember/20'
                 }`}
               >
                 Ticketmaster
@@ -174,10 +174,10 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
           </div>
 
           {/* Local Events */}
-          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Local Events in {city}</h2>
-              <button className="text-orange-400 hover:text-orange-300 text-sm font-medium">
+              <button className="text-momentum-ember hover:text-momentum-glacier text-sm font-medium">
                 Add Event
               </button>
             </div>
@@ -192,7 +192,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-xs">124 interested</span>
-                  <button className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-600 rounded text-white text-xs hover:scale-105 transition-transform">
+                  <button className="px-3 py-1 bg-gradient-to-r from-momentum-ember to-momentum-rose rounded text-white text-xs hover:scale-105 transition-transform">
                     Promote
                   </button>
                 </div>
@@ -208,7 +208,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-xs">542 interested</span>
-                  <button className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-600 rounded text-white text-xs hover:scale-105 transition-transform">
+                  <button className="px-3 py-1 bg-gradient-to-r from-momentum-ember to-momentum-rose rounded text-white text-xs hover:scale-105 transition-transform">
                     Promote
                   </button>
                 </div>
@@ -224,7 +224,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-xs">89 interested</span>
-                  <button className="px-3 py-1 bg-gradient-to-r from-orange-500 to-red-600 rounded text-white text-xs hover:scale-105 transition-transform">
+                  <button className="px-3 py-1 bg-gradient-to-r from-momentum-ember to-momentum-rose rounded text-white text-xs hover:scale-105 transition-transform">
                     Promote
                   </button>
                 </div>
@@ -235,13 +235,13 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
           {/* Commission Opportunities */}
-          <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
+          <div className="glass-panel border border-momentum-ember/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Commission Opportunities</h2>
-              <Zap className="w-6 h-6 text-orange-400" />
+              <Zap className="w-6 h-6 text-momentum-ember" />
             </div>
             <div className="space-y-4">
-              <div className="p-4 bg-gradient-to-r from-orange-500/10 to-red-600/10 rounded-lg border border-orange-500/30">
+              <div className="p-4 bg-gradient-to-r from-momentum-ember/10 to-momentum-rose/10 rounded-lg border border-momentum-ember/25">
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <div className="text-white font-bold mb-1">Ticket Sales</div>
@@ -250,7 +250,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                   <DollarSign className="w-5 h-5 text-green-400" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-orange-400 font-bold">15% commission</span>
+                  <span className="text-momentum-ember font-bold">15% commission</span>
                   <button className="px-3 py-1 bg-white/10 text-white text-xs rounded hover:bg-white/20 transition-colors">
                     View Details
                   </button>
@@ -266,7 +266,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                   <MapPin className="w-5 h-5 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-orange-400 font-bold">10% commission</span>
+                  <span className="text-momentum-ember font-bold">10% commission</span>
                   <button className="px-3 py-1 bg-white/10 text-white text-xs rounded hover:bg-white/20 transition-colors">
                     View Details
                   </button>
@@ -282,7 +282,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                   <Award className="w-5 h-5 text-momentum-rose" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-orange-400 font-bold">20% commission</span>
+                  <span className="text-momentum-ember font-bold">20% commission</span>
                   <button className="px-3 py-1 bg-white/10 text-white text-xs rounded hover:bg-white/20 transition-colors">
                     View Details
                   </button>
@@ -293,12 +293,12 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         </div>
 
         {/* Performance Metrics */}
-        <div className="mt-8 glass-panel border border-orange-500/20 rounded-xl p-6">
+        <div className="mt-8 glass-panel border border-momentum-ember/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-white">This Month's Performance</h2>
             <button
               onClick={() => navigate('/analytics')}
-              className="flex items-center space-x-2 px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 hover:bg-orange-500/30 transition-colors"
+              className="flex items-center space-x-2 px-4 py-2 bg-momentum-ember/15 border border-momentum-ember/25 rounded-lg text-momentum-ember hover:bg-momentum-ember/25 transition-colors"
             >
               <BarChart3 className="w-5 h-5" />
               <span>View Details</span>
@@ -306,7 +306,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
-              <div className="text-4xl font-bold text-orange-400 mb-2">
+              <div className="text-4xl font-bold text-momentum-ember mb-2">
                 {analytics?.conversionStats.total_conversions || 0}
               </div>
               <div className="text-gray-300">Total Conversions</div>

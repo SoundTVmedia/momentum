@@ -74,8 +74,24 @@ bg-gradient-to-bl from-[#84cc16] via-[#16a34a] to-[#0f766e]
 
 ---
 
+## UI color rules (green option 2 active)
+
+Use these Tailwind tokens for **brand** UI (not semantic states):
+
+| Token | Class | Hex |
+|-------|--------|-----|
+| Lime | `momentum-ember` | `#84CC16` |
+| Forest | `momentum-flare` | `#16A34A` |
+| Teal | `momentum-rose` | `#0F766E` |
+| Light accent | `momentum-glacier` | `#2DD4BF` |
+
+- **CTAs / gradient text:** `momentum-grad-interactive`, `momentum-grad-text`, or `bg-momentum-flow`
+- **Glass borders:** `border-momentum-ember/20`–`/40` or `brand-border`
+- **Keep semantic colors:** red (live/errors), pink (likes), green (success/copy) where meaning matters
+
 ## Switching palettes
 
 1. Set `ACTIVE_PALETTE_ID` in `src/react-app/lib/design-palettes.ts`.
 2. Copy token hex values and `momentumGrad` into `tailwind.config.js` and `:root` in `src/react-app/index.css`.
 3. Update glass RGBA tints in `index.css` to match (lime `132,204,22` / teal `15,118,110` for green 2).
+4. Run a grep for `amber-`, `orange-`, `purple-`, `cyan-`, `yellow-4` and map stragglers to `momentum-*` tokens.
