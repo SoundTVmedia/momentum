@@ -1,5 +1,4 @@
 import { Music, Video, Users, TrendingUp, Calendar, MessageCircle, Heart, Eye, Star } from 'lucide-react';
-import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import ArtistCurationPanel from '@/react-app/components/ArtistCurationPanel';
 import UserAvatar from '@/react-app/components/UserAvatar';
@@ -12,7 +11,6 @@ interface ArtistDashboardProps {
 }
 
 export default function ArtistDashboard({ user, onDropClip }: ArtistDashboardProps) {
-  const navigate = useNavigate();
   const handleUploadClick = useProfileUploadAction(onDropClip);
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Artist';
   const [activeTab, setActiveTab] = useState<'overview' | 'curation'>('overview');

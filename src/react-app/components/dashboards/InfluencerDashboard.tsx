@@ -1,5 +1,4 @@
 import { Star, Video, TrendingUp, DollarSign, Calendar, Users, Zap, Award } from 'lucide-react';
-import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import CollaborationRequest from '@/react-app/components/CollaborationRequest';
 import type { ExtendedMochaUser } from '@/shared/types';
@@ -11,7 +10,6 @@ interface InfluencerDashboardProps {
 }
 
 export default function InfluencerDashboard({ user, onDropClip }: InfluencerDashboardProps) {
-  const navigate = useNavigate();
   const handleUploadClick = useProfileUploadAction(onDropClip);
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Influencer';
   
