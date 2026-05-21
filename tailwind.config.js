@@ -8,40 +8,41 @@ export default {
     extend: {
       colors: {
         momentum: {
-          /** Spotlight palette — warm stage lights (not teal/cyan or blue/purple) */
-          ember: "#FF5349",
-          flare: "#FFB020",
-          rose: "#C73E6D",
-          copper: "#B86B4D",
-          ink: "#0C0A0B",
-          smoke: "#1A1517",
-          /** Legacy class names → new palette values */
-          teal: "#FF5349",
-          mint: "#FFB020",
+          /** Arctic Pulse — cool frost glass + punchy bolt accents */
+          ember: "#22D3EE",
+          flare: "#F43F5E",
+          rose: "#818CF8",
+          copper: "#475569",
+          ink: "#080B12",
+          smoke: "#0F172A",
+          glacier: "#67E8F9",
+          /** Legacy class names */
+          teal: "#22D3EE",
+          mint: "#F43F5E",
         },
         glass: {
-          border: "rgba(255, 255, 255, 0.14)",
-          "border-strong": "rgba(255, 83, 73, 0.35)",
-          surface: "rgba(255, 255, 255, 0.06)",
-          chrome: "rgba(18, 14, 16, 0.78)",
+          border: "rgba(255, 255, 255, 0.12)",
+          "border-strong": "rgba(34, 211, 238, 0.35)",
+          surface: "rgba(255, 255, 255, 0.05)",
+          chrome: "rgba(10, 14, 22, 0.82)",
         },
       },
       backgroundImage: {
         "momentum-flow":
-          "linear-gradient(to right, #FF5349 0%, #FFB020 51%, #FF5349 100%)",
+          "linear-gradient(to right, #22D3EE 0%, #F43F5E 51%, #22D3EE 100%)",
         "momentum-flow-vertical":
-          "linear-gradient(to bottom, rgba(255,83,73,0.14) 0%, rgba(255,176,32,0.08) 45%, rgba(255,83,73,0.12) 100%)",
+          "linear-gradient(to bottom, rgba(34,211,238,0.12) 0%, rgba(244,63,94,0.07) 45%, rgba(34,211,238,0.1) 100%)",
         "glass-shine":
-          "linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.02) 40%, rgba(255,83,73,0.08) 100%)",
+          "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(34,211,238,0.08) 100%)",
       },
       backgroundSize: {
         "200-auto": "200% auto",
       },
       boxShadow: {
-        glass: "0 4px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-        "glass-lg": "0 8px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
-        "glass-glow": "0 0 32px rgba(255, 83, 73, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-        "glass-chrome": "0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 -1px 0 rgba(0, 0, 0, 0.2)",
+        glass: "0 4px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        "glass-lg": "0 8px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
+        "glass-glow": "0 0 32px rgba(34, 211, 238, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        "glass-chrome": "0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 -1px 0 rgba(0, 0, 0, 0.25)",
       },
       backdropBlur: {
         glass: "24px",
