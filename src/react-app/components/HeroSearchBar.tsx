@@ -76,7 +76,7 @@ export default function HeroSearchBar({
     <>
       <form
         onSubmit={submit}
-        className={`w-full max-w-2xl mx-auto ${className}`.trim()}
+        className={`w-full ${className}`.trim()}
       >
         <div ref={containerRef} className="relative group z-10">
           <div
