@@ -17,7 +17,7 @@ export default function GoogleSignInButton({
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white hover:bg-gray-100 text-gray-800 rounded-xl font-semibold text-base shadow-md transition-colors disabled:opacity-50 disabled:hover:bg-white"
+      className="on-light-surface w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white hover:bg-gray-100 text-gray-800 rounded-xl font-semibold text-base shadow-md transition-colors disabled:opacity-50 disabled:hover:bg-white"
       aria-busy={loading}
     >
       <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden>

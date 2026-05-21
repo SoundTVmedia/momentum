@@ -19,6 +19,11 @@ export default {
           smoke: "#0A1F1C",
           teal: "#84CC16",
           mint: "#16A34A",
+          /** Readable text on dark backgrounds */
+          body: "#E8EDF4",
+          secondary: "#C5D0DE",
+          muted: "#A8B8C8",
+          subtle: "#8FA3B8",
         },
         glass: {
           border: "rgba(255, 255, 255, 0.12)",

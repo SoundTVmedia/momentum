@@ -1524,7 +1524,7 @@ export default function QuickRecordButton({
                     title="Stop recording and save your moment"
                     style={{ minWidth: '5rem', minHeight: '5rem' }}
                   >
-                    <div className="w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
+                    <div className="on-light-surface w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
                       <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
                     </div>
                     <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">

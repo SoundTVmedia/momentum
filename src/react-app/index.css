@@ -31,6 +31,7 @@ body {
   max-width: 100vw;
   min-height: 100dvh;
   position: relative;
+  color: var(--text-body);
 }
 
 :root {
@@ -43,6 +44,12 @@ body {
   --momentum-glacier: #2dd4bf;
   --momentum-copper: #134e4a;
   --momentum-ink: #041210;
+  /** Readable copy on dark shell (avoid black / gray-600–900) */
+  --text-body: #e8edf4;
+  --text-secondary: #c5d0de;
+  --text-muted: #a8b8c8;
+  --text-subtle: #8fa3b8;
+  --icon-muted: #b8c5d4;
   /** Legacy aliases used by Tailwind momentum-teal / momentum-mint classes */
   --momentum-teal: var(--momentum-ember);
   --momentum-mint: var(--momentum-flare);
@@ -447,7 +454,7 @@ body {
   }
 
   .fb-section-subtitle {
-    @apply text-sm sm:text-base text-gray-400/90 leading-relaxed;
+    @apply text-sm sm:text-base text-gray-300/95 leading-relaxed;
   }
 
   .fb-section-subtitle--center {
@@ -772,4 +779,50 @@ button, a, .interactive {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* ─── Dark shell: lighten gray/black text & icons (green palette bg) ─── */
+#root :is(input, textarea)::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+#root .text-gray-900,
+#root .text-gray-800,
+#root .text-gray-700,
+#root .text-gray-600 {
+  color: var(--text-secondary) !important;
+}
+
+#root .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+#root .text-gray-400 {
+  color: var(--text-secondary) !important;
+}
+
+#root :is(.fill-gray-900, .fill-gray-800, .fill-gray-700, .fill-gray-600, .fill-gray-500) {
+  fill: var(--icon-muted) !important;
+}
+
+#root :is(.stroke-gray-900, .stroke-gray-800, .stroke-gray-700, .stroke-gray-600, .stroke-gray-500) {
+  stroke: var(--icon-muted) !important;
+}
+
+/* Intentional light surfaces (Google sign-in, stop button on white circle, etc.) */
+#root :is(.bg-white, .bg-gray-50, .bg-gray-100, [class*='bg-white/']).text-gray-900,
+#root :is(.bg-white, .bg-gray-50, .bg-gray-100, [class*='bg-white/']).text-gray-800,
+#root :is(.bg-white, .bg-gray-50, .bg-gray-100, [class*='bg-white/']).text-gray-700,
+#root :is(.bg-white, .bg-gray-50, .bg-gray-100, [class*='bg-white/']).text-gray-600,
+#root :is(.bg-white, .bg-gray-50, .bg-gray-100, [class*='bg-white/']) :is(.text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600),
+#root :is(.bg-white, .bg-gray-50, .bg-gray-100, [class*='bg-white/']) :is(.fill-gray-900, .fill-gray-800, .fill-gray-700, .fill-gray-600),
+#root .on-light-surface,
+#root .on-light-surface :is(.text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600) {
+  color: #1f2937 !important;
+}
+
+#root :is(.bg-white, .bg-gray-50, .bg-gray-100, [class*='bg-white/']) :is(.fill-gray-900, .fill-gray-800, .fill-gray-700, .fill-gray-600),
+#root .on-light-surface :is(.fill-gray-900, .fill-gray-800, .fill-gray-700, .fill-gray-600) {
+  fill: #1f2937 !important;
 }
