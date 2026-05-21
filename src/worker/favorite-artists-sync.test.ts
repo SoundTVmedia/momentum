@@ -5,6 +5,7 @@ import {
   normalizeArtistDisplayName,
   resolveArtistIdForFavoriteName,
   syncUserFavoriteArtistRows,
+  toggleArtistFollowFavorite,
 } from './favorite-artists-sync';
 
 type ArtistRow = { id: number; name: string };
@@ -66,6 +67,31 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
               if (s.includes('select id, favorite_artists from user_profiles')) {
                 return null;
               }
+              if (s.includes('select favorite_artists from user_profiles')) {
+                return null;
+              }
+              if (
+                s.includes('from user_favorite_artists') &&
+                s.includes('mocha_user_id = ?') &&
+                s.includes('artist_id = ?') &&
+                !s.includes('inner join')
+              ) {
+                const uid = String(args[0]);
+                const artistId = Number(args[1]);
+                const hit = links.find((l) => l.uid === uid && l.artistId === artistId);
+                return hit ? { id: 1 } : null;
+              }
+              if (s.includes('from user_favorite_artists') && s.includes('inner join artists')) {
+                const uid = String(args[0]);
+                return {
+                  results: links
+                    .filter((l) => l.uid === uid)
+                    .map((l) => {
+                      const a = artists.find((x) => x.id === l.artistId);
+                      return { name: a?.name ?? '' };
+                    }),
+                };
+              }
               return null;
             },
             async run() {
@@ -97,6 +123,32 @@ function createArtistsMockDb(initial: ArtistRow[] = []) {
                   return { success: true, meta: { changes: 1 } };
                 }
                 return { success: true, meta: { changes: 0 } };
+              }
+              if (s.startsWith('delete from user_favorite_artists') && s.includes('artist_id = ?')) {
+                const uid = String(args[0]);
+                const artistId = Number(args[1]);
+                const before = links.length;
+                for (let i = links.length - 1; i >= 0; i--) {
+                  if (links[i]?.uid === uid && links[i]?.artistId === artistId) {
+                    links.splice(i, 1);
+                  }
+                }
+                return { success: true, meta: { changes: before - links.length } };
+              }
+              if (s.startsWith('delete from user_favorite_artists') && s.includes('artist_id in')) {
+                const uid = String(args[0]);
+                const name = String(args[1]).toLowerCase().trim();
+                const before = links.length;
+                for (let i = links.length - 1; i >= 0; i--) {
+                  const l = links[i];
+                  if (!l || l.uid !== uid) continue;
+                  const a = artists.find((x) => x.id === l.artistId);
+                  if (a && a.name.toLowerCase().trim() === name) links.splice(i, 1);
+                }
+                return { success: true, meta: { changes: before - links.length } };
+              }
+              if (s.includes('insert into user_profiles')) {
+                return { success: true, meta: { changes: 1 } };
               }
               return { success: true, meta: { changes: 0 } };
             },
@@ -160,5 +212,19 @@ describe('syncUserFavoriteArtistRows', () => {
     const result = await syncUserFavoriteArtistRows(db, 'user-1', ['Drake', 'New Artist']);
     expect(result.synced).toContain('Drake');
     expect(result.synced).toContain('New Artist');
+  });
+});
+
+describe('toggleArtistFollowFavorite', () => {
+  it('links by canonical name when URL artist id is stale', async () => {
+    const { db, links } = createArtistsMockDb([{ id: 3, name: 'Olivia Rodrigo' }]);
+    const follow = await toggleArtistFollowFavorite(db, 'user-1', 99, 'Olivia Rodrigo');
+    expect(follow.following).toBe(true);
+    expect(follow.artist_id).toBe(3);
+    expect(links.some((l) => l.uid === 'user-1' && l.artistId === 3)).toBe(true);
+
+    const unfollow = await toggleArtistFollowFavorite(db, 'user-1', 99, 'Olivia Rodrigo');
+    expect(unfollow.following).toBe(false);
+    expect(links.some((l) => l.uid === 'user-1')).toBe(false);
   });
 });

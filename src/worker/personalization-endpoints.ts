@@ -12,6 +12,7 @@ import {
   replaceProfileFavoriteArtistsJsonFromTable,
   mergeProfileFavoriteArtistsJson,
   normalizeArtistDisplayName,
+  loadCanonicalFavoriteArtistNames,
 } from './favorite-artists-sync';
 import { mochaUserIdKey } from './mocha-user-id';
 
@@ -380,20 +381,7 @@ export async function getPersonalizedConcerts(c: Context) {
       return c.json({ concerts: [], events: [], personalized: false });
     }
 
-    let favoriteArtists: string[] = [];
-    try {
-      const raw = profile.favorite_artists as string | null;
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (Array.isArray(parsed)) {
-          favoriteArtists = parsed
-            .map((x) => (typeof x === 'string' ? x.trim() : String(x ?? '').trim()))
-            .filter(Boolean);
-        }
-      }
-    } catch {
-      favoriteArtists = [];
-    }
+    const favoriteArtists = await loadCanonicalFavoriteArtistNames(c.env.DB, uid, 40);
 
     if (favoriteArtists.length === 0) {
       return c.json({

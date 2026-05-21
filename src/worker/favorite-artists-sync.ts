@@ -415,3 +415,115 @@ export async function mergeProfileFavoriteArtistsJson(
     .bind(uid, favoritesJson)
     .run();
 }
+
+function parseProfileFavoriteArtistNamesJson(raw: string | null | undefined): string[] {
+  if (raw == null || !String(raw).trim()) return [];
+  try {
+    const parsed = JSON.parse(String(raw)) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((x) => normalizeArtistDisplayName(typeof x === 'string' ? x : String(x ?? '')))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Canonical favorite artist display names from `user_favorite_artists` and profile JSON.
+ */
+export async function loadCanonicalFavoriteArtistNames(
+  db: D1Database,
+  uid: string,
+  maxNames = 40,
+): Promise<string[]> {
+  const favorites = await db
+    .prepare(
+      `SELECT artists.name AS name
+       FROM user_favorite_artists
+       LEFT JOIN artists ON artists.id = user_favorite_artists.artist_id
+       WHERE user_favorite_artists.mocha_user_id = ?`,
+    )
+    .bind(uid)
+    .all();
+
+  const names = new Set<string>();
+  for (const row of favorites.results || []) {
+    const n = normalizeArtistDisplayName(String((row as { name?: unknown }).name ?? ''));
+    if (n) names.add(n);
+  }
+
+  const profileRow = (await db
+    .prepare('SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?')
+    .bind(uid)
+    .first()) as { favorite_artists: string | null } | null;
+
+  for (const n of parseProfileFavoriteArtistNamesJson(profileRow?.favorite_artists ?? null)) {
+    names.add(n);
+  }
+
+  return [...names].slice(0, maxNames);
+}
+
+/**
+ * Toggle artist follow → `user_favorite_artists` + profile `favorite_artists` JSON.
+ */
+export async function toggleArtistFollowFavorite(
+  db: D1Database,
+  uid: string,
+  targetArtistId: number,
+  rawArtistName: string,
+): Promise<{ following: boolean; artist_id: number }> {
+  const name = normalizeArtistDisplayName(rawArtistName);
+  let artistId = targetArtistId;
+
+  if (name) {
+    artistId = await getOrCreateArtistIdByName(db, name);
+  } else if (!Number.isInteger(artistId) || artistId <= 0) {
+    throw new Error('Invalid artist');
+  }
+
+  const rowById = await db
+    .prepare('SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
+    .bind(uid, artistId)
+    .first();
+
+  const linkedByName = name ? await isFavoriteArtistLinked(db, uid, name) : false;
+
+  if (rowById || linkedByName) {
+    await db
+      .prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
+      .bind(uid, artistId)
+      .run();
+    if (name) {
+      await unlinkFavoriteArtistByName(db, uid, name);
+    }
+    await replaceProfileFavoriteArtistsJsonFromTable(db, uid);
+    const resolvedId = name
+      ? (await resolveArtistIdForFavoriteName(db, name)) ?? artistId
+      : artistId;
+    return { following: false, artist_id: resolvedId };
+  }
+
+  if (name) {
+    await linkFavoriteArtistByName(db, uid, name);
+  } else {
+    await db
+      .prepare(
+        `INSERT OR IGNORE INTO user_favorite_artists (mocha_user_id, artist_id, created_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)`,
+      )
+      .bind(uid, artistId)
+      .run();
+  }
+
+  await replaceProfileFavoriteArtistsJsonFromTable(db, uid);
+  if (name) {
+    await mergeProfileFavoriteArtistsJson(db, uid, [name]);
+  }
+
+  const resolvedId = name
+    ? (await resolveArtistIdForFavoriteName(db, name)) ?? artistId
+    : artistId;
+  return { following: true, artist_id: resolvedId };
+}

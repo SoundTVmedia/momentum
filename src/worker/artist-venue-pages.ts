@@ -626,6 +626,16 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     upcomingEvents = (local.results ?? []) as Record<string, unknown>[];
   }
 
+  if (venue && jambaseVenue) {
+    const jbImg =
+      typeof jambaseVenue.image === 'string' && jambaseVenue.image.length > 0
+        ? jambaseVenue.image
+        : null;
+    if (jbImg && !venue.image_url) {
+      venue = { ...venue, image_url: jbImg };
+    }
+  }
+
   return {
     venue,
     clips: normalizeClipApiRows((clipsRes.results ?? []) as Record<string, unknown>[]),

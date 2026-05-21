@@ -200,6 +200,34 @@ export default function PersonalizedConcerts({
     void fetchConcerts();
   }, [authPending, isLoggedIn, resolvedMode]);
 
+  useEffect(() => {
+    if (!isLoggedIn || resolvedMode !== 'favorite-artists') return;
+    const refresh = () => {
+      void (async () => {
+        setLoading(true);
+        try {
+          const response = await fetch('/api/personalization/concerts?limit=12', {
+            credentials: 'include',
+          });
+          const data = (await response.json()) as ConcertsApi;
+          setPayload({
+            personalized: Boolean(data.personalized),
+            concerts: Array.isArray(data.concerts) ? data.concerts : [],
+            events: Array.isArray(data.events) ? data.events : [],
+            source: data.source,
+            message: typeof data.message === 'string' ? data.message : undefined,
+          });
+        } catch (error) {
+          console.error('Failed to refresh favorite-artist concerts:', error);
+        } finally {
+          setLoading(false);
+        }
+      })();
+    };
+    window.addEventListener('favorite-artists-changed', refresh);
+    return () => window.removeEventListener('favorite-artists-changed', refresh);
+  }, [isLoggedIn, resolvedMode]);
+
   const locationLabel =
     typeof payload?.location?.label === 'string' && payload.location.label.trim()
       ? payload.location.label.trim()

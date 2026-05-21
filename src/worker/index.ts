@@ -25,10 +25,7 @@ import {
 import { mochaUserIdKey } from "./mocha-user-id";
 import {
   getOrCreateArtistIdByName,
-  isFavoriteArtistLinked,
-  replaceProfileFavoriteArtistsJsonFromTable,
-  resolveArtistIdForFavoriteName,
-  unlinkFavoriteArtistByName,
+  toggleArtistFollowFavorite,
 } from "./favorite-artists-sync";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
@@ -1376,39 +1373,22 @@ app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
     const artistName =
       typeof followBody.artist_name === 'string' ? followBody.artist_name.trim() : '';
 
-    const rowById = await c.env.DB
-      .prepare('SELECT id FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
-      .bind(uid, artistId)
-      .first();
-
-    const linkedByName = artistName
-      ? await isFavoriteArtistLinked(c.env.DB, uid, artistName)
-      : false;
-
-    if (rowById || linkedByName) {
-      if (rowById) {
-        await c.env.DB
-          .prepare('DELETE FROM user_favorite_artists WHERE mocha_user_id = ? AND artist_id = ?')
-          .bind(uid, artistId)
-          .run();
+    try {
+      const result = await toggleArtistFollowFavorite(
+        c.env.DB,
+        uid,
+        artistId,
+        artistName,
+      );
+      return c.json(result);
+    } catch (err) {
+      console.error('toggleArtistFollowFavorite:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === 'Invalid artist' || msg === 'empty artist name') {
+        return c.json({ error: 'Invalid artist' }, 400);
       }
-      if (linkedByName && artistName) {
-        await unlinkFavoriteArtistByName(c.env.DB, uid, artistName);
-      }
-      await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
-      const resolvedId = artistName
-        ? (await resolveArtistIdForFavoriteName(c.env.DB, artistName)) ?? artistId
-        : artistId;
-      return c.json({ following: false, artist_id: resolvedId });
+      return c.json({ error: 'Could not update favorite artist' }, 500);
     }
-    await c.env.DB
-      .prepare(
-        'INSERT INTO user_favorite_artists (mocha_user_id, artist_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
-      )
-      .bind(uid, artistId)
-      .run();
-    await replaceProfileFavoriteArtistsJsonFromTable(c.env.DB, uid);
-    return c.json({ following: true, artist_id: artistId });
   }
 
   if (targetUserId === String(mochaUser.id) || targetUserId === uid) {

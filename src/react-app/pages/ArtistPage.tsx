@@ -548,12 +548,12 @@ export default function ArtistPage() {
               ) : favorited ? (
                 <>
                   <UserCheck className="w-5 h-5" />
-                  <span>Unfollow Artist</span>
+                  <span>Remove from Favorites</span>
                 </>
               ) : (
                 <>
                   <UserPlus className="w-5 h-5" />
-                  <span>Follow Artist</span>
+                  <span>Add Artist to Favorites</span>
                 </>
               )}
             </button>

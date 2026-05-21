@@ -93,6 +93,13 @@ export default function UserProfilePage() {
     fetchUserProfile();
   }, [userId]);
 
+  useEffect(() => {
+    if (!isOwnProfile) return;
+    const refresh = () => void fetchUserProfile();
+    window.addEventListener('favorite-artists-changed', refresh);
+    return () => window.removeEventListener('favorite-artists-changed', refresh);
+  }, [isOwnProfile, userId]);
+
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
     const now = new Date();
