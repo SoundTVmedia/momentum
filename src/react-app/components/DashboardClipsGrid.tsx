@@ -2,21 +2,14 @@ import { Loader2, RefreshCw, Trash2, Heart, Pencil } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ClipModal from '@/react-app/components/ClipModal';
-import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
+import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
-import {
-  HOME_FEED_CAROUSEL_BLEED,
-  MOBILE_CAROUSEL_ITEM_PEEK_CLASS,
-} from '@/react-app/lib/homeFeedLayout';
-
-const CLIP_THUMB_FALLBACK =
-  'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1200&fit=crop';
+import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 export type DashboardGridClip = Record<string, unknown> & {
   id?: unknown;
@@ -60,6 +53,8 @@ type DashboardClipsGridProps = {
   showEditOnEach?: boolean;
   onEditClip?: (clip: DashboardGridClip) => void;
   onClipUpdated?: (clip: ClipWithUser) => void;
+  /** Bleed classes for the horizontal carousel (defaults to page shell bleed). */
+  carouselClassName?: string;
 };
 
 export default function DashboardClipsGrid({
@@ -80,11 +75,11 @@ export default function DashboardClipsGrid({
   showEditOnEach = false,
   onEditClip,
   onClipUpdated,
+  carouselClassName = PAGE_CAROUSEL_BLEED,
 }: DashboardClipsGridProps) {
   const [selectedClip, setSelectedClip] = useState<DashboardGridClip | null>(null);
   const [clipPendingDelete, setClipPendingDelete] = useState<DashboardGridClip | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
-  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
 
   const confirmDeleteClip = async () => {
     if (!clipPendingDelete || !onDeleteClip) return;
@@ -165,120 +160,65 @@ export default function DashboardClipsGrid({
 
       <HorizontalClipCarousel
         ariaLabel={title}
-        className={HOME_FEED_CAROUSEL_BLEED}
+        className={carouselClassName}
         stretchItems
       >
         {clips.map((clip, index) => {
           const showDelete = Boolean(showDeleteOnEach && onDeleteClip);
           const showEdit = Boolean(showEditOnEach && onEditClip);
           const rowKey = clipListItemKey(clip, index);
-
-          const thumb =
-            clip.thumbnail_url || clip.stream_thumbnail_url || CLIP_THUMB_FALLBACK;
-          const videoUrl = typeof clip.video_url === 'string' ? clip.video_url : '';
-          const hasPlayback =
-            videoUrl ||
-            (typeof clip.stream_video_id === 'string' && clip.stream_video_id.trim());
+          const clipWithUser = clip as unknown as ClipWithUser;
 
           return (
-            <HorizontalClipCarouselItem
-              key={rowKey}
-              className={`${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:w-56 lg:w-64`}
-            >
-            <div
-              className="group relative w-full bg-black/40 rounded-xl overflow-hidden hover:scale-[1.02] transition-transform"
-              style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
-              onMouseEnter={() => setHoveredRowKey(rowKey)}
-              onMouseLeave={() => setHoveredRowKey((k) => (k === rowKey ? null : k))}
-            >
-              {hasPlayback ? (
-                <ClipFeedPreviewMedia
-                  className="z-0"
-                  stream_video_id={clip.stream_video_id}
-                  stream_playback_url={clip.stream_playback_url}
-                  stream_thumbnail_url={clip.stream_thumbnail_url}
-                  video_url={clip.video_url}
-                  thumbnail_url={clip.thumbnail_url}
-                  posterUrl={thumb === CLIP_THUMB_FALLBACK ? null : thumb}
-                  thumbFallback={CLIP_THUMB_FALLBACK}
-                  mediaHovered={hoveredRowKey === rowKey}
+            <HorizontalClipCarouselItem key={rowKey}>
+              <div className="relative h-full w-full">
+                <ClipFeedGridTile
+                  clip={clipWithUser}
+                  onOpenClip={(c) => setSelectedClip(c as unknown as DashboardGridClip)}
                 />
-              ) : (
-                <img
-                  src={thumb}
-                  alt={(clip.artist_name as string) || 'Concert clip'}
-                  className="w-full h-full object-cover pointer-events-none"
-                />
-              )}
 
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedClip(clip)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setSelectedClip(clip);
-                  }
-                }}
-                className="absolute inset-0 z-10 cursor-pointer"
-              >
-                <div className="pointer-events-none absolute inset-0 z-[1] rounded-xl opacity-0 transition-opacity group-hover:opacity-100">
-                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/60">
-                    <h3 className="text-white font-bold text-sm mb-1 truncate">
-                      {clip.artist_name || 'Unknown Artist'}
-                    </h3>
-                    <p className="text-gray-300 text-xs truncate">
-                      {clip.venue_name || clip.location || 'Unknown Venue'}
-                    </p>
-                    <div className="flex items-center space-x-3 mt-2 text-xs text-gray-400">
-                      <span>❤️ {clip.likes_count ?? 0}</span>
-                      <span>👁️ {clip.views_count ?? 0}</span>
-                    </div>
+                {showDelete && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setClipPendingDelete(clip);
+                    }}
+                    className="absolute top-2 left-2 z-[25] flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-black/60 text-white transition-colors hover:bg-red-600/90"
+                    title="Delete clip"
+                    aria-label="Delete clip"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+
+                {showEdit && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditClip!(clip);
+                    }}
+                    className={`absolute z-[25] flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-black/60 text-white transition-colors hover:bg-momentum-ember/90 ${
+                      showPersonalizationBadge(clip) ? 'top-12 right-2' : 'top-2 right-2'
+                    }`}
+                    title="Edit clip details"
+                    aria-label="Edit clip details"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+
+                {showPersonalizationBadge(clip) && (
+                  <div
+                    className={`pointer-events-none absolute z-[25] rounded-full bg-pink-500 px-2 py-1 ${
+                      showEdit ? 'top-12 right-2' : 'top-2 right-2'
+                    }`}
+                  >
+                    <Heart className="h-3 w-3 fill-white text-white" />
                   </div>
-                </div>
+                )}
               </div>
-
-              {showDelete && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setClipPendingDelete(clip);
-                  }}
-                  className="absolute top-2 left-2 z-20 flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white hover:bg-red-600/90 border border-white/20 transition-colors"
-                  title="Delete clip"
-                  aria-label="Delete clip"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-
-              {showEdit && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditClip!(clip);
-                  }}
-                  className="absolute top-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white hover:bg-momentum-ember/90 border border-white/20 transition-colors"
-                  title="Edit clip details"
-                  aria-label="Edit clip details"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-              )}
-
-              {showPersonalizationBadge(clip) && (
-                <div
-                  className={`absolute z-20 px-2 py-1 bg-pink-500 rounded-full pointer-events-none ${
-                    showEdit ? 'top-12 right-2' : 'top-2 right-2'
-                  }`}
-                >
-                  <Heart className="w-3 h-3 text-white fill-white" />
-                </div>
-              )}
-            </div>
             </HorizontalClipCarouselItem>
           );
         })}

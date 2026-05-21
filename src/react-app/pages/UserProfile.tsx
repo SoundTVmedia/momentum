@@ -14,7 +14,6 @@ import type { ClipWithUser, UserProfile } from '@/shared/types';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
 import { useQuickCaptureLauncher } from '@/react-app/hooks/useQuickCaptureLauncher';
-import { useProfileUploadAction } from '@/react-app/lib/profileUploadAction';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { artistPath } from '@/shared/app-paths';
 
@@ -59,9 +58,6 @@ export default function UserProfilePage() {
 
   const isOwnProfile = user?.id === userId;
   const quickCapture = useQuickCaptureLauncher();
-  const handleOwnProfileUpload = useProfileUploadAction(
-    isOwnProfile ? quickCapture.openQuickCapture : undefined
-  );
 
   const fetchUserProfile = async () => {
     if (!userId) return;
@@ -391,38 +387,33 @@ export default function UserProfilePage() {
           </div>
         )}
 
-        {/* Clips Grid */}
+        {/* Public profile clips — own profile uses My clips carousel in OwnProfileHub */}
+        {!isOwnProfile ? (
+          <>
         <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
-          {isOwnProfile ? 'Your Clips' : `${profile.display_name}'s Clips`}
+          {`${profile.display_name}'s Clips`}
         </h2>
         
         {clips.length === 0 ? (
           <div className="text-center py-12 glass-panel rounded-xl">
             <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">
-              {isOwnProfile ? "No clips yet. Time to share!" : "Nothing here yet"}
+              Nothing here yet
             </p>
-            {isOwnProfile && (
-              <button
-                type="button"
-                onClick={handleOwnProfileUpload}
-                className="mt-4 px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
-              >
-                Share Your First Moment
-              </button>
-            )}
           </div>
         ) : (
           <ClipFeedCarousel
             clips={clips}
             className={PAGE_CAROUSEL_BLEED}
-            ariaLabel={isOwnProfile ? 'Your clips' : `${profile.display_name}'s clips`}
+            ariaLabel={`${profile.display_name}'s clips`}
             onOpenClip={(clip) => {
               setSelectedClip(clip);
               setProfileModalFeed(clips.length > 1 ? clips : null);
             }}
           />
         )}
+          </>
+        ) : null}
       </div>
 
       {/* Modals */}

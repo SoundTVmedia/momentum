@@ -288,6 +288,113 @@ export async function getTrendingContent(c: Context) {
   });
 }
 
+/** Discover page carousel always shows this many trending artists when data exists. */
+export const DISCOVER_TRENDING_ARTIST_COUNT = 4;
+
+function artistDedupeKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function trendingArtistFromRow(row: Record<string, unknown>): TrendingArtistRow | null {
+  const name = typeof row.name === 'string' ? row.name.trim() : '';
+  if (!name) return null;
+  return {
+    name,
+    image_url: typeof row.image_url === 'string' ? row.image_url : null,
+    clip_count: Number(row.clip_count) || 0,
+    jambase_id: typeof row.jambase_id === 'string' ? row.jambase_id : null,
+  };
+}
+
+function mergeTrendingArtists(
+  base: TrendingArtistRow[],
+  extra: TrendingArtistRow[],
+  target: number,
+): TrendingArtistRow[] {
+  const seen = new Set(base.map((a) => artistDedupeKey(a.name)));
+  const merged = [...base];
+  for (const row of extra) {
+    if (merged.length >= target) break;
+    const key = artistDedupeKey(row.name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(row);
+  }
+  return merged.slice(0, target);
+}
+
+/**
+ * Pad trending artists to `target` using all-time clip leaders, then the artists catalog.
+ */
+export async function ensureDiscoverTrendingArtists(
+  db: D1Database,
+  primary: TrendingArtistRow[],
+  target: number = DISCOVER_TRENDING_ARTIST_COUNT,
+): Promise<TrendingArtistRow[]> {
+  let merged = mergeTrendingArtists(primary, [], target);
+  if (merged.length >= target) return merged;
+
+  const excludeFromClips = merged.map((a) => a.name);
+  const needFromClips = target - merged.length;
+  const notInClause =
+    excludeFromClips.length > 0
+      ? `AND clips.artist_name NOT IN (${excludeFromClips.map(() => '?').join(',')})`
+      : '';
+
+  const allTime = await db
+    .prepare(
+      `SELECT
+        clips.artist_name as name,
+        MAX(artists.image_url) as image_url,
+        MAX(clips.jambase_artist_id) as jambase_id,
+        COUNT(DISTINCT clips.id) as clip_count
+      FROM clips
+      LEFT JOIN artists ON clips.artist_name = artists.name
+      WHERE clips.artist_name IS NOT NULL
+      AND clips.is_hidden = 0
+      ${notInClause}
+      GROUP BY clips.artist_name
+      ORDER BY clip_count DESC
+      LIMIT ?`,
+    )
+    .bind(...excludeFromClips, needFromClips)
+    .all();
+
+  const allTimeRows = (allTime.results ?? [])
+    .map((r) => trendingArtistFromRow(r as Record<string, unknown>))
+    .filter((r): r is TrendingArtistRow => r != null);
+  merged = mergeTrendingArtists(merged, allTimeRows, target);
+  if (merged.length >= target) return merged;
+
+  const excludeFromCatalog = merged.map((a) => a.name);
+  const needFromCatalog = target - merged.length;
+  const catalogNotIn =
+    excludeFromCatalog.length > 0
+      ? `AND name NOT IN (${excludeFromCatalog.map(() => '?').join(',')})`
+      : '';
+
+  const catalog = await db
+    .prepare(
+      `SELECT
+        name,
+        image_url,
+        NULL as jambase_id,
+        0 as clip_count
+      FROM artists
+      WHERE name IS NOT NULL AND trim(name) != ''
+      ${catalogNotIn}
+      ORDER BY updated_at DESC, name ASC
+      LIMIT ?`,
+    )
+    .bind(...excludeFromCatalog, needFromCatalog)
+    .all();
+
+  const catalogRows = (catalog.results ?? [])
+    .map((r) => trendingArtistFromRow(r as Record<string, unknown>))
+    .filter((r): r is TrendingArtistRow => r != null);
+  return mergeTrendingArtists(merged, catalogRows, target);
+}
+
 /** Home Discover tab: trending clips, JamBase-enriched artists, nearby upcoming shows. */
 export async function getDiscoverFeed(c: Context) {
   const mochaUser = c.get('user') as MochaUser | undefined;
@@ -326,8 +433,13 @@ export async function getDiscoverFeed(c: Context) {
   const apiKey = c.env.JAMBASE_API_KEY;
 
   const artistsBase = (trendingArtistsRaw.results ?? []) as TrendingArtistRow[];
+  const artistsForDiscover = await ensureDiscoverTrendingArtists(
+    c.env.DB,
+    artistsBase,
+    DISCOVER_TRENDING_ARTIST_COUNT,
+  );
   const [artists, nearbyEvents] = await Promise.all([
-    enrichTrendingArtistsWithJamBase(apiKey, jbQ, artistsBase),
+    enrichTrendingArtistsWithJamBase(apiKey, jbQ, artistsForDiscover),
     fetchNearbyJamBaseEvents(
       apiKey,
       jbQ,

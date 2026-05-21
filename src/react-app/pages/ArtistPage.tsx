@@ -301,10 +301,8 @@ export default function ArtistPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           <div className="lg:col-span-2">
             <SectionHeading
-              title="Concert Moments"
+              title="Latest Concert Moments"
               subtitle="Fan-captured moments from live shows"
-              icon={Music}
-              iconClassName="text-momentum-rose"
               badge={
                 <span className="px-3 py-1 bg-momentum-rose/20 text-momentum-rose text-sm rounded-full font-medium">
                   {clips.length} clips

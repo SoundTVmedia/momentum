@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { Eye, Heart, Loader2, Play, Youtube } from 'lucide-react';
+import { artistPath } from '@/shared/app-paths';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
@@ -31,11 +33,12 @@ export function YouTubeVideoCard({
   /** Which stat to show first on the card footer. */
   highlight?: 'likes' | 'views';
 }) {
+  const artistLabel = video.artistName?.trim();
+
   return (
-    <button
-      type="button"
+    <div
       onClick={() => onOpen(video)}
-      className={`glass-youtube-card group ${YOUTUBE_CAROUSEL_CARD_CLASS} p-0 text-left`}
+      className={`glass-youtube-card group cursor-pointer ${YOUTUBE_CAROUSEL_CARD_CLASS} p-0 text-left`}
     >
       <div className={YOUTUBE_CARD_THUMB_CLASS}>
         {video.thumbnailUrl ? (
@@ -57,9 +60,19 @@ export function YouTubeVideoCard({
       </div>
       <div className={YOUTUBE_CARD_BODY_CLASS}>
         <p className={YOUTUBE_CARD_TITLE_CLASS}>{video.title}</p>
-        <p className={YOUTUBE_CARD_ARTIST_SLOT_CLASS}>
-          {video.artistName ?? '\u00A0'}
-        </p>
+        {artistLabel ? (
+          <Link
+            to={artistPath(artistLabel)}
+            onClick={(e) => e.stopPropagation()}
+            className={`${YOUTUBE_CARD_ARTIST_SLOT_CLASS} relative z-10 block transition-colors hover:text-momentum-flare hover:underline`}
+          >
+            {artistLabel}
+          </Link>
+        ) : (
+          <p className={YOUTUBE_CARD_ARTIST_SLOT_CLASS} aria-hidden>
+            {'\u00A0'}
+          </p>
+        )}
         <div className={YOUTUBE_CARD_STATS_CLASS}>
           {highlight === 'views' ? (
             <>
@@ -86,7 +99,7 @@ export function YouTubeVideoCard({
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

@@ -498,15 +498,19 @@ export default function DiscoverPage() {
               </section>
             )}
 
-            {discoverFeed.artists.length > 0 && (
-              <section className={HOME_FEED_SECTION_CLASS}>
-                <DiscoverSectionTitle
-                  title="Trending Artists"
-                  subtitle="Artists with the most new clips — photos from JamBase when available"
-                />
-                <DiscoverArtistCarousel artists={discoverFeed.artists} />
-              </section>
-            )}
+            <section className={HOME_FEED_SECTION_CLASS}>
+              <DiscoverSectionTitle
+                title="Trending Artists"
+                subtitle="Artists with the most new clips — photos from JamBase when available"
+              />
+              {discoverFeed.artists.length > 0 ? (
+                <DiscoverArtistCarousel artists={discoverFeed.artists.slice(0, 4)} />
+              ) : (
+                <p className="text-sm text-gray-400">
+                  Trending artists will appear here as more clips are shared on the platform.
+                </p>
+              )}
+            </section>
 
             <section className={HOME_FEED_SECTION_CLASS}>
               <DiscoverSectionTitle
