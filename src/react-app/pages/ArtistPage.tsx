@@ -243,7 +243,6 @@ export default function ArtistPage() {
             {/* Artist Info */}
             <div className="flex-1">
               <div className="flex items-center space-x-3 mb-4">
-                <Music className="w-8 h-8 text-momentum-rose" />
                 <h1 className="fb-hero-title">{artist.name}</h1>
                 {artist.is_verified === 1 && (
                   <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
@@ -459,8 +458,6 @@ export default function ArtistPage() {
           <SectionHeading
             title="Upcoming Shows"
             subtitle="Live dates from JamBase"
-            icon={Calendar}
-            iconClassName="text-momentum-rose"
             size="page"
           />
           <JamBaseEventGrid

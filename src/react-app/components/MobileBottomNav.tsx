@@ -1,9 +1,11 @@
-import { Home, Search, Bell, User, Video } from 'lucide-react';
+import { Home, Search, Bell, Video } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNotifications } from '@/react-app/hooks/useNotifications';
 import { useState } from 'react';
 import QuickRecordButton from './QuickRecordButton';
+import UserAvatar from './UserAvatar';
+import type { ExtendedMochaUser } from '@/shared/types';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
   primeGeolocationOnUserGesture,
@@ -16,6 +18,8 @@ export default function MobileBottomNav() {
   const location = useLocation();
   const { hideBottomNav } = useMobileChrome();
   const { user, isPending } = useAuth();
+  const extendedUser = user as ExtendedMochaUser | null;
+  const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
   const { unreadCount } = useNotifications();
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [primedMediaStream, setPrimedMediaStream] = useState<MediaStream | null>(null);
@@ -73,16 +77,18 @@ export default function MobileBottomNav() {
     setShowQuickCapture(false);
   };
 
+  const profilePath = user ? `/users/${user.id}` : '/auth';
+
   const navItems = [
     { icon: Home, label: 'The Feed', path: '/', onClick: () => navigate('/') },
     { icon: Search, label: 'Discover', path: '/discover', onClick: () => navigate('/discover') },
     { icon: Video, label: 'Capture Moment', path: '/capture', onClick: handleCaptureClick, special: true },
     { icon: Bell, label: 'Alerts', path: '/notifications', onClick: () => user ? navigate('/notifications') : navigate('/auth'), badge: unreadCount },
     {
-      icon: User,
       label: 'Profile',
-      path: user ? `/users/${user.id}` : '/auth',
-      onClick: () => (user ? navigate(`/users/${user.id}`) : navigate('/auth')),
+      path: profilePath,
+      onClick: () => (user ? navigate(profilePath) : navigate('/auth')),
+      profile: true,
     },
   ];
 
@@ -108,17 +114,17 @@ export default function MobileBottomNav() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-chrome border-t border-white/10 bottom-nav">
         <div className="flex items-center justify-around h-16 px-2">
           {navItems.map((item) => {
-            const Icon = item.icon;
             const active = isActive(item.path);
-            
-            if (item.special) {
+
+            if (item.special && item.icon) {
+              const Icon = item.icon;
               return (
                 <button
                   key={item.label}
                   onClick={item.onClick}
                   title="Capture Moment"
                   aria-label="Capture Moment"
-                  className="flex flex-col items-center justify-center relative transform transition-all hover:scale-110"
+                  className="flex items-center justify-center relative transform transition-all hover:scale-110"
                 >
                   <div className="w-12 h-12 rounded-full momentum-grad-interactive flex items-center justify-center animate-neon-pulse">
                     <Icon className="w-6 h-6 text-white" />
@@ -127,11 +133,49 @@ export default function MobileBottomNav() {
               );
             }
 
+            if (item.profile) {
+              return (
+                <button
+                  key={item.label}
+                  onClick={item.onClick}
+                  aria-label={item.label}
+                  title={item.label}
+                  className={`flex items-center justify-center flex-1 h-full relative transition-all ${
+                    active ? 'text-momentum-flare' : 'text-gray-400'
+                  }`}
+                >
+                  <div className="relative">
+                    <UserAvatar
+                      imageUrl={
+                        extendedUser?.profile?.profile_image_url ??
+                        oauthUser?.google_user_data?.picture ??
+                        null
+                      }
+                      displayName={
+                        extendedUser?.profile?.display_name ??
+                        oauthUser?.google_user_data?.name ??
+                        null
+                      }
+                      seed={user?.id}
+                      sizeClass="w-8 h-8"
+                      letterClassName="text-xs font-semibold"
+                    />
+                  </div>
+                  {active && (
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 momentum-grad-interactive rounded-full" />
+                  )}
+                </button>
+              );
+            }
+
+            const Icon = item.icon!;
             return (
               <button
                 key={item.label}
                 onClick={item.onClick}
-                className={`flex flex-col items-center justify-center flex-1 h-full relative transition-all ${
+                aria-label={item.label}
+                title={item.label}
+                className={`flex items-center justify-center flex-1 h-full relative transition-all ${
                   active ? 'text-momentum-flare' : 'text-gray-400'
                 }`}
               >
@@ -143,9 +187,6 @@ export default function MobileBottomNav() {
                     </span>
                   )}
                 </div>
-                <span className={`text-[10px] mt-1 font-medium ${active ? 'font-bold' : ''}`}>
-                  {item.label}
-                </span>
                 {active && (
                   <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 momentum-grad-interactive rounded-full" />
                 )}

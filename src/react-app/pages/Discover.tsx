@@ -11,6 +11,9 @@ import DiscoverSectionTitle from '@/react-app/components/DiscoverSectionTitle';
 import DiscoverArtistCarousel, {
   type DiscoverArtist,
 } from '@/react-app/components/DiscoverArtistCarousel';
+import DiscoverVenueCarousel, {
+  discoverVenueFromJamBase,
+} from '@/react-app/components/DiscoverVenueCarousel';
 import { venuePath } from '@/shared/app-paths';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
@@ -402,51 +405,9 @@ export default function DiscoverPage() {
                 )}
 
                 {results.jambase.venues.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-momentum-glacier/90 uppercase tracking-wide mb-3 flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" /> Venues
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {results.jambase.venues.map((v) => {
-                        const name = typeof v.name === 'string' ? v.name : 'Venue';
-                        const image = typeof v.image === 'string' ? v.image : null;
-                        const addr = v.address as Record<string, unknown> | undefined;
-                        const region = addr?.addressRegion as Record<string, unknown> | undefined;
-                        const locality =
-                          typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
-                        const regionName =
-                          typeof region?.alternateName === 'string'
-                            ? region.alternateName
-                            : typeof region?.name === 'string'
-                              ? String(region.name)
-                              : '';
-                        const locationLine = [locality, regionName].filter(Boolean).join(', ');
-                        return (
-                          <button
-                            key={typeof v.identifier === 'string' ? v.identifier : name}
-                            type="button"
-                            onClick={() => navigate(venuePath(name))}
-                            className="glass-panel border border-momentum-ember/25 rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-all text-left group"
-                          >
-                            <div className="relative aspect-[4/3] overflow-hidden">
-                              <img
-                                src={image?.trim() || FALLBACK_VENUE_IMAGE}
-                                alt=""
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                              <div className="absolute bottom-0 left-0 right-0 p-3">
-                                <div className="text-white font-semibold text-sm truncate">{name}</div>
-                                {locationLine ? (
-                                  <p className="text-gray-300 text-xs mt-0.5 truncate">{locationLine}</p>
-                                ) : null}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <DiscoverVenueCarousel
+                    venues={results.jambase.venues.map(discoverVenueFromJamBase)}
+                  />
                 )}
 
                 {results.jambase.events.length > 0 && (

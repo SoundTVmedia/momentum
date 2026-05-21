@@ -9,6 +9,7 @@ import UserAvatar from './UserAvatar'
 import AdvancedSearchDropdown from './AdvancedSearchDropdown'
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types'
 import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
+import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -16,6 +17,7 @@ export default function Header() {
   const isHome = pathname === '/'
   const isDiscover = pathname === '/discover'
   const hideHeaderSearch = isHome || isDiscover
+  const { hideBottomNav: hideSiteChrome } = useMobileChrome()
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null
@@ -73,6 +75,7 @@ export default function Header() {
 
   return (
     <>
+    {!hideSiteChrome ? (
     <header className="glass-chrome border-b border-white/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
@@ -174,7 +177,7 @@ export default function Header() {
                 )}
                 <button
                   onClick={() => navigate(user ? `/users/${user.id}` : '/auth')}
-                  className="inline-flex items-center justify-center p-0.5 sm:p-1 rounded-full text-gray-400 hover:text-white transition-colors ring-2 ring-transparent hover:ring-white/20 tap-feedback"
+                  className="hidden md:inline-flex items-center justify-center p-0.5 sm:p-1 rounded-full text-gray-400 hover:text-white transition-colors ring-2 ring-transparent hover:ring-white/20 tap-feedback"
                   title="Your profile"
                   type="button"
                 >
@@ -214,6 +217,7 @@ export default function Header() {
         </div>
       </div>
     </header>
+    ) : null}
     {headerClipModal ? (
       <ClipModal
         clip={headerClipModal.clip}

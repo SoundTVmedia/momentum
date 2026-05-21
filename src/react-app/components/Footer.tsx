@@ -1,7 +1,14 @@
 import { Music, Instagram, Twitter, Youtube, Download, Smartphone } from 'lucide-react'
 import { SHOW_FEEDBACK_LIVE_SCHEDULE } from '@/shared/feature-flags'
+import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 
 export default function Footer() {
+  const { hideBottomNav: hideSiteChrome } = useMobileChrome()
+
+  if (hideSiteChrome) {
+    return null
+  }
+
   return (
     <footer className="glass-chrome border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
