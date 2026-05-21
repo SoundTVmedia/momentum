@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Music, Filter, Users, Video, X, Ticket } from 'lucide-react';
+import { Search, MapPin, Music, Filter, Users, Video, X, Ticket, Heart } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
@@ -14,6 +14,7 @@ import DiscoverArtistCarousel, {
 import DiscoverVenueCarousel, {
   discoverVenueFromJamBase,
 } from '@/react-app/components/DiscoverVenueCarousel';
+import DiscoverTrendingMusicSection from '@/react-app/components/DiscoverTrendingMusicSection';
 import { venuePath } from '@/shared/app-paths';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
@@ -47,6 +48,12 @@ interface SearchResults {
   jambaseNotice?: string | null;
 }
 
+type DiscoverForYou = {
+  clips: ClipWithUser[];
+  personalized: boolean;
+  subtitle: string;
+};
+
 type DiscoverFeed = {
   clips: ClipWithUser[];
   artists: DiscoverArtist[];
@@ -58,6 +65,7 @@ type DiscoverFeed = {
     label?: string;
   };
   jambaseNotice?: string | null;
+  forYou?: DiscoverForYou | null;
 };
 
 
@@ -460,6 +468,24 @@ export default function DiscoverPage() {
               </div>
             )}
 
+            {discoverFeed.forYou && discoverFeed.forYou.clips.length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle
+                  icon={Heart}
+                  iconClassName="text-pink-400"
+                  title="For You"
+                  subtitle={discoverFeed.forYou.subtitle}
+                />
+                <ClipFeedCarousel
+                  clips={discoverFeed.forYou.clips}
+                  onOpenClip={(clip) =>
+                    openDiscoverClip(clip, discoverFeed.forYou!.clips)
+                  }
+                  ariaLabel="For you clips"
+                />
+              </section>
+            )}
+
             {discoverFeed.clips.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle
@@ -505,6 +531,8 @@ export default function DiscoverPage() {
                 </div>
               )}
             </section>
+
+            <DiscoverTrendingMusicSection />
           </div>
         ) : null}
       </div>

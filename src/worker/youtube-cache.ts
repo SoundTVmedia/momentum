@@ -97,6 +97,10 @@ export function youtubeFavoriteFeedCacheKey(uid: string, limit: number): string 
   return `yt:fav:${uid}:l${limit}`;
 }
 
+export function youtubeTrendingMusicCacheKey(regionCode: string, limit: number): string {
+  return `yt:trending-music:${regionCode.toUpperCase()}:l${limit}`;
+}
+
 type CacheRow = { payload: string; expires_at: string };
 
 export async function getYoutubeCachedPayload<T>(

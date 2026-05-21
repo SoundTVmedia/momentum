@@ -357,6 +357,11 @@ app.get(
   optionalAuthMiddleware,
   youtube.getArtistYoutubeVideos,
 );
+app.get(
+  "/api/youtube/trending-music",
+  optionalAuthMiddleware,
+  youtube.getTrendingMusicYoutube,
+);
 
 // Submit verification request
 app.post("/api/users/verification-request", authMiddleware, async (c) => {

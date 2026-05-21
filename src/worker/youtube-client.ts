@@ -375,6 +375,35 @@ function toDto(item: VideoItem, artistName: string): YoutubeVideoDto | null {
   };
 }
 
+/** YouTube chart: most popular music videos in a region (category 10 = Music). */
+export async function fetchTrendingMusicVideos(
+  apiKey: string,
+  maxResults: number,
+  regionCode = 'US',
+  quota?: YoutubeQuotaContext,
+): Promise<YoutubeVideoDto[]> {
+  const region = /^[A-Z]{2}$/i.test(regionCode.trim()) ? regionCode.trim().toUpperCase() : 'US';
+  const data = await youtubeGet<YoutubeListResponse<VideoItem>>(
+    apiKey,
+    '/videos',
+    {
+      part: 'snippet,statistics',
+      chart: 'mostPopular',
+      videoCategoryId: '10',
+      regionCode: region,
+      maxResults: String(Math.min(25, Math.max(1, maxResults))),
+    },
+    quota,
+  );
+
+  return (data.items ?? [])
+    .map((item) => {
+      const channel = item.snippet?.channelTitle?.trim() || '';
+      return toDto(item, channel);
+    })
+    .filter((v): v is YoutubeVideoDto => v !== null);
+}
+
 /** Fallback: search YouTube for high-view videos matching the artist name. */
 export async function fetchVideosByArtistSearch(
   apiKey: string,

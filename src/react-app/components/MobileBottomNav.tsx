@@ -83,7 +83,13 @@ export default function MobileBottomNav() {
     { icon: Home, label: 'The Feed', path: '/', onClick: () => navigate('/') },
     { icon: Search, label: 'Discover', path: '/discover', onClick: () => navigate('/discover') },
     { icon: Video, label: 'Capture Moment', path: '/capture', onClick: handleCaptureClick, special: true },
-    { icon: Bell, label: 'Alerts', path: '/notifications', onClick: () => user ? navigate('/notifications') : navigate('/auth'), badge: unreadCount },
+    {
+      icon: Bell,
+      label: 'Alerts',
+      path: '/notifications',
+      onClick: () => (user ? navigate('/notifications') : navigate('/auth')),
+      hasUnread: unreadCount > 0,
+    },
     {
       label: 'Profile',
       path: profilePath,
@@ -169,23 +175,28 @@ export default function MobileBottomNav() {
             }
 
             const Icon = item.icon!;
+            const alertsLabel =
+              item.label === 'Alerts' && item.hasUnread
+                ? `${item.label}, new notifications`
+                : item.label;
             return (
               <button
                 key={item.label}
                 onClick={item.onClick}
-                aria-label={item.label}
-                title={item.label}
+                aria-label={alertsLabel}
+                title={alertsLabel}
                 className={`flex items-center justify-center flex-1 h-full relative transition-all ${
                   active ? 'text-momentum-flare' : 'text-gray-400'
                 }`}
               >
                 <div className="relative">
                   <Icon className={`w-6 h-6 transition-all ${active ? 'scale-110' : ''}`} />
-                  {item.badge && item.badge > 0 && (
-                    <span className="absolute -top-2 -right-2 w-4 h-4 momentum-grad-interactive rounded-full text-white text-[10px] flex items-center justify-center font-bold">
-                      {item.badge > 9 ? '9+' : item.badge}
-                    </span>
-                  )}
+                  {item.hasUnread ? (
+                    <span
+                      className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500 ring-2 ring-black/80"
+                      aria-hidden
+                    />
+                  ) : null}
                 </div>
                 {active && (
                   <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 momentum-grad-interactive rounded-full" />

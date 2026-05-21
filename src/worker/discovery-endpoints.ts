@@ -12,6 +12,7 @@ import {
   jamBaseArtistVenueSearchPhrase,
 } from './jambase-events-search';
 import { resolveDiscoverLocation } from './discover-location';
+import { buildDiscoverForYou } from './discover-for-you';
 import {
   enrichSearchArtistsWithJamBase,
   enrichSearchVenuesWithJamBase,
@@ -344,7 +345,18 @@ export async function getDiscoverFeed(c: Context) {
     jambaseNotice = 'No nearby shows or JamBase images returned for this area.';
   }
 
-  cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+  const forYou = await buildDiscoverForYou(
+    c,
+    mochaUser ?? null,
+    location,
+    nearbyEvents as Record<string, unknown>[],
+  );
+
+  if (mochaUser) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+  } else {
+    cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+  }
 
   return c.json({
     clips: trendingClips.results || [],
@@ -352,6 +364,7 @@ export async function getDiscoverFeed(c: Context) {
     nearbyEvents,
     location,
     jambaseNotice,
+    forYou,
   });
 }
 

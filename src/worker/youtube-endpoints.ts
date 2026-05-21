@@ -13,11 +13,13 @@ import {
   isYoutubeQuotaExceededError,
   setYoutubeCachedPayload,
   youtubeFavoriteFeedCacheKey,
+  youtubeTrendingMusicCacheKey,
   youtubeVideoPoolCacheKey,
   youtubeVideoPoolSearchCacheKey,
 } from './youtube-cache';
 import {
   buildFavoriteArtistMostLikedFeed,
+  fetchTrendingMusicVideos,
   youtubeApiKeyConfigured,
   youtubeMissingKeyNotice,
   type YoutubeVideoDto,
@@ -256,5 +258,74 @@ export async function getArtistYoutubeVideos(c: Context) {
       });
     }
     return c.json({ error: msg }, 500);
+  }
+}
+
+type TrendingMusicPayload = {
+  configured: boolean;
+  videos: YoutubeVideoDto[];
+  message?: string;
+  cached?: boolean;
+};
+
+/** Discover / home: carousel of trending music on YouTube (chart API). */
+export async function getTrendingMusicYoutube(c: Context) {
+  const apiKey = c.env.YOUTUBE_API_KEY;
+  if (!youtubeApiKeyConfigured(apiKey)) {
+    cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 120 });
+    return c.json({
+      configured: false,
+      message: youtubeMissingKeyNotice(),
+      videos: [] as YoutubeVideoDto[],
+    } satisfies TrendingMusicPayload);
+  }
+
+  const limitRaw = Number.parseInt(c.req.query('limit') || '16', 10);
+  const limit = Number.isFinite(limitRaw)
+    ? Math.min(PER_LIST_MAX, Math.max(1, limitRaw))
+    : 16;
+  const regionParam = (c.req.query('region') || 'US').trim().toUpperCase();
+  const regionCode = /^[A-Z]{2}$/.test(regionParam) ? regionParam : 'US';
+
+  const cacheKey = youtubeTrendingMusicCacheKey(regionCode, limit);
+  const cached = await getYoutubeCachedPayload<TrendingMusicPayload>(c.env.DB, cacheKey, {
+    allowStaleDays: 1,
+  });
+  if (cached?.videos?.length) {
+    cacheJsonProxy(c, { browserMaxAge: 600, cdnMaxAge: 3600, staleWhileRevalidate: 7200 });
+    return c.json({ ...cached, cached: true });
+  }
+
+  const quota = youtubeQuotaForEnv(c.env.DB, c.env);
+
+  try {
+    const videos = await fetchTrendingMusicVideos(apiKey, limit, regionCode, quota);
+    const payload: TrendingMusicPayload = {
+      configured: true,
+      videos,
+      message:
+        videos.length === 0
+          ? 'No trending music videos returned from YouTube right now.'
+          : undefined,
+    };
+
+    if (videos.length > 0) {
+      await setYoutubeCachedPayload(c.env.DB, cacheKey, payload, 6 * 3600);
+    }
+
+    cacheJsonProxy(c, { browserMaxAge: 600, cdnMaxAge: 3600, staleWhileRevalidate: 7200 });
+    return c.json(payload);
+  } catch (error) {
+    console.error('getTrendingMusicYoutube error:', error);
+    const msg = error instanceof Error ? error.message : 'Failed to load trending music';
+    if (isYoutubeQuotaExceededError(msg) && cached) {
+      cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 1800 });
+      return c.json({ ...cached, cached: true, message: msg });
+    }
+    return c.json({
+      configured: true,
+      videos: [],
+      message: msg,
+    } satisfies TrendingMusicPayload);
   }
 }
