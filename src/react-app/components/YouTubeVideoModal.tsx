@@ -12,7 +12,12 @@ import {
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { artistPath } from '@/shared/app-paths';
-import { loadYoutubeIframeApi, type YTPlayer } from '@/react-app/lib/youtube-iframe-api';
+import {
+  loadYoutubeIframeApi,
+  startYoutubeAutoplay,
+  YT_PLAYER_STATE,
+  type YTPlayer,
+} from '@/react-app/lib/youtube-iframe-api';
 
 export type YoutubeVideoItem = {
   videoId: string;
@@ -55,6 +60,13 @@ function YouTubeEmbed({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YTPlayer | null>(null);
+  const userPausedRef = useRef(false);
+  const videoIdRef = useRef(video.videoId);
+
+  useEffect(() => {
+    videoIdRef.current = video.videoId;
+    userPausedRef.current = false;
+  }, [video.videoId]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -85,8 +97,17 @@ function YouTubeEmbed({
         },
         events: {
           onReady: (event) => {
-            event.target.unMute();
-            event.target.playVideo();
+            startYoutubeAutoplay(event.target);
+          },
+          onStateChange: (event) => {
+            if (userPausedRef.current) return;
+            const state = event.data;
+            if (
+              state === YT_PLAYER_STATE.UNSTARTED ||
+              state === YT_PLAYER_STATE.CUED
+            ) {
+              startYoutubeAutoplay(event.target);
+            }
           },
         },
       });
@@ -99,6 +120,14 @@ function YouTubeEmbed({
       playerRef.current?.destroy();
       playerRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player?.loadVideoById) return;
+    userPausedRef.current = false;
+    player.loadVideoById({ videoId: video.videoId });
+    startYoutubeAutoplay(player);
   }, [video.videoId]);
 
   return (
@@ -366,22 +395,31 @@ export default function YouTubeVideoModal({
     </>
   );
 
+  const youtubePlayer = (
+    <YouTubeEmbed
+      video={video}
+      edgeSwipeHandlers={mobileViewport ? edgeSwipeHandlers : undefined}
+    />
+  );
+
   return (
     <div className="fixed inset-0 z-[110] overflow-hidden bg-black">
       {/* Mobile: full-viewport video (same pattern as ClipModal) */}
       <div
         ref={mobileSwipeRef}
-        className="relative h-[100dvh] w-full overflow-hidden md:hidden"
+        className={`relative h-[100dvh] w-full overflow-hidden ${mobileViewport ? '' : 'hidden'}`}
       >
-        <YouTubeEmbed video={video} edgeSwipeHandlers={edgeSwipeHandlers} />
+        {mobileViewport ? youtubePlayer : null}
         {mobileOverlay}
       </div>
 
       {/* Desktop */}
-      <div className="relative hidden h-[100dvh] w-full md:block">
+      <div
+        className={`relative h-[100dvh] w-full ${mobileViewport ? 'hidden' : 'block'}`}
+      >
         <div className="mx-auto flex h-full max-w-6xl">
           <div className="relative h-full min-h-0 flex-1 bg-black">
-            <YouTubeEmbed video={video} />
+            {!mobileViewport ? youtubePlayer : null}
             <button
               type="button"
               onClick={onClose}

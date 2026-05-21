@@ -96,7 +96,22 @@ function StreamVideoPlayer(
     if (!autoPlayRef.current) return;
     const video = videoRef.current;
     if (!video || !videoSrc) return;
-    void video.play().catch(() => {});
+
+    const attempt = (muted: boolean) => {
+      video.muted = muted;
+      setIsMuted(muted);
+      return video.play();
+    };
+
+    void attempt(false).catch(() => {
+      void attempt(true)
+        .then(() => {
+          video.muted = false;
+          setIsMuted(false);
+          void video.play().catch(() => {});
+        })
+        .catch(() => {});
+    });
   }, [videoSrc]);
 
   const destroyHls = useCallback(() => {

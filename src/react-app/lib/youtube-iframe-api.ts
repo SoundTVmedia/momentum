@@ -1,7 +1,20 @@
 /** Minimal types for the YouTube IFrame Player API (loaded at runtime). */
-type YTPlayer = {
+export const YT_PLAYER_STATE = {
+  UNSTARTED: -1,
+  ENDED: 0,
+  PLAYING: 1,
+  PAUSED: 2,
+  BUFFERING: 3,
+  CUED: 5,
+} as const;
+
+export type YTPlayer = {
   playVideo: () => void;
+  pauseVideo: () => void;
+  mute: () => void;
   unMute: () => void;
+  loadVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void;
+  getPlayerState: () => number;
   destroy: () => void;
 };
 
@@ -14,9 +27,42 @@ type YTPlayerConstructor = new (
     playerVars?: Record<string, string | number>;
     events?: {
       onReady?: (event: { target: YTPlayer }) => void;
+      onStateChange?: (event: { data: number; target: YTPlayer }) => void;
     };
   },
 ) => YTPlayer;
+
+/** Start playback after open or swipe; retries muted if the browser blocks sound. */
+export function startYoutubeAutoplay(player: YTPlayer): void {
+  const tryUnmuted = () => {
+    try {
+      player.unMute();
+      player.playVideo();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  tryUnmuted();
+
+  window.setTimeout(() => {
+    const state = player.getPlayerState?.();
+    if (state === YT_PLAYER_STATE.PLAYING || state === YT_PLAYER_STATE.BUFFERING) return;
+    try {
+      player.mute();
+      player.playVideo();
+    } catch {
+      /* ignore */
+    }
+    window.setTimeout(() => {
+      try {
+        player.unMute();
+      } catch {
+        /* ignore */
+      }
+    }, 150);
+  }, 400);
+}
 
 declare global {
   interface Window {
@@ -58,5 +104,3 @@ export function loadYoutubeIframeApi(): Promise<void> {
 
   return apiReady;
 }
-
-export type { YTPlayer };

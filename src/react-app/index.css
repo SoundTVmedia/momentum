@@ -735,10 +735,29 @@ body {
     0 0 20px rgba(15, 118, 110, 0.35);
 }
 
-/* Bottom nav safe area for mobile */
+/* Mobile bottom tab bar — keep page content above the fixed nav */
+:root {
+  --mobile-bottom-nav-bar: 4rem; /* matches MobileBottomNav h-16 */
+  --mobile-bottom-nav-safe-extra: 0.5rem; /* matches .bottom-nav safe-area padding */
+}
+
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .bottom-nav {
-    padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem);
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--mobile-bottom-nav-safe-extra));
+  }
+}
+
+/* Scrollable pages: inset equals full nav footprint (bar + safe area + extra) */
+.mobile-page-inset-bottom {
+  padding-bottom: calc(
+    var(--mobile-bottom-nav-bar) + var(--mobile-bottom-nav-safe-extra) +
+      env(safe-area-inset-bottom, 0px)
+  );
+}
+
+@media (min-width: 768px) {
+  .mobile-page-inset-bottom {
+    padding-bottom: 0;
   }
 }
 

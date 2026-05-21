@@ -143,6 +143,19 @@ export default function ClipModal({
 
   const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
 
+  useEffect(() => {
+    const playerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      playerRef.current?.play();
+      raf2 = requestAnimationFrame(() => playerRef.current?.play());
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [clip.id, mobileViewport]);
+
   const handleClipSaved = useCallback(
     (updated: ClipWithUser) => {
       feedNavigation?.onChangeClip(updated);

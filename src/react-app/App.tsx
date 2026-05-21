@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
+import AppRouteChrome from "@/react-app/components/AppRouteChrome";
 import { AuthProvider } from "@getmocha/users-service/react";
 import ErrorBoundary from "@/react-app/components/ErrorBoundary";
 import HomePage from "@/react-app/pages/Home";
@@ -20,7 +21,6 @@ import ShowClipsPage from "@/react-app/pages/ShowClips";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
-import MobileBottomNav from "@/react-app/components/MobileBottomNav";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 
 export default function App() {
@@ -31,30 +31,31 @@ export default function App() {
         <MobileChromeProvider>
         <Router>
           <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/feed" element={<Navigate to="/" replace />} />
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
-          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/upload" element={<UploadClipPage />} />
-          <Route path="/saved" element={<SavedClipsPage />} />
-          <Route path="/artists/:artistName" element={<ArtistPage />} />
-          <Route path="/venues/:venueName" element={<VenuePage />} />
-          <Route path="/users/:userId" element={<UserProfilePage />} />
-          <Route path="/discover" element={<DiscoverPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/premium" element={<Navigate to="/" replace />} />
-          <Route path="/artists/:artistName/songs/:songSlug" element={<SongPage />} />
-          <Route path="/songs/:songSlug" element={<GlobalSongPage />} />
-          <Route path="/genres/:genreSlug" element={<GenrePage />} />
-          <Route path="/artists/:artistName/shows/:showId/clips" element={<ShowClipsPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-        <MobileBottomNav />
-      </Router>
+            <Route element={<AppRouteChrome />}>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/feed" element={<Navigate to="/" replace />} />
+              <Route path="/auth" element={<AuthPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/upload" element={<UploadClipPage />} />
+              <Route path="/saved" element={<SavedClipsPage />} />
+              <Route path="/artists/:artistName" element={<ArtistPage />} />
+              <Route path="/venues/:venueName" element={<VenuePage />} />
+              <Route path="/users/:userId" element={<UserProfilePage />} />
+              <Route path="/discover" element={<DiscoverPage />} />
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/premium" element={<Navigate to="/" replace />} />
+              <Route path="/artists/:artistName/songs/:songSlug" element={<SongPage />} />
+              <Route path="/songs/:songSlug" element={<GlobalSongPage />} />
+              <Route path="/genres/:genreSlug" element={<GenrePage />} />
+              <Route path="/artists/:artistName/shows/:showId/clips" element={<ShowClipsPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+        </Router>
         </MobileChromeProvider>
     </AuthProvider>
     </ErrorBoundary>

@@ -209,8 +209,8 @@ export default function ConcertFeed({
     <section
       className={
         edgeBleed
-          ? `${HOME_FEED_SECTION_CLASS}${suppressBottomPadding ? '' : ' pb-16 md:pb-6'}`
-          : 'py-4 sm:py-6 md:py-8 bg-black pb-20 md:pb-8'
+          ? `${HOME_FEED_SECTION_CLASS}${suppressBottomPadding ? '' : ' md:pb-6'}`
+          : 'py-4 sm:py-6 md:py-8 bg-black md:pb-8'
       }
     >
       {edgeBleed ? (
