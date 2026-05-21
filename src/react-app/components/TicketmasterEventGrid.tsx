@@ -94,7 +94,7 @@ export default function TicketmasterEventGrid({
   if (loading && !hasSearched) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
       </div>
     );
   }
@@ -115,7 +115,7 @@ export default function TicketmasterEventGrid({
       {displayEvents.map((event) => (
         <div
           key={event.id}
-          className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300"
+          className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 hover:scale-105 transition-all duration-300"
         >
           <div className="relative">
             <img
@@ -134,7 +134,7 @@ export default function TicketmasterEventGrid({
           </div>
 
           <div className="p-6">
-            <h3 className="font-bold text-lg text-white mb-2 group-hover:text-cyan-400 transition-colors line-clamp-2">
+            <h3 className="font-bold text-lg text-white mb-2 group-hover:text-momentum-flare transition-colors line-clamp-2">
               {event.name}
             </h3>
 
@@ -162,10 +162,10 @@ export default function TicketmasterEventGrid({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-cyan-400 font-bold">{formatPrice(event.priceRanges)}</span>
+              <span className="text-momentum-flare font-bold">{formatPrice(event.priceRanges)}</span>
               <button
                 onClick={() => handleTicketClick(event)}
-                className="flex items-center space-x-2 px-4 py-2 momentum-grad-interactive text-white rounded-lg font-medium hover:scale-105 transition-transform shadow-lg shadow-momentum-teal/30"
+                className="flex items-center space-x-2 px-4 py-2 momentum-grad-interactive text-white rounded-lg font-medium hover:scale-105 transition-transform shadow-lg shadow-momentum-ember/30"
               >
                 <Ticket className="w-4 h-4" />
                 <span>Tickets</span>

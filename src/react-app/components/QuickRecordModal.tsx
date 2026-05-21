@@ -43,7 +43,7 @@ export default function QuickRecordModal({ isOpen, onClose }: QuickRecordModalPr
   if (step === 'consent') {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black px-6 text-center">
-        <MapPin className="mb-4 h-14 w-14 shrink-0 text-cyan-400" aria-hidden />
+        <MapPin className="mb-4 h-14 w-14 shrink-0 text-momentum-flare" aria-hidden />
         <h2 className="mb-2 text-xl font-bold text-white">Location and camera</h2>
         <p className="mb-8 max-w-sm text-sm leading-relaxed text-gray-400">
           Tap continue so your browser can ask for location (venue suggestions), then camera and microphone for your clip

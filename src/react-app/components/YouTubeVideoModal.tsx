@@ -142,9 +142,9 @@ function YouTubeModalSidebar({
           <button
             type="button"
             onClick={goArtistPage}
-            className="mt-2 inline-flex max-w-full items-center gap-1.5 text-left text-sm font-medium text-cyan-300 transition-colors hover:text-cyan-200"
+            className="mt-2 inline-flex max-w-full items-center gap-1.5 text-left text-sm font-medium text-momentum-flare/90 transition-colors hover:text-momentum-flare"
           >
-            <Music className="h-4 w-4 shrink-0 text-purple-400" />
+            <Music className="h-4 w-4 shrink-0 text-momentum-rose" />
             <span className="truncate">{video.artistName}</span>
           </button>
         ) : null}
@@ -328,9 +328,9 @@ export default function YouTubeVideoModal({
             <button
               type="button"
               onClick={goArtistPage}
-              className="mt-1 inline-flex max-w-full items-center gap-1.5 text-left text-sm font-medium text-cyan-300"
+              className="mt-1 inline-flex max-w-full items-center gap-1.5 text-left text-sm font-medium text-momentum-flare/90"
             >
-              <Music className="h-4 w-4 shrink-0 text-purple-400" />
+              <Music className="h-4 w-4 shrink-0 text-momentum-rose" />
               <span className="truncate">{video.artistName}</span>
             </button>
           ) : null}

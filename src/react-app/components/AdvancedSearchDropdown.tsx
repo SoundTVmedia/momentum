@@ -51,7 +51,7 @@ function SearchDropdownPanel({
     <div className={className} role="listbox" aria-label="Search suggestions">
       {loading && (
         <div className="flex items-center justify-center gap-2 py-8 text-gray-400 text-sm">
-          <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+          <Loader2 className="w-5 h-5 animate-spin text-momentum-flare" />
           Searching…
         </div>
       )}
@@ -64,7 +64,7 @@ function SearchDropdownPanel({
         <div className="max-h-[min(24rem,70vh)] overflow-y-auto">
           {results.clips.length > 0 && (
             <div className="border-b border-white/10">
-              <div className="px-3 py-2 text-xs font-semibold text-cyan-300/90 uppercase tracking-wide">
+              <div className="px-3 py-2 text-xs font-semibold text-momentum-flare/90 uppercase tracking-wide">
                 Clips
               </div>
               {results.clips.map((clip, index) => (
@@ -100,7 +100,7 @@ function SearchDropdownPanel({
           )}
           {results.artists.length > 0 && (
             <div className="border-b border-white/10">
-              <div className="px-3 py-2 text-xs font-semibold text-purple-300/90 uppercase tracking-wide flex items-center gap-1">
+              <div className="px-3 py-2 text-xs font-semibold text-momentum-rose/80/90 uppercase tracking-wide flex items-center gap-1">
                 <Music className="w-3.5 h-3.5" /> Artists (Feedback)
               </div>
               {results.artists.map((a) => (
@@ -229,7 +229,7 @@ function SearchDropdownPanel({
           <button
             type="button"
             onClick={onDiscoverAll}
-            className="w-full py-2.5 text-center text-xs text-cyan-400 hover:bg-white/5 border-t border-white/10"
+            className="w-full py-2.5 text-center text-xs text-momentum-flare hover:bg-white/5 border-t border-white/10"
           >
             See all results on Discover →
           </button>
@@ -243,7 +243,7 @@ const HERO_PANEL_CLASS =
   'glass-dropdown rounded-2xl overflow-hidden shadow-2xl shadow-black/60';
 
 const HEADER_PANEL_CLASS =
-  'absolute top-full mt-2 w-[28rem] max-w-[90vw] z-[100] glass-dropdown rounded-xl overflow-hidden shadow-xl shadow-cyan-950/40';
+  'absolute top-full mt-2 w-[28rem] max-w-[90vw] z-[100] glass-dropdown rounded-xl overflow-hidden shadow-xl shadow-momentum-ink/40';
 
 export default function AdvancedSearchDropdown({
   query,

@@ -39,7 +39,7 @@ export default function DiscoverArtistCarousel({
           <button
             type="button"
             onClick={() => navigate(artistPath(artist.name))}
-            className="w-full h-full text-left glass-panel border border-purple-500/25 rounded-xl overflow-hidden hover:border-purple-400/50 transition-colors group"
+            className="w-full h-full text-left glass-panel border border-momentum-rose/25 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-colors group"
           >
             <div className="relative aspect-square overflow-hidden">
               <img
@@ -50,7 +50,7 @@ export default function DiscoverArtistCarousel({
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-3">
                 <div className="flex items-center gap-1.5 text-white font-semibold text-sm truncate">
-                  <Music className="w-4 h-4 text-purple-300 shrink-0" aria-hidden />
+                  <Music className="w-4 h-4 text-momentum-rose/80 shrink-0" aria-hidden />
                   <span className="truncate">{artist.name}</span>
                 </div>
                 <p className="text-gray-300 text-xs mt-0.5">

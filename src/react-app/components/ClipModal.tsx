@@ -154,40 +154,14 @@ export default function ClipModal({
   const togglePlayback = () => activePlayerRef.current?.togglePlay();
   const toggleMute = () => activePlayerRef.current?.toggleMute();
 
-  const playbackControls = (
-    <div className="mt-2 flex items-center gap-1">
-      <button
-        type="button"
-        onClick={togglePlayback}
-        className="rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
-        aria-label={playback.isPlaying ? 'Pause' : 'Play'}
-      >
-        {playback.isPlaying ? (
-          <Pause className="h-4 w-4" />
-        ) : (
-          <Play className="h-4 w-4" />
-        )}
-      </button>
-      <button
-        type="button"
-        onClick={toggleMute}
-        className="rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
-        aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
-      >
-        {playback.isMuted ? (
-          <VolumeX className="h-4 w-4" />
-        ) : (
-          <Volume2 className="h-4 w-4" />
-        )}
-      </button>
-    </div>
-  );
+  const mobileChromeIconBtn =
+    'rounded-full glass-icon-btn p-2 text-white transition-colors';
 
   const editClipButton = isOwnClip ? (
     <button
       type="button"
       onClick={() => setEditOpen(true)}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-momentum-teal/40 bg-momentum-teal/15 px-3 py-1.5 text-sm font-semibold text-momentum-mint transition-colors hover:bg-momentum-teal/25"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-momentum-ember/40 bg-momentum-ember/15 px-3 py-1.5 text-sm font-semibold text-momentum-flare transition-colors hover:bg-momentum-ember/25"
     >
       <Pencil className="h-4 w-4" />
       Edit clip
@@ -305,15 +279,38 @@ export default function ClipModal({
               <p className="text-xs text-white/70">
                 {formatRelativeTime(clipPostedAt(clip))}
               </p>
-              {playbackControls}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {editClipButton}
             <button
               type="button"
+              onClick={togglePlayback}
+              className={mobileChromeIconBtn}
+              aria-label={playback.isPlaying ? 'Pause' : 'Play'}
+            >
+              {playback.isPlaying ? (
+                <Pause className="h-5 w-5" />
+              ) : (
+                <Play className="h-5 w-5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={toggleMute}
+              className={mobileChromeIconBtn}
+              aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
+            >
+              {playback.isMuted ? (
+                <VolumeX className="h-5 w-5" />
+              ) : (
+                <Volume2 className="h-5 w-5" />
+              )}
+            </button>
+            <button
+              type="button"
               onClick={onClose}
-              className="rounded-full glass-icon-btn p-2 text-white"
+              className={mobileChromeIconBtn}
               aria-label="Close"
             >
               <X className="h-5 w-5" />
@@ -409,7 +406,7 @@ export default function ClipModal({
                 onClick={handleShareTwitter}
                 className="flex w-full items-center gap-2 border-t border-white/10 px-3 py-2.5 text-sm text-white hover:bg-white/10"
               >
-                <Twitter className="h-4 w-4 text-blue-400" />
+                <Twitter className="h-4 w-4 text-momentum-flare" />
                 <span>Twitter</span>
               </button>
               <button
@@ -534,7 +531,7 @@ export default function ClipModal({
                   alt={clip.user_display_name || 'User'}
                   sizeClass="w-10 h-10"
                   letterClassName="text-sm font-semibold"
-                  className="border-2 border-momentum-teal/40 flex-shrink-0"
+                  className="border-2 border-momentum-ember/40 flex-shrink-0"
                 />
                 <div className="min-w-0">
                   <div className="truncate text-base font-medium text-white">
@@ -579,7 +576,7 @@ export default function ClipModal({
                     onClick={goArtist}
                     className="flex min-w-0 items-center space-x-2 transition-opacity hover:opacity-80"
                   >
-                    <Music className="h-4 w-4 shrink-0 text-purple-400" />
+                    <Music className="h-4 w-4 shrink-0 text-momentum-rose" />
                     <span className="truncate text-base font-bold text-white">{clip.artist_name}</span>
                   </button>
                 ) : null}
@@ -589,8 +586,8 @@ export default function ClipModal({
                     onClick={goSong}
                     className="flex min-w-0 items-center space-x-2 text-left transition-opacity hover:opacity-80"
                   >
-                    <Disc3 className="h-4 w-4 shrink-0 text-fuchsia-400" />
-                    <span className="truncate text-base font-semibold text-fuchsia-200">
+                    <Disc3 className="h-4 w-4 shrink-0 text-momentum-flare-400" />
+                    <span className="truncate text-base font-semibold text-momentum-flare/90">
                       {clip.song_title}
                     </span>
                   </button>
@@ -601,8 +598,8 @@ export default function ClipModal({
                     onClick={goGenre}
                     className="flex min-w-0 items-center space-x-2 text-left transition-opacity hover:opacity-80"
                   >
-                    <Radio className="h-4 w-4 shrink-0 text-momentum-mint" />
-                    <span className="truncate text-base font-medium text-momentum-mint/90">
+                    <Radio className="h-4 w-4 shrink-0 text-momentum-flare" />
+                    <span className="truncate text-base font-medium text-momentum-flare/90">
                       {clip.genre_name}
                     </span>
                   </button>
@@ -613,7 +610,7 @@ export default function ClipModal({
                     onClick={goVenue}
                     className="flex min-w-0 items-center space-x-2 transition-opacity hover:opacity-80"
                   >
-                    <Calendar className="h-4 w-4 shrink-0 text-blue-400" />
+                    <Calendar className="h-4 w-4 shrink-0 text-momentum-flare" />
                     <span className="truncate text-base text-gray-300">{clip.venue_name}</span>
                   </button>
                 ) : null}
@@ -697,7 +694,7 @@ export default function ClipModal({
                           onClick={handleShareTwitter}
                           className="flex w-full items-center space-x-3 border-t border-white/10 whitespace-nowrap px-4 py-3 text-white transition-colors hover:bg-white/10"
                         >
-                          <Twitter className="h-5 w-5 text-blue-400" />
+                          <Twitter className="h-5 w-5 text-momentum-flare" />
                           <span>Twitter</span>
                         </button>
                         <button

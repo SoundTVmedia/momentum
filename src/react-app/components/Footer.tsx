@@ -10,8 +10,8 @@ export default function Footer() {
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <Music className="w-8 h-8 text-cyan-400" />
-              <span className="text-2xl font-bold bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              <Music className="w-8 h-8 text-momentum-flare" />
+              <span className="text-2xl font-bold bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
                 FEEDBACK
               </span>
             </div>
@@ -19,13 +19,13 @@ export default function Footer() {
               Where live music lives online. Join the community that's redefining how we experience concerts.
             </p>
             <div className="flex space-x-4">
-              <button className="text-gray-400 hover:text-cyan-400 transition-colors">
+              <button className="text-gray-400 hover:text-momentum-flare transition-colors">
                 <Instagram className="w-5 h-5" />
               </button>
-              <button className="text-gray-400 hover:text-cyan-400 transition-colors">
+              <button className="text-gray-400 hover:text-momentum-flare transition-colors">
                 <Twitter className="w-5 h-5" />
               </button>
-              <button className="text-gray-400 hover:text-cyan-400 transition-colors">
+              <button className="text-gray-400 hover:text-momentum-flare transition-colors">
                 <Youtube className="w-5 h-5" />
               </button>
             </div>
@@ -75,7 +75,7 @@ export default function Footer() {
         </div>
 
         {/* Newsletter Signup */}
-        <div className="border-t border-purple-500/20 pt-8 mb-8">
+        <div className="border-t border-momentum-rose/20 pt-8 mb-8">
           <div className="max-w-md mx-auto text-center">
             <h3 className="font-bold text-white mb-2">Stay in the Loop</h3>
             <p className="text-gray-400 mb-4 text-sm">
@@ -85,7 +85,7 @@ export default function Footer() {
               <input 
                 type="email" 
                 placeholder="Enter your email"
-                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-400"
+                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-rose"
               />
               <button className="px-6 py-2 momentum-grad-interactive rounded-lg font-medium text-white hover:scale-105 transition-transform">
                 Subscribe
@@ -95,16 +95,16 @@ export default function Footer() {
         </div>
 
         {SHOW_FEEDBACK_LIVE_SCHEDULE ? (
-          <div className="border-t border-purple-500/20 pt-8 mb-8">
+          <div className="border-t border-momentum-rose/20 pt-8 mb-8">
             <div className="text-center">
               <h3 className="font-bold text-white mb-4">FEEDBACK Live Schedule</h3>
               <div className="grid grid-cols-1 md:grid-cols-7 gap-2 max-w-4xl mx-auto">
                 {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
                   <div
                     key={day}
-                    className="bg-black/40 border border-momentum-teal/20 rounded-lg p-3 text-center"
+                    className="bg-black/40 border border-momentum-ember/20 rounded-lg p-3 text-center"
                   >
-                    <div className="font-medium text-cyan-400 text-sm">{day}</div>
+                    <div className="font-medium text-momentum-flare text-sm">{day}</div>
                     <div className="text-white text-xs mt-1">8PM-12AM</div>
                     <div className="text-gray-300 text-xs">EST</div>
                   </div>
@@ -115,7 +115,7 @@ export default function Footer() {
         ) : null}
 
         {/* Copyright */}
-        <div className="border-t border-purple-500/20 pt-8 text-center">
+        <div className="border-t border-momentum-rose/20 pt-8 text-center">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-gray-400 text-sm">
               © 2024 FEEDBACK. All rights reserved.

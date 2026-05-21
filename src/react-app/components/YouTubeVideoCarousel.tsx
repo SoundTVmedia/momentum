@@ -5,7 +5,15 @@ import HorizontalClipCarousel, {
 } from '@/react-app/components/HorizontalClipCarousel';
 import YouTubeVideoModal, { type YoutubeVideoItem } from '@/react-app/components/YouTubeVideoModal';
 import SectionHeading from '@/react-app/components/SectionHeading';
-import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import {
+  PAGE_CAROUSEL_BLEED,
+  YOUTUBE_CARD_ARTIST_SLOT_CLASS,
+  YOUTUBE_CARD_BODY_CLASS,
+  YOUTUBE_CARD_STATS_CLASS,
+  YOUTUBE_CARD_THUMB_CLASS,
+  YOUTUBE_CARD_TITLE_CLASS,
+  YOUTUBE_CAROUSEL_CARD_CLASS,
+} from '@/react-app/lib/homeFeedLayout';
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
@@ -27,9 +35,9 @@ export function YouTubeVideoCard({
     <button
       type="button"
       onClick={() => onOpen(video)}
-      className="video-card group flex h-full w-full flex-col overflow-hidden bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 p-0 text-left transition-all hover:border-purple-500/50"
+      className={`glass-youtube-card group ${YOUTUBE_CAROUSEL_CARD_CLASS} p-0 text-left`}
     >
-      <div className="relative aspect-video shrink-0 overflow-hidden bg-white/5">
+      <div className={YOUTUBE_CARD_THUMB_CLASS}>
         {video.thumbnailUrl ? (
           <img
             src={video.thumbnailUrl}
@@ -41,20 +49,18 @@ export function YouTubeVideoCard({
             <Youtube className="h-12 w-12 opacity-40" />
           </div>
         )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600/90 text-white shadow-lg">
+        <div className="absolute inset-0 z-[2] flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600/90 text-white shadow-lg backdrop-blur-sm">
             <Play className="ml-0.5 h-6 w-6 fill-current" />
           </span>
         </div>
       </div>
-      <div className="flex flex-1 flex-col p-4">
-        <p className="line-clamp-2 text-sm font-semibold text-white group-hover:text-purple-400 transition-colors">
-          {video.title}
+      <div className={YOUTUBE_CARD_BODY_CLASS}>
+        <p className={YOUTUBE_CARD_TITLE_CLASS}>{video.title}</p>
+        <p className={YOUTUBE_CARD_ARTIST_SLOT_CLASS}>
+          {video.artistName ?? '\u00A0'}
         </p>
-        {video.artistName ? (
-          <p className="mt-1 truncate text-xs text-cyan-300/90">{video.artistName}</p>
-        ) : null}
-        <div className="mt-auto flex flex-wrap items-center gap-3 pt-3 text-xs text-gray-400">
+        <div className={YOUTUBE_CARD_STATS_CLASS}>
           {highlight === 'views' ? (
             <>
               <span className="inline-flex items-center gap-1">
@@ -109,7 +115,7 @@ export default function YouTubeVideoCarousel({
 
   if (loading) {
     return (
-      <div className="video-card flex items-center justify-center gap-2 border border-white/10 bg-gradient-to-b from-white/5 to-white/[0.02] p-8 text-gray-400">
+      <div className="glass-youtube-card flex min-h-[17.75rem] items-center justify-center gap-2 p-8 text-gray-400">
         <Loader2 className="h-5 w-5 animate-spin" />
         <span>Loading YouTube…</span>
       </div>
@@ -125,7 +131,11 @@ export default function YouTubeVideoCarousel({
     <>
       <SectionHeading title={title} subtitle={subtitle} />
 
-      <HorizontalClipCarousel ariaLabel={ariaLabel} className={carouselClassName}>
+      <HorizontalClipCarousel
+        ariaLabel={ariaLabel}
+        className={carouselClassName}
+        stretchItems
+      >
         {videos.map((video) => (
           <HorizontalClipCarouselItem key={video.videoId}>
             <YouTubeVideoCard video={video} onOpen={setSelectedVideo} highlight={highlight} />

@@ -69,7 +69,7 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <Link
               to="/auth?mode=signup"
-              className="inline-flex items-center justify-center px-8 py-3.5 momentum-grad-interactive rounded-xl text-white font-semibold text-lg hover:scale-[1.02] transition-transform shadow-lg shadow-momentum-teal/20"
+              className="inline-flex items-center justify-center px-8 py-3.5 momentum-grad-interactive rounded-xl text-white font-semibold text-lg hover:scale-[1.02] transition-transform shadow-lg shadow-momentum-ember/20"
             >
               Create an account
             </Link>

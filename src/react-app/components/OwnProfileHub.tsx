@@ -57,7 +57,7 @@ export default function OwnProfileHub() {
   if (isPending || loading) {
     return (
       <div className="flex justify-center py-10">
-        <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+        <Loader2 className="w-10 h-10 text-momentum-flare animate-spin" />
       </div>
     );
   }
@@ -99,7 +99,7 @@ export default function OwnProfileHub() {
           <button
             type="button"
             onClick={() => setShowDeviceManagement(!showDeviceManagement)}
-            className="flex items-center space-x-2 text-cyan-400 hover:text-cyan-300 transition-colors"
+            className="flex items-center space-x-2 text-momentum-flare hover:text-momentum-flare/90 transition-colors"
           >
             <Settings className="w-5 h-5" />
             <span>Manage remembered devices</span>

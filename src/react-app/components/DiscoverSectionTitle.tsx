@@ -10,7 +10,7 @@ type DiscoverSectionTitleProps = {
 
 export default function DiscoverSectionTitle({
   icon,
-  iconClassName = 'text-momentum-mint',
+  iconClassName = 'text-momentum-flare',
   title,
   subtitle,
 }: DiscoverSectionTitleProps) {

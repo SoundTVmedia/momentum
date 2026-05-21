@@ -23,7 +23,7 @@ export default function AnalyticsPage() {
       <div className="min-h-screen text-white">
         <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+          <div className="inline-block w-8 h-8 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin"></div>
         </div>
       </div>
     );
@@ -38,14 +38,14 @@ export default function AnalyticsPage() {
         <div className="mb-8">
           <button
             onClick={() => navigate(user ? `/users/${user.id}` : '/')}
-            className="flex items-center space-x-2 text-cyan-400 hover:text-cyan-300 mb-4 transition-colors"
+            className="flex items-center space-x-2 text-momentum-flare hover:text-momentum-flare/90 mb-4 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
             <span>Back to profile</span>
           </button>
           
           <div className="flex items-center space-x-3">
-            <BarChart3 className="w-10 h-10 text-cyan-400" />
+            <BarChart3 className="w-10 h-10 text-momentum-flare" />
             <div>
               <h1 className="text-4xl font-bold text-white mb-2">Your Analytics</h1>
               <p className="text-gray-300 text-lg">Track your performance and engagement</p>

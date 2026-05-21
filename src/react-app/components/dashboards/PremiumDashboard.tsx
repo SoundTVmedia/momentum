@@ -152,7 +152,7 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
                     <div className="text-white font-bold mb-1">Bad Bunny World Tour</div>
                     <div className="text-gray-300 text-sm">Multiple cities • Spring 2026</div>
                   </div>
-                  <Ticket className="w-5 h-5 text-cyan-400" />
+                  <Ticket className="w-5 h-5 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
@@ -171,7 +171,7 @@ export default function PremiumDashboard({ user }: PremiumDashboardProps) {
                     <div className="text-white font-bold mb-1">Coachella 2026</div>
                     <div className="text-gray-300 text-sm">Indio, CA • April 2026</div>
                   </div>
-                  <Gift className="w-5 h-5 text-purple-400" />
+                  <Gift className="w-5 h-5 text-momentum-rose" />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>

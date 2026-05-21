@@ -29,8 +29,8 @@ export default function EmptyState({
           {emoji ? (
             <div className="text-6xl">{emoji}</div>
           ) : Icon ? (
-            <div className="w-20 h-20 mx-auto bg-momentum-teal/20 rounded-full flex items-center justify-center">
-              <Icon className="w-10 h-10 text-momentum-mint" />
+            <div className="w-20 h-20 mx-auto bg-momentum-ember/20 rounded-full flex items-center justify-center">
+              <Icon className="w-10 h-10 text-momentum-flare" />
             </div>
           ) : null}
         </div>

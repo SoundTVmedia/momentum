@@ -50,10 +50,10 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
     <div className="glass-banner rounded-xl p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-start gap-2 sm:gap-3">
-          <Sparkles className="w-5 h-5 text-momentum-mint animate-pulse shrink-0 mt-0.5" />
+          <Sparkles className="w-5 h-5 text-momentum-flare animate-pulse shrink-0 mt-0.5" />
           <div>
             <h3 className="font-headline text-lg sm:text-xl leading-tight">
-              <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
                 Tonight&apos;s Show
               </span>
             </h3>
@@ -85,7 +85,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
             className="group flex items-center space-x-3 p-3 bg-black/30 hover:bg-black/40 rounded-lg transition-all cursor-pointer"
             onClick={() => item.artist_name && navigate(artistPath(item.artist_name))}
           >
-            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-momentum-teal to-momentum-mint rounded-full flex items-center justify-center font-bold text-white">
+            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-momentum-ember to-momentum-flare rounded-full flex items-center justify-center font-bold text-white">
               {index + 1}
             </div>
 
@@ -100,7 +100,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
             <div className="flex-1 min-w-0">
               {item.artist_name && (
                 <div className="flex items-center space-x-2 mb-1">
-                  <Music className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <Music className="w-4 h-4 text-momentum-rose flex-shrink-0" />
                   <div className="text-white font-medium truncate">{item.artist_name}</div>
                 </div>
               )}
@@ -112,8 +112,8 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
               )}
               {item.scheduled_start_time && (
                 <div className="flex items-center space-x-2 mt-1">
-                  <Clock className="w-3 h-3 text-cyan-400 flex-shrink-0" />
-                  <div className="text-cyan-400 text-xs">
+                  <Clock className="w-3 h-3 text-momentum-flare flex-shrink-0" />
+                  <div className="text-momentum-flare text-xs">
                     {new Date(item.scheduled_start_time).toLocaleTimeString('en-US', {
                       hour: 'numeric',
                       minute: '2-digit'
@@ -128,7 +128,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
 
       {items.length > 5 && (
         <div className="mt-4 text-center">
-          <button className="text-purple-400 hover:text-purple-300 text-sm font-medium">
+          <button className="text-momentum-rose hover:text-momentum-rose/80 text-sm font-medium">
             +{items.length - 5} more clips in tonight's show
           </button>
         </div>

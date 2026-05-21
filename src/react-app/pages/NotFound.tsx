@@ -13,11 +13,11 @@ export default function NotFound() {
         <div className="text-center space-y-8">
           {/* 404 Animation */}
           <div className="relative">
-            <div className="text-9xl sm:text-[12rem] font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent animate-pulse">
+            <div className="text-9xl sm:text-[12rem] font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent animate-pulse">
               404
             </div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-32 h-32 bg-gradient-to-r from-momentum-teal/18 to-momentum-mint/12 rounded-full blur-3xl animate-pulse" />
+              <div className="w-32 h-32 bg-gradient-to-r from-momentum-ember/18 to-momentum-flare/12 rounded-full blur-3xl animate-pulse" />
             </div>
           </div>
 
@@ -66,7 +66,7 @@ export default function NotFound() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
               <button
                 onClick={() => navigate('/')}
-                className="p-4 bg-black/40 border border-momentum-teal/20 rounded-lg hover:border-momentum-teal/50 transition-colors text-left"
+                className="p-4 glass-panel border-momentum-ember/25 glass-panel-hover rounded-xl transition-colors text-left"
               >
                 <h3 className="font-bold text-white mb-1">Live Feed</h3>
                 <p className="text-sm text-gray-400">See what's happening tonight</p>
@@ -74,7 +74,7 @@ export default function NotFound() {
 
               <button
                 onClick={() => navigate('/discover')}
-                className="p-4 glass-panel border-purple-500/25 glass-panel-hover rounded-xl transition-colors text-left"
+                className="p-4 glass-panel border-momentum-rose/25 glass-panel-hover rounded-xl transition-colors text-left"
               >
                 <h3 className="font-bold text-white mb-1">Discover</h3>
                 <p className="text-sm text-gray-400">Find shows and artists</p>

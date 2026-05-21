@@ -55,19 +55,19 @@ export default function GenrePage() {
 
         {loading ? (
           <div className="flex justify-center py-20">
-            <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+            <Loader2 className="w-10 h-10 text-momentum-flare animate-spin" />
           </div>
         ) : error || !data ? (
           <p className="text-center text-gray-400 py-16">{error ?? 'Genre not found'}</p>
         ) : (
           <>
-            <div className="mb-10 rounded-2xl border border-momentum-teal/30 bg-gradient-to-r from-momentum-teal/15 to-momentum-mint/10 p-6 sm:p-8">
+            <div className="mb-10 rounded-2xl border border-momentum-ember/30 bg-gradient-to-r from-momentum-ember/15 to-momentum-flare/10 p-6 sm:p-8">
               <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-xl bg-momentum-teal/20 flex items-center justify-center shrink-0">
-                  <Radio className="w-8 h-8 text-momentum-mint" />
+                <div className="w-14 h-14 rounded-xl bg-momentum-ember/20 flex items-center justify-center shrink-0">
+                  <Radio className="w-8 h-8 text-momentum-flare" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm uppercase tracking-wide text-momentum-mint/90 mb-1">Genre</p>
+                  <p className="text-sm uppercase tracking-wide text-momentum-flare/90 mb-1">Genre</p>
                   <h1 className="text-3xl sm:text-4xl font-headline font-bold text-white mb-2">
                     {data.genre.name}
                   </h1>

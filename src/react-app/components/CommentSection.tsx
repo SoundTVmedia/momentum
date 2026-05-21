@@ -54,7 +54,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-2 mb-4">
-        <MessageCircle className="w-5 h-5 text-cyan-400" />
+        <MessageCircle className="w-5 h-5 text-momentum-flare" />
         <h3 className="text-lg font-bold text-white">
           Comments ({comments.length})
         </h3>
@@ -69,7 +69,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
               <button
                 type="button"
                 onClick={() => setReplyTo(null)}
-                className="text-sm text-cyan-400 hover:text-cyan-300"
+                className="text-sm text-momentum-flare hover:text-momentum-flare/90"
               >
                 Cancel
               </button>
@@ -87,7 +87,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
               alt="Your avatar"
               sizeClass="w-10 h-10"
               letterClassName="text-sm font-semibold"
-              className="border-2 border-momentum-teal/40"
+              className="border-2 border-momentum-ember/40"
             />
             <div className="flex-1 flex space-x-2">
               <input
@@ -95,7 +95,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Join the conversation..."
-                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 disabled={submitting}
               />
               <button
@@ -145,7 +145,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
                 alt={comment.user_display_name || 'User'}
                 sizeClass="w-10 h-10"
                 letterClassName="text-sm font-semibold"
-                className="border-2 border-momentum-teal/40"
+                className="border-2 border-momentum-ember/40"
               />
               <div className="flex-1">
                 <div className="bg-white/5 rounded-lg p-3 border border-white/10">
@@ -162,7 +162,7 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
                 {user && (
                   <button
                     onClick={() => setReplyTo(comment.id)}
-                    className="text-xs text-cyan-400 hover:text-cyan-300 mt-1 ml-3 transition-colors tap-feedback"
+                    className="text-xs text-momentum-flare hover:text-momentum-flare/90 mt-1 ml-3 transition-colors tap-feedback"
                   >
                     Reply
                   </button>

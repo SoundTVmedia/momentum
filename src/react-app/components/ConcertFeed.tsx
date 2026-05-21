@@ -143,6 +143,7 @@ export default function ConcertFeed({
             key={`${feedType}-loading`}
             ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
             className={carouselClass}
+            stretchItems
           >
             {Array.from({ length: 4 }).map((_, i) => (
               <HorizontalClipCarouselItem key={`sk-${i}`}>
@@ -157,6 +158,7 @@ export default function ConcertFeed({
               ref={carouselScrollRef}
               ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
               className={carouselClass}
+              stretchItems
             >
               {clips.map((clip, index) => (
                 <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
@@ -174,7 +176,7 @@ export default function ConcertFeed({
 
             <div className="mt-4 flex flex-col items-center justify-center gap-1 min-h-[2rem]">
               {loading && clips.length > 0 ? (
-                <p className="text-cyan-400 text-sm font-medium">Loading more moments…</p>
+                <p className="text-momentum-flare text-sm font-medium">Loading more moments…</p>
               ) : null}
               {!loading && !hasMore && clips.length > 0 ? (
                 <p className="text-gray-500 text-sm">You&apos;ve reached the end</p>

@@ -66,7 +66,7 @@ export default function ShowClipsPage() {
         </button>
 
         {/* Show Header */}
-        <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/12 border border-momentum-teal/25 rounded-xl p-6 sm:p-8 mb-8">
+        <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-8">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             {decodeURIComponent(artistName || '')}
           </h1>
@@ -74,13 +74,13 @@ export default function ShowClipsPage() {
           <div className="flex flex-wrap gap-4 text-gray-300 mb-4">
             {showDate && (
               <div className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-momentum-mint" />
+                <Calendar className="w-5 h-5 text-momentum-flare" />
                 <span>{showDate}</span>
               </div>
             )}
             {venueName && (
               <div className="flex items-center space-x-2">
-                <MapPin className="w-5 h-5 text-momentum-teal" />
+                <MapPin className="w-5 h-5 text-momentum-ember" />
                 <span>{venueName}</span>
                 {location && <span className="text-gray-500">• {location}</span>}
               </div>
@@ -97,7 +97,7 @@ export default function ShowClipsPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'time_posted' | 'most_liked')}
-              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-momentum-mint"
+              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-momentum-flare"
             >
               <option value="time_posted">Time Posted</option>
               <option value="most_liked">Most Liked</option>
@@ -108,10 +108,10 @@ export default function ShowClipsPage() {
         {/* Clips Grid */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+            <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
           </div>
         ) : clips.length === 0 ? (
-          <div className="text-center py-12 glass-panel border border-purple-500/20 rounded-xl">
+          <div className="text-center py-12 glass-panel border border-momentum-rose/20 rounded-xl">
             <p className="text-gray-400 text-lg">No clips found for this show</p>
           </div>
         ) : (
@@ -123,7 +123,7 @@ export default function ShowClipsPage() {
                   setSelectedClip(clip);
                   setShowModalFeed(clips.length > 1 ? clips : null);
                 }}
-                className="glass-panel border border-purple-500/20 rounded-xl overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
+                className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group"
               >
                 <div className="relative aspect-video">
                   <img

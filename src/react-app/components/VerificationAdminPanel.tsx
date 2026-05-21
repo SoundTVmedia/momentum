@@ -84,7 +84,7 @@ export default function VerificationAdminPanel() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center space-x-2">
-          <Shield className="w-6 h-6 text-blue-400" />
+          <Shield className="w-6 h-6 text-momentum-flare" />
           <span>Verification Requests</span>
         </h2>
         
@@ -96,7 +96,7 @@ export default function VerificationAdminPanel() {
               onClick={() => setStatusFilter(status)}
               className={`px-4 py-2 rounded-lg font-medium transition-colors capitalize text-sm ${
                 statusFilter === status
-                  ? 'bg-cyan-500/20 text-cyan-400 border border-momentum-teal/30'
+                  ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
                   : 'bg-white/5 text-gray-400 hover:bg-white/10'
               }`}
             >
@@ -108,7 +108,7 @@ export default function VerificationAdminPanel() {
 
       {loading ? (
         <div className="text-center py-12">
-          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
+          <Loader2 className="w-8 h-8 text-momentum-flare animate-spin mx-auto" />
         </div>
       ) : requests.length === 0 ? (
         <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
@@ -120,7 +120,7 @@ export default function VerificationAdminPanel() {
           {requests.map((request) => (
             <div
               key={request.id}
-              className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-teal/30 transition-colors"
+              className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-ember/30 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-4 flex-1">
@@ -131,7 +131,7 @@ export default function VerificationAdminPanel() {
                     alt={request.display_name}
                     sizeClass="w-12 h-12"
                     letterClassName="text-base font-semibold"
-                    className="border-2 border-momentum-teal/40"
+                    className="border-2 border-momentum-ember/40"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
@@ -139,7 +139,7 @@ export default function VerificationAdminPanel() {
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${getStatusColor(request.status)}`}>
                         {request.status}
                       </span>
-                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-xs font-semibold capitalize">
+                      <span className="px-2 py-0.5 bg-momentum-rose/20 text-momentum-rose rounded-full text-xs font-semibold capitalize">
                         {request.role}
                       </span>
                     </div>
@@ -150,14 +150,14 @@ export default function VerificationAdminPanel() {
                         href={request.proof_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center space-x-1 text-cyan-400 hover:text-cyan-300"
+                        className="flex items-center space-x-1 text-momentum-flare hover:text-momentum-flare/90"
                       >
                         <ExternalLink className="w-4 h-4" />
                         <span>Proof Link</span>
                       </a>
                       <button
                         onClick={() => setSelectedRequest(request)}
-                        className="flex items-center space-x-1 text-blue-400 hover:text-blue-300"
+                        className="flex items-center space-x-1 text-momentum-flare hover:text-blue-300"
                       >
                         <Eye className="w-4 h-4" />
                         <span>View Details</span>
@@ -195,8 +195,8 @@ export default function VerificationAdminPanel() {
       {/* Review Modal */}
       {selectedRequest && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-teal/20 rounded-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/12 border-b border-white/10 p-6">
+          <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-ember/20 rounded-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border-b border-white/10 p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">Review Verification Request</h2>
                 <button
@@ -220,12 +220,12 @@ export default function VerificationAdminPanel() {
                   alt={selectedRequest.display_name}
                   sizeClass="w-16 h-16"
                   letterClassName="text-xl font-semibold"
-                  className="border-2 border-momentum-teal/40"
+                  className="border-2 border-momentum-ember/40"
                 />
                 <div>
                   <h3 className="text-xl font-bold text-white mb-1">{selectedRequest.full_name}</h3>
                   <div className="text-gray-400">@{selectedRequest.display_name}</div>
-                  <div className="text-sm text-purple-400 capitalize mt-1">{selectedRequest.role}</div>
+                  <div className="text-sm text-momentum-rose capitalize mt-1">{selectedRequest.role}</div>
                 </div>
               </div>
 
@@ -240,7 +240,7 @@ export default function VerificationAdminPanel() {
                   href={selectedRequest.proof_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center space-x-2 text-cyan-400 hover:text-cyan-300"
+                  className="flex items-center space-x-2 text-momentum-flare hover:text-momentum-flare/90"
                 >
                   <ExternalLink className="w-4 h-4" />
                   <span className="break-all">{selectedRequest.proof_url}</span>
@@ -264,7 +264,7 @@ export default function VerificationAdminPanel() {
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
                       rows={3}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint resize-none"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare resize-none"
                       placeholder="Provide a reason if rejecting..."
                     />
                   </div>

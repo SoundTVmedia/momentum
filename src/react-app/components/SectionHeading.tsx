@@ -24,7 +24,7 @@ export default function SectionHeading({
   title,
   subtitle,
   icon: Icon,
-  iconClassName = 'text-momentum-mint',
+  iconClassName = 'text-momentum-flare',
   align = 'left',
   badge,
   size = 'section',

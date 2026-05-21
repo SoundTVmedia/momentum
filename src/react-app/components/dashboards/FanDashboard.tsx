@@ -34,24 +34,24 @@ export default function FanDashboard({ user }: FanDashboardProps) {
 
           <button 
             onClick={() => navigate('/')}
-            className="glass-panel rounded-xl p-6 hover:border-momentum-mint/50 transition-all"
+            className="glass-panel rounded-xl p-6 hover:border-momentum-flare/50 transition-all"
           >
-            <Play className="w-8 h-8 text-cyan-400 mb-2" />
+            <Play className="w-8 h-8 text-momentum-flare mb-2" />
             <div className="text-white font-bold">Jump In Live</div>
             <div className="text-gray-300 text-sm">Catch tonight's show</div>
           </button>
 
           <button 
             onClick={() => navigate('/')}
-            className="glass-panel rounded-xl p-6 hover:border-momentum-mint/50 transition-all"
+            className="glass-panel rounded-xl p-6 hover:border-momentum-flare/50 transition-all"
           >
-            <Ticket className="w-8 h-8 text-cyan-400 mb-2" />
+            <Ticket className="w-8 h-8 text-momentum-flare mb-2" />
             <div className="text-white font-bold">Find Shows</div>
             <div className="text-gray-300 text-sm">See who's playing</div>
           </button>
 
-          <button className="glass-panel rounded-xl p-6 hover:border-momentum-mint/50 transition-all">
-            <Users className="w-8 h-8 text-cyan-400 mb-2" />
+          <button className="glass-panel rounded-xl p-6 hover:border-momentum-flare/50 transition-all">
+            <Users className="w-8 h-8 text-momentum-flare mb-2" />
             <div className="text-white font-bold">Follow Artists</div>
             <div className="text-gray-300 text-sm">Never miss a drop</div>
           </button>
@@ -62,7 +62,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
           <div className="glass-panel rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Clips Uploaded</span>
-              <Upload className="w-5 h-5 text-cyan-400" />
+              <Upload className="w-5 h-5 text-momentum-flare" />
             </div>
             <div className="text-3xl font-bold text-white">0</div>
           </div>
@@ -78,7 +78,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
           <div className="glass-panel rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Following</span>
-              <Users className="w-5 h-5 text-blue-400" />
+              <Users className="w-5 h-5 text-momentum-flare" />
             </div>
             <div className="text-3xl font-bold text-white">0</div>
           </div>
@@ -86,7 +86,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
           <div className="glass-panel rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Featured</span>
-              <TrendingUp className="w-5 h-5 text-purple-400" />
+              <TrendingUp className="w-5 h-5 text-momentum-rose" />
             </div>
             <div className="text-3xl font-bold text-white">0</div>
           </div>
@@ -126,7 +126,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
 
               <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                 <div className="flex items-center space-x-3 mb-2">
-                  <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full"></div>
+                  <div className="w-8 h-8 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-full"></div>
                   <div>
                     <div className="text-white font-medium">concert_queen</div>
                     <div className="text-gray-400 text-sm">5 min ago</div>

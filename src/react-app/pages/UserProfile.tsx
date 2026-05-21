@@ -114,7 +114,7 @@ export default function UserProfilePage() {
       <div className="min-h-screen text-white">
         <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+          <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
         </div>
       </div>
     );
@@ -181,7 +181,7 @@ export default function UserProfilePage() {
                     <div className="flex items-center justify-center md:justify-start space-x-2 text-sm sm:text-base text-gray-400">
                       <span className="capitalize">{profile.role}</span>
                       {profile.is_verified === 1 && (
-                        <div className="bg-blue-500 rounded-full p-0.5 sm:p-1">
+                        <div className="bg-momentum-flare rounded-full p-0.5 sm:p-1">
                           <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                           </svg>
@@ -196,7 +196,7 @@ export default function UserProfilePage() {
                       disabled={followLoading(userId || '')}
                       className={`mt-4 md:mt-0 px-6 py-3 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center space-x-2 ${
                         isFollowing(userId || '')
-                          ? 'bg-white/10 border border-momentum-teal/50 text-white'
+                          ? 'bg-white/10 border border-momentum-ember/50 text-white'
                           : 'momentum-grad-interactive text-white'
                       }`}
                     >
@@ -218,7 +218,7 @@ export default function UserProfilePage() {
                     <div className="mt-3 sm:mt-4 md:mt-0 flex gap-2 justify-center md:justify-start">
                       <button
                         onClick={() => setShowProfileEditor(true)}
-                        className="px-4 py-2 sm:px-6 sm:py-3 bg-white/10 border border-momentum-teal/50 rounded-xl font-semibold text-white hover:bg-white/20 transition-colors flex items-center space-x-2 text-sm sm:text-base"
+                        className="px-4 py-2 sm:px-6 sm:py-3 bg-white/10 border border-momentum-ember/50 rounded-xl font-semibold text-white hover:bg-white/20 transition-colors flex items-center space-x-2 text-sm sm:text-base"
                       >
                         <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                         <span>Edit Profile</span>
@@ -226,7 +226,7 @@ export default function UserProfilePage() {
                       {profile.is_verified === 0 && ['artist', 'venue', 'influencer'].includes(profile.role) && (
                         <button
                           onClick={() => setShowVerificationRequest(true)}
-                          className="px-3 py-2 sm:px-4 sm:py-3 bg-blue-500/20 border border-blue-500/50 rounded-xl text-blue-400 hover:bg-blue-500/30 transition-colors"
+                          className="px-3 py-2 sm:px-4 sm:py-3 bg-momentum-flare/20 border border-momentum-flare/50 rounded-xl text-momentum-flare hover:bg-momentum-flare/30 transition-colors"
                           title="Request Verification"
                         >
                           <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -252,7 +252,7 @@ export default function UserProfilePage() {
                     {genres.map((genre: string) => (
                       <span
                         key={genre}
-                        className="px-3 py-1 bg-cyan-500/20 text-cyan-400 text-sm rounded-full"
+                        className="px-3 py-1 bg-momentum-ember/20 text-momentum-flare text-sm rounded-full"
                       >
                         {genre}
                       </span>
@@ -266,7 +266,7 @@ export default function UserProfilePage() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mt-6 sm:mt-8">
               <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
-                  <Video className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
+                  <Video className="w-4 h-4 sm:w-5 sm:h-5 text-momentum-flare" />
                 </div>
                 <div className="text-xl sm:text-2xl font-bold text-white">{stats.totalClips}</div>
                 <div className="text-xs sm:text-sm text-gray-400">Clips</div>
@@ -282,7 +282,7 @@ export default function UserProfilePage() {
               
               <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
-                  <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
+                  <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-momentum-flare" />
                 </div>
                 <div className="text-xl sm:text-2xl font-bold text-white">{stats.totalViews.toLocaleString()}</div>
                 <div className="text-xs sm:text-sm text-gray-400">Views</div>
@@ -290,7 +290,7 @@ export default function UserProfilePage() {
               
               <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5 text-momentum-rose" />
                 </div>
                 <div className="text-xl sm:text-2xl font-bold text-white">{stats.followers.toLocaleString()}</div>
                 <div className="text-xs sm:text-sm text-gray-400">Followers</div>
@@ -307,18 +307,18 @@ export default function UserProfilePage() {
 
             {/* Lifetime Feedback stats */}
             {lifetimeStats && (
-              <div className="mt-6 sm:mt-8 bg-gradient-to-r from-momentum-teal/12 to-momentum-mint/8 border border-momentum-teal/30 rounded-xl p-4 sm:p-6">
+              <div className="mt-6 sm:mt-8 bg-gradient-to-r from-momentum-ember/12 to-momentum-flare/8 border border-momentum-ember/30 rounded-xl p-4 sm:p-6">
                 <div className="flex items-center space-x-2 mb-4">
-                  <TrendingUp className="w-5 h-5 text-cyan-400" />
+                  <TrendingUp className="w-5 h-5 text-momentum-flare" />
                   <h3 className="text-lg sm:text-xl font-bold text-white">Lifetime Feedback Stats</h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="text-center">
-                    <div className="text-2xl sm:text-3xl font-bold text-cyan-400">{lifetimeStats.totalClipsPosted}</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-momentum-flare">{lifetimeStats.totalClipsPosted}</div>
                     <div className="text-sm text-gray-400">Moments Posted</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl sm:text-3xl font-bold text-blue-400">{lifetimeStats.totalViewsOnClips.toLocaleString()}</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-momentum-flare">{lifetimeStats.totalViewsOnClips.toLocaleString()}</div>
                     <div className="text-sm text-gray-400">Moments Watched</div>
                   </div>
                   <div className="text-center">
@@ -350,7 +350,7 @@ export default function UserProfilePage() {
             
             <div className="space-y-8">
               {favoriteArtists.map((favoriteArtist) => (
-                <div key={favoriteArtist.artist.artist_id} className="glass-panel border border-purple-500/20 rounded-xl p-4 sm:p-6">
+                <div key={favoriteArtist.artist.artist_id} className="glass-panel border border-momentum-rose/20 rounded-xl p-4 sm:p-6">
                   <button
                     onClick={() => navigate(artistPath(favoriteArtist.artist.name))}
                     className="flex items-center space-x-4 mb-4 hover:opacity-80 transition-opacity"
@@ -359,7 +359,7 @@ export default function UserProfilePage() {
                       <img
                         src={favoriteArtist.artist.image_url}
                         alt={favoriteArtist.artist.name}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-purple-500/40"
+                        className="w-16 h-16 rounded-full object-cover border-2 border-momentum-rose/40"
                       />
                     )}
                     <div className="text-left">
@@ -379,7 +379,7 @@ export default function UserProfilePage() {
                             setSelectedClip(clip);
                             setProfileModalFeed(favoriteArtist.clips.length > 1 ? favoriteArtist.clips : null);
                           }}
-                          className="glass-panel border border-purple-500/20 rounded-lg overflow-hidden hover:border-purple-400/50 transition-all cursor-pointer group"
+                          className="glass-panel border border-momentum-rose/20 rounded-lg overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group"
                         >
                           <div
                             className="relative w-full bg-black"
@@ -437,7 +437,7 @@ export default function UserProfilePage() {
                   setSelectedClip(clip);
                   setProfileModalFeed(clips.length > 1 ? clips : null);
                 }}
-                className="glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-all cursor-pointer group"
+                className="glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-all cursor-pointer group"
               >
                 <div
                   className="relative w-full bg-black"
@@ -457,7 +457,7 @@ export default function UserProfilePage() {
                 
                 <div className="p-4">
                   {clip.artist_name && (
-                    <div className="font-bold text-purple-400 mb-1">{clip.artist_name}</div>
+                    <div className="font-bold text-momentum-rose mb-1">{clip.artist_name}</div>
                   )}
                   {clip.content_description && (
                     <p className="text-gray-300 text-sm mb-3 line-clamp-2">{clip.content_description}</p>

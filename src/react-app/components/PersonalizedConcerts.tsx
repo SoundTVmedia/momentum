@@ -52,7 +52,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
 
   return (
     <div
-      className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 transition-colors ${EVENT_CAROUSEL_CARD_CLASS}`}
+      className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-colors ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
       <button
         type="button"
@@ -75,14 +75,14 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
         <button
           type="button"
           onClick={() => navigate(artistPath(concert.artist_name))}
-          className="text-lg font-bold text-white truncate text-left hover:text-cyan-300 transition-colors"
+          className="text-lg font-bold text-white truncate text-left hover:text-momentum-flare/90 transition-colors"
         >
           {concert.artist_name}
         </button>
 
         <div className="space-y-2 text-sm flex-1 mt-3">
           <div className="flex items-start space-x-2 text-gray-300">
-            <MapPin className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+            <MapPin className="w-4 h-4 text-momentum-flare flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <div className="font-medium truncate">{concert.venue_name}</div>
               <div className="text-xs text-gray-400 truncate">{concert.venue_location}</div>
@@ -90,7 +90,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           </div>
 
           <div className="flex items-center space-x-2 text-gray-300">
-            <Calendar className="w-4 h-4 text-purple-400 flex-shrink-0" />
+            <Calendar className="w-4 h-4 text-momentum-rose flex-shrink-0" />
             <span>
               {new Date(concert.date).toLocaleDateString('en-US', {
                 weekday: 'short',
@@ -251,7 +251,7 @@ export default function PersonalizedConcerts({
     return (
       <div className="glass-highlight rounded-xl p-8">
         <div className="text-center">
-          <Heart className="w-12 h-12 text-purple-400 mx-auto mb-4" />
+          <Heart className="w-12 h-12 text-momentum-rose mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">
             No Upcoming Concerts from Your Favorites
           </h3>

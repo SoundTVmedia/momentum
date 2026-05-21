@@ -16,3 +16,22 @@ export const EVENT_CAROUSEL_CARD_CLASS =
 /** Mobile carousel tiles: ~one card plus a peek of the next (swipe affordance). */
 export const MOBILE_CAROUSEL_ITEM_PEEK_CLASS =
   'max-md:w-[82%] max-md:max-w-[82%] max-md:basis-[82%]';
+
+/** Equal-height YouTube cards in carousels (fixed thumb + reserved title/artist/footer). */
+export const YOUTUBE_CAROUSEL_CARD_CLASS =
+  'flex h-full min-h-[17.75rem] w-full flex-col';
+
+/** Fixed thumbnail height — keeps every YouTube card the same size. */
+export const YOUTUBE_CARD_THUMB_CLASS =
+  'relative h-[9.5625rem] shrink-0 overflow-hidden bg-white/5';
+
+export const YOUTUBE_CARD_BODY_CLASS =
+  'flex flex-1 flex-col p-4 min-h-[5.5rem]';
+
+export const YOUTUBE_CARD_TITLE_CLASS =
+  'line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-white transition-colors group-hover:text-momentum-mint';
+
+export const YOUTUBE_CARD_ARTIST_SLOT_CLASS = 'mt-1 h-5 shrink-0 truncate text-xs text-momentum-flare/90';
+
+export const YOUTUBE_CARD_STATS_CLASS =
+  'mt-auto flex h-6 shrink-0 flex-wrap items-center gap-3 pt-3 text-xs text-gray-400';

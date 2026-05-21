@@ -92,7 +92,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
           <div className="glass-panel border border-yellow-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Monthly Reach</span>
-              <TrendingUp className="w-5 h-5 text-cyan-400" />
+              <TrendingUp className="w-5 h-5 text-momentum-flare" />
             </div>
             <div className="text-3xl font-bold text-white">328K</div>
             <div className="text-sm text-green-400">+47K this week</div>
@@ -137,9 +137,9 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
                     <div className="text-white font-bold mb-1">NYC Rock Scene Highlights</div>
                     <div className="text-gray-400 text-sm mb-2">Posted 2 days ago</div>
                     <div className="flex items-center space-x-4 text-sm">
-                      <span className="text-cyan-400">12.4K views</span>
+                      <span className="text-momentum-flare">12.4K views</span>
                       <span className="text-red-400">847 likes</span>
-                      <span className="text-blue-400">132 shares</span>
+                      <span className="text-momentum-flare">132 shares</span>
                     </div>
                   </div>
                 </div>
@@ -147,16 +147,16 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
 
               <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                 <div className="flex items-center space-x-4">
-                  <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                  <div className="w-24 h-24 bg-gradient-to-br from-momentum-rose to-pink-600 rounded-lg flex items-center justify-center">
                     <Video className="w-8 h-8 text-white" />
                   </div>
                   <div className="flex-1">
                     <div className="text-white font-bold mb-1">Best Moments This Week</div>
                     <div className="text-gray-400 text-sm mb-2">Posted 5 days ago</div>
                     <div className="flex items-center space-x-4 text-sm">
-                      <span className="text-cyan-400">28.1K views</span>
+                      <span className="text-momentum-flare">28.1K views</span>
                       <span className="text-red-400">1.9K likes</span>
-                      <span className="text-blue-400">342 shares</span>
+                      <span className="text-momentum-flare">342 shares</span>
                     </div>
                   </div>
                 </div>
@@ -212,7 +212,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
                     <div className="text-white font-bold mb-1">Ticketmaster</div>
                     <div className="text-gray-400 text-sm">Affiliate partnership program</div>
                   </div>
-                  <Award className="w-6 h-6 text-cyan-400" />
+                  <Award className="w-6 h-6 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-green-400 font-bold">15% commission</span>
@@ -233,7 +233,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
                     <div className="text-white font-bold mb-1">Red Bull Music</div>
                     <div className="text-gray-400 text-sm">Event coverage collaboration</div>
                   </div>
-                  <Award className="w-6 h-6 text-blue-400" />
+                  <Award className="w-6 h-6 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-green-400 font-bold">$3,000</span>

@@ -180,7 +180,7 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
           type="button"
           onClick={() => scrollByStep('left')}
           disabled={!canScrollLeft}
-          className="pointer-events-auto absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-purple-400/40 disabled:opacity-0 disabled:pointer-events-none -translate-x-1/2"
+          className="pointer-events-auto absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-momentum-rose/40 disabled:opacity-0 disabled:pointer-events-none -translate-x-1/2"
           aria-label="Previous clip"
         >
           <ChevronLeft className="w-6 h-6" />
@@ -190,7 +190,7 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
           type="button"
           onClick={() => scrollByStep('right')}
           disabled={!canScrollRight}
-          className="pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-purple-400/40 disabled:opacity-0 disabled:pointer-events-none translate-x-1/2"
+          className="pointer-events-auto absolute right-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full border border-white/15 bg-black/80 text-white shadow-lg backdrop-blur-sm transition-opacity hover:bg-black/95 hover:border-momentum-rose/40 disabled:opacity-0 disabled:pointer-events-none translate-x-1/2"
           aria-label="Next clip"
         >
           <ChevronRight className="w-6 h-6" />

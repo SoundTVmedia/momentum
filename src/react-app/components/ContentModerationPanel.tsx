@@ -221,14 +221,14 @@ export default function ContentModerationPanel() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={activeTab === 'clips' ? 'Search clips...' : 'Search users...'}
-              className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+              className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
             />
           </div>
           {activeTab === 'clips' && (
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
+              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
             >
               <option value="pending">Pending Review</option>
               <option value="approved">Approved</option>
@@ -241,7 +241,7 @@ export default function ContentModerationPanel() {
 
       {loading ? (
         <div className="text-center py-12">
-          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
+          <Loader2 className="w-8 h-8 text-momentum-flare animate-spin mx-auto" />
         </div>
       ) : activeTab === 'clips' ? (
         <div className="space-y-4">
@@ -266,7 +266,7 @@ export default function ContentModerationPanel() {
                     />
                     <div className="mt-2 text-sm">
                       {flag.artist_name && (
-                        <div className="text-purple-400 font-medium">{flag.artist_name}</div>
+                        <div className="text-momentum-rose font-medium">{flag.artist_name}</div>
                       )}
                       {flag.venue_name && (
                         <div className="text-gray-400">{flag.venue_name}</div>
@@ -328,7 +328,7 @@ export default function ContentModerationPanel() {
                           href={flag.video_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 hover:bg-blue-500/30 transition-colors flex items-center space-x-2"
+                          className="px-4 py-2 bg-momentum-flare/20 border border-momentum-flare/30 rounded-lg text-momentum-flare hover:bg-momentum-flare/30 transition-colors flex items-center space-x-2"
                         >
                           <Eye className="w-4 h-4" />
                           <span>Review Video</span>

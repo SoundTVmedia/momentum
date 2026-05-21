@@ -57,7 +57,7 @@ export default function BadgesDisplay({ compact = false }: BadgesDisplayProps) {
           {badges.length > 3 && (
             <button
               onClick={() => setShowAll(true)}
-              className="text-xs text-cyan-400 hover:text-cyan-300"
+              className="text-xs text-momentum-flare hover:text-momentum-flare/90"
             >
               +{badges.length - 3} more
             </button>
@@ -68,7 +68,7 @@ export default function BadgesDisplay({ compact = false }: BadgesDisplayProps) {
           {badges.map((badge) => (
             <div
               key={badge.id}
-              className="glass-panel border border-purple-500/20 rounded-xl p-4 text-center"
+              className="glass-panel border border-momentum-rose/20 rounded-xl p-4 text-center"
             >
               <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Award className="w-8 h-8 text-white" />
@@ -85,7 +85,7 @@ export default function BadgesDisplay({ compact = false }: BadgesDisplayProps) {
 
       {showAll && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full bg-black/95 border border-purple-500/20 rounded-xl p-6 max-h-[80vh] overflow-y-auto">
+          <div className="max-w-2xl w-full bg-black/95 border border-momentum-rose/20 rounded-xl p-6 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-white">Your Badges</h3>
               <button
@@ -100,7 +100,7 @@ export default function BadgesDisplay({ compact = false }: BadgesDisplayProps) {
               {badges.map((badge) => (
                 <div
                   key={badge.id}
-                  className="glass-panel border border-purple-500/20 rounded-xl p-4 text-center"
+                  className="glass-panel border border-momentum-rose/20 rounded-xl p-4 text-center"
                 >
                   <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2">
                     <Award className="w-8 h-8 text-white" />

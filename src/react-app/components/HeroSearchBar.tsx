@@ -80,12 +80,12 @@ export default function HeroSearchBar({
       >
         <div ref={containerRef} className="relative group z-10">
           <div
-            className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-teal/50 via-momentum-mint/40 to-momentum-teal/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
+            className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-ember/50 via-momentum-flare/40 to-momentum-ember/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
             aria-hidden
           />
           <div className="relative flex items-center rounded-2xl glass-input shadow-glass-lg">
             <Search
-              className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-momentum-mint/80 sm:h-6 sm:w-6"
+              className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-momentum-flare/80 sm:h-6 sm:w-6"
               aria-hidden
             />
             <input
@@ -126,7 +126,7 @@ export default function HeroSearchBar({
           <button
             type="button"
             onClick={() => navigate('/discover')}
-            className="text-momentum-mint/90 underline-offset-2 hover:text-momentum-mint hover:underline"
+            className="text-momentum-flare/90 underline-offset-2 hover:text-momentum-flare hover:underline"
           >
             browse everything on Discover
           </button>

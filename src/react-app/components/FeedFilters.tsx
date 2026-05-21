@@ -71,7 +71,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
                     }}
                     className={`w-full px-4 py-3 text-left transition-colors ${
                       isActive
-                        ? 'bg-cyan-500/20 border-l-4 border-momentum-teal'
+                        ? 'bg-momentum-ember/20 border-l-4 border-momentum-ember'
                         : 'hover:bg-white/5 border-l-4 border-transparent'
                     }`}
                   >

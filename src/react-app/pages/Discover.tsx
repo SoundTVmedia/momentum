@@ -218,7 +218,7 @@ export default function DiscoverPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search artists, venues, cities..."
-                className="w-full pl-14 pr-32 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint text-lg"
+                className="w-full pl-14 pr-32 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-lg"
               />
               <button
                 type="button"
@@ -255,7 +255,7 @@ export default function DiscoverPage() {
                   <select
                     value={filters.genre}
                     onChange={(e) => updateFilter('genre', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
                   >
                     <option value="">All Genres</option>
                     <option value="Rock">Rock</option>
@@ -272,7 +272,7 @@ export default function DiscoverPage() {
                   <select
                     value={filters.dateRange}
                     onChange={(e) => updateFilter('dateRange', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
                   >
                     <option value="7d">Last 7 days</option>
                     <option value="30d">Last 30 days</option>
@@ -286,7 +286,7 @@ export default function DiscoverPage() {
                   <select
                     value={filters.sortBy}
                     onChange={(e) => updateFilter('sortBy', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
                   >
                     <option value="latest">Latest</option>
                     <option value="trending">Trending</option>
@@ -301,7 +301,7 @@ export default function DiscoverPage() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block w-12 h-12 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+            <div className="inline-block w-12 h-12 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin" />
           </div>
         ) : results ? (
           <div className="space-y-12">
@@ -324,7 +324,7 @@ export default function DiscoverPage() {
 
             {results.artists.length > 0 && (
               <div>
-                <DiscoverSectionTitle icon={Music} iconClassName="text-purple-400" title="Artists" />
+                <DiscoverSectionTitle icon={Music} iconClassName="text-momentum-rose" title="Artists" />
                 <DiscoverArtistCarousel
                   artists={results.artists.map((a) => ({
                     name: a.name,
@@ -338,14 +338,14 @@ export default function DiscoverPage() {
 
             {results.venues.length > 0 && (
               <div>
-                <DiscoverSectionTitle icon={MapPin} iconClassName="text-blue-400" title="Venues" />
+                <DiscoverSectionTitle icon={MapPin} iconClassName="text-momentum-flare" title="Venues" />
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {results.venues.map((venue) => (
                     <button
                       key={venue.jambase_id ?? venue.name}
                       type="button"
                       onClick={() => navigate(venuePath(venue.name))}
-                      className="glass-panel border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all text-left group"
+                      className="glass-panel border border-momentum-flare/20 rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-all text-left group"
                     >
                       <div className="relative aspect-[4/3] overflow-hidden">
                         <img
@@ -536,7 +536,7 @@ export default function DiscoverPage() {
                   carouselAriaLabel="Upcoming shows near you"
                 />
               ) : (
-                <div className="rounded-xl border border-momentum-teal/25 bg-black/40 px-6 py-10 text-center">
+                <div className="rounded-xl border border-momentum-ember/25 bg-black/40 px-6 py-10 text-center">
                   <p className="text-gray-300 text-sm max-w-lg mx-auto">
                     {discoverFeed.jambaseNotice?.trim() ||
                       'No upcoming shows found near your area right now. Try again later or search for an artist or venue above.'}

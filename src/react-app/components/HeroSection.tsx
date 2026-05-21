@@ -40,13 +40,13 @@ export default function HeroSection() {
           aria-hidden
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/55 to-black/90" />
-        <div className="absolute inset-0 bg-gradient-to-r from-momentum-teal/10 via-transparent to-purple-900/15" />
+        <div className="absolute inset-0 bg-gradient-to-r from-momentum-ember/10 via-transparent to-momentum-ink/15" />
       </div>
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-        <div className="absolute -left-20 top-1/4 h-56 w-56 rounded-full bg-momentum-teal/25 blur-3xl hero-light-pulse" />
+        <div className="absolute -left-20 top-1/4 h-56 w-56 rounded-full bg-momentum-ember/25 blur-3xl hero-light-pulse" />
         <div
-          className="absolute -right-16 top-1/3 h-72 w-72 rounded-full bg-purple-600/20 blur-3xl hero-light-pulse"
+          className="absolute -right-16 top-1/3 h-72 w-72 rounded-full bg-momentum-rose/20 blur-3xl hero-light-pulse"
           style={{ animationDelay: '1.2s' }}
         />
       </div>

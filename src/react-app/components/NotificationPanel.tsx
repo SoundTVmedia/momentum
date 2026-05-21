@@ -18,21 +18,21 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
       case 'like':
         return { icon: <Heart className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-red-500/20 text-red-400', ringColor: 'ring-red-500/30' };
       case 'comment':
-        return { icon: <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-blue-500/20 text-blue-400', ringColor: 'ring-blue-500/30' };
+        return { icon: <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-flare/20 text-momentum-flare', ringColor: 'ring-momentum-flare/30' };
       case 'follow':
         return { icon: <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-green-500/20 text-green-400', ringColor: 'ring-green-500/30' };
       case 'verification':
-        return { icon: <Shield className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-blue-500/20 text-blue-400', ringColor: 'ring-blue-500/30' };
+        return { icon: <Shield className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-flare/20 text-momentum-flare', ringColor: 'ring-momentum-flare/30' };
       case 'trending':
         return { icon: <Star className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-orange-500/20 text-orange-400', ringColor: 'ring-orange-500/30' };
       case 'achievement':
-        return { icon: <Award className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-purple-500/20 text-purple-400', ringColor: 'ring-purple-500/30' };
+        return { icon: <Award className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-rose/20 text-momentum-rose', ringColor: 'ring-momentum-rose/30' };
       case 'clip':
-        return { icon: <Video className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-cyan-500/20 text-cyan-400', ringColor: 'ring-cyan-500/30' };
+        return { icon: <Video className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
       case 'live':
         return { icon: <Radio className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-red-500/20 text-red-400', ringColor: 'ring-red-500/30' };
       default:
-        return { icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-cyan-500/20 text-cyan-400', ringColor: 'ring-cyan-500/30' };
+        return { icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
     }
   };
 
@@ -69,13 +69,13 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
     : notifications;
 
   return (
-    <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 glass-dropdown rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-teal/15">
+    <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 glass-dropdown rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-ember/15">
       {/* Header */}
       <div className="p-3 sm:p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-white font-bold flex items-center space-x-2">
             <div className="relative">
-              <Bell className="w-5 h-5 text-cyan-400" />
+              <Bell className="w-5 h-5 text-momentum-flare" />
               {unreadCount > 0 && (
                 <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               )}
@@ -101,7 +101,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             onClick={() => setFilter('all')}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'all'
-                ? 'bg-cyan-500/20 text-cyan-400 border border-momentum-teal/30'
+                ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
@@ -111,7 +111,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             onClick={() => setFilter('unread')}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'unread'
-                ? 'bg-cyan-500/20 text-cyan-400 border border-momentum-teal/30'
+                ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
@@ -120,7 +120,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
           {unreadCount > 0 && (
             <button
               onClick={markAllAsRead}
-              className="p-1.5 text-cyan-400 hover:text-cyan-300 transition-colors"
+              className="p-1.5 text-momentum-flare hover:text-momentum-flare/90 transition-colors"
               title="Mark all as read"
             >
               <Check className="w-4 h-4" />
@@ -133,7 +133,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
       <div className="max-h-80 sm:max-h-96 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+            <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
           </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
@@ -154,7 +154,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
                   className={`w-full p-3 sm:p-4 hover:bg-white/5 transition-all text-left group relative ${
-                    notification.is_read === 0 ? 'bg-gradient-to-r from-momentum-teal/8 to-transparent' : ''
+                    notification.is_read === 0 ? 'bg-gradient-to-r from-momentum-ember/8 to-transparent' : ''
                   }`}
                 >
                   <div className="flex items-start space-x-3">
@@ -167,7 +167,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                         alt={notification.user_display_name || 'User'}
                         sizeClass="w-10 h-10 sm:w-12 sm:h-12"
                         letterClassName="text-sm sm:text-base font-semibold"
-                        className="border-2 border-white/10 group-hover:border-momentum-teal/40 transition-colors"
+                        className="border-2 border-white/10 group-hover:border-momentum-ember/40 transition-colors"
                       />
                       <div className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 ${iconData.color} rounded-full flex items-center justify-center ring-2 ${iconData.ringColor} ring-offset-1 ring-offset-black`}>
                         {iconData.icon}
@@ -185,7 +185,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                       <p className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
                         <span>{formatTimestamp(notification.created_at)}</span>
                         {notification.is_read === 0 && (
-                          <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded text-[10px] font-medium">
+                          <span className="px-1.5 py-0.5 bg-momentum-ember/20 text-momentum-flare rounded text-[10px] font-medium">
                             NEW
                           </span>
                         )}
@@ -195,7 +195,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                     {/* Unread indicator */}
                     {notification.is_read === 0 && (
                       <div className="flex-shrink-0 mt-2">
-                        <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+                        <div className="w-2 h-2 bg-momentum-flare rounded-full animate-pulse" />
                       </div>
                     )}
                   </div>

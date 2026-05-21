@@ -146,7 +146,7 @@ export default function VenuePage() {
       <div className="min-h-screen text-white">
         <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+          <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
         </div>
       </div>
     );
@@ -178,7 +178,7 @@ export default function VenuePage() {
       <Header />
       
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-b from-momentum-teal/25 to-black border-b border-momentum-teal/20">
+      <div className="relative bg-gradient-to-b from-momentum-ember/25 to-black border-b border-momentum-ember/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
             {/* Venue Image */}
@@ -186,14 +186,14 @@ export default function VenuePage() {
               <img
                 src={venue.image_url || 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300&h=300&fit=crop'}
                 alt={venue.name}
-                className="w-48 h-48 rounded-xl object-cover border-4 border-blue-500/40 shadow-xl shadow-blue-500/25"
+                className="w-48 h-48 rounded-xl object-cover border-4 border-momentum-flare/40 shadow-xl shadow-momentum-ember/25"
               />
             </div>
 
             {/* Venue Info */}
             <div className="flex-1">
               <div className="flex items-center space-x-3 mb-4">
-                <MapPin className="w-8 h-8 text-blue-400" />
+                <MapPin className="w-8 h-8 text-momentum-flare" />
                 <h1 className="text-5xl font-bold text-white">{venue.name}</h1>
               </div>
 
@@ -228,9 +228,9 @@ export default function VenuePage() {
             {/* Live Clips/Moments Section */}
             <div>
               <div className="flex items-center space-x-3 mb-6">
-                <Music className="w-6 h-6 text-blue-400" />
+                <Music className="w-6 h-6 text-momentum-flare" />
                 <h2 className="text-3xl font-bold text-white">Live Moments</h2>
-                <span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-sm rounded-full font-medium">
+                <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
                   {clips.length} clips
                 </span>
               </div>
@@ -243,7 +243,7 @@ export default function VenuePage() {
                   edgeBleedScope="page"
                 />
               ) : (
-                <div className="text-center py-12 glass-panel border border-blue-500/20 rounded-xl">
+                <div className="text-center py-12 glass-panel border border-momentum-flare/20 rounded-xl">
                   <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
                   <p className="text-gray-400 text-lg">Nothing here yet</p>
                   <p className="text-gray-500 mt-2">Drop the first clip from {venue.name}!</p>
@@ -260,7 +260,7 @@ export default function VenuePage() {
                     : 'Upcoming dates at this venue'
                 }
                 icon={Calendar}
-                iconClassName="text-cyan-400"
+                iconClassName="text-momentum-flare"
                 size="page"
               />
               <JamBaseEventGrid
@@ -280,7 +280,7 @@ export default function VenuePage() {
                     href="https://www.jambase.com"
                     target="_blank"
                     rel="nofollow noopener noreferrer"
-                    className="text-gray-400 hover:text-cyan-300 underline"
+                    className="text-gray-400 hover:text-momentum-flare/90 underline"
                   >
                     Show listings powered by JamBase
                   </a>
@@ -293,12 +293,12 @@ export default function VenuePage() {
               <div>
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-2xl font-bold text-white flex items-center space-x-2">
-                    <Calendar className="w-6 h-6 text-purple-400" />
+                    <Calendar className="w-6 h-6 text-momentum-rose" />
                     <span>Previous Shows at {venue.name}</span>
                   </h3>
                 </div>
 
-                <div className="glass-panel border border-purple-500/20 rounded-xl p-4">
+                <div className="glass-panel border border-momentum-rose/20 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h4 className="text-xl font-bold text-white">{recentShow.artist_name}</h4>
@@ -306,7 +306,7 @@ export default function VenuePage() {
                     </div>
                     <button
                       onClick={() => navigate(`${artistPath(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
-                      className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
+                      className="px-4 py-2 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
                     >
                       View Full Show
                     </button>
@@ -345,7 +345,7 @@ export default function VenuePage() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Stats */}
-            <div className="glass-panel border border-blue-500/20 rounded-xl p-6">
+            <div className="glass-panel border border-momentum-flare/20 rounded-xl p-6">
               <h3 className="text-xl font-bold text-white mb-4">Venue Stats</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -373,8 +373,8 @@ export default function VenuePage() {
               disabled={followLoading(`venue-${venue?.id || 0}`)}
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 ${
                 isFollowing(`venue-${venue?.id || 0}`)
-                  ? 'bg-white/10 border border-blue-500/50 text-white'
-                  : 'bg-gradient-to-r from-momentum-teal to-momentum-mint text-white'
+                  ? 'bg-white/10 border border-momentum-flare/50 text-white'
+                  : 'bg-gradient-to-r from-momentum-ember to-momentum-flare text-white'
               }`}
             >
               {isFollowing(`venue-${venue?.id || 0}`) ? (

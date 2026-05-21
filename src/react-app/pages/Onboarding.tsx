@@ -21,14 +21,14 @@ const roleOptions: RoleOption[] = [
     icon: Users,
     label: 'Fan',
     description: 'Drop clips, find shows, connect with the community',
-    color: 'from-momentum-teal via-momentum-mint to-momentum-teal'
+    color: 'from-momentum-ember via-momentum-flare to-momentum-ember'
   },
   {
     value: 'artist',
     icon: Music,
     label: 'Artist/Venue',
     description: 'Connect with your fans, share exclusive content, promote shows',
-    color: 'from-purple-500 to-pink-600'
+    color: 'from-momentum-rose to-pink-600'
   },
   {
     value: 'ambassador',
@@ -214,7 +214,7 @@ export default function Onboarding() {
     return (
       <div className="min-h-screen text-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-momentum-teal animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading...</p>
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function Onboarding() {
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
               Welcome to the Scene
             </span>
           </h1>
@@ -237,15 +237,15 @@ export default function Onboarding() {
         {/* Progress */}
         <div className="flex items-center justify-center mb-12">
           <div className="flex items-center space-x-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 1 ? 'bg-momentum-teal' : 'bg-momentum-teal/50'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 1 ? 'bg-momentum-ember' : 'bg-momentum-ember/50'}`}>
               <span className="text-white font-bold text-sm">1</span>
             </div>
             <div className="w-16 h-1 bg-gray-700" />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 2 ? 'bg-momentum-teal' : step > 2 ? 'bg-momentum-teal/50' : 'bg-gray-700'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 2 ? 'bg-momentum-ember' : step > 2 ? 'bg-momentum-ember/50' : 'bg-gray-700'}`}>
               <span className="text-white font-bold text-sm">2</span>
             </div>
             <div className="w-16 h-1 bg-gray-700" />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 3 ? 'bg-momentum-teal' : 'bg-gray-700'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 3 ? 'bg-momentum-ember' : 'bg-gray-700'}`}>
               <span className="text-white font-bold text-sm">3</span>
             </div>
           </div>
@@ -264,7 +264,7 @@ export default function Onboarding() {
                     onClick={() => handleRoleSelect(option.value)}
                     className={`p-6 rounded-xl border-2 text-left transition-all ${
                       selectedRole === option.value
-                        ? 'border-momentum-mint bg-black/60 scale-105'
+                        ? 'border-momentum-flare bg-black/60 scale-105'
                         : 'border-gray-700 bg-black/40 hover:border-gray-600'
                     }`}
                   >
@@ -313,7 +313,7 @@ export default function Onboarding() {
                   type="text"
                   value={formData.displayName}
                   onChange={(e) => handleInputChange('displayName', e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                   placeholder="Enter your display name"
                 />
               </div>
@@ -324,7 +324,7 @@ export default function Onboarding() {
                   value={formData.bio}
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                   placeholder="Tell us about yourself..."
                 />
               </div>
@@ -336,7 +336,7 @@ export default function Onboarding() {
                     type="text"
                     value={formData.location}
                     onChange={(e) => handleInputChange('location', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                     placeholder="New York, NY"
                   />
                 </div>
@@ -348,7 +348,7 @@ export default function Onboarding() {
                       type="text"
                       value={formData.city}
                       onChange={(e) => handleInputChange('city', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                       placeholder="New York"
                     />
                   </div>
@@ -383,7 +383,7 @@ export default function Onboarding() {
             <div className="flex justify-center space-x-4 mt-8">
               <button
                 onClick={() => setStep(1)}
-                className="px-8 py-4 bg-black/30 border border-momentum-teal/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
+                className="px-8 py-4 bg-black/30 border border-momentum-ember/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
               >
                 Back
               </button>
@@ -444,7 +444,7 @@ export default function Onboarding() {
                   </button>
 
                   {homeLocation && (
-                    <div className="p-4 bg-momentum-teal/10 border border-momentum-teal/20 rounded-lg">
+                    <div className="p-4 bg-momentum-ember/10 border border-momentum-ember/20 rounded-lg">
                       <p className="text-white font-medium mb-2">Selected Location:</p>
                       <p className="text-gray-300 text-sm">{homeLocation}</p>
                     </div>
@@ -471,8 +471,8 @@ export default function Onboarding() {
                 </div>
               </div>
 
-              <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                <p className="text-purple-300 text-sm">
+              <div className="p-4 bg-momentum-rose/10 border border-momentum-rose/20 rounded-lg">
+                <p className="text-momentum-rose/80 text-sm">
                   <strong>Why personalize?</strong> We'll show you clips and concerts from your favorite artists and shows near you. You can update these preferences anytime in your settings.
                 </p>
               </div>
@@ -488,7 +488,7 @@ export default function Onboarding() {
               <button
                 onClick={() => setStep(2)}
                 disabled={submitting}
-                className="px-8 py-4 bg-black/30 border border-momentum-teal/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all disabled:opacity-50"
+                className="px-8 py-4 bg-black/30 border border-momentum-ember/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all disabled:opacity-50"
               >
                 Back
               </button>

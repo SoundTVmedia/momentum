@@ -148,7 +148,7 @@ export default function ChatModerationPanel() {
               onClick={() => setSelectedSession(session)}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 selectedSession?.id === session.id
-                  ? 'bg-cyan-500 text-white'
+                  ? 'bg-momentum-ember text-white'
                   : 'bg-white/10 text-gray-300 hover:bg-white/20'
               }`}
             >
@@ -180,7 +180,7 @@ export default function ChatModerationPanel() {
 
           {loading ? (
             <div className="text-center py-12">
-              <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto" />
+              <Loader2 className="w-8 h-8 text-momentum-flare animate-spin mx-auto" />
             </div>
           ) : bannedUsers.length === 0 ? (
             <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
@@ -249,7 +249,7 @@ export default function ChatModerationPanel() {
                       type="text"
                       value={banFormData.user_id}
                       onChange={(e) => setBanFormData({ ...banFormData, user_id: e.target.value })}
-                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                       placeholder="user_abc123"
                     />
                   </div>
@@ -260,7 +260,7 @@ export default function ChatModerationPanel() {
                       type="text"
                       value={banFormData.reason}
                       onChange={(e) => setBanFormData({ ...banFormData, reason: e.target.value })}
-                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                       placeholder="Spam, harassment, etc."
                     />
                   </div>
@@ -271,7 +271,7 @@ export default function ChatModerationPanel() {
                       type="number"
                       value={banFormData.duration_minutes}
                       onChange={(e) => setBanFormData({ ...banFormData, duration_minutes: e.target.value })}
-                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                      className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                       placeholder="Leave empty for permanent ban"
                     />
                   </div>

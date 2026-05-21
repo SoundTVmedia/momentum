@@ -74,7 +74,7 @@ export default function AnalyticsDashboard() {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+        <div className="inline-block w-8 h-8 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -99,7 +99,7 @@ export default function AnalyticsDashboard() {
             onClick={() => setTimeRange('7d')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               timeRange === '7d'
-                ? 'bg-cyan-500 text-white'
+                ? 'bg-momentum-ember text-white'
                 : 'bg-white/10 text-gray-300 hover:bg-white/20'
             }`}
           >
@@ -109,7 +109,7 @@ export default function AnalyticsDashboard() {
             onClick={() => setTimeRange('30d')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               timeRange === '30d'
-                ? 'bg-cyan-500 text-white'
+                ? 'bg-momentum-ember text-white'
                 : 'bg-white/10 text-gray-300 hover:bg-white/20'
             }`}
           >
@@ -119,7 +119,7 @@ export default function AnalyticsDashboard() {
             onClick={() => setTimeRange('90d')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               timeRange === '90d'
-                ? 'bg-cyan-500 text-white'
+                ? 'bg-momentum-ember text-white'
                 : 'bg-white/10 text-gray-300 hover:bg-white/20'
             }`}
           >
@@ -132,8 +132,8 @@ export default function AnalyticsDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="glass-panel rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-cyan-500/20 rounded-lg">
-              <Users className="w-6 h-6 text-cyan-400" />
+            <div className="p-3 bg-momentum-ember/20 rounded-lg">
+              <Users className="w-6 h-6 text-momentum-flare" />
             </div>
             <TrendingUp className="w-5 h-5 text-green-400" />
           </div>
@@ -143,10 +143,10 @@ export default function AnalyticsDashboard() {
           <div className="text-sm text-gray-400">Total Users</div>
         </div>
 
-        <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-purple-500/20 rounded-lg">
-              <Video className="w-6 h-6 text-purple-400" />
+            <div className="p-3 bg-momentum-rose/20 rounded-lg">
+              <Video className="w-6 h-6 text-momentum-rose" />
             </div>
             <TrendingUp className="w-5 h-5 text-green-400" />
           </div>
@@ -156,10 +156,10 @@ export default function AnalyticsDashboard() {
           <div className="text-sm text-gray-400">Total Clips</div>
         </div>
 
-        <div className="glass-panel border border-blue-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-momentum-flare/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-500/20 rounded-lg">
-              <Eye className="w-6 h-6 text-blue-400" />
+            <div className="p-3 bg-momentum-flare/20 rounded-lg">
+              <Eye className="w-6 h-6 text-momentum-flare" />
             </div>
             <TrendingUp className="w-5 h-5 text-green-400" />
           </div>
@@ -211,7 +211,7 @@ export default function AnalyticsDashboard() {
       {/* Growth Chart */}
       <div className="glass-panel rounded-xl p-6">
         <div className="flex items-center space-x-2 mb-6">
-          <BarChart3 className="w-5 h-5 text-cyan-400" />
+          <BarChart3 className="w-5 h-5 text-momentum-flare" />
           <h3 className="text-xl font-bold text-white">Growth Trends</h3>
         </div>
         <ResponsiveContainer width="100%" height={300}>
@@ -271,13 +271,13 @@ export default function AnalyticsDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Top Clips */}
-        <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Top Performing Clips</h3>
           <div className="space-y-4">
             {topClips.slice(0, 5).map((clip, index) => (
               <div key={clipListItemKey(clip, index)} className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
-                  <span className="text-purple-400 font-bold text-sm">#{index + 1}</span>
+                <div className="flex-shrink-0 w-8 h-8 bg-momentum-rose/20 rounded-full flex items-center justify-center">
+                  <span className="text-momentum-rose font-bold text-sm">#{index + 1}</span>
                 </div>
                 <img
                   src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop'}
@@ -297,7 +297,7 @@ export default function AnalyticsDashboard() {
                     <Heart className="w-4 h-4" />
                     <span>{clip.likes_count}</span>
                   </div>
-                  <div className="flex items-center space-x-1 text-blue-400">
+                  <div className="flex items-center space-x-1 text-momentum-flare">
                     <Eye className="w-4 h-4" />
                     <span>{clip.views_count}</span>
                   </div>
@@ -313,8 +313,8 @@ export default function AnalyticsDashboard() {
           <div className="space-y-4">
             {topUsers.slice(0, 5).map((user, index) => (
               <div key={user.mocha_user_id} className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-cyan-500/20 rounded-full flex items-center justify-center">
-                  <span className="text-cyan-400 font-bold text-sm">#{index + 1}</span>
+                <div className="flex-shrink-0 w-8 h-8 bg-momentum-ember/20 rounded-full flex items-center justify-center">
+                  <span className="text-momentum-flare font-bold text-sm">#{index + 1}</span>
                 </div>
                 <UserAvatar
                   imageUrl={user.profile_image_url}
@@ -337,7 +337,7 @@ export default function AnalyticsDashboard() {
                     <Heart className="w-4 h-4" />
                     <span>{user.total_likes}</span>
                   </div>
-                  <div className="flex items-center space-x-1 text-blue-400">
+                  <div className="flex items-center space-x-1 text-momentum-flare">
                     <Eye className="w-4 h-4" />
                     <span>{user.total_views}</span>
                   </div>

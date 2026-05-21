@@ -85,7 +85,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
         <div className="flex items-center justify-center">
           <button
             onClick={() => setShowArchive(true)}
-            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
+            className="px-6 py-3 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
           >
             <Calendar className="w-5 h-5" />
             <span>View All Previous Shows</span>
@@ -98,7 +98,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
   if (loading) {
     return (
       <div className="flex justify-center py-8">
-        <div className="w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -107,13 +107,13 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-2xl font-bold text-white flex items-center space-x-2">
-          <Calendar className="w-6 h-6 text-blue-400" />
+          <Calendar className="w-6 h-6 text-momentum-flare" />
           <span>All Past Shows</span>
         </h3>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as 'date_played' | 'average_rating')}
-          className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-momentum-mint"
+          className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-momentum-flare"
         >
           <option value="date_played">Most Recent</option>
           <option value="average_rating">Highest Rated</option>
@@ -121,7 +121,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
       </div>
 
       {displayedShows.length === 0 ? (
-        <div className="text-center py-12 glass-panel border border-blue-500/20 rounded-xl">
+        <div className="text-center py-12 glass-panel border border-momentum-flare/20 rounded-xl">
           <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-3" />
           <p className="text-gray-400">No archived shows yet</p>
         </div>
@@ -132,7 +132,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
               <button
                 key={show.show_id}
                 onClick={() => handleShowClick(show)}
-                className="glass-panel border border-blue-500/20 rounded-xl overflow-hidden hover:border-blue-400/50 transition-all group text-left"
+                className="glass-panel border border-momentum-flare/20 rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-all group text-left"
               >
                 <div className="relative aspect-video">
                   <img
@@ -183,7 +183,7 @@ export default function ShowArchive({ venueName }: ShowArchiveProps) {
             <div className="flex justify-center mt-8">
               <button
                 onClick={loadMoreShows}
-                className="px-8 py-3 bg-gradient-to-r from-momentum-teal to-momentum-mint rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
+                className="px-8 py-3 bg-gradient-to-r from-momentum-ember to-momentum-flare rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
               >
                 <span>Load More Shows</span>
                 <ChevronDown className="w-5 h-5" />

@@ -102,7 +102,7 @@ export default function GDPRSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
       </div>
     );
   }
@@ -111,7 +111,7 @@ export default function GDPRSettings() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center space-x-3 mb-8">
-        <Shield className="w-8 h-8 text-cyan-400" />
+        <Shield className="w-8 h-8 text-momentum-flare" />
         <div>
           <h2 className="text-2xl font-bold text-white">Privacy & Data</h2>
           <p className="text-gray-400">Manage your privacy settings and data</p>
@@ -126,7 +126,7 @@ export default function GDPRSettings() {
           {/* Profile Visibility */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Eye className="w-5 h-5 text-cyan-400" />
+              <Eye className="w-5 h-5 text-momentum-flare" />
               <div>
                 <div className="text-white font-medium">Profile Visibility</div>
                 <div className="text-sm text-gray-400">Who can see your profile</div>
@@ -146,7 +146,7 @@ export default function GDPRSettings() {
           {/* Allow Tagging */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Tag className="w-5 h-5 text-purple-400" />
+              <Tag className="w-5 h-5 text-momentum-rose" />
               <div>
                 <div className="text-white font-medium">Allow Tagging</div>
                 <div className="text-sm text-gray-400">Let others tag you in clips</div>
@@ -155,7 +155,7 @@ export default function GDPRSettings() {
             <button
               onClick={() => updateSettings({ allow_tagging: !settings.allow_tagging })}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.allow_tagging ? 'bg-cyan-500' : 'bg-gray-600'
+                settings.allow_tagging ? 'bg-momentum-ember' : 'bg-gray-600'
               }`}
             >
               <span
@@ -169,7 +169,7 @@ export default function GDPRSettings() {
           {/* Show Online Status */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Lock className="w-5 h-5 text-blue-400" />
+              <Lock className="w-5 h-5 text-momentum-flare" />
               <div>
                 <div className="text-white font-medium">Show Online Status</div>
                 <div className="text-sm text-gray-400">Let others see when you're active</div>
@@ -178,7 +178,7 @@ export default function GDPRSettings() {
             <button
               onClick={() => updateSettings({ show_online_status: !settings.show_online_status })}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.show_online_status ? 'bg-cyan-500' : 'bg-gray-600'
+                settings.show_online_status ? 'bg-momentum-ember' : 'bg-gray-600'
               }`}
             >
               <span
@@ -201,7 +201,7 @@ export default function GDPRSettings() {
             <button
               onClick={() => updateSettings({ email_notifications: !settings.email_notifications })}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                settings.email_notifications ? 'bg-cyan-500' : 'bg-gray-600'
+                settings.email_notifications ? 'bg-momentum-ember' : 'bg-gray-600'
               }`}
             >
               <span
@@ -214,7 +214,7 @@ export default function GDPRSettings() {
         </div>
 
         {saving && (
-          <div className="mt-4 text-sm text-cyan-400 flex items-center space-x-2">
+          <div className="mt-4 text-sm text-momentum-flare flex items-center space-x-2">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>Saving...</span>
           </div>

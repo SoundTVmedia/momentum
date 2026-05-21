@@ -167,7 +167,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 glass-modal-overlay z-50 flex items-center justify-center p-4">
-      <div className="bg-gradient-to-b from-gray-900 to-black border border-momentum-teal/30 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-gradient-to-b from-gray-900 to-black border border-momentum-ember/30 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white">
             {session ? 'Edit Live Session' : 'Create Live Session'}
@@ -186,7 +186,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="FEEDBACK Live - Episode 1"
               />
             </div>
@@ -197,7 +197,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="Tonight's curated selection of the best live moments..."
               />
             </div>
@@ -209,7 +209,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                   type="datetime-local"
                   value={formData.start_time}
                   onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
                 />
               </div>
 
@@ -219,7 +219,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                   type="datetime-local"
                   value={formData.end_time}
                   onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-mint"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
                 />
               </div>
             </div>
@@ -239,7 +239,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && searchClips()}
                     placeholder="Search clips to add to schedule..."
-                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                   />
                   <button
                     onClick={searchClips}
@@ -275,7 +275,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                         </div>
                         <button
                           onClick={() => handleAddClip(clip.id)}
-                          className="p-2 bg-cyan-500/20 border border-momentum-teal/30 rounded-lg text-cyan-400 hover:bg-cyan-500/30 transition-colors flex-shrink-0"
+                          className="p-2 bg-momentum-ember/20 border border-momentum-ember/30 rounded-lg text-momentum-flare hover:bg-momentum-ember/30 transition-colors flex-shrink-0"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -300,7 +300,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <GripVertical className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                          <span className="text-cyan-400 font-bold flex-shrink-0">#{index + 1}</span>
+                          <span className="text-momentum-flare font-bold flex-shrink-0">#{index + 1}</span>
                           <img
                             src={item.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=40&h=40&fit=crop'}
                             alt="Clip"
@@ -339,7 +339,7 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                             <span className="text-gray-400 text-sm">seconds</span>
                             <button
                               onClick={() => handleUpdateDuration(item.id, parseInt(editingDuration.duration))}
-                              className="px-2 py-1 bg-cyan-500/20 border border-momentum-teal/30 rounded text-cyan-400 text-xs hover:bg-cyan-500/30"
+                              className="px-2 py-1 bg-momentum-ember/20 border border-momentum-ember/30 rounded text-momentum-flare text-xs hover:bg-momentum-ember/30"
                               disabled={!editingDuration.duration || parseInt(editingDuration.duration) <= 0}
                             >
                               Save

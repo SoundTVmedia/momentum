@@ -1270,7 +1270,7 @@ export default function QuickRecordButton({
       {/* Floating Action Button - Hidden on all screen sizes (functionality moved to MobileBottomNav) */}
       {/* <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-gradient-to-br from-red-500 via-pink-500 to-purple-600 rounded-full shadow-2xl shadow-red-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform group hidden"
+        className="fixed bottom-6 right-6 z-40 w-16 h-16 bg-gradient-to-br from-red-500 via-pink-500 to-momentum-rose rounded-full shadow-2xl shadow-red-500/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform group hidden"
         title="Film your moment"
       >
         <Film className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
@@ -1303,13 +1303,13 @@ export default function QuickRecordButton({
                     </>
                   ) : (
                     <>
-                      <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-2" />
+                      <Loader2 className="w-8 h-8 text-momentum-flare animate-spin mx-auto mb-2" />
                       <p className="text-white text-sm">
                         {gestureCameraPrimingPending
                           ? 'Use the camera prompt if it appears…'
                           : 'Starting camera…'}
                       </p>
-                      <p className="text-cyan-200/90 text-xs mt-2 max-w-xs mx-auto">
+                      <p className="text-momentum-flare/90 text-xs mt-2 max-w-xs mx-auto">
                         Location is requested when you tap Capture (with the camera) so we can match JamBase venues to
                         your clip on the next screen.
                       </p>
@@ -1335,10 +1335,10 @@ export default function QuickRecordButton({
                 </div>
                 {liveSongBanner ? (
                   <div
-                    className="max-w-[min(90vw,20rem)] rounded-lg border border-cyan-500/35 bg-black/55 px-3 py-1.5 backdrop-blur-md"
+                    className="max-w-[min(90vw,20rem)] rounded-lg border border-momentum-flare/35 bg-black/55 px-3 py-1.5 backdrop-blur-md"
                     title={liveSongBanner}
                   >
-                    <p className="truncate text-cyan-100 text-xs font-medium leading-snug">{liveSongBanner}</p>
+                    <p className="truncate text-momentum-flare/95 text-xs font-medium leading-snug">{liveSongBanner}</p>
                   </div>
                 ) : (
                   <p className="text-white/45 text-[11px] px-0.5">Listening for music…</p>
@@ -1351,7 +1351,7 @@ export default function QuickRecordButton({
               <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 backdrop-blur-sm">
                 <div className="w-[88%] max-w-md rounded-2xl border border-white/15 bg-black/70 p-5">
                   <div className="mb-3 flex items-center gap-2 text-white">
-                    <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
+                    <Loader2 className="h-5 w-5 animate-spin text-momentum-flare" />
                     <p className="text-sm font-medium">
                       {networkSpeed === 'slow' || networkSpeed === 'offline'
                         ? 'Processing on a slower connection…'
@@ -1416,19 +1416,19 @@ export default function QuickRecordButton({
             {hasPermission && cameraReady && !isProcessingTransition && (
               <div className="mx-auto mb-3 w-full max-w-lg px-1">
                 {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
-                  <p className="text-center text-cyan-200/90 text-xs mb-2 flex items-center justify-center gap-2">
+                  <p className="text-center text-momentum-flare/90 text-xs mb-2 flex items-center justify-center gap-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
                     Waiting for location permission — allow it when the browser asks so we can match venues.
                   </p>
                 )}
                 {coordsForNearbyVenues && (
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 text-cyan-400 mt-0.5" />
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
                     <div className="min-w-0 flex-1 text-left space-y-1">
                       {(captureResolvePreview.status === 'idle' ||
                         captureResolvePreview.status === 'loading') && (
                         <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-cyan-400" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
                           Matching nearest JamBase show at your location…
                         </p>
                       )}
@@ -1438,8 +1438,8 @@ export default function QuickRecordButton({
                             {captureResolvePreview.venueName}
                           </p>
                           {captureResolvePreview.artistName ? (
-                            <p className="text-cyan-100/95 text-[11px] leading-snug flex items-start gap-1.5">
-                              <Music className="w-3 h-3 shrink-0 mt-0.5 text-purple-300" />
+                            <p className="text-momentum-flare/95/95 text-[11px] leading-snug flex items-start gap-1.5">
+                              <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
                               <span>{captureResolvePreview.artistName}</span>
                             </p>
                           ) : null}

@@ -24,7 +24,12 @@ export default function ClipFeedCarousel({
   if (clips.length === 0) return null;
 
   return (
-    <HorizontalClipCarousel key={carouselKey} ariaLabel={ariaLabel} className={className}>
+    <HorizontalClipCarousel
+      key={carouselKey}
+      ariaLabel={ariaLabel}
+      className={className}
+      stretchItems
+    >
       {clips.map((clip, index) => (
         <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
           <ClipFeedGridTile clip={clip} onOpenClip={onOpenClip} />

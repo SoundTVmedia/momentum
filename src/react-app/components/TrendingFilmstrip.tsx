@@ -19,7 +19,7 @@ export default function TrendingFilmstrip() {
   return (
     <section className="relative pt-4 pb-8 sm:pb-10 md:pb-12">
       {/* Prominent background accent */}
-      <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 via-pink-600/5 to-purple-600/5" />
+      <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 via-pink-600/5 to-momentum-rose/5" />
       <div className="absolute inset-0">
         <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
         <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl" />
@@ -32,13 +32,13 @@ export default function TrendingFilmstrip() {
               <Flame className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-orange-500 animate-pulse" />
               <div className="absolute inset-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-orange-500/30 rounded-full blur-lg animate-pulse" />
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline bg-gradient-to-r from-orange-500 via-pink-600 to-purple-600 bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline bg-gradient-to-r from-orange-500 via-pink-600 to-momentum-rose bg-clip-text text-transparent">
               Trending Moments
             </h2>
           </div>
           <button 
             onClick={() => navigate('/')}
-            className="text-cyan-400 hover:text-cyan-300 text-xs sm:text-sm font-medium transition-colors"
+            className="text-momentum-flare hover:text-momentum-flare/90 text-xs sm:text-sm font-medium transition-colors"
           >
             View All
           </button>
@@ -66,7 +66,7 @@ export default function TrendingFilmstrip() {
                 >
                   {/* Thumbnail + hover preview (desktop: video only, no play chip) */}
                   <div
-                    className="relative aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3 border border-white/10 group-hover:border-purple-500/50 transition-all bg-black group/video"
+                    className="relative aspect-[4/3] rounded-lg overflow-hidden mb-2 sm:mb-3 border border-white/10 group-hover:border-momentum-rose/50 transition-all bg-black group/video"
                     onMouseEnter={() => setHoverClipId(clip.id)}
                     onMouseLeave={() => setHoverClipId((id) => (id === clip.id ? null : id))}
                   >
@@ -105,7 +105,7 @@ export default function TrendingFilmstrip() {
                   {/* Clip info */}
                   <div className="text-left px-1">
                     {clip.artist_name && (
-                      <h3 className="text-white font-bold text-xs sm:text-sm truncate group-hover:text-cyan-400 transition-colors">
+                      <h3 className="text-white font-bold text-xs sm:text-sm truncate group-hover:text-momentum-flare transition-colors">
                         {clip.artist_name}
                       </h3>
                     )}

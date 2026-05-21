@@ -43,7 +43,7 @@ export default function SavedClips() {
   if (isPending || (loading && user)) {
     return (
       <div className="min-h-screen text-white flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+        <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
       </div>
     );
   }
@@ -66,7 +66,7 @@ export default function SavedClips() {
 
         {loading ? (
           <div className="flex justify-center py-12">
-            <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+            <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
           </div>
         ) : clips.length === 0 ? (
           <div className="text-center py-12 glass-panel border border-yellow-500/20 rounded-xl">
@@ -111,7 +111,7 @@ export default function SavedClips() {
                   </div>
                   <div className="text-right">
                     {clip.artist_name && (
-                      <div className="font-bold text-purple-400">{clip.artist_name}</div>
+                      <div className="font-bold text-momentum-rose">{clip.artist_name}</div>
                     )}
                     {clip.venue_name && (
                       <div className="text-sm text-gray-400">{clip.venue_name}</div>

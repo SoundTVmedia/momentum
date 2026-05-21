@@ -68,26 +68,26 @@ export default function SongPage() {
 
         {loading ? (
           <div className="flex justify-center py-20">
-            <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+            <Loader2 className="w-10 h-10 text-momentum-flare animate-spin" />
           </div>
         ) : error || !data ? (
           <p className="text-center text-gray-400 py-16">{error ?? 'Song not found'}</p>
         ) : (
           <>
-            <div className="mb-10 rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-900/25 to-cyan-900/15 p-6 sm:p-8">
+            <div className="mb-10 rounded-2xl border border-momentum-rose/30 bg-gradient-to-r from-momentum-rose/25 to-momentum-ink/15 p-6 sm:p-8">
               <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center shrink-0">
-                  <Disc3 className="w-8 h-8 text-purple-300" />
+                <div className="w-14 h-14 rounded-xl bg-momentum-rose/20 flex items-center justify-center shrink-0">
+                  <Disc3 className="w-8 h-8 text-momentum-rose/80" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm uppercase tracking-wide text-purple-300/90 mb-1">Song</p>
+                  <p className="text-sm uppercase tracking-wide text-momentum-rose/80/90 mb-1">Song</p>
                   <h1 className="text-3xl sm:text-4xl font-headline font-bold text-white mb-2 truncate">
                     {data.song.title}
                   </h1>
                   <button
                     type="button"
                     onClick={() => navigate(artistPath(data.artist.name))}
-                    className="inline-flex items-center gap-2 text-cyan-300 hover:text-cyan-200 transition-colors"
+                    className="inline-flex items-center gap-2 text-momentum-flare/90 hover:text-momentum-flare transition-colors"
                   >
                     <Music className="w-4 h-4" />
                     <span className="font-medium">{data.artist.name}</span>

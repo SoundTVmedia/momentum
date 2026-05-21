@@ -85,11 +85,11 @@ export default function DeviceManagement() {
   const getDeviceIcon = (deviceType: string) => {
     switch (deviceType.toLowerCase()) {
       case 'mobile':
-        return <Smartphone className="w-6 h-6 text-cyan-400" />;
+        return <Smartphone className="w-6 h-6 text-momentum-flare" />;
       case 'tablet':
-        return <Tablet className="w-6 h-6 text-cyan-400" />;
+        return <Tablet className="w-6 h-6 text-momentum-flare" />;
       default:
-        return <Monitor className="w-6 h-6 text-cyan-400" />;
+        return <Monitor className="w-6 h-6 text-momentum-flare" />;
     }
   };
 
@@ -114,7 +114,7 @@ export default function DeviceManagement() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
       </div>
     );
   }
@@ -159,11 +159,11 @@ export default function DeviceManagement() {
             return (
               <div
                 key={device.id}
-                className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-teal/20 transition-colors"
+                className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-ember/20 transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">
-                    <div className="p-3 bg-cyan-500/10 rounded-lg">
+                    <div className="p-3 bg-momentum-ember/10 rounded-lg">
                       {getDeviceIcon(device.device_type)}
                     </div>
                     
@@ -208,8 +208,8 @@ export default function DeviceManagement() {
         </div>
       )}
 
-      <div className="bg-cyan-500/10 border border-momentum-teal/20 rounded-lg p-4">
-        <p className="text-cyan-400 text-sm">
+      <div className="bg-momentum-ember/10 border border-momentum-ember/20 rounded-lg p-4">
+        <p className="text-momentum-flare text-sm">
           <strong>Note:</strong> Trusted devices will automatically sign you in for 30 days. You can revoke access at any time.
         </p>
       </div>

@@ -8,7 +8,7 @@ import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
 import { artistPath, venuePath } from '@/shared/app-paths'
 
 const welcomeGradient =
-  'bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent'
+  'bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent'
 
 export default function DiscoverSection() {
   const navigate = useNavigate()
@@ -51,14 +51,14 @@ export default function DiscoverSection() {
 
   const getPriorityColor = (show: any) => {
     if (show.type === 'live') return 'from-red-500 to-orange-500'
-    if (show.type === 'nearby_upcoming') return 'from-momentum-teal to-momentum-mint'
-    if (show.is_favorite) return 'from-purple-500 to-pink-500'
+    if (show.type === 'nearby_upcoming') return 'from-momentum-ember to-momentum-flare'
+    if (show.is_favorite) return 'from-momentum-rose to-pink-500'
     if (show.type === 'trending') return 'from-orange-500 to-yellow-500'
-    return 'from-momentum-teal via-momentum-mint to-momentum-teal'
+    return 'from-momentum-ember via-momentum-flare to-momentum-ember'
   }
 
   return (
-    <section className="pt-8 pb-20 bg-gradient-to-b from-black via-momentum-teal/6 to-slate-950">
+    <section className="pt-8 pb-20 bg-gradient-to-b from-black via-momentum-ember/6 to-slate-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">
@@ -88,7 +88,7 @@ export default function DiscoverSection() {
           <div className="mb-8 p-4 glass-banner rounded-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <Navigation className="w-6 h-6 text-cyan-400" />
+                <Navigation className="w-6 h-6 text-momentum-flare" />
                 <div>
                   <h3 className="text-white font-semibold">Enable Location for Nearby Shows</h3>
                   <p className="text-sm text-gray-300">See concerts happening within 60 miles of you</p>
@@ -118,7 +118,7 @@ export default function DiscoverSection() {
               onClick={() => setFilter('nearby')}
               className={`px-4 py-2 rounded-full font-medium transition-all ${
                 filter === 'nearby'
-                  ? 'bg-gradient-to-r from-momentum-teal to-momentum-mint text-white'
+                  ? 'bg-gradient-to-r from-momentum-ember to-momentum-flare text-white'
                   : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-green-500/20 hover:border-green-400/40'
               }`}
             >
@@ -133,8 +133,8 @@ export default function DiscoverSection() {
               onClick={() => setFilter('favorites')}
               className={`px-4 py-2 rounded-full font-medium transition-all ${
                 filter === 'favorites'
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                  : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-purple-500/20 hover:border-purple-400/40'
+                  ? 'bg-gradient-to-r from-momentum-rose to-pink-500 text-white'
+                  : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-rose/20 hover:border-momentum-rose/40'
               }`}
             >
               <div className="flex items-center space-x-1">
@@ -148,7 +148,7 @@ export default function DiscoverSection() {
         {/* Loading State */}
         {loading && (
           <div className="text-center py-12">
-            <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+            <Loader2 className="w-12 h-12 text-momentum-flare animate-spin mx-auto mb-4" />
             <p className="text-gray-400">Finding the best shows for you...</p>
           </div>
         )}
@@ -165,7 +165,7 @@ export default function DiscoverSection() {
                 <div
                   key={`${show.type}-${index}`}
                   onClick={() => handleShowClick(show)}
-                  className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/50 hover:scale-105 transition-all duration-300 cursor-pointer"
+                  className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 hover:scale-105 transition-all duration-300 cursor-pointer"
                 >
                   <div className="relative">
                     <img
@@ -215,14 +215,14 @@ export default function DiscoverSection() {
                     {/* Moments Count - Positioned for Live Shows */}
                     {show.is_live && show.moments_count && show.moments_count > 0 && (
                       <div className="absolute bottom-3 left-3 flex items-center space-x-1 bg-black/60 backdrop-blur-lg rounded-full px-2 py-1">
-                        <Users className="w-3 h-3 text-cyan-400" />
+                        <Users className="w-3 h-3 text-momentum-flare" />
                         <span className="text-white text-xs font-medium">{show.moments_count} moments</span>
                       </div>
                     )}
                   </div>
 
                   <div className="p-6">
-                    <h3 className="font-bold text-xl text-white mb-2 group-hover:text-cyan-400 transition-colors truncate">
+                    <h3 className="font-bold text-xl text-white mb-2 group-hover:text-momentum-flare transition-colors truncate">
                       {show.artist_name || 'Artist'}
                     </h3>
 
@@ -243,7 +243,7 @@ export default function DiscoverSection() {
 
                       {/* Show moments count for live shows */}
                       {show.is_live && show.moments_count && (
-                        <div className="flex items-center space-x-2 text-cyan-400 text-sm font-medium">
+                        <div className="flex items-center space-x-2 text-momentum-flare text-sm font-medium">
                           <Users className="w-4 h-4" />
                           <span>{show.moments_count} moments shared</span>
                         </div>

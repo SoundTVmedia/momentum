@@ -60,7 +60,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
   if (loading) {
     return (
       <div className="text-center py-12">
-        <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+        <div className="inline-block w-8 h-8 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -79,8 +79,8 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="glass-panel rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-cyan-500/20 rounded-lg">
-              <Users className="w-6 h-6 text-cyan-400" />
+            <div className="p-3 bg-momentum-ember/20 rounded-lg">
+              <Users className="w-6 h-6 text-momentum-flare" />
             </div>
           </div>
           <div className="text-3xl font-bold text-white mb-1">
@@ -89,10 +89,10 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           <div className="text-sm text-gray-400">Followers</div>
         </div>
 
-        <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-purple-500/20 rounded-lg">
-              <Eye className="w-6 h-6 text-purple-400" />
+            <div className="p-3 bg-momentum-rose/20 rounded-lg">
+              <Eye className="w-6 h-6 text-momentum-rose" />
             </div>
           </div>
           <div className="text-3xl font-bold text-white mb-1">
@@ -101,10 +101,10 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           <div className="text-sm text-gray-400">Profile Views (30d)</div>
         </div>
 
-        <div className="glass-panel border border-blue-500/20 rounded-xl p-6">
+        <div className="glass-panel border border-momentum-flare/20 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-blue-500/20 rounded-lg">
-              <Video className="w-6 h-6 text-blue-400" />
+            <div className="p-3 bg-momentum-flare/20 rounded-lg">
+              <Video className="w-6 h-6 text-momentum-flare" />
             </div>
           </div>
           <div className="text-3xl font-bold text-white mb-1">
@@ -134,7 +134,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-400">Avg. Views per Clip</span>
-                <Eye className="w-4 h-4 text-blue-400" />
+                <Eye className="w-4 h-4 text-momentum-flare" />
               </div>
               <div className="text-2xl font-bold text-white">
                 {Math.round(data.clipStats.avg_views || 0).toLocaleString()}
@@ -152,7 +152,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-400">Avg. Comments per Clip</span>
-                <BarChart3 className="w-4 h-4 text-purple-400" />
+                <BarChart3 className="w-4 h-4 text-momentum-rose" />
               </div>
               <div className="text-2xl font-bold text-white">
                 {Math.round(data.clipStats.avg_comments || 0).toLocaleString()}
@@ -209,8 +209,8 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
           <div className="space-y-4">
             {data.topClips.map((clip, index) => (
               <div key={clipListItemKey(clip, index)} className="flex items-center space-x-4 p-4 bg-white/5 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-cyan-500/20 rounded-full flex items-center justify-center">
-                  <span className="text-cyan-400 font-bold text-sm">#{index + 1}</span>
+                <div className="flex-shrink-0 w-8 h-8 bg-momentum-ember/20 rounded-full flex items-center justify-center">
+                  <span className="text-momentum-flare font-bold text-sm">#{index + 1}</span>
                 </div>
                 <img
                   src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop'}
@@ -226,7 +226,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
                   </div>
                 </div>
                 <div className="flex items-center space-x-4 text-sm">
-                  <div className="flex items-center space-x-1 text-blue-400">
+                  <div className="flex items-center space-x-1 text-momentum-flare">
                     <Eye className="w-4 h-4" />
                     <span>{clip.views_count}</span>
                   </div>

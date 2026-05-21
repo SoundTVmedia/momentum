@@ -100,7 +100,7 @@ export default function MyClipsSection() {
     !loading && clips.length === 0 ? (
       <div className="glass-panel rounded-xl p-8">
         <div className="text-center">
-          <Upload className="w-12 h-12 text-cyan-400 mx-auto mb-4" />
+          <Upload className="w-12 h-12 text-momentum-flare mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">Your moments live here</h3>
           <p className="text-gray-300 mb-6 max-w-md mx-auto">
             You have not uploaded any clips yet. Share a moment from a show and it will show up
@@ -122,7 +122,7 @@ export default function MyClipsSection() {
       <DashboardClipsGrid
         title="My clips"
         subtitle="Everything you have shared on Feedback"
-        headerIcon={<Film className="w-6 h-6 text-cyan-400" />}
+        headerIcon={<Film className="w-6 h-6 text-momentum-flare" />}
         clips={clips as DashboardGridClip[]}
         loading={loading}
         error={error}

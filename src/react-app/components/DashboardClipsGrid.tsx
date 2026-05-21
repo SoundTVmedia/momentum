@@ -247,7 +247,7 @@ export default function DashboardClipsGrid({
                     e.stopPropagation();
                     onEditClip!(clip);
                   }}
-                  className="absolute top-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white hover:bg-cyan-600/90 border border-white/20 transition-colors"
+                  className="absolute top-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-lg bg-black/60 text-white hover:bg-momentum-ember/90 border border-white/20 transition-colors"
                   title="Edit clip details"
                   aria-label="Edit clip details"
                 >

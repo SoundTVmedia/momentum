@@ -4,9 +4,9 @@
 
 export function ClipGridTileSkeleton() {
   return (
-    <div className="glass-panel rounded-xl overflow-hidden animate-pulse">
-      <div className="aspect-square bg-gradient-to-br from-slate-800 to-slate-900" />
-      <div className="h-14 sm:h-16 bg-black/40 border-t border-white/5" />
+    <div className="glass-clip-card flex h-full w-full flex-col overflow-hidden animate-pulse">
+      <div className="aspect-square bg-gradient-to-br from-slate-800/80 to-slate-900/90" />
+      <div className="glass-clip-actions h-14 sm:h-16" />
     </div>
   );
 }

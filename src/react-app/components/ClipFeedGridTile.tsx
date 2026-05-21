@@ -74,9 +74,9 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
   };
 
   return (
-    <div className="video-card bg-gradient-to-b from-white/5 to-white/[0.02] border border-white/10 p-0 hover:border-purple-500/50 transition-all group flex flex-col">
+    <div className="glass-clip-card group flex h-full w-full flex-col p-0">
       <div
-        className="relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-t-2xl"
+        className="glass-clip-media-frame relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-t-[0.9rem]"
         onClick={() => onOpenClip(clip)}
         onMouseEnter={() => setMediaHovered(true)}
         onMouseLeave={() => setMediaHovered(false)}
@@ -92,7 +92,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
         />
 
         <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center rounded-t-2xl opacity-0 transition-opacity group-hover/video:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:hidden">
-          <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-14 lg:h-14 bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-10 md:h-10 lg:w-14 lg:h-14 bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember rounded-full flex items-center justify-center shadow-2xl animate-neon-pulse">
             <div className="w-0 h-0 border-l-[18px] sm:border-l-[22px] md:border-l-[16px] border-l-white border-y-[12px] sm:border-y-[14px] md:border-y-[11px] border-y-transparent ml-0.5 sm:ml-1" />
           </div>
         </div>
@@ -114,14 +114,14 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           </div>
         )}
 
-        <div className="absolute top-0 left-0 right-0 p-2 sm:p-3 md:p-1.5 lg:p-3">
+        <div className="glass-clip-overlay-top absolute top-0 left-0 right-0 z-[3] p-2 sm:p-3 md:p-1.5 lg:p-3">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/users/${clip.mocha_user_id}`);
             }}
-            className="flex items-center space-x-1.5 sm:space-x-2 hover:opacity-80 transition-opacity"
+            className="flex items-center space-x-1.5 sm:space-x-2 rounded-lg bg-black/25 px-1 py-0.5 backdrop-blur-md transition-opacity hover:opacity-90"
           >
             <UserAvatar
               imageUrl={clip.user_avatar}
@@ -144,7 +144,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           </button>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-3 md:p-1.5 lg:p-3 space-y-1 md:space-y-0.5 lg:space-y-1">
+        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] p-2 sm:p-3 md:p-1.5 lg:p-3 space-y-1 md:space-y-0.5 lg:space-y-1">
           {clip.artist_name && (
             <button
               type="button"
@@ -194,7 +194,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-2 py-2 sm:px-3 sm:py-3 md:px-2 md:py-2 lg:px-3 lg:py-3 bg-black/40">
+      <div className="glass-clip-actions flex items-center justify-between rounded-b-[0.9rem] px-2 py-2 sm:px-3 sm:py-3 md:px-2 md:py-2 lg:px-3 lg:py-3">
         <div className="flex items-center justify-between w-full gap-1 sm:gap-2 md:gap-1 lg:gap-3">
           <button
             type="button"
@@ -221,7 +221,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               e.stopPropagation();
               onOpenClip(clip);
             }}
-            className="flex flex-col items-center space-y-0.5 text-white hover:text-blue-400 transition-all group tap-feedback flex-1 min-w-0"
+            className="flex flex-col items-center space-y-0.5 text-white hover:text-momentum-flare transition-all group tap-feedback flex-1 min-w-0"
           >
             <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform" />
             <span className="font-bold text-[10px] sm:text-xs">{clip.comments_count}</span>
@@ -233,7 +233,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               e.stopPropagation();
               void handleShare(clip.id);
             }}
-            className="flex flex-col items-center space-y-0.5 text-white hover:text-purple-400 transition-all group tap-feedback flex-1 min-w-0"
+            className="flex flex-col items-center space-y-0.5 text-white hover:text-momentum-rose transition-all group tap-feedback flex-1 min-w-0"
           >
             <Share className="w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform" />
             <span className="font-bold text-[10px] sm:text-xs">Share</span>

@@ -84,7 +84,7 @@ export default function FavoriteArtistsJamBaseField({
               }
             }}
             autoComplete="off"
-            className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+            className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
             placeholder="Search JamBase artists or type a name…"
           />
 
@@ -120,7 +120,7 @@ export default function FavoriteArtistsJamBaseField({
                           {taken ? (
                             <span className="shrink-0 text-[10px] uppercase text-gray-500">Added</span>
                           ) : (
-                            <span className="shrink-0 text-[10px] uppercase text-cyan-400/90">JamBase</span>
+                            <span className="shrink-0 text-[10px] uppercase text-momentum-flare/90">JamBase</span>
                           )}
                         </button>
                       </li>

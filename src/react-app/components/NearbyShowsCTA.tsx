@@ -108,7 +108,7 @@ export default function NearbyShowsCTA({
         
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
-            <Navigation className="w-8 h-8 text-cyan-400" />
+            <Navigation className="w-8 h-8 text-momentum-flare" />
             <div>
               <h3 className="text-white font-bold text-lg">Find Shows Near You</h3>
               <p className="text-gray-300 text-sm">
@@ -133,7 +133,7 @@ export default function NearbyShowsCTA({
     return (
       <div className="glass-banner rounded-xl p-6">
         <div className="text-center">
-          <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-2"></div>
+          <div className="inline-block w-8 h-8 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin mb-2"></div>
           <p className="text-gray-300">Finding shows near you...</p>
         </div>
       </div>
@@ -175,7 +175,7 @@ export default function NearbyShowsCTA({
               
               <div className="space-y-2 mb-4">
                 <div className="flex items-center space-x-2 text-gray-200">
-                  <MapPin className="w-5 h-5 text-cyan-400" />
+                  <MapPin className="w-5 h-5 text-momentum-flare" />
                   <div>
                     <div className="font-medium">{getVenueName(event)}</div>
                     <div className="text-sm text-gray-300">{getLocation(event)}</div>
@@ -183,7 +183,7 @@ export default function NearbyShowsCTA({
                 </div>
                 
                 <div className="flex items-center space-x-2 text-gray-200">
-                  <Calendar className="w-5 h-5 text-cyan-400" />
+                  <Calendar className="w-5 h-5 text-momentum-flare" />
                   <div>
                     <span className="font-medium">{formatDate(event.dates?.start?.localDate)}</span>
                     {event.dates?.start?.localTime && (
@@ -196,7 +196,7 @@ export default function NearbyShowsCTA({
               </div>
 
               {event.priceRanges && event.priceRanges.length > 0 && (
-                <p className="text-cyan-400 font-bold text-lg mb-4">
+                <p className="text-momentum-flare font-bold text-lg mb-4">
                   From ${event.priceRanges[0].min.toFixed(0)}
                 </p>
               )}
@@ -231,7 +231,7 @@ export default function NearbyShowsCTA({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Navigation className="w-6 h-6 text-cyan-400" />
+            <Navigation className="w-6 h-6 text-momentum-flare" />
             <h3 className="text-xl font-bold text-white">
               {artistName ? `${artistName} Near You` : 'Shows Near You'}
             </h3>
@@ -248,7 +248,7 @@ export default function NearbyShowsCTA({
           {displayEvents.map((event) => (
             <div
               key={event.id}
-              className="glass-panel rounded-xl p-4 hover:border-momentum-mint/50 transition-all"
+              className="glass-panel rounded-xl p-4 hover:border-momentum-flare/50 transition-all"
             >
               <div className="space-y-3">
                 <div>
@@ -259,17 +259,17 @@ export default function NearbyShowsCTA({
                 </div>
 
                 <div className="flex items-center space-x-2 text-sm text-gray-300">
-                  <Calendar className="w-4 h-4 text-cyan-400" />
+                  <Calendar className="w-4 h-4 text-momentum-flare" />
                   <span>{formatDate(event.dates?.start?.localDate)}</span>
                 </div>
 
                 <div className="flex items-center space-x-2 text-sm text-gray-300">
-                  <MapPin className="w-4 h-4 text-cyan-400" />
+                  <MapPin className="w-4 h-4 text-momentum-flare" />
                   <span>{getLocation(event)}</span>
                 </div>
 
                 {event.priceRanges && event.priceRanges.length > 0 && (
-                  <p className="text-cyan-400 font-bold">
+                  <p className="text-momentum-flare font-bold">
                     From ${event.priceRanges[0].min.toFixed(0)}
                   </p>
                 )}

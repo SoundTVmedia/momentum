@@ -35,13 +35,13 @@ export default function PointsDisplay() {
   const progressPercentage = (userPoints.points % 100);
 
   return (
-    <div className="bg-gradient-to-r from-purple-500/20 to-pink-600/20 border border-purple-500/30 rounded-xl p-4">
+    <div className="bg-gradient-to-r from-momentum-rose/20 to-pink-600/20 border border-momentum-rose/30 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
           <Trophy className="w-5 h-5 text-yellow-400" />
           <span className="text-white font-bold">Level {userPoints.level}</span>
         </div>
-        <div className="flex items-center space-x-1 text-purple-300">
+        <div className="flex items-center space-x-1 text-momentum-rose/80">
           <Star className="w-4 h-4" />
           <span className="font-bold">{userPoints.points}</span>
           <span className="text-xs">points</span>
@@ -55,7 +55,7 @@ export default function PointsDisplay() {
         </div>
         <div className="w-full bg-white/10 rounded-full h-2">
           <div 
-            className="bg-gradient-to-r from-purple-500 to-pink-600 h-2 rounded-full transition-all duration-500"
+            className="bg-gradient-to-r from-momentum-rose to-pink-600 h-2 rounded-full transition-all duration-500"
             style={{ width: `${progressPercentage}%` }}
           />
         </div>

@@ -19,7 +19,7 @@ export default function DashboardRedirect() {
 
   return (
     <div className="min-h-screen text-white flex items-center justify-center">
-      <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+      <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
     </div>
   );
 }

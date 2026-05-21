@@ -141,7 +141,7 @@ function JamBaseEventCard({
 
   return (
     <div
-      className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-mint/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
+      className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
       <div className="relative shrink-0 h-48 overflow-hidden">
         {head ? (
@@ -179,7 +179,7 @@ function JamBaseEventCard({
       </div>
 
       <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-bold text-lg text-white mb-2 group-hover:text-momentum-mint transition-colors line-clamp-2 shrink-0">
+        <h3 className="font-bold text-lg text-white mb-2 group-hover:text-momentum-flare transition-colors line-clamp-2 shrink-0">
           {title}
         </h3>
 
@@ -188,7 +188,7 @@ function JamBaseEventCard({
             <button
               type="button"
               onClick={() => onArtist(head)}
-              className="flex items-center space-x-2 text-purple-300 hover:text-purple-200 text-left w-full"
+              className="flex items-center space-x-2 text-momentum-rose/80 hover:text-momentum-flare/80 text-left w-full"
             >
               <span className="truncate">{head}</span>
             </button>
@@ -198,7 +198,7 @@ function JamBaseEventCard({
             <button
               type="button"
               onClick={() => onVenue(vn)}
-              className="truncate text-left hover:text-cyan-300 transition-colors"
+              className="truncate text-left hover:text-momentum-flare/90 transition-colors"
             >
               {vn}
             </button>

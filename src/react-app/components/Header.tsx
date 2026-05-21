@@ -81,7 +81,7 @@ export default function Header() {
             onClick={() => navigate('/')}
             className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-4 min-w-0"
           >
-            <div className="text-lg sm:text-xl md:text-2xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent truncate">
+            <div className="text-lg sm:text-xl md:text-2xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent truncate">
               FEEDBACK
             </div>
           </button>
@@ -91,14 +91,14 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="text-white hover:text-momentum-mint transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
+                className="text-white hover:text-momentum-flare transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
               >
                 The Feed
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/discover')}
-                className="text-white hover:text-momentum-mint transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
+                className="text-white hover:text-momentum-flare transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
               >
                 Discover
               </button>
@@ -142,10 +142,10 @@ export default function Header() {
                   <Bell className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${unreadCount > 0 ? 'animate-pulse' : ''} group-hover:scale-110`} />
                   {unreadCount > 0 && (
                     <>
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 momentum-grad-interactive rounded-full text-white text-[10px] sm:text-xs flex items-center justify-center font-bold shadow-lg shadow-momentum-teal/40 animate-pulse">
+                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 momentum-grad-interactive rounded-full text-white text-[10px] sm:text-xs flex items-center justify-center font-bold shadow-lg shadow-momentum-ember/40 animate-pulse">
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-cyan-500 rounded-full animate-ping opacity-75" />
+                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-momentum-ember rounded-full animate-ping opacity-75" />
                     </>
                   )}
                 </button>
@@ -159,14 +159,14 @@ export default function Header() {
               <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
                 <button
                   onClick={() => navigate('/upload')}
-                  className="hidden md:block px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base shadow-lg shadow-momentum-teal/35"
+                  className="hidden md:block px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base shadow-lg shadow-momentum-ember/35"
                 >
                   Share Your Moment
                 </button>
                 {extendedUser?.profile?.is_admin === 1 && (
                   <button
                     onClick={() => navigate('/admin')}
-                    className="p-1.5 sm:p-2 text-gray-400 hover:text-purple-400 transition-colors"
+                    className="p-1.5 sm:p-2 text-gray-400 hover:text-momentum-rose transition-colors"
                     title="Admin Dashboard"
                   >
                     <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -205,7 +205,7 @@ export default function Header() {
             ) : (
               <button
                 onClick={() => navigate('/auth')}
-                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base whitespace-nowrap shadow-lg shadow-momentum-teal/35"
+                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base whitespace-nowrap shadow-lg shadow-momentum-ember/35"
               >
                 Sign In
               </button>

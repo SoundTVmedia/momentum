@@ -60,7 +60,7 @@ export default function CollaborationRequest({
     switch (request.status) {
       case 'accepted':
         return (
-          <div className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full text-blue-400 text-xs font-medium">
+          <div className="px-3 py-1 bg-momentum-flare/20 border border-momentum-flare/30 rounded-full text-momentum-flare text-xs font-medium">
             In Progress
           </div>
         );
@@ -159,7 +159,7 @@ export default function CollaborationRequest({
       )}
 
       {request.status === 'accepted' && (
-        <button className="w-full px-4 py-3 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 font-medium hover:bg-blue-500/30 transition-colors">
+        <button className="w-full px-4 py-3 bg-momentum-flare/20 border border-momentum-flare/30 rounded-lg text-momentum-flare font-medium hover:bg-momentum-flare/30 transition-colors">
           View Project Details
         </button>
       )}

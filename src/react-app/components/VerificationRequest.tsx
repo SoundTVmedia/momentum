@@ -94,11 +94,11 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-teal/20 rounded-xl overflow-hidden">
-        <div className="bg-gradient-to-r from-momentum-teal/20 to-momentum-mint/12 border-b border-white/10 p-6">
+      <div className="max-w-2xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-ember/20 rounded-xl overflow-hidden">
+        <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border-b border-white/10 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Shield className="w-8 h-8 text-blue-400" />
+              <Shield className="w-8 h-8 text-momentum-flare" />
               <div>
                 <h2 className="text-2xl font-bold text-white">{guidance.title}</h2>
                 <p className="text-gray-300 text-sm">{guidance.description}</p>
@@ -124,12 +124,12 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Requirements */}
-            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+            <div className="bg-momentum-flare/10 border border-momentum-flare/20 rounded-lg p-4">
               <h3 className="text-white font-bold mb-2">Requirements:</h3>
               <ul className="space-y-1 text-sm text-gray-300">
                 {guidance.requirements.map((req, i) => (
                   <li key={i} className="flex items-start space-x-2">
-                    <span className="text-blue-400 mt-0.5">•</span>
+                    <span className="text-momentum-flare mt-0.5">•</span>
                     <span>{req}</span>
                   </li>
                 ))}
@@ -145,7 +145,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 type="text"
                 value={formData.full_name}
                 onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="Enter your official name"
                 required
               />
@@ -160,7 +160,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 value={formData.reason}
                 onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
                 rows={4}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint resize-none"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare resize-none"
                 placeholder="Explain your eligibility and why verification is important to you..."
                 required
                 maxLength={1000}
@@ -179,7 +179,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 type="url"
                 value={formData.proof_url}
                 onChange={(e) => setFormData(prev => ({ ...prev, proof_url: e.target.value }))}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="https://"
                 required
               />
@@ -194,7 +194,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
                 value={formData.social_links}
                 onChange={(e) => setFormData(prev => ({ ...prev, social_links: e.target.value }))}
                 rows={2}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint resize-none"
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare resize-none"
                 placeholder="https://instagram.com/yourprofile, https://twitter.com/yourprofile"
                 required
               />
@@ -223,7 +223,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-momentum-teal to-momentum-mint rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-momentum-ember to-momentum-flare rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center"
               >
                 {loading ? (
                   <>

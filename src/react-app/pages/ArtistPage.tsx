@@ -169,7 +169,7 @@ export default function ArtistPage() {
       <div className="min-h-screen text-white">
         <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-12 h-12 text-cyan-400 animate-spin" />
+          <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
         </div>
       </div>
     );
@@ -221,7 +221,7 @@ export default function ArtistPage() {
       <Header />
       
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-b from-purple-900/30 to-black border-b border-purple-500/20">
+      <div className="relative bg-gradient-to-b from-momentum-rose/30 to-black border-b border-momentum-rose/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
             {/* Artist Image */}
@@ -229,10 +229,10 @@ export default function ArtistPage() {
               <img
                 src={artist.image_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop'}
                 alt={artist.name}
-                className="w-48 h-48 rounded-full object-cover border-4 border-purple-500/40 shadow-xl shadow-purple-500/25"
+                className="w-48 h-48 rounded-full object-cover border-4 border-momentum-rose/40 shadow-xl shadow-momentum-rose/25"
               />
               {artist.is_verified === 1 && (
-                <div className="absolute bottom-2 right-2 bg-blue-500 rounded-full p-2">
+                <div className="absolute bottom-2 right-2 bg-momentum-flare rounded-full p-2">
                   <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
@@ -243,10 +243,10 @@ export default function ArtistPage() {
             {/* Artist Info */}
             <div className="flex-1">
               <div className="flex items-center space-x-3 mb-4">
-                <Music className="w-8 h-8 text-purple-400" />
+                <Music className="w-8 h-8 text-momentum-rose" />
                 <h1 className="fb-hero-title">{artist.name}</h1>
                 {artist.is_verified === 1 && (
-                  <span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-sm rounded-full font-medium">
+                  <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
                     Verified
                   </span>
                 )}
@@ -266,7 +266,7 @@ export default function ArtistPage() {
                       href={socialLinks.instagram}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-purple-400 transition-colors"
+                      className="text-gray-400 hover:text-momentum-rose transition-colors"
                     >
                       <ExternalLink className="w-5 h-5" />
                     </a>
@@ -276,7 +276,7 @@ export default function ArtistPage() {
                       href={socialLinks.twitter}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-purple-400 transition-colors"
+                      className="text-gray-400 hover:text-momentum-rose transition-colors"
                     >
                       <ExternalLink className="w-5 h-5" />
                     </a>
@@ -286,7 +286,7 @@ export default function ArtistPage() {
                       href={socialLinks.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-purple-400 transition-colors"
+                      className="text-gray-400 hover:text-momentum-rose transition-colors"
                     >
                       <ExternalLink className="w-5 h-5" />
                     </a>
@@ -305,9 +305,9 @@ export default function ArtistPage() {
               title="Concert Moments"
               subtitle="Fan-captured moments from live shows"
               icon={Music}
-              iconClassName="text-purple-400"
+              iconClassName="text-momentum-rose"
               badge={
-                <span className="px-3 py-1 bg-purple-500/20 text-purple-400 text-sm rounded-full font-medium">
+                <span className="px-3 py-1 bg-momentum-rose/20 text-momentum-rose text-sm rounded-full font-medium">
                   {clips.length} clips
                 </span>
               }
@@ -321,7 +321,7 @@ export default function ArtistPage() {
                 edgeBleedScope="page"
               />
             ) : (
-              <div className="text-center py-12 glass-panel border border-purple-500/20 rounded-xl">
+              <div className="text-center py-12 glass-panel border border-momentum-rose/20 rounded-xl">
                 <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
                 <p className="text-gray-400 text-lg">Nothing here yet</p>
                 <p className="text-gray-500 mt-2">Drop the first clip from {artist.name}!</p>
@@ -329,7 +329,7 @@ export default function ArtistPage() {
             )}
           </div>
 
-          <div className="glass-panel border border-purple-500/20 rounded-xl p-6 h-fit">
+          <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6 h-fit">
             <h3 className="fb-panel-title mb-4">Quick Stats</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -392,7 +392,7 @@ export default function ArtistPage() {
                       <span>{liveShow.moments_count} moments posted</span>
                     </div>
                   </div>
-                  <div className="mt-4 inline-flex items-center space-x-2 px-6 py-3 bg-white rounded-xl text-purple-600 font-bold text-lg group-hover:scale-105 transition-transform">
+                  <div className="mt-4 inline-flex items-center space-x-2 px-6 py-3 bg-white rounded-xl text-momentum-rose font-bold text-lg group-hover:scale-105 transition-transform">
                     <span>Join Show Now</span>
                     <ExternalLink className="w-5 h-5" />
                   </div>
@@ -414,7 +414,7 @@ export default function ArtistPage() {
               title="Previous Shows on Tour"
               subtitle="Past shows with clips on Feedback"
               icon={Calendar}
-              iconClassName="text-purple-400"
+              iconClassName="text-momentum-rose"
               size="page"
             />
 
@@ -423,7 +423,7 @@ export default function ArtistPage() {
                 <button
                   key={show.show_id}
                   onClick={() => navigate(`${artistPath(show.artist_name)}/shows/${show.show_id}/clips`)}
-                  className="glass-panel border border-purple-500/20 rounded-xl overflow-hidden hover:border-purple-400/50 transition-all group"
+                  className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all group"
                 >
                   <div className="relative aspect-video">
                     <img
@@ -460,7 +460,7 @@ export default function ArtistPage() {
             title="Upcoming Shows"
             subtitle="Live dates from JamBase"
             icon={Calendar}
-            iconClassName="text-purple-400"
+            iconClassName="text-momentum-rose"
             size="page"
           />
           <JamBaseEventGrid
@@ -478,7 +478,7 @@ export default function ArtistPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
+            <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6">
               <h3 className="fb-panel-title mb-4">Quick Links</h3>
               <div className="space-y-3">
                 {socialLinks.website && (
@@ -488,7 +488,7 @@ export default function ArtistPage() {
                     rel="noopener noreferrer"
                     className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
                   >
-                    <ExternalLink className="w-5 h-5 text-purple-400 group-hover:scale-110 transition-transform" />
+                    <ExternalLink className="w-5 h-5 text-momentum-rose group-hover:scale-110 transition-transform" />
                     <span className="text-white font-medium">Official Website</span>
                   </a>
                 )}
@@ -508,7 +508,7 @@ export default function ArtistPage() {
                     href={tourDates[0].ticket_url}
                     target="_blank"
                     rel="nofollow noopener noreferrer"
-                    className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg hover:scale-105 transition-transform group"
+                    className="flex items-center space-x-3 px-4 py-3 bg-gradient-to-r from-momentum-rose to-pink-600 rounded-lg hover:scale-105 transition-transform group"
                   >
                     <Ticket className="w-5 h-5 text-white" />
                     <span className="text-white font-medium">Get Tickets</span>
@@ -536,8 +536,8 @@ export default function ArtistPage() {
               disabled={!favoritedKnown || favoriteLoading}
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
                 favorited
-                  ? 'bg-white/10 border border-purple-500/50 text-white'
-                  : 'bg-gradient-to-r from-purple-500 to-pink-600 text-white'
+                  ? 'bg-white/10 border border-momentum-rose/50 text-white'
+                  : 'bg-gradient-to-r from-momentum-rose to-pink-600 text-white'
               }`}
             >
               {favoriteLoading ? (

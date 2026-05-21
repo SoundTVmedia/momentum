@@ -260,7 +260,7 @@ export default function FavoriteArtistFeedPanel({
         className={
           edgeBleed
             ? HOME_FEED_SECTION_CLASS
-            : 'mb-10 rounded-2xl border border-purple-500/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
+            : 'mb-10 rounded-2xl border border-momentum-rose/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -275,7 +275,7 @@ export default function FavoriteArtistFeedPanel({
             <button
               type="button"
               onClick={toggleAddArtists}
-              className="shrink-0 inline-flex items-center gap-2 rounded-full border border-purple-500/50 bg-purple-500/15 px-3 py-2 text-purple-200 hover:bg-purple-500/25 hover:border-purple-400/60 transition-colors"
+              className="shrink-0 inline-flex items-center gap-2 rounded-full border border-momentum-rose/50 bg-momentum-rose/15 px-3 py-2 text-momentum-flare/80 hover:bg-momentum-rose/25 hover:border-momentum-rose/60 transition-colors"
               title={showAddArtists ? 'Close manage artists' : 'Add favorite artists'}
               aria-expanded={showAddArtists}
               aria-label={
@@ -284,14 +284,14 @@ export default function FavoriteArtistFeedPanel({
             >
               {showAddArtists ? (
                 <>
-                  <span className="text-xs sm:text-sm font-medium text-purple-100/90">
+                  <span className="text-xs sm:text-sm font-medium text-momentum-flare/90">
                     Close
                   </span>
                   <X className="w-5 h-5 shrink-0" aria-hidden />
                 </>
               ) : (
                 <>
-                  <span className="text-xs sm:text-sm font-medium text-purple-100/90 whitespace-nowrap">
+                  <span className="text-xs sm:text-sm font-medium text-momentum-flare/90 whitespace-nowrap">
                     Click to Add Artists
                   </span>
                   <Plus className="w-5 h-5 shrink-0" aria-hidden />
@@ -302,7 +302,7 @@ export default function FavoriteArtistFeedPanel({
         </div>
 
         {variant === 'feed' && showAddArtists ? (
-          <div className="mb-8 rounded-xl border border-purple-500/30 bg-black/50 p-4 sm:p-5">
+          <div className="mb-8 rounded-xl border border-momentum-rose/30 bg-black/50 p-4 sm:p-5">
             {loadingSavedArtists ? (
               <div className="flex items-center gap-2 text-gray-400 text-sm">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -346,14 +346,14 @@ export default function FavoriteArtistFeedPanel({
 
         {loading ? (
           <div className="flex justify-center py-10">
-            <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+            <Loader2 className="w-10 h-10 text-momentum-flare animate-spin" />
           </div>
         ) : (
           <>
             {upcomingEvents.length > 0 && (
               <div className="mb-8">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3 flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-momentum-mint" />
+                  <Ticket className="w-4 h-4 text-momentum-flare" />
                   Upcoming shows
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -380,7 +380,7 @@ export default function FavoriteArtistFeedPanel({
                             <button
                               type="button"
                               onClick={() => navigate(artistPath(artist))}
-                              className="font-semibold text-white text-left hover:text-cyan-300 truncate block w-full"
+                              className="font-semibold text-white text-left hover:text-momentum-flare/90 truncate block w-full"
                             >
                               {artist}
                             </button>
@@ -388,7 +388,7 @@ export default function FavoriteArtistFeedPanel({
                               <button
                                 type="button"
                                 onClick={() => navigate(venuePath(venue))}
-                                className="text-sm text-gray-400 hover:text-cyan-200 flex items-start gap-1 text-left mt-0.5"
+                                className="text-sm text-gray-400 hover:text-momentum-flare flex items-start gap-1 text-left mt-0.5"
                               >
                                 <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                                 <span className="truncate">{venue}</span>
@@ -433,6 +433,7 @@ export default function FavoriteArtistFeedPanel({
               ) : (
                 <HorizontalClipCarousel
                   ariaLabel="Clips from your artists"
+                  stretchItems
                   className={
                     edgeBleed
                       ? edgeBleedScope === 'home'
@@ -455,7 +456,7 @@ export default function FavoriteArtistFeedPanel({
                     type="button"
                     disabled={loadingMore}
                     onClick={loadMoreClips}
-                    className="px-6 py-3 rounded-xl font-semibold text-white text-sm border border-momentum-teal/40 bg-black/50 hover:bg-black/70 disabled:opacity-50 transition-colors"
+                    className="px-6 py-3 rounded-xl font-semibold text-white text-sm border border-momentum-ember/40 bg-black/50 hover:bg-black/70 disabled:opacity-50 transition-colors"
                   >
                     {loadingMore ? (
                       <span className="flex items-center gap-2">

@@ -313,7 +313,7 @@ export default function Auth() {
     return (
       <div className="min-h-screen text-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-momentum-teal animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading...</p>
         </div>
       </div>
@@ -325,7 +325,7 @@ export default function Auth() {
       <div className="min-h-screen text-white flex items-center justify-center px-4">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
-            <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent mb-4">
+            <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent mb-4">
               FEEDBACK
             </h1>
             <p className="text-xl text-white">Welcome back!</p>
@@ -337,13 +337,13 @@ export default function Auth() {
               <p className="text-gray-400">Stay signed in for easy access</p>
             </div>
 
-            <div className="flex items-start space-x-3 p-4 bg-cyan-500/10 border border-momentum-teal/20 rounded-lg">
+            <div className="flex items-start space-x-3 p-4 bg-momentum-ember/10 border border-momentum-ember/20 rounded-lg">
               <input
                 type="checkbox"
                 id="rememberDeviceCheck"
                 checked={rememberDevice}
                 onChange={(e) => setRememberDevice(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-white/20 bg-white/10 text-momentum-teal focus:ring-momentum-mint focus:ring-offset-0"
+                className="mt-1 w-5 h-5 rounded border-white/20 bg-white/10 text-momentum-ember focus:ring-momentum-flare focus:ring-offset-0"
               />
               <label htmlFor="rememberDeviceCheck" className="text-white cursor-pointer flex-1">
                 <div className="font-semibold mb-1">Remember this device for easy sign-in</div>
@@ -357,7 +357,7 @@ export default function Auth() {
             <button
               type="button"
               onClick={() => navigateAfterAuth(rememberDevice)}
-              className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform shadow-lg shadow-momentum-teal/35"
+              className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform shadow-lg shadow-momentum-ember/35"
             >
               Continue
             </button>
@@ -379,7 +379,7 @@ export default function Auth() {
     <div className="min-h-screen text-white flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-teal via-momentum-mint to-momentum-teal bg-clip-text text-transparent mb-4">
+          <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent mb-4">
             FEEDBACK
           </h1>
           <p className="text-xl text-gray-300">Where Live Music Lives</p>
@@ -394,7 +394,7 @@ export default function Auth() {
 
           <div className="space-y-4">
             <div className="flex items-start space-x-3">
-              <Music className="w-6 h-6 text-momentum-teal flex-shrink-0 mt-1" />
+              <Music className="w-6 h-6 text-momentum-ember flex-shrink-0 mt-1" />
               <div>
                 <h3 className="text-white font-semibold">Capture Live Moments</h3>
                 <p className="text-gray-400 text-sm">
@@ -403,7 +403,7 @@ export default function Auth() {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Sparkles className="w-6 h-6 text-purple-400 flex-shrink-0 mt-1" />
+              <Sparkles className="w-6 h-6 text-momentum-rose flex-shrink-0 mt-1" />
               <div>
                 <h3 className="text-white font-semibold">Discover Shows</h3>
                 <p className="text-gray-400 text-sm">
@@ -412,7 +412,7 @@ export default function Auth() {
               </div>
             </div>
             <div className="flex items-start space-x-3">
-              <Users className="w-6 h-6 text-blue-400 flex-shrink-0 mt-1" />
+              <Users className="w-6 h-6 text-momentum-flare flex-shrink-0 mt-1" />
               <div>
                 <h3 className="text-white font-semibold">Join the Community</h3>
                 <p className="text-gray-400 text-sm">
@@ -489,8 +489,8 @@ export default function Auth() {
             </div>
 
             {forgotMessage && (
-              <div className="p-4 bg-cyan-500/10 border border-momentum-teal/30 rounded-lg">
-                <p className="text-momentum-mint text-sm">{forgotMessage}</p>
+              <div className="p-4 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
+                <p className="text-momentum-flare text-sm">{forgotMessage}</p>
               </div>
             )}
 
@@ -508,7 +508,7 @@ export default function Auth() {
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="How should we call you?"
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
                       disabled={loading || emailLoading}
                     />
                   </div>
@@ -528,7 +528,7 @@ export default function Auth() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your.email@example.com"
                     autoComplete="email"
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
+                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
                     disabled={loading || emailLoading}
                   />
                 </div>
@@ -548,7 +548,7 @@ export default function Auth() {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder={emailMode === 'signup' ? 'At least 8 characters' : '••••••••'}
                       autoComplete={emailMode === 'signup' ? 'new-password' : 'current-password'}
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint transition-colors"
+                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
                       disabled={loading || emailLoading}
                     />
                   </div>
@@ -594,7 +594,7 @@ export default function Auth() {
                     setError(null);
                     setForgotMessage(null);
                   }}
-                  className="w-full text-center text-[11px] text-momentum-teal hover:text-momentum-mint"
+                  className="w-full text-center text-[11px] text-momentum-ember hover:text-momentum-flare"
                 >
                   Forgot password
                 </button>

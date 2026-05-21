@@ -190,7 +190,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
 
   return (
     <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-      <div className="max-w-3xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-teal/20 rounded-xl my-8 animate-scale-in">
+      <div className="max-w-3xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-ember/20 rounded-xl my-8 animate-scale-in">
         <div className="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-white/10 p-4 sm:p-6 rounded-t-xl z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl sm:text-2xl font-bold text-white">Edit Profile</h2>
@@ -207,7 +207,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
           {/* Cover Image */}
           <div>
             <label className="block text-white font-medium mb-2">Cover Image</label>
-            <div className="relative h-32 sm:h-48 bg-gradient-to-r from-purple-900/50 to-black rounded-xl overflow-hidden border-2 border-dashed border-white/20 group hover:border-momentum-mint/50 transition-colors">
+            <div className="relative h-32 sm:h-48 bg-gradient-to-r from-momentum-rose/50 to-black rounded-xl overflow-hidden border-2 border-dashed border-white/20 group hover:border-momentum-flare/50 transition-colors">
               {formData.cover_image_url ? (
                 <img
                   src={formData.cover_image_url}
@@ -226,7 +226,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                 className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
               >
                 {uploading === 'cover' ? (
-                  <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                  <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
                 ) : (
                   <div className="text-center">
                     <Upload className="w-8 h-8 text-white mx-auto mb-2" />
@@ -255,7 +255,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   seed={profile.mocha_user_id}
                   sizeClass="w-20 h-20 sm:w-24 sm:h-24"
                   letterClassName="text-2xl sm:text-3xl font-semibold"
-                  className="border-4 border-momentum-teal/40"
+                  className="border-4 border-momentum-ember/40"
                 />
                 <button
                   type="button"
@@ -264,7 +264,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   className="absolute inset-0 bg-black/60 rounded-full opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center"
                 >
                   {uploading === 'avatar' ? (
-                    <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+                    <Loader2 className="w-6 h-6 text-momentum-flare animate-spin" />
                   ) : (
                     <Camera className="w-6 h-6 text-white" />
                   )}
@@ -291,7 +291,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
               type="text"
               value={formData.display_name}
               onChange={(e) => setFormData(prev => ({ ...prev, display_name: e.target.value }))}
-              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
               placeholder="Enter your display name"
               required
             />
@@ -304,7 +304,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
               value={formData.bio}
               onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
               rows={3}
-              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint resize-none"
+              className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare resize-none"
               placeholder="Tell us about yourself..."
               maxLength={500}
             />
@@ -321,7 +321,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                 type="text"
                 value={formData.location}
                 onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="New York, NY"
               />
             </div>
@@ -332,7 +332,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   type="text"
                   value={formData.city}
                   onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                  className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                  className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                   placeholder="New York"
                 />
               </div>
@@ -387,7 +387,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                 </button>
 
                 {homeLocation ? (
-                  <div className="p-4 bg-cyan-500/10 border border-momentum-teal/20 rounded-lg">
+                  <div className="p-4 bg-momentum-ember/10 border border-momentum-ember/20 rounded-lg">
                     <p className="text-white font-medium mb-2">Selected:</p>
                     <p className="text-gray-300 text-sm">{homeLocation}</p>
                   </div>
@@ -452,7 +452,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   ...prev,
                   social_links: { ...prev.social_links, instagram: e.target.value }
                 }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="Instagram URL"
               />
               <input
@@ -462,7 +462,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   ...prev,
                   social_links: { ...prev.social_links, twitter: e.target.value }
                 }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="Twitter URL"
               />
               <input
@@ -472,7 +472,7 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
                   ...prev,
                   social_links: { ...prev.social_links, website: e.target.value }
                 }))}
-                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-mint"
+                className="w-full px-4 py-2 sm:py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="Website URL"
               />
             </div>

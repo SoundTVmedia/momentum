@@ -76,13 +76,13 @@ export default function ArtistCurationPanel() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="glass-panel border border-purple-500/20 rounded-xl p-6">
+    <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white">Fan Submissions</h2>
         <div className="text-sm text-gray-400">
@@ -105,7 +105,7 @@ export default function ArtistCurationPanel() {
                 key={clipListItemKey(clip, index)}
                 className={`p-4 rounded-lg border transition-all ${
                   isPinned
-                    ? 'bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30'
+                    ? 'bg-gradient-to-r from-momentum-rose/10 to-pink-500/10 border-momentum-rose/30'
                     : 'bg-white/5 border-white/10 hover:border-white/20'
                 }`}
               >
@@ -130,7 +130,7 @@ export default function ArtistCurationPanel() {
                       </div>
                       
                       {isPinned && (
-                        <div className="flex items-center space-x-1 px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-purple-400 text-xs font-medium ml-2">
+                        <div className="flex items-center space-x-1 px-2 py-1 bg-momentum-rose/20 border border-momentum-rose/30 rounded text-momentum-rose text-xs font-medium ml-2">
                           <Pin className="w-3 h-3" />
                           <span>Pinned</span>
                         </div>
@@ -159,7 +159,7 @@ export default function ArtistCurationPanel() {
                         onClick={() => togglePinClip(clip.id)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                           isPinned
-                            ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30'
+                            ? 'bg-momentum-rose/20 text-momentum-rose border border-momentum-rose/30 hover:bg-momentum-rose/30'
                             : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
                         }`}
                       >

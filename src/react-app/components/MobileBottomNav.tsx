@@ -132,7 +132,7 @@ export default function MobileBottomNav() {
                 key={item.label}
                 onClick={item.onClick}
                 className={`flex flex-col items-center justify-center flex-1 h-full relative transition-all ${
-                  active ? 'text-momentum-mint' : 'text-gray-400'
+                  active ? 'text-momentum-flare' : 'text-gray-400'
                 }`}
               >
                 <div className="relative">

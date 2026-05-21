@@ -107,7 +107,7 @@ export default function AdminDashboard() {
       case 'live':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
       case 'scheduled':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+        return 'bg-momentum-flare/20 text-momentum-flare border-momentum-flare/30';
       case 'ended':
         return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
       default:
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
 
   if (!extendedUser?.profile?.is_admin) {
     return (
-      <section className="py-20 bg-gradient-to-r from-black via-momentum-teal/14 to-black min-h-screen">
+      <section className="py-20 bg-gradient-to-r from-black via-momentum-ember/14 to-black min-h-screen">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <Shield className="w-16 h-16 text-red-400 mx-auto mb-6" />
           <h2 className="text-3xl font-bold text-white mb-4">Access Denied</h2>
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <section className="py-20 bg-gradient-to-r from-black via-momentum-teal/14 to-black min-h-screen">
+    <section className="py-20 bg-gradient-to-r from-black via-momentum-ember/14 to-black min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
@@ -142,7 +142,7 @@ export default function AdminDashboard() {
               <h1 className="text-4xl font-bold text-white mb-2">Admin Dashboard</h1>
               <p className="text-gray-300">Manage live sessions and moderate chat</p>
             </div>
-            <Shield className="w-12 h-12 text-cyan-400" />
+            <Shield className="w-12 h-12 text-momentum-flare" />
           </div>
 
           {/* Tab Navigation */}
@@ -151,7 +151,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('sessions')}
               className={`px-6 py-3 font-semibold transition-colors ${
                 activeTab === 'sessions'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('moderation')}
               className={`px-6 py-3 font-semibold transition-colors ${
                 activeTab === 'moderation'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('analytics')}
               className={`px-6 py-3 font-semibold transition-colors ${
                 activeTab === 'analytics'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('content')}
               className={`px-6 py-3 font-semibold transition-colors ${
                 activeTab === 'content'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -203,7 +203,7 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('verification')}
               className={`px-6 py-3 font-semibold transition-colors ${
                 activeTab === 'verification'
-                  ? 'text-cyan-400 border-b-2 border-cyan-400'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
 
             {loading ? (
               <div className="text-center py-12">
-                <div className="inline-block w-8 h-8 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+                <div className="inline-block w-8 h-8 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin"></div>
               </div>
             ) : sessions.length === 0 ? (
               <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
@@ -245,7 +245,7 @@ export default function AdminDashboard() {
                 {sessions.map((session) => (
                   <div
                     key={session.id}
-                    className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-teal/30 transition-colors"
+                    className="glass-panel border border-white/10 rounded-xl p-6 hover:border-momentum-ember/30 transition-colors"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -293,7 +293,7 @@ export default function AdminDashboard() {
                           <>
                             <button
                               onClick={() => handleAdvanceClip(session.id)}
-                              className="p-2 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-400 hover:bg-purple-500/30 transition-colors"
+                              className="p-2 bg-momentum-rose/20 border border-momentum-rose/30 rounded-lg text-momentum-rose hover:bg-momentum-rose/30 transition-colors"
                               title="Skip to Next Clip"
                             >
                               <SkipForward className="w-5 h-5" />
@@ -312,7 +312,7 @@ export default function AdminDashboard() {
                             setSelectedSession(session);
                             setShowSessionManager(true);
                           }}
-                          className="p-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 hover:bg-blue-500/30 transition-colors"
+                          className="p-2 bg-momentum-flare/20 border border-momentum-flare/30 rounded-lg text-momentum-flare hover:bg-momentum-flare/30 transition-colors"
                           title="Edit Session"
                         >
                           <Edit className="w-5 h-5" />

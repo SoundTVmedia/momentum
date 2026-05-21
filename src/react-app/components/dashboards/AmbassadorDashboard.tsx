@@ -105,7 +105,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
           <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Events Promoted</span>
-              <Calendar className="w-5 h-5 text-cyan-400" />
+              <Calendar className="w-5 h-5 text-momentum-flare" />
             </div>
             <div className="text-3xl font-bold text-white">28</div>
             <div className="text-sm text-green-400">+8 this month</div>
@@ -114,7 +114,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
           <div className="glass-panel border border-orange-500/20 rounded-xl p-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-300">Total Reach</span>
-              <TrendingUp className="w-5 h-5 text-purple-400" />
+              <TrendingUp className="w-5 h-5 text-momentum-rose" />
             </div>
             <div className="text-3xl font-bold text-white">45K</div>
             <div className="text-sm text-green-400">+12K this month</div>
@@ -188,7 +188,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                     <div className="text-white font-bold mb-1">Local Band Night</div>
                     <div className="text-gray-400 text-sm">The Underground - Friday 8PM</div>
                   </div>
-                  <Calendar className="w-5 h-5 text-cyan-400" />
+                  <Calendar className="w-5 h-5 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-xs">124 interested</span>
@@ -204,7 +204,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                     <div className="text-white font-bold mb-1">Jazz & Blues Festival</div>
                     <div className="text-gray-400 text-sm">City Park - Saturday 2PM</div>
                   </div>
-                  <Calendar className="w-5 h-5 text-cyan-400" />
+                  <Calendar className="w-5 h-5 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-xs">542 interested</span>
@@ -220,7 +220,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                     <div className="text-white font-bold mb-1">Indie Showcase</div>
                     <div className="text-gray-400 text-sm">The Loft - Next Thursday</div>
                   </div>
-                  <Calendar className="w-5 h-5 text-cyan-400" />
+                  <Calendar className="w-5 h-5 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-xs">89 interested</span>
@@ -263,7 +263,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                     <div className="text-white font-bold mb-1">Venue Partnerships</div>
                     <div className="text-gray-400 text-sm">Partner with local venues</div>
                   </div>
-                  <MapPin className="w-5 h-5 text-blue-400" />
+                  <MapPin className="w-5 h-5 text-momentum-flare" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-orange-400 font-bold">10% commission</span>
@@ -279,7 +279,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
                     <div className="text-white font-bold mb-1">Artist Collaborations</div>
                     <div className="text-gray-400 text-sm">Connect artists with brands</div>
                   </div>
-                  <Award className="w-5 h-5 text-purple-400" />
+                  <Award className="w-5 h-5 text-momentum-rose" />
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-orange-400 font-bold">20% commission</span>
@@ -315,7 +315,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
               </div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-cyan-400 mb-2">
+              <div className="text-4xl font-bold text-momentum-flare mb-2">
                 ${analytics?.earningsBalance.toFixed(2) || '0.00'}
               </div>
               <div className="text-gray-300">Available Balance</div>
