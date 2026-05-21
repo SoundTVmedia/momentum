@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Music, Filter, Users, Video, X, Ticket, Heart } from 'lucide-react';
+import { Search, MapPin, Music, Filter, Users, Video, X, Ticket } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
@@ -471,8 +471,6 @@ export default function DiscoverPage() {
             {discoverFeed.forYou && discoverFeed.forYou.clips.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle
-                  icon={Heart}
-                  iconClassName="text-pink-400"
                   title="For You"
                   subtitle={discoverFeed.forYou.subtitle}
                 />

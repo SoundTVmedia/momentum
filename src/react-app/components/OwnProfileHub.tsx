@@ -5,7 +5,6 @@ import { Loader2, Settings } from 'lucide-react';
 import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
 import DeviceManagement from '@/react-app/components/DeviceManagement';
-import PersonalizedFeed from '@/react-app/components/PersonalizedFeed';
 import MyClipsSection from '@/react-app/components/MyClipsSection';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
 import FanDashboard from '@/react-app/components/dashboards/FanDashboard';
@@ -18,7 +17,11 @@ import type { ExtendedMochaUser } from '@/shared/types';
  * Dashboard-style sections for the signed-in user on their own profile page
  * (points, personalization, role tools, etc.).
  */
-export default function OwnProfileHub() {
+type OwnProfileHubProps = {
+  onOpenCapture: () => void;
+};
+
+export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
   const [userData, setUserData] = useState<ExtendedMochaUser | null>(null);
@@ -69,18 +72,18 @@ export default function OwnProfileHub() {
   const renderRoleDashboard = () => {
     switch (userData.profile?.role) {
       case 'fan':
-        return <FanDashboard user={userData} />;
+        return <FanDashboard user={userData} onDropClip={onOpenCapture} />;
       case 'artist':
       case 'venue':
-        return <ArtistDashboard user={userData} />;
+        return <ArtistDashboard user={userData} onDropClip={onOpenCapture} />;
       case 'ambassador':
-        return <AmbassadorDashboard user={userData} />;
+        return <AmbassadorDashboard user={userData} onDropClip={onOpenCapture} />;
       case 'influencer':
-        return <InfluencerDashboard user={userData} />;
+        return <InfluencerDashboard user={userData} onDropClip={onOpenCapture} />;
       case 'premium':
-        return <FanDashboard user={userData} />;
+        return <FanDashboard user={userData} onDropClip={onOpenCapture} />;
       default:
-        return <FanDashboard user={userData} />;
+        return <FanDashboard user={userData} onDropClip={onOpenCapture} />;
     }
   };
 
@@ -109,8 +112,9 @@ export default function OwnProfileHub() {
         </div>
 
         <div className="space-y-12">
-          <PersonalizedFeed />
-          {user ? <MyClipsSection /> : null}
+          {user ? (
+            <MyClipsSection onUploadClick={onOpenCapture} />
+          ) : null}
           <PersonalizedConcerts />
         </div>
       </div>

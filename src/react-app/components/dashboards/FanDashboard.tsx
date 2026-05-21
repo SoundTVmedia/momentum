@@ -1,13 +1,16 @@
 import { Play, Upload, Heart, Ticket, Users, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { ExtendedMochaUser } from '@/shared/types';
+import { useProfileUploadAction } from '@/react-app/lib/profileUploadAction';
 
 interface FanDashboardProps {
   user: ExtendedMochaUser;
+  onDropClip?: () => void;
 }
 
-export default function FanDashboard({ user }: FanDashboardProps) {
+export default function FanDashboard({ user, onDropClip }: FanDashboardProps) {
   const navigate = useNavigate();
+  const handleUploadClick = useProfileUploadAction(onDropClip);
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Fan';
 
   return (
@@ -24,7 +27,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button 
-            onClick={() => navigate('/upload')}
+            onClick={handleUploadClick}
             className="momentum-grad-interactive rounded-xl p-6 hover:scale-105 transition-transform"
           >
             <Upload className="w-8 h-8 text-white mb-2" />
@@ -101,7 +104,7 @@ export default function FanDashboard({ user }: FanDashboardProps) {
               <Upload className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400 mb-4">No clips yet. Time to share!</p>
               <button 
-                onClick={() => navigate('/upload')}
+                onClick={handleUploadClick}
                 className="px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Share Your First Moment

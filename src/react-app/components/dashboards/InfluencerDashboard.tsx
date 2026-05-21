@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router';
 import { useState } from 'react';
 import CollaborationRequest from '@/react-app/components/CollaborationRequest';
 import type { ExtendedMochaUser } from '@/shared/types';
+import { useProfileUploadAction } from '@/react-app/lib/profileUploadAction';
 
 interface InfluencerDashboardProps {
   user: ExtendedMochaUser;
+  onDropClip?: () => void;
 }
 
-export default function InfluencerDashboard({ user }: InfluencerDashboardProps) {
+export default function InfluencerDashboard({ user, onDropClip }: InfluencerDashboardProps) {
   const navigate = useNavigate();
+  const handleUploadClick = useProfileUploadAction(onDropClip);
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Influencer';
   
   // Mock collaboration requests - would come from API
@@ -51,7 +54,7 @@ export default function InfluencerDashboard({ user }: InfluencerDashboardProps) 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button 
-            onClick={() => navigate('/upload')}
+            onClick={handleUploadClick}
             className="momentum-grad-interactive rounded-xl p-6 hover:scale-105 transition-transform"
           >
             <Video className="w-8 h-8 text-white mb-2" />

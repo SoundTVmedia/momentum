@@ -4,13 +4,16 @@ import { useState } from 'react';
 import ArtistCurationPanel from '@/react-app/components/ArtistCurationPanel';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ExtendedMochaUser } from '@/shared/types';
+import { useProfileUploadAction } from '@/react-app/lib/profileUploadAction';
 
 interface ArtistDashboardProps {
   user: ExtendedMochaUser;
+  onDropClip?: () => void;
 }
 
-export default function ArtistDashboard({ user }: ArtistDashboardProps) {
+export default function ArtistDashboard({ user, onDropClip }: ArtistDashboardProps) {
   const navigate = useNavigate();
+  const handleUploadClick = useProfileUploadAction(onDropClip);
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Artist';
   const [activeTab, setActiveTab] = useState<'overview' | 'curation'>('overview');
 
@@ -58,7 +61,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button 
-            onClick={() => navigate('/upload')}
+            onClick={handleUploadClick}
             className="bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-xl p-6 hover:scale-105 transition-transform"
           >
             <Video className="w-8 h-8 text-white mb-2" />
@@ -131,7 +134,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-white">Your Content</h2>
               <button 
-                onClick={() => navigate('/upload')}
+                onClick={handleUploadClick}
                 className="text-momentum-rose hover:text-momentum-rose/80 text-sm font-medium"
               >
                 Upload New
@@ -141,7 +144,7 @@ export default function ArtistDashboard({ user }: ArtistDashboardProps) {
               <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400 mb-4">You haven't uploaded any content yet</p>
               <button 
-                onClick={() => navigate('/upload')}
+                onClick={handleUploadClick}
                 className="px-6 py-3 bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Upload Your First Clip

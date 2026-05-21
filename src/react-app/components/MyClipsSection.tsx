@@ -1,16 +1,20 @@
 import { useState } from 'react';
 import { Film, Upload } from 'lucide-react';
-import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClips } from '@/react-app/hooks/useClips';
 import DashboardClipsGrid, { type DashboardGridClip } from '@/react-app/components/DashboardClipsGrid';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import ClipEditModal from '@/react-app/components/ClipEditModal';
 import { pruneClipFromLocalCaches } from '@/react-app/lib/prune-clip-local-caches';
+import { useProfileUploadAction } from '@/react-app/lib/profileUploadAction';
 
-export default function MyClipsSection() {
+type MyClipsSectionProps = {
+  onUploadClick?: () => void;
+};
+
+export default function MyClipsSection({ onUploadClick }: MyClipsSectionProps) {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const handleUploadClick = useProfileUploadAction(onUploadClick);
   const [editingClip, setEditingClip] = useState<DashboardGridClip | null>(null);
   const { clips, loading, error, hasMore, loadMore, refresh, removeClip, removeClipBy, updateClip } = useClips({
     mine: true,
@@ -108,7 +112,7 @@ export default function MyClipsSection() {
           </p>
           <button
             type="button"
-            onClick={() => navigate('/upload')}
+            onClick={handleUploadClick}
             className="px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
           >
             Upload a clip

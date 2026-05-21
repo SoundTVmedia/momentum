@@ -5,9 +5,11 @@ import AmbassadorReferralBanner from '@/react-app/components/AmbassadorReferralB
 import TicketmasterEventGrid from '@/react-app/components/TicketmasterEventGrid';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import type { ExtendedMochaUser } from '@/shared/types';
+import { useProfileUploadAction } from '@/react-app/lib/profileUploadAction';
 
 interface AmbassadorDashboardProps {
   user: ExtendedMochaUser;
+  onDropClip?: () => void;
 }
 
 interface AmbassadorAnalytics {
@@ -21,8 +23,9 @@ interface AmbassadorAnalytics {
   recentSales: Array<any>;
 }
 
-export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) {
+export default function AmbassadorDashboard({ user, onDropClip }: AmbassadorDashboardProps) {
   const navigate = useNavigate();
+  const handleUploadClick = useProfileUploadAction(onDropClip);
   const displayName = user.profile?.display_name || user.google_user_data.name || 'Ambassador';
   const city = user.profile?.city || 'Your City';
   const [analytics, setAnalytics] = useState<AmbassadorAnalytics | null>(null);
@@ -64,7 +67,7 @@ export default function AmbassadorDashboard({ user }: AmbassadorDashboardProps) 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <button 
-            onClick={() => navigate('/upload')}
+            onClick={handleUploadClick}
             className="bg-gradient-to-r from-momentum-ember to-momentum-rose rounded-xl p-6 hover:scale-105 transition-transform"
           >
             <Video className="w-8 h-8 text-white mb-2" />

@@ -11,8 +11,11 @@ import VerificationRequest from '@/react-app/components/VerificationRequest';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
 import type { ClipWithUser, UserProfile } from '@/shared/types';
-import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
+import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
+import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
+import { useQuickCaptureLauncher } from '@/react-app/hooks/useQuickCaptureLauncher';
+import { useProfileUploadAction } from '@/react-app/lib/profileUploadAction';
+import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { artistPath } from '@/shared/app-paths';
 
 interface UserStats {
@@ -55,6 +58,10 @@ export default function UserProfilePage() {
   const [showVerificationRequest, setShowVerificationRequest] = useState(false);
 
   const isOwnProfile = user?.id === userId;
+  const quickCapture = useQuickCaptureLauncher();
+  const handleOwnProfileUpload = useProfileUploadAction(
+    isOwnProfile ? quickCapture.openQuickCapture : undefined
+  );
 
   const fetchUserProfile = async () => {
     if (!userId) return;
@@ -99,22 +106,6 @@ export default function UserProfilePage() {
     window.addEventListener('favorite-artists-changed', refresh);
     return () => window.removeEventListener('favorite-artists-changed', refresh);
   }, [isOwnProfile, userId]);
-
-  const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  };
 
   if (loading) {
     return (
@@ -345,7 +336,9 @@ export default function UserProfilePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {isOwnProfile && user ? <OwnProfileHub /> : null}
+        {isOwnProfile && user ? (
+          <OwnProfileHub onOpenCapture={quickCapture.openQuickCapture} />
+        ) : null}
 
         {/* Favorite Artists Section */}
         {favoriteArtists.length > 0 && (
@@ -378,34 +371,17 @@ export default function UserProfilePage() {
                   </button>
 
                   {favoriteArtist.clips.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {favoriteArtist.clips.slice(0, 3).map((clip, index) => (
-                        <div
-                          key={clipListItemKey(clip, index)}
-                          onClick={() => {
-                            setSelectedClip(clip);
-                            setProfileModalFeed(favoriteArtist.clips.length > 1 ? favoriteArtist.clips : null);
-                          }}
-                          className="glass-panel border border-momentum-rose/20 rounded-lg overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group"
-                        >
-                          <div
-                            className="relative w-full bg-black"
-                            style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
-                          >
-                            <img
-                              src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
-                              alt="Concert moment"
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                            />
-                          </div>
-                          <div className="p-3">
-                            {clip.content_description && (
-                              <p className="text-gray-300 text-sm line-clamp-2">{clip.content_description}</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <ClipFeedCarousel
+                      clips={favoriteArtist.clips}
+                      className={PAGE_CAROUSEL_BLEED}
+                      ariaLabel={`${favoriteArtist.artist.name} favorite moments`}
+                      onOpenClip={(clip) => {
+                        setSelectedClip(clip);
+                        setProfileModalFeed(
+                          favoriteArtist.clips.length > 1 ? favoriteArtist.clips : null
+                        );
+                      }}
+                    />
                   ) : (
                     <p className="text-gray-500 text-center py-4">No favorite moments yet</p>
                   )}
@@ -428,7 +404,8 @@ export default function UserProfilePage() {
             </p>
             {isOwnProfile && (
               <button
-                onClick={() => navigate('/upload')}
+                type="button"
+                onClick={handleOwnProfileUpload}
                 className="mt-4 px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Share Your First Moment
@@ -436,57 +413,15 @@ export default function UserProfilePage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {clips.map((clip, index) => (
-              <div
-                key={clipListItemKey(clip, index)}
-                onClick={() => {
-                  setSelectedClip(clip);
-                  setProfileModalFeed(clips.length > 1 ? clips : null);
-                }}
-                className="glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-all cursor-pointer group"
-              >
-                <div
-                  className="relative w-full bg-black"
-                  style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
-                >
-                  <img
-                    src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
-                    alt="Concert moment"
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                  />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-lg rounded-full flex items-center justify-center">
-                      <div className="w-0 h-0 border-l-[12px] border-l-white border-y-[8px] border-y-transparent ml-1"></div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="p-4">
-                  {clip.artist_name && (
-                    <div className="font-bold text-momentum-rose mb-1">{clip.artist_name}</div>
-                  )}
-                  {clip.content_description && (
-                    <p className="text-gray-300 text-sm mb-3 line-clamp-2">{clip.content_description}</p>
-                  )}
-                  
-                  <div className="flex items-center justify-between text-sm text-gray-400">
-                    <div className="flex items-center space-x-3">
-                      <span className="flex items-center space-x-1">
-                        <Heart className="w-4 h-4" />
-                        <span>{clip.likes_count}</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <Eye className="w-4 h-4" />
-                        <span>{clip.views_count}</span>
-                      </span>
-                    </div>
-                    <span>{formatTimestamp(clip.created_at)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ClipFeedCarousel
+            clips={clips}
+            className={PAGE_CAROUSEL_BLEED}
+            ariaLabel={isOwnProfile ? 'Your clips' : `${profile.display_name}'s clips`}
+            onOpenClip={(clip) => {
+              setSelectedClip(clip);
+              setProfileModalFeed(clips.length > 1 ? clips : null);
+            }}
+          />
         )}
       </div>
 
@@ -520,6 +455,8 @@ export default function UserProfilePage() {
           userRole={data.profile.role}
         />
       )}
+
+      {isOwnProfile && user ? <QuickCaptureOverlay {...quickCapture} /> : null}
     </div>
   );
 }

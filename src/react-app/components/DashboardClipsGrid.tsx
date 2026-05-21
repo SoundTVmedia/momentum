@@ -3,10 +3,17 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
+import HorizontalClipCarousel, {
+  HorizontalClipCarouselItem,
+} from '@/react-app/components/HorizontalClipCarousel';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import {
+  HOME_FEED_CAROUSEL_BLEED,
+  MOBILE_CAROUSEL_ITEM_PEEK_CLASS,
+} from '@/react-app/lib/homeFeedLayout';
 
 const CLIP_THUMB_FALLBACK =
   'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1200&fit=crop';
@@ -156,7 +163,11 @@ export default function DashboardClipsGrid({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <HorizontalClipCarousel
+        ariaLabel={title}
+        className={HOME_FEED_CAROUSEL_BLEED}
+        stretchItems
+      >
         {clips.map((clip, index) => {
           const showDelete = Boolean(showDeleteOnEach && onDeleteClip);
           const showEdit = Boolean(showEditOnEach && onEditClip);
@@ -170,9 +181,12 @@ export default function DashboardClipsGrid({
             (typeof clip.stream_video_id === 'string' && clip.stream_video_id.trim());
 
           return (
-            <div
+            <HorizontalClipCarouselItem
               key={rowKey}
-              className="group relative w-full bg-black/40 rounded-xl overflow-hidden hover:scale-105 transition-transform"
+              className={`${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:w-56 lg:w-64`}
+            >
+            <div
+              className="group relative w-full bg-black/40 rounded-xl overflow-hidden hover:scale-[1.02] transition-transform"
               style={{ aspectRatio: clipDisplayAspectRatio(clip) ?? '9 / 16' }}
               onMouseEnter={() => setHoveredRowKey(rowKey)}
               onMouseLeave={() => setHoveredRowKey((k) => (k === rowKey ? null : k))}
@@ -265,9 +279,10 @@ export default function DashboardClipsGrid({
                 </div>
               )}
             </div>
+            </HorizontalClipCarouselItem>
           );
         })}
-      </div>
+      </HorizontalClipCarousel>
 
       {hasMore && (
         <div className="flex justify-center pt-6">
