@@ -11,6 +11,7 @@ import OnboardingPage from "@/react-app/pages/Onboarding";
 import DashboardPage from "@/react-app/pages/Dashboard";
 import UploadClipPage from "@/react-app/pages/UploadClip";
 import SavedClipsPage from "@/react-app/pages/SavedClips";
+import LikedClipsPage from "@/react-app/pages/LikedClips";
 import ArtistPage from "@/react-app/pages/ArtistPage";
 import VenuePage from "@/react-app/pages/VenuePage";
 import AdminPage from "@/react-app/pages/Admin";
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/upload" element={<UploadClipPage />} />
               <Route path="/saved" element={<SavedClipsPage />} />
+              <Route path="/liked" element={<LikedClipsPage />} />
               <Route path="/artists/:artistName" element={<ArtistPage />} />
               <Route path="/venues/:venueName" element={<VenuePage />} />
               <Route path="/users/:userId" element={<UserProfilePage />} />

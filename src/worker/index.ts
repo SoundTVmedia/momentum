@@ -1547,6 +1547,36 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
   });
 });
 
+// Clips the signed-in user has liked (full rows for liked-clips page)
+app.get("/api/users/me/liked-clips-feed", authMiddleware, async (c) => {
+  const mochaUser = c.get("user");
+
+  if (!mochaUser) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const uid = mochaUserIdKey(mochaUser);
+  const likedClips = await c.env.DB.prepare(
+    `SELECT
+      clips.rowid AS _clipRowId,
+      clips.*,
+      user_profiles.display_name as user_display_name,
+      user_profiles.profile_image_url as user_avatar
+    FROM clip_likes
+    JOIN clips ON clip_likes.clip_id = clips.id
+    LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+    WHERE clip_likes.mocha_user_id = ?
+      AND clips.is_hidden = 0
+    ORDER BY clip_likes.created_at DESC`,
+  )
+    .bind(uid)
+    .all();
+
+  return c.json({
+    clips: normalizeClipApiRows((likedClips.results || []) as Record<string, unknown>[]),
+  });
+});
+
 // Get user's notifications (optimized with limit on unread)
 app.get("/api/notifications", authMiddleware, async (c) => {
   const mochaUser = c.get("user");

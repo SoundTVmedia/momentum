@@ -55,6 +55,7 @@ export default function UserProfilePage() {
   const [profileModalFeed, setProfileModalFeed] = useState<ClipWithUser[] | null>(null);
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showVerificationRequest, setShowVerificationRequest] = useState(false);
+  const [likedClipsCount, setLikedClipsCount] = useState<number | null>(null);
 
   const isOwnProfile = user?.id === userId;
   const quickCapture = useQuickCaptureLauncher();
@@ -78,11 +79,15 @@ export default function UserProfilePage() {
       // Track profile view (async, don't wait)
       fetch(`/api/analytics/profile-view/${userId}`, { method: 'POST' }).catch(() => {});
 
-      // Fetch favorite artists with clips
-      const favoritesResponse = await fetch(`/api/users/${userId}/favorite-artists-with-clips`);
-      if (favoritesResponse.ok) {
-        const favoritesData = await favoritesResponse.json();
-        setFavoriteArtists(favoritesData.favoriteArtists || []);
+      const viewingOwnProfile = user?.id === userId;
+      if (viewingOwnProfile) {
+        setFavoriteArtists([]);
+      } else {
+        const favoritesResponse = await fetch(`/api/users/${userId}/favorite-artists-with-clips`);
+        if (favoritesResponse.ok) {
+          const favoritesData = await favoritesResponse.json();
+          setFavoriteArtists(favoritesData.favoriteArtists || []);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -97,11 +102,27 @@ export default function UserProfilePage() {
   }, [userId]);
 
   useEffect(() => {
-    if (!isOwnProfile) return;
-    const refresh = () => void fetchUserProfile();
-    window.addEventListener('favorite-artists-changed', refresh);
-    return () => window.removeEventListener('favorite-artists-changed', refresh);
-  }, [isOwnProfile, userId]);
+    if (!isOwnProfile || !user) {
+      setLikedClipsCount(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/users/me/liked-clips', { credentials: 'include' });
+        if (!response.ok) return;
+        const data = (await response.json()) as { clip_ids?: number[] };
+        if (!cancelled) {
+          setLikedClipsCount((data.clip_ids ?? []).length);
+        }
+      } catch {
+        if (!cancelled) setLikedClipsCount(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, user]);
 
   if (loading) {
     return (
@@ -266,13 +287,30 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Clips</div>
               </div>
               
-              <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
-                <div className="flex items-center justify-center mb-1 sm:mb-2">
-                  <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+              {isOwnProfile && user ? (
+                <button
+                  type="button"
+                  onClick={() => navigate('/liked')}
+                  className="glass-panel rounded-xl p-3 sm:p-4 text-center w-full hover:border-red-400/40 hover:bg-white/[0.08] transition-colors tap-feedback"
+                  aria-label="View clips you've liked"
+                >
+                  <div className="flex items-center justify-center mb-1 sm:mb-2">
+                    <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-white">
+                    {(likedClipsCount ?? stats.totalLikes).toLocaleString()}
+                  </div>
+                  <div className="text-xs sm:text-sm text-gray-400">Liked</div>
+                </button>
+              ) : (
+                <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
+                  <div className="flex items-center justify-center mb-1 sm:mb-2">
+                    <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-white">{stats.totalLikes.toLocaleString()}</div>
+                  <div className="text-xs sm:text-sm text-gray-400">Likes</div>
                 </div>
-                <div className="text-xl sm:text-2xl font-bold text-white">{stats.totalLikes.toLocaleString()}</div>
-                <div className="text-xs sm:text-sm text-gray-400">Likes</div>
-              </div>
+              )}
               
               <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
@@ -336,9 +374,9 @@ export default function UserProfilePage() {
           <OwnProfileHub onOpenCapture={quickCapture.openQuickCapture} />
         ) : null}
 
-        {/* Favorite Artists Section — below shows on own profile; hidden on mobile */}
-        {favoriteArtists.length > 0 && (
-          <div className={`mb-12 ${isOwnProfile ? 'hidden md:block' : ''}`}>
+        {/* Favorite Artists — other users' profiles only (own profile ends at shows carousel) */}
+        {favoriteArtists.length > 0 && !isOwnProfile && (
+          <div className="mb-12">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center space-x-2">
               <Star className="w-6 h-6 text-momentum-ember" />
               <span>Favorite Artists</span>

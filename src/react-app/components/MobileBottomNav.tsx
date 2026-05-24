@@ -9,6 +9,14 @@ import type { ExtendedMochaUser } from '@/shared/types';
 import { useQuickCaptureLauncher } from '@/react-app/hooks/useQuickCaptureLauncher';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
+const SIGN_IN_GRADIENT_STOPS = (
+  <>
+    <stop offset="0%" stopColor="#84cc16" />
+    <stop offset="50%" stopColor="#16a34a" />
+    <stop offset="100%" stopColor="#0f766e" />
+  </>
+);
+
 export default function MobileBottomNav() {
   const signInGradId = useId().replace(/:/g, '');
   const navigate = useNavigate();
@@ -112,8 +120,8 @@ export default function MobileBottomNav() {
                         letterClassName="text-xs font-semibold"
                       />
                     ) : (
-                      <>
-                        <svg aria-hidden className="absolute h-0 w-0 overflow-hidden">
+                      <div className="relative flex h-8 w-8 items-center justify-center">
+                        <svg aria-hidden className="h-8 w-8" viewBox="0 0 32 32">
                           <defs>
                             <linearGradient
                               id={signInGradId}
@@ -122,25 +130,26 @@ export default function MobileBottomNav() {
                               x2="100%"
                               y2="100%"
                             >
-                              <stop offset="0%" stopColor="#84cc16" />
-                              <stop offset="50%" stopColor="#16a34a" />
-                              <stop offset="100%" stopColor="#0f766e" />
+                              {SIGN_IN_GRADIENT_STOPS}
                             </linearGradient>
                           </defs>
+                          <circle
+                            cx="16"
+                            cy="16"
+                            r="14.25"
+                            fill="none"
+                            stroke={`url(#${signInGradId})`}
+                            strokeWidth="1.5"
+                          />
                         </svg>
-                        <div
-                          className="flex h-8 w-8 items-center justify-center rounded-full p-[1.5px]"
-                          style={{ backgroundImage: 'var(--momentum-grad)' }}
-                        >
-                          <div className="flex h-full w-full items-center justify-center rounded-full bg-transparent">
-                            <LogIn
-                              className="h-4 w-4"
-                              stroke={`url(#${signInGradId})`}
-                              aria-hidden
-                            />
-                          </div>
-                        </div>
-                      </>
+                        <LogIn
+                          className="absolute h-3.5 w-3.5"
+                          stroke={`url(#${signInGradId})`}
+                          strokeWidth={2}
+                          fill="none"
+                          aria-hidden
+                        />
+                      </div>
                     )}
                   </div>
                   {active && user && (
