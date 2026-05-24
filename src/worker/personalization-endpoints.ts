@@ -111,6 +111,204 @@ function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: nu
   return null;
 }
 
+type RadiusMeta =
+  | { applied: false }
+  | {
+      applied: true;
+      radius_miles: number;
+      mode: 'in_radius' | 'no_coordinates_fallback' | 'no_matches_in_radius';
+    };
+
+function jamBaseEventId(ev: Record<string, unknown>): string {
+  return typeof ev.identifier === 'string' ? ev.identifier : JSON.stringify(ev);
+}
+
+function sortJamBaseEventsByStartDate(events: Record<string, unknown>[]): Record<string, unknown>[] {
+  return [...events].sort((a, b) => {
+    const sa = typeof a.startDate === 'string' ? new Date(a.startDate).getTime() : 0;
+    const sb = typeof b.startDate === 'string' ? new Date(b.startDate).getTime() : 0;
+    return sa - sb;
+  });
+}
+
+/** Prefer in-radius, then no-geo, then outside radius so each favorite artist can surface a show. */
+function pickBestJamBaseEventForArtist(
+  events: Record<string, unknown>[],
+  hasHome: boolean,
+  homeLat: number,
+  homeLon: number,
+  radiusMiles: number,
+): Record<string, unknown> | null {
+  const sorted = sortJamBaseEventsByStartDate(dedupeJamBaseEvents(events));
+  if (sorted.length === 0) return null;
+  if (!hasHome) return sorted[0];
+
+  const inRadius: Record<string, unknown>[] = [];
+  const noGeo: Record<string, unknown>[] = [];
+  const outside: Record<string, unknown>[] = [];
+
+  for (const ev of sorted) {
+    const c = jamBaseEventCoords(ev);
+    if (!c) {
+      noGeo.push(ev);
+      continue;
+    }
+    if (haversineMiles(homeLat, homeLon, c.lat, c.lon) <= radiusMiles) {
+      inRadius.push(ev);
+    } else {
+      outside.push(ev);
+    }
+  }
+
+  return inRadius[0] ?? noGeo[0] ?? outside[0] ?? null;
+}
+
+function applyHomeRadiusToEventPool(
+  merged: Record<string, unknown>[],
+  hasHome: boolean,
+  homeLat: number,
+  homeLon: number,
+  radiusMiles: number,
+): { pool: Record<string, unknown>[]; radiusMeta: RadiusMeta } {
+  if (!hasHome) {
+    return { pool: merged, radiusMeta: { applied: false } };
+  }
+
+  const inRadius: Record<string, unknown>[] = [];
+  const noGeo: Record<string, unknown>[] = [];
+  for (const ev of merged) {
+    const c = jamBaseEventCoords(ev);
+    if (!c) {
+      noGeo.push(ev);
+      continue;
+    }
+    if (haversineMiles(homeLat, homeLon, c.lat, c.lon) <= radiusMiles) {
+      inRadius.push(ev);
+    }
+  }
+
+  if (inRadius.length > 0) {
+    return {
+      pool: inRadius,
+      radiusMeta: { applied: true, radius_miles: radiusMiles, mode: 'in_radius' },
+    };
+  }
+  if (noGeo.length > 0) {
+    return {
+      pool: noGeo,
+      radiusMeta: {
+        applied: true,
+        radius_miles: radiusMiles,
+        mode: 'no_coordinates_fallback',
+      },
+    };
+  }
+  if (merged.length > 0) {
+    return {
+      pool: [],
+      radiusMeta: {
+        applied: true,
+        radius_miles: radiusMiles,
+        mode: 'no_matches_in_radius',
+      },
+    };
+  }
+  return { pool: merged, radiusMeta: { applied: false } };
+}
+
+/** At least one upcoming show per favorite artist, then fill remaining slots by date. */
+function buildJamBaseEventsWithArtistCoverage(
+  eventsByArtist: Map<string, Record<string, unknown>[]>,
+  artistOrder: string[],
+  hasHome: boolean,
+  homeLat: number,
+  homeLon: number,
+  radiusMiles: number,
+  limit: number,
+): { events: Record<string, unknown>[]; radiusMeta: RadiusMeta } {
+  const guaranteed: Record<string, unknown>[] = [];
+  const used = new Set<string>();
+
+  for (const artistName of artistOrder) {
+    const key = normalizeArtistDisplayName(artistName);
+    const pick = pickBestJamBaseEventForArtist(
+      eventsByArtist.get(key) ?? [],
+      hasHome,
+      homeLat,
+      homeLon,
+      radiusMiles,
+    );
+    if (!pick) continue;
+    const id = jamBaseEventId(pick);
+    if (used.has(id)) continue;
+    used.add(id);
+    guaranteed.push(pick);
+  }
+
+  const allRaw = dedupeJamBaseEvents(
+    [...eventsByArtist.values()].flat(),
+  );
+  const { pool, radiusMeta } = applyHomeRadiusToEventPool(
+    allRaw,
+    hasHome,
+    homeLat,
+    homeLon,
+    radiusMiles,
+  );
+  const sortedPool = sortJamBaseEventsByStartDate(pool);
+  const rest = sortedPool.filter((ev) => !used.has(jamBaseEventId(ev)));
+
+  const displayLimit = Math.min(50, Math.max(limit, guaranteed.length));
+  const events = [...guaranteed, ...rest].slice(0, displayLimit);
+
+  return { events, radiusMeta };
+}
+
+type D1ConcertRow = Record<string, unknown> & { artist_name?: string };
+
+function buildD1ConcertsWithArtistCoverage(
+  rows: D1ConcertRow[],
+  artistOrder: string[],
+  limit: number,
+): Record<string, unknown>[] {
+  const byArtist = new Map<string, D1ConcertRow[]>();
+  for (const row of rows) {
+    const name =
+      typeof row.artist_name === 'string' ? normalizeArtistDisplayName(row.artist_name) : '';
+    if (!name) continue;
+    const list = byArtist.get(name) ?? [];
+    list.push(row);
+    byArtist.set(name, list);
+  }
+
+  const guaranteed: D1ConcertRow[] = [];
+  const used = new Set<string>();
+
+  for (const artistName of artistOrder) {
+    const key = normalizeArtistDisplayName(artistName);
+    const picks = byArtist.get(key) ?? [];
+    const pick = picks[0];
+    if (!pick) continue;
+    const id = String(pick.id ?? `${key}-${pick.date}`);
+    if (used.has(id)) continue;
+    used.add(id);
+    guaranteed.push(pick);
+  }
+
+  const sortedAll = [...rows].sort((a, b) => {
+    const da = typeof a.date === 'string' ? new Date(a.date).getTime() : 0;
+    const db = typeof b.date === 'string' ? new Date(b.date).getTime() : 0;
+    return da - db;
+  });
+  const rest = sortedAll.filter((row) => {
+    const id = String(row.id ?? '');
+    return id && !used.has(id);
+  });
+
+  const displayLimit = Math.min(50, Math.max(limit, guaranteed.length));
+  return [...guaranteed, ...rest].slice(0, displayLimit);
+}
+
 /**
  * Update user personalization settings
  * Stores favorite artists and home location for feed customization
@@ -392,7 +590,9 @@ export async function getPersonalizedConcerts(c: Context) {
       });
     }
 
-    const uniqueArtists = [...new Set(favoriteArtists)].slice(0, 8);
+    const uniqueArtists = [...new Set(favoriteArtists.map((n) => normalizeArtistDisplayName(n)))].filter(
+      Boolean,
+    );
     const key = c.env.JAMBASE_API_KEY;
 
     if (!jamBaseApiKeyConfigured(key)) {
@@ -405,91 +605,44 @@ export async function getPersonalizedConcerts(c: Context) {
       });
     }
 
+    const homeLat = profile.home_latitude != null ? Number(profile.home_latitude) : NaN;
+    const homeLon = profile.home_longitude != null ? Number(profile.home_longitude) : NaN;
+    const radiusMiles = Math.max(1, Number(profile.location_radius_miles) || 50);
+    const hasHome = Number.isFinite(homeLat) && Number.isFinite(homeLon);
+
     if (key?.trim()) {
       const jbQ = jamBaseQuotaFromEnv(c.env);
-      const perArtistCap = Math.min(
-        20,
-        Math.max(6, Math.ceil((limit * 3) / Math.max(1, uniqueArtists.length)))
-      );
-      const allRaw: Record<string, unknown>[] = [];
+      const perArtistCap = '10';
+      const eventsByArtist = new Map<string, Record<string, unknown>[]>();
 
       await Promise.all(
         uniqueArtists.map(async (artistName) => {
+          const keyName = normalizeArtistDisplayName(artistName);
           try {
             const { events } = await fetchJamBaseEventsByArtistName(
               key,
               jbQ,
               artistName,
-              String(perArtistCap),
-              '1'
+              perArtistCap,
+              '1',
             );
-            allRaw.push(...events);
+            eventsByArtist.set(keyName, events);
           } catch (e) {
             console.error('Personalized JamBase fetch failed for', artistName, e);
+            eventsByArtist.set(keyName, []);
           }
-        })
+        }),
       );
 
-      const merged = dedupeJamBaseEvents(allRaw);
-      merged.sort((a, b) => {
-        const sa = typeof a.startDate === 'string' ? new Date(a.startDate).getTime() : 0;
-        const sb = typeof b.startDate === 'string' ? new Date(b.startDate).getTime() : 0;
-        return sa - sb;
-      });
-
-      const homeLat = profile.home_latitude != null ? Number(profile.home_latitude) : NaN;
-      const homeLon = profile.home_longitude != null ? Number(profile.home_longitude) : NaN;
-      const radiusMiles = Math.max(1, Number(profile.location_radius_miles) || 50);
-      const hasHome = Number.isFinite(homeLat) && Number.isFinite(homeLon);
-
-      type RadiusMeta =
-        | { applied: false }
-        | {
-            applied: true;
-            radius_miles: number;
-            mode: 'in_radius' | 'no_coordinates_fallback' | 'no_matches_in_radius';
-          };
-
-      let radiusMeta: RadiusMeta = { applied: false };
-      let pool = merged;
-
-      if (hasHome) {
-        const inRadius: Record<string, unknown>[] = [];
-        const noGeo: Record<string, unknown>[] = [];
-        for (const ev of merged) {
-          const c = jamBaseEventCoords(ev);
-          if (!c) {
-            noGeo.push(ev);
-            continue;
-          }
-          const d = haversineMiles(homeLat, homeLon, c.lat, c.lon);
-          if (d <= radiusMiles) inRadius.push(ev);
-        }
-
-        if (inRadius.length > 0) {
-          pool = inRadius;
-          radiusMeta = { applied: true, radius_miles: radiusMiles, mode: 'in_radius' };
-        } else if (noGeo.length > 0) {
-          pool = noGeo;
-          radiusMeta = {
-            applied: true,
-            radius_miles: radiusMiles,
-            mode: 'no_coordinates_fallback',
-          };
-        } else if (merged.length > 0) {
-          pool = [];
-          radiusMeta = {
-            applied: true,
-            radius_miles: radiusMiles,
-            mode: 'no_matches_in_radius',
-          };
-        } else {
-          pool = merged;
-          radiusMeta = { applied: false };
-        }
-      }
-
-      const slice = pool.slice(0, limit);
+      const { events: slice, radiusMeta } = buildJamBaseEventsWithArtistCoverage(
+        eventsByArtist,
+        uniqueArtists,
+        hasHome,
+        homeLat,
+        homeLon,
+        radiusMiles,
+        limit,
+      );
 
       if (slice.length > 0) {
         return c.json({
@@ -514,7 +667,7 @@ export async function getPersonalizedConcerts(c: Context) {
       }
     }
 
-    const concerts = await c.env.DB.prepare(
+    const concertsRaw = await c.env.DB.prepare(
       `SELECT 
         artist_tour_dates.*,
         artists.name as artist_name,
@@ -527,13 +680,19 @@ export async function getPersonalizedConcerts(c: Context) {
        WHERE artists.name IN (${uniqueArtists.map(() => '?').join(',')})
        AND artist_tour_dates.date >= datetime('now')
        ORDER BY artist_tour_dates.date ASC
-       LIMIT ?`
+       LIMIT ?`,
     )
-      .bind(...uniqueArtists, limit)
+      .bind(...uniqueArtists, Math.min(200, uniqueArtists.length * 20))
       .all();
 
+    const concerts = buildD1ConcertsWithArtistCoverage(
+      (concertsRaw.results ?? []) as D1ConcertRow[],
+      uniqueArtists,
+      limit,
+    );
+
     return c.json({
-      concerts: concerts.results || [],
+      concerts,
       events: [],
       personalized: true,
       source: 'd1' as const,

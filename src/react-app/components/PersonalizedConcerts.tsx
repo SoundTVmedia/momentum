@@ -151,7 +151,7 @@ export default function PersonalizedConcerts({
       setLoading(true);
       try {
         if (resolvedMode === 'favorite-artists') {
-          const response = await fetch('/api/personalization/concerts?limit=12', {
+          const response = await fetch('/api/personalization/concerts?limit=40', {
             credentials: 'include',
           });
           const data = (await response.json()) as ConcertsApi;
@@ -203,7 +203,7 @@ export default function PersonalizedConcerts({
       void (async () => {
         setLoading(true);
         try {
-          const response = await fetch('/api/personalization/concerts?limit=12', {
+          const response = await fetch('/api/personalization/concerts?limit=40', {
             credentials: 'include',
           });
           const data = (await response.json()) as ConcertsApi;
