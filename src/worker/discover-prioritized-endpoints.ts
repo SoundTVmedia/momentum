@@ -233,7 +233,7 @@ export async function getPrioritizedShows(c: Context) {
       }
     }
 
-    // 5. General trending content (recent popular clips)
+    // 5. Trending clips — highest likes, then views
     const trendingClips = await c.env.DB.prepare(
       `SELECT 
         clips.*,
@@ -244,8 +244,8 @@ export async function getPrioritizedShows(c: Context) {
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       LEFT JOIN artists ON clips.artist_name = artists.name
       WHERE clips.is_hidden = 0
-      AND clips.created_at >= date('now', '-7 days')
-      ORDER BY (clips.likes_count * 3 + clips.views_count * 0.1 + clips.comments_count * 5) DESC
+      AND clips.is_draft = 0
+      ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC
       LIMIT 20`
     ).all();
 

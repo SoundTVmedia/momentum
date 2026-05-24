@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { Bookmark, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import type { ClipWithUser } from '@/shared/types';
-import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { SAVED_CLIPS_CHANGED_EVENT } from '@/react-app/lib/savedClipsEvents';
 
 export default function SavedClipsSection() {
@@ -50,52 +50,63 @@ export default function SavedClipsSection() {
     void fetchSavedClips();
   };
 
-  return (
-    <section aria-label="Saved clips">
-      <SectionHeading
-        title="Saved clips"
-        subtitle="Clips you bookmarked from the feed or clip player"
-        icon={Bookmark}
-        iconClassName="text-momentum-ember"
-        badge={
-          !loading && clips.length > 0 ? (
-            <span className="px-2.5 py-0.5 rounded-full bg-momentum-ember/15 text-momentum-ember text-xs font-medium">
-              {clips.length}
-            </span>
-          ) : null
-        }
-      />
+  const sectionHeader = (
+    <SectionHeading
+      title="Saved clips"
+      subtitle="Clips you bookmarked from the feed or clip player"
+      size="section"
+    />
+  );
 
-      {loading ? (
-        <div className="flex justify-center py-10">
-          <Loader2 className="w-10 h-10 text-momentum-flare animate-spin" aria-label="Loading saved clips" />
+  if (loading) {
+    return (
+      <div className={HOME_FEED_SECTION_CLASS}>
+        {sectionHeader}
+        <div className="glass-panel rounded-xl p-8">
+          <div className="flex items-center justify-center space-x-2 text-gray-400">
+            <Loader2 className="w-5 h-5 animate-spin" aria-hidden />
+            <span>Loading saved clips…</span>
+          </div>
         </div>
-      ) : clips.length === 0 ? (
-        <div className="glass-panel rounded-xl p-8 text-center border border-momentum-ember/20">
-          <Bookmark className="w-12 h-12 text-gray-600 mx-auto mb-4" aria-hidden />
-          <p className="text-gray-300 mb-2">No saved clips yet</p>
-          <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
-            Tap the bookmark on any clip in the feed or player to save it here.
-          </p>
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
-          >
-            Explore the feed
-          </button>
+      </div>
+    );
+  }
+
+  if (clips.length === 0) {
+    return (
+      <div className={HOME_FEED_SECTION_CLASS}>
+        {sectionHeader}
+        <div className="glass-highlight rounded-xl p-8">
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-white mb-2">No saved clips yet</h3>
+            <p className="text-gray-300 mb-4 max-w-md mx-auto">
+              Tap the bookmark on any clip in the feed or player to save it here.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
+            >
+              Explore the feed
+            </button>
+          </div>
         </div>
-      ) : (
-        <ClipFeedCarousel
-          clips={clips}
-          className={PAGE_CAROUSEL_BLEED}
-          ariaLabel="Saved clips"
-          onOpenClip={(clip) => {
-            setSelectedClip(clip);
-            setSavedModalFeed(clips.length > 1 ? clips : null);
-          }}
-        />
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={HOME_FEED_SECTION_CLASS}>
+      {sectionHeader}
+      <ClipFeedCarousel
+        clips={clips}
+        className={HOME_FEED_CAROUSEL_BLEED}
+        ariaLabel="Saved clips"
+        onOpenClip={(clip) => {
+          setSelectedClip(clip);
+          setSavedModalFeed(clips.length > 1 ? clips : null);
+        }}
+      />
 
       {selectedClip ? (
         <ClipModal
@@ -108,6 +119,6 @@ export default function SavedClipsSection() {
           }
         />
       ) : null}
-    </section>
+    </div>
   );
 }

@@ -15,7 +15,7 @@ export const FEED_FILTER_OPTIONS: FeedFilterMeta[] = [
   {
     value: 'trending',
     label: 'Trending',
-    description: "What everyone's watching right now",
+    description: 'Clips with the most likes and views',
   },
   {
     value: 'most_liked',

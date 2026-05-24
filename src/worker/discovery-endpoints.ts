@@ -83,13 +83,13 @@ export async function advancedSearch(c: Context) {
   // Apply sorting
   switch (sortBy) {
     case 'trending':
-      clipsQuery += ` ORDER BY (clips.likes_count * 3 + clips.views_count * 0.1 + clips.comments_count * 5) DESC`;
+      clipsQuery += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
       break;
     case 'most_liked':
-      clipsQuery += ` ORDER BY clips.likes_count DESC`;
+      clipsQuery += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
       break;
     case 'most_viewed':
-      clipsQuery += ` ORDER BY clips.views_count DESC`;
+      clipsQuery += ` ORDER BY clips.views_count DESC, clips.created_at DESC`;
       break;
     default:
       clipsQuery += ` ORDER BY clips.created_at DESC`;
@@ -233,7 +233,7 @@ export async function advancedSearch(c: Context) {
 
 // Get trending content
 export async function getTrendingContent(c: Context) {
-  // Trending clips - last 7 days, sorted by engagement
+  // Trending clips — highest likes, then views
   const trendingClips = await c.env.DB.prepare(
     `SELECT 
       clips.*,
@@ -242,8 +242,8 @@ export async function getTrendingContent(c: Context) {
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE clips.is_hidden = 0
-    AND clips.created_at >= date('now', '-7 days')
-    ORDER BY (clips.likes_count * 3 + clips.views_count * 0.1 + clips.comments_count * 5) DESC
+    AND clips.is_draft = 0
+    ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC
     LIMIT 12`
   ).all();
 
@@ -407,8 +407,8 @@ export async function getDiscoverFeed(c: Context) {
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE clips.is_hidden = 0
-    AND clips.created_at >= date('now', '-7 days')
-    ORDER BY (clips.likes_count * 3 + clips.views_count * 0.1 + clips.comments_count * 5) DESC
+    AND clips.is_draft = 0
+    ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC
     LIMIT 12`,
   ).all();
 

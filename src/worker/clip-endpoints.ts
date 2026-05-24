@@ -270,7 +270,7 @@ export async function getMyClipsFeed(c: Context<{ Bindings: Env }>) {
 
   switch (sortBy) {
     case 'trending':
-      query += ` ORDER BY clips.is_trending_score DESC, clips.created_at DESC`;
+      query += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
       break;
     case 'most_liked':
       query += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;

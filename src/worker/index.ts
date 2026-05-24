@@ -949,8 +949,7 @@ app.get("/api/clips", async (c) => {
   // Apply sorting with optimized indexes
   switch (sortBy) {
     case 'trending':
-      // Use precomputed trending score or calculate efficiently
-      query += ` ORDER BY clips.is_trending_score DESC, clips.created_at DESC`;
+      query += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
       break;
     case 'most_liked':
       query += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
