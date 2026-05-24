@@ -64,6 +64,7 @@ import {
   updateOwnClipByBody,
   getMyClipsFeed,
   postRecordClipView,
+  getRelatedClipsForShare,
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postClipIdentifyMusicAudD } from "./clip-audd-endpoints";
@@ -991,6 +992,8 @@ app.get("/api/clips", async (c) => {
     hasMore: (clips.results || []).length === limit
   });
 });
+
+app.get("/api/clips/:id/related-clips", getRelatedClipsForShare);
 
 // Get single clip
 app.get("/api/clips/:id", async (c) => {

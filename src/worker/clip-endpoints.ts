@@ -504,3 +504,123 @@ export async function postRecordClipView(c: Context<{ Bindings: Env }>) {
 
   return c.json({ views_count: row?.views_count ?? 0 });
 }
+
+const CLIP_WITH_USER_FROM = `
+  FROM clips
+  LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id`;
+
+const CLIP_WITH_USER_SELECT = `
+  SELECT
+    clips.rowid AS _clipRowId,
+    clips.*,
+    user_profiles.display_name as user_display_name,
+    user_profiles.profile_image_url as user_avatar`;
+
+/** GET /api/clips/:id/related-clips — same show when possible, else same artist (share deep-link swipe). */
+export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
+  const clipId = parsePositiveClipIdFromRequest(c);
+  if (clipId == null) {
+    return c.json({ error: 'Invalid clip id' }, 400);
+  }
+
+  const anchor = await c.env.DB.prepare(
+    `${CLIP_WITH_USER_SELECT}
+     ${CLIP_WITH_USER_FROM}
+     WHERE clips.id = ? AND clips.is_hidden = 0`,
+  )
+    .bind(clipId)
+    .first();
+
+  if (!anchor) {
+    return c.json({ error: 'Clip not found' }, 404);
+  }
+
+  const row = anchor as Record<string, unknown>;
+  const artistName = typeof row.artist_name === 'string' ? row.artist_name.trim() : '';
+  const showId = typeof row.show_id === 'string' ? row.show_id.trim() : '';
+  const jambaseEventId =
+    typeof row.jambase_event_id === 'string' ? row.jambase_event_id.trim() : '';
+  const venueName = typeof row.venue_name === 'string' ? row.venue_name.trim() : '';
+  const timestamp = typeof row.timestamp === 'string' ? row.timestamp.trim() : '';
+
+  type Scope = 'show' | 'artist';
+  let scope: Scope = 'artist';
+  let results: { results?: unknown[] } = { results: [] };
+
+  if (showId && artistName) {
+    scope = 'show';
+    results = await c.env.DB.prepare(
+      `${CLIP_WITH_USER_SELECT}
+       ${CLIP_WITH_USER_FROM}
+       WHERE clips.is_hidden = 0
+       AND clips.is_draft = 0
+       AND clips.artist_name = ?
+       AND clips.show_id = ?
+       ORDER BY clips.created_at ASC
+       LIMIT 50`,
+    )
+      .bind(artistName, showId)
+      .all();
+  } else if (jambaseEventId) {
+    scope = 'show';
+    results = await c.env.DB.prepare(
+      `${CLIP_WITH_USER_SELECT}
+       ${CLIP_WITH_USER_FROM}
+       WHERE clips.is_hidden = 0
+       AND clips.is_draft = 0
+       AND clips.jambase_event_id = ?
+       ORDER BY clips.created_at ASC
+       LIMIT 50`,
+    )
+      .bind(jambaseEventId)
+      .all();
+  } else if (artistName && venueName && timestamp) {
+    scope = 'show';
+    results = await c.env.DB.prepare(
+      `${CLIP_WITH_USER_SELECT}
+       ${CLIP_WITH_USER_FROM}
+       WHERE clips.is_hidden = 0
+       AND clips.is_draft = 0
+       AND clips.artist_name = ?
+       AND clips.venue_name = ?
+       AND clips.timestamp IS NOT NULL
+       AND date(clips.timestamp) = date(?)
+       ORDER BY clips.created_at ASC
+       LIMIT 50`,
+    )
+      .bind(artistName, venueName, timestamp)
+      .all();
+  } else if (artistName) {
+    scope = 'artist';
+    results = await c.env.DB.prepare(
+      `${CLIP_WITH_USER_SELECT}
+       ${CLIP_WITH_USER_FROM}
+       WHERE clips.is_hidden = 0
+       AND clips.is_draft = 0
+       AND clips.artist_name = ?
+       ORDER BY clips.created_at DESC
+       LIMIT 40`,
+    )
+      .bind(artistName)
+      .all();
+  }
+
+  const rawRows = (results.results ?? []) as Record<string, unknown>[];
+  let clips = normalizeClipApiRows(rawRows);
+  const hasAnchor = clips.some((c) => Number(c.id) === clipId);
+  if (!hasAnchor) {
+    const [anchorNorm] = normalizeClipApiRows([row]);
+    if (anchorNorm) {
+      clips =
+        scope === 'artist'
+          ? [anchorNorm, ...clips]
+          : [...clips, anchorNorm].sort(
+              (a, b) =>
+                new Date(String(a.created_at ?? 0)).getTime() -
+                new Date(String(b.created_at ?? 0)).getTime(),
+            );
+    }
+  }
+
+  return c.json({ clips, scope });
+}

@@ -43,6 +43,7 @@ import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelative
 import { formatCount } from '@/react-app/lib/formatCount';
 import { prefetchModalPlayback } from '@/shared/clip-playback';
 import { clipShareUrl } from '@/shared/clip-share';
+import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export type ClipModalFeedNavigation = {
@@ -108,7 +109,9 @@ export default function ClipModal({
 
   const navIndex =
     feedNavigation && feedNavigation.clips.length > 0
-      ? feedNavigation.clips.findIndex((c) => c.id === clip.id)
+      ? feedNavigation.clips.findIndex(
+          (c) => clipNumericId(c) != null && clipNumericId(c) === clipNumericId(clip),
+        )
       : -1;
   const canFeedNav = navIndex >= 0 && feedNavigation != null && feedNavigation.clips.length > 1;
   const prevClip = canFeedNav && navIndex > 0 ? feedNavigation!.clips[navIndex - 1] : null;

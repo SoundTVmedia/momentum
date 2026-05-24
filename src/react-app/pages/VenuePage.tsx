@@ -344,30 +344,6 @@ export default function VenuePage() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Stats */}
-            <div className="glass-panel border border-momentum-flare/20 rounded-xl p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Venue Stats</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Clips</span>
-                  <span className="text-white font-bold">{clips.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Likes</span>
-                  <span className="text-white font-bold">
-                    {clips.reduce((sum, clip) => sum + clip.likes_count, 0)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">Total Views</span>
-                  <span className="text-white font-bold">
-                    {clips.reduce((sum, clip) => sum + clip.views_count, 0)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Follow Button */}
             <button 
               onClick={() => venue && toggleFollow(`venue-${venue.id}`)}
               disabled={followLoading(`venue-${venue?.id || 0}`)}

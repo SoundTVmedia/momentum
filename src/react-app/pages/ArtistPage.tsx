@@ -298,55 +298,31 @@ export default function ArtistPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          <div className="lg:col-span-2">
-            <SectionHeading
-              title="Latest Concert Moments"
-              subtitle="Fan-captured moments from live shows"
-              badge={
-                <span className="px-3 py-1 bg-momentum-rose/20 text-momentum-rose text-sm rounded-full font-medium">
-                  {clips.length} clips
-                </span>
-              }
+        <div className="mb-8">
+          <SectionHeading
+            title="Latest Concert Moments"
+            subtitle="Fan-captured moments from live shows"
+            badge={
+              <span className="px-3 py-1 bg-momentum-rose/20 text-momentum-rose text-sm rounded-full font-medium">
+                {clips.length} clips
+              </span>
+            }
+          />
+
+          {clips.length > 0 ? (
+            <ConcertFeed
+              artistName={artist.name}
+              hideSectionHeader
+              edgeBleed
+              edgeBleedScope="page"
             />
-
-            {clips.length > 0 ? (
-              <ConcertFeed
-                artistName={artist.name}
-                hideSectionHeader
-                edgeBleed
-                edgeBleedScope="page"
-              />
-            ) : (
-              <div className="text-center py-12 glass-panel border border-momentum-rose/20 rounded-xl">
-                <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400 text-lg">Nothing here yet</p>
-                <p className="text-gray-500 mt-2">Drop the first clip from {artist.name}!</p>
-              </div>
-            )}
-          </div>
-
-          <div className="glass-panel border border-momentum-rose/20 rounded-xl p-6 h-fit">
-            <h3 className="fb-panel-title mb-4">Quick Stats</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Total Clips</span>
-                <span className="text-white font-bold">{clips.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Total Likes</span>
-                <span className="text-white font-bold">
-                  {clips.reduce((sum, clip) => sum + clip.likes_count, 0).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Total Views</span>
-                <span className="text-white font-bold">
-                  {clips.reduce((sum, clip) => sum + clip.views_count, 0).toLocaleString()}
-                </span>
-              </div>
+          ) : (
+            <div className="text-center py-12 glass-panel border border-momentum-rose/20 rounded-xl">
+              <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg">Nothing here yet</p>
+              <p className="text-gray-500 mt-2">Drop the first clip from {artist.name}!</p>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Live Now Section */}
