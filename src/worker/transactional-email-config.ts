@@ -77,4 +77,4 @@ export function resolvePasswordResetEmailDelivery(
 }
 
 export const PASSWORD_RESET_EMAIL_NOT_CONFIGURED =
-  'Password reset email is not configured on the server. Add RESEND_API_KEY and TRANSACTIONAL_EMAIL_FROM (verified no-reply sender, e.g. FEEDBACK <no-reply@yourdomain.com>) to .dev.vars for local dev or wrangler secrets for production.';
+  'Password reset email is not configured. Add a valid RESEND_API_KEY to .dev.vars (local) or run `npx wrangler secret put RESEND_API_KEY` (production — no = in the command). TRANSACTIONAL_EMAIL_FROM is optional; sandbox defaults to onboarding@resend.dev.';
