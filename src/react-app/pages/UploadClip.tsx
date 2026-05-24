@@ -39,6 +39,9 @@ import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/ty
 
 import { buildHashtagsArrayForPost } from '@/shared/clip-hashtags';
 import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
+import ClipUploadStatusBanner from '@/react-app/components/ClipUploadStatusBanner';
+import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
+import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -47,6 +50,7 @@ export default function UploadClip() {
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
   const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
+  const { enqueue: enqueueClipUpload } = useClipUploadQueue();
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ video: 0, thumbnail: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -183,9 +187,9 @@ export default function UploadClip() {
   }, [formData.video_file, formData.video_blob, formData.thumbnail_file]);
 
   useEffect(() => {
-    setHideBottomNav(showCaptionScreen);
+    setHideBottomNav(showCaptionScreen || showQuickCapture);
     return () => setHideBottomNav(false);
-  }, [showCaptionScreen, setHideBottomNav]);
+  }, [showCaptionScreen, showQuickCapture, setHideBottomNav]);
 
   // Open quick capture when ?quickCapture=true — needs an explicit Continue tap for location (iOS gesture policy).
   useEffect(() => {
@@ -824,6 +828,96 @@ export default function UploadClip() {
     return data;
   };
 
+  const buildUploadPayload = useCallback((): ClipUploadJobPayload => {
+    return {
+      uploadMethod,
+      videoFile: formData.video_file,
+      videoBlob: formData.video_blob,
+      thumbnailFile: formData.thumbnail_file,
+      videoUrl: formData.video_url,
+      form: {
+        artist_name: formData.artist_name,
+        venue_name: formData.venue_name,
+        location: formData.location,
+        content_description: formData.content_description,
+        song_title: formData.song_title,
+        genre_name: formData.genre_name,
+        hashtags: formData.hashtags,
+      },
+      jambaseLink,
+      recordingAtIso,
+      captureGeo,
+      videoMetadata,
+    };
+  }, [
+    uploadMethod,
+    formData,
+    jambaseLink,
+    recordingAtIso,
+    captureGeo,
+    videoMetadata,
+  ]);
+
+  const resetForNextCapture = useCallback(() => {
+    if (videoBlobUrl) {
+      URL.revokeObjectURL(videoBlobUrl);
+      setVideoBlobUrl(null);
+    }
+    if (videoInputRef.current) videoInputRef.current.value = '';
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+    setShowCaptionScreen(false);
+    setFormData({
+      video_file: null,
+      video_blob: null,
+      thumbnail_file: null,
+      video_url: '',
+      thumbnail_url: '',
+      artist_name: '',
+      venue_name: '',
+      location: '',
+      content_description: '',
+      song_title: '',
+      genre_name: '',
+      hashtags: '',
+    });
+    setArtistSearch('');
+    setVenueSearch('');
+    setVideoMetadata({});
+    setJambaseLink(null);
+    setResolveNotice(null);
+    setRecordingAtIso(null);
+    setCaptureGeo(null);
+    setError(null);
+    setCaptionVideoPlaying(false);
+    setCaptionVideoMuted(true);
+    captionCommittedArtistNameRef.current = '';
+    captionCommittedVenueNameRef.current = '';
+    auddAttemptedForSourceKeyRef.current = null;
+    setAuddStatus('idle');
+    setAuddMessage(null);
+    setIsEditingTags(false);
+    navigate({ pathname: '/upload', search: '' }, { replace: true, state: null });
+  }, [navigate, videoBlobUrl]);
+
+  /** Prime geo + camera in the same tap as Share (iOS Safari). */
+  const openCaptureFromShareGesture = useCallback(() => {
+    const geoPromise = primeGeolocationOnUserGesture();
+    setReRecordLaunchGeo(null);
+    setReRecordLaunchGeoResolved(false);
+    setReRecordPrimedStream(null);
+    setReRecordGesturePending(true);
+    setShowQuickCapture(true);
+    void geoPromise
+      .then((g) => {
+        setReRecordLaunchGeo(g);
+        setReRecordLaunchGeoResolved(true);
+        return primeCameraOnUserGesture();
+      })
+      .then((stream) => setReRecordPrimedStream(stream))
+      .catch(() => setReRecordPrimedStream(null))
+      .finally(() => setReRecordGesturePending(false));
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent | null) => {
     if (e) e.preventDefault();
     
@@ -834,6 +928,17 @@ export default function UploadClip() {
     
     if (uploadMethod === 'url' && !formData.video_url) {
       setError('Video URL is required');
+      return;
+    }
+
+    if (showCaptionScreen && uploadMethod === 'file') {
+      const jobId = enqueueClipUpload(buildUploadPayload());
+      if (!jobId) {
+        setError('Too many clips are uploading. Wait for one to finish, then try again.');
+        return;
+      }
+      resetForNextCapture();
+      openCaptureFromShareGesture();
       return;
     }
 
@@ -1043,6 +1148,7 @@ export default function UploadClip() {
   if (quickCaptureAwaitUserTap && wantQuickCaptureUrl && !showCaptionScreen) {
     return (
       <div className="min-h-screen text-white flex flex-col items-center justify-center px-6 text-center">
+        <ClipUploadStatusBanner />
         <MapPin className="w-14 h-14 text-momentum-flare mb-4 shrink-0" aria-hidden />
         <h1 className="text-xl font-bold text-white mb-2">Location and camera</h1>
         <p className="text-gray-400 text-sm max-w-sm mb-8 leading-relaxed">
@@ -1098,6 +1204,7 @@ export default function UploadClip() {
   if (showQuickCapture) {
     return (
       <div className="min-h-screen text-white">
+        <ClipUploadStatusBanner />
         <QuickRecordButton
           isOpen={true}
           primedMediaStream={reRecordPrimedStream}
@@ -1141,6 +1248,7 @@ export default function UploadClip() {
 
     return (
       <div className="min-h-screen text-white">
+        <ClipUploadStatusBanner />
         <Header />
 
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-fade-in">
@@ -1148,8 +1256,8 @@ export default function UploadClip() {
             <div className="min-w-0 flex-1">
               <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">Share your moment</h1>
               <p className="text-gray-300 text-sm sm:text-lg">
-                Add details and post — same upload as Share your moment. Venue and location are filled from your GPS
-                and JamBase when we find a match; edit below if needed.
+                Add details and post. After you share, upload continues in the background so you can record your next
+                clip right away. Venue and location are filled from GPS and JamBase when we find a match.
               </p>
             </div>
             <button
@@ -1544,59 +1652,17 @@ export default function UploadClip() {
                 <p className="text-gray-400 text-xs mt-2">Separate with spaces (optional)</p>
               </div>
 
-              {/* Upload Progress */}
-              {loading && (uploadProgress.video > 0 || uploadProgress.thumbnail > 0) && (
-                <div className="space-y-3">
-                  {uploadProgress.video > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-300">Uploading video...</span>
-                        <span className="text-sm font-bold text-momentum-flare">{uploadProgress.video}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember transition-all duration-300"
-                          style={{ width: `${uploadProgress.video}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {uploadProgress.thumbnail > 0 && uploadProgress.thumbnail < 100 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-300">Uploading thumbnail...</span>
-                        <span className="text-sm font-bold text-momentum-rose">{uploadProgress.thumbnail}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember transition-all duration-300"
-                          style={{ width: `${uploadProgress.thumbnail}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Action Buttons */}
               <div className="space-y-3 pt-4">
-                {/* Primary: Post to Feed */}
                 <button
+                  type="button"
                   onClick={() => handleSubmit(null)}
-                  disabled={loading}
-                  className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 shadow-lg shadow-momentum-ember/35"
+                  className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35"
                 >
-                  {loading ? (
-                    <span className="flex items-center justify-center space-x-2">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>
-                        {uploadProgress.video < 100 ? 'Uploading...' : 'Processing...'}
-                      </span>
-                    </span>
-                  ) : (
-                    'Share your moment'
-                  )}
+                  Share your moment
                 </button>
+                <p className="text-center text-xs text-gray-500">
+                  Your clip uploads in the background — you can record again immediately.
+                </p>
               </div>
             </div>
           </div>
@@ -1608,6 +1674,7 @@ export default function UploadClip() {
   // FULL UPLOAD FORM - Original interface
   return (
     <div className="min-h-screen text-white">
+      <ClipUploadStatusBanner />
       <Header />
       
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

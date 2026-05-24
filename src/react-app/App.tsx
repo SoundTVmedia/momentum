@@ -23,6 +23,7 @@ import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
+import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
       <div className="momentum-ambient" aria-hidden />
       <AuthProvider>
         <MobileChromeProvider>
+        <ClipUploadQueueProvider>
         <Router>
           <Routes>
             <Route element={<AppRouteChrome />}>
@@ -58,6 +60,7 @@ export default function App() {
             </Route>
           </Routes>
         </Router>
+        </ClipUploadQueueProvider>
         </MobileChromeProvider>
     </AuthProvider>
     </ErrorBoundary>
