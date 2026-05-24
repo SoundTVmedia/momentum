@@ -19,6 +19,7 @@ import {
   Disc3,
   Radio,
   Pencil,
+  Eye,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -39,7 +40,9 @@ import { artistPath, genrePath, globalSongPath, songPath, venuePath } from '@/sh
 import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
+import { formatCount } from '@/react-app/lib/formatCount';
 import { prefetchModalPlayback } from '@/shared/clip-playback';
+import { clipShareUrl } from '@/shared/clip-share';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export type ClipModalFeedNavigation = {
@@ -221,10 +224,7 @@ export default function ClipModal({
     await toggleSave(clip.id);
   };
 
-  const getClipUrl = () => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/?clip=${clip.id}`;
-  };
+  const getClipUrl = () => clipShareUrl(clip.id);
 
   const handleCopyLink = async () => {
     try {
@@ -291,6 +291,8 @@ export default function ClipModal({
               </p>
               <p className="text-xs text-white/70">
                 {formatRelativeTime(clipPostedAt(clip))}
+                <span className="text-white/50"> · </span>
+                {formatCount(clip.views_count)} views
               </p>
             </div>
           </div>
@@ -348,8 +350,9 @@ export default function ClipModal({
             <p className="fb-clip-caption mt-2">{clip.content_description}</p>
           ) : null}
           {canFeedNav ? (
-            <p className="mt-2 text-[11px] uppercase tracking-wide text-white/45">
-              Swipe left or right for next clip
+            <p className="mt-2 flex items-center gap-1 text-[11px] uppercase tracking-wide text-white/45">
+              <span>Swipe for next clip</span>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
             </p>
           ) : null}
         </div>
@@ -378,6 +381,13 @@ export default function ClipModal({
           <MessageCircle className="h-7 w-7" />
           <span className="text-xs font-medium">{clip.comments_count}</span>
         </button>
+        <div
+          className="pointer-events-none flex flex-col items-center gap-0.5 text-white/90"
+          aria-label={`${formatCount(clip.views_count)} views`}
+        >
+          <Eye className="h-7 w-7" aria-hidden />
+          <span className="text-xs font-medium">{formatCount(clip.views_count)}</span>
+        </div>
         <button
           type="button"
           onClick={handleSave}
@@ -481,7 +491,11 @@ export default function ClipModal({
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto px-3 pb-4">
-                <CommentSection key={clip.id} clipId={clip.id} />
+                <CommentSection
+                  key={clip.id}
+                  clipId={clip.id}
+                  onCommentPosted={() => setMobileCommentsOpen(false)}
+                />
               </div>
             </div>
           </div>
@@ -552,6 +566,8 @@ export default function ClipModal({
                   </div>
                   <div className="text-sm text-gray-400">
                     {formatRelativeTime(clipPostedAt(clip))}
+                    <span className="text-gray-500"> · </span>
+                    {formatCount(clip.views_count)} views
                   </div>
                   <div className="mt-2 flex items-center gap-1">
                     <button
@@ -658,6 +674,13 @@ export default function ClipModal({
                   <div className="flex items-center space-x-2 text-gray-400">
                     <MessageCircle className="h-5 w-5" />
                     <span className="text-base font-medium">{clip.comments_count}</span>
+                  </div>
+                  <div
+                    className="flex items-center space-x-2 text-gray-400"
+                    title="Views"
+                  >
+                    <Eye className="h-5 w-5" aria-hidden />
+                    <span className="text-base font-medium">{formatCount(clip.views_count)}</span>
                   </div>
                 </div>
 

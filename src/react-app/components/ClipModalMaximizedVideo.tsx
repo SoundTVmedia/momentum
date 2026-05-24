@@ -49,6 +49,7 @@ const ClipModalMaximizedVideo = forwardRef<
           video_url={clip.video_url}
           thumbnail_url={clip.thumbnail_url}
           autoPlay
+          loop
           controlsPlacement="hidden"
           onPlaybackStateChange={onPlaybackStateChange}
           className="absolute inset-0 h-full w-full"

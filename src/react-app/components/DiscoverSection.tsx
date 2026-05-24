@@ -6,6 +6,7 @@ import { useAuth } from '@getmocha/users-service/react'
 import type { ExtendedMochaUser } from '@/shared/types'
 import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
 import { artistPath, venuePath } from '@/shared/app-paths'
+import EventTicketActions from '@/react-app/components/EventTicketActions'
 
 const welcomeGradient =
   'bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent'
@@ -272,18 +273,20 @@ export default function DiscoverSection() {
                           >
                             Join Show Now
                           </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              window.open(show.ticket_url, '_blank')
-                            }}
-                            className="flex-1 px-4 py-2 momentum-ticket-btn rounded-lg font-semibold hover:scale-[1.02] transition-transform"
+                        ) : show.ticket_url ? (
+                          <div
+                            className="flex-1 min-w-0"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            role="presentation"
                           >
-                            Get Tickets
-                          </button>
-                        )}
+                            <EventTicketActions
+                              ticketUrl={show.ticket_url}
+                              eventTitle={show.artist_name}
+                              className="w-full"
+                            />
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Calendar, MapPin, ExternalLink, Loader2, Heart } from 'lucide-react';
+import { Calendar, MapPin, Loader2, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
@@ -8,6 +8,7 @@ import HorizontalClipCarousel, {
 } from '@/react-app/components/HorizontalClipCarousel';
 import { artistPath } from '@/shared/app-paths';
 import SectionHeading from '@/react-app/components/SectionHeading';
+import EventTicketActions from '@/react-app/components/EventTicketActions';
 import {
   EVENT_CAROUSEL_CARD_CLASS,
   HOME_FEED_CAROUSEL_BLEED,
@@ -102,17 +103,13 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           </div>
         </div>
 
-        <div className="mt-auto pt-2 min-h-[44px] flex items-end">
+        <div className="mt-auto pt-2 min-h-[44px] flex items-end w-full">
           {concert.ticket_url ? (
-            <a
-              href={concert.ticket_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-center gap-2 px-4 py-2.5 momentum-ticket-btn rounded-lg font-semibold hover:scale-[1.02] transition-transform"
-            >
-              <span>Get Tickets</span>
-              <ExternalLink className="w-4 h-4" />
-            </a>
+            <EventTicketActions
+              ticketUrl={concert.ticket_url}
+              eventTitle={concert.artist_name}
+              className="w-full"
+            />
           ) : null}
         </div>
       </div>

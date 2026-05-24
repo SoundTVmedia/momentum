@@ -1684,7 +1684,7 @@ export default function UploadClip() {
                 <button
                   type="button"
                   onClick={() => handleSubmit(null)}
-                  className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-[1.02] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35"
+                  className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35"
                 >
                   Share your moment
                 </button>

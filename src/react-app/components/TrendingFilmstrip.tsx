@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router'
 import { useClips } from '@/react-app/hooks/useClips'
 import type { ClipWithUser } from '@/shared/types'
 import { clipListItemKey } from '@/react-app/lib/clip-list-key'
+import { clipSharePath } from '@/shared/clip-share'
 import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia'
 
 export default function TrendingFilmstrip() {
@@ -12,8 +13,9 @@ export default function TrendingFilmstrip() {
   const [hoverClipId, setHoverClipId] = useState<number | null>(null)
 
   const handleClipClick = (clip: ClipWithUser) => {
-    // Navigate to the main feed where they can view the clip in the modal
-    navigate('/', { state: { selectedClip: clip } })
+    const id = clip.id;
+    if (id == null) return;
+    navigate(clipSharePath(id));
   }
 
   return (

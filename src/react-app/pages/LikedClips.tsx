@@ -4,9 +4,9 @@ import { useAuth } from '@getmocha/users-service/react';
 import { Heart, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
-import UserAvatar from '@/react-app/components/UserAvatar';
+import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import type { ClipWithUser } from '@/shared/types';
-import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 export default function LikedClips() {
   const navigate = useNavigate();
@@ -82,71 +82,15 @@ export default function LikedClips() {
             </button>
           </div>
         ) : (
-          <div className="space-y-6">
-            {clips.map((clip, index) => (
-              <div
-                key={clipListItemKey(clip, index)}
-                onClick={() => {
-                  setSelectedClip(clip);
-                  setLikedModalFeed(clips.length > 1 ? clips : null);
-                }}
-                className="glass-panel border border-momentum-ember/20 rounded-xl p-6 hover:border-momentum-ember/50 transition-all cursor-pointer group"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <UserAvatar
-                      imageUrl={clip.user_avatar}
-                      displayName={clip.user_display_name}
-                      seed={clip.mocha_user_id}
-                      alt={clip.user_display_name || 'User'}
-                      sizeClass="w-10 h-10"
-                      letterClassName="text-sm font-semibold"
-                      className="border-2 border-momentum-ember/35"
-                    />
-                    <div>
-                      <div className="font-medium text-white">{clip.user_display_name || 'Anonymous'}</div>
-                      <div className="text-sm text-gray-400">
-                        {clip.artist_name || clip.venue_name || 'Concert moment'}
-                      </div>
-                    </div>
-                  </div>
-                  <Heart className="w-5 h-5 text-red-400 fill-current shrink-0" aria-hidden />
-                </div>
-
-                <div className="mb-4">
-                  <div className="relative mb-4 rounded-lg overflow-hidden group-hover:scale-[1.02] transition-transform">
-                    <img
-                      src={
-                        clip.thumbnail_url ||
-                        'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'
-                      }
-                      alt=""
-                      className="w-full h-48 object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="bg-white/20 backdrop-blur-lg rounded-full p-3">
-                        <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                          <div className="w-0 h-0 border-l-[6px] border-l-black border-y-[4px] border-y-transparent ml-0.5" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  {clip.content_description ? (
-                    <p className="text-gray-200 leading-relaxed line-clamp-2">{clip.content_description}</p>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center justify-between text-sm text-gray-400">
-                  <div className="flex items-center space-x-4">
-                    <span>{clip.likes_count} likes</span>
-                    <span>{clip.comments_count} comments</span>
-                    <span>{clip.views_count} views</span>
-                  </div>
-                  <span>Click to watch</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ClipFeedCarousel
+            clips={clips}
+            className={PAGE_CAROUSEL_BLEED}
+            ariaLabel="Liked clips"
+            onOpenClip={(clip) => {
+              setSelectedClip(clip);
+              setLikedModalFeed(clips.length > 1 ? clips : null);
+            }}
+          />
         )}
       </div>
 

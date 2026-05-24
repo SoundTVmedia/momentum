@@ -13,6 +13,7 @@ import HorizontalClipCarousel, {
 } from '@/react-app/components/HorizontalClipCarousel';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import SectionHeading from '@/react-app/components/SectionHeading';
+import EventTicketActions from '@/react-app/components/EventTicketActions';
 import {
   HOME_FEED_CAROUSEL_BLEED,
   HOME_FEED_SECTION_CLASS,
@@ -407,14 +408,11 @@ export default function FavoriteArtistFeedPanel({
                           </div>
                         ) : null}
                         {typeof ev.ticket_url === 'string' && ev.ticket_url ? (
-                          <a
-                            href={ev.ticket_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-auto text-center text-sm font-semibold py-2.5 rounded-lg momentum-ticket-btn"
-                          >
-                            Get Tickets
-                          </a>
+                          <EventTicketActions
+                            ticketUrl={ev.ticket_url}
+                            eventTitle={artist}
+                            className="mt-auto w-full"
+                          />
                         ) : null}
                       </div>
                     );

@@ -36,6 +36,8 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   fallbackUrl?: string | null;
   poster?: string | null;
   autoPlay?: boolean;
+  /** When true, restart from the beginning when playback reaches the end. */
+  loop?: boolean;
   className?: string;
   /** Where play/mute/fullscreen chrome renders; `hidden` for parent-rendered controls (e.g. clip modal). */
   controlsPlacement?: StreamVideoPlayerControlsPlacement;
@@ -59,6 +61,7 @@ function StreamVideoPlayer(
   fallbackUrl,
   poster,
   autoPlay = false,
+  loop = false,
   className = '',
   controlsPlacement = 'bottom',
   onPlaybackStateChange,
@@ -230,6 +233,11 @@ function StreamVideoPlayer(
       setLoadError(true);
       setIsLoading(false);
     };
+    const handleEnded = () => {
+      if (!loop) return;
+      video.currentTime = 0;
+      void video.play().catch(() => {});
+    };
 
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
@@ -237,6 +245,7 @@ function StreamVideoPlayer(
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('playing', handleCanPlay);
     video.addEventListener('error', handleError);
+    video.addEventListener('ended', handleEnded);
 
     return () => {
       video.removeEventListener('play', handlePlay);
@@ -245,8 +254,9 @@ function StreamVideoPlayer(
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('playing', handleCanPlay);
       video.removeEventListener('error', handleError);
+      video.removeEventListener('ended', handleEnded);
     };
-  }, [videoSrc]);
+  }, [videoSrc, loop]);
 
   useEffect(() => {
     if (!autoPlay) return;
@@ -309,6 +319,7 @@ function StreamVideoPlayer(
         ref={videoRef}
         poster={displayPoster}
         autoPlay={autoPlay}
+        loop={loop}
         playsInline
         className="w-full h-full object-contain bg-black"
         preload="auto"

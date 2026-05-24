@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 
-interface Comment {
+export interface Comment {
   id: number
   clip_id: number
   mocha_user_id: string
@@ -12,63 +12,126 @@ interface Comment {
   user_avatar: string | null
 }
 
+function parseComment(row: unknown, clipId: number): Comment | null {
+  if (!row || typeof row !== 'object') return null
+  const o = row as Record<string, unknown>
+  const id = Number(o.id)
+  if (!Number.isFinite(id)) return null
+  return {
+    id,
+    clip_id: Number(o.clip_id) || clipId,
+    mocha_user_id: String(o.mocha_user_id ?? ''),
+    parent_comment_id:
+      o.parent_comment_id == null ? null : Number(o.parent_comment_id) || null,
+    content: String(o.content ?? ''),
+    created_at: String(o.created_at ?? new Date().toISOString()),
+    updated_at: String(o.updated_at ?? new Date().toISOString()),
+    user_display_name:
+      o.user_display_name == null ? null : String(o.user_display_name),
+    user_avatar: o.user_avatar == null ? null : String(o.user_avatar),
+  }
+}
+
 export function useComments(clipId: number) {
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchComments = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await fetch(`/api/clips/${clipId}/comments`)
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch comments')
+  const fetchComments = useCallback(
+    async (opts?: { silent?: boolean }): Promise<Comment[]> => {
+      if (!opts?.silent) {
+        setLoading(true)
+        setError(null)
       }
 
-      const data = await response.json()
-      setComments(data.comments || [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      console.error('Failed to fetch comments:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [clipId])
+      try {
+        const response = await fetch(`/api/clips/${clipId}/comments`, {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch comments')
+        }
+
+        const data = (await response.json()) as { comments?: unknown[] }
+        const list = (data.comments ?? [])
+          .map((row) => parseComment(row, clipId))
+          .filter((c): c is Comment => c != null)
+        setComments(list)
+        return list
+      } catch (err) {
+        if (!opts?.silent) {
+          setError(err instanceof Error ? err.message : 'Unknown error')
+        }
+        console.error('Failed to fetch comments:', err)
+        return []
+      } finally {
+        if (!opts?.silent) {
+          setLoading(false)
+        }
+      }
+    },
+    [clipId],
+  )
 
   const postComment = useCallback(
     async (content: string, parentCommentId?: number): Promise<boolean> => {
+      const trimmed = content.trim()
+      if (!trimmed) return false
+
       try {
         const response = await fetch(`/api/clips/${clipId}/comments`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            content,
-            parent_comment_id: parentCommentId || null,
+            content: trimmed,
+            parent_comment_id: parentCommentId ?? null,
           }),
         })
 
-        if (!response.ok) {
-          throw new Error('Failed to post comment')
+        let body: unknown = null
+        try {
+          body = await response.json()
+        } catch {
+          /* empty or non-JSON body */
         }
 
-        const newComment = await response.json()
-        setComments((prev) => [newComment, ...prev])
-        return true
+        if (response.ok) {
+          const row = parseComment(body, clipId)
+          if (row) {
+            setComments((prev) => [row, ...prev.filter((c) => c.id !== row.id)])
+          } else {
+            await fetchComments()
+          }
+          setError(null)
+          return true
+        }
+
+        // Comment may have been saved before a non-critical server step failed
+        const refreshed = await fetchComments({ silent: true })
+        if (refreshed.some((c) => c.content === trimmed)) {
+          setError(null)
+          return true
+        }
       } catch (err) {
         console.error('Failed to post comment:', err)
-        return false
+        const refreshed = await fetchComments({ silent: true })
+        if (refreshed.some((c) => c.content === trimmed)) {
+          setError(null)
+          return true
+        }
       }
+
+      return false
     },
-    [clipId]
+    [clipId, fetchComments],
   )
 
   useEffect(() => {
-    fetchComments()
+    void fetchComments()
   }, [fetchComments])
 
   return {

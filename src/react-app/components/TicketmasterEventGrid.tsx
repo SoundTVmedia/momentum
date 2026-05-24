@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Calendar, MapPin, Ticket, Clock, ExternalLink, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, Clock, Loader2 } from 'lucide-react';
+import EventTicketActions from '@/react-app/components/EventTicketActions';
 import { useAuth } from '@getmocha/users-service/react';
 import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import type { ExtendedMochaUser } from '@/shared/types';
@@ -161,17 +162,17 @@ export default function TicketmasterEventGrid({
               )}
             </div>
 
-            <div className="flex items-center justify-between">
-              <span className="text-momentum-flare font-bold">{formatPrice(event.priceRanges)}</span>
-              <button
-                onClick={() => handleTicketClick(event)}
-                className="flex items-center space-x-2 px-4 py-2 momentum-grad-interactive text-white rounded-lg font-medium hover:scale-105 transition-transform shadow-lg shadow-momentum-ember/30"
-              >
-                <Ticket className="w-4 h-4" />
-                <span>Tickets</span>
-                <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
+            <span className="text-momentum-flare font-bold block mb-3">
+              {formatPrice(event.priceRanges)}
+            </span>
+            {event.url ? (
+              <EventTicketActions
+                ticketUrl={event.url}
+                eventTitle={event.name}
+                className="w-full"
+                onGetTicketsClick={() => handleTicketClick(event)}
+              />
+            ) : null}
 
             {isAmbassador && (
               <div className="mt-3 p-2 bg-momentum-ember/10 border border-momentum-ember/25 rounded-lg">

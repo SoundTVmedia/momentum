@@ -10,6 +10,7 @@ import type { ClipWithUser } from '@/shared/types';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 import { artistPath, songPath } from '@/shared/app-paths';
 import { songSlugFromTitle } from '@/shared/song-tag';
+import { clipShareUrl } from '@/shared/clip-share';
 
 export type ClipFeedGridTileProps = {
   clip: ClipWithUser;
@@ -30,7 +31,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
   };
 
   const handleShare = async (clipId: number) => {
-    const clipUrl = `${window.location.origin}/?clip=${clipId}`;
+    const clipUrl = clipShareUrl(clipId);
     const shareText = `Check out this moment${clip.artist_name ? ` from ${clip.artist_name}` : ''}${clip.venue_name ? ` at ${clip.venue_name}` : ''} on FEEDBACK!`;
 
     try {

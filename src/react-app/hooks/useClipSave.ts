@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
+import { notifySavedClipsChanged } from '@/react-app/lib/savedClipsEvents'
 
 /**
  * Enhanced clip save hook with local storage persistence for better UX
@@ -19,6 +20,32 @@ export function useClipSave() {
     return new Set()
   })
   const [loading, setLoading] = useState<Set<number>>(new Set())
+
+  // Merge server-side saved ids on sign-in (bookmark UI stays in sync across devices)
+  useEffect(() => {
+    if (!user) {
+      setSavedClips(new Set())
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/users/me/saved-clip-ids', { credentials: 'include' })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as { clip_ids?: unknown }
+        const ids = Array.isArray(data.clip_ids)
+          ? data.clip_ids.filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+          : []
+        if (cancelled) return
+        setSavedClips(new Set(ids))
+      } catch {
+        /* keep local cache */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
 
   // Persist saved clips to localStorage
   useEffect(() => {
@@ -76,6 +103,14 @@ export function useClipSave() {
           newSet.delete(clipId)
           return newSet
         })
+
+        setSavedClips((prev) => {
+          const next = new Set(prev)
+          if (data.saved) next.add(clipId)
+          else next.delete(clipId)
+          return next
+        })
+        notifySavedClipsChanged()
 
         return { success: true, saved: data.saved }
       } catch (error) {

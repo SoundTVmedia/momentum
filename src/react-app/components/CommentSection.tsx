@@ -8,30 +8,33 @@ import type { ExtendedMochaUser } from '@/shared/types';
 
 interface CommentSectionProps {
   clipId: number;
+  /** Called after a comment is posted (e.g. close mobile comments sheet). */
+  onCommentPosted?: () => void;
 }
 
-export default function CommentSection({ clipId }: CommentSectionProps) {
+export default function CommentSection({ clipId, onCommentPosted }: CommentSectionProps) {
   const { user } = useAuth();
   const extendedUser = user as ExtendedMochaUser | null;
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
-  const { comments, loading, postComment } = useComments(clipId);
+  const { comments, loading, error, postComment } = useComments(clipId);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [replyTo, setReplyTo] = useState<number | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!newComment.trim() || !user) return;
 
     setSubmitting(true);
-    const success = await postComment(newComment, replyTo || undefined);
-    
+    const success = await postComment(newComment, replyTo ?? undefined);
+
     if (success) {
       setNewComment('');
       setReplyTo(null);
+      onCommentPosted?.();
     }
-    
+
     setSubmitting(false);
   };
 
@@ -40,13 +43,13 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return 'just now';
     if (diffMins < 60) return `${diffMins}m ago`;
-    
+
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
-    
+
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}d ago`;
   };
@@ -55,15 +58,18 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
     <div className="space-y-4">
       <div className="flex items-center space-x-2 mb-4">
         <MessageCircle className="w-5 h-5 text-momentum-flare" />
-        <h3 className="text-lg font-bold text-white">
-          Comments ({comments.length})
-        </h3>
+        <h3 className="text-lg font-bold text-white">Comments ({comments.length})</h3>
       </div>
 
-      {/* Comment Input */}
+      {error && !loading ? (
+        <p className="text-sm text-red-400/90" role="status">
+          Could not load comments. Try again in a moment.
+        </p>
+      ) : null}
+
       {user ? (
         <form onSubmit={handleSubmit} className="mb-6">
-          {replyTo && (
+          {replyTo ? (
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm text-gray-400">Replying to comment...</span>
               <button
@@ -74,11 +80,13 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
                 Cancel
               </button>
             </div>
-          )}
+          ) : null}
           <div className="flex space-x-2">
             <UserAvatar
               imageUrl={
-                extendedUser?.profile?.profile_image_url ?? oauthUser?.google_user_data?.picture ?? null
+                extendedUser?.profile?.profile_image_url ??
+                oauthUser?.google_user_data?.picture ??
+                null
               }
               displayName={
                 extendedUser?.profile?.display_name ?? oauthUser?.google_user_data?.name ?? null
@@ -118,7 +126,6 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
         </div>
       )}
 
-      {/* Comments List */}
       {loading ? (
         <div className="space-y-4 animate-fade-in">
           <CommentSkeleton />
@@ -133,8 +140,8 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
       ) : (
         <div className="space-y-4">
           {comments.map((comment, index) => (
-            <div 
-              key={comment.id} 
+            <div
+              key={comment.id}
               className="flex space-x-3 animate-slide-up"
               style={{ animationDelay: `${index * 0.05}s` }}
             >
@@ -159,14 +166,15 @@ export default function CommentSection({ clipId }: CommentSectionProps) {
                   </div>
                   <p className="text-gray-300 text-sm">{comment.content}</p>
                 </div>
-                {user && (
+                {user ? (
                   <button
+                    type="button"
                     onClick={() => setReplyTo(comment.id)}
                     className="text-xs text-momentum-flare hover:text-momentum-flare/90 mt-1 ml-3 transition-colors tap-feedback"
                   >
                     Reply
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           ))}

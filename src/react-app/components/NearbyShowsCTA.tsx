@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Calendar, MapPin, Navigation, Ticket, ExternalLink, X } from 'lucide-react';
+import { Calendar, MapPin, Navigation, Ticket, X } from 'lucide-react';
+import EventTicketActions from '@/react-app/components/EventTicketActions';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 
@@ -203,15 +204,14 @@ export default function NearbyShowsCTA({
             </div>
 
             {/* CTA */}
-            <div className="flex flex-col items-end space-y-2">
-              <button
-                onClick={() => handleTicketClick(event)}
-                className="flex items-center space-x-2 px-6 py-3 momentum-ticket-btn rounded-lg font-bold hover:scale-[1.02] transition-transform"
-              >
-                <Ticket className="w-5 h-5" />
-                <span>Get Tickets</span>
-                <ExternalLink className="w-4 h-4" />
-              </button>
+            <div className="flex flex-col items-end space-y-2 min-w-[200px]">
+              {event.url ? (
+                <EventTicketActions
+                  ticketUrl={event.url}
+                  eventTitle={event.name}
+                  onGetTicketsClick={() => handleTicketClick(event)}
+                />
+              ) : null}
               
               {displayEvents.length > 1 && (
                 <p className="text-sm text-gray-300">
@@ -274,14 +274,14 @@ export default function NearbyShowsCTA({
                   </p>
                 )}
 
-                <button
-                  onClick={() => handleTicketClick(event)}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-2 momentum-ticket-btn rounded-lg font-semibold hover:scale-[1.02] transition-transform"
-                >
-                  <Ticket className="w-4 h-4" />
-                  <span>Get Tickets</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
+                {event.url ? (
+                  <EventTicketActions
+                    ticketUrl={event.url}
+                    eventTitle={event.name}
+                    className="w-full"
+                    onGetTicketsClick={() => handleTicketClick(event)}
+                  />
+                ) : null}
               </div>
             </div>
           ))}

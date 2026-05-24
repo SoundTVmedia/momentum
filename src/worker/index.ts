@@ -22,7 +22,7 @@ import {
   hasDirectGoogleOAuth,
   resolveOAuthCallbackUrl,
 } from "./google-oauth";
-import { mochaUserIdKey } from "./mocha-user-id";
+import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import {
   getOrCreateArtistIdByName,
   toggleArtistFollowFavorite,
@@ -1173,6 +1173,7 @@ app.post("/api/clips/:id/save", authMiddleware, async (c) => {
   }
   
   const clipId = c.req.param('id');
+  const uid = mochaUserIdKey(mochaUser);
   
   // Check if clip exists
   const clip = await c.env.DB.prepare(
@@ -1189,7 +1190,7 @@ app.post("/api/clips/:id/save", authMiddleware, async (c) => {
   const existingSave = await c.env.DB.prepare(
     "SELECT id FROM saved_clips WHERE clip_id = ? AND mocha_user_id = ?"
   )
-    .bind(clipId, mochaUser.id)
+    .bind(clipId, uid)
     .first();
 
   if (existingSave) {
@@ -1197,7 +1198,7 @@ app.post("/api/clips/:id/save", authMiddleware, async (c) => {
     await c.env.DB.prepare(
       "DELETE FROM saved_clips WHERE clip_id = ? AND mocha_user_id = ?"
     )
-      .bind(clipId, mochaUser.id)
+      .bind(clipId, uid)
       .run();
 
     return c.json({ saved: false });
@@ -1206,7 +1207,7 @@ app.post("/api/clips/:id/save", authMiddleware, async (c) => {
     await c.env.DB.prepare(
       "INSERT INTO saved_clips (clip_id, mocha_user_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)"
     )
-      .bind(clipId, mochaUser.id)
+      .bind(clipId, uid)
       .run();
 
     return c.json({ saved: true });
@@ -1253,6 +1254,7 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
   const clipId = c.req.param('id');
   const body = await c.req.json();
   const { content, parent_comment_id } = body;
+  const uid = mochaUserIdKey(mochaUser);
 
   if (!content) {
     return c.json({ error: "Comment content is required" }, 400);
@@ -1274,8 +1276,13 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
     `INSERT INTO comments (clip_id, mocha_user_id, parent_comment_id, content, created_at, updated_at)
      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
   )
-    .bind(clipId, mochaUser.id, parent_comment_id || null, content)
+    .bind(clipId, uid, parent_comment_id || null, content)
     .run();
+
+  const commentRowId = parseD1LastRowId(result.meta.last_row_id);
+  if (commentRowId == null) {
+    return c.json({ error: "Failed to create comment" }, 500);
+  }
 
   // Update comment count on clip
   await c.env.DB.prepare(
@@ -1284,46 +1291,57 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
     .bind(clipId)
     .run();
 
-  // Create notification for clip owner (if not commenting on own clip)
-  if (clip.mocha_user_id !== mochaUser.id) {
-    const notificationResult = await c.env.DB.prepare(
-      `INSERT INTO notifications (mocha_user_id, type, content, related_user_id, related_clip_id, related_comment_id, created_at)
-       VALUES (?, 'comment', ?, ?, ?, ?, CURRENT_TIMESTAMP)`
-    )
-      .bind(
-        clip.mocha_user_id,
-        'commented on your clip',
-        mochaUser.id,
-        clipId,
-        result.meta.last_row_id
-      )
-      .run();
+  const clipOwnerKey = mochaUserIdKey({ id: clip.mocha_user_id });
 
-    // Fetch the notification to broadcast
-    const notification = await c.env.DB.prepare(
-      `SELECT 
+  // Create notification for clip owner (if not commenting on own clip)
+  if (clipOwnerKey.toLowerCase() !== uid.toLowerCase()) {
+    try {
+      const notificationResult = await c.env.DB.prepare(
+        `INSERT INTO notifications (mocha_user_id, type, content, related_user_id, related_clip_id, related_comment_id, created_at)
+         VALUES (?, 'comment', ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+      )
+        .bind(
+          clipOwnerKey,
+          'commented on your clip',
+          uid,
+          clipId,
+          commentRowId
+        )
+        .run();
+
+      const notification = await c.env.DB.prepare(
+        `SELECT 
         notifications.*,
         user_profiles.display_name as user_display_name,
         user_profiles.profile_image_url as user_avatar
       FROM notifications
       LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
       WHERE notifications.id = ?`
-    )
-      .bind(notificationResult.meta.last_row_id)
-      .first();
+      )
+        .bind(notificationResult.meta.last_row_id)
+        .first();
 
-    // Broadcast real-time notification
-    try {
-      const realtime = createRealtimeService(c.env);
-      await realtime.broadcastNotification(clip.mocha_user_id as string, notification);
+      try {
+        const realtime = createRealtimeService(c.env);
+        await realtime.broadcastNotification(clipOwnerKey, notification);
+      } catch (err) {
+        console.error('Failed to broadcast notification:', err);
+      }
     } catch (err) {
-      console.error('Failed to broadcast notification:', err);
+      console.error('Failed to create comment notification:', err);
     }
   }
 
-  // Award points for commenting
+  // Award points for commenting (non-blocking for the client)
   try {
-    await gamification.awardPoints(c.env, mochaUser.id, 3, 'Posted a comment', parseInt(clipId), result.meta.last_row_id as number);
+    await gamification.awardPoints(
+      c.env,
+      uid,
+      3,
+      'Posted a comment',
+      parseInt(clipId, 10),
+      commentRowId,
+    );
   } catch (err) {
     console.error('Failed to award points:', err);
   }
@@ -1337,8 +1355,12 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
     LEFT JOIN user_profiles ON comments.mocha_user_id = user_profiles.mocha_user_id
     WHERE comments.id = ?`
   )
-    .bind(result.meta.last_row_id)
+    .bind(commentRowId)
     .first();
+
+  if (!newComment) {
+    return c.json({ error: "Comment created but could not be loaded" }, 500);
+  }
 
   return c.json(newComment, 201);
 });
@@ -1519,7 +1541,25 @@ app.get("/api/users/:userId", async (c) => {
   });
 });
 
-// Get user's saved clips
+// Clip ids the signed-in user has saved (for bookmark UI)
+app.get("/api/users/me/saved-clip-ids", authMiddleware, async (c) => {
+  const mochaUser = c.get("user");
+  if (!mochaUser) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  const uid = mochaUserIdKey(mochaUser);
+  const rows = await c.env.DB.prepare(
+    "SELECT clip_id FROM saved_clips WHERE mocha_user_id = ?",
+  )
+    .bind(uid)
+    .all();
+  const clip_ids = (rows.results ?? [])
+    .map((r) => Number((r as { clip_id: unknown }).clip_id))
+    .filter((id) => Number.isFinite(id));
+  return c.json({ clip_ids });
+});
+
+// Get user's saved clips (full rows for profile / saved page)
 app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
   const mochaUser = c.get("user");
   
@@ -1527,6 +1567,7 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
   const savedClips = await c.env.DB.prepare(
     `SELECT 
       clips.rowid AS _clipRowId,
@@ -1537,9 +1578,10 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
     JOIN clips ON saved_clips.clip_id = clips.id
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE saved_clips.mocha_user_id = ?
+      AND clips.is_hidden = 0
     ORDER BY saved_clips.created_at DESC`
   )
-    .bind(mochaUser.id)
+    .bind(uid)
     .all();
 
   return c.json({
