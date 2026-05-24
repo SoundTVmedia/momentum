@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { loadYoutubeIframeApi } from '@/react-app/lib/youtube-iframe-api';
 import { Link } from 'react-router';
 import { Eye, Heart, Loader2, Play, Youtube } from 'lucide-react';
 import { artistPath } from '@/shared/app-paths';
@@ -126,6 +127,15 @@ export default function YouTubeVideoCarousel({
 }: YouTubeVideoCarouselProps) {
   const [selectedVideo, setSelectedVideo] = useState<YoutubeVideoItem | null>(null);
 
+  useEffect(() => {
+    void loadYoutubeIframeApi();
+  }, []);
+
+  const openVideo = (item: YoutubeVideoItem) => {
+    void loadYoutubeIframeApi();
+    setSelectedVideo(item);
+  };
+
   if (loading) {
     return (
       <div className="glass-youtube-card flex min-h-[17.75rem] items-center justify-center gap-2 p-8 text-gray-400">
@@ -151,7 +161,7 @@ export default function YouTubeVideoCarousel({
       >
         {videos.map((video) => (
           <HorizontalClipCarouselItem key={video.videoId}>
-            <YouTubeVideoCard video={video} onOpen={setSelectedVideo} highlight={highlight} />
+            <YouTubeVideoCard video={video} onOpen={openVideo} highlight={highlight} />
           </HorizontalClipCarouselItem>
         ))}
       </HorizontalClipCarousel>

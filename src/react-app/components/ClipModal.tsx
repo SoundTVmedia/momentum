@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
@@ -66,7 +66,9 @@ export default function ClipModal({
   onClipUpdated,
 }: ClipModalProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setHideBottomNav } = useMobileChrome();
+  const autoplayMutedFirst = searchParams.has('clip');
   const { user } = useAuth();
 
   useEffect(() => {
@@ -86,6 +88,21 @@ export default function ClipModal({
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
+  const [viewsCount, setViewsCount] = useState(() =>
+    Number.isFinite(clip.views_count) ? clip.views_count : 0,
+  );
+
+  useEffect(() => {
+    setViewsCount(Number.isFinite(clip.views_count) ? clip.views_count : 0);
+  }, [clip.id, clip.views_count]);
+
+  const handleViewsCountChange = useCallback(
+    (count: number) => {
+      setViewsCount(count);
+      onClipUpdated?.({ ...clip, views_count: count });
+    },
+    [clip, onClipUpdated],
+  );
 
   const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
 
@@ -292,7 +309,7 @@ export default function ClipModal({
               <p className="text-xs text-white/70">
                 {formatRelativeTime(clipPostedAt(clip))}
                 <span className="text-white/50"> · </span>
-                {formatCount(clip.views_count)} views
+                {formatCount(viewsCount)} views
               </p>
             </div>
           </div>
@@ -383,10 +400,10 @@ export default function ClipModal({
         </button>
         <div
           className="pointer-events-none flex flex-col items-center gap-0.5 text-white/90"
-          aria-label={`${formatCount(clip.views_count)} views`}
+          aria-label={`${formatCount(viewsCount)} views`}
         >
           <Eye className="h-7 w-7" aria-hidden />
-          <span className="text-xs font-medium">{formatCount(clip.views_count)}</span>
+          <span className="text-xs font-medium">{formatCount(viewsCount)}</span>
         </div>
         <button
           type="button"
@@ -463,6 +480,8 @@ export default function ClipModal({
               clip={clip}
               overlay={mobileVideoOverlay}
               onPlaybackStateChange={setPlayback}
+              onViewsCountChange={handleViewsCountChange}
+              autoplayMutedFirst={autoplayMutedFirst}
             />
           ) : null}
         </div>
@@ -542,6 +561,8 @@ export default function ClipModal({
                   ref={desktopPlayerRef}
                   clip={clip}
                   onPlaybackStateChange={setPlayback}
+                  onViewsCountChange={handleViewsCountChange}
+                  autoplayMutedFirst={autoplayMutedFirst}
                 />
               ) : null}
             </div>
@@ -567,7 +588,7 @@ export default function ClipModal({
                   <div className="text-sm text-gray-400">
                     {formatRelativeTime(clipPostedAt(clip))}
                     <span className="text-gray-500"> · </span>
-                    {formatCount(clip.views_count)} views
+                    {formatCount(viewsCount)} views
                   </div>
                   <div className="mt-2 flex items-center gap-1">
                     <button
@@ -680,7 +701,7 @@ export default function ClipModal({
                     title="Views"
                   >
                     <Eye className="h-5 w-5" aria-hidden />
-                    <span className="text-base font-medium">{formatCount(clip.views_count)}</span>
+                    <span className="text-base font-medium">{formatCount(viewsCount)}</span>
                   </div>
                 </div>
 

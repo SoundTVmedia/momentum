@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import ClipModal from '@/react-app/components/ClipModal';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import { prefetchModalPlayback } from '@/shared/clip-playback';
 import type { ClipWithUser } from '@/shared/types';
 
 type NavState = { selectedClip?: ClipWithUser } | null;
@@ -54,6 +55,7 @@ export default function ClipDeepLinkHandler() {
         }
         const data = (await res.json()) as ClipWithUser;
         if (!cancelled && clipNumericId(data) != null) {
+          prefetchModalPlayback(data);
           setClip(data);
         }
       } catch {

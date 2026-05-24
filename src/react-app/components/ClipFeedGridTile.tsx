@@ -11,6 +11,7 @@ import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelative
 import { artistPath, songPath } from '@/shared/app-paths';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipShareUrl } from '@/shared/clip-share';
+import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 
 export type ClipFeedGridTileProps = {
   clip: ClipWithUser;
@@ -90,6 +91,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           video_url={clip.video_url}
           thumbnail_url={clip.thumbnail_url}
           mediaHovered={mediaHovered}
+          previewInstanceKey={String(clipNumericId(clip) ?? clip.video_url ?? '')}
         />
 
         <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center rounded-t-2xl opacity-0 transition-opacity group-hover/video:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:hidden">

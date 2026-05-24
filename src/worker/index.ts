@@ -63,6 +63,7 @@ import {
   deleteOwnClipByBody,
   updateOwnClipByBody,
   getMyClipsFeed,
+  postRecordClipView,
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postClipIdentifyMusicAudD } from "./clip-audd-endpoints";
@@ -1013,16 +1014,11 @@ app.get("/api/clips/:id", async (c) => {
     return c.json({ error: "Clip not found" }, 404);
   }
 
-  // Increment view count
-  await c.env.DB.prepare(
-    "UPDATE clips SET views_count = views_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-  )
-    .bind(clipId)
-    .run();
-
   const [normalizedClip] = normalizeClipApiRows([clip as Record<string, unknown>]);
   return c.json(normalizedClip);
 });
+
+app.post("/api/clips/:id/view", postRecordClipView);
 
 // Clip ids the signed-in user has liked (for consistent heart UI)
 app.get("/api/users/me/liked-clips", authMiddleware, async (c) => {

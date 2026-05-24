@@ -32,36 +32,37 @@ type YTPlayerConstructor = new (
   },
 ) => YTPlayer;
 
-/** Start playback after open or swipe; retries muted if the browser blocks sound. */
+function isYoutubePlaying(player: YTPlayer): boolean {
+  const state = player.getPlayerState?.();
+  return state === YT_PLAYER_STATE.PLAYING || state === YT_PLAYER_STATE.BUFFERING;
+}
+
+/** Start playback after open or swipe; starts muted for mobile policy, then unmutes when allowed. */
 export function startYoutubeAutoplay(player: YTPlayer): void {
-  const tryUnmuted = () => {
-    try {
-      player.unMute();
-      player.playVideo();
-    } catch {
-      /* ignore */
-    }
-  };
-
-  tryUnmuted();
-
-  window.setTimeout(() => {
-    const state = player.getPlayerState?.();
-    if (state === YT_PLAYER_STATE.PLAYING || state === YT_PLAYER_STATE.BUFFERING) return;
+  const attempt = (unmuteAfter: boolean) => {
+    if (isYoutubePlaying(player)) return;
     try {
       player.mute();
       player.playVideo();
     } catch {
       /* ignore */
     }
-    window.setTimeout(() => {
-      try {
-        player.unMute();
-      } catch {
-        /* ignore */
-      }
-    }, 150);
-  }, 400);
+    if (unmuteAfter) {
+      window.setTimeout(() => {
+        if (!isYoutubePlaying(player)) return;
+        try {
+          player.unMute();
+        } catch {
+          /* ignore */
+        }
+      }, 200);
+    }
+  };
+
+  attempt(false);
+  for (const delay of [120, 350, 700]) {
+    window.setTimeout(() => attempt(delay >= 350), delay);
+  }
 }
 
 declare global {

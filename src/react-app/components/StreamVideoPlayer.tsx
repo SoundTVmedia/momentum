@@ -6,6 +6,7 @@ import {
   isHlsPlaybackUrl,
   resolveModalPlaybackSource,
 } from '@/shared/clip-playback';
+import { recordClipView } from '@/react-app/lib/recordClipView';
 
 export type StreamVideoPlayerHandle = {
   togglePlay: () => void;
@@ -41,7 +42,12 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   className?: string;
   /** Where play/mute/fullscreen chrome renders; `hidden` for parent-rendered controls (e.g. clip modal). */
   controlsPlacement?: StreamVideoPlayerControlsPlacement;
+  /** Muted-first autoplay (e.g. shared `?clip=` links with no prior user gesture). */
+  autoplayMutedFirst?: boolean;
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
+  /** When set, each play / loop records a view and reports the server total. */
+  clipId?: number | null;
+  onViewsCountChange?: (viewsCount: number) => void;
 }
 
 /**
@@ -64,17 +70,25 @@ function StreamVideoPlayer(
   loop = false,
   className = '',
   controlsPlacement = 'bottom',
+  autoplayMutedFirst = false,
   onPlaybackStateChange,
+  clipId = null,
+  onViewsCountChange,
 }: StreamVideoPlayerProps,
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const attachedSrcRef = useRef<string | null>(null);
+  const lastPlayViewAtRef = useRef(0);
+  const lastLoopViewAtRef = useRef(0);
+  const lastTimeRef = useRef(0);
   const autoPlayRef = useRef(autoPlay);
   autoPlayRef.current = autoPlay;
+  const autoplayMutedFirstRef = useRef(autoplayMutedFirst);
+  autoplayMutedFirstRef.current = autoplayMutedFirst;
   const [isPlaying, setIsPlaying] = useState(autoPlay);
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(() => Boolean(autoplayMutedFirst && autoPlay));
   const [showControls, setShowControls] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -95,6 +109,12 @@ function StreamVideoPlayer(
     resolveModalPlaybackSource(clipFields);
   const displayPoster = poster || posterSrc || undefined;
 
+  const bumpView = useCallback(async () => {
+    if (!clipId) return;
+    const count = await recordClipView(clipId);
+    if (count != null) onViewsCountChange?.(count);
+  }, [clipId, onViewsCountChange]);
+
   const tryAutoplay = useCallback(() => {
     if (!autoPlayRef.current) return;
     const video = videoRef.current;
@@ -106,11 +126,33 @@ function StreamVideoPlayer(
       return video.play();
     };
 
+    const tryUnmute = () => {
+      window.setTimeout(() => {
+        if (video.paused) return;
+        try {
+          video.muted = false;
+          setIsMuted(false);
+        } catch {
+          /* ignore */
+        }
+      }, 280);
+    };
+
+    if (autoplayMutedFirstRef.current) {
+      void attempt(true).then(tryUnmute).catch(() => {});
+      for (const delay of [350, 750]) {
+        window.setTimeout(() => {
+          if (!video.paused) return;
+          void attempt(true).then(tryUnmute).catch(() => {});
+        }, delay);
+      }
+      return;
+    }
+
     void attempt(false).catch(() => {
       void attempt(true)
         .then(() => {
-          video.muted = false;
-          setIsMuted(false);
+          tryUnmute();
           void video.play().catch(() => {});
         })
         .catch(() => {});
@@ -166,11 +208,14 @@ function StreamVideoPlayer(
               return;
             }
 
+            const mobile =
+              typeof window !== 'undefined' &&
+              window.matchMedia('(max-width: 767px)').matches;
             const hls = new Hls({
-              enableWorker: true,
-              lowLatencyMode: true,
-              maxBufferLength: 8,
-              maxMaxBufferLength: 16,
+              enableWorker: !mobile,
+              lowLatencyMode: !mobile,
+              maxBufferLength: mobile ? 4 : 8,
+              maxMaxBufferLength: mobile ? 10 : 16,
             });
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, tryAutoplay);
@@ -225,6 +270,28 @@ function StreamVideoPlayer(
     const handlePlay = () => {
       setIsPlaying(true);
       setIsLoading(false);
+      if (clipId) {
+        const now = Date.now();
+        if (now - lastPlayViewAtRef.current > 350) {
+          lastPlayViewAtRef.current = now;
+          void bumpView();
+        }
+      }
+    };
+    const handleTimeUpdate = () => {
+      if (!clipId || !loop) return;
+      const d = video.duration;
+      const t = video.currentTime;
+      if (!Number.isFinite(d) || d <= 0) return;
+      const prev = lastTimeRef.current;
+      lastTimeRef.current = t;
+      if (prev > d * 0.88 && t < 0.4) {
+        const now = Date.now();
+        if (now - lastLoopViewAtRef.current > 800) {
+          lastLoopViewAtRef.current = now;
+          void bumpView();
+        }
+      }
     };
     const handlePause = () => setIsPlaying(false);
     const handleWaiting = () => setIsLoading(true);
@@ -240,6 +307,7 @@ function StreamVideoPlayer(
     };
 
     video.addEventListener('play', handlePlay);
+    video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('pause', handlePause);
     video.addEventListener('waiting', handleWaiting);
     video.addEventListener('canplay', handleCanPlay);
@@ -249,6 +317,7 @@ function StreamVideoPlayer(
 
     return () => {
       video.removeEventListener('play', handlePlay);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('waiting', handleWaiting);
       video.removeEventListener('canplay', handleCanPlay);
@@ -256,7 +325,7 @@ function StreamVideoPlayer(
       video.removeEventListener('error', handleError);
       video.removeEventListener('ended', handleEnded);
     };
-  }, [videoSrc, loop]);
+  }, [videoSrc, loop, clipId, bumpView]);
 
   useEffect(() => {
     if (!autoPlay) return;
@@ -321,6 +390,7 @@ function StreamVideoPlayer(
         autoPlay={autoPlay}
         loop={loop}
         playsInline
+        muted={isMuted}
         className="w-full h-full object-contain bg-black"
         preload="auto"
       />
@@ -337,24 +407,24 @@ function StreamVideoPlayer(
         </div>
       )}
 
-      <div
-        className={`absolute inset-0 transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center"
+      {controlsPlacement !== 'hidden' ? (
+        <div
+          className={`absolute inset-0 transition-opacity duration-300 ${
+            showControls ? 'opacity-100' : 'opacity-0'
+          }`}
         >
-          {!isPlaying && !isLoading && !loadError && (
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 backdrop-blur-lg rounded-full flex items-center justify-center hover:scale-110 transition-transform">
-              <Play className="w-8 h-8 sm:w-10 sm:h-10 text-white ml-1" />
-            </div>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            {!isPlaying && !isLoading && !loadError && (
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 backdrop-blur-lg rounded-full flex items-center justify-center hover:scale-110 transition-transform">
+                <Play className="w-8 h-8 sm:w-10 sm:h-10 text-white ml-1" />
+              </div>
+            )}
+          </button>
 
-        {controlsPlacement !== 'hidden' ? (
           <div
             className={`absolute left-0 right-0 flex items-center justify-between p-3 sm:p-4 ${
               controlsPlacement === 'top' ? 'top-0' : 'bottom-0'
@@ -395,8 +465,8 @@ function StreamVideoPlayer(
               <Maximize className="h-5 w-5 text-white sm:h-6 sm:w-6" />
             </button>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {streamId && (
         <div className="absolute top-2 left-2 sm:top-3 sm:left-3 px-2 py-1 bg-black/60 backdrop-blur-lg rounded-full text-xs text-momentum-ember font-medium">

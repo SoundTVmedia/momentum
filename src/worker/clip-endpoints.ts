@@ -477,3 +477,30 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const [normalized] = normalizeClipApiRows([row as Record<string, unknown>]);
   return c.json(normalized, 200);
 }
+
+/** POST /api/clips/:id/view — increment views (each play / loop from the client). */
+export async function postRecordClipView(c: Context<{ Bindings: Env }>) {
+  const clipId = parsePositiveClipIdFromRequest(c);
+  if (clipId == null) {
+    return c.json({ error: 'Invalid clip id' }, 400);
+  }
+
+  const exists = await c.env.DB.prepare('SELECT id FROM clips WHERE id = ?')
+    .bind(clipId)
+    .first();
+  if (!exists) {
+    return c.json({ error: 'Clip not found' }, 404);
+  }
+
+  await c.env.DB.prepare(
+    'UPDATE clips SET views_count = views_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+  )
+    .bind(clipId)
+    .run();
+
+  const row = await c.env.DB.prepare('SELECT views_count FROM clips WHERE id = ?')
+    .bind(clipId)
+    .first() as { views_count: number } | null;
+
+  return c.json({ views_count: row?.views_count ?? 0 });
+}

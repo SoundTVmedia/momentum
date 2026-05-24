@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router';
 import ClipDeepLinkHandler from '@/react-app/components/ClipDeepLinkHandler';
+import PerfDebugOverlay from '@/react-app/components/PerfDebugOverlay';
 import MobileBottomNav from '@/react-app/components/MobileBottomNav';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { MOBILE_PAGE_INSET_BOTTOM_CLASS } from '@/react-app/lib/mobileBottomNavLayout';
@@ -21,6 +22,7 @@ export default function AppRouteChrome() {
       </div>
       <MobileBottomNav />
       <ClipDeepLinkHandler />
+      <PerfDebugOverlay />
     </>
   );
 }

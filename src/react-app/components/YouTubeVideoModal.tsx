@@ -73,6 +73,7 @@ function YouTubeEmbed({
     if (!host) return;
 
     let cancelled = false;
+    userPausedRef.current = false;
 
     const mountPlayer = async () => {
       try {
@@ -89,6 +90,7 @@ function YouTubeEmbed({
         height: '100%',
         playerVars: {
           autoplay: 1,
+          mute: 1,
           playsinline: 1,
           rel: 0,
           modestbranding: 1,
@@ -120,14 +122,6 @@ function YouTubeEmbed({
       playerRef.current?.destroy();
       playerRef.current = null;
     };
-  }, []);
-
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player?.loadVideoById) return;
-    userPausedRef.current = false;
-    player.loadVideoById({ videoId: video.videoId });
-    startYoutubeAutoplay(player);
   }, [video.videoId]);
 
   return (
@@ -397,6 +391,7 @@ export default function YouTubeVideoModal({
 
   const youtubePlayer = (
     <YouTubeEmbed
+      key={video.videoId}
       video={video}
       edgeSwipeHandlers={mobileViewport ? edgeSwipeHandlers : undefined}
     />

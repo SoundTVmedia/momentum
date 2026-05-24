@@ -5,6 +5,7 @@ import StreamVideoPlayer, {
 } from '@/react-app/components/StreamVideoPlayer';
 import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
 import type { ClipWithUser } from '@/shared/types';
+import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 
 type ClipModalMaximizedVideoProps = {
   clip: ClipWithUser;
@@ -14,6 +15,9 @@ type ClipModalMaximizedVideoProps = {
   };
   overlay?: ReactNode;
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
+  onViewsCountChange?: (viewsCount: number) => void;
+  /** Shared `?clip=` deep links — start muted so autoplay is allowed without a tap. */
+  autoplayMutedFirst?: boolean;
 };
 
 /** Fills available space while preserving the clip's aspect ratio (object-contain behavior). */
@@ -21,9 +25,10 @@ const ClipModalMaximizedVideo = forwardRef<
   StreamVideoPlayerHandle,
   ClipModalMaximizedVideoProps
 >(function ClipModalMaximizedVideo(
-  { clip, swipeHandlers, overlay, onPlaybackStateChange },
+  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange, autoplayMutedFirst },
   ref,
 ) {
+  const clipId = clipNumericId(clip);
   const ratioStr = clipDisplayAspectRatio(clip) ?? '9 / 16';
   const parts = ratioStr.split('/').map((s) => parseFloat(s.trim()));
   const rw = parts[0] || 16;
@@ -52,6 +57,9 @@ const ClipModalMaximizedVideo = forwardRef<
           loop
           controlsPlacement="hidden"
           onPlaybackStateChange={onPlaybackStateChange}
+          clipId={clipId}
+          onViewsCountChange={onViewsCountChange}
+          autoplayMutedFirst={autoplayMutedFirst}
           className="absolute inset-0 h-full w-full"
         />
         {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}

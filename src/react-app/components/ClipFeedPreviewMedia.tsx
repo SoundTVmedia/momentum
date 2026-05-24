@@ -4,6 +4,11 @@ import {
   resolveClipPosterUrl,
   resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
+import {
+  clearFeedPreviewPlayback,
+  releaseFeedPreviewPlay,
+  requestFeedPreviewPlay,
+} from '@/react-app/lib/feedVideoPlaybackLimiter';
 
 /** True for typical desktop: real hover + mouse/trackpad (not primary touch). */
 const HOVER_FINE_POINTER_MQ = '(hover: hover) and (pointer: fine)';
@@ -20,6 +25,8 @@ export interface ClipFeedPreviewMediaProps extends ClipPlaybackFields {
   thumbFallback?: string;
   className?: string;
   mediaHovered?: boolean;
+  /** Stable key for limiting concurrent mobile feed decoders (e.g. clip id). */
+  previewInstanceKey?: string;
 }
 
 /**
@@ -38,6 +45,7 @@ export default function ClipFeedPreviewMedia({
   thumbFallback = 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1200&fit=crop',
   className = '',
   mediaHovered: mediaHoveredProp,
+  previewInstanceKey = '',
 }: ClipFeedPreviewMediaProps) {
   const clipFields: ClipPlaybackFields = {
     stream_video_id: stream_video_id ?? undefined,
@@ -106,7 +114,22 @@ export default function ClipFeedPreviewMedia({
   const scrollStyle = isNarrowViewport || !desktopHoverMode;
   const scrollAutoplayThreshold = scrollStyle ? 0.35 : 0.5;
   const scrollPlayOk = ioIntersecting && ioRatio >= scrollAutoplayThreshold;
-  const shouldPlay = Boolean(previewVideoSrc) && (useHoverPlay ? hovering && inView : scrollPlayOk);
+  const playKey = previewInstanceKey || previewVideoSrc || '';
+  const wantsPlay =
+    Boolean(previewVideoSrc) && (useHoverPlay ? hovering && inView : scrollPlayOk);
+  const [allowedPlay, setAllowedPlay] = useState(false);
+
+  useEffect(() => {
+    if (!wantsPlay || !playKey) {
+      setAllowedPlay(false);
+      if (playKey) releaseFeedPreviewPlay(playKey);
+      return;
+    }
+    setAllowedPlay(requestFeedPreviewPlay(playKey));
+    return () => releaseFeedPreviewPlay(playKey);
+  }, [wantsPlay, playKey]);
+
+  const shouldPlay = wantsPlay && (playKey ? allowedPlay : true);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -122,8 +145,31 @@ export default function ClipFeedPreviewMedia({
       v.removeAttribute('src');
       v.load();
       setThumbHidden(false);
+      if (playKey) releaseFeedPreviewPlay(playKey);
     }
-  }, [shouldPlay]);
+  }, [shouldPlay, playKey]);
+
+  useEffect(() => {
+    if (!playKey) return;
+    return () => releaseFeedPreviewPlay(playKey);
+  }, [playKey]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        const v = videoRef.current;
+        if (v) {
+          v.pause();
+          v.removeAttribute('src');
+          v.load();
+        }
+        setThumbHidden(false);
+        clearFeedPreviewPlayback();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -153,7 +199,7 @@ export default function ClipFeedPreviewMedia({
           muted
           loop
           playsInline
-          preload="auto"
+          preload={shouldPlay ? 'auto' : 'metadata'}
         />
       ) : null}
       <img
