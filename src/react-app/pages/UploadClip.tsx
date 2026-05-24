@@ -67,6 +67,9 @@ export default function UploadClip() {
   /** JamBase pick committed in caption/tags editor — keeps autocomplete closed until the user edits again. */
   const captionCommittedArtistNameRef = useRef('');
   const captionCommittedVenueNameRef = useRef('');
+  /** After Share — ignore stale `location.state` video until a new recording navigates here. */
+  const skipNavVideoHydrationRef = useRef(false);
+  const lastCaptionFromNavAtRef = useRef<string | null>(null);
 
   // Caption / review screen video preview (must not live inside `if (showCaptionScreen)` — Rules of Hooks)
   const captionVideoRef = useRef<HTMLVideoElement>(null);
@@ -196,9 +199,7 @@ export default function UploadClip() {
     const params = new URLSearchParams(location.search);
     const wantCapture = params.get('quickCapture') === 'true';
     if (!wantCapture) {
-      setShowQuickCapture(false);
-      setReRecordLaunchGeo(null);
-      setReRecordLaunchGeoResolved(false);
+      // Do not clear capture overlay or primed geo here — Share on /upload opens the camera without `?quickCapture`.
       setQuickCaptureAwaitUserTap(false);
       return;
     }
@@ -223,7 +224,22 @@ export default function UploadClip() {
 
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
+    const navAt =
+      typeof (location.state as { recordingStartedAt?: string } | null)?.recordingStartedAt ===
+      'string'
+        ? (location.state as { recordingStartedAt: string }).recordingStartedAt
+        : null;
+
     if (location.state?.videoBlob) {
+      if (
+        skipNavVideoHydrationRef.current &&
+        (!navAt || navAt === lastCaptionFromNavAtRef.current)
+      ) {
+        return;
+      }
+      skipNavVideoHydrationRef.current = false;
+      lastCaptionFromNavAtRef.current = navAt;
+
       const blob = location.state.videoBlob as Blob;
       setFormData(prev => ({ ...prev, video_blob: blob }));
       setUploadMethod('file');
@@ -238,6 +254,16 @@ export default function UploadClip() {
       setReRecordGesturePending(false);
     }
     if (location.state?.videoFile) {
+      const fileAt = navAt ?? `file:${(location.state.videoFile as File).lastModified}`;
+      if (
+        skipNavVideoHydrationRef.current &&
+        fileAt === lastCaptionFromNavAtRef.current
+      ) {
+        return;
+      }
+      skipNavVideoHydrationRef.current = false;
+      lastCaptionFromNavAtRef.current = fileAt;
+
       const selectedFile = location.state.videoFile as File;
       setFormData(prev => ({ ...prev, video_file: selectedFile, video_blob: null }));
       setUploadMethod('file');
@@ -896,8 +922,7 @@ export default function UploadClip() {
     setAuddStatus('idle');
     setAuddMessage(null);
     setIsEditingTags(false);
-    navigate({ pathname: '/upload', search: '' }, { replace: true, state: null });
-  }, [navigate, videoBlobUrl]);
+  }, [videoBlobUrl]);
 
   /** Prime geo + camera in the same tap as Share (iOS Safari). */
   const openCaptureFromShareGesture = useCallback(() => {
@@ -937,6 +962,9 @@ export default function UploadClip() {
         setError('Too many clips are uploading. Wait for one to finish, then try again.');
         return;
       }
+      skipNavVideoHydrationRef.current = true;
+      setShowCaptionScreen(false);
+      setShowQuickCapture(true);
       resetForNextCapture();
       openCaptureFromShareGesture();
       return;
