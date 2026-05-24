@@ -189,21 +189,31 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
   };
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-      <div className="max-w-3xl w-full bg-gradient-to-b from-slate-900 to-black border border-momentum-ember/20 rounded-xl my-8 animate-scale-in">
-        <div className="sticky top-0 bg-slate-900/95 backdrop-blur-lg border-b border-white/10 p-4 sm:p-6 rounded-t-xl z-10">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl sm:text-2xl font-bold text-white">Edit Profile</h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
-            </button>
-          </div>
+    <div
+      className="fixed inset-0 z-[60] flex animate-fade-in bg-black/90 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="profile-editor-title"
+    >
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col border-momentum-ember/20 bg-gradient-to-b from-slate-900 to-black sm:my-8 sm:h-auto sm:max-h-[min(90dvh,calc(100vh-4rem))] sm:rounded-xl sm:border sm:animate-scale-in">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-slate-900/95 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-lg sm:rounded-t-xl sm:px-6 sm:py-6">
+          <h2 id="profile-editor-title" className="text-xl font-bold text-white sm:text-2xl">
+            Edit Profile
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 transition-colors hover:bg-white/10"
+            aria-label="Close edit profile"
+          >
+            <X className="h-5 w-5 text-gray-400 sm:h-6 sm:w-6" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6"
+        >
           {/* Cover Image */}
           <div>
             <label className="block text-white font-medium mb-2">Cover Image</label>

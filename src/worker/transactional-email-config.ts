@@ -17,8 +17,36 @@ export function resolveTransactionalEmailFrom(env: {
   return raw || RESEND_SANDBOX_FROM;
 }
 
+/** Reject empty, malformed, or doc-placeholder Resend keys so local dev can fall back to console logging. */
+export function isUsableResendApiKey(apiKey: string): boolean {
+  const key = apiKey.trim();
+  if (!key) return false;
+  if (!/^re_[A-Za-z0-9_]+$/.test(key)) return false;
+  if (key.length < 16) return false;
+  if (/^re_x+$/i.test(key)) return false;
+  const lower = key.toLowerCase();
+  if (
+    lower.includes('your') ||
+    lower.includes('placeholder') ||
+    lower.includes('changeme') ||
+    lower.includes('example')
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function resolveResendApiKey(env: { RESEND_API_KEY?: string }): string {
-  return typeof env.RESEND_API_KEY === 'string' ? env.RESEND_API_KEY.trim() : '';
+  const raw =
+    typeof env.RESEND_API_KEY === 'string' ? env.RESEND_API_KEY.trim() : '';
+  if (!raw) return '';
+  if (!isUsableResendApiKey(raw)) {
+    console.warn(
+      'RESEND_API_KEY is set but invalid or looks like a placeholder — password reset will not call Resend until a real key is configured',
+    );
+    return '';
+  }
+  return raw;
 }
 
 /**

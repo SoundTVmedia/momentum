@@ -22,16 +22,17 @@ MOCHA_USERS_SERVICE_API_URL=
 MOCHA_USERS_SERVICE_API_KEY=
 #
 # --- Email/password password reset (Resend, no-reply) ---
-# Required to send reset emails. Get a key at https://resend.com/api-keys
-# Local: paste into .dev.vars and restart `npm run dev:api` (or `wrangler dev`).
-# Production: wrangler secret put RESEND_API_KEY
-# RESEND_API_KEY=re_xxxxxxxx
+# Get a key at https://resend.com/api-keys (must start with re_ and be a real key — not re_xxxxxxxx).
+# Local: paste into .dev.vars and restart `npm run dev` / `wrangler dev`.
+# Production: npx wrangler secret put RESEND_API_KEY
+# RESEND_API_KEY=re_your_real_key_here
 #
-# Verified sender domain in Resend (production). Use a no-reply address on your domain:
-# wrangler secret put TRANSACTIONAL_EMAIL_FROM
+# Sandbox (no custom domain): omit TRANSACTIONAL_EMAIL_FROM — defaults to onboarding@resend.dev
+# (Resend only delivers to the email on your Resend account until you verify a domain).
+# Production: npx wrangler secret put TRANSACTIONAL_EMAIL_FROM
 # TRANSACTIONAL_EMAIL_FROM=FEEDBACK <no-reply@yourdomain.com>
 #
-# Without RESEND_API_KEY, local dev (Origin localhost / redirect_base) logs the reset link in the Worker console only.
+# Without a valid RESEND_API_KEY, local dev (localhost / redirect_base) logs the reset link in the Worker console.
 # PUBLIC_APP_URL=http://localhost:5173
 # JamBase Data API v3 — Worker→JamBase requests use Cloudflare edge cache (see jambase-client.ts TTLs).
 # Get a key from https://data.jambase.com — paste the raw token only (no "Bearer", no quotes).

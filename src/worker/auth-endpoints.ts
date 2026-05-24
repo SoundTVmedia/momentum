@@ -16,6 +16,7 @@ import {
   PASSWORD_RESET_EMAIL_NOT_CONFIGURED,
   resolvePasswordResetEmailDelivery,
 } from './transactional-email-config';
+import { shouldLogPasswordResetLinkInsteadOfEmail } from './hybrid-auth';
 import { logPasswordResetLinkDev, sendPasswordResetEmail } from './transactional-email';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
@@ -254,6 +255,34 @@ export async function requestPasswordReset(c: Context<{ Bindings: Env }>) {
     const code = e instanceof Error ? e.message : '';
     const detail = (e as Error & { providerDetail?: string }).providerDetail;
     if (code === 'email_provider_error') {
+      const detailLower = detail?.toLowerCase() ?? '';
+      const invalidApiKey =
+        detailLower.includes('api key') && detailLower.includes('invalid');
+
+      if (
+        invalidApiKey &&
+        shouldLogPasswordResetLinkInsteadOfEmail(c, {
+          hasResendKey: true,
+          redirectBase: body.redirect_base,
+        })
+      ) {
+        console.warn(
+          'requestPasswordReset: Resend rejected API key; logging reset link locally (dev only)',
+        );
+        logPasswordResetLinkDev(resetUrl);
+        return c.json({ success: true, message: FORGOT_PASSWORD_OK_MESSAGE }, 200);
+      }
+
+      if (invalidApiKey) {
+        return c.json(
+          {
+            error:
+              'Password reset email is misconfigured (invalid Resend API key). Set a valid key in .dev.vars for local dev or run `npx wrangler secret put RESEND_API_KEY` for production.',
+          },
+          503,
+        );
+      }
+
       const hint = detail
         ? ` Resend: ${detail}`
         : ' Verify TRANSACTIONAL_EMAIL_FROM uses a domain verified in Resend (e.g. FEEDBACK <no-reply@yourdomain.com>).';
