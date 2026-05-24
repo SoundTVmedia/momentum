@@ -60,8 +60,9 @@ export default function UploadClip() {
     return Boolean(s?.videoBlob ?? s?.videoFile);
   });
 
-  /** Mobile caption artist field: last name chosen from JamBase (or auto-tag); typing away clears until re-selected. */
+  /** JamBase pick committed in caption/tags editor — keeps autocomplete closed until the user edits again. */
   const captionCommittedArtistNameRef = useRef('');
+  const captionCommittedVenueNameRef = useRef('');
 
   // Caption / review screen video preview (must not live inside `if (showCaptionScreen)` — Rules of Hooks)
   const captionVideoRef = useRef<HTMLVideoElement>(null);
@@ -389,7 +390,9 @@ export default function UploadClip() {
       searchArtists(debouncedArtistSearch)
         .then((results) => {
           setArtistSuggestions(results);
-          setShowArtistSuggestions(results.length > 0);
+          const keepClosed =
+            debouncedArtistSearch === captionCommittedArtistNameRef.current;
+          setShowArtistSuggestions(!keepClosed && results.length > 0);
         })
         .finally(() => setArtistSearchPending(false));
     } else {
@@ -402,9 +405,10 @@ export default function UploadClip() {
   // Search for venues
   useEffect(() => {
     if (debouncedVenueSearch && debouncedVenueSearch.length >= 2) {
-      searchVenues(debouncedVenueSearch, formData.location).then(results => {
+      searchVenues(debouncedVenueSearch, formData.location).then((results) => {
         setVenueSuggestions(results);
-        setShowVenueSuggestions(results.length > 0);
+        const keepClosed = debouncedVenueSearch === captionCommittedVenueNameRef.current;
+        setShowVenueSuggestions(!keepClosed && results.length > 0);
       });
     } else {
       setVenueSuggestions([]);
@@ -428,6 +432,7 @@ export default function UploadClip() {
     }));
     setArtistSearch(c.artist_name ?? '');
     setVenueSearch(c.venue_name ?? '');
+    captionCommittedVenueNameRef.current = c.venue_name ?? '';
     setJambaseLink({
       event: c.jambase_event_id ?? null,
       artist: c.jambase_artist_id,
@@ -685,6 +690,7 @@ export default function UploadClip() {
     captionCommittedArtistNameRef.current = artist.name;
     setFormData((prev) => ({ ...prev, artist_name: artist.name }));
     setArtistSearch(artist.name);
+    setArtistSuggestions([]);
     setShowArtistSuggestions(false);
     setJambaseLink((prev) => ({
       event: null,
@@ -714,13 +720,20 @@ export default function UploadClip() {
       ? `${venue.location.city}, ${venue.location.state || venue.location.country || ''}`
       : '';
     
+    captionCommittedVenueNameRef.current = venueName;
     setFormData(prev => ({ 
       ...prev, 
       venue_name: venueName,
       location: venueLocation || prev.location
     }));
     setVenueSearch(venueName);
+    setVenueSuggestions([]);
     setShowVenueSuggestions(false);
+    setJambaseLink((prev) => ({
+      event: prev?.event ?? null,
+      artist: prev?.artist ?? null,
+      venue: venue.identifier,
+    }));
   };
 
   const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1386,7 +1399,12 @@ export default function UploadClip() {
                           value={artistSearch}
                           onChange={(e) => handleCaptionArtistSearchChange(e.target.value)}
                           onFocus={() => {
-                            if (debouncedArtistSearch.length >= 2) setShowArtistSuggestions(true);
+                            if (
+                              debouncedArtistSearch.length >= 2 &&
+                              artistSearch !== captionCommittedArtistNameRef.current
+                            ) {
+                              setShowArtistSuggestions(artistSuggestions.length > 0);
+                            }
                           }}
                           autoComplete="off"
                           className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
@@ -1398,7 +1416,7 @@ export default function UploadClip() {
                         Pick an artist from the results — free-text names are not saved for this field.
                       </p>
 
-                      {debouncedArtistSearch.length >= 2 && (
+                      {showArtistSuggestions && debouncedArtistSearch.length >= 2 && (
                         <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-800 border border-momentum-ember/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                           {artistSearchPending ? (
                             <div className="px-3 py-3 flex items-center gap-2 text-gray-300 text-sm">
@@ -1432,10 +1450,21 @@ export default function UploadClip() {
                           type="text"
                           value={venueSearch}
                           onChange={(e) => {
-                            setVenueSearch(e.target.value);
-                            handleInputChange('venue_name', e.target.value);
+                            const value = e.target.value;
+                            setVenueSearch(value);
+                            handleInputChange('venue_name', value);
+                            if (value !== captionCommittedVenueNameRef.current) {
+                              captionCommittedVenueNameRef.current = '';
+                            }
                           }}
-                          onFocus={() => venueSuggestions.length > 0 && setShowVenueSuggestions(true)}
+                          onFocus={() => {
+                            if (
+                              venueSearch !== captionCommittedVenueNameRef.current &&
+                              venueSuggestions.length > 0
+                            ) {
+                              setShowVenueSuggestions(true);
+                            }
+                          }}
                           className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
                           placeholder="Venue name"
                         />
@@ -1773,10 +1802,21 @@ export default function UploadClip() {
                 type="text"
                 value={artistSearch}
                 onChange={(e) => {
-                  setArtistSearch(e.target.value);
-                  handleInputChange('artist_name', e.target.value);
+                  const value = e.target.value;
+                  setArtistSearch(value);
+                  handleInputChange('artist_name', value);
+                  if (value !== captionCommittedArtistNameRef.current) {
+                    captionCommittedArtistNameRef.current = '';
+                  }
                 }}
-                onFocus={() => artistSuggestions.length > 0 && setShowArtistSuggestions(true)}
+                onFocus={() => {
+                  if (
+                    artistSearch !== captionCommittedArtistNameRef.current &&
+                    artistSuggestions.length > 0
+                  ) {
+                    setShowArtistSuggestions(true);
+                  }
+                }}
                 className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="Taylor Swift"
               />
@@ -1843,10 +1883,21 @@ export default function UploadClip() {
                   type="text"
                   value={venueSearch}
                   onChange={(e) => {
-                    setVenueSearch(e.target.value);
-                    handleInputChange('venue_name', e.target.value);
+                    const value = e.target.value;
+                    setVenueSearch(value);
+                    handleInputChange('venue_name', value);
+                    if (value !== captionCommittedVenueNameRef.current) {
+                      captionCommittedVenueNameRef.current = '';
+                    }
                   }}
-                  onFocus={() => venueSuggestions.length > 0 && setShowVenueSuggestions(true)}
+                  onFocus={() => {
+                    if (
+                      venueSearch !== captionCommittedVenueNameRef.current &&
+                      venueSuggestions.length > 0
+                    ) {
+                      setShowVenueSuggestions(true);
+                    }
+                  }}
                   className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                   placeholder="Madison Square Garden"
                 />

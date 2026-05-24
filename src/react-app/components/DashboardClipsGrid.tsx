@@ -177,36 +177,43 @@ export default function DashboardClipsGrid({
                   onOpenClip={(c) => setSelectedClip(c as unknown as DashboardGridClip)}
                 />
 
-                {showDelete && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setClipPendingDelete(clip);
-                    }}
-                    className="absolute top-2 left-2 z-[25] flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-black/60 text-white transition-colors hover:bg-red-600/90"
-                    title="Delete clip"
-                    aria-label="Delete clip"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-
-                {showEdit && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditClip!(clip);
-                    }}
-                    className={`absolute z-[25] flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-black/60 text-white transition-colors hover:bg-momentum-ember/90 ${
-                      showPersonalizationBadge(clip) ? 'top-12 right-2' : 'top-2 right-2'
+                {(showEdit || showDelete) && (
+                  <div
+                    className={`absolute z-[25] flex items-center gap-1.5 ${
+                      showEdit && showPersonalizationBadge(clip)
+                        ? 'top-12 right-2'
+                        : 'top-2 right-2'
                     }`}
-                    title="Edit clip details"
-                    aria-label="Edit clip details"
                   >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+                    {showEdit && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditClip!(clip);
+                        }}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-black/60 text-white transition-colors hover:bg-momentum-ember/90"
+                        title="Edit clip details"
+                        aria-label="Edit clip details"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
+                    {showDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setClipPendingDelete(clip);
+                        }}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-black/60 text-white transition-colors hover:bg-red-600/90"
+                        title="Delete clip"
+                        aria-label="Delete clip"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 {showPersonalizationBadge(clip) && (

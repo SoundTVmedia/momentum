@@ -162,7 +162,7 @@ export default function Header() {
               <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
                 <button
                   onClick={() => navigate('/upload')}
-                  className="hidden md:block px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base shadow-lg shadow-momentum-ember/35"
+                  className="hidden md:block px-[0.65rem] py-[0.325rem] momentum-grad-interactive rounded-md font-bold text-white hover:scale-105 transition-transform text-[0.65rem] leading-tight shadow-lg shadow-momentum-ember/35"
                 >
                   Share Your Moment
                 </button>

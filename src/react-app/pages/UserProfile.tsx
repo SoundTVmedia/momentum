@@ -336,9 +336,9 @@ export default function UserProfilePage() {
           <OwnProfileHub onOpenCapture={quickCapture.openQuickCapture} />
         ) : null}
 
-        {/* Favorite Artists Section */}
+        {/* Favorite Artists Section — below shows on own profile; hidden on mobile */}
         {favoriteArtists.length > 0 && (
-          <div className="mb-12">
+          <div className={`mb-12 ${isOwnProfile ? 'hidden md:block' : ''}`}>
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center space-x-2">
               <Star className="w-6 h-6 text-momentum-ember" />
               <span>Favorite Artists</span>

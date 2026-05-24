@@ -1,4 +1,5 @@
-import { Home, Search, Bell, Video } from 'lucide-react';
+import { useId } from 'react';
+import { Home, Search, Bell, Video, LogIn } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNotifications } from '@/react-app/hooks/useNotifications';
@@ -9,6 +10,7 @@ import { useQuickCaptureLauncher } from '@/react-app/hooks/useQuickCaptureLaunch
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export default function MobileBottomNav() {
+  const signInGradId = useId().replace(/:/g, '');
   const navigate = useNavigate();
   const location = useLocation();
   const { hideBottomNav } = useMobileChrome();
@@ -81,34 +83,67 @@ export default function MobileBottomNav() {
             }
 
             if (item.profile) {
+              const profileLabel = user ? item.label : 'Sign in';
               return (
                 <button
                   key={item.label}
                   onClick={item.onClick}
-                  aria-label={item.label}
-                  title={item.label}
+                  aria-label={profileLabel}
+                  title={profileLabel}
                   className={`flex items-center justify-center w-full h-full relative transition-all ${
                     active ? 'text-momentum-flare' : 'text-gray-400'
                   }`}
                 >
                   <div className="relative">
-                    <UserAvatar
-                      imageUrl={
-                        extendedUser?.profile?.profile_image_url ??
-                        oauthUser?.google_user_data?.picture ??
-                        null
-                      }
-                      displayName={
-                        extendedUser?.profile?.display_name ??
-                        oauthUser?.google_user_data?.name ??
-                        null
-                      }
-                      seed={user?.id}
-                      sizeClass="w-8 h-8"
-                      letterClassName="text-xs font-semibold"
-                    />
+                    {user ? (
+                      <UserAvatar
+                        imageUrl={
+                          extendedUser?.profile?.profile_image_url ??
+                          oauthUser?.google_user_data?.picture ??
+                          null
+                        }
+                        displayName={
+                          extendedUser?.profile?.display_name ??
+                          oauthUser?.google_user_data?.name ??
+                          null
+                        }
+                        seed={user.id}
+                        sizeClass="w-8 h-8"
+                        letterClassName="text-xs font-semibold"
+                      />
+                    ) : (
+                      <>
+                        <svg aria-hidden className="absolute h-0 w-0 overflow-hidden">
+                          <defs>
+                            <linearGradient
+                              id={signInGradId}
+                              x1="0%"
+                              y1="0%"
+                              x2="100%"
+                              y2="100%"
+                            >
+                              <stop offset="0%" stopColor="#84cc16" />
+                              <stop offset="50%" stopColor="#16a34a" />
+                              <stop offset="100%" stopColor="#0f766e" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                        <div
+                          className="flex h-8 w-8 items-center justify-center rounded-full p-[1.5px]"
+                          style={{ backgroundImage: 'var(--momentum-grad)' }}
+                        >
+                          <div className="flex h-full w-full items-center justify-center rounded-full bg-transparent">
+                            <LogIn
+                              className="h-4 w-4"
+                              stroke={`url(#${signInGradId})`}
+                              aria-hidden
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  {active && (
+                  {active && user && (
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 momentum-grad-interactive rounded-full" />
                   )}
                 </button>

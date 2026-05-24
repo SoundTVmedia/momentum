@@ -119,7 +119,7 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
         </div>
       </div>
 
-      {renderRoleDashboard()}
+      <div className="hidden md:block">{renderRoleDashboard()}</div>
     </div>
   );
 }
