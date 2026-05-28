@@ -12,15 +12,12 @@ import { artistPath, songPath } from '@/shared/app-paths';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipShareUrl } from '@/shared/clip-share';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
-import { useCarouselFilmstrip } from '@/react-app/components/HorizontalClipCarousel';
-
 export type ClipFeedGridTileProps = {
   clip: ClipWithUser;
   onOpenClip: (clip: ClipWithUser) => void;
 };
 
 export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileProps) {
-  const showFilmstrip = useCarouselFilmstrip();
   const navigate = useNavigate();
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
@@ -78,19 +75,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
   };
 
   return (
-    <div
-      className={`glass-clip-card group flex h-full w-full flex-col p-0 ${showFilmstrip ? 'clip-card-with-filmstrip' : ''}`}
-    >
-      {showFilmstrip ? (
-        <>
-          <div className="clip-filmstrip-rail clip-filmstrip-rail--left" aria-hidden>
-            <div className="clip-filmstrip-sprockets" />
-          </div>
-          <div className="clip-filmstrip-rail clip-filmstrip-rail--right" aria-hidden>
-            <div className="clip-filmstrip-sprockets" />
-          </div>
-        </>
-      ) : null}
+    <div className="glass-clip-card group flex h-full w-full flex-col p-0">
       <div
         className="glass-clip-media-frame relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-t-[0.9rem]"
         onClick={() => onOpenClip(clip)}

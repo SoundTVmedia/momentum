@@ -187,7 +187,7 @@ export default function ClipFeedPreviewMedia({
   return (
     <div
       ref={containerRef}
-      className={`absolute inset-0 overflow-hidden bg-black ${className}`.trim()}
+      className={`clip-feed-preview absolute inset-0 overflow-hidden bg-black rounded-[inherit] ${className}`.trim()}
       onMouseEnter={hoverFromParent ? undefined : () => setInternalHovering(true)}
       onMouseLeave={hoverFromParent ? undefined : () => setInternalHovering(false)}
     >
@@ -195,7 +195,7 @@ export default function ClipFeedPreviewMedia({
         <video
           ref={videoRef}
           src={previewVideoSrc}
-          className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+          className="clip-feed-preview__video absolute inset-0 h-full w-full object-cover pointer-events-none rounded-[inherit]"
           muted
           loop
           playsInline
@@ -205,7 +205,7 @@ export default function ClipFeedPreviewMedia({
       <img
         src={posterSrc}
         alt=""
-        className={`absolute inset-0 h-full w-full object-cover pointer-events-none transition-opacity duration-200 ${
+        className={`clip-feed-preview__poster absolute inset-0 h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
           thumbHidden ? 'opacity-0' : 'opacity-100'
         }`}
         loading="lazy"

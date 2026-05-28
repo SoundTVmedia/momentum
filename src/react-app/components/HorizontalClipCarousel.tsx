@@ -231,12 +231,29 @@ export function HorizontalClipCarouselItem({
   className?: string;
 }) {
   const stretch = useContext(CarouselStretchContext);
+  const filmstrip = useContext(CarouselFilmstripContext);
+  const inner = stretch ? (
+    <div className="flex h-full min-h-full w-full flex-col">{children}</div>
+  ) : (
+    children
+  );
+
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 snap-start snap-always ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:basis-auto md:max-w-none ${CLIP_CAROUSEL_ITEM_WIDTH_CLASS} ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
+      className={`flex-shrink-0 snap-start snap-always ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:basis-auto md:max-w-none ${CLIP_CAROUSEL_ITEM_WIDTH_CLASS} ${filmstrip ? 'clip-carousel-item-with-filmstrip' : ''} ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
     >
-      {stretch ? <div className="flex h-full min-h-full w-full flex-col">{children}</div> : children}
+      {filmstrip ? (
+        <>
+          <div className="clip-filmstrip-rail clip-filmstrip-rail--left" aria-hidden>
+            <div className="clip-filmstrip-sprockets" />
+          </div>
+          <div className="clip-filmstrip-rail clip-filmstrip-rail--right" aria-hidden>
+            <div className="clip-filmstrip-sprockets" />
+          </div>
+        </>
+      ) : null}
+      {inner}
     </div>
   );
 }

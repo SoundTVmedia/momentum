@@ -641,6 +641,17 @@ body {
     position: relative;
     z-index: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.9rem 0.9rem 0 0;
+    overflow: hidden;
+    isolation: isolate;
+    transform: translateZ(0);
+  }
+
+  /* Hover preview video must clip to the same radius as the card (WebKit compositing). */
+  .glass-clip-media-frame .clip-feed-preview,
+  .glass-clip-media-frame .clip-feed-preview__video,
+  .glass-clip-media-frame .clip-feed-preview__poster {
+    border-radius: inherit;
   }
 
   .glass-clip-overlay-top {
@@ -675,11 +686,15 @@ body {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
-  /* Horizontal carousel — perforated film strip bridging adjacent clips */
-  .clip-card-with-filmstrip {
+  /* Horizontal carousel — perforated film strip on item wrapper (card keeps overflow hidden) */
+  .clip-carousel-item-with-filmstrip {
+    position: relative;
     margin-left: -3px;
     margin-right: -3px;
-    overflow: visible;
+  }
+
+  .clip-carousel-item-with-filmstrip .clip-filmstrip-rail {
+    z-index: 30;
   }
 
   .clip-filmstrip-rail {
@@ -689,6 +704,7 @@ body {
     width: 11px;
     z-index: 25;
     pointer-events: none;
+    opacity: 0.85;
     background: linear-gradient(
       180deg,
       rgba(34, 211, 238, 0.95) 0%,
@@ -725,7 +741,6 @@ body {
     background-size: 100% 9px;
     background-repeat: repeat-y;
     background-position: center top;
-    opacity: 0.92;
   }
 
   .clip-filmstrip-rail::before,
