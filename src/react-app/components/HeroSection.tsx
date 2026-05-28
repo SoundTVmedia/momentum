@@ -3,7 +3,7 @@ import HeroSearchBar from '@/react-app/components/HeroSearchBar';
 export default function HeroSection() {
   return (
     <section
-      className="relative z-30 overflow-x-hidden overflow-y-visible bg-[#041210]"
+      className="relative z-30 overflow-x-hidden overflow-y-visible bg-momentum-ink"
       aria-label="Search"
     >
       <div className="absolute inset-0 hero-grad-base" aria-hidden />
@@ -24,6 +24,9 @@ export default function HeroSection() {
 
       <div className="relative z-10 flex flex-col justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <div className="mx-auto w-full max-w-7xl">
+          <h1 className="font-headline mb-5 text-center text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight momentum-grad-text">
+            Where Live Music Lives
+          </h1>
           <HeroSearchBar />
         </div>
       </div>

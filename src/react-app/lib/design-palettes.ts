@@ -8,7 +8,8 @@
 export type DesignPaletteId =
   | 'orange-version'
   | 'green-option-1'
-  | 'green-option-2';
+  | 'green-option-2'
+  | 'neon-blue';
 
 export type DesignPalette = {
   id: DesignPaletteId;
@@ -88,13 +89,34 @@ export const GREEN_OPTION_2: DesignPalette = {
   },
 };
 
+/** Neon cyan → electric blue → indigo (ACTIVE). */
+export const NEON_BLUE: DesignPalette = {
+  id: 'neon-blue',
+  label: 'Neon blue',
+  description: 'Neon cyan into electric blue, resolving to deep indigo.',
+  tailwindGradient:
+    'bg-gradient-to-bl from-[#22d3ee] via-[#3b82f6] to-[#6366f1]',
+  momentumGrad:
+    'linear-gradient(to bottom left, #22d3ee 0%, #3b82f6 50%, #6366f1 100%)',
+  tokens: {
+    ember: '#22D3EE',
+    flare: '#3B82F6',
+    rose: '#6366F1',
+    glacier: '#67E8F9',
+    copper: '#1E3A5F',
+    ink: '#030712',
+    smoke: '#0F172A',
+  },
+};
+
 export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
   'orange-version': ORANGE_VERSION,
   'green-option-1': GREEN_OPTION_1,
   'green-option-2': GREEN_OPTION_2,
+  'neon-blue': NEON_BLUE,
 };
 
 /** Palette currently wired in tailwind.config.js + index.css */
-export const ACTIVE_PALETTE_ID: DesignPaletteId = 'green-option-2';
+export const ACTIVE_PALETTE_ID: DesignPaletteId = 'neon-blue';
 
 export const ACTIVE_PALETTE = DESIGN_PALETTES[ACTIVE_PALETTE_ID];

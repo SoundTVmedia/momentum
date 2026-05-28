@@ -49,7 +49,7 @@ export default function TrendingFilmstrip() {
         {loading && clips.length === 0 ? (
           <div className="flex space-x-3 sm:space-x-4 overflow-x-auto pb-4 scrollbar-hide">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="flex-shrink-0 w-40 sm:w-48 md:w-56 animate-pulse">
+              <div key={i} className="flex-shrink-0 w-28 sm:w-[8.4rem] md:w-40 animate-pulse">
                 <div className="aspect-[4/3] bg-white/10 rounded-lg mb-2" />
                 <div className="h-3 bg-white/10 rounded mb-1" />
                 <div className="h-2 bg-white/10 rounded w-3/4" />
@@ -64,7 +64,7 @@ export default function TrendingFilmstrip() {
                 <button
                   key={clipListItemKey(clip, index)}
                   onClick={() => handleClipClick(clip)}
-                  className="flex-shrink-0 w-40 sm:w-48 md:w-56 group cursor-pointer snap-start"
+                  className="flex-shrink-0 w-28 sm:w-[8.4rem] md:w-40 group cursor-pointer snap-start"
                 >
                   {/* Thumbnail + hover preview (desktop: video only, no play chip) */}
                   <div

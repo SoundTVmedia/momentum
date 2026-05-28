@@ -29,6 +29,7 @@ export default function ClipFeedCarousel({
       ariaLabel={ariaLabel}
       className={className}
       stretchItems
+      filmstrip
     >
       {clips.map((clip, index) => (
         <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>

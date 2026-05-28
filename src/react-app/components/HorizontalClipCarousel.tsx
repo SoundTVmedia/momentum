@@ -9,9 +9,14 @@ import {
   type ReactNode,
 } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { MOBILE_CAROUSEL_ITEM_PEEK_CLASS } from '@/react-app/lib/homeFeedLayout';
+import {
+  CLIP_CAROUSEL_GAP_CLASS,
+  CLIP_CAROUSEL_ITEM_WIDTH_CLASS,
+  MOBILE_CAROUSEL_ITEM_PEEK_CLASS,
+} from '@/react-app/lib/homeFeedLayout';
 
 const CarouselStretchContext = createContext(false);
+const CarouselFilmstripContext = createContext(false);
 
 export type HorizontalClipCarouselProps = {
   children: ReactNode;
@@ -20,11 +25,19 @@ export type HorizontalClipCarouselProps = {
   ariaLabel?: string;
   /** Stretch carousel items to equal height (e.g. event cards with aligned footers). */
   stretchItems?: boolean;
+  /** Perforated film-strip rail on the right edge of each clip card. */
+  filmstrip?: boolean;
 };
 
 const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarouselProps>(
   function HorizontalClipCarousel(
-    { children, className = '', ariaLabel = 'Clips carousel', stretchItems = false },
+    {
+      children,
+      className = '',
+      ariaLabel = 'Clips carousel',
+      stretchItems = false,
+      filmstrip = false,
+    },
     forwardedRef,
   ) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -165,12 +178,13 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
 
   return (
     <CarouselStretchContext.Provider value={stretchItems}>
+    <CarouselFilmstripContext.Provider value={filmstrip}>
     <div className={`relative group/carousel ${className}`}>
       <div
         ref={setScrollRef}
         role="region"
         aria-label={ariaLabel}
-        className={`flex max-md:gap-3 gap-0 md:gap-4 overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 max-md:scroll-ps-0 max-md:scroll-pe-4 md:px-10 md:touch-pan-x ${stretchItems ? 'items-stretch' : 'items-start'}`}
+        className={`flex overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 max-md:scroll-ps-0 max-md:scroll-pe-4 md:px-10 md:touch-pan-x ${filmstrip ? CLIP_CAROUSEL_GAP_CLASS : 'max-md:gap-3 gap-0 md:gap-4'} ${stretchItems ? 'items-stretch' : 'items-start'}`}
       >
         {children}
       </div>
@@ -197,10 +211,15 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
         </button>
       </div>
     </div>
+    </CarouselFilmstripContext.Provider>
     </CarouselStretchContext.Provider>
   );
   },
 );
+
+export function useCarouselFilmstrip() {
+  return useContext(CarouselFilmstripContext);
+}
 
 export default HorizontalClipCarousel;
 
@@ -215,7 +234,7 @@ export function HorizontalClipCarouselItem({
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 snap-start snap-always ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:basis-auto md:w-72 md:max-w-none lg:w-80 ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
+      className={`flex-shrink-0 snap-start snap-always ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:basis-auto md:max-w-none ${CLIP_CAROUSEL_ITEM_WIDTH_CLASS} ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
     >
       {stretch ? <div className="flex h-full min-h-full w-full flex-col">{children}</div> : children}
     </div>

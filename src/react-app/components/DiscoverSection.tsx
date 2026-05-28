@@ -120,7 +120,7 @@ export default function DiscoverSection() {
               className={`px-4 py-2 rounded-full font-medium transition-all ${
                 filter === 'nearby'
                   ? 'bg-gradient-to-r from-momentum-ember to-momentum-flare text-white'
-                  : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-green-500/20 hover:border-green-400/40'
+                  : 'bg-black/30 text-gray-300 hover:bg-black/50 border border-momentum-flare/20 hover:border-momentum-ember/40'
               }`}
             >
               <div className="flex items-center space-x-1">
