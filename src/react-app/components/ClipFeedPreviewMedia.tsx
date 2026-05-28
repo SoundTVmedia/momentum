@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   type ClipPlaybackFields,
+  prefetchFeedPreviewMp4,
   resolveClipPosterUrl,
   resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
@@ -92,6 +93,12 @@ export default function ClipFeedPreviewMedia({
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, []);
+
+  useEffect(() => {
+    if (inView && previewVideoSrc) {
+      prefetchFeedPreviewMp4(previewVideoSrc);
+    }
+  }, [inView, previewVideoSrc]);
 
   useEffect(() => {
     const el = containerRef.current;

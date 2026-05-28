@@ -176,6 +176,10 @@ export default function DashboardClipsGrid({
                 <ClipFeedGridTile
                   clip={clipWithUser}
                   onOpenClip={(c) => setSelectedClip(c as unknown as DashboardGridClip)}
+                  neighborClips={{
+                    prev: index > 0 ? clips[index - 1] : undefined,
+                    next: clips[index + 1],
+                  }}
                 />
 
                 {(showEdit || showDelete) && (

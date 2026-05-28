@@ -4,7 +4,7 @@ import { artistPath } from '@/shared/app-paths';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
-import { MOBILE_CAROUSEL_ITEM_PEEK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 export type DiscoverArtist = {
   name: string;
@@ -34,7 +34,7 @@ export default function DiscoverArtistCarousel({
       {artists.map((artist) => (
         <HorizontalClipCarouselItem
           key={artist.jambase_id ?? artist.name}
-          className={`md:w-44 lg:w-48 ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS}`}
+          className="md:w-44 lg:w-48"
         >
           <button
             type="button"

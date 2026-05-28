@@ -20,7 +20,8 @@ export default function HeroSearchBar({
   const navigate = useNavigate();
   const [query, setQuery] = useState(initialQuery);
   const [showResults, setShowResults] = useState(false);
-  const { results, loading, scheduleSearch, cancelSearch, reset } = useAdvancedSearch();
+  const { results, loading, revalidating, scheduleSearch, cancelSearch, reset } =
+    useAdvancedSearch();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [clipModal, setClipModal] = useState<{
@@ -112,6 +113,7 @@ export default function HeroSearchBar({
             query={query}
             open={showResults}
             loading={loading}
+            revalidating={revalidating}
             results={results}
             onClose={closeSearchUi}
             onDiscoverAll={goToDiscover}

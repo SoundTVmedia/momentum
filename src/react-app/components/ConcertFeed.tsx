@@ -164,7 +164,14 @@ export default function ConcertFeed({
             >
               {clips.map((clip, index) => (
                 <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
-                  <ClipFeedGridTile clip={clip} onOpenClip={setSelectedClip} />
+                  <ClipFeedGridTile
+                    clip={clip}
+                    onOpenClip={setSelectedClip}
+                    neighborClips={{
+                      prev: clips[index - 1],
+                      next: clips[index + 1],
+                    }}
+                  />
                 </HorizontalClipCarouselItem>
               ))}
               {hasMore ? (

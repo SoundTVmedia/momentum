@@ -179,3 +179,40 @@ export async function buildTightJamBaseEventResults(
 
   return merged.slice(0, maxResults);
 }
+
+/**
+ * One JamBase `/events` call for typeahead / compact search (vs up to ~8 calls in tight mode).
+ */
+export async function buildFastJamBaseEventResults(
+  apiKey: string,
+  query: string,
+  maxResults = 8,
+  quota?: JamBaseQuotaContext,
+): Promise<unknown[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const qLower = q.toLowerCase();
+  const phrase = jamBaseArtistVenueSearchPhrase(q);
+  const fromDate = jamBaseEventDateFromToday();
+
+  const fallback = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+    apiKey,
+    '/events',
+    {
+      artistName: phrase,
+      eventDateFrom: fromDate,
+      perPage: String(Math.min(24, Math.max(maxResults, 8))),
+      page: '1',
+    },
+    quota,
+  );
+
+  let merged = dedupeJamBaseEvents(fallback?.events ?? []);
+  merged = merged.filter((ev) => eventMatchesQuery(ev, qLower));
+  merged.sort((a, b) => {
+    const da = typeof a.startDate === 'string' ? a.startDate : '';
+    const db = typeof b.startDate === 'string' ? b.startDate : '';
+    return da.localeCompare(db);
+  });
+  return merged.slice(0, maxResults);
+}

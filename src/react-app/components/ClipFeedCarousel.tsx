@@ -33,7 +33,14 @@ export default function ClipFeedCarousel({
     >
       {clips.map((clip, index) => (
         <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
-          <ClipFeedGridTile clip={clip} onOpenClip={onOpenClip} />
+          <ClipFeedGridTile
+            clip={clip}
+            onOpenClip={onOpenClip}
+            neighborClips={{
+              prev: clips[index - 1],
+              next: clips[index + 1],
+            }}
+          />
         </HorizontalClipCarouselItem>
       ))}
     </HorizontalClipCarousel>

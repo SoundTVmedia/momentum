@@ -186,7 +186,7 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
         ref={setScrollRef}
         role="region"
         aria-label={ariaLabel}
-        className={`flex overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 max-md:scroll-ps-0 max-md:scroll-pe-4 md:px-10 md:touch-pan-x ${filmstrip ? CLIP_CAROUSEL_GAP_CLASS : 'max-md:gap-3 gap-0 md:gap-4'} ${stretchItems ? 'items-stretch' : 'items-start'}`}
+        className={`flex overflow-x-auto overscroll-x-contain scroll-smooth scrollbar-hide snap-x snap-mandatory pb-1 max-md:scroll-ps-0 max-md:scroll-pe-4 md:pl-0 md:pr-10 md:scroll-pl-0 md:touch-pan-x ${filmstrip ? CLIP_CAROUSEL_GAP_CLASS : 'max-md:gap-3 gap-0 md:gap-4'} ${stretchItems ? 'items-stretch' : 'items-start'}`}
       >
         {children}
       </div>

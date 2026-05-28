@@ -116,6 +116,31 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
 }
 
 const prefetchedModalSrc = new Set<string>();
+const prefetchedFeedMp4 = new Set<string>();
+
+/** Warm CDN MP4 for feed hover / scroll (best-effort; avoids HLS in grid). */
+export function prefetchFeedPreviewMp4(src: string | null | undefined): void {
+  const url = typeof src === 'string' ? src.trim() : '';
+  if (!url || prefetchedFeedMp4.has(url) || isHlsPlaybackUrl(url)) return;
+  prefetchedFeedMp4.add(url);
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.as = 'video';
+  link.href = url;
+  document.head.appendChild(link);
+  window.setTimeout(() => link.remove(), 45_000);
+}
+
+/** Warm feed MP4 + modal HLS for carousel neighbors on hover (best-effort). */
+export function prefetchCarouselNeighborClips(
+  neighbors: { next?: ClipPlaybackFields | null; prev?: ClipPlaybackFields | null },
+): void {
+  for (const clip of [neighbors.prev, neighbors.next]) {
+    if (!clip) continue;
+    prefetchFeedPreviewMp4(resolveFeedPreviewVideoSrc(clip));
+    prefetchModalPlayback(clip);
+  }
+}
 
 /** Warm the network cache for the next/prev clip in a modal feed (best-effort). */
 export function prefetchModalPlayback(clip: ClipPlaybackFields): void {

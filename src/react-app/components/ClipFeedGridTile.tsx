@@ -12,12 +12,23 @@ import { artistPath, songPath, venuePath } from '@/shared/app-paths';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipShareUrl } from '@/shared/clip-share';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import {
+  type ClipPlaybackFields,
+  prefetchCarouselNeighborClips,
+} from '@/shared/clip-playback';
+
 export type ClipFeedGridTileProps = {
   clip: ClipWithUser;
   onOpenClip: (clip: ClipWithUser) => void;
+  /** When set, hover prefetches adjacent carousel clips (feed MP4 + modal source). */
+  neighborClips?: { next?: ClipPlaybackFields | null; prev?: ClipPlaybackFields | null };
 };
 
-export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileProps) {
+export default function ClipFeedGridTile({
+  clip,
+  onOpenClip,
+  neighborClips,
+}: ClipFeedGridTileProps) {
   const navigate = useNavigate();
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
@@ -79,7 +90,10 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
       <div
         className="glass-clip-media-frame relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-t-[0.9rem]"
         onClick={() => onOpenClip(clip)}
-        onMouseEnter={() => setMediaHovered(true)}
+        onMouseEnter={() => {
+          setMediaHovered(true);
+          if (neighborClips) prefetchCarouselNeighborClips(neighborClips);
+        }}
         onMouseLeave={() => setMediaHovered(false)}
       >
         <ClipFeedPreviewMedia

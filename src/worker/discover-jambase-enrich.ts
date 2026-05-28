@@ -65,6 +65,27 @@ function jamBaseVenueId(venue: Record<string, unknown>): string | null {
   return typeof id === 'string' && id.trim() ? id.trim() : null;
 }
 
+const ENRICH_CONCURRENCY = 4;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) break;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 function jamBaseVenueLocation(venue: Record<string, unknown>): string | null {
   const addr = venue.address as Record<string, unknown> | undefined;
   const region = addr?.addressRegion as Record<string, unknown> | undefined;
@@ -184,12 +205,8 @@ export async function enrichTrendingArtistsWithJamBase(
     return artists;
   }
 
-  const out: TrendingArtistRow[] = [];
-  for (const row of artists) {
-    if (row.image_url) {
-      out.push(row);
-      continue;
-    }
+  return mapWithConcurrency(artists, ENRICH_CONCURRENCY, async (row) => {
+    if (row.image_url?.trim()) return row;
 
     let imageUrl: string | null = null;
     let jambaseId = row.jambase_id;
@@ -213,14 +230,12 @@ export async function enrichTrendingArtistsWithJamBase(
       console.warn('enrichTrendingArtistsWithJamBase:', row.name, e);
     }
 
-    out.push({
+    return {
       ...row,
       image_url: imageUrl ?? row.image_url,
       jambase_id: jambaseId,
-    });
-  }
-
-  return out;
+    };
+  });
 }
 
 /** Match search artists to the JamBase catalog returned for the same query, then fetch any remaining images. */
@@ -237,6 +252,7 @@ export async function enrichSearchArtistsWithJamBase(
   const matched = artists.map((row) => applyJamBaseArtistRow(row, catalog, byName));
   const key = typeof apiKey === 'string' ? apiKey.trim() : '';
   if (!key) return matched;
+  if (!matched.some((row) => !row.image_url?.trim())) return matched;
   return enrichTrendingArtistsWithJamBase(key, jbQ, matched);
 }
 
@@ -256,12 +272,10 @@ export async function enrichSearchVenuesWithJamBase(
   const key = typeof apiKey === 'string' ? apiKey.trim() : '';
   if (!key) return matched;
 
-  const out: SearchVenueRow[] = [];
-  for (const row of matched) {
-    if (row.image_url?.trim()) {
-      out.push(row);
-      continue;
-    }
+  if (!matched.some((row) => !row.image_url?.trim())) return matched;
+
+  return mapWithConcurrency(matched, ENRICH_CONCURRENCY, async (row) => {
+    if (row.image_url?.trim()) return row;
     let imageUrl: string | null = null;
     let jambaseId = row.jambase_id;
     let location = row.location;
@@ -275,14 +289,13 @@ export async function enrichSearchVenuesWithJamBase(
     } catch (e) {
       console.warn('enrichSearchVenuesWithJamBase:', row.name, e);
     }
-    out.push({
+    return {
       ...row,
       image_url: imageUrl ?? row.image_url,
       jambase_id: jambaseId,
       location,
-    });
-  }
-  return out;
+    };
+  });
 }
 
 export async function fetchNearbyJamBaseEvents(

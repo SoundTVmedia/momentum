@@ -25,7 +25,8 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const { results, loading, scheduleSearch, cancelSearch, reset } = useAdvancedSearch()
+  const { results, loading, revalidating, scheduleSearch, cancelSearch, reset } =
+    useAdvancedSearch()
   const [headerClipModal, setHeaderClipModal] = useState<{
     clip: ClipWithUser
     feed: ClipWithUser[]
@@ -128,6 +129,7 @@ export default function Header() {
                 query={searchQuery}
                 open={showSearchResults}
                 loading={loading}
+                revalidating={revalidating}
                 results={results}
                 onClose={closeSearchUi}
                 onDiscoverAll={goToDiscoverSearch}

@@ -15,6 +15,7 @@ type Props = {
   query: string;
   open: boolean;
   loading: boolean;
+  revalidating?: boolean;
   results: AdvancedSearchPayload | null;
   onClose: () => void;
   onDiscoverAll: () => void;
@@ -29,6 +30,7 @@ type Props = {
 
 type PanelProps = {
   loading: boolean;
+  revalidating: boolean;
   results: AdvancedSearchPayload | null;
   onClose: () => void;
   onDiscoverAll: () => void;
@@ -38,6 +40,7 @@ type PanelProps = {
 
 function SearchDropdownPanel({
   loading,
+  revalidating,
   results,
   onClose,
   onDiscoverAll,
@@ -46,21 +49,31 @@ function SearchDropdownPanel({
 }: PanelProps) {
   const navigate = useNavigate();
   const hasHits = advancedSearchHasHits(results);
+  const showResults = Boolean(results) && (hasHits || revalidating);
 
   return (
     <div className={className} role="listbox" aria-label="Search suggestions">
-      {loading && (
+      {revalidating && results && (
+        <div
+          className="flex items-center justify-end gap-1.5 border-b border-white/10 px-3 py-1.5 text-[11px] text-gray-400"
+          aria-live="polite"
+        >
+          <Loader2 className="h-3 w-3 animate-spin text-momentum-flare" />
+          Updating…
+        </div>
+      )}
+      {loading && !results && (
         <div className="flex items-center justify-center gap-2 py-8 text-gray-400 text-sm">
           <Loader2 className="w-5 h-5 animate-spin text-momentum-flare" />
           Searching…
         </div>
       )}
-      {!loading && results && !hasHits && (
+      {!loading && !revalidating && results && !hasHits && (
         <div className="p-4 text-center text-gray-400 text-sm">
           No matches yet — press Enter for full Discover search
         </div>
       )}
-      {!loading && hasHits && results && (
+      {showResults && hasHits && results && (
         <div className="max-h-[min(24rem,70vh)] overflow-y-auto">
           {results.clips.length > 0 && (
             <div className="border-b border-white/10">
@@ -249,6 +262,7 @@ export default function AdvancedSearchDropdown({
   query,
   open,
   loading,
+  revalidating = false,
   results,
   onClose,
   onDiscoverAll,
@@ -293,6 +307,7 @@ export default function AdvancedSearchDropdown({
 
   const panelProps = {
     loading,
+    revalidating,
     results,
     onClose,
     onDiscoverAll,

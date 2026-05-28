@@ -8,6 +8,7 @@ import {
 } from './jambase-client';
 import { cacheJsonProxy } from './performance-utils';
 import {
+  buildFastJamBaseEventResults,
   buildTightJamBaseEventResults,
   jamBaseArtistVenueSearchPhrase,
 } from './jambase-events-search';
@@ -97,11 +98,11 @@ export async function advancedSearch(c: Context) {
 
   clipsQuery += ` LIMIT ${clipLimit}`;
 
-  const clips = await c.env.DB.prepare(clipsQuery).bind(...bindings).all();
-
-  // Search artists
-  const artists = await c.env.DB.prepare(
-    `SELECT 
+  const like = `%${query}%`;
+  const [clips, artists, venues, users] = await Promise.all([
+    c.env.DB.prepare(clipsQuery).bind(...bindings).all(),
+    c.env.DB.prepare(
+      `SELECT 
       clips.artist_name as name,
       MAX(artists.image_url) as image_url,
       MAX(clips.jambase_artist_id) as jambase_id,
@@ -113,14 +114,12 @@ export async function advancedSearch(c: Context) {
     AND clips.is_hidden = 0
     GROUP BY clips.artist_name
     ORDER BY clip_count DESC
-    LIMIT ${artistLimit}`
-  )
-    .bind(`%${query}%`)
-    .all();
-
-  // Search venues
-  const venues = await c.env.DB.prepare(
-    `SELECT 
+    LIMIT ${artistLimit}`,
+    )
+      .bind(like)
+      .all(),
+    c.env.DB.prepare(
+      `SELECT 
       clips.venue_name as name,
       MAX(venues.location) as location,
       MAX(venues.image_url) as image_url,
@@ -133,14 +132,12 @@ export async function advancedSearch(c: Context) {
     AND clips.is_hidden = 0
     GROUP BY clips.venue_name
     ORDER BY clip_count DESC
-    LIMIT ${venueLimit}`
-  )
-    .bind(`%${query}%`)
-    .all();
-
-  // Search users
-  const users = await c.env.DB.prepare(
-    `SELECT 
+    LIMIT ${venueLimit}`,
+    )
+      .bind(like)
+      .all(),
+    c.env.DB.prepare(
+      `SELECT 
       user_profiles.mocha_user_id,
       user_profiles.display_name,
       user_profiles.profile_image_url,
@@ -151,10 +148,11 @@ export async function advancedSearch(c: Context) {
     GROUP BY user_profiles.mocha_user_id
     HAVING clip_count > 0
     ORDER BY clip_count DESC
-    LIMIT ${userLimit}`
-  )
-    .bind(`%${query}%`)
-    .all();
+    LIMIT ${userLimit}`,
+    )
+      .bind(like)
+      .all(),
+  ]);
 
   let jambase: { artists: unknown[]; venues: unknown[]; events: unknown[] } = {
     artists: [],
@@ -170,36 +168,51 @@ export async function advancedSearch(c: Context) {
     const eventCap = compact ? 8 : 18;
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const phrase = jamBaseArtistVenueSearchPhrase(q);
-    const [a, v] = await Promise.all([
-      jamBaseFetch<{ artists?: unknown[] }>(
-        jbKey,
-        '/artists',
-        {
-          artistName: phrase,
-          perPage: jbPer,
-          page: '1',
-        },
-        jbQ
-      ),
-      jamBaseFetch<{ venues?: unknown[] }>(
-        jbKey,
-        '/venues',
-        {
-          venueName: phrase,
-          perPage: jbPer,
-          page: '1',
-        },
-        jbQ
-      ),
-    ]);
-    const tightEvents = await buildTightJamBaseEventResults(jbKey, q, eventCap, jbQ, {
-      artistList: a as { artists?: Record<string, unknown>[] } | null,
-      venueList: v as { venues?: Record<string, unknown>[] } | null,
-    });
+    let a: { artists?: unknown[] } | null;
+    let v: { venues?: unknown[] } | null;
+    let eventList: unknown[];
+
+    if (compact) {
+      [a, v, eventList] = await Promise.all([
+        jamBaseFetch<{ artists?: unknown[] }>(
+          jbKey,
+          '/artists',
+          { artistName: phrase, perPage: jbPer, page: '1' },
+          jbQ,
+        ),
+        jamBaseFetch<{ venues?: unknown[] }>(
+          jbKey,
+          '/venues',
+          { venueName: phrase, perPage: jbPer, page: '1' },
+          jbQ,
+        ),
+        buildFastJamBaseEventResults(jbKey, q, eventCap, jbQ),
+      ]);
+    } else {
+      [a, v] = await Promise.all([
+        jamBaseFetch<{ artists?: unknown[] }>(
+          jbKey,
+          '/artists',
+          { artistName: phrase, perPage: jbPer, page: '1' },
+          jbQ,
+        ),
+        jamBaseFetch<{ venues?: unknown[] }>(
+          jbKey,
+          '/venues',
+          { venueName: phrase, perPage: jbPer, page: '1' },
+          jbQ,
+        ),
+      ]);
+      eventList = await buildTightJamBaseEventResults(jbKey, q, eventCap, jbQ, {
+        artistList: a as { artists?: Record<string, unknown>[] } | null,
+        venueList: v as { venues?: Record<string, unknown>[] } | null,
+      });
+    }
+
     jambase = {
       artists: a?.artists ?? [],
       venues: v?.venues ?? [],
-      events: tightEvents,
+      events: eventList,
     };
     if (a == null && v == null) {
       jambaseNotice =
