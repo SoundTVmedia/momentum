@@ -27,7 +27,7 @@ export default function EventTicketActions({
   };
 
   const ticketsClass =
-    'flex flex-1 min-w-0 items-center justify-center gap-2 px-4 py-2.5 momentum-ticket-btn rounded-lg font-semibold hover:scale-[1.02] transition-transform tap-feedback';
+    'flex flex-1 min-w-0 items-center justify-center gap-1.5 max-md:gap-1 px-3 max-md:px-2.5 py-2.5 max-md:py-2 momentum-ticket-btn rounded-lg text-sm max-md:text-xs font-semibold whitespace-nowrap hover:scale-[1.02] transition-transform tap-feedback';
 
   return (
     <div className={className}>
@@ -35,8 +35,8 @@ export default function EventTicketActions({
         {onGetTicketsClick ? (
           <button type="button" onClick={() => void onGetTicketsClick()} className={ticketsClass}>
             <Ticket className="w-4 h-4 shrink-0" aria-hidden />
-            <span>Get Tickets</span>
-            <ExternalLink className="w-3 h-3 shrink-0 opacity-80" aria-hidden />
+            <span className="whitespace-nowrap">Get Tickets</span>
+            <ExternalLink className="w-3 h-3 max-md:w-2.5 max-md:h-2.5 shrink-0 opacity-80" aria-hidden />
           </button>
         ) : (
           <a
@@ -45,9 +45,9 @@ export default function EventTicketActions({
             rel="nofollow noopener noreferrer"
             className={ticketsClass}
           >
-            <Ticket className="w-4 h-4 shrink-0" aria-hidden />
-            <span>Get Tickets</span>
-            <ExternalLink className="w-3 h-3 shrink-0 opacity-80" aria-hidden />
+            <Ticket className="w-4 h-4 max-md:w-3.5 max-md:h-3.5 shrink-0" aria-hidden />
+            <span className="whitespace-nowrap">Get Tickets</span>
+            <ExternalLink className="w-3 h-3 max-md:w-2.5 max-md:h-2.5 shrink-0 opacity-80" aria-hidden />
           </a>
         )}
         <button

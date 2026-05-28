@@ -316,7 +316,11 @@ export default function PersonalizedConcerts({
           className={carouselBleed}
         >
           {d1Concerts.map((concert) => (
-            <HorizontalClipCarouselItem key={concert.id} className="md:w-80 lg:w-96">
+            <HorizontalClipCarouselItem
+              key={concert.id}
+              mobilePeek="event"
+              className="md:w-80 lg:w-96"
+            >
               <D1ConcertCard concert={concert} />
             </HorizontalClipCarouselItem>
           ))}

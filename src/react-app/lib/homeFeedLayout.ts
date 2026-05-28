@@ -13,9 +13,13 @@ export const HOME_FEED_SECTION_CLASS = 'mb-8 md:mb-6';
 export const EVENT_CAROUSEL_CARD_CLASS =
   'flex h-full min-h-[24rem] w-full flex-col';
 
-/** Mobile carousel tiles: ~one card plus a peek of the next (swipe affordance). */
+/** Mobile clip carousel tiles: ~one card plus a peek of the next (swipe affordance). */
 export const MOBILE_CAROUSEL_ITEM_PEEK_CLASS =
   'max-md:w-[57%] max-md:max-w-[57%] max-md:basis-[57%]';
+
+/** Mobile event/show cards — wider so ticket CTAs stay on one line. */
+export const EVENT_MOBILE_CAROUSEL_ITEM_PEEK_CLASS =
+  'max-md:w-[86%] max-md:max-w-[86%] max-md:basis-[86%]';
 
 /** Desktop clip carousel tile width (~70% of prior w-72 / w-80). */
 export const CLIP_CAROUSEL_ITEM_WIDTH_CLASS = 'md:w-50 lg:w-56';

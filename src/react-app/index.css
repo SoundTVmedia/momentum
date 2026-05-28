@@ -461,29 +461,29 @@ body {
     @apply max-w-2xl mx-auto text-center;
   }
 
-  /* Clip card overlay metadata */
+  /* Clip card overlay metadata — tight line-height for compact tiles */
   .fb-clip-artist-name {
-    @apply font-headline text-base sm:text-lg md:text-sm lg:text-base font-bold text-white hover:text-momentum-flare transition-colors drop-shadow-lg block text-left w-full truncate;
+    @apply font-headline text-base sm:text-lg md:text-sm lg:text-base font-bold leading-tight text-white hover:text-momentum-flare transition-colors drop-shadow-lg block text-left w-full truncate;
   }
 
   .fb-clip-song {
-    @apply text-xs sm:text-sm md:text-[11px] font-semibold text-momentum-glacier hover:text-momentum-ember transition-colors drop-shadow block text-left w-full truncate;
+    @apply text-xs sm:text-sm md:text-[11px] font-semibold leading-tight text-momentum-glacier hover:text-momentum-ember transition-colors drop-shadow block text-left w-full truncate;
   }
 
   .fb-clip-venue {
-    @apply flex items-center gap-1 text-xs sm:text-sm md:text-[11px] text-white/90 hover:text-white transition-colors drop-shadow w-full min-w-0;
+    @apply flex items-center gap-1 text-xs sm:text-sm md:text-[11px] leading-tight text-white/90 hover:text-white transition-colors drop-shadow w-full min-w-0;
   }
 
   .fb-clip-caption {
-    @apply text-xs sm:text-sm md:text-[11px] text-white/80 leading-snug drop-shadow line-clamp-2;
+    @apply text-xs sm:text-sm md:text-[11px] text-white/80 leading-tight drop-shadow line-clamp-2;
   }
 
   .fb-clip-user {
-    @apply text-xs sm:text-sm font-semibold text-white truncate drop-shadow-lg;
+    @apply text-xs sm:text-sm font-semibold leading-tight text-white truncate drop-shadow-lg;
   }
 
   .fb-clip-meta-muted {
-    @apply text-[10px] sm:text-xs text-white/70 drop-shadow;
+    @apply text-[10px] sm:text-xs leading-none text-white/70 drop-shadow;
   }
 
   .fb-panel-title {
@@ -504,13 +504,54 @@ body {
     animation: hero-grad-base-shift 28s ease-in-out infinite;
   }
 
+  .hero-concert-photo {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.85) 55%,
+      rgba(0, 0, 0, 0.2) 88%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 1) 0%,
+      rgba(0, 0, 0, 0.85) 55%,
+      rgba(0, 0, 0, 0.2) 88%,
+      transparent 100%
+    );
+  }
+
+  .hero-concert-photo__img {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    object-position: center 38%;
+    opacity: 0.38;
+    filter: saturate(1.2) contrast(1.08);
+  }
+
+  /* Blue-tint scrim so the photo melts into the neon gradient shell */
+  .hero-concert-scrim {
+    background: linear-gradient(
+      165deg,
+      rgba(3, 7, 18, 0.72) 0%,
+      rgba(59, 130, 246, 0.28) 42%,
+      rgba(99, 102, 241, 0.22) 68%,
+      rgba(3, 7, 18, 0.88) 100%
+    );
+    mix-blend-mode: multiply;
+  }
+
   .hero-grad-brand {
     background-image: linear-gradient(
       to bottom left,
       rgba(34, 211, 238, 0.22) 0%,
       rgba(59, 130, 246, 0.18) 38%,
       rgba(99, 102, 241, 0.26) 72%,
-      rgba(4, 18, 16, 0.55) 100%
+      rgba(3, 7, 18, 0.55) 100%
     );
     background-size: 220% 220%;
     animation: hero-grad-brand-shift 22s ease-in-out infinite alternate;
@@ -679,11 +720,16 @@ body {
   .glass-clip-actions {
     position: relative;
     z-index: 3;
+    line-height: 1;
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(22px) saturate(170%);
     -webkit-backdrop-filter: blur(22px) saturate(170%);
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-clip-actions span {
+    @apply leading-none;
   }
 
   /* Horizontal carousel — perforated film strip on item wrapper (card keeps overflow hidden) */

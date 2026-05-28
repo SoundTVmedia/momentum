@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   CLIP_CAROUSEL_GAP_CLASS,
   CLIP_CAROUSEL_ITEM_WIDTH_CLASS,
+  EVENT_MOBILE_CAROUSEL_ITEM_PEEK_CLASS,
   MOBILE_CAROUSEL_ITEM_PEEK_CLASS,
 } from '@/react-app/lib/homeFeedLayout';
 
@@ -226,12 +227,17 @@ export default HorizontalClipCarousel;
 export function HorizontalClipCarouselItem({
   children,
   className = '',
+  mobilePeek = 'clip',
 }: {
   children: ReactNode;
   className?: string;
+  /** `event` uses a wider mobile tile so ticket buttons do not wrap. */
+  mobilePeek?: 'clip' | 'event';
 }) {
   const stretch = useContext(CarouselStretchContext);
   const filmstrip = useContext(CarouselFilmstripContext);
+  const mobilePeekClass =
+    mobilePeek === 'event' ? EVENT_MOBILE_CAROUSEL_ITEM_PEEK_CLASS : MOBILE_CAROUSEL_ITEM_PEEK_CLASS;
   const inner = stretch ? (
     <div className="flex h-full min-h-full w-full flex-col">{children}</div>
   ) : (
@@ -241,7 +247,7 @@ export function HorizontalClipCarouselItem({
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 snap-start snap-always ${MOBILE_CAROUSEL_ITEM_PEEK_CLASS} md:basis-auto md:max-w-none ${CLIP_CAROUSEL_ITEM_WIDTH_CLASS} ${filmstrip ? 'clip-carousel-item-with-filmstrip' : ''} ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
+      className={`flex-shrink-0 snap-start snap-always ${mobilePeekClass} md:basis-auto md:max-w-none ${mobilePeek === 'clip' ? CLIP_CAROUSEL_ITEM_WIDTH_CLASS : ''} ${filmstrip ? 'clip-carousel-item-with-filmstrip' : ''} ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
     >
       {filmstrip ? (
         <>

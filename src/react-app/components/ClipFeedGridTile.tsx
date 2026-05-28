@@ -116,7 +116,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           </div>
         )}
 
-        <div className="glass-clip-overlay-top absolute top-0 left-0 right-0 z-[3] p-2 sm:p-3 md:p-1.5 lg:p-3">
+        <div className="glass-clip-overlay-top absolute top-0 left-0 right-0 z-[3] px-3 py-2.5 sm:px-3.5 sm:py-3 md:px-3 md:py-2.5 lg:px-3.5 lg:py-3">
           <button
             type="button"
             onClick={(e) => {
@@ -146,7 +146,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           </button>
         </div>
 
-        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] p-2 sm:p-3 md:p-1.5 lg:p-3 space-y-1 md:space-y-0.5 lg:space-y-1">
+        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] px-3 py-2.5 sm:px-3.5 sm:py-3 md:px-3 md:py-2.5 lg:px-3.5 lg:py-3 space-y-0.5 md:space-y-0.5 lg:space-y-1">
           {clip.artist_name && (
             <button
               type="button"
@@ -196,7 +196,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
         </div>
       </div>
 
-      <div className="glass-clip-actions flex items-center justify-between rounded-b-[0.9rem] px-2 py-2 sm:px-3 sm:py-3 md:px-2 md:py-2 lg:px-3 lg:py-3">
+      <div className="glass-clip-actions flex items-center justify-between rounded-b-[0.9rem] px-3 py-2.5 sm:px-3.5 sm:py-3 md:px-3 md:py-2.5 lg:px-3.5 lg:py-3">
         <div className="flex items-center justify-between w-full gap-1 sm:gap-2 md:gap-1 lg:gap-3">
           <button
             type="button"

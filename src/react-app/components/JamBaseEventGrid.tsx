@@ -179,7 +179,7 @@ function JamBaseEventCard({
         )}
       </div>
 
-      <div className="p-5 flex flex-col flex-1">
+      <div className="p-4 max-md:p-4 sm:p-5 flex flex-col flex-1">
         <h3 className="font-bold text-lg text-white mb-2 group-hover:text-momentum-flare transition-colors line-clamp-2 shrink-0">
           {title}
         </h3>
@@ -338,7 +338,11 @@ export default function JamBaseEventGrid({
           className={carouselClassName}
         >
           {Array.from({ length: 3 }).map((_, i) => (
-            <HorizontalClipCarouselItem key={`sk-${i}`} className="md:w-80 lg:w-96">
+            <HorizontalClipCarouselItem
+              key={`sk-${i}`}
+              mobilePeek="event"
+              className="md:w-80 lg:w-96"
+            >
               {eventSkeleton}
             </HorizontalClipCarouselItem>
           ))}
@@ -396,7 +400,11 @@ export default function JamBaseEventGrid({
           className={carouselClassName}
         >
           {display.map((event) => (
-            <HorizontalClipCarouselItem key={eventId(event)} className="md:w-80 lg:w-96">
+            <HorizontalClipCarouselItem
+              key={eventId(event)}
+              mobilePeek="event"
+              className="md:w-80 lg:w-96"
+            >
               {renderEvent(event)}
             </HorizontalClipCarouselItem>
           ))}
