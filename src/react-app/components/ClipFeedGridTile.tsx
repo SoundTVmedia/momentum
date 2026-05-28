@@ -1,4 +1,4 @@
-import { MessageCircle, Share, MapPin, Clock, Bookmark, Flame } from 'lucide-react';
+import { Share, MapPin, Clock, Bookmark, Flame } from 'lucide-react';
 import { ClipLikeHeart } from '@/react-app/components/ClipLikeHeart';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -8,7 +8,7 @@ import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
-import { artistPath, songPath } from '@/shared/app-paths';
+import { artistPath, songPath, venuePath } from '@/shared/app-paths';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipShareUrl } from '@/shared/clip-share';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
@@ -159,7 +159,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               {clip.artist_name}
             </button>
           )}
-          {clip.song_title?.trim() && clip.artist_name && (
+          {clip.song_title?.trim() && clip.artist_name ? (
             <button
               type="button"
               onClick={(e) => {
@@ -171,27 +171,22 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
             >
               ♪ {clip.song_title}
             </button>
-          )}
-          {clip.venue_name && (
+          ) : null}
+          {clip.venue_name ? (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenClip(clip);
+                navigate(venuePath(clip.venue_name));
               }}
               className="fb-clip-venue"
             >
               <MapPin className="w-3 h-3 md:w-2.5 md:h-2.5 flex-shrink-0" />
               <span className="font-medium truncate">{clip.venue_name}</span>
-              {clip.location ? (
-                <span className="text-white/70 truncate hidden sm:inline">• {clip.location}</span>
-              ) : null}
             </button>
-          )}
-          {clip.content_description ? (
-            <p className="fb-clip-caption">
-              {clip.content_description}
-            </p>
+          ) : null}
+          {clip.location ? (
+            <p className="fb-clip-location truncate">{clip.location}</p>
           ) : null}
         </div>
       </div>
@@ -215,18 +210,6 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
               } ${likingClip === clip.id ? 'animate-heart-pop' : ''}`}
             />
             <span className="font-bold text-[10px] sm:text-xs">{clip.likes_count}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenClip(clip);
-            }}
-            className="flex flex-col items-center space-y-0.5 text-white hover:text-momentum-flare transition-all group tap-feedback flex-1 min-w-0"
-          >
-            <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 md:w-4 md:h-4 lg:w-5 lg:h-5 group-hover:scale-110 transition-transform" />
-            <span className="font-bold text-[10px] sm:text-xs">{clip.comments_count}</span>
           </button>
 
           <button

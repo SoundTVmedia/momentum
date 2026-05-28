@@ -474,6 +474,10 @@ body {
     @apply flex items-center gap-1 text-xs sm:text-sm md:text-[11px] leading-tight text-white/90 hover:text-white transition-colors drop-shadow w-full min-w-0;
   }
 
+  .fb-clip-location {
+    @apply text-[10px] sm:text-xs md:text-[11px] leading-tight text-white/75 drop-shadow truncate pl-4 md:pl-3.5;
+  }
+
   .fb-clip-caption {
     @apply text-xs sm:text-sm md:text-[11px] text-white/80 leading-tight drop-shadow line-clamp-2;
   }
