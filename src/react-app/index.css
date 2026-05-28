@@ -725,7 +725,7 @@ body {
   .glass-clip-overlay-bottom .fb-clip-song,
   .glass-clip-overlay-bottom .fb-clip-venue,
   .glass-clip-overlay-bottom .fb-clip-location {
-    line-height: 1;
+    line-height: 1.2;
   }
 
   .glass-clip-overlay-bottom .fb-clip-venue {

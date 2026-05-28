@@ -146,7 +146,7 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
           </button>
         </div>
 
-        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] flex flex-col gap-0 px-3 py-2 sm:px-3.5 sm:py-2.5 md:px-3 md:py-2 lg:px-3.5 lg:py-2.5">
+        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] flex flex-col gap-0.5 px-3 py-2 sm:px-3.5 sm:py-2.5 md:px-3 md:py-2 lg:px-3.5 lg:py-2.5">
           {clip.artist_name && (
             <button
               type="button"
