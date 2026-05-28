@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
+import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserCheck, Radio, ShoppingBag, Play } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
@@ -78,81 +80,89 @@ interface PreviousShow {
 export default function ArtistPage() {
   const { artistName: artistNameParam } = useParams<{ artistName: string }>();
   const navigate = useNavigate();
-  const [data, setData] = useState<ArtistData | null>(null);
   const routeArtistLabel = artistNameParam
     ? decodeURIComponent(artistNameParam).replace(/-/g, ' ')
     : '';
+
+  const loadArtistPage = useCallback(
+    async (signal: AbortSignal): Promise<ArtistData> => {
+      if (!artistNameParam) throw new Error('Missing artist');
+      return fetchJsonWithRetry<ArtistData>(
+        apiArtistPath(artistNameParam),
+        { signal },
+        {
+          isValid: (payload) =>
+            Boolean(
+              payload?.artist &&
+                typeof payload.artist === 'object' &&
+                typeof (payload.artist as Artist).name === 'string' &&
+                (payload.artist as Artist).name.trim().length > 0,
+            ),
+        },
+      );
+    },
+    [artistNameParam],
+  );
+
+  const { data, loading, slowLoad } = useAutoRetryPageLoad({
+    enabled: Boolean(artistNameParam),
+    load: loadArtistPage,
+    validate: (payload) => Boolean(payload.artist?.name?.trim()),
+  });
+
   const { favorited, favoritedKnown, loading: favoriteLoading, toggleFavorite } = useArtistFavorite(
     data?.artist?.id ?? 0,
     data?.artist?.name ?? routeArtistLabel,
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
   const [previousShows, setPreviousShows] = useState<PreviousShow[]>([]);
-  
-  useEffect(() => {
-    const fetchArtistData = async () => {
-      if (!artistNameParam) return;
 
-      setLoading(true);
-      setError(null);
+  useEffect(() => {
+    if (!artistNameParam || !data?.artist?.name) {
+      setLiveShow(null);
+      setPreviousShows([]);
+      return;
+    }
+
+    const ac = new AbortController();
+
+    void (async () => {
+      try {
+        const liveRes = await fetch(`${apiArtistPath(artistNameParam)}/live-status`, {
+          signal: ac.signal,
+        });
+        if (liveRes.ok) {
+          const liveData = (await liveRes.json()) as { isLive?: boolean; liveShow?: LiveShow };
+          setLiveShow(liveData.isLive ? liveData.liveShow ?? null : null);
+        } else {
+          setLiveShow(null);
+        }
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.error('Failed to fetch live show status:', err);
+        }
+      }
 
       try {
-        const response = await fetch(apiArtistPath(artistNameParam));
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch artist data');
+        const prevRes = await fetch(
+          `${apiArtistPath(artistNameParam)}/previous-shows?limit=8`,
+          { signal: ac.signal },
+        );
+        if (prevRes.ok) {
+          const prevData = (await prevRes.json()) as { shows?: PreviousShow[] };
+          setPreviousShows(prevData.shows ?? []);
+        } else {
+          setPreviousShows([]);
         }
-
-        const artistData = await response.json();
-        setData(artistData);
-
-        // Fetch live show status
-        await fetchLiveShow();
-        
-        // Fetch previous shows
-        await fetchPreviousShows();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        console.error('Failed to fetch artist data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchArtistData();
-  }, [artistNameParam]);
-
-  const fetchLiveShow = async () => {
-    if (!artistNameParam) return;
-
-    try {
-      const response = await fetch(`${apiArtistPath(artistNameParam)}/live-status`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.isLive) {
-          setLiveShow(data.liveShow);
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.error('Failed to fetch previous shows:', err);
         }
       }
-    } catch (err) {
-      console.error('Failed to fetch live show status:', err);
-    }
-  };
+    })();
 
-  const fetchPreviousShows = async () => {
-    if (!artistNameParam) return;
-
-    try {
-      const response = await fetch(`${apiArtistPath(artistNameParam)}/previous-shows?limit=8`);
-      if (response.ok) {
-        const data = await response.json();
-        setPreviousShows(data.shows || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch previous shows:', err);
-    }
-  };
+    return () => ac.abort();
+  }, [artistNameParam, data?.artist?.name]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -164,31 +174,15 @@ export default function ArtistPage() {
     });
   };
 
-  if (loading) {
+  if (loading || !data?.artist) {
     return (
       <div className="min-h-screen text-white">
         <Header />
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
           <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen text-white">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center">
-            <p className="text-red-400 mb-4">{error || 'Artist not found'}</p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
-            >
-              Return Home
-            </button>
-          </div>
+          {slowLoad ? (
+            <p className="mt-4 text-sm text-gray-400">Still loading this artist…</p>
+          ) : null}
         </div>
       </div>
     );

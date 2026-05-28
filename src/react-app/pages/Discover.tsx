@@ -385,31 +385,10 @@ export default function DiscoverPage() {
             )}
 
             {results.jambase &&
-              (results.jambase.artists.length > 0 ||
-                results.jambase.venues.length > 0 ||
-                results.jambase.events.length > 0) && (
+              (results.jambase.venues.length > 0 || results.jambase.events.length > 0) && (
               <div className="rounded-2xl border border-momentum-ember/25 bg-momentum-ink/30 p-6 space-y-10">
-                <DiscoverSectionTitle
-                  icon={Ticket}
-                  iconClassName="text-momentum-ember"
-                  title="JamBase directory"
-                  subtitle="Powered by JamBase"
-                />
-
-                {results.jambase.artists.length > 0 && (
-                  <DiscoverArtistCarousel
-                    artists={results.jambase.artists.map((a) => {
-                      const name = typeof a.name === 'string' ? a.name : 'Artist';
-                      const image = typeof a.image === 'string' ? a.image : null;
-                      return {
-                        name,
-                        image_url: image,
-                        clip_count: 0,
-                        jambase_id:
-                          typeof a.identifier === 'string' ? a.identifier : null,
-                      };
-                    })}
-                  />
+                {results.jambase.venues.length > 0 && (
+                  <DiscoverSectionTitle icon={MapPin} iconClassName="text-momentum-flare" title="Venues" />
                 )}
 
                 {results.jambase.venues.length > 0 && (
@@ -419,12 +398,19 @@ export default function DiscoverPage() {
                 )}
 
                 {results.jambase.events.length > 0 && (
-                  <JamBaseEventGrid
-                    layout="carousel"
-                    preloadedEvents={results.jambase.events}
-                    maxEvents={20}
-                    carouselAriaLabel="JamBase search events"
-                  />
+                  <>
+                    <DiscoverSectionTitle
+                      icon={Ticket}
+                      iconClassName="text-momentum-ember"
+                      title="Shows"
+                    />
+                    <JamBaseEventGrid
+                      layout="carousel"
+                      preloadedEvents={results.jambase.events}
+                      maxEvents={20}
+                      carouselAriaLabel="Search result shows"
+                    />
+                  </>
                 )}
               </div>
             )}

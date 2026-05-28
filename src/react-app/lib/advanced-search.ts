@@ -2,7 +2,12 @@ import type { ClipWithUser } from '@/shared/types';
 
 export type AdvancedSearchPayload = {
   clips: ClipWithUser[];
-  artists: { name: string; image_url: string | null; clip_count: number }[];
+  artists: {
+    name: string;
+    image_url: string | null;
+    clip_count: number;
+    jambase_id?: string | null;
+  }[];
   venues: { name: string; location: string | null; clip_count: number }[];
   users: {
     mocha_user_id: string;
@@ -40,8 +45,6 @@ export function advancedSearchHasHits(data: AdvancedSearchPayload | null): boole
     data.venues.length > 0 ||
     data.users.length > 0 ||
     (data.jambase !== undefined &&
-      (data.jambase.artists.length > 0 ||
-        data.jambase.venues.length > 0 ||
-        data.jambase.events.length > 0))
+      (data.jambase.venues.length > 0 || data.jambase.events.length > 0))
   );
 }

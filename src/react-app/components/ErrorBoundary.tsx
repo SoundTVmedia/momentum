@@ -10,7 +10,10 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: React.ErrorInfo | null;
+  recoveryAttempt: number;
 }
+
+const MAX_AUTO_RECOVERY_ATTEMPTS = 5;
 
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -19,10 +22,14 @@ export default class ErrorBoundary extends Component<Props, State> {
       hasError: false,
       error: null,
       errorInfo: null,
+      recoveryAttempt: 0,
     };
+    this.recoveryTimer = null;
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return {
       hasError: true,
       error,
@@ -32,21 +39,47 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Error boundary caught error:', error, errorInfo);
-    
-    this.setState({
+
+    this.setState((prev) => ({
       error,
       errorInfo,
-    });
+      recoveryAttempt: prev.recoveryAttempt,
+    }));
 
-    // Log to error tracking service (e.g., Sentry)
-    // logErrorToService(error, errorInfo);
+    this.scheduleAutoRecovery();
   }
 
+  componentWillUnmount() {
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+  }
+
+  scheduleAutoRecovery = () => {
+    if (this.recoveryTimer) return;
+    const attempt = this.state.recoveryAttempt + 1;
+    if (attempt > MAX_AUTO_RECOVERY_ATTEMPTS) return;
+
+    const delayMs = Math.min(4000, 450 + attempt * 500);
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = null;
+      this.setState({
+        hasError: false,
+        error: null,
+        errorInfo: null,
+        recoveryAttempt: attempt,
+      });
+    }, delayMs);
+  };
+
   handleReset = () => {
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = null;
+    }
     this.setState({
       hasError: false,
       error: null,
       errorInfo: null,
+      recoveryAttempt: 0,
     });
   };
 
@@ -81,8 +114,14 @@ export default class ErrorBoundary extends Component<Props, State> {
                   Oops! Something went wrong
                 </h1>
                 <p className="text-gray-300">
-                  We encountered an unexpected error. Don't worry, your data is safe.
+                  We encountered an unexpected error. Don&apos;t worry, your data is safe.
                 </p>
+                {this.state.recoveryAttempt < MAX_AUTO_RECOVERY_ATTEMPTS ? (
+                  <p className="mt-3 text-sm text-momentum-flare/90 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Retrying automatically…
+                  </p>
+                ) : null}
               </div>
 
               {process.env.NODE_ENV === 'development' && this.state.error && (

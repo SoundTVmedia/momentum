@@ -393,17 +393,70 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     .bind(slug, canonicalName)
     .first()) as Record<string, unknown> | null;
 
-  if (!venue) {
-    const ins = await db
-      .prepare(
-        `INSERT INTO venues (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-      )
-      .bind(canonicalName)
-      .run();
+  if (!venue && canonicalName.trim()) {
+    try {
+      const ins = await db
+        .prepare(
+          `INSERT INTO venues (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        )
+        .bind(canonicalName.trim())
+        .run();
+      if (ins.success) {
+        const lid = ins.meta?.last_row_id;
+        if (lid != null && lid !== '') {
+          venue = (await db
+            .prepare('SELECT * FROM venues WHERE id = ?')
+            .bind(Number(lid))
+            .first()) as Record<string, unknown> | null;
+        }
+      }
+    } catch (err) {
+      console.error('Venue INSERT failed (likely duplicate):', err);
+    }
+  }
+
+  if (!venue && canonicalName.trim()) {
     venue = (await db
-      .prepare('SELECT * FROM venues WHERE id = ?')
-      .bind(ins.meta.last_row_id)
+      .prepare(
+        `SELECT * FROM venues WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ? OR name = ? ORDER BY id DESC LIMIT 1`
+      )
+      .bind(slug, canonicalName.trim())
       .first()) as Record<string, unknown> | null;
+  }
+
+  if (!venue) {
+    const nameForDisplay =
+      (jambaseVenue && typeof jambaseVenue.name === 'string' && jambaseVenue.name) ||
+      canonicalName.trim() ||
+      titleCaseWords(searchPhraseFromSlug(slug)) ||
+      param ||
+      'Venue';
+    const addr = jambaseVenue?.address as Record<string, unknown> | undefined;
+    const region = addr?.addressRegion as Record<string, unknown> | undefined;
+    const locality =
+      typeof addr?.addressLocality === 'string' ? addr.addressLocality : null;
+    const regionName =
+      typeof region?.alternateName === 'string'
+        ? region.alternateName
+        : typeof region?.name === 'string'
+          ? (region.name as string)
+          : null;
+    venue = {
+      id: 0,
+      name: nameForDisplay,
+      location: [locality, regionName].filter(Boolean).join(', ') || null,
+      address:
+        typeof addr?.streetAddress === 'string' ? (addr.streetAddress as string) : null,
+      image_url:
+        typeof jambaseVenue?.image === 'string' && jambaseVenue.image.length > 0
+          ? jambaseVenue.image
+          : null,
+      capacity: null,
+      jambase_id:
+        typeof jambaseVenue?.identifier === 'string' ? jambaseVenue.identifier : null,
+      created_at: '',
+      updated_at: '',
+    };
   }
 
   if (jambaseVenue && venue?.id != null) {

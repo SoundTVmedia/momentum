@@ -15,10 +15,10 @@ import {
 import { resolveDiscoverLocation } from './discover-location';
 import { buildDiscoverForYou } from './discover-for-you';
 import {
-  enrichSearchArtistsWithJamBase,
   enrichSearchVenuesWithJamBase,
   enrichTrendingArtistsWithJamBase,
   fetchNearbyJamBaseEvents,
+  mapJamBaseArtistsToSearchRows,
   type SearchVenueRow,
   type TrendingArtistRow,
 } from './discover-jambase-enrich';
@@ -31,7 +31,6 @@ export async function advancedSearch(c: Context) {
   const sortBy = c.req.query('sortBy') || 'latest';
   const compact = c.req.query('compact') === '1';
   const clipLimit = compact ? 8 : 30;
-  const artistLimit = compact ? 6 : 20;
   const venueLimit = compact ? 6 : 20;
   const userLimit = compact ? 4 : 20;
   
@@ -99,25 +98,8 @@ export async function advancedSearch(c: Context) {
   clipsQuery += ` LIMIT ${clipLimit}`;
 
   const like = `%${query}%`;
-  const [clips, artists, venues, users] = await Promise.all([
+  const [clips, venues, users] = await Promise.all([
     c.env.DB.prepare(clipsQuery).bind(...bindings).all(),
-    c.env.DB.prepare(
-      `SELECT 
-      clips.artist_name as name,
-      MAX(artists.image_url) as image_url,
-      MAX(clips.jambase_artist_id) as jambase_id,
-      COUNT(DISTINCT clips.id) as clip_count
-    FROM clips
-    LEFT JOIN artists ON clips.artist_name = artists.name
-    WHERE clips.artist_name IS NOT NULL
-    AND clips.artist_name LIKE ?
-    AND clips.is_hidden = 0
-    GROUP BY clips.artist_name
-    ORDER BY clip_count DESC
-    LIMIT ${artistLimit}`,
-    )
-      .bind(like)
-      .all(),
     c.env.DB.prepare(
       `SELECT 
       clips.venue_name as name,
@@ -222,24 +204,30 @@ export async function advancedSearch(c: Context) {
     jambaseNotice = jamBaseMissingKeyNotice();
   }
 
-  const artistsBase = (artists.results ?? []) as TrendingArtistRow[];
   const venuesBase = (venues.results ?? []) as SearchVenueRow[];
   const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
   const jbQ = jamBaseQuotaFromEnv(c.env);
 
-  const [enrichedArtists, enrichedVenues] = await Promise.all([
-    enrichSearchArtistsWithJamBase(jbKeyTrimmed || undefined, jbQ, artistsBase, jambase.artists),
-    enrichSearchVenuesWithJamBase(jbKeyTrimmed || undefined, jbQ, venuesBase, jambase.venues),
-  ]);
+  const searchArtists = mapJamBaseArtistsToSearchRows(jambase.artists);
+  const enrichedVenues = await enrichSearchVenuesWithJamBase(
+    jbKeyTrimmed || undefined,
+    jbQ,
+    venuesBase,
+    jambase.venues,
+  );
 
   cacheJsonProxy(c, { browserMaxAge: 90, cdnMaxAge: 600, staleWhileRevalidate: 900 });
 
   return c.json({
     clips: clips.results || [],
-    artists: enrichedArtists,
+    artists: searchArtists,
     venues: enrichedVenues,
     users: users.results || [],
-    jambase,
+    jambase: {
+      artists: [],
+      venues: jambase.venues,
+      events: jambase.events,
+    },
     jambaseNotice,
   });
 }

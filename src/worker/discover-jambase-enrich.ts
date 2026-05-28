@@ -11,6 +11,25 @@ export type TrendingArtistRow = {
   jambase_id: string | null;
 };
 
+/** Normalize JamBase `/artists` hits for advanced search (JamBase-only artist list). */
+export function mapJamBaseArtistsToSearchRows(catalog: unknown[]): TrendingArtistRow[] {
+  const records = (catalog ?? []).filter(
+    (x): x is Record<string, unknown> => typeof x === 'object' && x !== null,
+  );
+  return records
+    .map((a) => {
+      const name = typeof a.name === 'string' ? a.name.trim() : '';
+      if (!name) return null;
+      return {
+        name,
+        image_url: typeof a.image === 'string' ? a.image : null,
+        clip_count: 0,
+        jambase_id: typeof a.identifier === 'string' ? a.identifier : null,
+      };
+    })
+    .filter((row): row is TrendingArtistRow => row !== null);
+}
+
 export type SearchVenueRow = {
   name: string;
   location: string | null;

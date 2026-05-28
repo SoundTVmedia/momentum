@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
+import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
@@ -58,76 +60,93 @@ export default function VenuePage() {
   const navigate = useNavigate();
   const { toggleFollow, isFollowing, isLoading: followLoading } = useFollow();
   
-  const [data, setData] = useState<VenueData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const loadVenuePage = useCallback(
+    async (signal: AbortSignal): Promise<VenueData> => {
+      if (!venueName) throw new Error('Missing venue');
+      return fetchJsonWithRetry<VenueData>(
+        apiVenuePath(venueName),
+        { signal },
+        {
+          isValid: (payload) =>
+            Boolean(
+              payload?.venue &&
+                typeof payload.venue === 'object' &&
+                typeof (payload.venue as Venue).name === 'string' &&
+                (payload.venue as Venue).name.trim().length > 0,
+            ),
+        },
+      );
+    },
+    [venueName],
+  );
+
+  const { data, loading, slowLoad } = useAutoRetryPageLoad({
+    enabled: Boolean(venueName),
+    load: loadVenuePage,
+    validate: (payload) => Boolean(payload.venue?.name?.trim()),
+  });
+
   const [recentShow, setRecentShow] = useState<RecentShow | null>(null);
 
   useEffect(() => {
-    const fetchVenueData = async () => {
-      if (!venueName) return;
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(apiVenuePath(venueName ?? ''));
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch venue data');
-        }
-
-        const venueData = await response.json();
-        setData(venueData);
-
-        // Fetch most recent show
-        await fetchMostRecentShow();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        console.error('Failed to fetch venue data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchVenueData();
-  }, [venueName]);
-
-  const fetchMostRecentShow = async () => {
-    if (!venueName) return;
-    
-    try {
-      const response = await fetch(
-        `${apiVenuePath(venueName ?? '')}/archive?sort_by=date_played&limit=1`
-      );
-      
-      if (response.ok) {
-        const archiveData = await response.json();
-        const shows = archiveData.shows || [];
-        
-        if (shows.length > 0) {
-          const mostRecentShow = shows[0];
-          
-          // Fetch clips for this show
-          const clipsResponse = await fetch(
-            `${apiArtistPath(mostRecentShow.artist_name)}/shows/${mostRecentShow.show_id}/clips?limit=6`
-          );
-          
-          if (clipsResponse.ok) {
-            const clipsData = await clipsResponse.json();
-            setRecentShow({
-              show_id: mostRecentShow.show_id,
-              artist_name: mostRecentShow.artist_name,
-              show_date: mostRecentShow.show_date,
-              clips: clipsData.clips || []
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch recent show:', error);
+    if (!venueName || !data?.venue?.name) {
+      setRecentShow(null);
+      return;
     }
-  };
+
+    const ac = new AbortController();
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `${apiVenuePath(venueName)}/archive?sort_by=date_played&limit=1`,
+          { signal: ac.signal },
+        );
+
+        if (!response.ok) {
+          setRecentShow(null);
+          return;
+        }
+
+        const archiveData = (await response.json()) as { shows?: RecentShow[] };
+        const shows = archiveData.shows ?? [];
+
+        if (shows.length === 0) {
+          setRecentShow(null);
+          return;
+        }
+
+        const mostRecentShow = shows[0] as RecentShow & {
+          show_id: string;
+          artist_name: string;
+          show_date: string;
+        };
+
+        const clipsResponse = await fetch(
+          `${apiArtistPath(mostRecentShow.artist_name)}/shows/${mostRecentShow.show_id}/clips?limit=6`,
+          { signal: ac.signal },
+        );
+
+        if (clipsResponse.ok) {
+          const clipsData = (await clipsResponse.json()) as { clips?: ClipWithUser[] };
+          setRecentShow({
+            show_id: mostRecentShow.show_id,
+            artist_name: mostRecentShow.artist_name,
+            show_date: mostRecentShow.show_date,
+            clips: clipsData.clips ?? [],
+          });
+        } else {
+          setRecentShow(null);
+        }
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) {
+          console.error('Failed to fetch recent show:', err);
+        }
+      }
+    })();
+
+    return () => ac.abort();
+  }, [venueName, data?.venue?.name]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -141,37 +160,25 @@ export default function VenuePage() {
     });
   };
 
-  if (loading) {
+  if (loading || !data?.venue) {
     return (
       <div className="min-h-screen text-white">
         <Header />
-        <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 text-center">
           <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="min-h-screen text-white">
-        <Header />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center">
-            <p className="text-red-400 mb-4">{error || 'Venue not found'}</p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-6 py-3 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
-            >
-              Return Home
-            </button>
-          </div>
+          {slowLoad ? (
+            <p className="mt-4 text-sm text-gray-400">Still loading this venue…</p>
+          ) : null}
         </div>
       </div>
     );
   }
 
   const { venue, clips, upcomingEvents } = data;
+  const venueCapacity =
+    venue.capacity != null && Number.isFinite(Number(venue.capacity))
+      ? Number(venue.capacity)
+      : null;
 
   return (
     <div className="min-h-screen text-white">
@@ -208,11 +215,12 @@ export default function VenuePage() {
                 <p className="text-gray-400 mb-4">{venue.address}</p>
               )}
 
-              {venue.capacity && (
+              {venueCapacity != null && (
                 <div className="flex items-center space-x-2">
                   <Users className="w-5 h-5 text-gray-400" />
                   <p className="text-gray-400">
-                    Capacity: <span className="text-white font-medium">{venue.capacity.toLocaleString()}</span>
+                    Capacity:{' '}
+                    <span className="text-white font-medium">{venueCapacity.toLocaleString()}</span>
                   </p>
                 </div>
               )}

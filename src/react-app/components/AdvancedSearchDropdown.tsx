@@ -113,20 +113,27 @@ function SearchDropdownPanel({
           )}
           {results.artists.length > 0 && (
             <div className="border-b border-white/10">
-              <div className="px-3 py-2 text-xs font-semibold text-momentum-rose/80/90 uppercase tracking-wide flex items-center gap-1">
-                <Music className="w-3.5 h-3.5" /> Artists (Feedback)
+              <div className="px-3 py-2 text-xs font-semibold text-momentum-rose/90 uppercase tracking-wide flex items-center gap-1">
+                <Music className="w-3.5 h-3.5" /> Artists
               </div>
               {results.artists.map((a) => (
                 <button
-                  key={a.name}
+                  key={a.jambase_id ?? a.name}
                   type="button"
                   onClick={() => {
                     onClose();
                     navigate(artistPath(a.name));
                   }}
-                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 truncate"
+                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2 min-w-0"
                 >
-                  {a.name}
+                  {a.image_url ? (
+                    <img
+                      src={a.image_url}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : null}
+                  <span className="truncate">{a.name}</span>
                 </button>
               ))}
             </div>
@@ -172,73 +179,61 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
-          {results.jambase &&
-            (results.jambase.artists.length > 0 ||
-              results.jambase.venues.length > 0 ||
-              results.jambase.events.length > 0) && (
-              <div className="bg-momentum-ink/40">
-                <div className="px-3 py-2 text-xs font-semibold text-momentum-glacier/90 uppercase tracking-wide flex items-center gap-1">
-                  <Ticket className="w-3.5 h-3.5" /> JamBase
-                </div>
-                {results.jambase.artists.map((a) => {
-                  const name = typeof a.name === 'string' ? a.name : 'Artist';
-                  return (
-                    <button
-                      key={typeof a.identifier === 'string' ? a.identifier : name}
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        navigate(artistPath(name));
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 truncate"
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
-                {results.jambase.venues.map((v) => {
-                  const name = typeof v.name === 'string' ? v.name : 'Venue';
-                  return (
-                    <button
-                      key={typeof v.identifier === 'string' ? v.identifier : name}
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        navigate(venuePath(name));
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 truncate"
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
-                {results.jambase.events.slice(0, 4).map((ev) => {
-                  const id =
-                    typeof ev.identifier === 'string' ? ev.identifier : String(ev.startDate);
-                  const title = typeof ev.name === 'string' ? ev.name : 'Show';
-                  const ticket = jamBaseEventTicket(ev);
-                  return (
-                    <div
-                      key={id}
-                      className="px-3 py-2 border-t border-white/5 flex items-center gap-2"
-                    >
-                      <span className="text-sm text-gray-200 flex-1 min-w-0 truncate">{title}</span>
-                      {ticket ? (
-                        <a
-                          href={ticket}
-                          target="_blank"
-                          rel="nofollow noopener noreferrer"
-                          className="text-xs text-momentum-glacier hover:underline flex-shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Tickets
-                        </a>
-                      ) : null}
-                    </div>
-                  );
-                })}
+          {results.jambase && results.jambase.venues.length > 0 && (
+            <div className="border-b border-white/10">
+              <div className="px-3 py-2 text-xs font-semibold text-momentum-glacier/90 uppercase tracking-wide flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5" /> Venues
               </div>
-            )}
+              {results.jambase.venues.map((v) => {
+                const name = typeof v.name === 'string' ? v.name : 'Venue';
+                return (
+                  <button
+                    key={typeof v.identifier === 'string' ? v.identifier : name}
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate(venuePath(name));
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 truncate"
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {results.jambase && results.jambase.events.length > 0 && (
+            <div className="border-b border-white/10">
+              <div className="px-3 py-2 text-xs font-semibold text-momentum-ember/90 uppercase tracking-wide flex items-center gap-1">
+                <Ticket className="w-3.5 h-3.5" /> Shows
+              </div>
+              {results.jambase.events.slice(0, 4).map((ev) => {
+                const id =
+                  typeof ev.identifier === 'string' ? ev.identifier : String(ev.startDate);
+                const title = typeof ev.name === 'string' ? ev.name : 'Show';
+                const ticket = jamBaseEventTicket(ev);
+                return (
+                  <div
+                    key={id}
+                    className="px-3 py-2 border-t border-white/5 flex items-center gap-2"
+                  >
+                    <span className="text-sm text-gray-200 flex-1 min-w-0 truncate">{title}</span>
+                    {ticket ? (
+                      <a
+                        href={ticket}
+                        target="_blank"
+                        rel="nofollow noopener noreferrer"
+                        className="text-xs text-momentum-glacier hover:underline flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Tickets
+                      </a>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <button
             type="button"
             onClick={onDiscoverAll}
