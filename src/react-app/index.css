@@ -721,6 +721,18 @@ body {
     -webkit-backdrop-filter: blur(8px);
   }
 
+  .glass-clip-overlay-bottom .fb-clip-artist-name,
+  .glass-clip-overlay-bottom .fb-clip-song,
+  .glass-clip-overlay-bottom .fb-clip-venue,
+  .glass-clip-overlay-bottom .fb-clip-location {
+    line-height: 1;
+  }
+
+  .glass-clip-overlay-bottom .fb-clip-venue {
+    min-height: 0;
+    padding-block: 0;
+  }
+
   .glass-clip-actions {
     position: relative;
     z-index: 3;
