@@ -82,9 +82,14 @@ export default function ClipFeedGridTile({ clip, onOpenClip }: ClipFeedGridTileP
       className={`glass-clip-card group flex h-full w-full flex-col p-0 ${showFilmstrip ? 'clip-card-with-filmstrip' : ''}`}
     >
       {showFilmstrip ? (
-        <div className="clip-filmstrip-rail" aria-hidden>
-          <div className="clip-filmstrip-sprockets" />
-        </div>
+        <>
+          <div className="clip-filmstrip-rail clip-filmstrip-rail--left" aria-hidden>
+            <div className="clip-filmstrip-sprockets" />
+          </div>
+          <div className="clip-filmstrip-rail clip-filmstrip-rail--right" aria-hidden>
+            <div className="clip-filmstrip-sprockets" />
+          </div>
+        </>
       ) : null}
       <div
         className="glass-clip-media-frame relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-t-[0.9rem]"
