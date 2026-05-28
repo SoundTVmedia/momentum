@@ -11,7 +11,13 @@ export const HOME_FEED_SECTION_CLASS = 'mb-8 md:mb-6';
 
 /** Equal-height event cards in carousels (image + body + ticket row). */
 export const EVENT_CAROUSEL_CARD_CLASS =
-  'flex h-full min-h-[24rem] w-full flex-col';
+  'flex h-full min-h-[19rem] w-full flex-col';
+
+/** Event carousel hero image (scaled for ~4 cards across on desktop). */
+export const EVENT_CAROUSEL_IMAGE_CLASS = 'relative shrink-0 h-40 overflow-hidden';
+
+/** Desktop event carousel tile width (~4 visible in max-w-7xl). */
+export const EVENT_CAROUSEL_ITEM_WIDTH_CLASS = 'md:w-64 lg:w-[17.5rem] xl:w-72';
 
 /** Mobile clip carousel tiles: ~one card plus a peek of the next (swipe affordance). */
 export const MOBILE_CAROUSEL_ITEM_PEEK_CLASS =

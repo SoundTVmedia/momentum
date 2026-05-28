@@ -11,6 +11,7 @@ import SectionHeading from '@/react-app/components/SectionHeading';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import {
   EVENT_CAROUSEL_CARD_CLASS,
+  EVENT_CAROUSEL_IMAGE_CLASS,
   HOME_FEED_CAROUSEL_BLEED,
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
@@ -58,7 +59,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
       <button
         type="button"
         onClick={() => navigate(artistPath(concert.artist_name))}
-        className="relative block w-full h-48 overflow-hidden shrink-0 text-left"
+        className={`block w-full text-left ${EVENT_CAROUSEL_IMAGE_CLASS}`}
         aria-label={`View ${concert.artist_name}`}
       >
         {concert.artist_image ? (
@@ -81,7 +82,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           {concert.artist_name}
         </button>
 
-        <div className="space-y-2 text-sm flex-1 mt-3">
+        <div className="space-y-1.5 text-sm flex-1 mt-2 leading-tight">
           <div className="flex items-start space-x-2 text-gray-300">
             <MapPin className="w-4 h-4 text-momentum-flare flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
@@ -316,11 +317,7 @@ export default function PersonalizedConcerts({
           className={carouselBleed}
         >
           {d1Concerts.map((concert) => (
-            <HorizontalClipCarouselItem
-              key={concert.id}
-              mobilePeek="event"
-              className="md:w-80 lg:w-96"
-            >
+            <HorizontalClipCarouselItem key={concert.id} mobilePeek="event">
               <D1ConcertCard concert={concert} />
             </HorizontalClipCarouselItem>
           ))}

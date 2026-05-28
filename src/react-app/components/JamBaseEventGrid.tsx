@@ -6,7 +6,10 @@ import { artistPath, venuePath } from '@/shared/app-paths';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
-import { EVENT_CAROUSEL_CARD_CLASS } from '@/react-app/lib/homeFeedLayout';
+import {
+  EVENT_CAROUSEL_CARD_CLASS,
+  EVENT_CAROUSEL_IMAGE_CLASS,
+} from '@/react-app/lib/homeFeedLayout';
 
 export interface JamBaseEventGridProps {
   maxEvents?: number;
@@ -144,7 +147,7 @@ function JamBaseEventCard({
     <div
       className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
-      <div className="relative shrink-0 h-48 overflow-hidden">
+      <div className={EVENT_CAROUSEL_IMAGE_CLASS}>
         {head ? (
           <button
             type="button"
@@ -179,12 +182,12 @@ function JamBaseEventCard({
         )}
       </div>
 
-      <div className="p-4 max-md:p-4 sm:p-5 flex flex-col flex-1">
-        <h3 className="font-bold text-lg text-white mb-2 group-hover:text-momentum-flare transition-colors line-clamp-2 shrink-0">
+      <div className="p-4 flex flex-col flex-1 min-h-0">
+        <h3 className="font-bold text-base text-white mb-1.5 group-hover:text-momentum-flare transition-colors line-clamp-2 shrink-0 leading-tight">
           {title}
         </h3>
 
-        <div className="space-y-2 mb-3 text-sm flex-1">
+        <div className="space-y-1.5 mb-2 text-sm flex-1 leading-tight">
           {head ? (
             <button
               type="button"
@@ -319,8 +322,8 @@ export default function JamBaseEventGrid({
   );
 
   const eventSkeleton = (
-    <div className="rounded-xl border border-momentum-ember/25 overflow-hidden animate-pulse bg-white/5 h-full min-h-[320px]">
-      <div className="h-48 bg-white/10" />
+    <div className="rounded-xl border border-momentum-ember/25 overflow-hidden animate-pulse bg-white/5 h-full min-h-[19rem]">
+      <div className="h-40 bg-white/10" />
       <div className="p-5 space-y-3">
         <div className="h-5 bg-white/10 rounded w-3/4" />
         <div className="h-4 bg-white/10 rounded w-1/2" />
@@ -338,11 +341,7 @@ export default function JamBaseEventGrid({
           className={carouselClassName}
         >
           {Array.from({ length: 3 }).map((_, i) => (
-            <HorizontalClipCarouselItem
-              key={`sk-${i}`}
-              mobilePeek="event"
-              className="md:w-80 lg:w-96"
-            >
+            <HorizontalClipCarouselItem key={`sk-${i}`} mobilePeek="event">
               {eventSkeleton}
             </HorizontalClipCarouselItem>
           ))}
@@ -400,11 +399,7 @@ export default function JamBaseEventGrid({
           className={carouselClassName}
         >
           {display.map((event) => (
-            <HorizontalClipCarouselItem
-              key={eventId(event)}
-              mobilePeek="event"
-              className="md:w-80 lg:w-96"
-            >
+            <HorizontalClipCarouselItem key={eventId(event)} mobilePeek="event">
               {renderEvent(event)}
             </HorizontalClipCarouselItem>
           ))}
