@@ -707,32 +707,41 @@ body {
     );
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    @apply px-3.5 py-2.5 sm:px-4 sm:py-3 md:px-3 md:py-2;
   }
 
   .glass-clip-overlay-bottom .fb-clip-artist-name,
   .glass-clip-overlay-bottom .fb-clip-song,
   .glass-clip-overlay-bottom .fb-clip-place-row {
-    line-height: 1.15;
+    line-height: 1.35;
+  }
+
+  @media (min-width: 768px) {
+    .glass-clip-overlay-bottom .fb-clip-artist-name,
+    .glass-clip-overlay-bottom .fb-clip-song,
+    .glass-clip-overlay-bottom .fb-clip-place-row {
+      line-height: 1.15;
+    }
   }
 
   .glass-clip-overlay-bottom .fb-clip-user {
-    @apply text-[10px] sm:text-[10px] font-semibold leading-none;
+    @apply text-[10px] sm:text-[10px] font-semibold leading-snug md:leading-none;
   }
 
   .glass-clip-overlay-bottom .fb-clip-meta-muted {
-    @apply text-[9px] sm:text-[9px] leading-none;
+    @apply text-[9px] sm:text-[9px] leading-snug md:leading-none;
   }
 
   .glass-clip-overlay-bottom .fb-clip-artist-name {
-    @apply text-xs sm:text-sm md:text-[11px] font-bold leading-none;
+    @apply text-xs sm:text-sm md:text-[11px] font-bold leading-snug md:leading-none;
   }
 
   .glass-clip-overlay-bottom .fb-clip-song {
-    @apply text-[10px] sm:text-[11px] md:text-[10px] font-semibold leading-none;
+    @apply text-[10px] sm:text-[11px] md:text-[10px] font-semibold leading-snug md:leading-none;
   }
 
   .glass-clip-overlay-bottom .fb-clip-place-row {
-    @apply text-[10px] sm:text-[10px] md:text-[9px] leading-none;
+    @apply text-[10px] sm:text-[10px] md:text-[9px] leading-snug md:leading-none;
   }
 
   /* Horizontal carousel — gradient dash rails on item wrapper (card keeps overflow hidden) */

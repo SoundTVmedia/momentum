@@ -72,7 +72,7 @@ export default function ClipFeedGridTile({
           </div>
         )}
 
-        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-2.5 md:py-1.5">
+        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] flex flex-col gap-1 md:gap-0.5">
           <button
             type="button"
             onClick={(e) => {
@@ -116,7 +116,7 @@ export default function ClipFeedGridTile({
           {clip.venue_name || clip.location ? (
             <div className="fb-clip-place-row flex min-w-0 w-full items-center gap-1 overflow-hidden">
               <MapPin className="h-2.5 w-2.5 shrink-0 opacity-90" aria-hidden />
-              <p className="min-w-0 flex-1 truncate leading-none">
+              <p className="min-w-0 flex-1 truncate leading-snug md:leading-none">
                 {clip.venue_name ? (
                   <button
                     type="button"
