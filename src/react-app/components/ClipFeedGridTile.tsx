@@ -5,8 +5,7 @@ import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
-import { artistPath, songPath, venuePath } from '@/shared/app-paths';
-import { songSlugFromTitle } from '@/shared/song-tag';
+import { artistPath, venuePath } from '@/shared/app-paths';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
   type ClipPlaybackFields,
@@ -114,19 +113,6 @@ export default function ClipFeedGridTile({
               {clip.artist_name}
             </button>
           )}
-          {clip.song_title?.trim() && clip.artist_name ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                const slug = clip.song_slug?.trim() || songSlugFromTitle(clip.song_title);
-                if (slug) navigate(songPath(clip.artist_name, slug));
-              }}
-              className="fb-clip-song"
-            >
-              ♪ {clip.song_title}
-            </button>
-          ) : null}
           {clip.venue_name || clip.location ? (
             <div className="fb-clip-place-row flex min-w-0 w-full items-center gap-1 overflow-hidden">
               <MapPin className="h-2.5 w-2.5 shrink-0 opacity-90" aria-hidden />
