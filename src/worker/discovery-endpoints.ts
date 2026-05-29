@@ -5,10 +5,10 @@ import {
   jamBaseMissingKeyNotice,
   jamBaseApiKeyConfigured,
   jamBaseQuotaFromEnv,
+  type JamBaseQuotaContext,
 } from './jambase-client';
 import { cacheJsonProxy } from './performance-utils';
 import {
-  buildFastJamBaseEventResults,
   buildTightJamBaseEventResults,
   jamBaseArtistVenueSearchPhrase,
 } from './jambase-events-search';
@@ -19,9 +19,33 @@ import {
   enrichTrendingArtistsWithJamBase,
   fetchNearbyJamBaseEvents,
   mapJamBaseArtistsToSearchRows,
+  matchSearchVenuesToJamBaseCatalog,
   type SearchVenueRow,
   type TrendingArtistRow,
 } from './discover-jambase-enrich';
+
+async function fetchJamBaseCompactCatalog(
+  apiKey: string,
+  query: string,
+  jbQ: JamBaseQuotaContext | undefined,
+): Promise<{ artists: unknown[]; venues: unknown[] }> {
+  const phrase = jamBaseArtistVenueSearchPhrase(query);
+  const [a, v] = await Promise.all([
+    jamBaseFetch<{ artists?: unknown[] }>(
+      apiKey,
+      '/artists',
+      { artistName: phrase, perPage: '4', page: '1' },
+      jbQ,
+    ),
+    jamBaseFetch<{ venues?: unknown[] }>(
+      apiKey,
+      '/venues',
+      { venueName: phrase, perPage: '4', page: '1' },
+      jbQ,
+    ),
+  ]);
+  return { artists: a?.artists ?? [], venues: v?.venues ?? [] };
+}
 
 // Advanced search with filters
 export async function advancedSearch(c: Context) {
@@ -30,9 +54,9 @@ export async function advancedSearch(c: Context) {
   const dateRange = c.req.query('dateRange') || '30d';
   const sortBy = c.req.query('sortBy') || 'latest';
   const compact = c.req.query('compact') === '1';
-  const clipLimit = compact ? 8 : 30;
-  const venueLimit = compact ? 6 : 20;
-  const userLimit = compact ? 4 : 20;
+  const clipLimit = compact ? 6 : 30;
+  const venueLimit = compact ? 0 : 20;
+  const userLimit = compact ? 3 : 20;
   
   if (!query.trim()) {
     cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 120 });
@@ -53,8 +77,30 @@ export async function advancedSearch(c: Context) {
     default: daysBack = 30;
   }
 
+  const like = `%${query}%`;
+
   // Search clips
-  let clipsQuery = `
+  let clipsQuery: string;
+  let clipsBindings: unknown[];
+
+  if (compact) {
+    clipsQuery = `
+    SELECT 
+      clips.*,
+      user_profiles.display_name as user_display_name,
+      user_profiles.profile_image_url as user_avatar
+    FROM clips
+    LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+    WHERE clips.is_hidden = 0
+    AND (
+      clips.artist_name LIKE ? OR
+      clips.venue_name LIKE ?
+    )
+    ORDER BY clips.created_at DESC
+    LIMIT ${clipLimit}`;
+    clipsBindings = [like, like];
+  } else {
+    clipsQuery = `
     SELECT 
       clips.*,
       user_profiles.display_name as user_display_name,
@@ -69,39 +115,41 @@ export async function advancedSearch(c: Context) {
       clips.location LIKE ? OR
       clips.content_description LIKE ? OR
       clips.hashtags LIKE ?
-    )
-  `;
+    )`;
+    clipsBindings = [daysBack, like, like, like, like, like];
 
-  const q = `%${query}%`;
-  const bindings: any[] = [daysBack, q, q, q, q, q];
+    if (location) {
+      clipsQuery += ` AND clips.location LIKE ?`;
+      clipsBindings.push(`%${location}%`);
+    }
 
-  if (location) {
-    clipsQuery += ` AND clips.location LIKE ?`;
-    bindings.push(`%${location}%`);
+    switch (sortBy) {
+      case 'trending':
+        clipsQuery += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
+        break;
+      case 'most_liked':
+        clipsQuery += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
+        break;
+      case 'most_viewed':
+        clipsQuery += ` ORDER BY clips.views_count DESC, clips.created_at DESC`;
+        break;
+      default:
+        clipsQuery += ` ORDER BY clips.created_at DESC`;
+    }
+
+    clipsQuery += ` LIMIT ${clipLimit}`;
   }
 
-  // Apply sorting
-  switch (sortBy) {
-    case 'trending':
-      clipsQuery += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
-      break;
-    case 'most_liked':
-      clipsQuery += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
-      break;
-    case 'most_viewed':
-      clipsQuery += ` ORDER BY clips.views_count DESC, clips.created_at DESC`;
-      break;
-    default:
-      clipsQuery += ` ORDER BY clips.created_at DESC`;
-  }
+  const trimmedQuery = query.trim();
+  const jbKey = c.env.JAMBASE_API_KEY;
+  const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
+  const jbQ = jamBaseQuotaFromEnv(c.env);
 
-  clipsQuery += ` LIMIT ${clipLimit}`;
-
-  const like = `%${query}%`;
-  const [clips, venues, users] = await Promise.all([
-    c.env.DB.prepare(clipsQuery).bind(...bindings).all(),
-    c.env.DB.prepare(
-      `SELECT 
+  const d1Promise = Promise.all([
+    c.env.DB.prepare(clipsQuery).bind(...clipsBindings).all(),
+    venueLimit > 0
+      ? c.env.DB.prepare(
+          `SELECT 
       clips.venue_name as name,
       MAX(venues.location) as location,
       MAX(venues.image_url) as image_url,
@@ -115,9 +163,10 @@ export async function advancedSearch(c: Context) {
     GROUP BY clips.venue_name
     ORDER BY clip_count DESC
     LIMIT ${venueLimit}`,
-    )
-      .bind(like)
-      .all(),
+        )
+          .bind(like)
+          .all()
+      : Promise.resolve({ results: [] as SearchVenueRow[] }),
     c.env.DB.prepare(
       `SELECT 
       user_profiles.mocha_user_id,
@@ -136,87 +185,78 @@ export async function advancedSearch(c: Context) {
       .all(),
   ]);
 
-  let jambase: { artists: unknown[]; venues: unknown[]; events: unknown[] } = {
-    artists: [],
-    venues: [],
-    events: [],
+  const jbPromise =
+    trimmedQuery.length >= 2 && jbKeyTrimmed
+      ? compact
+        ? fetchJamBaseCompactCatalog(jbKeyTrimmed, trimmedQuery, jbQ).then((jb) => ({
+            artists: jb.artists,
+            venues: jb.venues,
+            events: [] as unknown[],
+            failed: false,
+          }))
+        : (async () => {
+            const q = trimmedQuery;
+            const jbPer = '10';
+            const eventCap = 18;
+            const phrase = jamBaseArtistVenueSearchPhrase(q);
+            const [a, v] = await Promise.all([
+              jamBaseFetch<{ artists?: unknown[] }>(
+                jbKeyTrimmed,
+                '/artists',
+                { artistName: phrase, perPage: jbPer, page: '1' },
+                jbQ,
+              ),
+              jamBaseFetch<{ venues?: unknown[] }>(
+                jbKeyTrimmed,
+                '/venues',
+                { venueName: phrase, perPage: jbPer, page: '1' },
+                jbQ,
+              ),
+            ]);
+            const eventList = await buildTightJamBaseEventResults(jbKeyTrimmed, q, eventCap, jbQ, {
+              artistList: a as { artists?: Record<string, unknown>[] } | null,
+              venueList: v as { venues?: Record<string, unknown>[] } | null,
+            });
+            return {
+              artists: a?.artists ?? [],
+              venues: v?.venues ?? [],
+              events: eventList,
+              failed: a == null && v == null,
+            };
+          })()
+      : Promise.resolve({
+          artists: [] as unknown[],
+          venues: [] as unknown[],
+          events: [] as unknown[],
+          failed: false,
+        });
+
+  const [[clips, venues, users], jbResult] = await Promise.all([d1Promise, jbPromise]);
+
+  const jambase = {
+    artists: jbResult.artists,
+    venues: jbResult.venues,
+    events: jbResult.events,
   };
   let jambaseNotice: string | null = null;
-
-  const jbKey = c.env.JAMBASE_API_KEY;
-  if (query.trim().length >= 2 && typeof jbKey === 'string' && jbKey.trim()) {
-    const q = query.trim();
-    const jbPer = compact ? '5' : '10';
-    const eventCap = compact ? 8 : 18;
-    const jbQ = jamBaseQuotaFromEnv(c.env);
-    const phrase = jamBaseArtistVenueSearchPhrase(q);
-    let a: { artists?: unknown[] } | null;
-    let v: { venues?: unknown[] } | null;
-    let eventList: unknown[];
-
-    if (compact) {
-      [a, v, eventList] = await Promise.all([
-        jamBaseFetch<{ artists?: unknown[] }>(
-          jbKey,
-          '/artists',
-          { artistName: phrase, perPage: jbPer, page: '1' },
-          jbQ,
-        ),
-        jamBaseFetch<{ venues?: unknown[] }>(
-          jbKey,
-          '/venues',
-          { venueName: phrase, perPage: jbPer, page: '1' },
-          jbQ,
-        ),
-        buildFastJamBaseEventResults(jbKey, q, eventCap, jbQ),
-      ]);
-    } else {
-      [a, v] = await Promise.all([
-        jamBaseFetch<{ artists?: unknown[] }>(
-          jbKey,
-          '/artists',
-          { artistName: phrase, perPage: jbPer, page: '1' },
-          jbQ,
-        ),
-        jamBaseFetch<{ venues?: unknown[] }>(
-          jbKey,
-          '/venues',
-          { venueName: phrase, perPage: jbPer, page: '1' },
-          jbQ,
-        ),
-      ]);
-      eventList = await buildTightJamBaseEventResults(jbKey, q, eventCap, jbQ, {
-        artistList: a as { artists?: Record<string, unknown>[] } | null,
-        venueList: v as { venues?: Record<string, unknown>[] } | null,
-      });
-    }
-
-    jambase = {
-      artists: a?.artists ?? [],
-      venues: v?.venues ?? [],
-      events: eventList,
-    };
-    if (a == null && v == null) {
-      jambaseNotice =
-        'JamBase artist/venue search did not complete (network error, invalid API key, or JAMBASE_QUOTA_ENFORCEMENT may have blocked upstream calls). Your Feedback clips and on-platform matches below are unchanged — check worker logs.';
-    }
-  } else if (query.trim().length >= 2 && !jamBaseApiKeyConfigured(jbKey)) {
+  if (jbResult.failed) {
+    jambaseNotice =
+      'JamBase artist/venue search did not complete (network error, invalid API key, or JAMBASE_QUOTA_ENFORCEMENT may have blocked upstream calls). Your Feedback clips and on-platform matches below are unchanged — check worker logs.';
+  } else if (trimmedQuery.length >= 2 && !jamBaseApiKeyConfigured(jbKey)) {
     jambaseNotice = jamBaseMissingKeyNotice();
   }
 
   const venuesBase = (venues.results ?? []) as SearchVenueRow[];
-  const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
-  const jbQ = jamBaseQuotaFromEnv(c.env);
-
   const searchArtists = mapJamBaseArtistsToSearchRows(jambase.artists);
-  const enrichedVenues = await enrichSearchVenuesWithJamBase(
-    jbKeyTrimmed || undefined,
-    jbQ,
-    venuesBase,
-    jambase.venues,
-  );
+  const enrichedVenues = compact
+    ? matchSearchVenuesToJamBaseCatalog(venuesBase, jambase.venues)
+    : await enrichSearchVenuesWithJamBase(jbKeyTrimmed || undefined, jbQ, venuesBase, jambase.venues);
 
-  cacheJsonProxy(c, { browserMaxAge: 90, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+  cacheJsonProxy(c, {
+    browserMaxAge: compact ? 120 : 90,
+    cdnMaxAge: compact ? 900 : 600,
+    staleWhileRevalidate: 900,
+  });
 
   return c.json({
     clips: clips.results || [],

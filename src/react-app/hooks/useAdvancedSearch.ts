@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AdvancedSearchPayload } from '@/react-app/lib/advanced-search';
+import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import {
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
 } from '@/react-app/lib/advanced-search-cache';
 
-const DEBOUNCE_MS = 360;
+/** Wait after typing stops before hitting the network (cache miss). */
+const DEBOUNCE_MS = 160;
+/** Shorter wait when showing cached results while revalidating. */
+const DEBOUNCE_REVALIDATE_MS = 220;
 
 export function useAdvancedSearch() {
   const [results, setResults] = useState<AdvancedSearchPayload | null>(null);
@@ -41,13 +45,11 @@ export function useAdvancedSearch() {
     const requestId = ++requestIdRef.current;
 
     try {
-      const params = new URLSearchParams({ q: trimmed, compact: '1' });
-      const res = await fetch(`/api/search/advanced?${params}`, {
+      const data = await fetchAdvancedSearch(trimmed, {
+        compact: true,
         signal: controller.signal,
       });
       if (requestId !== requestIdRef.current) return;
-      if (!res.ok) throw new Error('Search failed');
-      const data = (await res.json()) as AdvancedSearchPayload;
       setCachedAdvancedSearch(trimmed, data);
       setResults(data);
     } catch (err) {
@@ -77,10 +79,15 @@ export function useAdvancedSearch() {
       if (stale) {
         setResults(stale);
         setLoading(false);
+        setRevalidating(true);
+      } else {
+        setLoading(true);
+        setRevalidating(false);
       }
+      const delay = stale ? DEBOUNCE_REVALIDATE_MS : DEBOUNCE_MS;
       debounceRef.current = setTimeout(() => {
         void runSearch(trimmed);
-      }, DEBOUNCE_MS);
+      }, delay);
     },
     [runSearch],
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, MapPin, Music, Filter, Users, Video, X, Ticket } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import Header from '@/react-app/components/Header';
@@ -17,7 +17,14 @@ import DiscoverVenueCarousel, {
 import DiscoverTrendingMusicSection from '@/react-app/components/DiscoverTrendingMusicSection';
 import { venuePath } from '@/shared/app-paths';
 import { apiFetch } from '@/react-app/lib/apiFetch';
+import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
+import {
+  peekCachedAdvancedSearch,
+  setCachedAdvancedSearch,
+} from '@/react-app/lib/advanced-search-cache';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+
+const DISCOVER_SEARCH_DEBOUNCE_MS = 280;
 
 interface SearchResults {
   clips: ClipWithUser[];
@@ -115,34 +122,69 @@ export default function DiscoverPage() {
     sortBy: searchParams.get('sortBy') || 'latest',
   });
 
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
+  const searchAbortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
-    if (searchQuery.trim()) {
-      void performSearch();
+    const t = window.setTimeout(() => setDebouncedQuery(searchQuery), DISCOVER_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [searchQuery]);
+
+  const performSearch = useCallback(async (q: string) => {
+    const trimmed = q.trim();
+    if (!trimmed) return;
+
+    const cached = peekCachedAdvancedSearch(trimmed);
+    if (cached) {
+      setResults(cached as SearchResults);
+      setLoading(false);
     } else {
+      setLoading(true);
+    }
+
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
+    try {
+      if (!cached) {
+        const compactData = await fetchAdvancedSearch(trimmed, {
+          compact: true,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        setResults(compactData as SearchResults);
+        setCachedAdvancedSearch(trimmed, compactData);
+        setLoading(false);
+      }
+
+      const fullData = await fetchAdvancedSearch(trimmed, {
+        signal: controller.signal,
+        location: filters.location,
+        dateRange: filters.dateRange,
+        sortBy: filters.sortBy,
+        genre: filters.genre,
+      });
+      if (controller.signal.aborted) return;
+      setResults(fullData as SearchResults);
+      setCachedAdvancedSearch(trimmed, fullData);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      console.error('Search failed:', error);
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }, [filters.dateRange, filters.location, filters.sortBy, filters.genre]);
+
+  useEffect(() => {
+    if (debouncedQuery.trim()) {
+      void performSearch(debouncedQuery);
+    } else {
+      searchAbortRef.current?.abort();
       setResults(null);
       void fetchDiscoverFeed();
     }
-  }, [searchQuery, filters]);
-
-  const performSearch = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        q: searchQuery,
-        ...filters,
-      });
-
-      const response = await fetch(`/api/search/advanced?${params}`);
-      if (response.ok) {
-        const data = (await response.json()) as SearchResults;
-        setResults(data);
-      }
-    } catch (error) {
-      console.error('Search failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [debouncedQuery, filters, performSearch]);
 
   const fetchDiscoverFeed = async () => {
     setLoading(true);

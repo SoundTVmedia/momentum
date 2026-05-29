@@ -80,7 +80,7 @@ export default function ClipFeedGridTile({
               e.stopPropagation();
               navigate(`/users/${clip.mocha_user_id}`);
             }}
-            className="flex items-center gap-1 min-w-0 max-w-full rounded-md bg-black/20 px-0.5 py-px backdrop-blur-sm transition-opacity hover:opacity-90"
+            className="flex items-center gap-1 min-w-0 max-w-full transition-opacity hover:opacity-90"
           >
             <UserAvatar
               imageUrl={clip.user_avatar}

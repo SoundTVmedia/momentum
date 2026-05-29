@@ -159,6 +159,18 @@ function applyJamBaseVenueRow(
   };
 }
 
+/** Catalog-only venue merge — no extra JamBase API calls (typeahead / compact search). */
+export function matchSearchVenuesToJamBaseCatalog(
+  venues: SearchVenueRow[],
+  jambaseCatalog: unknown[],
+): SearchVenueRow[] {
+  const catalog = (jambaseCatalog ?? []).filter(
+    (v): v is Record<string, unknown> => typeof v === 'object' && v !== null,
+  );
+  const byName = indexJamBaseByName(catalog);
+  return venues.map((row) => applyJamBaseVenueRow(row, catalog, byName));
+}
+
 async function fetchJamBaseArtistById(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,
