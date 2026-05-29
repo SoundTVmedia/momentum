@@ -31,7 +31,7 @@ export default function DiscoverVenueCarousel({
   if (venues.length === 0) return null;
 
   return (
-    <HorizontalClipCarousel ariaLabel="Venues" className={className}>
+    <HorizontalClipCarousel ariaLabel="Venues" className={className} filmstrip={false}>
       {venues.map((venue) => (
         <HorizontalClipCarouselItem
           key={venue.jambase_id ?? venue.name}

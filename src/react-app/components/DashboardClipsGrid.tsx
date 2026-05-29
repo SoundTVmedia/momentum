@@ -162,7 +162,6 @@ export default function DashboardClipsGrid({
         ariaLabel={title}
         className={carouselClassName}
         stretchItems
-        filmstrip
       >
         {clips.map((clip, index) => {
           const showDelete = Boolean(showDeleteOnEach && onDeleteClip);

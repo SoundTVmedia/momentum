@@ -158,6 +158,7 @@ export default function YouTubeVideoCarousel({
         ariaLabel={ariaLabel}
         className={carouselClassName}
         stretchItems
+        filmstrip={false}
       >
         {videos.map((video) => (
           <HorizontalClipCarouselItem key={video.videoId}>

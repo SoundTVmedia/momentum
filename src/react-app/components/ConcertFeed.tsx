@@ -144,7 +144,6 @@ export default function ConcertFeed({
             ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
             className={carouselClass}
             stretchItems
-            filmstrip
           >
             {Array.from({ length: 4 }).map((_, i) => (
               <HorizontalClipCarouselItem key={`sk-${i}`}>
@@ -160,7 +159,6 @@ export default function ConcertFeed({
               ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
               className={carouselClass}
               stretchItems
-              filmstrip
             >
               {clips.map((clip, index) => (
                 <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>

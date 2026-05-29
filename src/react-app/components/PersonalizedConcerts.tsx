@@ -315,6 +315,7 @@ export default function PersonalizedConcerts({
           stretchItems
           ariaLabel="Upcoming concerts from your favorite artists"
           className={carouselBleed}
+          filmstrip={false}
         >
           {d1Concerts.map((concert) => (
             <HorizontalClipCarouselItem key={concert.id} mobilePeek="event">

@@ -432,7 +432,6 @@ export default function FavoriteArtistFeedPanel({
                 <HorizontalClipCarousel
                   ariaLabel="Clips from your artists"
                   stretchItems
-                  filmstrip
                   className={
                     edgeBleed
                       ? edgeBleedScope === 'home'

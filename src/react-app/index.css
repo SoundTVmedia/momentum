@@ -685,8 +685,7 @@ body {
   .glass-clip-media-frame {
     position: relative;
     z-index: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 0.9rem 0.9rem 0 0;
+    border-radius: 0.9rem;
     overflow: hidden;
     isolation: isolate;
     transform: translateZ(0);
@@ -697,17 +696,6 @@ body {
   .glass-clip-media-frame .clip-feed-preview__video,
   .glass-clip-media-frame .clip-feed-preview__poster {
     border-radius: inherit;
-  }
-
-  .glass-clip-overlay-top {
-    background: linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.55) 0%,
-      rgba(0, 0, 0, 0.2) 55%,
-      transparent 100%
-    );
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
   }
 
   .glass-clip-overlay-bottom {
@@ -733,97 +721,44 @@ body {
     padding-block: 0;
   }
 
-  .glass-clip-actions {
+  /* Horizontal carousel — gradient dash rails on item wrapper (card keeps overflow hidden) */
+  .clip-carousel-item-with-edge-rails {
     position: relative;
-    z-index: 3;
-    line-height: 1;
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(22px) saturate(170%);
-    -webkit-backdrop-filter: blur(22px) saturate(170%);
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    margin-left: -2px;
+    margin-right: -2px;
   }
 
-  .glass-clip-actions span {
-    @apply leading-none;
-  }
-
-  /* Horizontal carousel — perforated film strip on item wrapper (card keeps overflow hidden) */
-  .clip-carousel-item-with-filmstrip {
-    position: relative;
-    margin-left: -3px;
-    margin-right: -3px;
-  }
-
-  .clip-carousel-item-with-filmstrip .clip-filmstrip-rail {
+  .clip-carousel-item-with-edge-rails .clip-carousel-edge-rail {
     z-index: 30;
   }
 
-  .clip-filmstrip-rail {
+  .clip-carousel-edge-rail {
     position: absolute;
-    top: 6%;
-    bottom: 6%;
-    width: 11px;
+    top: 7%;
+    bottom: 7%;
+    width: 3px;
     z-index: 25;
     pointer-events: none;
-    opacity: 0.85;
-    background: linear-gradient(
-      180deg,
-      rgba(34, 211, 238, 0.95) 0%,
-      rgba(59, 130, 246, 0.92) 48%,
-      rgba(99, 102, 241, 0.95) 100%
-    );
-  }
-
-  .clip-filmstrip-rail--right {
-    right: -5px;
-    border-radius: 0 3px 3px 0;
-    box-shadow:
-      2px 0 12px rgba(59, 130, 246, 0.45),
-      inset -1px 0 0 rgba(255, 255, 255, 0.35);
-  }
-
-  .clip-filmstrip-rail--left {
-    left: -5px;
-    border-radius: 3px 0 0 3px;
-    box-shadow:
-      -2px 0 12px rgba(59, 130, 246, 0.45),
-      inset 1px 0 0 rgba(255, 255, 255, 0.35);
-  }
-
-  .clip-filmstrip-sprockets {
-    position: absolute;
-    inset: 4px 2px;
-    border-radius: inherit;
-    background-image: radial-gradient(
-      circle at center,
-      rgba(3, 7, 18, 0.92) 38%,
-      transparent 40%
-    );
-    background-size: 100% 9px;
-    background-repeat: repeat-y;
-    background-position: center top;
-  }
-
-  .clip-filmstrip-rail::before,
-  .clip-filmstrip-rail::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    width: 5px;
-    height: 5px;
-    margin-left: -2.5px;
+    opacity: 0.88;
     border-radius: 1px;
-    background: rgba(3, 7, 18, 0.75);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+    /* 2.5px gradient dashes, ~3px gap */
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(34, 211, 238, 0.95) 0,
+      rgba(59, 130, 246, 0.92) 1.25px,
+      rgba(99, 102, 241, 0.95) 2.5px,
+      transparent 2.5px,
+      transparent 5.5px
+    );
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.35));
   }
 
-  .clip-filmstrip-rail::before {
-    top: 2px;
+  .clip-carousel-edge-rail--right {
+    right: -1px;
   }
 
-  .clip-filmstrip-rail::after {
-    bottom: 2px;
+  .clip-carousel-edge-rail--left {
+    left: -1px;
   }
 
   /* YouTube carousel cards — liquid glass + uniform height */

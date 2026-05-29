@@ -339,6 +339,7 @@ export default function JamBaseEventGrid({
           stretchItems
           ariaLabel={carouselAriaLabel}
           className={carouselClassName}
+          filmstrip={false}
         >
           {Array.from({ length: 3 }).map((_, i) => (
             <HorizontalClipCarouselItem key={`sk-${i}`} mobilePeek="event">
@@ -397,6 +398,7 @@ export default function JamBaseEventGrid({
           stretchItems
           ariaLabel={carouselAriaLabel}
           className={carouselClassName}
+          filmstrip={false}
         >
           {display.map((event) => (
             <HorizontalClipCarouselItem key={eventId(event)} mobilePeek="event">

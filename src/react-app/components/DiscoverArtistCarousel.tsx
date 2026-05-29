@@ -30,7 +30,7 @@ export default function DiscoverArtistCarousel({
   if (artists.length === 0) return null;
 
   return (
-    <HorizontalClipCarousel ariaLabel="Trending artists" className={className}>
+    <HorizontalClipCarousel ariaLabel="Trending artists" className={className} filmstrip={false}>
       {artists.map((artist) => (
         <HorizontalClipCarouselItem
           key={artist.jambase_id ?? artist.name}

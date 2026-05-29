@@ -27,7 +27,7 @@ export type HorizontalClipCarouselProps = {
   ariaLabel?: string;
   /** Stretch carousel items to equal height (e.g. event cards with aligned footers). */
   stretchItems?: boolean;
-  /** Perforated film-strip rail on the right edge of each clip card. */
+  /** Stacked gradient edge ticks on left/right of each clip card. */
   filmstrip?: boolean;
 };
 
@@ -38,7 +38,7 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
       className = '',
       ariaLabel = 'Clips carousel',
       stretchItems = false,
-      filmstrip = false,
+      filmstrip = true,
     },
     forwardedRef,
   ) {
@@ -248,16 +248,12 @@ export function HorizontalClipCarouselItem({
   return (
     <div
       data-carousel-item
-      className={`flex-shrink-0 snap-start snap-always ${mobilePeekClass} md:basis-auto md:max-w-none ${mobilePeek === 'clip' ? CLIP_CAROUSEL_ITEM_WIDTH_CLASS : mobilePeek === 'event' ? EVENT_CAROUSEL_ITEM_WIDTH_CLASS : ''} ${filmstrip ? 'clip-carousel-item-with-filmstrip' : ''} ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
+      className={`flex-shrink-0 snap-start snap-always ${mobilePeekClass} md:basis-auto md:max-w-none ${mobilePeek === 'clip' ? CLIP_CAROUSEL_ITEM_WIDTH_CLASS : mobilePeek === 'event' ? EVENT_CAROUSEL_ITEM_WIDTH_CLASS : ''} ${filmstrip ? 'clip-carousel-item-with-edge-rails' : ''} ${stretch ? 'self-stretch flex' : 'self-start'} ${className}`}
     >
       {filmstrip ? (
         <>
-          <div className="clip-filmstrip-rail clip-filmstrip-rail--left" aria-hidden>
-            <div className="clip-filmstrip-sprockets" />
-          </div>
-          <div className="clip-filmstrip-rail clip-filmstrip-rail--right" aria-hidden>
-            <div className="clip-filmstrip-sprockets" />
-          </div>
+          <div className="clip-carousel-edge-rail clip-carousel-edge-rail--left" aria-hidden />
+          <div className="clip-carousel-edge-rail clip-carousel-edge-rail--right" aria-hidden />
         </>
       ) : null}
       {inner}

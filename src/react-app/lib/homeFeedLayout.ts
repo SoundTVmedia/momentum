@@ -30,7 +30,7 @@ export const EVENT_MOBILE_CAROUSEL_ITEM_PEEK_CLASS =
 /** Desktop clip carousel tile width (~70% of prior w-72 / w-80). */
 export const CLIP_CAROUSEL_ITEM_WIDTH_CLASS = 'md:w-50 lg:w-56';
 
-/** Horizontal clip carousels — tighter gap so film-strip rails meet between cards. */
+/** Horizontal clip carousels — tighter gap so edge rails sit between cards. */
 export const CLIP_CAROUSEL_GAP_CLASS = 'max-md:gap-2 md:gap-1 lg:gap-1.5';
 
 /** Equal-height YouTube cards in carousels (fixed thumb + reserved title/artist/footer). */
