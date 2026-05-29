@@ -3,6 +3,18 @@ import {
   jamBaseEventDateFromToday,
   type JamBaseQuotaContext,
 } from './jambase-client';
+import {
+  jamBaseVenueJamBaseImage,
+  jamBaseVenueOfficialWebsite,
+  resolveVenueLogoFromOfficialWebsite,
+} from './venue-website-logo';
+import {
+  getVenueLogoFromCache,
+  jamBaseLogoCacheKey,
+  persistVenueLogoCache,
+  websiteLogoCacheKey,
+  type VenueLogoCacheSource,
+} from './venue-logo-cache';
 
 export type TrendingArtistRow = {
   name: string;
@@ -75,8 +87,96 @@ function jamBaseArtistId(artist: Record<string, unknown>): string | null {
 }
 
 function jamBaseVenueImage(venue: Record<string, unknown>): string | null {
-  const image = venue.image;
-  return typeof image === 'string' && image.trim() ? image.trim() : null;
+  return jamBaseVenueJamBaseImage(venue);
+}
+
+async function fetchJamBaseVenueById(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  venueId: string,
+): Promise<Record<string, unknown> | null> {
+  const data = await jamBaseFetch<Record<string, unknown>>(
+    apiKey,
+    `/venues/${encodeURIComponent(venueId)}`,
+    {},
+    jbQ,
+  );
+  return data ?? null;
+}
+
+/** JamBase venue photo, then logo from official website — cached permanently in D1. */
+async function resolveJamBaseVenueImageWithFallback(
+  db: D1Database,
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  venue: Record<string, unknown>,
+): Promise<string | null> {
+  const jambaseId = jamBaseVenueId(venue);
+  const websiteHint = jamBaseVenueOfficialWebsite(venue);
+  const cacheKeys = [
+    jambaseId ? jamBaseLogoCacheKey(jambaseId) : null,
+    websiteHint ? websiteLogoCacheKey(websiteHint) : null,
+  ].filter((k): k is string => Boolean(k));
+
+  const cached = await getVenueLogoFromCache(db, cacheKeys);
+  if (cached !== undefined) return cached;
+
+  let sourceVenue = venue;
+  if (!websiteHint && jambaseId) {
+    try {
+      const full = await fetchJamBaseVenueById(apiKey, jbQ, jambaseId);
+      if (full) sourceVenue = full;
+    } catch (e) {
+      console.warn('resolveJamBaseVenueImageWithFallback fetchById:', jambaseId, e);
+    }
+  }
+
+  let logoUrl: string | null = jamBaseVenueJamBaseImage(sourceVenue);
+  let source: VenueLogoCacheSource = logoUrl ? 'jambase' : 'none';
+
+  if (!logoUrl) {
+    try {
+      logoUrl = await resolveVenueLogoFromOfficialWebsite(db, sourceVenue);
+      if (logoUrl) source = 'website';
+    } catch (e) {
+      console.warn('resolveJamBaseVenueImageWithFallback website logo:', e);
+    }
+  }
+
+  const resolvedId = jamBaseVenueId(sourceVenue) ?? jambaseId;
+  const resolvedWebsite = jamBaseVenueOfficialWebsite(sourceVenue) ?? websiteHint;
+  const persistEntries: Array<{
+    cacheKey: string;
+    jambaseId?: string | null;
+    websiteUrl?: string | null;
+    logoUrl: string | null;
+    source: VenueLogoCacheSource;
+  }> = [];
+
+  if (resolvedId) {
+    persistEntries.push({
+      cacheKey: jamBaseLogoCacheKey(resolvedId),
+      jambaseId: resolvedId,
+      websiteUrl: resolvedWebsite,
+      logoUrl,
+      source,
+    });
+  }
+  if (resolvedWebsite) {
+    persistEntries.push({
+      cacheKey: websiteLogoCacheKey(resolvedWebsite),
+      jambaseId: resolvedId,
+      websiteUrl: resolvedWebsite,
+      logoUrl,
+      source,
+    });
+  }
+
+  if (persistEntries.length > 0) {
+    await persistVenueLogoCache(db, persistEntries);
+  }
+
+  return logoUrl;
 }
 
 function jamBaseVenueId(venue: Record<string, unknown>): string | null {
@@ -325,6 +425,7 @@ export async function enrichSearchArtistsWithJamBase(
 
 /** Match search venues to the JamBase catalog returned for the same query, then fetch any remaining images. */
 export async function enrichSearchVenuesWithJamBase(
+  db: D1Database,
   apiKey: string | undefined,
   jbQ: JamBaseQuotaContext | undefined,
   venues: SearchVenueRow[],
@@ -347,9 +448,17 @@ export async function enrichSearchVenuesWithJamBase(
     let jambaseId = row.jambase_id;
     let location = row.location;
     try {
-      const jb = await searchJamBaseVenueByName(key, jbQ, row.name);
+      let jb: Record<string, unknown> | null = row.jambase_id
+        ? findJamBaseById(catalog, row.jambase_id)
+        : null;
+      if (!jb) {
+        jb = byName.get(normalizeEntityName(row.name)) ?? null;
+      }
+      if (!jb) {
+        jb = await searchJamBaseVenueByName(key, jbQ, row.name);
+      }
       if (jb) {
-        imageUrl = jamBaseVenueImage(jb);
+        imageUrl = await resolveJamBaseVenueImageWithFallback(db, key, jbQ, jb);
         jambaseId = jamBaseVenueId(jb) ?? jambaseId;
         location = location ?? jamBaseVenueLocation(jb);
       }
@@ -363,6 +472,28 @@ export async function enrichSearchVenuesWithJamBase(
       location,
     };
   });
+}
+
+/** JamBase venue image with official-website logo fallback (for venue pages, etc.). */
+export async function enrichJamBaseVenueImage(
+  db: D1Database,
+  apiKey: string | undefined,
+  jbQ: JamBaseQuotaContext | undefined,
+  venue: Record<string, unknown>,
+): Promise<string | null> {
+  const key = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!key) {
+    const jambaseId = jamBaseVenueId(venue);
+    const websiteHint = jamBaseVenueOfficialWebsite(venue);
+    const cacheKeys = [
+      jambaseId ? jamBaseLogoCacheKey(jambaseId) : null,
+      websiteHint ? websiteLogoCacheKey(websiteHint) : null,
+    ].filter((k): k is string => Boolean(k));
+    const cached = await getVenueLogoFromCache(db, cacheKeys);
+    if (cached !== undefined) return cached;
+    return jamBaseVenueJamBaseImage(venue);
+  }
+  return resolveJamBaseVenueImageWithFallback(db, key, jbQ, venue);
 }
 
 export async function fetchNearbyJamBaseEvents(

@@ -15,11 +15,13 @@ import DiscoverVenueCarousel, {
   discoverVenueFromJamBase,
 } from '@/react-app/components/DiscoverVenueCarousel';
 import DiscoverTrendingMusicSection from '@/react-app/components/DiscoverTrendingMusicSection';
+import DiscoverSearchGeoBanner from '@/react-app/components/DiscoverSearchGeoBanner';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import {
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
+  type AdvancedSearchCacheOpts,
 } from '@/react-app/lib/advanced-search-cache';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 
@@ -122,17 +124,60 @@ export default function DiscoverPage() {
 
   const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const [geoSearchRadius, setGeoSearchRadius] = useState(50);
+  const [isGeoSearch, setIsGeoSearch] = useState(false);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQuery(searchQuery), DISCOVER_SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
   }, [searchQuery]);
 
-  const performSearch = useCallback(async (q: string) => {
+  useEffect(() => {
+    if (results?.locationScoped) {
+      setIsGeoSearch(true);
+      if (results.searchGeo?.radius_miles) {
+        setGeoSearchRadius(results.searchGeo.radius_miles);
+      }
+    } else if (results && !results.locationScoped) {
+      setIsGeoSearch(false);
+    }
+  }, [results]);
+
+  const buildSearchCacheOpts = useCallback(
+    (compact?: boolean): AdvancedSearchCacheOpts => ({
+      compact,
+      radiusMiles: isGeoSearch ? geoSearchRadius : undefined,
+      location: filters.location,
+      dateRange: filters.dateRange,
+      sortBy: filters.sortBy,
+      genre: filters.genre,
+    }),
+    [
+      isGeoSearch,
+      geoSearchRadius,
+      filters.location,
+      filters.dateRange,
+      filters.sortBy,
+      filters.genre,
+    ],
+  );
+
+  const performSearch = useCallback(async (q: string, radiusOverride?: number) => {
     const trimmed = q.trim();
     if (!trimmed) return;
 
-    const cached = peekCachedAdvancedSearch(trimmed);
+    const radiusForFetch =
+      radiusOverride ?? (isGeoSearch ? geoSearchRadius : undefined);
+    const fullCacheOpts = buildSearchCacheOpts(false);
+    if (radiusForFetch != null) {
+      fullCacheOpts.radiusMiles = radiusForFetch;
+    }
+    const compactCacheOpts = buildSearchCacheOpts(true);
+    if (radiusForFetch != null) {
+      compactCacheOpts.radiusMiles = radiusForFetch;
+    }
+
+    const cached = peekCachedAdvancedSearch(trimmed, fullCacheOpts);
     if (cached) {
       setResults(cached as SearchResults);
       setLoading(false);
@@ -144,35 +189,57 @@ export default function DiscoverPage() {
     const controller = new AbortController();
     searchAbortRef.current = controller;
 
+    const fetchOpts = {
+      signal: controller.signal,
+      location: filters.location,
+      dateRange: filters.dateRange,
+      sortBy: filters.sortBy,
+      genre: filters.genre,
+      radiusMiles: radiusForFetch,
+    };
+
     try {
       if (!cached) {
         const compactData = await fetchAdvancedSearch(trimmed, {
+          ...fetchOpts,
           compact: true,
-          signal: controller.signal,
         });
         if (controller.signal.aborted) return;
         setResults(compactData as SearchResults);
-        setCachedAdvancedSearch(trimmed, compactData);
+        setCachedAdvancedSearch(trimmed, compactData, compactCacheOpts);
         setLoading(false);
       }
 
-      const fullData = await fetchAdvancedSearch(trimmed, {
-        signal: controller.signal,
-        location: filters.location,
-        dateRange: filters.dateRange,
-        sortBy: filters.sortBy,
-        genre: filters.genre,
-      });
+      const fullData = await fetchAdvancedSearch(trimmed, fetchOpts);
       if (controller.signal.aborted) return;
       setResults(fullData as SearchResults);
-      setCachedAdvancedSearch(trimmed, fullData);
+      setCachedAdvancedSearch(trimmed, fullData, fullCacheOpts);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       console.error('Search failed:', error);
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [filters.dateRange, filters.location, filters.sortBy, filters.genre]);
+  }, [
+    buildSearchCacheOpts,
+    filters.dateRange,
+    filters.location,
+    filters.sortBy,
+    filters.genre,
+    geoSearchRadius,
+    isGeoSearch,
+  ]);
+
+  const handleGeoRadiusApplied = useCallback(
+    (radius: number) => {
+      setGeoSearchRadius(radius);
+      setIsGeoSearch(true);
+      if (debouncedQuery.trim()) {
+        void performSearch(debouncedQuery, radius);
+      }
+    },
+    [debouncedQuery, performSearch],
+  );
 
   useEffect(() => {
     if (debouncedQuery.trim()) {
@@ -180,6 +247,7 @@ export default function DiscoverPage() {
     } else {
       searchAbortRef.current?.abort();
       setResults(null);
+      setIsGeoSearch(false);
       void fetchDiscoverFeed();
     }
   }, [debouncedQuery, filters, performSearch]);
@@ -363,10 +431,11 @@ export default function DiscoverPage() {
             )}
 
             {results.searchGeo && (
-              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-gray-300 text-sm max-w-3xl mx-auto">
-                Showing results near {results.searchGeo.label} within {results.searchGeo.radius_miles}{' '}
-                miles — based on your profile search radius.
-              </div>
+              <DiscoverSearchGeoBanner
+                label={results.searchGeo.label}
+                radiusMiles={results.searchGeo.radius_miles}
+                onRadiusApplied={handleGeoRadiusApplied}
+              />
             )}
 
             {results.clips.length > 0 && (

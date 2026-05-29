@@ -14,6 +14,7 @@ import {
   titleCaseWords,
 } from '../shared/jambase-slug';
 import { fetchJamBaseEventsByVenueName } from './jambase-endpoints';
+import { enrichJamBaseVenueImage } from './discover-jambase-enrich';
 
 export async function resolveArtistNameForClipsQuery(
   db: D1Database,
@@ -441,16 +442,16 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
         : typeof region?.name === 'string'
           ? (region.name as string)
           : null;
+    const placeholderImage = jambaseVenue
+      ? await enrichJamBaseVenueImage(db, apiKey, jbQ, jambaseVenue)
+      : null;
     venue = {
       id: 0,
       name: nameForDisplay,
       location: [locality, regionName].filter(Boolean).join(', ') || null,
       address:
         typeof addr?.streetAddress === 'string' ? (addr.streetAddress as string) : null,
-      image_url:
-        typeof jambaseVenue?.image === 'string' && jambaseVenue.image.length > 0
-          ? jambaseVenue.image
-          : null,
+      image_url: placeholderImage,
       capacity: null,
       jambase_id:
         typeof jambaseVenue?.identifier === 'string' ? jambaseVenue.identifier : null,
@@ -481,7 +482,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     const image =
       typeof jambaseVenue.image === 'string' && jambaseVenue.image.length > 0
         ? jambaseVenue.image
-        : null;
+        : await enrichJamBaseVenueImage(db, apiKey, jbQ, jambaseVenue);
 
     const updates: string[] = [];
     const binds: unknown[] = [];
@@ -680,10 +681,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
   }
 
   if (venue && jambaseVenue) {
-    const jbImg =
-      typeof jambaseVenue.image === 'string' && jambaseVenue.image.length > 0
-        ? jambaseVenue.image
-        : null;
+    const jbImg = await enrichJamBaseVenueImage(db, apiKey, jbQ, jambaseVenue);
     if (jbImg && !venue.image_url) {
       venue = { ...venue, image_url: jbImg };
     }

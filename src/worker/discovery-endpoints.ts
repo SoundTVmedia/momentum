@@ -28,6 +28,7 @@ import {
 import {
   clipGeoWhereClause,
   filterJamBaseRecordsInRadius,
+  parseSearchRadiusMiles,
   resolveSearchGeoAnchor,
   resolveUserSearchRadius,
   type SearchGeoAnchor,
@@ -233,7 +234,13 @@ async function runGeoScopedAdvancedSearch(
     enrichTrendingArtistsWithJamBase(jbKeyTrimmed || undefined, jbQ, artistsBase),
     compact
       ? Promise.resolve(matchSearchVenuesToJamBaseCatalog(venuesBase, jbVenueCatalog))
-      : enrichSearchVenuesWithJamBase(jbKeyTrimmed || undefined, jbQ, venuesBase, jbVenueCatalog),
+      : enrichSearchVenuesWithJamBase(
+          c.env.DB,
+          jbKeyTrimmed || undefined,
+          jbQ,
+          venuesBase,
+          jbVenueCatalog,
+        ),
   ]);
 
   let jambaseNotice: string | null = null;
@@ -297,10 +304,11 @@ export async function advancedSearch(c: Context) {
   const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
   const jbQ = jamBaseQuotaFromEnv(c.env);
 
-  const [radiusMiles, geoAnchor] = await Promise.all([
+  const [profileRadiusMiles, geoAnchor] = await Promise.all([
     resolveUserSearchRadius(c.env.DB, mochaUser ?? null),
     resolveSearchGeoAnchor(c.env.GOOGLE_MAPS_API_KEY, trimmedQuery),
   ]);
+  const radiusMiles = parseSearchRadiusMiles(c.req.query('radius_miles')) ?? profileRadiusMiles;
 
   if (geoAnchor) {
     return runGeoScopedAdvancedSearch(c, {
@@ -493,7 +501,13 @@ export async function advancedSearch(c: Context) {
   const searchArtists = mapJamBaseArtistsToSearchRows(jambase.artists);
   const enrichedVenues = compact
     ? matchSearchVenuesToJamBaseCatalog(venuesBase, jambase.venues)
-    : await enrichSearchVenuesWithJamBase(jbKeyTrimmed || undefined, jbQ, venuesBase, jambase.venues);
+    : await enrichSearchVenuesWithJamBase(
+        c.env.DB,
+        jbKeyTrimmed || undefined,
+        jbQ,
+        venuesBase,
+        jambase.venues,
+      );
 
   cacheJsonProxy(c, {
     browserMaxAge: compact ? 120 : 90,

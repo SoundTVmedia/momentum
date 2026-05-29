@@ -7,6 +7,7 @@ export type FetchAdvancedSearchOptions = {
   dateRange?: string;
   sortBy?: string;
   genre?: string;
+  radiusMiles?: number;
 };
 
 export async function fetchAdvancedSearch(
@@ -20,6 +21,9 @@ export async function fetchAdvancedSearch(
   if (opts.dateRange) params.set('dateRange', opts.dateRange);
   if (opts.sortBy) params.set('sortBy', opts.sortBy);
   if (opts.genre) params.set('genre', opts.genre);
+  if (opts.radiusMiles != null && Number.isFinite(opts.radiusMiles)) {
+    params.set('radius_miles', String(Math.trunc(opts.radiusMiles)));
+  }
 
   const res = await fetch(`/api/search/advanced?${params}`, {
     signal: opts.signal,

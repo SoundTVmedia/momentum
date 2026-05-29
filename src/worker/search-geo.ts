@@ -281,6 +281,13 @@ export async function resolveUserSearchRadius(
   return 50;
 }
 
+export function parseSearchRadiusMiles(raw: string | undefined | null): number | null {
+  if (raw == null || raw === '') return null;
+  const n = parseInt(String(raw), 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(5000, Math.max(1, Math.trunc(n)));
+}
+
 /** SQL fragment + bindings for clips within radius or legacy location text in searched place. */
 export function clipGeoWhereClause(
   anchor: SearchGeoAnchor,
