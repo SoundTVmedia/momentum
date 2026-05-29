@@ -21,7 +21,10 @@ export async function fetchAdvancedSearch(
   if (opts.sortBy) params.set('sortBy', opts.sortBy);
   if (opts.genre) params.set('genre', opts.genre);
 
-  const res = await fetch(`/api/search/advanced?${params}`, { signal: opts.signal });
+  const res = await fetch(`/api/search/advanced?${params}`, {
+    signal: opts.signal,
+    credentials: 'include',
+  });
   if (!res.ok) throw new Error('Search failed');
   return (await res.json()) as AdvancedSearchPayload;
 }

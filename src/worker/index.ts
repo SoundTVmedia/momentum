@@ -1730,7 +1730,7 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
 });
 
 // Advanced search with filters
-app.get("/api/search/advanced", discovery.advancedSearch);
+app.get("/api/search/advanced", optionalAuthMiddleware, discovery.advancedSearch);
 
 // Get trending content
 app.get("/api/discover/trending", discovery.getTrendingContent);

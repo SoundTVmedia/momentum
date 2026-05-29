@@ -35,7 +35,7 @@ export type DashboardGridClip = Record<string, unknown> & {
 type DashboardClipsGridProps = {
   title: string;
   subtitle: string;
-  headerIcon: ReactNode;
+  headerIcon?: ReactNode;
   clips: DashboardGridClip[];
   loading: boolean;
   error: string | null;
@@ -141,7 +141,7 @@ export default function DashboardClipsGrid({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          {headerIcon}
+          {headerIcon ?? null}
           <div>
             <h2 className="text-2xl font-bold text-white">{title}</h2>
             <p className="text-gray-400 text-sm">{subtitle}</p>

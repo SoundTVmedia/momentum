@@ -144,19 +144,55 @@ function applyJamBaseVenueRow(
   catalog: Record<string, unknown>[],
   byName: Map<string, Record<string, unknown>>,
 ): SearchVenueRow {
-  if (row.image_url?.trim()) return row;
-
   const byId = row.jambase_id ? findJamBaseById(catalog, row.jambase_id) : null;
   const byNameMatch = byName.get(normalizeEntityName(row.name));
   const jb = byId ?? byNameMatch;
   if (!jb) return row;
 
+  const jbImage = jamBaseVenueImage(jb);
   return {
     ...row,
-    image_url: jamBaseVenueImage(jb) ?? row.image_url,
+    image_url: jbImage ?? row.image_url,
     jambase_id: jamBaseVenueId(jb) ?? row.jambase_id,
     location: row.location ?? jamBaseVenueLocation(jb),
   };
+}
+
+export function jamBaseVenueToSearchRow(v: Record<string, unknown>): SearchVenueRow | null {
+  const name = typeof v.name === 'string' ? v.name.trim() : '';
+  if (!name) return null;
+  return {
+    name,
+    location: jamBaseVenueLocation(v),
+    clip_count: 0,
+    image_url: jamBaseVenueImage(v),
+    jambase_id: jamBaseVenueId(v),
+  };
+}
+
+export async function fetchJamBaseVenuesByCity(
+  apiKey: string | undefined,
+  jbQ: JamBaseQuotaContext | undefined,
+  city: string,
+  countryIso2 = 'US',
+  limit = 20,
+): Promise<Record<string, unknown>[]> {
+  const key = typeof apiKey === 'string' ? apiKey.trim() : '';
+  const cityTrim = city.trim();
+  if (!key || !cityTrim) return [];
+
+  const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+    key,
+    '/venues',
+    {
+      geoCityName: cityTrim,
+      geoCountryIso2: countryIso2,
+      perPage: String(Math.min(40, Math.max(1, limit))),
+      page: '1',
+    },
+    jbQ,
+  );
+  return data?.venues ?? [];
 }
 
 /** Catalog-only venue merge — no extra JamBase API calls (typeahead / compact search). */

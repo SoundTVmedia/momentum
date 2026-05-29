@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, MapPin, Music, Filter, Users, Video, X, Ticket } from 'lucide-react';
+import { Search, Filter, Users, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
@@ -15,7 +15,6 @@ import DiscoverVenueCarousel, {
   discoverVenueFromJamBase,
 } from '@/react-app/components/DiscoverVenueCarousel';
 import DiscoverTrendingMusicSection from '@/react-app/components/DiscoverTrendingMusicSection';
-import { venuePath } from '@/shared/app-paths';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import {
@@ -53,6 +52,8 @@ interface SearchResults {
     events: Record<string, unknown>[];
   };
   jambaseNotice?: string | null;
+  locationScoped?: boolean;
+  searchGeo?: { label: string; radius_miles: number };
 }
 
 type DiscoverForYou = {
@@ -75,9 +76,6 @@ type DiscoverFeed = {
   forYou?: DiscoverForYou | null;
 };
 
-
-const FALLBACK_VENUE_IMAGE =
-  'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=300&fit=crop';
 
 function nearbyShowsSubtitle(feed: DiscoverFeed): string {
   const loc = feed.location.label?.trim();
@@ -357,27 +355,34 @@ export default function DiscoverPage() {
             <div className="inline-block w-12 h-12 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin" />
           </div>
         ) : results ? (
-          <div className="space-y-12">
+          <div className="space-y-10 md:space-y-8">
             {results.jambaseNotice && (
               <div className="rounded-xl border border-momentum-ember/40 bg-momentum-ink/50 px-4 py-3 text-momentum-glacier/95 text-sm max-w-3xl mx-auto">
                 {results.jambaseNotice}
               </div>
             )}
 
+            {results.searchGeo && (
+              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-gray-300 text-sm max-w-3xl mx-auto">
+                Showing results near {results.searchGeo.label} within {results.searchGeo.radius_miles}{' '}
+                miles — based on your profile search radius.
+              </div>
+            )}
+
             {results.clips.length > 0 && (
-              <div>
-                <DiscoverSectionTitle icon={Video} title="Clips" />
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle title="Clips" />
                 <ClipFeedCarousel
                   clips={results.clips}
                   onOpenClip={(clip) => openDiscoverClip(clip, results.clips)}
                   ariaLabel="Search result clips"
                 />
-              </div>
+              </section>
             )}
 
             {results.artists.length > 0 && (
-              <div>
-                <DiscoverSectionTitle icon={Music} iconClassName="text-momentum-rose" title="Artists" />
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle title="Artists" />
                 <DiscoverArtistCarousel
                   artists={results.artists.map((a) => ({
                     name: a.name,
@@ -386,79 +391,47 @@ export default function DiscoverPage() {
                     jambase_id: a.jambase_id ?? null,
                   }))}
                 />
-              </div>
+              </section>
             )}
 
             {results.venues.length > 0 && (
-              <div>
-                <DiscoverSectionTitle icon={MapPin} iconClassName="text-momentum-flare" title="Venues" />
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {results.venues.map((venue) => (
-                    <button
-                      key={venue.jambase_id ?? venue.name}
-                      type="button"
-                      onClick={() => navigate(venuePath(venue.name))}
-                      className="glass-panel border border-momentum-flare/20 rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-all text-left group"
-                    >
-                      <div className="relative aspect-[4/3] overflow-hidden">
-                        <img
-                          src={venue.image_url?.trim() || FALLBACK_VENUE_IMAGE}
-                          alt=""
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-3">
-                          <div className="flex items-center gap-1.5 text-white font-semibold text-sm truncate">
-                            <MapPin className="w-4 h-4 text-blue-300 shrink-0" aria-hidden />
-                            <span className="truncate">{venue.name}</span>
-                          </div>
-                          {venue.location && (
-                            <p className="text-gray-300 text-xs mt-0.5 truncate">{venue.location}</p>
-                          )}
-                          <p className="text-gray-400 text-xs mt-0.5">
-                            {venue.clip_count} clip{venue.clip_count === 1 ? '' : 's'}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle title="Venues" />
+                <DiscoverVenueCarousel
+                  venues={results.venues.map((venue) => ({
+                    name: venue.name,
+                    image_url: venue.image_url,
+                    location: venue.location,
+                    clip_count: venue.clip_count,
+                    jambase_id: venue.jambase_id ?? null,
+                  }))}
+                />
+              </section>
             )}
 
-            {results.jambase &&
-              (results.jambase.venues.length > 0 || results.jambase.events.length > 0) && (
-              <div className="rounded-2xl border border-momentum-ember/25 bg-momentum-ink/30 p-6 space-y-10">
-                {results.jambase.venues.length > 0 && (
-                  <DiscoverSectionTitle icon={MapPin} iconClassName="text-momentum-flare" title="Venues" />
-                )}
+            {results.jambase && results.jambase.venues.length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle title="Venues" />
+                <DiscoverVenueCarousel
+                  venues={results.jambase.venues.map(discoverVenueFromJamBase)}
+                />
+              </section>
+            )}
 
-                {results.jambase.venues.length > 0 && (
-                  <DiscoverVenueCarousel
-                    venues={results.jambase.venues.map(discoverVenueFromJamBase)}
-                  />
-                )}
-
-                {results.jambase.events.length > 0 && (
-                  <>
-                    <DiscoverSectionTitle
-                      icon={Ticket}
-                      iconClassName="text-momentum-ember"
-                      title="Shows"
-                    />
-                    <JamBaseEventGrid
-                      layout="carousel"
-                      preloadedEvents={results.jambase.events}
-                      maxEvents={20}
-                      carouselAriaLabel="Search result shows"
-                    />
-                  </>
-                )}
-              </div>
+            {results.jambase && results.jambase.events.length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle title="Shows" />
+                <JamBaseEventGrid
+                  layout="carousel"
+                  preloadedEvents={results.jambase.events}
+                  maxEvents={20}
+                  carouselAriaLabel="Search result shows"
+                />
+              </section>
             )}
 
             {results.users.length > 0 && (
-              <div>
+              <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle icon={Users} iconClassName="text-green-400" title="Users" />
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {results.users.map((u) => (
@@ -485,7 +458,7 @@ export default function DiscoverPage() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
           </div>
         ) : discoverFeed ? (
@@ -529,7 +502,7 @@ export default function DiscoverPage() {
             <section className={HOME_FEED_SECTION_CLASS}>
               <DiscoverSectionTitle
                 title="Trending Artists"
-                subtitle="Artists with the most new clips — photos from JamBase when available"
+                subtitle="Artists with the most new clips"
               />
               {discoverFeed.artists.length > 0 ? (
                 <DiscoverArtistCarousel artists={discoverFeed.artists.slice(0, 4)} />

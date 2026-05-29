@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Film, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClips } from '@/react-app/hooks/useClips';
 import DashboardClipsGrid, { type DashboardGridClip } from '@/react-app/components/DashboardClipsGrid';
@@ -126,7 +126,6 @@ export default function MyClipsSection({ onUploadClick }: MyClipsSectionProps) {
       <DashboardClipsGrid
         title="My clips"
         subtitle="Everything you have shared on Feedback"
-        headerIcon={<Film className="w-6 h-6 text-momentum-flare" />}
         clips={clips as DashboardGridClip[]}
         loading={loading}
         error={error}

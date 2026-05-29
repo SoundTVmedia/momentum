@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Feedback">
+  <defs>
+    <linearGradient id="feedback-grad" x1="32" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" fill="#000000" />
+  <path
+    fill="url(#feedback-grad)"
+    d="M8.5 7h15.5v4H13v4.25h9v3.75H13v5.5H8.5V7z"
+  />
+</svg>

@@ -10,6 +10,7 @@ function cacheKey(q: string): string {
 /** Cached payload if present (may be past TTL — use for stale-while-revalidate). */
 export function peekCachedAdvancedSearch(q: string): AdvancedSearchPayload | null {
   const hit = cache.get(cacheKey(q));
+  if (hit?.data.locationScoped) return null;
   return hit?.data ?? null;
 }
 
@@ -29,6 +30,7 @@ export function getCachedAdvancedSearch(q: string): AdvancedSearchPayload | null
 }
 
 export function setCachedAdvancedSearch(q: string, data: AdvancedSearchPayload): void {
+  if (data.locationScoped) return;
   const key = cacheKey(q);
   cache.set(key, { at: Date.now(), data });
   if (cache.size > 40) {

@@ -8,7 +8,13 @@ export type AdvancedSearchPayload = {
     clip_count: number;
     jambase_id?: string | null;
   }[];
-  venues: { name: string; location: string | null; clip_count: number }[];
+  venues: {
+    name: string;
+    location: string | null;
+    clip_count: number;
+    image_url?: string | null;
+    jambase_id?: string | null;
+  }[];
   users: {
     mocha_user_id: string;
     display_name: string | null;
@@ -20,6 +26,9 @@ export type AdvancedSearchPayload = {
     venues: Record<string, unknown>[];
     events: Record<string, unknown>[];
   };
+  /** True when results are scoped to a city/state within the user's search radius. */
+  locationScoped?: boolean;
+  searchGeo?: { label: string; radius_miles: number };
 };
 
 export function jamBaseEventTicket(ev: Record<string, unknown>): string | null {

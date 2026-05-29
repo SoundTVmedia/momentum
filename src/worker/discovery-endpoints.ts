@@ -18,11 +18,20 @@ import {
   enrichSearchVenuesWithJamBase,
   enrichTrendingArtistsWithJamBase,
   fetchNearbyJamBaseEvents,
+  fetchJamBaseVenuesByCity,
+  jamBaseVenueToSearchRow,
   mapJamBaseArtistsToSearchRows,
   matchSearchVenuesToJamBaseCatalog,
   type SearchVenueRow,
   type TrendingArtistRow,
 } from './discover-jambase-enrich';
+import {
+  clipGeoWhereClause,
+  filterJamBaseRecordsInRadius,
+  resolveSearchGeoAnchor,
+  resolveUserSearchRadius,
+  type SearchGeoAnchor,
+} from './search-geo';
 
 async function fetchJamBaseCompactCatalog(
   apiKey: string,
@@ -47,8 +56,222 @@ async function fetchJamBaseCompactCatalog(
   return { artists: a?.artists ?? [], venues: v?.venues ?? [] };
 }
 
+function venueDedupeKey(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+function mergeSearchVenueRows(primary: SearchVenueRow[], extra: SearchVenueRow[]): SearchVenueRow[] {
+  const seen = new Set(primary.map((v) => venueDedupeKey(v.name)));
+  const merged = [...primary];
+  for (const row of extra) {
+    const key = venueDedupeKey(row.name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(row);
+  }
+  return merged;
+}
+
+async function runGeoScopedAdvancedSearch(
+  c: Context,
+  opts: {
+    trimmedQuery: string;
+    geoAnchor: SearchGeoAnchor;
+    radiusMiles: number;
+    compact: boolean;
+    clipLimit: number;
+    venueLimit: number;
+    dateRange: string;
+    sortBy: string;
+    jbKeyTrimmed: string;
+    jbQ: ReturnType<typeof jamBaseQuotaFromEnv>;
+  },
+) {
+  const { geoAnchor, radiusMiles, compact, clipLimit, venueLimit, dateRange, sortBy, jbKeyTrimmed, jbQ } =
+    opts;
+  const geo = clipGeoWhereClause(geoAnchor, radiusMiles);
+
+  let daysBack = 30;
+  switch (dateRange) {
+    case '7d':
+      daysBack = 7;
+      break;
+    case '90d':
+      daysBack = 90;
+      break;
+    case 'all':
+      daysBack = 36500;
+      break;
+    default:
+      daysBack = 30;
+  }
+
+  let clipsQuery = `
+    SELECT 
+      clips.*,
+      user_profiles.display_name as user_display_name,
+      user_profiles.profile_image_url as user_avatar
+    FROM clips
+    LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+    WHERE clips.is_hidden = 0`;
+
+  const clipsBindings: unknown[] = [];
+
+  if (!compact) {
+    clipsQuery += ` AND clips.created_at >= date('now', '-' || ? || ' days')`;
+    clipsBindings.push(daysBack);
+  }
+
+  clipsQuery += ` AND ${geo.sql}`;
+  clipsBindings.push(...geo.bindings);
+
+  switch (sortBy) {
+    case 'trending':
+      clipsQuery += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
+      break;
+    case 'most_liked':
+      clipsQuery += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
+      break;
+    case 'most_viewed':
+      clipsQuery += ` ORDER BY clips.views_count DESC, clips.created_at DESC`;
+      break;
+    default:
+      clipsQuery += ` ORDER BY clips.created_at DESC`;
+  }
+  clipsQuery += ` LIMIT ${clipLimit}`;
+
+  const artistsQuery = `
+    SELECT
+      clips.artist_name as name,
+      MAX(artists.image_url) as image_url,
+      MAX(clips.jambase_artist_id) as jambase_id,
+      COUNT(DISTINCT clips.id) as clip_count
+    FROM clips
+    LEFT JOIN artists ON clips.artist_name = artists.name
+    WHERE clips.artist_name IS NOT NULL
+    AND clips.is_hidden = 0
+    AND ${geo.sql}
+    GROUP BY clips.artist_name
+    ORDER BY clip_count DESC
+    LIMIT ${compact ? 4 : 12}`;
+
+  const venuesQuery =
+    venueLimit > 0
+      ? `
+    SELECT
+      clips.venue_name as name,
+      MAX(venues.location) as location,
+      MAX(venues.image_url) as image_url,
+      MAX(clips.jambase_venue_id) as jambase_id,
+      COUNT(DISTINCT clips.id) as clip_count
+    FROM clips
+    LEFT JOIN venues ON clips.venue_name = venues.name
+    WHERE clips.venue_name IS NOT NULL
+    AND clips.is_hidden = 0
+    AND ${geo.sql}
+    GROUP BY clips.venue_name
+    ORDER BY clip_count DESC
+    LIMIT ${venueLimit}`
+      : null;
+
+  const jbCity = geoAnchor.city || geoAnchor.state || opts.trimmedQuery;
+  const hasGeoCoords =
+    Number.isFinite(geoAnchor.latitude) && Number.isFinite(geoAnchor.longitude);
+
+  const jbPromise =
+    jbKeyTrimmed && jbCity.trim()
+      ? Promise.all([
+          fetchJamBaseVenuesByCity(
+            jbKeyTrimmed,
+            jbQ,
+            jbCity,
+            geoAnchor.countryIso2,
+            compact ? 6 : 20,
+          ),
+          hasGeoCoords
+            ? fetchNearbyJamBaseEvents(
+                jbKeyTrimmed,
+                jbQ,
+                geoAnchor.latitude,
+                geoAnchor.longitude,
+                radiusMiles,
+                compact ? 6 : 20,
+              )
+            : Promise.resolve([] as Record<string, unknown>[]),
+        ]).then(([venues, events]) => ({
+          venues: filterJamBaseRecordsInRadius(venues, geoAnchor, radiusMiles),
+          events: filterJamBaseRecordsInRadius(events, geoAnchor, radiusMiles),
+          failed: false,
+        }))
+      : Promise.resolve({
+          venues: [] as Record<string, unknown>[],
+          events: [] as Record<string, unknown>[],
+          failed: false,
+        });
+
+  const [clips, artists, venues, jbResult] = await Promise.all([
+    c.env.DB.prepare(clipsQuery).bind(...clipsBindings).all(),
+    c.env.DB.prepare(artistsQuery).bind(...geo.bindings).all(),
+    venuesQuery
+      ? c.env.DB.prepare(venuesQuery).bind(...geo.bindings).all()
+      : Promise.resolve({ results: [] as SearchVenueRow[] }),
+    jbPromise,
+  ]);
+
+  const jbVenueCatalog = jbResult.venues;
+  const jbVenueRows = jbVenueCatalog
+    .map((v) => jamBaseVenueToSearchRow(v))
+    .filter((r): r is SearchVenueRow => r != null);
+
+  const venuesBase = mergeSearchVenueRows(
+    (venues.results ?? []) as SearchVenueRow[],
+    jbVenueRows,
+  );
+
+  const artistsBase = (artists.results ?? []) as TrendingArtistRow[];
+  const [enrichedArtists, enrichedVenues] = await Promise.all([
+    enrichTrendingArtistsWithJamBase(jbKeyTrimmed || undefined, jbQ, artistsBase),
+    compact
+      ? Promise.resolve(matchSearchVenuesToJamBaseCatalog(venuesBase, jbVenueCatalog))
+      : enrichSearchVenuesWithJamBase(jbKeyTrimmed || undefined, jbQ, venuesBase, jbVenueCatalog),
+  ]);
+
+  let jambaseNotice: string | null = null;
+  if (jbResult.failed) {
+    jambaseNotice =
+      'JamBase results for this area did not load. Your Feedback clips in this location are unchanged.';
+  } else if (!jamBaseApiKeyConfigured(jbKeyTrimmed)) {
+    jambaseNotice = jamBaseMissingKeyNotice();
+  }
+
+  cacheJsonProxy(c, {
+    browserMaxAge: compact ? 120 : 90,
+    cdnMaxAge: compact ? 900 : 600,
+    staleWhileRevalidate: 900,
+  });
+
+  return c.json({
+    clips: clips.results || [],
+    artists: enrichedArtists,
+    venues: enrichedVenues,
+    users: [],
+    jambase: {
+      artists: [],
+      venues: [],
+      events: jbResult.events,
+    },
+    jambaseNotice,
+    locationScoped: true,
+    searchGeo: {
+      label: geoAnchor.label,
+      radius_miles: radiusMiles,
+    },
+  });
+}
+
 // Advanced search with filters
 export async function advancedSearch(c: Context) {
+  const mochaUser = c.get('user') as MochaUser | undefined;
   const query = c.req.query('q') || '';
   const location = c.req.query('location') || '';
   const dateRange = c.req.query('dateRange') || '30d';
@@ -69,6 +292,33 @@ export async function advancedSearch(c: Context) {
     });
   }
 
+  const trimmedQuery = query.trim();
+  const jbKey = c.env.JAMBASE_API_KEY;
+  const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
+  const jbQ = jamBaseQuotaFromEnv(c.env);
+
+  const [radiusMiles, geoAnchor] = await Promise.all([
+    resolveUserSearchRadius(c.env.DB, mochaUser ?? null),
+    resolveSearchGeoAnchor(c.env.GOOGLE_MAPS_API_KEY, trimmedQuery),
+  ]);
+
+  if (geoAnchor) {
+    return runGeoScopedAdvancedSearch(c, {
+      trimmedQuery,
+      geoAnchor,
+      radiusMiles,
+      compact,
+      clipLimit,
+      venueLimit,
+      dateRange,
+      sortBy,
+      jbKeyTrimmed,
+      jbQ,
+    });
+  }
+
+  const like = `%${query}%`;
+
   let daysBack = 30;
   switch (dateRange) {
     case '7d': daysBack = 7; break;
@@ -76,8 +326,6 @@ export async function advancedSearch(c: Context) {
     case 'all': daysBack = 36500; break; // ~100 years
     default: daysBack = 30;
   }
-
-  const like = `%${query}%`;
 
   // Search clips
   let clipsQuery: string;
@@ -139,11 +387,6 @@ export async function advancedSearch(c: Context) {
 
     clipsQuery += ` LIMIT ${clipLimit}`;
   }
-
-  const trimmedQuery = query.trim();
-  const jbKey = c.env.JAMBASE_API_KEY;
-  const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
-  const jbQ = jamBaseQuotaFromEnv(c.env);
 
   const d1Promise = Promise.all([
     c.env.DB.prepare(clipsQuery).bind(...clipsBindings).all(),
