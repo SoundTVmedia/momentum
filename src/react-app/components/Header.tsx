@@ -210,7 +210,7 @@ export default function Header() {
             ) : (
               <button
                 onClick={() => navigate('/auth')}
-                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base whitespace-nowrap shadow-lg shadow-momentum-ember/35"
+                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base whitespace-nowrap shadow-lg shadow-momentum-flare/35"
               >
                 Sign In
               </button>

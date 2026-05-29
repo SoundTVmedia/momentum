@@ -711,14 +711,28 @@ body {
 
   .glass-clip-overlay-bottom .fb-clip-artist-name,
   .glass-clip-overlay-bottom .fb-clip-song,
-  .glass-clip-overlay-bottom .fb-clip-venue,
-  .glass-clip-overlay-bottom .fb-clip-location {
-    line-height: 1.2;
+  .glass-clip-overlay-bottom .fb-clip-place-row {
+    line-height: 1.15;
   }
 
-  .glass-clip-overlay-bottom .fb-clip-venue {
-    min-height: 0;
-    padding-block: 0;
+  .glass-clip-overlay-bottom .fb-clip-user {
+    @apply text-[10px] sm:text-[10px] font-semibold leading-none;
+  }
+
+  .glass-clip-overlay-bottom .fb-clip-meta-muted {
+    @apply text-[9px] sm:text-[9px] leading-none;
+  }
+
+  .glass-clip-overlay-bottom .fb-clip-artist-name {
+    @apply text-xs sm:text-sm md:text-[11px] font-bold leading-none;
+  }
+
+  .glass-clip-overlay-bottom .fb-clip-song {
+    @apply text-[10px] sm:text-[11px] md:text-[10px] font-semibold leading-none;
+  }
+
+  .glass-clip-overlay-bottom .fb-clip-place-row {
+    @apply text-[10px] sm:text-[10px] md:text-[9px] leading-none;
   }
 
   /* Horizontal carousel — gradient dash rails on item wrapper (card keeps overflow hidden) */

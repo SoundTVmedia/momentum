@@ -1,4 +1,4 @@
-import { MapPin, Clock, Flame } from 'lucide-react';
+import { MapPin, Flame } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
@@ -73,33 +73,33 @@ export default function ClipFeedGridTile({
           </div>
         )}
 
-        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] flex flex-col gap-1 px-3 py-2 sm:px-3.5 sm:py-2.5 md:px-3 md:py-2 lg:px-3.5 lg:py-2.5">
+        <div className="glass-clip-overlay-bottom absolute bottom-0 left-0 right-0 z-[3] flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 sm:py-2 md:px-2.5 md:py-1.5">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/users/${clip.mocha_user_id}`);
             }}
-            className="flex items-center space-x-1.5 sm:space-x-2 rounded-lg bg-black/25 px-1 py-0.5 backdrop-blur-md transition-opacity hover:opacity-90 w-fit max-w-full"
+            className="flex items-center gap-1 min-w-0 max-w-full rounded-md bg-black/20 px-0.5 py-px backdrop-blur-sm transition-opacity hover:opacity-90"
           >
             <UserAvatar
               imageUrl={clip.user_avatar}
               displayName={clip.user_display_name}
               seed={clip.mocha_user_id}
               alt={clip.user_display_name || 'User'}
-              sizeClass="w-7 h-7 sm:w-8 sm:h-8 md:w-6 md:h-6 lg:w-7 lg:h-7"
-              letterClassName="text-[10px] sm:text-xs font-semibold"
-              className="border-2 border-white/30 shadow-lg shrink-0"
+              sizeClass="w-5 h-5 sm:w-5 md:w-4 md:h-4"
+              letterClassName="text-[8px] font-semibold"
+              className="border border-white/25 shadow-sm shrink-0"
             />
-            <div className="min-w-0 text-left">
-              <div className="fb-clip-user truncate">
-                {clip.user_display_name || 'Anonymous'}
-              </div>
-              <div className="flex items-center space-x-1 fb-clip-meta-muted">
-                <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" />
-                <span className="truncate">{formatRelativeTime(clipPostedAt(clip))}</span>
-              </div>
-            </div>
+            <span className="fb-clip-user min-w-0 truncate">
+              {clip.user_display_name || 'Anonymous'}
+            </span>
+            <span className="fb-clip-meta-muted shrink-0 opacity-60" aria-hidden>
+              ·
+            </span>
+            <span className="fb-clip-meta-muted shrink-0 truncate">
+              {formatRelativeTime(clipPostedAt(clip))}
+            </span>
           </button>
 
           {clip.artist_name && (
@@ -127,21 +127,30 @@ export default function ClipFeedGridTile({
               ♪ {clip.song_title}
             </button>
           ) : null}
-          {clip.venue_name ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(venuePath(clip.venue_name));
-              }}
-              className="fb-clip-venue"
-            >
-              <MapPin className="w-3 h-3 md:w-2.5 md:h-2.5 flex-shrink-0" />
-              <span className="font-medium truncate">{clip.venue_name}</span>
-            </button>
-          ) : null}
-          {clip.location ? (
-            <p className="fb-clip-location truncate">{clip.location}</p>
+          {clip.venue_name || clip.location ? (
+            <div className="fb-clip-place-row flex min-w-0 w-full items-center gap-1 overflow-hidden">
+              <MapPin className="h-2.5 w-2.5 shrink-0 opacity-90" aria-hidden />
+              <p className="min-w-0 flex-1 truncate leading-none">
+                {clip.venue_name ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(venuePath(clip.venue_name!));
+                    }}
+                    className="font-medium text-white/90 hover:text-white transition-colors"
+                  >
+                    {clip.venue_name}
+                  </button>
+                ) : null}
+                {clip.venue_name && clip.location ? (
+                  <span className="text-white/45"> · </span>
+                ) : null}
+                {clip.location ? (
+                  <span className="text-white/70">{clip.location}</span>
+                ) : null}
+              </p>
+            </div>
           ) : null}
         </div>
       </div>
