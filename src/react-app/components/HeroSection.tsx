@@ -1,8 +1,8 @@
 import HeroSearchBar from '@/react-app/components/HeroSearchBar';
 
-/** Concert crowd / stage lights — blends under hero gradients (Unsplash). */
+/** High-energy crowd + stage lights — blends under hero gradients (Unsplash). */
 const HERO_CONCERT_IMAGE =
-  'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1920&h=720&fit=crop&q=80';
+  'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1920&h=720&fit=crop&q=85&auto=format';
 
 export default function HeroSection() {
   return (
@@ -24,7 +24,7 @@ export default function HeroSection() {
       </div>
       <div className="absolute inset-0 hero-grad-brand" aria-hidden />
       <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/85" aria-hidden />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/80" aria-hidden />
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <div className="absolute -left-20 top-1/4 h-56 w-56 rounded-full bg-momentum-ember/20 blur-3xl hero-light-pulse" />

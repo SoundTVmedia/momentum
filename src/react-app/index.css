@@ -532,19 +532,19 @@ body {
     height: 100%;
     width: 100%;
     object-fit: cover;
-    object-position: center 38%;
-    opacity: 0.38;
-    filter: saturate(1.2) contrast(1.08);
+    object-position: center 42%;
+    opacity: 0.52;
+    filter: saturate(1.45) contrast(1.14) brightness(1.06);
   }
 
   /* Blue-tint scrim so the photo melts into the neon gradient shell */
   .hero-concert-scrim {
     background: linear-gradient(
       165deg,
-      rgba(3, 7, 18, 0.72) 0%,
-      rgba(59, 130, 246, 0.28) 42%,
-      rgba(99, 102, 241, 0.22) 68%,
-      rgba(3, 7, 18, 0.88) 100%
+      rgba(3, 7, 18, 0.58) 0%,
+      rgba(59, 130, 246, 0.32) 42%,
+      rgba(99, 102, 241, 0.26) 68%,
+      rgba(3, 7, 18, 0.82) 100%
     );
     mix-blend-mode: multiply;
   }
@@ -744,11 +744,11 @@ body {
     @apply text-[10px] sm:text-[10px] md:text-[9px] leading-snug md:leading-none;
   }
 
-  /* Horizontal carousel — gradient dash rails on item wrapper (card keeps overflow hidden) */
+  /* Horizontal carousel — solid gradient stroke between clip tiles */
   .clip-carousel-item-with-edge-rails {
     position: relative;
-    margin-left: -2px;
-    margin-right: -2px;
+    margin-left: -1px;
+    margin-right: -1px;
   }
 
   .clip-carousel-item-with-edge-rails .clip-carousel-edge-rail {
@@ -757,31 +757,40 @@ body {
 
   .clip-carousel-edge-rail {
     position: absolute;
-    top: 7%;
-    bottom: 7%;
-    width: 3px;
+    top: 8%;
+    bottom: 8%;
+    width: 1px;
     z-index: 25;
     pointer-events: none;
-    opacity: 0.88;
-    border-radius: 1px;
-    /* 2.5px gradient dashes, ~3px gap */
-    background-image: repeating-linear-gradient(
+    opacity: 0.9;
+    border-radius: 999px;
+    background: linear-gradient(
       to bottom,
-      rgba(34, 211, 238, 0.95) 0,
-      rgba(59, 130, 246, 0.92) 1.25px,
-      rgba(99, 102, 241, 0.95) 2.5px,
-      transparent 2.5px,
-      transparent 5.5px
+      rgba(34, 211, 238, 0.35) 0%,
+      rgba(34, 211, 238, 0.92) 18%,
+      rgba(59, 130, 246, 0.95) 50%,
+      rgba(99, 102, 241, 0.92) 82%,
+      rgba(99, 102, 241, 0.35) 100%
     );
-    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.35));
+    box-shadow:
+      0 0 8px rgba(59, 130, 246, 0.28),
+      0 0 1px rgba(103, 232, 249, 0.45);
+  }
+
+  @media (min-width: 768px) {
+    .clip-carousel-edge-rail {
+      top: 6%;
+      bottom: 6%;
+      width: 2px;
+    }
   }
 
   .clip-carousel-edge-rail--right {
-    right: -1px;
+    right: 0;
   }
 
   .clip-carousel-edge-rail--left {
-    left: -1px;
+    left: 0;
   }
 
   /* YouTube carousel cards — liquid glass + uniform height */
