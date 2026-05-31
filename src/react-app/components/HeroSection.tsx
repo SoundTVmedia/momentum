@@ -1,8 +1,5 @@
+import HeroConcertBackdrop from '@/react-app/components/HeroConcertBackdrop';
 import HeroSearchBar from '@/react-app/components/HeroSearchBar';
-
-/** High-energy crowd + stage lights — blends under hero gradients (Unsplash). */
-const HERO_CONCERT_IMAGE =
-  'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1920&h=720&fit=crop&q=85&auto=format';
 
 export default function HeroSection() {
   return (
@@ -12,16 +9,9 @@ export default function HeroSection() {
     >
       <div className="absolute inset-0 hero-grad-base" aria-hidden />
       <div className="absolute inset-0 hero-concert-photo" aria-hidden>
-        <img
-          src={HERO_CONCERT_IMAGE}
-          alt=""
-          className="hero-concert-photo__img"
-          width={1920}
-          height={720}
-          decoding="async"
-          fetchPriority="high"
-        />
+        <HeroConcertBackdrop />
       </div>
+      <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
       <div className="absolute inset-0 hero-grad-brand" aria-hidden />
       <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
       <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/80" aria-hidden />

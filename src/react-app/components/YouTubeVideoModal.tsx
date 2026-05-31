@@ -13,6 +13,7 @@ import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { artistPath } from '@/shared/app-paths';
 import {
+  ensureYoutubeUnmuted,
   loadYoutubeIframeApi,
   startYoutubeAutoplay,
   YT_PLAYER_STATE,
@@ -90,7 +91,7 @@ function YouTubeEmbed({
         height: '100%',
         playerVars: {
           autoplay: 1,
-          mute: 1,
+          mute: 0,
           playsinline: 1,
           rel: 0,
           modestbranding: 1,
@@ -104,6 +105,9 @@ function YouTubeEmbed({
           onStateChange: (event) => {
             if (userPausedRef.current) return;
             const state = event.data;
+            if (state === YT_PLAYER_STATE.PLAYING || state === YT_PLAYER_STATE.BUFFERING) {
+              ensureYoutubeUnmuted(event.target);
+            }
             if (
               state === YT_PLAYER_STATE.UNSTARTED ||
               state === YT_PLAYER_STATE.CUED

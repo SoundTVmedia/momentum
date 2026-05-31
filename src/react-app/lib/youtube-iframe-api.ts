@@ -13,6 +13,7 @@ export type YTPlayer = {
   pauseVideo: () => void;
   mute: () => void;
   unMute: () => void;
+  isMuted?: () => boolean;
   loadVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void;
   getPlayerState: () => number;
   destroy: () => void;
@@ -37,31 +38,62 @@ function isYoutubePlaying(player: YTPlayer): boolean {
   return state === YT_PLAYER_STATE.PLAYING || state === YT_PLAYER_STATE.BUFFERING;
 }
 
-/** Start playback after open or swipe; starts muted for mobile policy, then unmutes when allowed. */
+/** Start playback after open or swipe; prefer unmuted (user just tapped the card). */
 export function startYoutubeAutoplay(player: YTPlayer): void {
-  const attempt = (unmuteAfter: boolean) => {
-    if (isYoutubePlaying(player)) return;
+  const unmute = () => {
+    try {
+      player.unMute();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const playPreferSound = () => {
+    try {
+      player.unMute();
+      player.playVideo();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const playMutedThenUnmute = () => {
     try {
       player.mute();
       player.playVideo();
     } catch {
       /* ignore */
     }
-    if (unmuteAfter) {
-      window.setTimeout(() => {
-        if (!isYoutubePlaying(player)) return;
-        try {
-          player.unMute();
-        } catch {
-          /* ignore */
-        }
-      }, 200);
-    }
+    window.setTimeout(() => {
+      if (isYoutubePlaying(player)) unmute();
+    }, 250);
   };
 
-  attempt(false);
-  for (const delay of [120, 350, 700]) {
-    window.setTimeout(() => attempt(delay >= 350), delay);
+  playPreferSound();
+
+  for (const delay of [100, 300, 600]) {
+    window.setTimeout(() => {
+      if (isYoutubePlaying(player)) {
+        unmute();
+        return;
+      }
+      if (delay < 600) {
+        playPreferSound();
+      } else {
+        playMutedThenUnmute();
+      }
+    }, delay);
+  }
+}
+
+/** Keep modal playback unmuted once video is actually playing. */
+export function ensureYoutubeUnmuted(player: YTPlayer): void {
+  if (!isYoutubePlaying(player)) return;
+  try {
+    if (player.isMuted?.() === false) return;
+    player.unMute();
+  } catch {
+    /* ignore */
   }
 }
 

@@ -554,6 +554,77 @@ body {
     filter: saturate(1.45) contrast(1.14) brightness(1.06);
   }
 
+  .hero-concert-photo__img--motion {
+    animation: hero-ken-burns-a 22s ease-in-out infinite alternate;
+  }
+
+  .hero-concert-photo__img--under-montage {
+    opacity: 0.34;
+    filter: saturate(1.2) contrast(1.08) brightness(0.95) blur(1px);
+  }
+
+  .hero-clip-montage {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    filter: saturate(1.45) contrast(1.14) brightness(1.06);
+  }
+
+  .hero-clip-montage__slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 1.35s ease-in-out;
+    will-change: opacity;
+  }
+
+  .hero-clip-montage__slide.is-active {
+    opacity: 0.58;
+  }
+
+  .hero-clip-montage--single .hero-clip-montage__slide.is-active {
+    opacity: 0.54;
+  }
+
+  .hero-clip-montage__media {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    object-position: center 42%;
+    transform-origin: center center;
+  }
+
+  .hero-clip-montage__media--kb-0 {
+    animation: hero-ken-burns-a 18s ease-in-out infinite alternate;
+  }
+
+  .hero-clip-montage__media--kb-1 {
+    animation: hero-ken-burns-b 20s ease-in-out infinite alternate;
+  }
+
+  .hero-clip-montage__media--kb-2 {
+    animation: hero-ken-burns-c 19s ease-in-out infinite alternate;
+  }
+
+  /* Occasional stage-light sweep across the hero photo */
+  .hero-concert-sweep {
+    pointer-events: none;
+    background: linear-gradient(
+      108deg,
+      transparent 38%,
+      rgba(255, 255, 255, 0.04) 46%,
+      rgba(103, 232, 249, 0.12) 50%,
+      rgba(255, 255, 255, 0.04) 54%,
+      transparent 62%
+    );
+    background-size: 220% 100%;
+    animation: hero-concert-sweep 9s ease-in-out infinite;
+    mix-blend-mode: screen;
+    opacity: 0.85;
+  }
+
   /* Blue-tint scrim so the photo melts into the neon gradient shell */
   .hero-concert-scrim {
     background: linear-gradient(
@@ -611,6 +682,63 @@ body {
   50% {
     opacity: 0.85;
     transform: scale(1.08);
+  }
+}
+
+@keyframes hero-ken-burns-a {
+  0% {
+    transform: scale(1.05) translate(0, 0);
+  }
+  100% {
+    transform: scale(1.14) translate(-1.2%, -0.8%);
+  }
+}
+
+@keyframes hero-ken-burns-b {
+  0% {
+    transform: scale(1.06) translate(0.6%, 0.4%);
+  }
+  100% {
+    transform: scale(1.15) translate(-1.4%, -1%);
+  }
+}
+
+@keyframes hero-ken-burns-c {
+  0% {
+    transform: scale(1.04) translate(-0.5%, 0.2%);
+  }
+  100% {
+    transform: scale(1.13) translate(1%, -1.2%);
+  }
+}
+
+@keyframes hero-concert-sweep {
+  0%,
+  72%,
+  100% {
+    background-position: -120% 0;
+    opacity: 0;
+  }
+  78% {
+    opacity: 0.85;
+  }
+  88% {
+    background-position: 220% 0;
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-concert-photo__img--motion,
+  .hero-clip-montage__media--kb-0,
+  .hero-clip-montage__media--kb-1,
+  .hero-clip-montage__media--kb-2,
+  .hero-concert-sweep {
+    animation: none !important;
+  }
+
+  .hero-clip-montage__slide {
+    transition: none;
   }
 }
 
