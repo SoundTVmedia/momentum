@@ -37,6 +37,43 @@ export type AudDNavPrefill = {
   title: string;
 };
 
+export type LiveSongSnapshot = { artist: string; title: string };
+
+/**
+ * Prefer the post-capture identify pass; fall back to a stabilized live match when the final pass misses.
+ */
+export function mergeLiveAndFinalSongIdentify(
+  live: LiveSongSnapshot | null | undefined,
+  final: AudDIdentifyResult,
+): AudDIdentifyResult {
+  if (final.status === 'match') {
+    const artist = final.artist.trim();
+    const title = final.title.trim();
+    if (artist || title) return final;
+  }
+  if (final.status === 'skipped') return final;
+
+  const snap = live
+    ? { artist: live.artist.trim(), title: live.title.trim() }
+    : { artist: '', title: '' };
+  if (!snap.artist && !snap.title) return final;
+
+  const message =
+    snap.title && snap.artist
+      ? `Identified: ${snap.title} — ${snap.artist}`
+      : snap.title
+        ? `Identified: ${snap.title}`
+        : snap.artist
+          ? `Identified: ${snap.artist}`
+          : null;
+  return {
+    status: 'match',
+    artist: snap.artist,
+    title: snap.title,
+    message,
+  };
+}
+
 export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudDNavPrefill {
   if (r.status === 'match') {
     return {
@@ -63,7 +100,7 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
 }
 
 /**
- * Short in-browser snippet → worker `/api/clips/identify-music` → AudD.
+ * Short in-browser snippet → worker `/api/clips/identify-music` (ACRCloud or AudD).
  * Call after capture (before navigating to the caption screen) so fields can be prefilled for review.
  */
 const MIN_SNIPPET_BYTES = 220;
@@ -101,7 +138,7 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
     const data = (await res.json()) as {
       ok?: boolean;
       skipped?: boolean;
-      match?: { artist?: string; title?: string } | null;
+      match?: { artist?: string; title?: string; confidence?: number } | null;
       error?: string;
       message?: string;
     };
@@ -130,7 +167,11 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
           : artist
             ? `Identified: ${artist}`
             : null;
-    return { status: 'match', artist, title, message };
+    const confidence =
+      typeof data.match.confidence === 'number' && Number.isFinite(data.match.confidence)
+        ? data.match.confidence
+        : undefined;
+    return { status: 'match', artist, title, message, confidence };
   } catch (e) {
     console.error('AudD identify', e);
     return { status: 'error', message: 'Song lookup failed' };

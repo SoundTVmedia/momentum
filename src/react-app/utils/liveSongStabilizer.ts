@@ -76,6 +76,15 @@ export class LiveSongStabilizer {
     this.noMatchStreak = 0;
   }
 
+  /** Confirmed live match (after hysteresis), safe for UI and caption prefill fallback. */
+  getDisplayed(): { artist: string; title: string } | null {
+    if (!this.displayedKey) return null;
+    const artist = this.displayedArtist.trim();
+    const title = this.displayedTitle.trim();
+    if (!artist && !title) return null;
+    return { artist, title };
+  }
+
   private formatLine(): string | null {
     if (!this.displayedKey) return null;
     if (this.displayedTitle && this.displayedArtist) {
@@ -85,9 +94,12 @@ export class LiveSongStabilizer {
   }
 
   /**
-   * Feed one sliding-window AudD result. Returns the line safe to show after hysteresis.
+   * Feed one sliding-window recognition result. Returns display line and confirmed artist/title.
    */
-  observe(r: AudDIdentifyResult): { line: string | null } {
+  observe(r: AudDIdentifyResult): {
+    line: string | null;
+    displayed: { artist: string; title: string } | null;
+  } {
     const match =
       r.status === 'match'
         ? {
@@ -101,7 +113,7 @@ export class LiveSongStabilizer {
       this.pendingKey = null;
       this.pendingStreak = 0;
       this.noMatchStreak = 0;
-      return { line: this.formatLine() };
+      return { line: this.formatLine(), displayed: this.getDisplayed() };
     }
 
     if (!match) {
@@ -116,7 +128,7 @@ export class LiveSongStabilizer {
         this.displayedArtist = '';
         this.displayedTitle = '';
       }
-      return { line: this.formatLine() };
+      return { line: this.formatLine(), displayed: this.getDisplayed() };
     }
 
     this.noMatchStreak = 0;
@@ -147,6 +159,6 @@ export class LiveSongStabilizer {
       this.pendingStreak = 0;
     }
 
-    return { line: this.formatLine() };
+    return { line: this.formatLine(), displayed: this.getDisplayed() };
   }
 }

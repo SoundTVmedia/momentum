@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin, Music } from 'lucide-react';
+import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin, Music, Disc3 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
@@ -7,6 +7,7 @@ import type { ClipShowCandidate } from '@/shared/types';
 import {
   identifyMusicWithAudD,
   auddSourceKey,
+  mergeLiveAndFinalSongIdentify,
   toAudDNavPrefill,
 } from '@/react-app/utils/auddIdentify';
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
@@ -119,7 +120,9 @@ export default function QuickRecordButton({
   const liveAuddInFlightRef = useRef(false);
   const liveAuddStoppedRef = useRef(true);
   const liveStabilizerRef = useRef(new LiveSongStabilizer());
-  const [liveSongBanner, setLiveSongBanner] = useState<string | null>(null);
+  /** Stabilized song/artist shown under venue on camera and used as caption prefill fallback. */
+  const [liveSongMatch, setLiveSongMatch] = useState<{ artist: string; title: string } | null>(null);
+  const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -542,7 +545,7 @@ export default function QuickRecordButton({
       if (!hasAudioTrack) {
         setAudioEnabled(false);
         setCameraError(
-          'Camera opened without microphone access. Song recognition (AudD) needs audio — allow the microphone for this site, then open Capture again.',
+          'Camera opened without microphone access. Song recognition needs audio — allow the microphone for this site, then open Capture again.',
         );
       } else {
         setAudioEnabled(true);
@@ -769,7 +772,11 @@ export default function QuickRecordButton({
     setProcessingHint('Identifying music before upload (~15s)…');
     try {
       const sourceKey = auddSourceKey(file);
-      const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(file));
+      const finalIdentify = await identifyMusicWithAudD(file);
+      const auddPrefill = toAudDNavPrefill(
+        sourceKey,
+        mergeLiveAndFinalSongIdentify(lastLiveSongMatchRef.current, finalIdentify),
+      );
       const prefetchShow = captureResolveCandidateRef.current;
       navigate({ pathname: '/upload', search: '' }, {
         state: {
@@ -822,7 +829,13 @@ export default function QuickRecordButton({
       chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
   };
 
-  const stopLiveAuddPipeline = () => {
+  const resetLiveSongIdentification = () => {
+    liveStabilizerRef.current.reset();
+    setLiveSongMatch(null);
+    lastLiveSongMatchRef.current = null;
+  };
+
+  const stopLiveAuddRecorder = () => {
     liveAuddStoppedRef.current = true;
     const lr = liveAuddRecorderRef.current;
     liveAuddRecorderRef.current = null;
@@ -850,8 +863,21 @@ export default function QuickRecordButton({
       }
     }
     liveAuddInFlightRef.current = false;
-    liveStabilizerRef.current.reset();
-    setLiveSongBanner(null);
+  };
+
+  const stopLiveAuddPipeline = () => {
+    stopLiveAuddRecorder();
+    resetLiveSongIdentification();
+  };
+
+  const applyLiveSongDisplayed = (displayed: { artist: string; title: string } | null) => {
+    if (displayed && (displayed.artist || displayed.title)) {
+      setLiveSongMatch(displayed);
+      lastLiveSongMatchRef.current = displayed;
+    } else if (!displayed) {
+      setLiveSongMatch(null);
+      lastLiveSongMatchRef.current = null;
+    }
   };
 
   const startRecording = async () => {
@@ -884,7 +910,8 @@ export default function QuickRecordButton({
     clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
 
     try {
-      stopLiveAuddPipeline();
+      stopLiveAuddRecorder();
+      resetLiveSongIdentification();
       liveAuddStoppedRef.current = false;
       clearAuddParallelCapTimer();
       /** Prefer VP*+Opus so the file includes an audio track for AudD; `vp9` alone often muxes video-only. */
@@ -992,8 +1019,8 @@ export default function QuickRecordButton({
                   try {
                     const r = await identifyMusicWithAudD(event.data);
                     if (liveAuddStoppedRef.current) return;
-                    const { line } = liveStabilizerRef.current.observe(r);
-                    setLiveSongBanner(line);
+                    const { displayed } = liveStabilizerRef.current.observe(r);
+                    applyLiveSongDisplayed(displayed);
                   } finally {
                     liveAuddInFlightRef.current = false;
                   }
@@ -1031,7 +1058,7 @@ export default function QuickRecordButton({
       return;
     }
 
-    stopLiveAuddPipeline();
+    stopLiveAuddRecorder();
 
     clearAuddParallelCapTimer();
 
@@ -1120,7 +1147,11 @@ export default function QuickRecordButton({
         parallelAudio.type.startsWith('audio/');
       const auddInput = useParallelAudD ? parallelAudio : blob;
       const sourceKey = auddSourceKey(blob);
-      const auddPrefill = toAudDNavPrefill(sourceKey, await identifyMusicWithAudD(auddInput));
+      const finalIdentify = await identifyMusicWithAudD(auddInput);
+      const auddPrefill = toAudDNavPrefill(
+        sourceKey,
+        mergeLiveAndFinalSongIdentify(lastLiveSongMatchRef.current, finalIdentify),
+      );
       setProcessingHint('');
 
       const prefetchShow = captureResolveCandidateRef.current;
@@ -1320,10 +1351,10 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* REC + live song ID (sliding-window AudD + hysteresis) */}
+            {/* REC indicator */}
             {isRecording && (
               <div
-                className="absolute z-10 flex flex-col items-start gap-2 transition-all duration-300 ease-in-out"
+                className="absolute z-10 transition-all duration-300 ease-in-out"
                 style={{
                   top: isPortrait ? 'max(1rem, env(safe-area-inset-top, 1rem))' : '1rem',
                   left: '1rem',
@@ -1333,16 +1364,6 @@ export default function QuickRecordButton({
                   <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                   <span className="text-red-500 text-sm font-bold">REC</span>
                 </div>
-                {liveSongBanner ? (
-                  <div
-                    className="max-w-[min(90vw,20rem)] rounded-lg border border-momentum-flare/35 bg-black/55 px-3 py-1.5 backdrop-blur-md"
-                    title={liveSongBanner}
-                  >
-                    <p className="truncate text-momentum-flare/95 text-xs font-medium leading-snug">{liveSongBanner}</p>
-                  </div>
-                ) : (
-                  <p className="text-white/45 text-[11px] px-0.5">Listening for music…</p>
-                )}
               </div>
             )}
 
@@ -1369,8 +1390,19 @@ export default function QuickRecordButton({
                       ? processingHint
                       : networkSpeed === 'slow' || networkSpeed === 'offline'
                         ? 'Hang tight while we open your clip so you can add details and post.'
-                        : 'Opening your clip — venue suggestions load on the next screen.'}
+                        : 'Opening your clip — venue and song fields will be prefilled when we can.'}
                   </p>
+                  {liveSongMatch && (liveSongMatch.title || liveSongMatch.artist) ? (
+                    <div className="mt-3 rounded-lg border border-momentum-flare/25 bg-white/5 px-3 py-2 text-left">
+                      <p className="text-[10px] uppercase tracking-wide text-white/50 mb-1">Song for your post</p>
+                      {liveSongMatch.title ? (
+                        <p className="text-sm font-medium text-white truncate">{liveSongMatch.title}</p>
+                      ) : null}
+                      {liveSongMatch.artist ? (
+                        <p className="text-xs text-momentum-flare/95 truncate">{liveSongMatch.artist}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -1421,49 +1453,97 @@ export default function QuickRecordButton({
                     Waiting for location permission — allow it when the browser asks so we can match venues.
                   </p>
                 )}
-                {coordsForNearbyVenues && (
+                {(coordsForNearbyVenues || isRecording || liveSongMatch) && (
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
                     <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
                     <div className="min-w-0 flex-1 text-left space-y-1">
-                      {(captureResolvePreview.status === 'idle' ||
-                        captureResolvePreview.status === 'loading') && (
-                        <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
-                          Matching nearest JamBase show at your location…
-                        </p>
-                      )}
-                      {captureResolvePreview.status === 'ready' && (
+                      {coordsForNearbyVenues ? (
                         <>
-                          <p className="text-white text-xs font-semibold leading-snug truncate">
-                            {captureResolvePreview.venueName}
-                          </p>
-                          {captureResolvePreview.artistName ? (
-                            <p className="text-momentum-flare/95/95 text-[11px] leading-snug flex items-start gap-1.5">
-                              <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
-                              <span>{captureResolvePreview.artistName}</span>
+                          {(captureResolvePreview.status === 'idle' ||
+                            captureResolvePreview.status === 'loading') && (
+                            <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
+                              Matching nearest JamBase show at your location…
                             </p>
-                          ) : null}
-                          {captureResolvePreview.locationLine ? (
-                            <p className="text-gray-500 text-[10px] leading-snug">
-                              {captureResolvePreview.locationLine}
+                          )}
+                          {captureResolvePreview.status === 'ready' && (
+                            <>
+                              <p className="text-white text-xs font-semibold leading-snug truncate">
+                                {captureResolvePreview.venueName}
+                              </p>
+                              {captureResolvePreview.artistName ? (
+                                <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
+                                  <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
+                                  <span>{captureResolvePreview.artistName}</span>
+                                </p>
+                              ) : null}
+                              {captureResolvePreview.locationLine ? (
+                                <p className="text-gray-500 text-[10px] leading-snug">
+                                  {captureResolvePreview.locationLine}
+                                </p>
+                              ) : null}
+                            </>
+                          )}
+                          {captureResolvePreview.status === 'none' && (
+                            <p className="text-gray-300 text-[11px] leading-snug">
+                              Location saved. No JamBase show matched here yet — you can add venue after you record.
                             </p>
-                          ) : null}
-                          <p className="text-gray-500 text-[10px] leading-snug pt-0.5">
-                            Saved with this clip — you can edit on the next screen after you record.
-                          </p>
+                          )}
+                          {captureResolvePreview.status === 'error' && (
+                            <p className="text-gray-300 text-[11px] leading-snug">
+                              Couldn&apos;t preview venue; we&apos;ll try again after you record.
+                            </p>
+                          )}
                         </>
-                      )}
-                      {captureResolvePreview.status === 'none' && (
-                        <p className="text-gray-300 text-[11px] leading-snug">
-                          Location saved with this clip. No JamBase show matched here yet — add venue or artist after you
-                          record if needed.
+                      ) : isRecording ? (
+                        <p className="text-gray-400 text-[11px] leading-snug">
+                          Allow location to match venue — song ID still works from the mic.
                         </p>
+                      ) : null}
+
+                      {(isRecording || liveSongMatch) && (
+                        <div
+                          className={
+                            coordsForNearbyVenues
+                              ? 'border-t border-white/10 pt-2 mt-2 space-y-0.5'
+                              : 'space-y-0.5'
+                          }
+                        >
+                          <p className="text-[10px] uppercase tracking-wide text-white/45">
+                            {isRecording ? 'Now playing' : 'Song'}
+                          </p>
+                          {liveSongMatch && (liveSongMatch.title || liveSongMatch.artist) ? (
+                            <>
+                              {liveSongMatch.title ? (
+                                <p className="text-white text-xs font-semibold leading-snug truncate">
+                                  {liveSongMatch.title}
+                                </p>
+                              ) : null}
+                              {liveSongMatch.artist ? (
+                                <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
+                                  <Disc3 className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
+                                  <span className="truncate">{liveSongMatch.artist}</span>
+                                </p>
+                              ) : null}
+                            </>
+                          ) : isRecording ? (
+                            <p className="text-gray-400 text-[11px] leading-snug flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin shrink-0 text-momentum-flare" />
+                              Listening for music…
+                            </p>
+                          ) : null}
+                        </div>
                       )}
-                      {captureResolvePreview.status === 'error' && (
-                        <p className="text-gray-300 text-[11px] leading-snug">
-                          Couldn&apos;t preview venue here; we&apos;ll match again right after you record.
+
+                      {(coordsForNearbyVenues || liveSongMatch) && !isRecording ? (
+                        <p className="text-gray-500 text-[10px] leading-snug pt-1">
+                          Saved with this clip — edit on the next screen.
                         </p>
-                      )}
+                      ) : coordsForNearbyVenues && isRecording ? (
+                        <p className="text-gray-500 text-[10px] leading-snug pt-1">
+                          Venue and song prefilled on the next screen when we can match them.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 )}

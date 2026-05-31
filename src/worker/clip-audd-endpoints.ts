@@ -1,12 +1,13 @@
 import type { Context } from 'hono';
-import { recognizeMusicWithAudD } from './audd-client';
+import { isMusicRecognitionConfigured, recognizeMusic } from './music-recognition';
 
 const MAX_SNIPPET_BYTES = 12 * 1024 * 1024;
 
 /**
- * POST multipart/form-data: `file` — short audio/video snippet for [AudD standard recognition](https://docs.audd.io/).
+ * POST multipart/form-data: `file` — short audio/video snippet for music recognition
+ * (ACRCloud when configured, otherwise AudD).
  */
-export async function postClipIdentifyMusicAudD(c: Context) {
+export async function postClipIdentifyMusic(c: Context) {
   const mochaUser = c.get('user');
   if (!mochaUser) {
     return c.json({ error: 'Unauthorized' }, 401);
@@ -29,12 +30,16 @@ export async function postClipIdentifyMusicAudD(c: Context) {
     return c.json({ error: 'Missing file field' }, 400);
   }
   if (blob.size > MAX_SNIPPET_BYTES) {
-    return c.json({ error: `File too large (max ${MAX_SNIPPET_BYTES} bytes for AudD snippet)` }, 400);
+    return c.json({ error: `File too large (max ${MAX_SNIPPET_BYTES} bytes for identify snippet)` }, 400);
   }
 
-  const token = c.env.AUDD_API_TOKEN;
-  if (!token?.trim()) {
-    return c.json({ ok: false, skipped: true, message: 'AudD is not configured (set AUDD_API_TOKEN).' });
+  if (!isMusicRecognitionConfigured(c.env)) {
+    return c.json({
+      ok: false,
+      skipped: true,
+      message:
+        'Music recognition is not configured. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET to .dev.vars (see .dev.vars.example).',
+    });
   }
 
   const filename =
@@ -42,10 +47,10 @@ export async function postClipIdentifyMusicAudD(c: Context) {
       ? (raw as { name: string }).name
       : 'snippet.webm';
 
-  const out = await recognizeMusicWithAudD(token, blob, filename);
+  const out = await recognizeMusic(c.env, blob, filename);
 
   if (!out.ok) {
-    return c.json({ ok: false, error: out.error, audd: out.audd }, 502);
+    return c.json({ ok: false, error: out.error, provider: out.provider, raw: out.raw }, 502);
   }
   if (!out.match) {
     return c.json({ ok: true, match: null, status: out.status ?? 'no_match' });
@@ -53,6 +58,15 @@ export async function postClipIdentifyMusicAudD(c: Context) {
 
   return c.json({
     ok: true,
-    match: out.match,
+    match: {
+      artist: out.match.artist,
+      title: out.match.title,
+      album: out.match.album,
+      confidence: out.match.confidence,
+      isrc: out.match.isrc,
+    },
   });
 }
+
+/** @deprecated Use postClipIdentifyMusic */
+export const postClipIdentifyMusicAudD = postClipIdentifyMusic;

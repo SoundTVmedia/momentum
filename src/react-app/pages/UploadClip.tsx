@@ -1387,7 +1387,7 @@ export default function UploadClip() {
               {auddStatus === 'loading' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg flex items-center gap-2 text-violet-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                  <span>Identifying music in your clip (AudD)…</span>
+                  <span>Identifying song in your clip…</span>
                 </div>
               )}
               {auddStatus === 'done' && (
@@ -1405,13 +1405,13 @@ export default function UploadClip() {
                 <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
                   <p className="text-gray-300 text-sm">
                     {auddMessage?.trim() ||
-                      'Song lookup was skipped. Add AUDD_API_TOKEN to your worker env (e.g. .dev.vars) to enable AudD.'}
+                      'Song lookup was skipped. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET to .dev.vars (see .dev.vars.example).'}
                   </p>
                 </div>
               )}
               {auddStatus === 'nomatch' && (
                 <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-                  <p className="text-gray-400 text-sm">No commercial match for this audio (AudD).</p>
+                  <p className="text-gray-400 text-sm">No match for this audio in our music catalog.</p>
                   <p className="text-gray-500 text-xs mt-2">
                     Optional: add the song title below — we&apos;ll tag it for search. Not required to post.
                   </p>

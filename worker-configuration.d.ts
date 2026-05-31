@@ -20,7 +20,11 @@ declare namespace Cloudflare {
 		CLOUDFLARE_STREAM_API_TOKEN: string;
 		TICKETMASTER_API_KEY: string;
 		GOOGLE_MAPS_API_KEY: string;
-		/** Optional — clip song lookup via AudD when unset at build/runtime */
+		/** Optional — ACRCloud music recognition (preferred when all three are set) */
+		ACRCLOUD_HOST?: string;
+		ACRCLOUD_ACCESS_KEY?: string;
+		ACRCLOUD_ACCESS_SECRET?: string;
+		/** Optional — AudD fallback when ACRCloud is not configured */
 		AUDD_API_TOKEN?: string;
 		/** Optional — YouTube Data API v3 for favorite-artist video carousels */
 		YOUTUBE_API_KEY?: string;
@@ -33,7 +37,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MOCHA_USERS_SERVICE_API_URL" | "MOCHA_USERS_SERVICE_API_KEY" | "JAMBASE_API_KEY" | "STRIPE_WEBHOOK_SECRET" | "CLOUDFLARE_ACCOUNT_ID" | "CLOUDFLARE_STREAM_API_TOKEN" | "TICKETMASTER_API_KEY" | "GOOGLE_MAPS_API_KEY" | "AUDD_API_TOKEN" | "DATABASE_URL">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "MOCHA_USERS_SERVICE_API_URL" | "MOCHA_USERS_SERVICE_API_KEY" | "JAMBASE_API_KEY" | "STRIPE_WEBHOOK_SECRET" | "CLOUDFLARE_ACCOUNT_ID" | "CLOUDFLARE_STREAM_API_TOKEN" | "TICKETMASTER_API_KEY" | "GOOGLE_MAPS_API_KEY" | "ACRCLOUD_HOST" | "ACRCLOUD_ACCESS_KEY" | "ACRCLOUD_ACCESS_SECRET" | "AUDD_API_TOKEN" | "DATABASE_URL">> {}
 }
 
 // Begin runtime types

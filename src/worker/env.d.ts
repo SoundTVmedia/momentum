@@ -49,7 +49,12 @@ interface Env {
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
 
-  /** Optional — [AudD](https://docs.audd.io/) music recognition for clip song/artist prefill */
+  /** Optional — [ACRCloud](https://www.acrcloud.com/) music recognition (preferred when all three are set). */
+  ACRCLOUD_HOST?: string;
+  ACRCLOUD_ACCESS_KEY?: string;
+  ACRCLOUD_ACCESS_SECRET?: string;
+
+  /** Optional — [AudD](https://docs.audd.io/) fallback when ACRCloud is not configured */
   AUDD_API_TOKEN?: string;
 
   /** YouTube Data API v3 — favorite-artist video carousels (server-side only). */
