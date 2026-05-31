@@ -190,8 +190,7 @@ export default function ClipModal({
   const togglePlayback = () => activePlayerRef.current?.togglePlay();
   const toggleMute = () => activePlayerRef.current?.toggleMute();
 
-  const mobileChromeIconBtn =
-    'rounded-full glass-icon-btn p-2 text-white transition-colors';
+  const glassIconBtn = 'rounded-full glass-icon-btn p-2 text-white transition-colors';
 
   const editClipButton = isOwnClip ? (
     <button
@@ -321,7 +320,7 @@ export default function ClipModal({
             <button
               type="button"
               onClick={togglePlayback}
-              className={mobileChromeIconBtn}
+              className={glassIconBtn}
               aria-label={playback.isPlaying ? 'Pause' : 'Play'}
             >
               {playback.isPlaying ? (
@@ -333,7 +332,7 @@ export default function ClipModal({
             <button
               type="button"
               onClick={toggleMute}
-              className={mobileChromeIconBtn}
+              className={glassIconBtn}
               aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
             >
               {playback.isMuted ? (
@@ -345,7 +344,7 @@ export default function ClipModal({
             <button
               type="button"
               onClick={onClose}
-              className={mobileChromeIconBtn}
+              className={glassIconBtn}
               aria-label="Close"
             >
               <X className="h-5 w-5" />
@@ -538,14 +537,40 @@ export default function ClipModal({
       <div className="mx-auto hidden h-full w-full max-w-6xl items-center justify-center p-4 md:flex">
         <div className="flex h-full max-h-[90vh] w-full overflow-hidden rounded-2xl glass-dropdown animate-scale-in">
           <div className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black p-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-4 top-4 z-10 rounded-full glass-icon-btn p-2 text-white"
-              aria-label="Close"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={togglePlayback}
+                className={glassIconBtn}
+                aria-label={playback.isPlaying ? 'Pause' : 'Play'}
+              >
+                {playback.isPlaying ? (
+                  <Pause className="h-6 w-6" />
+                ) : (
+                  <Play className="h-6 w-6" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={toggleMute}
+                className={glassIconBtn}
+                aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
+              >
+                {playback.isMuted ? (
+                  <VolumeX className="h-6 w-6" />
+                ) : (
+                  <Volume2 className="h-6 w-6" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className={glassIconBtn}
+                aria-label="Close"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
 
             {prevClip ? (
               <button
@@ -602,32 +627,6 @@ export default function ClipModal({
                     {formatRelativeTime(clipPostedAt(clip))}
                     <span className="text-gray-500"> · </span>
                     {formatCount(viewsCount)} views
-                  </div>
-                  <div className="mt-2 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={togglePlayback}
-                      className="rounded-full p-2 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
-                      aria-label={playback.isPlaying ? 'Pause' : 'Play'}
-                    >
-                      {playback.isPlaying ? (
-                        <Pause className="h-4 w-4" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={toggleMute}
-                      className="rounded-full p-2 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
-                      aria-label={playback.isMuted ? 'Unmute' : 'Mute'}
-                    >
-                      {playback.isMuted ? (
-                        <VolumeX className="h-4 w-4" />
-                      ) : (
-                        <Volume2 className="h-4 w-4" />
-                      )}
-                    </button>
                   </div>
                 </div>
               </div>
