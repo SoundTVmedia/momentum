@@ -21,7 +21,8 @@ const HAPTIC_WARNING_TIME = 50;
 const MAX_AUDD_PARALLEL_RECORD_MS = 20_000;
 /** Sliding-window live ID: one AudD request per timeslice; overlapping calls skipped while a request is in flight. */
 const LIVE_AUDD_TIMESLICE_MS = 6000;
-const MIN_LIVE_AUDD_CHUNK_BYTES = 2000;
+/** ACRCloud often rejects tiny/incomplete WebM timeslices (2004); align with worker MIN_WEBM_BYTES. */
+const MIN_LIVE_AUDD_CHUNK_BYTES = 4096;
 
 /** Build `location.state.showData` so UploadClip prefills JamBase fields without calling resolve-show again. */
 function clipCandidateToNavShowData(c: ClipShowCandidate): Record<string, unknown> {

@@ -13,7 +13,7 @@ export type MusicRecognizeMatch = AudDRecognizeResult & {
 export type MusicRecognizeResponse =
   | { ok: true; match: MusicRecognizeMatch }
   | { ok: true; match: null; status: string }
-  | { ok: false; error: string; provider?: string; raw?: unknown };
+  | { ok: false; error: string; provider?: string; acrcloudCode?: number; raw?: unknown };
 
 type RecognizeEnv = {
   ACRCLOUD_HOST?: string;
@@ -22,12 +22,52 @@ type RecognizeEnv = {
   AUDD_API_TOKEN?: string;
 };
 
+export type MusicRecognitionConfigStatus = {
+  activeProvider: 'acrcloud' | 'audd' | 'none';
+  acrcloud: {
+    host: string | null;
+    accessKeyConfigured: boolean;
+    accessSecretConfigured: boolean;
+    ready: boolean;
+  };
+  audd: { ready: boolean };
+  hint: string | null;
+};
+
 function acrConfigFromEnv(env: RecognizeEnv): AcrCloudConfig | null {
   const host = env.ACRCLOUD_HOST?.trim();
   const accessKey = env.ACRCLOUD_ACCESS_KEY?.trim();
   const accessSecret = env.ACRCLOUD_ACCESS_SECRET?.trim();
   if (!isAcrCloudConfigured({ host, accessKey, accessSecret })) return null;
   return { host: host!, accessKey: accessKey!, accessSecret: accessSecret! };
+}
+
+export function describeMusicRecognitionConfig(env: RecognizeEnv): MusicRecognitionConfigStatus {
+  const host = env.ACRCLOUD_HOST?.trim() ?? '';
+  const accessKey = env.ACRCLOUD_ACCESS_KEY?.trim() ?? '';
+  const accessSecret = env.ACRCLOUD_ACCESS_SECRET?.trim() ?? '';
+  const acrReady = isAcrCloudConfigured({ host, accessKey, accessSecret });
+  const auddReady = Boolean(env.AUDD_API_TOKEN?.trim());
+
+  let hint: string | null = null;
+  if (host && (!accessKey || !accessSecret)) {
+    hint =
+      'ACRCLOUD_HOST is set but access key or secret is missing. For local dev, set all three in .dev.vars (wrangler secrets only apply in production).';
+  } else if (!acrReady && !auddReady) {
+    hint = 'No music recognition credentials loaded.';
+  }
+
+  return {
+    activeProvider: acrReady ? 'acrcloud' : auddReady ? 'audd' : 'none',
+    acrcloud: {
+      host: host || null,
+      accessKeyConfigured: Boolean(accessKey),
+      accessSecretConfigured: Boolean(accessSecret),
+      ready: acrReady,
+    },
+    audd: { ready: auddReady },
+    hint,
+  };
 }
 
 /**
@@ -42,7 +82,13 @@ export async function recognizeMusic(
   if (acr) {
     const out = await recognizeMusicWithAcrCloud(acr, file, filename);
     if (!out.ok) {
-      return { ok: false, error: out.error, provider: 'acrcloud', raw: out.acrcloud };
+      return {
+        ok: false,
+        error: out.error,
+        provider: 'acrcloud',
+        acrcloudCode: out.acrcloudCode,
+        raw: out.acrcloud,
+      };
     }
     if (!out.match) {
       return { ok: true, match: null, status: out.status ?? 'no_match' };
@@ -81,5 +127,5 @@ export async function recognizeMusic(
 }
 
 export function isMusicRecognitionConfigured(env: RecognizeEnv): boolean {
-  return acrConfigFromEnv(env) != null || Boolean(env.AUDD_API_TOKEN?.trim());
+  return describeMusicRecognitionConfig(env).activeProvider !== 'none';
 }

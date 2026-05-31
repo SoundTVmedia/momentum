@@ -2,21 +2,22 @@ import { createHmac } from 'node:crypto';
 
 const IDENTIFY_PATH = '/v1/identify';
 const MAX_SAMPLE_BYTES = 5 * 1024 * 1024;
+/** Live MediaRecorder slices smaller than this are often invalid WebM and fail ACR fingerprinting (2004). */
+const MIN_WEBM_BYTES_FOR_IDENTIFY = 4096;
 const ACRCLOUD_CONSOLE_URL = 'https://console.acrcloud.com/';
 
 export type AcrCloudRecognizeResult = {
   artist: string;
   title: string;
   album?: string | null;
-  /** 0–1 when ACRCloud returns a score (typically 0–100). */
   confidence?: number;
   isrc?: string | null;
 };
 
 export type AcrCloudRecognizeResponse =
   | { ok: true; match: AcrCloudRecognizeResult }
-  | { ok: true; match: null; status: string }
-  | { ok: false; error: string; acrcloud?: unknown };
+  | { ok: true; match: null; status: string; skippedReason?: string }
+  | { ok: false; error: string; acrcloudCode?: number; acrcloud?: unknown };
 
 export type AcrCloudConfig = {
   host: string;
@@ -55,21 +56,56 @@ function buildSignature(
   return createHmac('sha1', accessSecret).update(stringToSign, 'utf8').digest('base64');
 }
 
+function acrStatusFromJson(json: Record<string, unknown>): {
+  code?: number;
+  msg: string;
+} {
+  const status = json.status;
+  if (!status || typeof status !== 'object') return { msg: '' };
+  const o = status as { code?: unknown; msg?: unknown };
+  const code = typeof o.code === 'number' ? o.code : undefined;
+  const msg = typeof o.msg === 'string' ? o.msg : '';
+  return { code, msg };
+}
+
 function friendlyAcrCloudError(code: number | undefined, msg: string): string {
   switch (code) {
     case 1001:
       return 'No match in ACRCloud catalog for this audio.';
+    case 2004:
+      return 'ACRCloud could not fingerprint this audio (code 2004). Record a few more seconds with clear music, or use a longer clip.';
     case 3001:
-      return `Invalid ACRCloud access key. Check ACRCLOUD_ACCESS_KEY in .dev.vars (${ACRCLOUD_CONSOLE_URL}).`;
+      return `Invalid ACRCloud access key (code 3001). Set ACRCLOUD_ACCESS_KEY in .dev.vars for local dev, or wrangler secret put for production (${ACRCLOUD_CONSOLE_URL}).`;
+    case 3002:
+      return `Invalid ACRCloud request (code 3002). ${msg || 'Check host matches your project region.'}`;
     case 3003:
       return `ACRCloud request quota exceeded (code 3003). Upgrade or wait for reset — ${ACRCLOUD_CONSOLE_URL}`;
     case 3014:
-      return `ACRCloud signature rejected (code 3014). Verify ACRCLOUD_ACCESS_SECRET and host match your project.`;
+      return `ACRCloud signature rejected (code 3014). Verify ACRCLOUD_ACCESS_SECRET and that ACRCLOUD_HOST matches your project (e.g. identify-us-west-2.acrcloud.com).`;
     case 3015:
       return `ACRCloud rate limit exceeded (code 3015). Slow live capture polling or upgrade your plan.`;
     default:
-      return msg.trim() || 'ACRCloud returned an error';
+      return msg.trim() ? `${msg.trim()}${code != null ? ` (code ${code})` : ''}` : 'ACRCloud returned an error';
   }
+}
+
+function hasWebmEbmlHeader(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0x1a &&
+    bytes[1] === 0x45 &&
+    bytes[2] === 0xdf &&
+    bytes[3] === 0xa3
+  );
+}
+
+function shouldSkipFragmentedWebm(bytes: Uint8Array, filename: string): boolean {
+  const name = filename.toLowerCase();
+  const looksWebm = name.endsWith('.webm') || name.endsWith('.weba');
+  if (!looksWebm) return false;
+  if (bytes.byteLength < MIN_WEBM_BYTES_FOR_IDENTIFY) return true;
+  if (!hasWebmEbmlHeader(bytes)) return true;
+  return false;
 }
 
 function parseMatch(json: Record<string, unknown>): AcrCloudRecognizeResult | null {
@@ -128,7 +164,14 @@ export async function recognizeMusicWithAcrCloud(
     return { ok: false, error: 'ACRCloud is not configured (host, access key, and secret required).' };
   }
 
-  const sampleBytes = file.size;
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    return { ok: false, error: 'Could not read audio sample.' };
+  }
+
+  const sampleBytes = bytes.byteLength;
   if (sampleBytes === 0) {
     return { ok: false, error: 'Empty audio sample.' };
   }
@@ -139,11 +182,26 @@ export async function recognizeMusicWithAcrCloud(
     };
   }
 
+  const safeName =
+    filename.trim() !== '' ? filename.trim() : 'snippet.bin';
+
+  if (shouldSkipFragmentedWebm(bytes, safeName)) {
+    return {
+      ok: true,
+      match: null,
+      status: 'no_match',
+      skippedReason: 'fragment_too_short',
+    };
+  }
+
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = buildSignature(accessKey, accessSecret, timestamp, 'audio');
 
+  const sampleBlob = new Blob([bytes], { type: 'application/octet-stream' });
+  const sampleFile = new File([sampleBlob], safeName, { type: 'application/octet-stream' });
+
   const form = new FormData();
-  form.append('sample', file, filename);
+  form.append('sample', sampleFile);
   form.append('sample_bytes', String(sampleBytes));
   form.append('access_key', accessKey);
   form.append('data_type', 'audio');
@@ -168,20 +226,22 @@ export async function recognizeMusicWithAcrCloud(
     return { ok: false, error: 'ACRCloud returned non-JSON.' };
   }
 
-  if (!res.ok) {
-    return { ok: false, error: `ACRCloud HTTP ${res.status}`, acrcloud: json };
+  const { code: statusCode, msg: statusMsg } = acrStatusFromJson(json);
+
+  if (statusCode !== undefined) {
+    console.log(
+      `[ACRCloud] host=${host} http=${res.status} code=${statusCode} bytes=${sampleBytes} file=${safeName}`,
+    );
   }
 
-  const status = json.status;
-  const code =
-    status && typeof status === 'object'
-      ? (status as { code?: unknown }).code
-      : undefined;
-  const statusCode = typeof code === 'number' ? code : undefined;
-  const statusMsg =
-    status && typeof status === 'object' && typeof (status as { msg?: unknown }).msg === 'string'
-      ? ((status as { msg: string }).msg as string)
-      : '';
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: friendlyAcrCloudError(statusCode, statusMsg || `ACRCloud HTTP ${res.status}`),
+      acrcloudCode: statusCode,
+      acrcloud: json,
+    };
+  }
 
   if (statusCode === 1001) {
     return { ok: true, match: null, status: 'no_match' };
@@ -191,6 +251,7 @@ export async function recognizeMusicWithAcrCloud(
     return {
       ok: false,
       error: friendlyAcrCloudError(statusCode, statusMsg),
+      acrcloudCode: statusCode,
       acrcloud: json,
     };
   }

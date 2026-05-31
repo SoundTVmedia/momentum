@@ -1,7 +1,20 @@
 import type { Context } from 'hono';
-import { isMusicRecognitionConfigured, recognizeMusic } from './music-recognition';
+import {
+  describeMusicRecognitionConfig,
+  isMusicRecognitionConfigured,
+  recognizeMusic,
+} from './music-recognition';
 
 const MAX_SNIPPET_BYTES = 12 * 1024 * 1024;
+
+/** GET — which provider/credentials the Worker sees (no secrets returned). */
+export async function getClipIdentifyMusicConfig(c: Context) {
+  const mochaUser = c.get('user');
+  if (!mochaUser) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  return c.json(describeMusicRecognitionConfig(c.env));
+}
 
 /**
  * POST multipart/form-data: `file` — short audio/video snippet for music recognition
@@ -33,12 +46,15 @@ export async function postClipIdentifyMusic(c: Context) {
     return c.json({ error: `File too large (max ${MAX_SNIPPET_BYTES} bytes for identify snippet)` }, 400);
   }
 
+  const configStatus = describeMusicRecognitionConfig(c.env);
   if (!isMusicRecognitionConfigured(c.env)) {
     return c.json({
       ok: false,
       skipped: true,
       message:
+        configStatus.hint ??
         'Music recognition is not configured. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET to .dev.vars (see .dev.vars.example).',
+      config: configStatus,
     });
   }
 
@@ -50,10 +66,24 @@ export async function postClipIdentifyMusic(c: Context) {
   const out = await recognizeMusic(c.env, blob, filename);
 
   if (!out.ok) {
-    return c.json({ ok: false, error: out.error, provider: out.provider, raw: out.raw }, 502);
+    return c.json(
+      {
+        ok: false,
+        error: out.error,
+        provider: out.provider,
+        acrcloudCode: out.acrcloudCode,
+        raw: out.raw,
+      },
+      502,
+    );
   }
   if (!out.match) {
-    return c.json({ ok: true, match: null, status: out.status ?? 'no_match' });
+    return c.json({
+      ok: true,
+      match: null,
+      status: out.status ?? 'no_match',
+      provider: configStatus.activeProvider,
+    });
   }
 
   return c.json({
@@ -65,6 +95,7 @@ export async function postClipIdentifyMusic(c: Context) {
       confidence: out.match.confidence,
       isrc: out.match.isrc,
     },
+    provider: configStatus.activeProvider,
   });
 }
 

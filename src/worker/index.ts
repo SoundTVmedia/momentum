@@ -67,7 +67,10 @@ import {
   getRelatedClipsForShare,
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
-import { postClipIdentifyMusicAudD } from "./clip-audd-endpoints";
+import {
+  getClipIdentifyMusicConfig,
+  postClipIdentifyMusicAudD,
+} from "./clip-audd-endpoints";
 import {
   buildHashtagsForClipBody,
   genreFieldsFromBody,
@@ -725,6 +728,12 @@ app.get("/api/files/:key{.+}", serveR2ClipFile);
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);
+app.get(
+  "/api/clips/identify-music/config",
+  authMiddleware,
+  rateLimiter(RateLimits.API),
+  getClipIdentifyMusicConfig
+);
 app.post(
   "/api/clips/identify-music",
   authMiddleware,

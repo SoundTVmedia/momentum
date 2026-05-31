@@ -46,9 +46,11 @@ JAMBASE_API_KEY=
 # Music recognition for capture / POST /api/clips/identify-music (ACRCloud preferred).
 # From https://console.acrcloud.com/ → your project → keys: Host, Access Key, Access Secret.
 # Host is like identify-eu-west-1.acrcloud.com (no https://).
+# LOCAL DEV: all three must be non-empty in .dev.vars (wrangler secret put is production only).
+# Verify while logged in: GET /api/clips/identify-music/config → activeProvider "acrcloud", ready true.
 # ACRCLOUD_HOST=identify-us-west-2.acrcloud.com
-# ACRCLOUD_ACCESS_KEY=
-# ACRCLOUD_ACCESS_SECRET=
+# ACRCLOUD_ACCESS_KEY=your_key_here
+# ACRCLOUD_ACCESS_SECRET=your_secret_here
 # Optional AudD fallback (https://docs.audd.io/) if ACRCloud is not set:
 # AUDD_API_TOKEN=
 # YouTube Data API v3 — home feed carousels for favorite artists (Google Cloud → enable API → API key).

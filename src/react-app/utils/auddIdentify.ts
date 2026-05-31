@@ -141,16 +141,29 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
       match?: { artist?: string; title?: string; confidence?: number } | null;
       error?: string;
       message?: string;
+      provider?: string;
+      acrcloudCode?: number;
+      config?: { hint?: string | null; activeProvider?: string };
     };
 
     if (data.skipped) {
-      const fromApi = typeof data.message === 'string' && data.message.trim() !== '' ? data.message.trim() : null;
+      const fromApi =
+        typeof data.message === 'string' && data.message.trim() !== ''
+          ? data.message.trim()
+          : typeof data.config?.hint === 'string' && data.config.hint.trim() !== ''
+            ? data.config.hint.trim()
+            : null;
       return { status: 'skipped', message: fromApi };
     }
     if (!res.ok || data.ok === false) {
+      const base = typeof data.error === 'string' ? data.error : 'Song lookup failed';
+      const code =
+        typeof data.acrcloudCode === 'number' && Number.isFinite(data.acrcloudCode)
+          ? ` [ACR ${data.acrcloudCode}]`
+          : '';
       return {
         status: 'error',
-        message: typeof data.error === 'string' ? data.error : 'Song lookup failed',
+        message: `${base}${code}`,
       };
     }
     if (!data.match || (!data.match.artist && !data.match.title)) {
