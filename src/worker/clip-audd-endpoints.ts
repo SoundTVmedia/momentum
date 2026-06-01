@@ -22,16 +22,23 @@ export async function getClipIdentifyMusicConfig(c: Context) {
       config: 'GET /api/clips/identify-music/config',
       identify: 'POST /api/clips/identify-music (multipart field: file)',
     },
-    verify:
-      config.acrcloud.ready
-        ? 'acrcloud.ready is true. In console.acrcloud.com attach the "ACRCloud Music" bucket to this project (empty custom buckets → code 1001 on every request).'
-        : config.hint ?? 'Set ACRCLOUD_* or AUDD_API_TOKEN on the production Worker.',
+    verify: config.acrcloud.ready
+      ? `acrcloud.ready is true. Host=${config.acrcloud.host ?? '?'}. Keys are loaded; song ID uses ACRCloud. Code 1001 means "no match" for that audio, not necessarily a missing bucket.`
+      : config.hint ?? 'Set ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET on the Worker.',
+    troubleshooting: config.acrcloud.ready
+      ? {
+          code1001:
+            '1001 = no fingerprint match. Common causes: quiet/noisy clip, wrong AVR project keys, or Music bucket not attached to this project.',
+          hostMustMatchProject:
+            'ACRCLOUD_HOST must be the identify host from the same project as your access key (e.g. identify-us-west-2.acrcloud.com).',
+        }
+      : null,
   });
 }
 
 /**
  * POST multipart/form-data: `file` — short audio/video snippet for music recognition
- * (ACRCloud when configured, otherwise AudD; AudD fallback on retriable ACR errors when both set).
+ * Song ID via ACRCloud only (see music-recognition.ts).
  */
 export async function postClipIdentifyMusic(c: Context) {
   const mochaUser = c.get('user');
@@ -65,7 +72,7 @@ export async function postClipIdentifyMusic(c: Context) {
       skipped: true,
       message:
         configStatus.hint ??
-        'Music recognition is not configured. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET (or AUDD_API_TOKEN).',
+        'Song ID is not configured. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET on the Worker.',
       config: configStatus,
     });
   }

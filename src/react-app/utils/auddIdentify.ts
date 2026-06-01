@@ -64,7 +64,12 @@ export function mergeLiveAndFinalSongIdentify(
     const title = final.title.trim();
     if (artist || title) return final;
   }
-  if (final.status === 'skipped') return final;
+  if (final.status === 'nomatch' || final.status === 'skipped') {
+    return { ...final, message: null };
+  }
+  if (final.status === 'error' && !isFatalSongIdentifyError(final)) {
+    return { status: 'nomatch', message: null };
+  }
 
   const snap = live
     ? { artist: live.artist.trim(), title: live.title.trim() }
@@ -240,23 +245,68 @@ async function resolveSnippetForIdentify(source: Blob): Promise<{
   return { snippet: null, extractFailure: failure };
 }
 
-function pickStrongerMatch(a: AudDIdentifyResult, b: AudDIdentifyResult): AudDIdentifyResult {
-  if (a.status === 'match' && b.status !== 'match') return a;
-  if (b.status === 'match' && a.status !== 'match') return b;
-  if (a.status === 'match' && b.status === 'match') {
-    const ca = a.confidence ?? 0;
-    const cb = b.confidence ?? 0;
-    return cb > ca ? b : a;
-  }
-  if (a.status === 'skipped') return b;
-  if (b.status === 'skipped') return a;
-  if (a.status === 'error' && b.status !== 'error') return b;
-  if (b.status === 'error' && a.status !== 'error') return a;
-  return a;
+export function isFatalSongIdentifyError(r: AudDIdentifyResult): boolean {
+  if (r.status !== 'error' || !r.message) return false;
+  return /not configured|too many song lookups|invalid acrcloud|signature rejected|quota exceeded/i.test(
+    r.message,
+  );
 }
 
-function isUsefulIdentifyResult(r: AudDIdentifyResult): boolean {
-  return r.status === 'match' || r.status === 'error' || r.status === 'nomatch';
+/** ACR no-match must not surface as an error banner — show manual song title only. */
+export function normalizeIdentifyResult(r: AudDIdentifyResult): AudDIdentifyResult {
+  if (r.status === 'nomatch' || r.status === 'skipped') {
+    return { ...r, message: null };
+  }
+  if (r.status === 'error' && r.message) {
+    const msg = r.message.toLowerCase();
+    if (
+      msg.includes('no match') ||
+      msg.includes('no result') ||
+      msg.includes('catalog') ||
+      msg.includes('fingerprint') ||
+      msg.includes('(audd)') ||
+      /\baudd\b/.test(msg)
+    ) {
+      return { status: 'nomatch', message: null };
+    }
+    if (!isFatalSongIdentifyError(r)) {
+      return { status: 'nomatch', message: null };
+    }
+  }
+  return r;
+}
+
+function identifyResultScore(r: AudDIdentifyResult): number {
+  const n = normalizeIdentifyResult(r);
+  switch (n.status) {
+    case 'match':
+      return 100;
+    case 'nomatch':
+    case 'skipped':
+      return 50;
+    case 'error':
+      return isFatalSongIdentifyError(n) ? 10 : 50;
+    default:
+      return 0;
+  }
+}
+
+function pickStrongerMatch(a: AudDIdentifyResult, b: AudDIdentifyResult): AudDIdentifyResult {
+  const na = normalizeIdentifyResult(a);
+  const nb = normalizeIdentifyResult(b);
+  if (na.status === 'match' && nb.status === 'match') {
+    const ca = na.confidence ?? 0;
+    const cb = nb.confidence ?? 0;
+    return cb > ca ? nb : na;
+  }
+  return identifyResultScore(na) >= identifyResultScore(nb) ? na : nb;
+}
+
+/** Caption screen: show manual song title field (no error banner). */
+export function shouldShowManualSongTitleEntry(
+  status: 'idle' | 'loading' | 'done' | 'skipped' | 'nomatch' | 'error',
+): boolean {
+  return status !== 'loading' && status !== 'done';
 }
 
 /**
@@ -275,31 +325,34 @@ export async function identifyMusicForClip(
   };
 
   if (audio && audio.size >= 1024) {
-    const fromMic = await identifyMusicWithAudD(audio);
-    best = pickStrongerMatch(best, fromMic);
-    if (fromMic.status === 'match') {
-      return mergeLiveAndFinalSongIdentify(live, fromMic);
+    const mic = normalizeIdentifyResult(await identifyMusicWithAudD(audio));
+    best = pickStrongerMatch(best, mic);
+    if (mic.status === 'match') {
+      return mergeLiveAndFinalSongIdentify(live, mic);
+    }
+    if (mic.status === 'error' && isFatalSongIdentifyError(mic)) {
+      return mergeLiveAndFinalSongIdentify(live, mic);
     }
   }
 
   const candidates = await buildVideoIdentifyCandidates(video);
   for (const candidate of candidates) {
-    const r = await postSnippetToIdentify(candidate);
+    const r = normalizeIdentifyResult(await postSnippetToIdentify(candidate));
     best = pickStrongerMatch(best, r);
     if (r.status === 'match') {
       return mergeLiveAndFinalSongIdentify(live, r);
     }
-    if (r.status === 'error') {
+    if (r.status === 'error' && isFatalSongIdentifyError(r)) {
       return mergeLiveAndFinalSongIdentify(live, r);
     }
   }
 
-  if (!isUsefulIdentifyResult(best)) {
-    const fallback = await identifyMusicWithAudD(video);
+  if (best.status === 'skipped') {
+    const fallback = normalizeIdentifyResult(await identifyMusicWithAudD(video));
     best = pickStrongerMatch(best, fallback);
   }
 
-  return mergeLiveAndFinalSongIdentify(live, best);
+  return mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(best));
 }
 
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
@@ -355,9 +408,7 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
       const fromApi =
         typeof data.message === 'string' && data.message.trim() !== ''
           ? data.message.trim()
-          : typeof data.config?.hint === 'string' && data.config.hint.trim() !== ''
-            ? data.config.hint.trim()
-            : null;
+          : null;
       return { status: 'skipped', message: fromApi };
     }
     if (res.status === 429) {
@@ -370,52 +421,16 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
       const base = typeof data.error === 'string' ? data.error : 'Song lookup failed';
       const code =
         typeof data.acrcloudCode === 'number' && Number.isFinite(data.acrcloudCode)
-          ? ` [ACR ${data.acrcloudCode}]`
-          : '';
-      const provider =
-        typeof data.provider === 'string' && data.provider.trim() !== ''
-          ? ` (${data.provider})`
-          : '';
-      return {
-        status: 'error',
-        message: `${base}${code}${provider}`,
-      };
-    }
-    if (!data.match || (!data.match.artist && !data.match.title)) {
-      const provider =
-        typeof data.provider === 'string' && data.provider.trim() !== ''
-          ? data.provider.trim()
-          : null;
-      const code =
-        typeof data.acrcloudCode === 'number' && Number.isFinite(data.acrcloudCode)
           ? data.acrcloudCode
           : null;
-      if (code === 1001) {
-        return {
-          status: 'nomatch',
-          message:
-            'ACRCloud heard the audio but found no song (code 1001). In console.acrcloud.com, attach the "ACRCloud Music" bucket to your project — an empty custom bucket causes this on every request.',
-        };
-      }
-      const skipped =
-        typeof (data as { skippedReason?: string }).skippedReason === 'string'
-          ? (data as { skippedReason: string }).skippedReason
-          : null;
-      if (skipped === 'fragment_too_short') {
-        return {
-          status: 'nomatch',
-          message:
-            'Audio sample was too short to fingerprint. Record at least 8 seconds with clear music.',
-        };
-      }
-      return {
-        status: 'nomatch',
-        message: provider
-          ? `No match (${provider}${code != null ? `, ACR ${code}` : ''}). Point the mic at the PA and record at least 8 seconds of music.`
-          : code != null
-            ? `No match (ACR ${code}). Record at least 8 seconds of clear music from the speakers.`
-            : null,
+      const err: AudDIdentifyResult = {
+        status: 'error',
+        message: code != null ? `${base} [ACR ${code}]` : base,
       };
+      return normalizeIdentifyResult(err);
+    }
+    if (!data.match || (!data.match.artist && !data.match.title)) {
+      return { status: 'nomatch', message: null };
     }
 
     const artist = (data.match.artist ?? '').trim();

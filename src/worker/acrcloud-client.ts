@@ -75,9 +75,9 @@ function friendlyAcrCloudError(code: number | undefined, msg: string): string {
   switch (code) {
     case 1001:
       return (
-        'ACRCloud returned no match (code 1001). If every request fails, open console.acrcloud.com → your ' +
-        'Audio & Video Recognition project → attach the "ACRCloud Music" bucket (not an empty custom bucket). ' +
-        'Otherwise record 8+ seconds of clear music from the speakers.'
+        'No match in ACRCloud catalog for this audio (code 1001). Record 8+ seconds of clear music from the speakers. ' +
+        'If every clip fails (even known songs), confirm your access keys and host are from the same AVR project ' +
+        'that has the "ACRCloud Music" bucket attached in console.acrcloud.com.'
       );
     case 2004:
       return 'ACRCloud could not fingerprint this audio (code 2004). Record a few more seconds with clear music, or use a longer clip.';
