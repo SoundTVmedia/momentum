@@ -129,6 +129,17 @@ export const RateLimits = {
   
   // API calls
   API: { windowMs: 15 * 60 * 1000, maxRequests: 100 }, // 100 per 15 minutes
+
+  /**
+   * Live capture polls identify every ~8s; post-capture adds more calls.
+   * Separate bucket so song ID is not capped by the generic API limit (100/15m).
+   */
+  IDENTIFY_MUSIC: {
+    windowMs: 15 * 60 * 1000,
+    maxRequests: 240,
+    sharedBucket: 'identify-music',
+    message: 'Too many song lookups — wait a moment and try again.',
+  },
   
   // Search operations
   SEARCH: { windowMs: 60 * 1000, maxRequests: 30 }, // 30 per minute

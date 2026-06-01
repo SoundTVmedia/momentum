@@ -197,15 +197,25 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
             : null;
       return { status: 'skipped', message: fromApi };
     }
+    if (res.status === 429) {
+      return {
+        status: 'error',
+        message: 'Too many song lookups — wait a moment and try again.',
+      };
+    }
     if (!res.ok || data.ok === false) {
       const base = typeof data.error === 'string' ? data.error : 'Song lookup failed';
       const code =
         typeof data.acrcloudCode === 'number' && Number.isFinite(data.acrcloudCode)
           ? ` [ACR ${data.acrcloudCode}]`
           : '';
+      const provider =
+        typeof data.provider === 'string' && data.provider.trim() !== ''
+          ? ` (${data.provider})`
+          : '';
       return {
         status: 'error',
-        message: `${base}${code}`,
+        message: `${base}${code}${provider}`,
       };
     }
     if (!data.match || (!data.match.artist && !data.match.title)) {

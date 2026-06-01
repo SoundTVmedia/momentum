@@ -731,13 +731,13 @@ app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API),
 app.get(
   "/api/clips/identify-music/config",
   authMiddleware,
-  rateLimiter(RateLimits.API),
+  rateLimiter(RateLimits.IDENTIFY_MUSIC),
   getClipIdentifyMusicConfig
 );
 app.post(
   "/api/clips/identify-music",
   authMiddleware,
-  rateLimiter(RateLimits.API),
+  rateLimiter(RateLimits.IDENTIFY_MUSIC),
   postClipIdentifyMusicAudD
 );
 

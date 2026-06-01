@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import {
   describeMusicRecognitionConfig,
+  inferIdentifyFilename,
   isMusicRecognitionConfigured,
   recognizeMusic,
 } from './music-recognition';
@@ -13,12 +14,23 @@ export async function getClipIdentifyMusicConfig(c: Context) {
   if (!mochaUser) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
-  return c.json(describeMusicRecognitionConfig(c.env));
+  const config = describeMusicRecognitionConfig(c.env);
+  return c.json({
+    ...config,
+    endpoints: {
+      config: 'GET /api/clips/identify-music/config',
+      identify: 'POST /api/clips/identify-music (multipart field: file)',
+    },
+    verify:
+      config.acrcloud.ready
+        ? 'acrcloud.ready should be true; host must match your ACRCloud project region.'
+        : config.hint ?? 'Set ACRCLOUD_* or AUDD_API_TOKEN on the production Worker.',
+  });
 }
 
 /**
  * POST multipart/form-data: `file` — short audio/video snippet for music recognition
- * (ACRCloud when configured, otherwise AudD).
+ * (ACRCloud when configured, otherwise AudD; AudD fallback on retriable ACR errors when both set).
  */
 export async function postClipIdentifyMusic(c: Context) {
   const mochaUser = c.get('user');
@@ -37,7 +49,6 @@ export async function postClipIdentifyMusic(c: Context) {
   if (raw == null) {
     return c.json({ error: 'Missing file field' }, 400);
   }
-  /** Workers may surface uploads as `Blob` without `File` prototype. */
   const blob = raw as Blob;
   if (typeof blob.arrayBuffer !== 'function' || blob.size === 0) {
     return c.json({ error: 'Missing file field' }, 400);
@@ -53,15 +64,14 @@ export async function postClipIdentifyMusic(c: Context) {
       skipped: true,
       message:
         configStatus.hint ??
-        'Music recognition is not configured. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET to .dev.vars (see .dev.vars.example).',
+        'Music recognition is not configured. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET (or AUDD_API_TOKEN).',
       config: configStatus,
     });
   }
 
-  const filename =
-    typeof (raw as { name?: unknown }).name === 'string' && (raw as { name: string }).name.trim() !== ''
-      ? (raw as { name: string }).name
-      : 'snippet.webm';
+  const rawName =
+    typeof (raw as { name?: unknown }).name === 'string' ? (raw as { name: string }).name : '';
+  const filename = inferIdentifyFilename(blob, rawName);
 
   const out = await recognizeMusic(c.env, blob, filename);
 
@@ -73,6 +83,7 @@ export async function postClipIdentifyMusic(c: Context) {
         provider: out.provider,
         acrcloudCode: out.acrcloudCode,
         raw: out.raw,
+        config: configStatus,
       },
       502,
     );
@@ -82,7 +93,8 @@ export async function postClipIdentifyMusic(c: Context) {
       ok: true,
       match: null,
       status: out.status ?? 'no_match',
-      provider: configStatus.activeProvider,
+      provider: out.provider,
+      config: configStatus,
     });
   }
 
@@ -95,7 +107,8 @@ export async function postClipIdentifyMusic(c: Context) {
       confidence: out.match.confidence,
       isrc: out.match.isrc,
     },
-    provider: configStatus.activeProvider,
+    provider: out.provider,
+    config: configStatus,
   });
 }
 
