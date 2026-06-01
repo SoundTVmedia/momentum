@@ -1,32 +1,7 @@
 import { useState, useCallback } from 'react';
+import type { TicketmasterEvent } from '@/shared/ticketmaster-events';
 
-interface TicketmasterEvent {
-  id: string;
-  name: string;
-  url: string;
-  images?: { url: string; ratio: string; width: number; height: number }[];
-  dates?: {
-    start?: {
-      localDate?: string;
-      localTime?: string;
-      dateTime?: string;
-    };
-  };
-  priceRanges?: { min: number; max: number; currency: string }[];
-  _embedded?: {
-    venues?: {
-      name: string;
-      city?: { name: string };
-      state?: { stateCode: string };
-      location?: { latitude: string; longitude: string };
-    }[];
-    attractions?: {
-      name: string;
-      classifications?: { segment?: { name: string }; genre?: { name: string } }[];
-    }[];
-  };
-  classifications?: { segment?: { name: string }; genre?: { name: string } }[];
-}
+export type { TicketmasterEvent };
 
 export function useTicketmaster() {
   const [events, setEvents] = useState<TicketmasterEvent[]>([]);
@@ -41,6 +16,9 @@ export function useTicketmaster() {
     endDate?: string;
     genre?: string;
     page?: number;
+    lat?: number;
+    lon?: number;
+    radiusMiles?: number;
   }) => {
     setLoading(true);
     setError(null);
@@ -54,6 +32,11 @@ export function useTicketmaster() {
       if (params.endDate) queryParams.append('endDate', params.endDate);
       if (params.genre) queryParams.append('genre', params.genre);
       if (params.page) queryParams.append('page', params.page.toString());
+      if (params.lat != null && params.lon != null) {
+        queryParams.append('lat', String(params.lat));
+        queryParams.append('lon', String(params.lon));
+        queryParams.append('radius', String(params.radiusMiles ?? 150));
+      }
 
       const response = await fetch(`/api/ticketmaster/events/search?${queryParams}`);
       

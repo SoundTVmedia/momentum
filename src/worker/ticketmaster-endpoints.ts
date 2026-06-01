@@ -18,6 +18,9 @@ export async function searchEvents(c: Context) {
   const endDate = c.req.query('endDate') || '';
   const genre = c.req.query('genre') || '';
   const page = c.req.query('page') || '0';
+  const lat = c.req.query('lat') || '';
+  const lon = c.req.query('lon') || '';
+  const radius = c.req.query('radius') || '150';
 
   if (!c.env.TICKETMASTER_API_KEY) {
     return c.json({ error: 'Ticketmaster API not configured' }, 503);
@@ -36,6 +39,12 @@ export async function searchEvents(c: Context) {
     if (startDate) params.append('startDateTime', startDate);
     if (endDate) params.append('endDateTime', endDate);
     if (genre) params.append('classificationName', genre);
+    if (lat && lon) {
+      params.append('geoPoint', `${lat},${lon}`);
+      params.append('radius', radius);
+      params.append('unit', 'miles');
+      params.append('sort', 'distance,asc');
+    }
 
     const response = await fetch(`${TICKETMASTER_API_BASE}/events.json?${params}`);
     

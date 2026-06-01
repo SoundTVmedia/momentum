@@ -33,6 +33,7 @@ import CommentSection from './CommentSection';
 import { ClipLikeHeart } from './ClipLikeHeart';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
+import ClipModalBuyTickets from './ClipModalBuyTickets';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
@@ -378,6 +379,9 @@ export default function ClipModal({
           {clip.content_description ? (
             <p className="fb-clip-caption mt-2">{clip.content_description}</p>
           ) : null}
+          <div className="mt-3">
+            <ClipModalBuyTickets artistName={clip.artist_name} />
+          </div>
           {canFeedNav ? (
             <p className="mt-2 flex items-center gap-1 text-[11px] uppercase tracking-wide text-white/45">
               <span>Swipe for next clip</span>
@@ -687,6 +691,10 @@ export default function ClipModal({
               {clip.content_description ? (
                 <p className="mt-3 text-base text-gray-200">{clip.content_description}</p>
               ) : null}
+
+              <div className="mt-4">
+                <ClipModalBuyTickets artistName={clip.artist_name} className="w-full" />
+              </div>
 
               <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
                 <div className="flex items-center space-x-4">
