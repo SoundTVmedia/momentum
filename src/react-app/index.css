@@ -549,18 +549,7 @@ body {
     height: 100%;
     width: 100%;
     object-fit: cover;
-    object-position: center 42%;
-    opacity: 0.52;
-    filter: saturate(1.45) contrast(1.14) brightness(1.06);
-  }
-
-  .hero-concert-photo__img--motion {
-    animation: hero-ken-burns-a 22s ease-in-out infinite alternate;
-  }
-
-  .hero-concert-photo__img--under-montage {
-    opacity: 0.34;
-    filter: saturate(1.2) contrast(1.08) brightness(0.95) blur(1px);
+    object-position: center center;
   }
 
   .hero-clip-montage {
@@ -613,19 +602,19 @@ body {
     animation: hero-ken-burns-c 19s ease-in-out infinite alternate;
   }
 
-  /* Muted YouTube hero — cover crop, no interaction */
+  /* Muted YouTube hero — cover crop, loop, no controls, ~20% zoom */
   .hero-youtube-backdrop {
     position: absolute;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
     opacity: 0;
-    filter: saturate(1.45) contrast(1.14) brightness(1.06);
-    transition: opacity 1s ease-in-out;
+    transition: opacity 0.6s ease-in-out;
   }
 
   .hero-youtube-backdrop.is-ready {
-    opacity: 0.54;
+    opacity: 0.58;
+    filter: saturate(1.45) contrast(1.14) brightness(1.06);
   }
 
   .hero-youtube-backdrop__player {
@@ -641,7 +630,7 @@ body {
     height: max(100%, 56.25vw);
     min-width: 100%;
     min-height: 100%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(1.2);
     border: 0;
     pointer-events: none;
   }

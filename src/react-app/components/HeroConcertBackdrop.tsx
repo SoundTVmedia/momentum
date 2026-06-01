@@ -69,6 +69,7 @@ export default function HeroConcertBackdrop() {
           modestbranding: 1,
           iv_load_policy: 3,
           cc_load_policy: 0,
+          autohide: 1,
           enablejsapi: 1,
           origin: typeof window !== 'undefined' ? window.location.origin : '',
         },
@@ -109,22 +110,22 @@ export default function HeroConcertBackdrop() {
 
   return (
     <>
-      <img
-        src={posterSrc}
-        alt=""
-        className={`hero-concert-photo__img hero-concert-photo__img--motion ${
-          videoReady && showYoutube ? 'hero-concert-photo__img--under-montage' : ''
-        }`}
-        width={1920}
-        height={720}
-        decoding="async"
-        fetchPriority="high"
-        onError={() => {
-          if (posterSrc !== HERO_CONCERT_FALLBACK_IMAGE) {
-            setPosterSrc(HERO_CONCERT_FALLBACK_IMAGE);
-          }
-        }}
-      />
+      {!videoReady && (
+        <img
+          src={posterSrc}
+          alt=""
+          className="hero-concert-photo__img"
+          width={1920}
+          height={720}
+          decoding="async"
+          fetchPriority="high"
+          onError={() => {
+            if (posterSrc !== HERO_CONCERT_FALLBACK_IMAGE) {
+              setPosterSrc(HERO_CONCERT_FALLBACK_IMAGE);
+            }
+          }}
+        />
+      )}
 
       {showYoutube ? (
         <div
@@ -133,6 +134,21 @@ export default function HeroConcertBackdrop() {
         >
           <div ref={hostRef} className="hero-youtube-backdrop__player" />
         </div>
+      ) : reducedMotion ? (
+        <img
+          src={posterSrc}
+          alt=""
+          className="hero-concert-photo__img"
+          width={1920}
+          height={720}
+          decoding="async"
+          fetchPriority="high"
+          onError={() => {
+            if (posterSrc !== HERO_CONCERT_FALLBACK_IMAGE) {
+              setPosterSrc(HERO_CONCERT_FALLBACK_IMAGE);
+            }
+          }}
+        />
       ) : null}
     </>
   );
