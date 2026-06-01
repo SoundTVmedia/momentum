@@ -1,8 +1,7 @@
-/** Hero background — [YouTube](https://www.youtube.com/watch?v=xnsxllY5VPw) under brand gradients. */
-export const HERO_YOUTUBE_VIDEO_ID = 'xnsxllY5VPw';
+/** Self-hosted hero background (R2) — no third-party player chrome. */
+export const HERO_VIDEO_SRC =
+  'https://pub-3b2f7fef5db44f3283409250598a66a3.r2.dev/19193241-uhd_2160_3840_30fps.mp4';
 
-export const HERO_YOUTUBE_POSTER = `https://img.youtube.com/vi/${HERO_YOUTUBE_VIDEO_ID}/maxresdefault.jpg`;
-
-/** Fallback still if the poster URL fails or motion is reduced. */
+/** Poster while the clip loads or when motion is reduced. */
 export const HERO_CONCERT_FALLBACK_IMAGE =
   'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&h=720&fit=crop&q=85&auto=format';
