@@ -1309,14 +1309,43 @@ export default function QuickRecordButton({
 
   const handleRecordingComplete = async (blob: Blob) => {
     try {
+      const par = auddParallelAudioRecorderRef.current;
+      if (par && (par.state === 'recording' || par.state === 'paused')) {
+        await new Promise<void>((resolve) => {
+          par.onstop = () => {
+            finalizeParallelAuddRecorderOnly(par);
+            resolve();
+          };
+          try {
+            if (typeof par.requestData === 'function') par.requestData();
+          } catch {
+            /* ignore */
+          }
+          par.stop();
+        });
+      } else if (
+        !lastParallelAuddAudioBlobRef.current &&
+        auddParallelAudioChunksRef.current.length > 0
+      ) {
+        const outMime =
+          liveAuddAudioMimeRef.current && liveAuddAudioMimeRef.current.length > 0
+            ? liveAuddAudioMimeRef.current
+            : 'audio/webm';
+        lastParallelAuddAudioBlobRef.current = new Blob(auddParallelAudioChunksRef.current, {
+          type: outMime,
+        });
+        auddParallelAudioChunksRef.current = [];
+      }
+
+      const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
+      lastParallelAuddAudioBlobRef.current = null;
+
       releaseAllCaptureResources();
 
       const at = recordingStartedAtRef.current || new Date().toISOString();
       const geo =
         clipGeoAtRecordingStartRef.current ?? snapshotClipGeoForUpload();
       clipGeoAtRecordingStartRef.current = null;
-      const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
-      lastParallelAuddAudioBlobRef.current = null;
 
       const sourceKey = auddSourceKey(blob);
       const auddPrefill = auddPrefillFromLiveMatch(

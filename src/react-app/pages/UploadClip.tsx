@@ -1467,7 +1467,7 @@ export default function UploadClip() {
                 <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
                   <p className="text-gray-300 text-sm">
                     {auddMessage?.trim() ||
-                      'Song lookup was skipped. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET to .dev.vars (see .dev.vars.example).'}
+                      "We couldn't run song lookup on this clip. You can still add the song title manually."}
                   </p>
                 </div>
               )}
@@ -1477,14 +1477,38 @@ export default function UploadClip() {
                     {auddMessage?.trim() ||
                       'No match for this audio in our music catalog. Record at least 8 seconds with clear music from the speakers.'}
                   </p>
-                  <p className="text-gray-500 text-xs mt-2">
-                    Optional: add the song title below — we&apos;ll tag it for search. Not required to post.
-                  </p>
                 </div>
               )}
               {auddStatus === 'error' && auddMessage && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                   <p className="text-red-200 text-sm">{auddMessage}</p>
+                </div>
+              )}
+
+              {(auddStatus === 'nomatch' ||
+                auddStatus === 'skipped' ||
+                auddStatus === 'error') && (
+                <div className="rounded-lg border border-momentum-flare/40 bg-momentum-flare/5 p-4 space-y-2">
+                  <label
+                    htmlFor="caption-manual-song-title"
+                    className="flex items-center gap-2 text-white font-medium"
+                  >
+                    <Disc3 className="w-5 h-5 text-momentum-flare shrink-0" aria-hidden />
+                    Song title
+                  </label>
+                  <input
+                    id="caption-manual-song-title"
+                    type="text"
+                    value={formData.song_title}
+                    onChange={(e) => handleInputChange('song_title', e.target.value)}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/25 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
+                    placeholder="Enter the song name"
+                    autoComplete="off"
+                  />
+                  <p className="text-gray-400 text-xs">
+                    We couldn&apos;t identify this one automatically. Add the song so fans can find your clip — not
+                    required to post.
+                  </p>
                 </div>
               )}
 
@@ -1523,22 +1547,27 @@ export default function UploadClip() {
                 <p className="text-gray-400 text-xs mt-2">Caption is optional</p>
               </div>
 
-              {/* Song title — optional; prefilled when AudD matches; adds a searchable tag */}
-              <div>
-                <label className="block text-gray-300 font-normal mb-2">
-                  Song title <span className="text-gray-500 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.song_title}
-                  onChange={(e) => handleInputChange('song_title', e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
-                  placeholder="What song was playing?"
-                />
-                <p className="text-gray-400 text-xs mt-2">
-                  Adds a tag for search (along with artist and venue). Leave blank if you prefer.
-                </p>
-              </div>
+              {/* Song title when auto-ID succeeded or is still optional */}
+              {auddStatus !== 'nomatch' &&
+                auddStatus !== 'skipped' &&
+                auddStatus !== 'error' &&
+                auddStatus !== 'loading' && (
+                  <div>
+                    <label className="block text-gray-300 font-normal mb-2">
+                      Song title <span className="text-gray-500 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.song_title}
+                      onChange={(e) => handleInputChange('song_title', e.target.value)}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
+                      placeholder="What song was playing?"
+                    />
+                    <p className="text-gray-400 text-xs mt-2">
+                      Adds a tag for search (along with artist and venue). Leave blank if you prefer.
+                    </p>
+                  </div>
+                )}
 
               <div>
                 <label className="block text-gray-300 font-normal mb-2">

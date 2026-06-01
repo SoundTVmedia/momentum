@@ -1,66 +1,90 @@
 const SNIPPET_MS = 14_000;
-/** ACR/AudD fingerprinting works best with ~8–14s of clear audio. */
-const MIN_RECORD_MS = 8_000;
+/** Prefer 8s+ when the clip is long enough; shorter clips use most of their duration. */
+const PREFERRED_RECORD_MS = 8_000;
+const MIN_RECORD_MS = 3_000;
+
+export type ExtractSnippetFailure =
+  | 'unsupported'
+  | 'load_timeout'
+  | 'load_error'
+  | 'no_capture_stream'
+  | 'no_audio_track'
+  | 'no_mime'
+  | 'play_blocked'
+  | 'empty_recording';
 
 /**
- * Records a short segment from a local video blob via `captureStream()` for music recognition (e.g. AudD).
+ * Records a short segment from a local video blob via `captureStream()` for music recognition.
  * Returns null if the browser cannot capture or record.
- *
- * Notes:
- * - `captureStream()` follows the element’s **volume**; values near 0 produced effectively silent
- *   snippets and tripped “not enough audio” — use full gain for the capture window (brief in-memory playback).
- * - Prefer **audio-only** `MediaRecorder` when the captured stream has an audio track (smaller, more reliable for AudD).
  */
-export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | null> {
+export async function extractMediaSnippetForAudD(
+  blob: Blob,
+): Promise<Blob | null> {
+  const r = await extractMediaSnippetForAudDWithReason(blob);
+  return r.blob;
+}
+
+export async function extractMediaSnippetForAudDWithReason(
+  blob: Blob,
+): Promise<{ blob: Blob | null; failure?: ExtractSnippetFailure }> {
   if (typeof document === 'undefined' || typeof MediaRecorder === 'undefined') {
-    return null;
+    return { blob: null, failure: 'unsupported' };
   }
 
   const url = URL.createObjectURL(blob);
   const video = document.createElement('video');
-  video.crossOrigin = 'anonymous';
   video.playsInline = true;
-  video.muted = false;
+  /** Muted so `play()` works without a user gesture (iOS Safari); captureStream still gets audio. */
+  video.muted = true;
   video.volume = 1;
+  video.setAttribute('playsinline', '');
   video.src = url;
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      let settled = false;
-      const timeoutId = window.setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        video.removeEventListener('loadedmetadata', onReady);
-        video.removeEventListener('loadeddata', onReady);
-        reject(new Error('load timeout'));
-      }, 25_000);
-      const onReady = () => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timeoutId);
-        video.removeEventListener('loadedmetadata', onReady);
-        video.removeEventListener('loadeddata', onReady);
-        resolve();
-      };
-      video.addEventListener('loadedmetadata', onReady);
-      video.addEventListener('loadeddata', onReady);
-      video.onerror = () => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timeoutId);
-        video.removeEventListener('loadedmetadata', onReady);
-        video.removeEventListener('loadeddata', onReady);
-        reject(new Error('video error'));
-      };
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const timeoutId = window.setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          video.removeEventListener('loadedmetadata', onReady);
+          video.removeEventListener('loadeddata', onReady);
+          reject(new Error('load timeout'));
+        }, 25_000);
+        const onReady = () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          video.removeEventListener('loadedmetadata', onReady);
+          video.removeEventListener('loadeddata', onReady);
+          resolve();
+        };
+        video.addEventListener('loadedmetadata', onReady);
+        video.addEventListener('loadeddata', onReady);
+        video.onerror = () => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          video.removeEventListener('loadedmetadata', onReady);
+          video.removeEventListener('loadeddata', onReady);
+          reject(new Error('video error'));
+        };
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      return { blob: null, failure: msg.includes('timeout') ? 'load_timeout' : 'load_error' };
+    }
 
     const durationSec =
       Number.isFinite(video.duration) && video.duration > 0 ? video.duration : SNIPPET_MS / 1000;
     const durMs = Math.floor(durationSec * 1000);
-    /** At least ~3s when the clip is long enough; never longer than the clip or 14s. */
-    const recordMs = Math.min(SNIPPET_MS, durMs, Math.max(MIN_RECORD_MS, durMs - 300));
-    /** Skip crowd noise at the start — sample from the middle of the clip when possible. */
-    const startSec = Math.max(0, durationSec / 2 - recordMs / 2000);
+    const recordMs = Math.min(
+      SNIPPET_MS,
+      durMs,
+      Math.max(MIN_RECORD_MS, Math.min(PREFERRED_RECORD_MS, durMs - 300)),
+    );
+    const startSec =
+      durMs > recordMs + 500 ? Math.max(0, durationSec / 2 - recordMs / 2000) : 0;
 
     const v = video as HTMLVideoElement & {
       captureStream?: (frameRate?: number) => MediaStream;
@@ -68,24 +92,24 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
     };
     const captured =
       typeof v.captureStream === 'function'
-        ? v.captureStream(30)
+        ? v.captureStream()
         : v.mozCaptureStream?.() ?? null;
     if (!captured || captured.getTracks().length === 0) {
-      return null;
+      return { blob: null, failure: 'no_capture_stream' };
     }
 
     const audioTracks = captured.getAudioTracks();
+    if (audioTracks.length === 0 && captured.getVideoTracks().length === 0) {
+      captured.getTracks().forEach((t) => t.stop());
+      return { blob: null, failure: 'no_audio_track' };
+    }
+
     const recordStream =
       audioTracks.length > 0 ? new MediaStream(audioTracks) : captured;
 
     const pickMime = (audioOnly: boolean): string | null => {
       const candidates = audioOnly
-        ? [
-            'audio/webm;codecs=opus',
-            'audio/webm',
-            'video/webm;codecs=opus',
-            'video/webm',
-          ]
+        ? ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'video/webm;codecs=opus', 'video/webm']
         : [
             'video/webm;codecs=vp9,opus',
             'video/webm;codecs=vp8,opus',
@@ -100,7 +124,10 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
 
     const audioOnly = recordStream.getVideoTracks().length === 0;
     const mimeType = pickMime(audioOnly);
-    if (!mimeType) return null;
+    if (!mimeType) {
+      captured.getTracks().forEach((t) => t.stop());
+      return { blob: null, failure: 'no_mime' };
+    }
 
     const chunks: Blob[] = [];
     const mr = new MediaRecorder(recordStream, { mimeType });
@@ -112,48 +139,44 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
       mr.onstop = () => resolve();
     });
 
-    const seekToStart = (): Promise<void> =>
-      new Promise((resolve, reject) => {
-        if (startSec <= 0.05) {
-          resolve();
-          return;
-        }
+    const seekTo = async (sec: number) => {
+      if (sec <= 0.05) return;
+      await new Promise<void>((resolve) => {
         const onSeeked = () => {
           video.removeEventListener('seeked', onSeeked);
           resolve();
         };
-        const onSeekErr = () => {
-          video.removeEventListener('error', onSeekErr);
-          reject(new Error('seek failed'));
-        };
         video.addEventListener('seeked', onSeeked);
-        video.addEventListener('error', onSeekErr);
         try {
-          video.currentTime = startSec;
+          video.currentTime = sec;
         } catch {
           video.removeEventListener('seeked', onSeeked);
-          video.removeEventListener('error', onSeekErr);
           resolve();
         }
       });
+    };
 
     try {
-      await seekToStart();
+      await seekTo(startSec);
       await video.play();
     } catch {
-      if (mr.state !== 'inactive') {
-        try {
-          mr.stop();
-        } catch {
-          /* not started */
+      try {
+        await seekTo(0);
+        await video.play();
+      } catch {
+        if (mr.state !== 'inactive') {
+          try {
+            mr.stop();
+          } catch {
+            /* ignore */
+          }
         }
+        captured.getTracks().forEach((t) => t.stop());
+        return { blob: null, failure: 'play_blocked' };
       }
-      captured.getTracks().forEach((t: MediaStreamTrack) => t.stop());
-      return null;
     }
 
-    /** Let the decoder produce audio frames before MediaRecorder starts. */
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await new Promise((r) => setTimeout(r, 350));
 
     mr.start();
 
@@ -168,13 +191,15 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
     }
     mr.stop();
     video.pause();
-    captured.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+    captured.getTracks().forEach((t) => t.stop());
     await stopped;
 
-    if (chunks.length === 0) return null;
-    return new Blob(chunks, { type: mr.mimeType || mimeType });
+    if (chunks.length === 0) {
+      return { blob: null, failure: 'empty_recording' };
+    }
+    return { blob: new Blob(chunks, { type: mr.mimeType || mimeType }) };
   } catch {
-    return null;
+    return { blob: null, failure: 'load_error' };
   } finally {
     URL.revokeObjectURL(url);
     video.removeAttribute('src');

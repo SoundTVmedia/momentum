@@ -1,4 +1,7 @@
-import { extractMediaSnippetForAudD } from '@/react-app/utils/extractMediaSnippetForAudD';
+import {
+  extractMediaSnippetForAudDWithReason,
+  type ExtractSnippetFailure,
+} from '@/react-app/utils/extractMediaSnippetForAudD';
 
 export function mergeSongTitleIntoCaption(current: string, title: string): string {
   const t = title.trim();
@@ -129,7 +132,64 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
  */
 /** Align with worker MIN_WEBM_BYTES_FOR_IDENTIFY — smaller blobs are skipped or fail fingerprinting. */
 const MIN_SNIPPET_BYTES = 4096;
+/** ACRCloud identify API sample limit (see acrcloud-client). */
+const ACR_MAX_SAMPLE_BYTES = 5 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+function identifyFilenameForBlob(blob: Blob): string {
+  const t = (blob.type ?? '').toLowerCase();
+  if (t.includes('quicktime') || t.includes('mp4') || t.includes('mpeg')) return 'clip-snippet.m4a';
+  if (t.includes('webm')) return 'clip-snippet.webm';
+  if (t.startsWith('audio/')) return 'clip-snippet.webm';
+  return 'recording.webm';
+}
+
+function skippedMessageForExtractFailure(failure?: ExtractSnippetFailure): string {
+  switch (failure) {
+    case 'play_blocked':
+      return 'Could not play this clip in the browser to extract audio. Try recording again in-app (not a screen recording).';
+    case 'no_capture_stream':
+    case 'no_audio_track':
+      return 'This clip has no audio track we can read for song ID. Re-record with music audible in the video.';
+    case 'no_mime':
+    case 'unsupported':
+      return 'Your browser cannot extract audio for song ID. Try Chrome/Safari latest, or a shorter clip.';
+    case 'empty_recording':
+      return 'Extracted audio was empty. Record at least 5 seconds with the PA clearly audible.';
+    default:
+      return 'Could not extract audio from this clip in the browser.';
+  }
+}
+
+/** Browser extract → else send full recording when under ACR size cap (complete WebM/MP4 fingerprints better). */
+async function resolveSnippetForIdentify(source: Blob): Promise<{
+  snippet: Blob | null;
+  extractFailure?: ExtractSnippetFailure;
+}> {
+  if (source.type.startsWith('audio/') && source.size >= MIN_SNIPPET_BYTES) {
+    const snippet =
+      source.size <= MAX_UPLOAD_BYTES ? source : source.slice(0, MAX_UPLOAD_BYTES);
+    return { snippet };
+  }
+
+  const { blob: extracted, failure } = await extractMediaSnippetForAudDWithReason(source);
+  if (extracted && extracted.size >= MIN_SNIPPET_BYTES) {
+    return { snippet: extracted };
+  }
+
+  if (source.size >= MIN_SNIPPET_BYTES && source.size <= ACR_MAX_SAMPLE_BYTES) {
+    return { snippet: source, extractFailure: failure };
+  }
+
+  if (source.size > ACR_MAX_SAMPLE_BYTES) {
+    return {
+      snippet: extracted,
+      extractFailure: failure ?? undefined,
+    };
+  }
+
+  return { snippet: extracted, extractFailure: failure };
+}
 
 function pickStrongerMatch(a: AudDIdentifyResult, b: AudDIdentifyResult): AudDIdentifyResult {
   if (a.status === 'match' && b.status !== 'match') return a;
@@ -155,7 +215,7 @@ export async function identifyMusicForClip(
 ): Promise<AudDIdentifyResult> {
   const live = options?.live;
   const audio = options?.audio;
-  const useAudio = Boolean(audio && audio.size >= MIN_SNIPPET_BYTES);
+  const useAudio = Boolean(audio && audio.size >= 1024);
 
   const [fromAudio, fromVideo] = await Promise.all([
     useAudio ? identifyMusicWithAudD(audio!) : Promise.resolve({ status: 'skipped' } as AudDIdentifyResult),
@@ -167,28 +227,28 @@ export async function identifyMusicForClip(
 }
 
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
-  let snippet: Blob | null = null;
-
-  if (source.type.startsWith('audio/') && source.size >= MIN_SNIPPET_BYTES) {
-    snippet = source.size <= MAX_UPLOAD_BYTES ? source : source.slice(0, MAX_UPLOAD_BYTES);
-  } else {
-    snippet = await extractMediaSnippetForAudD(source);
-  }
+  const { snippet, extractFailure } = await resolveSnippetForIdentify(source);
 
   if (!snippet || snippet.size < MIN_SNIPPET_BYTES) {
+    const extractHint = skippedMessageForExtractFailure(extractFailure);
+    if (source.size > ACR_MAX_SAMPLE_BYTES) {
+      return {
+        status: 'skipped',
+        message: `${extractHint} This clip is over 5MB — record up to 60s in-app for song ID.`,
+      };
+    }
     return {
       status: 'skipped',
       message:
-        'Could not capture enough audio from this clip for song ID (needs clearer music in the recording, or try again).',
+        extractFailure != null
+          ? extractHint
+          : 'Could not capture enough audio from this clip for song ID (record at least 5s with clear music from the speakers).',
     };
   }
 
   try {
     const fd = new FormData();
-    const fileName =
-      snippet.type.includes('mp4') || snippet.type.includes('aac') || snippet.type.includes('mpeg')
-        ? 'clip-snippet.m4a'
-        : 'clip-snippet.webm';
+    const fileName = identifyFilenameForBlob(snippet);
     fd.set('file', snippet, fileName);
     const res = await fetch('/api/clips/identify-music', {
       method: 'POST',
