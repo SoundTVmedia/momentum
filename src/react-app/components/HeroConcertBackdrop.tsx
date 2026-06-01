@@ -70,22 +70,24 @@ export default function HeroConcertBackdrop() {
           fetchPriority="high"
         />
       )}
-      <video
-        ref={videoRef}
-        className={`hero-video-backdrop ${videoReady ? 'is-ready' : ''}`}
-        src={HERO_VIDEO_SRC}
-        muted
-        loop
-        playsInline
-        autoPlay
-        preload="auto"
-        disablePictureInPicture
-        controls={false}
-        controlsList="nodownload nofullscreen noremoteplayback"
-        aria-hidden
-        onLoadedData={() => setVideoReady(true)}
-        onCanPlay={() => setVideoReady(true)}
-      />
+      <div className="hero-video-backdrop-wrap">
+        <video
+          ref={videoRef}
+          className={`hero-video-backdrop ${videoReady ? 'is-ready' : ''}`}
+          src={HERO_VIDEO_SRC}
+          muted
+          loop
+          playsInline
+          autoPlay
+          preload="auto"
+          disablePictureInPicture
+          controls={false}
+          controlsList="nodownload nofullscreen noremoteplayback"
+          aria-hidden
+          onLoadedData={() => setVideoReady(true)}
+          onCanPlay={() => setVideoReady(true)}
+        />
+      </div>
     </>
   );
 }
