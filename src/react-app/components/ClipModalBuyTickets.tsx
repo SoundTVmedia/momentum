@@ -23,7 +23,7 @@ export default function ClipModalBuyTickets({
       : 'Upcoming show';
 
   const btnClass =
-    'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold momentum-ticket-btn whitespace-nowrap hover:scale-[1.02] transition-transform tap-feedback';
+    'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white momentum-grad-interactive whitespace-nowrap shadow-lg shadow-momentum-ember/30 hover:scale-[1.02] tap-feedback';
 
   return (
     <button
