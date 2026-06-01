@@ -848,7 +848,7 @@ export default function QuickRecordButton({
 
     try {
       if (typeof input.showPicker === 'function') {
-        void input.showPicker().catch(() => input.click());
+        input.showPicker();
       } else {
         input.click();
       }
