@@ -19,8 +19,8 @@ const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
 /** AudD standard recognition: max ~25s per file (see docs). Keep parallel snippet under that while video can run to {@link MAX_RECORDING_TIME}. */
 const MAX_AUDD_PARALLEL_RECORD_MS = 20_000;
-/** Sliding-window live ID: one AudD request per timeslice; overlapping calls skipped while a request is in flight. */
-const LIVE_AUDD_TIMESLICE_MS = 6000;
+/** Sliding-window live ID: one request per timeslice while previewing or recording. */
+const LIVE_AUDD_TIMESLICE_MS = 5000;
 /** ACRCloud often rejects tiny/incomplete WebM timeslices (2004); align with worker MIN_WEBM_BYTES. */
 const MIN_LIVE_AUDD_CHUNK_BYTES = 4096;
 
@@ -120,9 +120,12 @@ export default function QuickRecordButton({
   const liveAuddRecorderRef = useRef<MediaRecorder | null>(null);
   const liveAuddInFlightRef = useRef(false);
   const liveAuddStoppedRef = useRef(true);
+  /** Set true for whole record tap so preview→record effect cleanup does not stop the live mic pipeline. */
+  const isRecordingRef = useRef(false);
   const liveStabilizerRef = useRef(new LiveSongStabilizer());
   /** Stabilized song/artist shown under venue on camera and used as caption prefill fallback. */
   const [liveSongMatch, setLiveSongMatch] = useState<{ artist: string; title: string } | null>(null);
+  const [liveSongListening, setLiveSongListening] = useState(false);
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -349,6 +352,10 @@ export default function QuickRecordButton({
   useEffect(() => {
     liveStabilizerRef.current.setPriors(liveSongPriors);
   }, [liveSongPriors]);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   /** Use coordinates we already have (launch tap). Does not call geolocation again. */
   const syncLastGeoFromNearbyCoordsRef = () => {
@@ -864,10 +871,12 @@ export default function QuickRecordButton({
       }
     }
     liveAuddInFlightRef.current = false;
+    setLiveSongListening(false);
   };
 
   const stopLiveAuddPipeline = () => {
     stopLiveAuddRecorder();
+    setLiveSongListening(false);
     resetLiveSongIdentification();
   };
 
@@ -881,11 +890,77 @@ export default function QuickRecordButton({
     }
   };
 
+  /** Live ACRCloud windows from mic — preview (before REC) and during capture. */
+  const startLiveSongPipeline = (stream: MediaStream): boolean => {
+    if (!audioEnabled) return false;
+    if (!liveAuddStoppedRef.current && liveAuddRecorderRef.current) {
+      return true;
+    }
+
+    const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
+    if (liveTracks.length === 0) return false;
+
+    const audioMime = ['audio/webm;codecs=opus', 'audio/webm'].find((m) =>
+      MediaRecorder.isTypeSupported(m),
+    );
+    if (!audioMime) return false;
+
+    try {
+      const liveIdStream = new MediaStream(liveTracks.map((t) => t.clone()));
+      const liveRec = new MediaRecorder(liveIdStream, {
+        mimeType: audioMime,
+        audioBitsPerSecond: 96_000,
+      });
+      liveRec.ondataavailable = (event) => {
+        if (liveAuddStoppedRef.current) return;
+        if (!event.data || event.data.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
+        if (!event.data.type.startsWith('audio/')) return;
+        if (liveAuddInFlightRef.current) return;
+        liveAuddInFlightRef.current = true;
+        void (async () => {
+          try {
+            const r = await identifyMusicWithAudD(event.data);
+            if (liveAuddStoppedRef.current) return;
+            const { displayed } = liveStabilizerRef.current.observe(r);
+            applyLiveSongDisplayed(displayed);
+          } finally {
+            liveAuddInFlightRef.current = false;
+          }
+        })();
+      };
+      liveAuddRecorderRef.current = liveRec;
+      liveAuddStoppedRef.current = false;
+      liveRec.start(LIVE_AUDD_TIMESLICE_MS);
+      setLiveSongListening(true);
+      return true;
+    } catch (e) {
+      console.warn('QuickRecordButton: live song pipeline failed', e);
+      setLiveSongListening(false);
+      return false;
+    }
+  };
+
+  /** Start live song ID as soon as camera preview has mic (before user taps record). */
+  useEffect(() => {
+    if (!showModal || !hasPermission || !cameraReady || isRecording) return;
+    const stream = streamRef.current;
+    if (!stream || !audioEnabled || stream.getAudioTracks().length === 0) return;
+    startLiveSongPipeline(stream);
+    return () => {
+      if (!isRecordingRef.current) {
+        stopLiveAuddRecorder();
+        setLiveSongListening(false);
+      }
+    };
+  }, [showModal, hasPermission, cameraReady, isRecording, previewStream, audioEnabled]);
+
   const startRecording = async () => {
     // Only start if camera is ready
     if (!hasPermission || !streamRef.current) {
       return;
     }
+
+    isRecordingRef.current = true;
 
     const stream = streamRef.current;
 
@@ -911,9 +986,6 @@ export default function QuickRecordButton({
     clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
 
     try {
-      stopLiveAuddRecorder();
-      resetLiveSongIdentification();
-      liveAuddStoppedRef.current = false;
       clearAuddParallelCapTimer();
       /** Prefer VP*+Opus so the file includes an audio track for AudD; `vp9` alone often muxes video-only. */
       const recorderMimeCandidates = [
@@ -1005,30 +1077,7 @@ export default function QuickRecordButton({
                 capAr.stop();
               }, MAX_AUDD_PARALLEL_RECORD_MS);
 
-              const liveIdStream = new MediaStream(liveTracks.map((t) => t.clone()));
-              const liveRec = new MediaRecorder(liveIdStream, {
-                mimeType: audioMime,
-                audioBitsPerSecond: 96_000,
-              });
-              liveRec.ondataavailable = (event) => {
-                if (liveAuddStoppedRef.current) return;
-                if (!event.data || event.data.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
-                if (!event.data.type.startsWith('audio/')) return;
-                if (liveAuddInFlightRef.current) return;
-                liveAuddInFlightRef.current = true;
-                void (async () => {
-                  try {
-                    const r = await identifyMusicWithAudD(event.data);
-                    if (liveAuddStoppedRef.current) return;
-                    const { displayed } = liveStabilizerRef.current.observe(r);
-                    applyLiveSongDisplayed(displayed);
-                  } finally {
-                    liveAuddInFlightRef.current = false;
-                  }
-                })();
-              };
-              liveAuddRecorderRef.current = liveRec;
-              liveRec.start(LIVE_AUDD_TIMESLICE_MS);
+              startLiveSongPipeline(stream);
             }
           }
         } catch (e) {
@@ -1049,6 +1098,7 @@ export default function QuickRecordButton({
       }, 1000);
     } catch (err) {
       console.error('Recording failed:', err);
+      isRecordingRef.current = false;
       stopLiveAuddPipeline();
     }
   };
@@ -1454,7 +1504,7 @@ export default function QuickRecordButton({
                     Waiting for location permission — allow it when the browser asks so we can match venues.
                   </p>
                 )}
-                {(coordsForNearbyVenues || isRecording || liveSongMatch) && (
+                {(coordsForNearbyVenues || liveSongListening || isRecording || liveSongMatch) && (
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
                     <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
                     <div className="min-w-0 flex-1 text-left space-y-1">
@@ -1502,7 +1552,7 @@ export default function QuickRecordButton({
                         </p>
                       ) : null}
 
-                      {(isRecording || liveSongMatch) && (
+                      {(liveSongListening || isRecording || liveSongMatch) && (
                         <div
                           className={
                             coordsForNearbyVenues
@@ -1511,7 +1561,7 @@ export default function QuickRecordButton({
                           }
                         >
                           <p className="text-[10px] uppercase tracking-wide text-white/45">
-                            {isRecording ? 'Now playing' : 'Song'}
+                            Now playing
                           </p>
                           {liveSongMatch && (liveSongMatch.title || liveSongMatch.artist) ? (
                             <>
@@ -1527,7 +1577,7 @@ export default function QuickRecordButton({
                                 </p>
                               ) : null}
                             </>
-                          ) : isRecording ? (
+                          ) : liveSongListening || isRecording ? (
                             <p className="text-gray-400 text-[11px] leading-snug flex items-center gap-2">
                               <Loader2 className="h-3 w-3 animate-spin shrink-0 text-momentum-flare" />
                               Listening for music…
@@ -1536,11 +1586,11 @@ export default function QuickRecordButton({
                         </div>
                       )}
 
-                      {(coordsForNearbyVenues || liveSongMatch) && !isRecording ? (
+                      {(coordsForNearbyVenues || liveSongMatch) && !isRecording && !liveSongListening ? (
                         <p className="text-gray-500 text-[10px] leading-snug pt-1">
                           Saved with this clip — edit on the next screen.
                         </p>
-                      ) : coordsForNearbyVenues && isRecording ? (
+                      ) : coordsForNearbyVenues && (isRecording || liveSongListening) ? (
                         <p className="text-gray-500 text-[10px] leading-snug pt-1">
                           Venue and song prefilled on the next screen when we can match them.
                         </p>
