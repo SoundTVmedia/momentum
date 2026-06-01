@@ -69,9 +69,15 @@ export default function ClipFeedPreviewMedia({
     () => typeof window !== 'undefined' && window.matchMedia(NARROW_FEED_MQ).matches,
   );
   const [thumbHidden, setThumbHidden] = useState(false);
+  const [posterBroken, setPosterBroken] = useState(false);
 
   const posterSrc = resolveClipPosterUrl(clipFields, posterUrl || thumbFallback);
+  const displayPoster = posterBroken ? thumbFallback : posterSrc;
   const previewVideoSrc = resolveFeedPreviewVideoSrc(clipFields);
+
+  useEffect(() => {
+    setPosterBroken(false);
+  }, [posterSrc]);
 
   const hoverFromParent = mediaHoveredProp !== undefined;
   const hovering = hoverFromParent ? mediaHoveredProp : internalHovering;
@@ -144,16 +150,20 @@ export default function ClipFeedPreviewMedia({
     void v.play().catch(() => {});
   }, [shouldPlay, previewVideoSrc]);
 
+  /** Always restore poster when preview stops — video ref is often null after unmount. */
+  useEffect(() => {
+    if (!shouldPlay) {
+      setThumbHidden(false);
+    }
+  }, [shouldPlay]);
+
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
-    if (!shouldPlay) {
-      v.pause();
-      v.removeAttribute('src');
-      v.load();
-      setThumbHidden(false);
-      if (playKey) releaseFeedPreviewPlay(playKey);
-    }
+    if (!v || shouldPlay) return;
+    v.pause();
+    v.removeAttribute('src');
+    v.load();
+    if (playKey) releaseFeedPreviewPlay(playKey);
   }, [shouldPlay, playKey]);
 
   useEffect(() => {
@@ -181,13 +191,25 @@ export default function ClipFeedPreviewMedia({
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !shouldPlay) return;
-    const onPlaying = () => setThumbHidden(true);
+
+    const revealVideoIfReady = () => {
+      if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        setThumbHidden(true);
+      }
+    };
+
     const onPause = () => setThumbHidden(false);
-    v.addEventListener('playing', onPlaying);
+    const onError = () => setThumbHidden(false);
+
+    v.addEventListener('loadeddata', revealVideoIfReady);
+    v.addEventListener('playing', revealVideoIfReady);
     v.addEventListener('pause', onPause);
+    v.addEventListener('error', onError);
     return () => {
-      v.removeEventListener('playing', onPlaying);
+      v.removeEventListener('loadeddata', revealVideoIfReady);
+      v.removeEventListener('playing', revealVideoIfReady);
       v.removeEventListener('pause', onPause);
+      v.removeEventListener('error', onError);
     };
   }, [shouldPlay, previewVideoSrc]);
 
@@ -202,7 +224,9 @@ export default function ClipFeedPreviewMedia({
         <video
           ref={videoRef}
           src={previewVideoSrc}
-          className="clip-feed-preview__video absolute inset-0 h-full w-full object-cover pointer-events-none rounded-[inherit]"
+          className={`clip-feed-preview__video absolute inset-0 z-[1] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
+            thumbHidden ? 'opacity-100' : 'opacity-0'
+          }`}
           muted
           loop
           playsInline
@@ -210,13 +234,17 @@ export default function ClipFeedPreviewMedia({
         />
       ) : null}
       <img
-        src={posterSrc}
+        key={displayPoster}
+        src={displayPoster}
         alt=""
-        className={`clip-feed-preview__poster absolute inset-0 h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
+        className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
           thumbHidden ? 'opacity-0' : 'opacity-100'
         }`}
         loading="lazy"
         decoding="async"
+        onError={() => {
+          if (!posterBroken) setPosterBroken(true);
+        }}
       />
     </div>
   );
