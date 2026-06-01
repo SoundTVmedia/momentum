@@ -56,8 +56,8 @@ export class LiveSongStabilizer {
 
   constructor(opts?: Partial<LiveSongStabilizerOptions>) {
     this.opts = {
-      confirmWindows: 2,
-      clearAfterNoMatchWindows: 4,
+      confirmWindows: 1,
+      clearAfterNoMatchWindows: 5,
       priors: undefined,
       ...opts,
     };

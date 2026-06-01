@@ -18,9 +18,12 @@ const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
 /** AudD standard recognition: max ~25s per file (see docs). Keep parallel snippet under that while video can run to {@link MAX_RECORDING_TIME}. */
 const MAX_AUDD_PARALLEL_RECORD_MS = 20_000;
-/** Sliding-window live ID: one request per timeslice while previewing or recording. */
-const LIVE_AUDD_TIMESLICE_MS = 5000;
-/** ACRCloud often rejects tiny/incomplete WebM timeslices (2004); align with worker MIN_WEBM_BYTES. */
+/**
+ * Live ID: one complete mic recording per segment (not MediaRecorder timeslices — those are
+ * often invalid WebM fragments and ACR returns 2004).
+ */
+const LIVE_AUDD_SEGMENT_MS = 8_000;
+/** ACRCloud often rejects tiny/incomplete WebM (2004); align with worker MIN_WEBM_BYTES. */
 const MIN_LIVE_AUDD_CHUNK_BYTES = 4096;
 
 /** Build `location.state.showData` so UploadClip prefills JamBase fields without calling resolve-show again. */
@@ -113,8 +116,11 @@ export default function QuickRecordButton({
   /** Stops parallel AudD-only mic capture after MAX_AUDD_PARALLEL_RECORD_MS so the API never receives a >25s snippet. */
   const auddParallelCapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const liveAuddRecorderRef = useRef<MediaRecorder | null>(null);
+  const liveAuddSegmentChunksRef = useRef<Blob[]>([]);
+  const liveAuddSegmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const liveAuddInFlightRef = useRef(false);
   const liveAuddStoppedRef = useRef(true);
+  const liveAuddAudioMimeRef = useRef('audio/webm');
   /** Set true for whole record tap so preview→record effect cleanup does not stop the live mic pipeline. */
   const isRecordingRef = useRef(false);
   const liveStabilizerRef = useRef(new LiveSongStabilizer());
@@ -821,8 +827,17 @@ export default function QuickRecordButton({
     lastLiveSongMatchRef.current = null;
   };
 
+  const clearLiveAuddSegmentTimer = () => {
+    if (liveAuddSegmentTimerRef.current != null) {
+      clearTimeout(liveAuddSegmentTimerRef.current);
+      liveAuddSegmentTimerRef.current = null;
+    }
+  };
+
   const stopLiveAuddRecorder = () => {
     liveAuddStoppedRef.current = true;
+    clearLiveAuddSegmentTimer();
+    liveAuddSegmentChunksRef.current = [];
     const lr = liveAuddRecorderRef.current;
     liveAuddRecorderRef.current = null;
     if (lr && (lr.state === 'recording' || lr.state === 'paused')) {
@@ -864,10 +879,99 @@ export default function QuickRecordButton({
     lastLiveSongMatchRef.current = displayed;
   };
 
-  /** Live ACRCloud windows from mic — preview (before REC) and during capture. */
+  const identifyLiveSegmentBlob = (blob: Blob) => {
+    if (liveAuddStoppedRef.current) return;
+    if (blob.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
+    if (liveAuddInFlightRef.current) return;
+    liveAuddInFlightRef.current = true;
+    void (async () => {
+      try {
+        const r = await identifyMusicWithAudD(blob);
+        if (liveAuddStoppedRef.current) return;
+        const { displayed } = liveStabilizerRef.current.observe(r);
+        applyLiveSongDisplayed(displayed);
+      } finally {
+        liveAuddInFlightRef.current = false;
+      }
+    })();
+  };
+
+  const beginLiveAuddSegment = (stream: MediaStream, audioMime: string) => {
+    if (liveAuddStoppedRef.current) return;
+
+    const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
+    if (liveTracks.length === 0) return;
+
+    clearLiveAuddSegmentTimer();
+    liveAuddSegmentChunksRef.current = [];
+
+    try {
+      const liveIdStream = new MediaStream(liveTracks.map((t) => t.clone()));
+      const liveRec = new MediaRecorder(liveIdStream, {
+        mimeType: audioMime,
+        audioBitsPerSecond: 96_000,
+      });
+      liveAuddAudioMimeRef.current = liveRec.mimeType || audioMime;
+
+      liveRec.ondataavailable = (event) => {
+        if (event.data.size > 0) liveAuddSegmentChunksRef.current.push(event.data);
+      };
+
+      liveRec.onstop = () => {
+        try {
+          liveIdStream.getTracks().forEach((t) => t.stop());
+        } catch {
+          /* ignore */
+        }
+        const chunks = liveAuddSegmentChunksRef.current;
+        liveAuddSegmentChunksRef.current = [];
+        const outMime =
+          liveRec.mimeType && liveRec.mimeType.length > 0
+            ? liveRec.mimeType
+            : liveAuddAudioMimeRef.current;
+        const blob = chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
+        if (blob) identifyLiveSegmentBlob(blob);
+        if (!liveAuddStoppedRef.current) {
+          beginLiveAuddSegment(stream, audioMime);
+        }
+      };
+
+      liveAuddRecorderRef.current = liveRec;
+      liveRec.start();
+
+      liveAuddSegmentTimerRef.current = setTimeout(() => {
+        liveAuddSegmentTimerRef.current = null;
+        const rec = liveAuddRecorderRef.current;
+        if (!rec || rec !== liveRec || liveAuddStoppedRef.current) return;
+        if (rec.state !== 'recording' && rec.state !== 'paused') return;
+        if (typeof rec.requestData === 'function') {
+          try {
+            rec.requestData();
+          } catch {
+            /* ignore */
+          }
+        }
+        try {
+          rec.stop();
+        } catch {
+          /* ignore */
+        }
+        if (liveAuddRecorderRef.current === liveRec) {
+          liveAuddRecorderRef.current = null;
+        }
+      }, LIVE_AUDD_SEGMENT_MS);
+    } catch (e) {
+      console.warn('QuickRecordButton: live song segment failed', e);
+    }
+  };
+
+  /** Live song ID from mic — starts when preview has audio (before REC) and during capture. */
   const startLiveSongPipeline = (stream: MediaStream): boolean => {
     if (!audioEnabled) return false;
-    if (!liveAuddStoppedRef.current && liveAuddRecorderRef.current) {
+    if (
+      !liveAuddStoppedRef.current &&
+      (liveAuddRecorderRef.current || liveAuddSegmentTimerRef.current)
+    ) {
       return true;
     }
 
@@ -880,31 +984,8 @@ export default function QuickRecordButton({
     if (!audioMime) return false;
 
     try {
-      const liveIdStream = new MediaStream(liveTracks.map((t) => t.clone()));
-      const liveRec = new MediaRecorder(liveIdStream, {
-        mimeType: audioMime,
-        audioBitsPerSecond: 96_000,
-      });
-      liveRec.ondataavailable = (event) => {
-        if (liveAuddStoppedRef.current) return;
-        if (!event.data || event.data.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
-        if (!event.data.type.startsWith('audio/')) return;
-        if (liveAuddInFlightRef.current) return;
-        liveAuddInFlightRef.current = true;
-        void (async () => {
-          try {
-            const r = await identifyMusicWithAudD(event.data);
-            if (liveAuddStoppedRef.current) return;
-            const { displayed } = liveStabilizerRef.current.observe(r);
-            applyLiveSongDisplayed(displayed);
-          } finally {
-            liveAuddInFlightRef.current = false;
-          }
-        })();
-      };
-      liveAuddRecorderRef.current = liveRec;
       liveAuddStoppedRef.current = false;
-      liveRec.start(LIVE_AUDD_TIMESLICE_MS);
+      beginLiveAuddSegment(stream, audioMime);
       setLiveSongListening(true);
       return true;
     } catch (e) {
@@ -1138,6 +1219,7 @@ export default function QuickRecordButton({
       const geo =
         clipGeoAtRecordingStartRef.current ?? snapshotClipGeoForUpload();
       clipGeoAtRecordingStartRef.current = null;
+      const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
 
       const sourceKey = auddSourceKey(blob);
@@ -1153,6 +1235,7 @@ export default function QuickRecordButton({
           replace: true,
           state: {
             videoBlob: blob,
+            captureAudioBlob,
             recordingStartedAt: at,
             captureGeo: geo
               ? {

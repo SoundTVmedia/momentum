@@ -32,8 +32,9 @@ import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 import {
   mergeSongTitleIntoCaption,
   auddSourceKey,
-  identifyMusicWithAudD,
+  identifyMusicForClip,
   type AudDNavPrefill,
+  type LiveSongSnapshot,
 } from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 
@@ -357,11 +358,10 @@ export default function UploadClip() {
       });
     }
 
-    // AudD ran in QuickRecord before navigate — apply prefill and skip a duplicate identify on the caption screen.
+    // Live capture may have prefilled song — show immediately; caption screen still runs a full identify pass.
     const navWithAudD = location.state as { auddPrefill?: AudDNavPrefill } | null | undefined;
     const ap = navWithAudD?.auddPrefill;
     if (ap?.sourceKey) {
-      auddAttemptedForSourceKeyRef.current = ap.sourceKey;
       if (ap.status === 'done') {
         const artist = (ap.artist ?? '').trim();
         const title = (ap.title ?? '').trim();
@@ -667,7 +667,10 @@ export default function UploadClip() {
     ingestCaptureGeo,
   ]);
 
-  /** AudD when caption opens without pre-navigate identify (e.g. deep link with blob only). */
+  /**
+   * Authoritative song ID on the clip details screen (ACRCloud/AudD).
+   * Uses parallel mic audio from capture when available, then a video snippet; merges live preview matches.
+   */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
     const source = formData.video_blob ?? formData.video_file;
@@ -677,12 +680,33 @@ export default function UploadClip() {
     if (auddAttemptedForSourceKeyRef.current === sourceKey) return;
     auddAttemptedForSourceKeyRef.current = sourceKey;
 
+    const nav = location.state as {
+      captureAudioBlob?: unknown;
+      auddPrefill?: AudDNavPrefill;
+    } | null;
+    const captureAudio =
+      nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null;
+    const ap = nav?.auddPrefill;
+    const liveHint: LiveSongSnapshot | null =
+      ap?.status === 'done' && (ap.artist?.trim() || ap.title?.trim())
+        ? { artist: (ap.artist ?? '').trim(), title: (ap.title ?? '').trim() }
+        : null;
+
+    const hasProvisionalSong = Boolean(
+      liveHint?.title || liveHint?.artist || formData.song_title?.trim(),
+    );
+
     let cancelled = false;
-    setAuddStatus('loading');
-    setAuddMessage(null);
+    if (!hasProvisionalSong) {
+      setAuddStatus('loading');
+      setAuddMessage(null);
+    }
 
     void (async () => {
-      const result = await identifyMusicWithAudD(source);
+      const result = await identifyMusicForClip(source, {
+        live: liveHint,
+        audio: captureAudio,
+      });
       if (cancelled) return;
 
       if (result.status === 'skipped') {
@@ -729,6 +753,7 @@ export default function UploadClip() {
     isPending,
     formData.video_blob,
     formData.video_file,
+    location.state,
   ]);
 
   const handleInputChange = (field: string, value: string) => {

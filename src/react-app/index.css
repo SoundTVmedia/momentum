@@ -582,8 +582,13 @@ body {
     opacity: 0.58;
   }
 
-  .hero-clip-montage--single .hero-clip-montage__slide.is-active {
-    opacity: 0.54;
+  .hero-clip-montage--single .hero-clip-montage__slide.is-active,
+  .hero-clip-montage--static .hero-clip-montage__slide.is-active {
+    opacity: 0.5;
+  }
+
+  .hero-clip-montage--static .hero-clip-montage__slide {
+    transition: opacity 2.2s ease-in-out;
   }
 
   .hero-clip-montage__media {

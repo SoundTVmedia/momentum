@@ -130,6 +130,24 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
 const MIN_SNIPPET_BYTES = 220;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Post-capture pass: prefer dedicated mic audio, then extract from video; merge with live hint.
+ */
+export async function identifyMusicForClip(
+  video: Blob,
+  options?: { live?: LiveSongSnapshot | null; audio?: Blob | null },
+): Promise<AudDIdentifyResult> {
+  const live = options?.live;
+  const audio = options?.audio;
+  if (audio && audio.size >= MIN_SNIPPET_BYTES) {
+    const fromAudio = await identifyMusicWithAudD(audio);
+    const merged = mergeLiveAndFinalSongIdentify(live, fromAudio);
+    if (merged.status === 'match' || merged.status === 'skipped') return merged;
+  }
+  const fromVideo = await identifyMusicWithAudD(video);
+  return mergeLiveAndFinalSongIdentify(live, fromVideo);
+}
+
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
   let snippet: Blob | null = null;
 
