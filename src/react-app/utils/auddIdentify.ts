@@ -74,6 +74,30 @@ export function mergeLiveAndFinalSongIdentify(
   };
 }
 
+/** Build caption-screen prefill from stabilized live capture ID (no post-capture API wait). */
+export function auddPrefillFromLiveMatch(
+  sourceKey: string,
+  live: LiveSongSnapshot | null | undefined,
+): AudDNavPrefill {
+  if (!live) {
+    return { sourceKey, status: 'nomatch', message: null, artist: '', title: '' };
+  }
+  const artist = live.artist.trim();
+  const title = live.title.trim();
+  if (!artist && !title) {
+    return { sourceKey, status: 'nomatch', message: null, artist: '', title: '' };
+  }
+  const message =
+    title && artist
+      ? `Identified: ${title} — ${artist}`
+      : title
+        ? `Identified: ${title}`
+        : artist
+          ? `Identified: ${artist}`
+          : null;
+  return { sourceKey, status: 'done', message, artist, title };
+}
+
 export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudDNavPrefill {
   if (r.status === 'match') {
     return {

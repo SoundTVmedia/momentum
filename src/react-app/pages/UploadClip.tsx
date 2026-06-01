@@ -299,7 +299,13 @@ export default function UploadClip() {
         setArtistSearch(an);
         captionCommittedArtistNameRef.current = an;
       }
-      if (showData.venue_name) setVenueSearch(String(showData.venue_name));
+      if (showData.venue_name) {
+        const vn = String(showData.venue_name);
+        setVenueSearch(vn);
+        if (typeof showData.jambase_venue_id === 'string') {
+          captionCommittedVenueNameRef.current = vn;
+        }
+      }
 
       if (typeof showData.jambase_event_id === 'string') {
         setJambaseLink({
@@ -411,7 +417,14 @@ export default function UploadClip() {
   const [venueSearch, setVenueSearch] = useState('');
   const [venueSuggestions, setVenueSuggestions] = useState<JamBaseVenue[]>([]);
   const [showVenueSuggestions, setShowVenueSuggestions] = useState(false);
+  const [venueSearchPending, setVenueSearchPending] = useState(false);
   const debouncedVenueSearch = useDebounce(venueSearch, 300);
+
+  const venueLocationHint =
+    formData.location?.trim() ||
+    (captureGeo?.city
+      ? [captureGeo.city, captureGeo.state].filter(Boolean).join(', ')
+      : '');
 
   // Search for artists
   useEffect(() => {
@@ -432,26 +445,32 @@ export default function UploadClip() {
     }
   }, [debouncedArtistSearch, searchArtists]);
 
-  // Search for venues
+  // Search for venues (JamBase)
   useEffect(() => {
     if (debouncedVenueSearch && debouncedVenueSearch.length >= 2) {
-      searchVenues(debouncedVenueSearch, formData.location).then((results) => {
-        setVenueSuggestions(results);
-        const keepClosed = debouncedVenueSearch === captionCommittedVenueNameRef.current;
-        setShowVenueSuggestions(!keepClosed && results.length > 0);
-      });
+      setVenueSearchPending(true);
+      searchVenues(debouncedVenueSearch, venueLocationHint || undefined)
+        .then((results) => {
+          setVenueSuggestions(results);
+          const keepClosed = debouncedVenueSearch === captionCommittedVenueNameRef.current;
+          setShowVenueSuggestions(!keepClosed && debouncedVenueSearch.length >= 2);
+        })
+        .finally(() => setVenueSearchPending(false));
     } else {
       setVenueSuggestions([]);
       setShowVenueSuggestions(false);
+      setVenueSearchPending(false);
     }
-  }, [debouncedVenueSearch, formData.location, searchVenues]);
+  }, [debouncedVenueSearch, venueLocationHint, searchVenues]);
 
-  // Keep caption search field aligned with committed tags when not editing (mobile).
+  // Keep caption search fields aligned with committed tags when not editing (mobile).
   useEffect(() => {
     if (!showCaptionScreen || isEditingTags) return;
     setArtistSearch(formData.artist_name);
+    setVenueSearch(formData.venue_name);
     setShowArtistSuggestions(false);
-  }, [showCaptionScreen, isEditingTags, formData.artist_name]);
+    setShowVenueSuggestions(false);
+  }, [showCaptionScreen, isEditingTags, formData.artist_name, formData.venue_name]);
 
   const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
     setFormData((prev) => ({
@@ -744,6 +763,21 @@ export default function UploadClip() {
     }
   };
 
+  const handleCaptionVenueSearchChange = (value: string) => {
+    setVenueSearch(value);
+    if (value.trim() === '') {
+      captionCommittedVenueNameRef.current = '';
+      setFormData((prev) => ({ ...prev, venue_name: '' }));
+      setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null } : null));
+      return;
+    }
+    if (value !== captionCommittedVenueNameRef.current) {
+      captionCommittedVenueNameRef.current = '';
+      setFormData((prev) => ({ ...prev, venue_name: '' }));
+      setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null } : null));
+    }
+  };
+
   const handleVenueSelect = (venue: JamBaseVenue) => {
     const venueName = venue.name;
     const venueLocation = venue.location?.city 
@@ -760,7 +794,7 @@ export default function UploadClip() {
     setVenueSuggestions([]);
     setShowVenueSuggestions(false);
     setJambaseLink((prev) => ({
-      event: prev?.event ?? null,
+      event: null,
       artist: prev?.artist ?? null,
       venue: venue.identifier,
     }));
@@ -1579,51 +1613,63 @@ export default function UploadClip() {
                       )}
                     </div>
 
-                    {/* Venue */}
+                    {/* Venue — JamBase search + pick only (mobile caption) */}
                     <div className="relative">
+                      <label className="block text-gray-400 text-xs mb-1 font-medium">
+                        Venue <span className="text-gray-500 font-normal">(JamBase)</span>
+                      </label>
                       <div className="relative">
                         <input
                           type="text"
                           value={venueSearch}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setVenueSearch(value);
-                            handleInputChange('venue_name', value);
-                            if (value !== captionCommittedVenueNameRef.current) {
-                              captionCommittedVenueNameRef.current = '';
-                            }
-                          }}
+                          onChange={(e) => handleCaptionVenueSearchChange(e.target.value)}
                           onFocus={() => {
                             if (
-                              venueSearch !== captionCommittedVenueNameRef.current &&
-                              venueSuggestions.length > 0
+                              debouncedVenueSearch.length >= 2 &&
+                              venueSearch !== captionCommittedVenueNameRef.current
                             ) {
                               setShowVenueSuggestions(true);
                             }
                           }}
+                          autoComplete="off"
                           className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
-                          placeholder="Venue name"
+                          placeholder="Search JamBase venues"
                         />
-                        <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-400" />
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400 pointer-events-none" />
                       </div>
-                      
-                      {showVenueSuggestions && venueSuggestions.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-momentum-ember/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                          {venueSuggestions.map((venue) => (
-                            <button
-                              key={venue.identifier}
-                              type="button"
-                              onClick={() => handleVenueSelect(venue)}
-                              className="w-full px-3 py-2 text-left hover:bg-momentum-ember/20 transition-colors border-b border-white/10 last:border-0"
-                            >
-                              <div className="text-white text-sm font-medium">{venue.name}</div>
-                              {venue.location?.city && (
-                                <div className="text-xs text-gray-400">
-                                  {venue.location.city}{venue.location.state ? `, ${venue.location.state}` : ''}
-                                </div>
-                              )}
-                            </button>
-                          ))}
+                      <p className="text-gray-500 text-xs mt-1">
+                        Pick a venue from the results — free-text names are not saved for this field.
+                      </p>
+
+                      {showVenueSuggestions && debouncedVenueSearch.length >= 2 && (
+                        <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-800 border border-momentum-ember/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                          {venueSearchPending ? (
+                            <div className="px-3 py-3 flex items-center gap-2 text-gray-300 text-sm">
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                              Searching JamBase…
+                            </div>
+                          ) : venueSuggestions.length > 0 ? (
+                            venueSuggestions.map((venue) => (
+                              <button
+                                key={venue.identifier}
+                                type="button"
+                                onClick={() => handleVenueSelect(venue)}
+                                className="w-full px-3 py-2 text-left hover:bg-momentum-ember/20 transition-colors border-b border-white/10 last:border-0"
+                              >
+                                <div className="text-white text-sm font-medium">{venue.name}</div>
+                                {venue.location?.city && (
+                                  <div className="text-xs text-gray-400">
+                                    {venue.location.city}
+                                    {venue.location.state ? `, ${venue.location.state}` : ''}
+                                  </div>
+                                )}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-2 text-gray-400 text-sm">
+                              No venues match that search. Try a different spelling or name.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1971,58 +2017,72 @@ export default function UploadClip() {
             <div className="relative">
               <label className="flex items-center space-x-2 text-white font-medium mb-2">
                 <Calendar className="w-5 h-5 text-momentum-flare" />
-                <span>Venue Name</span>
+                <span>
+                  Venue Name <span className="text-gray-400 font-normal text-sm">(JamBase)</span>
+                </span>
               </label>
               <div className="relative">
                 <input
                   type="text"
                   value={venueSearch}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setVenueSearch(value);
-                    handleInputChange('venue_name', value);
-                    if (value !== captionCommittedVenueNameRef.current) {
-                      captionCommittedVenueNameRef.current = '';
-                    }
-                  }}
+                  onChange={(e) => handleCaptionVenueSearchChange(e.target.value)}
                   onFocus={() => {
                     if (
-                      venueSearch !== captionCommittedVenueNameRef.current &&
-                      venueSuggestions.length > 0
+                      debouncedVenueSearch.length >= 2 &&
+                      venueSearch !== captionCommittedVenueNameRef.current
                     ) {
                       setShowVenueSuggestions(true);
                     }
                   }}
+                  autoComplete="off"
                   className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                  placeholder="Madison Square Garden"
+                  placeholder="Search JamBase venues"
                 />
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                {venueSearchPending && (
+                  <Loader2 className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 text-momentum-flare animate-spin" />
+                )}
               </div>
-              
-              {/* Venue Suggestions Dropdown */}
-              {showVenueSuggestions && venueSuggestions.length > 0 && (
+
+              {showVenueSuggestions && debouncedVenueSearch.length >= 2 && (
                 <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-momentum-ember/30 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                  {venueSuggestions.map((venue) => (
-                    <button
-                      key={venue.identifier}
-                      type="button"
-                      onClick={() => handleVenueSelect(venue)}
-                      className="w-full px-4 py-3 text-left hover:bg-momentum-ember/20 transition-colors border-b border-white/10 last:border-0"
-                    >
-                      <div className="text-white font-medium">{venue.name}</div>
-                      {venue.location?.city && (
-                        <div className="text-sm text-gray-400">
-                          {venue.location.city}{venue.location.state ? `, ${venue.location.state}` : ''}
-                        </div>
-                      )}
-                      {venue.capacity && (
-                        <div className="text-xs text-gray-500">Capacity: {venue.capacity.toLocaleString()}</div>
-                      )}
-                    </button>
-                  ))}
+                  {venueSearchPending ? (
+                    <div className="px-4 py-3 flex items-center gap-2 text-gray-300 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      Searching JamBase…
+                    </div>
+                  ) : venueSuggestions.length > 0 ? (
+                    venueSuggestions.map((venue) => (
+                      <button
+                        key={venue.identifier}
+                        type="button"
+                        onClick={() => handleVenueSelect(venue)}
+                        className="w-full px-4 py-3 text-left hover:bg-momentum-ember/20 transition-colors border-b border-white/10 last:border-0"
+                      >
+                        <div className="text-white font-medium">{venue.name}</div>
+                        {venue.location?.city && (
+                          <div className="text-sm text-gray-400">
+                            {venue.location.city}
+                            {venue.location.state ? `, ${venue.location.state}` : ''}
+                          </div>
+                        )}
+                        {venue.capacity && (
+                          <div className="text-xs text-gray-500">
+                            Capacity: {venue.capacity.toLocaleString()}
+                          </div>
+                        )}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-4 py-3 text-gray-400 text-sm">
+                      No venues match that search. Try a different spelling or name.
+                    </div>
+                  )}
                 </div>
               )}
-              <p className="text-gray-400 text-sm mt-2">Where was the magic?</p>
+              <p className="text-gray-400 text-sm mt-2">
+                Pick a venue from JamBase — free-text names are not saved.
+              </p>
             </div>
 
             <div>

@@ -7,8 +7,7 @@ import type { ClipShowCandidate } from '@/shared/types';
 import {
   identifyMusicWithAudD,
   auddSourceKey,
-  mergeLiveAndFinalSongIdentify,
-  toAudDNavPrefill,
+  auddPrefillFromLiveMatch,
 } from '@/react-app/utils/auddIdentify';
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
@@ -96,10 +95,6 @@ export default function QuickRecordButton({
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
-  const [isProcessingTransition, setIsProcessingTransition] = useState(false);
-  /** Shown on the processing overlay while AudD runs before opening the caption screen. */
-  const [processingHint, setProcessingHint] = useState('');
-  const [processingProgress, setProcessingProgress] = useState(8);
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
   
   // Orientation state
@@ -142,7 +137,6 @@ export default function QuickRecordButton({
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
   const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
-  const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   /** GPS used for lastGeoRef + upload `captureGeo`; JamBase tagging runs on the upload screen only. */
   const [coordsForNearbyVenues, setCoordsForNearbyVenues] = useState<{
     lat: number;
@@ -771,39 +765,27 @@ export default function QuickRecordButton({
     }
 
     const geo = snapshotClipGeoForUpload();
-
-    setIsProcessingTransition(true);
-    setProcessingHint('Identifying music before upload (~15s)…');
-    try {
-      const sourceKey = auddSourceKey(file);
-      const finalIdentify = await identifyMusicWithAudD(file);
-      const auddPrefill = toAudDNavPrefill(
-        sourceKey,
-        mergeLiveAndFinalSongIdentify(lastLiveSongMatchRef.current, finalIdentify),
-      );
-      const prefetchShow = captureResolveCandidateRef.current;
-      navigate({ pathname: '/upload', search: '' }, {
-        state: {
-          videoFile: file,
-          recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
-          captureGeo: geo
-            ? {
-                latitude: geo.latitude,
-                longitude: geo.longitude,
-                city: geo.city,
-                state: geo.state,
-                country: geo.country,
-              }
-            : null,
-          auddPrefill,
-          ...(prefetchShow ? { showData: clipCandidateToNavShowData(prefetchShow) } : {}),
-        },
-      });
-      (onAfterCaptureNavigate ?? onClose)?.();
-    } finally {
-      setProcessingHint('');
-      setIsProcessingTransition(false);
-    }
+    const sourceKey = auddSourceKey(file);
+    const auddPrefill = auddPrefillFromLiveMatch(sourceKey, lastLiveSongMatchRef.current);
+    const prefetchShow = captureResolveCandidateRef.current;
+    navigate({ pathname: '/upload', search: '' }, {
+      state: {
+        videoFile: file,
+        recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
+        captureGeo: geo
+          ? {
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+              city: geo.city,
+              state: geo.state,
+              country: geo.country,
+            }
+          : null,
+        auddPrefill,
+        ...(prefetchShow ? { showData: clipCandidateToNavShowData(prefetchShow) } : {}),
+      },
+    });
+    (onAfterCaptureNavigate ?? onClose)?.();
   };
 
   const openDeviceMediaPicker = () => {
@@ -877,13 +859,9 @@ export default function QuickRecordButton({
   };
 
   const applyLiveSongDisplayed = (displayed: { artist: string; title: string } | null) => {
-    if (displayed && (displayed.artist || displayed.title)) {
-      setLiveSongMatch(displayed);
-      lastLiveSongMatchRef.current = displayed;
-    } else if (!displayed) {
-      setLiveSongMatch(null);
-      lastLiveSongMatchRef.current = null;
-    }
+    if (!displayed || (!displayed.artist && !displayed.title)) return;
+    setLiveSongMatch(displayed);
+    lastLiveSongMatchRef.current = displayed;
   };
 
   /** Live ACRCloud windows from mic — preview (before REC) and during capture. */
@@ -1124,8 +1102,6 @@ export default function QuickRecordButton({
       }
       isRecordingRef.current = false;
       setIsRecording(false);
-      setIsProcessingTransition(true);
-      setProcessingProgress(14);
 
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -1152,28 +1128,7 @@ export default function QuickRecordButton({
   };
 
   const handleRecordingComplete = async (blob: Blob) => {
-    const clearProcessingTicker = () => {
-      if (processingIntervalRef.current) {
-        clearInterval(processingIntervalRef.current);
-        processingIntervalRef.current = null;
-      }
-    };
-    clearProcessingTicker();
-    const targetPeak = networkSpeed === 'fast' ? 88 : 82;
-    const tickMs = networkSpeed === 'fast' ? 140 : 260;
-    processingIntervalRef.current = setInterval(() => {
-      setProcessingProgress((prev) => {
-        if (prev >= targetPeak) return prev;
-        const remaining = targetPeak - prev;
-        const deltaBase = networkSpeed === 'fast' ? 6 : 3;
-        const delta = Math.max(1, Math.min(deltaBase, remaining / 3));
-        return Math.min(targetPeak, prev + delta);
-      });
-    }, tickMs);
-
     try {
-      setProcessingProgress(networkSpeed === 'fast' ? 24 : 18);
-      // Stop all tracks
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -1183,24 +1138,13 @@ export default function QuickRecordButton({
       const geo =
         clipGeoAtRecordingStartRef.current ?? snapshotClipGeoForUpload();
       clipGeoAtRecordingStartRef.current = null;
-      setProcessingProgress((prev) => Math.max(prev, networkSpeed === 'fast' ? 94 : 86));
-
-      setProcessingHint('Identifying music before upload (~15s)…');
-      const parallelAudio = lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
-      const MIN_PARALLEL = 220;
-      const useParallelAudD =
-        parallelAudio != null &&
-        parallelAudio.size >= MIN_PARALLEL &&
-        parallelAudio.type.startsWith('audio/');
-      const auddInput = useParallelAudD ? parallelAudio : blob;
+
       const sourceKey = auddSourceKey(blob);
-      const finalIdentify = await identifyMusicWithAudD(auddInput);
-      const auddPrefill = toAudDNavPrefill(
+      const auddPrefill = auddPrefillFromLiveMatch(
         sourceKey,
-        mergeLiveAndFinalSongIdentify(lastLiveSongMatchRef.current, finalIdentify),
+        lastLiveSongMatchRef.current,
       );
-      setProcessingHint('');
 
       const prefetchShow = captureResolveCandidateRef.current;
       navigate(
@@ -1227,32 +1171,31 @@ export default function QuickRecordButton({
             auddPrefill,
             ...(prefetchShow ? { showData: clipCandidateToNavShowData(prefetchShow) } : {}),
           },
-        }
+        },
       );
       (onAfterCaptureNavigate ?? onClose)?.();
-      setProcessingProgress(100);
 
       recordingStartedAtRef.current = null;
       lastGeoRef.current = null;
 
-      // Close modal
       setShowModal(false);
       setHasPermission(false);
       setCameraReady(false);
       setPreviewStream(null);
       setCameraOpenRequested(false);
       recordingSecondsRef.current = 0;
-    } finally {
-      clearProcessingTicker();
-      setProcessingHint('');
-      setIsProcessingTransition(false);
-      setProcessingProgress(8);
+      setLiveSongMatch(null);
+      setLiveSongListening(false);
+      lastLiveSongMatchRef.current = null;
+    } catch (e) {
+      console.error('QuickRecordButton: recording complete failed', e);
+      setCameraError('Could not open your clip for review. Try again.');
+      isRecordingRef.current = false;
+      setIsRecording(false);
     }
   };
 
   const closeModal = () => {
-    if (isProcessingTransition) return;
-
     isRecordingRef.current = false;
     stopLiveAuddPipeline();
 
@@ -1275,10 +1218,6 @@ export default function QuickRecordButton({
     auddParallelAudioChunksRef.current = [];
     lastParallelAuddAudioBlobRef.current = null;
 
-    if (processingIntervalRef.current) {
-      clearInterval(processingIntervalRef.current);
-      processingIntervalRef.current = null;
-    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
@@ -1295,8 +1234,6 @@ export default function QuickRecordButton({
     setHasPermission(false);
     setCameraReady(false);
     setCameraOpenRequested(false);
-    setIsProcessingTransition(false);
-    setProcessingProgress(8);
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     clipGeoAtRecordingStartRef.current = null;
@@ -1332,15 +1269,6 @@ export default function QuickRecordButton({
     captureLaunchGeo,
     captureLaunchGeoResolved,
   ]);
-
-  useEffect(() => {
-    return () => {
-      if (processingIntervalRef.current) {
-        clearInterval(processingIntervalRef.current);
-        processingIntervalRef.current = null;
-      }
-    };
-  }, []);
 
   // Responsive class names based on orientation
   const modalClass = `fixed inset-0 bg-black z-50 flex flex-col transition-all duration-300 ease-in-out`;
@@ -1416,46 +1344,6 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* Processing transition before opening the upload / caption screen */}
-            {isProcessingTransition && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 backdrop-blur-sm">
-                <div className="w-[88%] max-w-md rounded-2xl border border-white/15 bg-black/70 p-5">
-                  <div className="mb-3 flex items-center gap-2 text-white">
-                    <Loader2 className="h-5 w-5 animate-spin text-momentum-flare" />
-                    <p className="text-sm font-medium">
-                      {networkSpeed === 'slow' || networkSpeed === 'offline'
-                        ? 'Processing on a slower connection…'
-                        : 'Processing your moment…'}
-                    </p>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-white/20">
-                    <div
-                      className="h-full rounded-full momentum-grad-interactive transition-all duration-200 ease-out"
-                      style={{ width: `${Math.min(100, Math.round(processingProgress))}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-white/70">
-                    {processingHint.trim() !== ''
-                      ? processingHint
-                      : networkSpeed === 'slow' || networkSpeed === 'offline'
-                        ? 'Hang tight while we open your clip so you can add details and post.'
-                        : 'Opening your clip — venue and song fields will be prefilled when we can.'}
-                  </p>
-                  {liveSongMatch && (liveSongMatch.title || liveSongMatch.artist) ? (
-                    <div className="mt-3 rounded-lg border border-momentum-flare/25 bg-white/5 px-3 py-2 text-left">
-                      <p className="text-[10px] uppercase tracking-wide text-white/50 mb-1">Song for your post</p>
-                      {liveSongMatch.title ? (
-                        <p className="text-sm font-medium text-white truncate">{liveSongMatch.title}</p>
-                      ) : null}
-                      {liveSongMatch.artist ? (
-                        <p className="text-xs text-momentum-flare/95 truncate">{liveSongMatch.artist}</p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            )}
-
             {/* Network Warning - Responsive positioning */}
             {hasPermission && networkSpeed === 'slow' && (
               <div 
@@ -1494,7 +1382,7 @@ export default function QuickRecordButton({
               onChange={handlePickFromDevice}
             />
 
-            {hasPermission && cameraReady && !isProcessingTransition && (
+            {hasPermission && cameraReady && (
               <div className="mx-auto mb-3 w-full max-w-lg px-1">
                 {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
                   <p className="text-center text-momentum-flare/90 text-xs mb-2 flex items-center justify-center gap-2">
@@ -1616,7 +1504,6 @@ export default function QuickRecordButton({
                 <button
                   type="button"
                   onClick={openDeviceMediaPicker}
-                  disabled={isProcessingTransition}
                   className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
                   title="Choose video from your device"
@@ -1630,7 +1517,7 @@ export default function QuickRecordButton({
                   <button
                     type="button"
                     onClick={startRecording}
-                    disabled={!cameraReady || isProcessingTransition}
+                    disabled={!cameraReady}
                     className="relative group disabled:opacity-50 shrink-0"
                     title="Start capturing your moment (up to 60 seconds)"
                     style={{ minWidth: '5rem', minHeight: '5rem' }}
@@ -1648,7 +1535,6 @@ export default function QuickRecordButton({
                   <button
                     type="button"
                     onClick={stopRecording}
-                    disabled={isProcessingTransition}
                     className="relative group shrink-0"
                     title="Stop recording and save your moment"
                     style={{ minWidth: '5rem', minHeight: '5rem' }}
@@ -1667,7 +1553,7 @@ export default function QuickRecordButton({
                 <button
                   type="button"
                   onClick={toggleCameraFacing}
-                  disabled={isRecording || isProcessingTransition}
+                  disabled={isRecording}
                   className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
                   title="Flip camera"
