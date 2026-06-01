@@ -1,0 +1,196 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Microsoft Word">
+<title>Brian + Wes Meeting Status Report — May 31, 2026</title>
+<!--[if gte mso 9]><xml>
+<w:WordDocument>
+<w:View>Print</w:View>
+<w:Zoom>100</w:Zoom>
+</w:WordDocument>
+</xml><![endif]-->
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.35; margin: 1in; color: #000; }
+h1 { font-size: 20pt; color: #1a1a1a; border-bottom: 2px solid #333; padding-bottom: 6px; }
+h2 { font-size: 14pt; color: #2c2c2c; margin-top: 18pt; }
+h3 { font-size: 12pt; color: #444; margin-top: 14pt; }
+p { margin: 6pt 0; }
+table { border-collapse: collapse; width: 100%; margin: 10pt 0; font-size: 10pt; }
+th, td { border: 1px solid #999; padding: 6pt 8pt; vertical-align: top; text-align: left; }
+th { background: #f0f0f0; font-weight: bold; }
+.done { color: #0d6b0d; font-weight: bold; }
+.partial { color: #b8860b; font-weight: bold; }
+.notdone { color: #a00; font-weight: bold; }
+.meta { font-size: 10pt; color: #555; margin-bottom: 14pt; }
+ul { margin: 6pt 0 6pt 20pt; }
+li { margin: 3pt 0; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #f5f5f5; }
+</style>
+</head>
+<body>
+
+<h1>Brian + Wes Meeting Status Report</h1>
+<p class="meta"><strong>Meeting date:</strong> May 31, 2026<br>
+<strong>Compared against:</strong> main branch, Momentum repository<br>
+<strong>Prepared:</strong> June 1, 2026</p>
+
+<h2>Executive Summary</h2>
+<p>The meeting&rsquo;s <strong>technical foundation work is largely in place</strong>: ACRCloud is the active song-ID provider, capture no longer blocks on recognition at the end of recording, and there is a <strong>live listening pipeline that starts when the camera preview is ready</strong> (not only after stop).</p>
+<p>What remains open is mostly <strong>product policy and UX</strong>: tight geofencing, music-gated posting, playback ticket CTAs, the &ldquo;Become &hellip;&rdquo; onboarding model, and top-of-home messaging. Several meeting decisions were explicitly deferred (Feed vs. Discover rename); those are correctly unchanged in code.</p>
+<p><strong>Confidence key:</strong> High = clear in code &bull; Medium = implemented but incomplete vs. notes &bull; Low = process/ops, not verifiable in repo</p>
+
+<h2>1. ACRCloud / Music Recognition</h2>
+<table>
+<tr><th>Meeting item</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Replace AudD with ACRCloud</td><td class="done">Done</td><td>Worker uses ACRCloud when keys are set (music-recognition.ts, acrcloud-client.ts). AudD token does not activate provider.</td></tr>
+<tr><td>Trial + keys + swap in current build</td><td class="done">Done</td><td>ACRCLOUD_* env vars; POST /api/clips/identify-music</td></tr>
+<tr><td>POC: identify after recording, fill metadata</td><td class="done">Done</td><td>UploadClip runs identify on caption screen; captureAudioBlob + video snippet fallback</td></tr>
+<tr><td>Recognition when camera opens (buffer / pre-listen)</td><td class="done">Done</td><td>QuickRecordButton: startLiveSongPipeline on preview before REC; &ldquo;Listening for music&hellip;&rdquo; UI; 8s segments to ACR via worker</td></tr>
+<tr><td>More real-world / simulated testing</td><td class="notdone">Not done</td><td>Manual QA only; no automated venue scenario suite</td></tr>
+<tr><td>Research doc / provider comparison</td><td class="notdone">Not in repo</td><td>May live outside git</td></tr>
+</table>
+<p><strong>Nuances:</strong> Client code still uses &ldquo;AudD&rdquo; naming (auddIdentify.ts) but calls /api/clips/identify-music &rarr; ACRCloud on the worker. Post-capture identify remains as backstop on /upload. handleRecordingComplete navigates immediately with auddPrefill from live match (non-blocking).</p>
+<p><strong>Hit list:</strong> Test ACRCloud more &rarr; open (QA). Move recognition earlier &rarr; largely done in code; needs field validation.</p>
+
+<h2>2. Geofencing &amp; Venue Validation</h2>
+<table>
+<tr><th>Meeting item</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Active product problem; infrastructure</td><td class="partial">Partial</td><td>clips-resolve-show.ts, location_radius_miles, camera prefetch, telemetry (migration 44)</td></tr>
+<tr><td>Closest JamBase venue with show tonight</td><td class="done">Done</td><td>Geo /events + same-day enrichment; camera venue/artist preview</td></tr>
+<tr><td>Hard geofence (~1 mi) for regular users</td><td class="notdone">Not done</td><td>VENUE_MATCH_RADIUS_FLOOR_MILES = 35 &mdash; matching never tighter than 35 miles</td></tr>
+<tr><td>Respect user profile radius</td><td class="partial">Partial</td><td>Profile radius for search; venue match uses max(profile, 35)</td></tr>
+<tr><td>Dense-city exception</td><td class="notdone">Not done</td><td>No NYC-style multi-venue flow</td></tr>
+<tr><td>Dropdown &ldquo;which venue?&rdquo;</td><td class="notdone">Not done</td><td>API returns nearbyVenues (up to 15); UI only auto-applies match === single</td></tr>
+<tr><td>Warning UX (&ldquo;seem a little far&hellip;&rdquo;)</td><td class="notdone">Not done</td><td>&mdash;</td></tr>
+<tr><td>Block camera if too far</td><td class="notdone">Not done</td><td>Camera opens with GPS; no distance gate</td></tr>
+</table>
+<p><strong>Hit list:</strong> Define geofence rules, dense-city handling, camera block &mdash; all still open.</p>
+
+<h2>3. Music-Only Posting &amp; Content Governance</h2>
+<table>
+<tr><th>Meeting item</th><th>Status</th></tr>
+<tr><td>Require music detection to post to main feed (fans)</td><td class="notdone">Not done</td></tr>
+<tr><td>Route non-music to personal profile vs public feed</td><td class="notdone">Not done</td></tr>
+<tr><td>Elevated roles broader posting rights</td><td class="notdone">Not done</td></tr>
+</table>
+<p>Upload allows manual venue/artist when resolve fails; no gate on nomatch / missing song for publish.</p>
+
+<h2>4. User Levels, Verification, &ldquo;Become &hellip;&rdquo;</h2>
+<table>
+<tr><th>Meeting item</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Role-based permissions (geo + posting)</td><td class="notdone">Not done</td><td>role and is_verified in DB; no capture/post differentiation</td></tr>
+<tr><td>Custom verification badge</td><td class="notdone">Not done</td><td>Standard checkmark SVG on profiles</td></tr>
+<tr><td>Everyone starts as fan; &ldquo;Become &hellip;&rdquo; entry</td><td class="notdone">Not done</td><td>Onboarding still asks fan / artist / ambassador / influencer</td></tr>
+<tr><td>Ambassador/affiliate/premium first pass</td><td class="partial">Partial</td><td>Dashboard components exist but not routed; /premium redirects to home</td></tr>
+<tr><td>Defer Feed vs Discover rename</td><td class="done">Aligned</td><td>&ldquo;The Feed&rdquo; (/), &ldquo;Discover&rdquo; (/discover)</td></tr>
+</table>
+
+<h2>5. Homepage, Hero, Top Real Estate</h2>
+<table>
+<tr><th>Meeting item</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Top montage from trending clips</td><td class="partial">Changed</td><td>Was added in git; current main uses HeroConcertBackdrop stock video</td></tr>
+<tr><td>Generic visual until real content</td><td class="done">Done</td><td>Stock hero video/image</td></tr>
+<tr><td>Top bar for ambassador/affiliate/sponsor/premium</td><td class="notdone">Not done</td><td>HeroSection = headline + search only</td></tr>
+<tr><td>Desktop: push artist rows up</td><td class="partial">Unclear</td><td>No obvious spacing tweak tied to meeting</td></tr>
+<tr><td>Strategic space above feed</td><td class="partial">Partial</td><td>Strong hero + search; no conversion slots</td></tr>
+</table>
+
+<h2>6. Ticketing &amp; Commerce</h2>
+<table>
+<tr><th>Meeting item</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Prominent ticket CTA during clip playback</td><td class="notdone">Not done</td><td>ClipModal has no ticket CTA</td></tr>
+<tr><td>Simple artist-level ticket button</td><td class="done">Done elsewhere</td><td>ArtistPage, JamBaseEventGrid, FavoriteArtistFeedPanel, etc.</td></tr>
+<tr><td>Contextual CTA (&ldquo;coming near you soon&rdquo;)</td><td class="notdone">Not done</td><td>Generic Get Tickets where present</td></tr>
+<tr><td>Ticket clickthrough as proof point</td><td class="done">Done</td><td>affiliate_ticket_clicks, useTicketmaster.trackTicketClick</td></tr>
+<tr><td>Smarter local/time-window logic</td><td class="notdone">Not done</td><td>Deferred per meeting</td></tr>
+</table>
+<p><strong>Largest commerce gap vs. meeting:</strong> playback ticket CTA in ClipModal.</p>
+
+<h2>7. Real-World Testing &amp; Content Seeding</h2>
+<ul>
+<li>More real artists/venues/clips vs placeholders &mdash; ongoing content work</li>
+<li>Venue capture testing &mdash; ops, not in repo</li>
+<li>Field answers for geofence / music-only &mdash; blocked on QA</li>
+</ul>
+
+<h2>8. JamBase Quota (Ops)</h2>
+<ul>
+<li>Email JamBase about quota &mdash; not verifiable in repo</li>
+<li>Quota headroom in product &mdash; done in code (jambase-client.ts: enforcement, monthly buckets, edge caching)</li>
+</ul>
+
+<h2>Progress Claimed &ldquo;This Week&rdquo; (Meeting)</h2>
+<table>
+<tr><th>Claimed</th><th>On main?</th></tr>
+<tr><td>AudD addressed; ACRCloud chosen</td><td class="done">Yes</td></tr>
+<tr><td>ACRCloud implemented in build</td><td class="done">Yes</td></tr>
+<tr><td>Working POC after recording</td><td class="done">Yes (+ live pre-rec pipeline)</td></tr>
+<tr><td>Montage motion at top</td><td class="partial">Partial &mdash; now stock hero video</td></tr>
+<tr><td>App structure agile for changes</td><td class="partial">Subjective &mdash; modular layout supports it</td></tr>
+</table>
+
+<h2>Open Questions from Meeting</h2>
+<table>
+<tr><th>Question</th><th>Codebase today</th></tr>
+<tr><td>Block camera if too far?</td><td>Undecided &mdash; not implemented</td></tr>
+<tr><td>Default geofence for fans?</td><td>De facto ~35 mi floor, not ~1 mi</td></tr>
+<tr><td>Dense-city radius rules?</td><td>Undecided</td></tr>
+<tr><td>Post without music detected?</td><td>Allowed</td></tr>
+<tr><td>Non-music &rarr; personal profile?</td><td>Not implemented</td></tr>
+<tr><td>Exempt ambassadors/verified?</td><td>Not implemented</td></tr>
+<tr><td>Feed vs Discover naming?</td><td>Unchanged (per &ldquo;sleep on it&rdquo;)</td></tr>
+<tr><td>What lives in top black bar?</td><td>Search + branding only</td></tr>
+<tr><td>Ticket CTA contextual in V1?</td><td>No playback CTA at all</td></tr>
+<tr><td>ACR earlier than post-capture?</td><td>Largely yes (live pipeline)</td></tr>
+</table>
+
+<h2>Hit List Scorecard</h2>
+
+<h3>Immediate (meeting)</h3>
+<table>
+<tr><th>#</th><th>Item</th><th>Status</th></tr>
+<tr><td>1</td><td>Test ACRCloud extensively</td><td class="notdone">Open (QA)</td></tr>
+<tr><td>2</td><td>Earlier listening / camera-ready</td><td class="partial">Mostly done &mdash; validate in venues</td></tr>
+<tr><td>3</td><td>Geofencing on active list + define rules</td><td class="partial">Infra done; rules/UX not</td></tr>
+<tr><td>4</td><td>Stronger ticket CTA in playback</td><td class="notdone">Not done</td></tr>
+<tr><td>5</td><td>Top-of-home strategy / Become</td><td class="notdone">Not done</td></tr>
+<tr><td>6</td><td>Reassess montage vs placeholder</td><td class="partial">Leaning placeholder (stock video)</td></tr>
+</table>
+
+<h3>Near-term product</h3>
+<ul>
+<li>Default posting rule (in-venue + music) &mdash; <span class="notdone">Not done</span></li>
+<li>Role-based geo/permissions &mdash; <span class="notdone">Not done</span></li>
+<li>&ldquo;Become &hellip;&rdquo; entry point &mdash; <span class="notdone">Not done</span></li>
+<li>Feed/Discover naming &mdash; <span class="done">Deferred (correct)</span></li>
+<li>Music-free &rarr; profile routing &mdash; <span class="notdone">Not done</span></li>
+<li>Real concert footage test plan &mdash; <span class="notdone">Open (process)</span></li>
+</ul>
+
+<h3>Business / strategy</h3>
+<ul>
+<li>Contact JamBase re quota &mdash; Ops</li>
+<li>Ticket clicks high priority &mdash; Tracking yes; playback CTA no</li>
+<li>Real-world demo content &mdash; Content/QA</li>
+<li>Ambassador/affiliate first pass for stakeholders &mdash; Partial (fragments, not productized)</li>
+</ul>
+
+<h2>Suggested Engineering Priorities</h2>
+<ol>
+<li><strong>Playback ticket CTA</strong> in ClipModal (artist JamBase/Ticketmaster link + trackTicketClick)</li>
+<li><strong>Geofence decision + implementation</strong> &mdash; lower VENUE_MATCH_RADIUS_FLOOR_MILES, use profile radius for fans, warning or venue picker using nearbyVenues</li>
+<li><strong>Field QA</strong> for ACRCloud live pipeline at real shows</li>
+<li><strong>Product decisions</strong> on music-gated posting and &ldquo;Become &hellip;&rdquo; vs current onboarding</li>
+<li><strong>Surface or hide</strong> ambassador/premium dashboards before stakeholder review</li>
+</ol>
+
+<h2>Client-Ready Summary</h2>
+<p><strong>Done or substantially done:</strong> ACRCloud integration; non-blocking capture &rarr; upload; live listening when camera opens; JamBase venue preview on camera; ticket click analytics; Feed/Discover naming held steady; hero uses polished generic concert visuals.</p>
+<p><strong>In progress / partial:</strong> Venue matching (works but too loose for stated intent); role/ambassador infrastructure without user-facing program; ticket commerce on event/artist surfaces but not in core watch experience.</p>
+<p><strong>Not started (product):</strong> Strict geofencing, music-required posting, &ldquo;Become &hellip;&rdquo; onboarding, top-of-home conversion real estate, playback ticket CTA, role-based capture exceptions.</p>
+
+</body>
+</html>
