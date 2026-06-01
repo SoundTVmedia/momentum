@@ -1,7 +1,17 @@
 import {
+  ACR_MAX_SAMPLE_BYTES,
+  MAX_IDENTIFY_UPLOAD_BYTES,
+  MIN_IDENTIFY_SAMPLE_BYTES,
+} from '@/shared/identify-music-limits';
+import {
   extractMediaSnippetForAudDWithReason,
   type ExtractSnippetFailure,
 } from '@/react-app/utils/extractMediaSnippetForAudD';
+import {
+  extractWavSnippetViaWebAudio,
+  headSliceLikelyValid,
+  sliceHeadForIdentify,
+} from '@/react-app/utils/identifyAudioSample';
 
 export function mergeSongTitleIntoCaption(current: string, title: string): string {
   const t = title.trim();
@@ -130,18 +140,50 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
  * Short in-browser snippet → worker `/api/clips/identify-music` (ACRCloud or AudD).
  * Call after capture (before navigating to the caption screen) so fields can be prefilled for review.
  */
-/** Align with worker MIN_WEBM_BYTES_FOR_IDENTIFY — smaller blobs are skipped or fail fingerprinting. */
-const MIN_SNIPPET_BYTES = 4096;
-/** ACRCloud identify API sample limit (see acrcloud-client). */
-const ACR_MAX_SAMPLE_BYTES = 5 * 1024 * 1024;
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MIN_SNIPPET_BYTES = MIN_IDENTIFY_SAMPLE_BYTES;
 
 function identifyFilenameForBlob(blob: Blob): string {
   const t = (blob.type ?? '').toLowerCase();
+  if (t.includes('wav')) return 'clip-snippet.wav';
   if (t.includes('quicktime') || t.includes('mp4') || t.includes('mpeg')) return 'clip-snippet.m4a';
   if (t.includes('webm')) return 'clip-snippet.webm';
   if (t.startsWith('audio/')) return 'clip-snippet.webm';
   return 'recording.webm';
+}
+
+function dedupeBlobs(blobs: Blob[]): Blob[] {
+  const seen = new Set<string>();
+  const out: Blob[] = [];
+  for (const b of blobs) {
+    const key = `${b.size}:${b.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(b);
+  }
+  return out;
+}
+
+/** Several strategies so large concert clips still yield a ≤5MB ACR-sized sample. */
+async function buildVideoIdentifyCandidates(video: Blob): Promise<Blob[]> {
+  const candidates: Blob[] = [];
+
+  const mid = await extractMediaSnippetForAudDWithReason(video);
+  if (mid.blob) candidates.push(mid.blob);
+
+  const fromStart = await extractMediaSnippetForAudDWithReason(video, { preferStart: true });
+  if (fromStart.blob) candidates.push(fromStart.blob);
+
+  const wav = await extractWavSnippetViaWebAudio(video);
+  if (wav) candidates.push(wav);
+
+  const head = sliceHeadForIdentify(video);
+  if (head && headSliceLikelyValid(video, head)) candidates.push(head);
+
+  if (video.size >= MIN_SNIPPET_BYTES && video.size <= ACR_MAX_SAMPLE_BYTES) {
+    candidates.push(video);
+  }
+
+  return dedupeBlobs(candidates);
 }
 
 function skippedMessageForExtractFailure(failure?: ExtractSnippetFailure): string {
@@ -161,15 +203,19 @@ function skippedMessageForExtractFailure(failure?: ExtractSnippetFailure): strin
   }
 }
 
-/** Browser extract → else send full recording when under ACR size cap (complete WebM/MP4 fingerprints better). */
+/** Resolve a single blob (mic audio or one candidate) for upload. */
 async function resolveSnippetForIdentify(source: Blob): Promise<{
   snippet: Blob | null;
   extractFailure?: ExtractSnippetFailure;
 }> {
   if (source.type.startsWith('audio/') && source.size >= MIN_SNIPPET_BYTES) {
-    const snippet =
-      source.size <= MAX_UPLOAD_BYTES ? source : source.slice(0, MAX_UPLOAD_BYTES);
-    return { snippet };
+    if (source.size <= ACR_MAX_SAMPLE_BYTES) return { snippet: source };
+    const head = sliceHeadForIdentify(source);
+    return head ? { snippet: head } : { snippet: source.slice(0, ACR_MAX_SAMPLE_BYTES) };
+  }
+
+  if (source.type.startsWith('audio/') && source.size > 0 && source.size < MIN_SNIPPET_BYTES) {
+    return { snippet: null };
   }
 
   const { blob: extracted, failure } = await extractMediaSnippetForAudDWithReason(source);
@@ -177,18 +223,21 @@ async function resolveSnippetForIdentify(source: Blob): Promise<{
     return { snippet: extracted };
   }
 
+  const head = sliceHeadForIdentify(source);
+  if (head && headSliceLikelyValid(source, head)) {
+    return { snippet: head, extractFailure: failure };
+  }
+
   if (source.size >= MIN_SNIPPET_BYTES && source.size <= ACR_MAX_SAMPLE_BYTES) {
     return { snippet: source, extractFailure: failure };
   }
 
-  if (source.size > ACR_MAX_SAMPLE_BYTES) {
-    return {
-      snippet: extracted,
-      extractFailure: failure ?? undefined,
-    };
+  const wav = await extractWavSnippetViaWebAudio(source);
+  if (wav && wav.size >= MIN_SNIPPET_BYTES) {
+    return { snippet: wav, extractFailure: failure };
   }
 
-  return { snippet: extracted, extractFailure: failure };
+  return { snippet: null, extractFailure: failure };
 }
 
 function pickStrongerMatch(a: AudDIdentifyResult, b: AudDIdentifyResult): AudDIdentifyResult {
@@ -206,8 +255,12 @@ function pickStrongerMatch(a: AudDIdentifyResult, b: AudDIdentifyResult): AudDId
   return a;
 }
 
+function isUsefulIdentifyResult(r: AudDIdentifyResult): boolean {
+  return r.status === 'match' || r.status === 'error' || r.status === 'nomatch';
+}
+
 /**
- * Post-capture pass: dedicated mic audio + video extract in parallel when possible; merge with live hint.
+ * Post-capture: mic audio first, then multiple video sampling strategies (large clips use first 5MB + WAV extract).
  */
 export async function identifyMusicForClip(
   video: Blob,
@@ -215,28 +268,44 @@ export async function identifyMusicForClip(
 ): Promise<AudDIdentifyResult> {
   const live = options?.live;
   const audio = options?.audio;
-  const useAudio = Boolean(audio && audio.size >= 1024);
 
-  const [fromAudio, fromVideo] = await Promise.all([
-    useAudio ? identifyMusicWithAudD(audio!) : Promise.resolve({ status: 'skipped' } as AudDIdentifyResult),
-    identifyMusicWithAudD(video),
-  ]);
+  let best: AudDIdentifyResult = {
+    status: 'skipped',
+    message: 'Could not capture enough audio from this clip for song ID.',
+  };
 
-  const best = pickStrongerMatch(fromAudio, fromVideo);
+  if (audio && audio.size >= 1024) {
+    const fromMic = await identifyMusicWithAudD(audio);
+    best = pickStrongerMatch(best, fromMic);
+    if (fromMic.status === 'match') {
+      return mergeLiveAndFinalSongIdentify(live, fromMic);
+    }
+  }
+
+  const candidates = await buildVideoIdentifyCandidates(video);
+  for (const candidate of candidates) {
+    const r = await postSnippetToIdentify(candidate);
+    best = pickStrongerMatch(best, r);
+    if (r.status === 'match') {
+      return mergeLiveAndFinalSongIdentify(live, r);
+    }
+    if (r.status === 'error') {
+      return mergeLiveAndFinalSongIdentify(live, r);
+    }
+  }
+
+  if (!isUsefulIdentifyResult(best)) {
+    const fallback = await identifyMusicWithAudD(video);
+    best = pickStrongerMatch(best, fallback);
+  }
+
   return mergeLiveAndFinalSongIdentify(live, best);
 }
 
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
   const { snippet, extractFailure } = await resolveSnippetForIdentify(source);
-
   if (!snippet || snippet.size < MIN_SNIPPET_BYTES) {
     const extractHint = skippedMessageForExtractFailure(extractFailure);
-    if (source.size > ACR_MAX_SAMPLE_BYTES) {
-      return {
-        status: 'skipped',
-        message: `${extractHint} This clip is over 5MB — record up to 60s in-app for song ID.`,
-      };
-    }
     return {
       status: 'skipped',
       message:
@@ -245,11 +314,26 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
           : 'Could not capture enough audio from this clip for song ID (record at least 5s with clear music from the speakers).',
     };
   }
+  return postSnippetToIdentify(snippet);
+}
+
+async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult> {
+  if (snippet.size < MIN_SNIPPET_BYTES) {
+    return {
+      status: 'skipped',
+      message: 'Audio sample was too small for song ID.',
+    };
+  }
+
+  const uploadBlob =
+    snippet.size > MAX_IDENTIFY_UPLOAD_BYTES
+      ? snippet.slice(0, MAX_IDENTIFY_UPLOAD_BYTES)
+      : snippet;
 
   try {
     const fd = new FormData();
-    const fileName = identifyFilenameForBlob(snippet);
-    fd.set('file', snippet, fileName);
+    const fileName = identifyFilenameForBlob(uploadBlob);
+    fd.set('file', uploadBlob, fileName);
     const res = await fetch('/api/clips/identify-music', {
       method: 'POST',
       body: fd,
@@ -350,7 +434,7 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
         : undefined;
     return { status: 'match', artist, title, message, confidence };
   } catch (e) {
-    console.error('AudD identify', e);
+    console.error('Song identify', e);
     return { status: 'error', message: 'Song lookup failed' };
   }
 }

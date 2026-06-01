@@ -17,15 +17,22 @@ export type ExtractSnippetFailure =
  * Records a short segment from a local video blob via `captureStream()` for music recognition.
  * Returns null if the browser cannot capture or record.
  */
+export type ExtractSnippetOptions = {
+  /** Second pass: sample from the start of the clip (crowd intros). */
+  preferStart?: boolean;
+};
+
 export async function extractMediaSnippetForAudD(
   blob: Blob,
+  options?: ExtractSnippetOptions,
 ): Promise<Blob | null> {
-  const r = await extractMediaSnippetForAudDWithReason(blob);
+  const r = await extractMediaSnippetForAudDWithReason(blob, options);
   return r.blob;
 }
 
 export async function extractMediaSnippetForAudDWithReason(
   blob: Blob,
+  options?: ExtractSnippetOptions,
 ): Promise<{ blob: Blob | null; failure?: ExtractSnippetFailure }> {
   if (typeof document === 'undefined' || typeof MediaRecorder === 'undefined') {
     return { blob: null, failure: 'unsupported' };
@@ -83,8 +90,11 @@ export async function extractMediaSnippetForAudDWithReason(
       durMs,
       Math.max(MIN_RECORD_MS, Math.min(PREFERRED_RECORD_MS, durMs - 300)),
     );
-    const startSec =
-      durMs > recordMs + 500 ? Math.max(0, durationSec / 2 - recordMs / 2000) : 0;
+    const startSec = options?.preferStart
+      ? 0
+      : durMs > recordMs + 500
+        ? Math.max(0, durationSec / 2 - recordMs / 2000)
+        : 0;
 
     const v = video as HTMLVideoElement & {
       captureStream?: (frameRate?: number) => MediaStream;
@@ -130,7 +140,10 @@ export async function extractMediaSnippetForAudDWithReason(
     }
 
     const chunks: Blob[] = [];
-    const mr = new MediaRecorder(recordStream, { mimeType });
+    const mr = new MediaRecorder(recordStream, {
+      mimeType,
+      audioBitsPerSecond: 64_000,
+    });
     mr.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };

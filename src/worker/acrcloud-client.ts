@@ -1,9 +1,12 @@
 import { createHmac } from 'node:crypto';
+import {
+  ACR_MAX_SAMPLE_BYTES,
+  MIN_IDENTIFY_SAMPLE_BYTES,
+} from '../shared/identify-music-limits';
 
 const IDENTIFY_PATH = '/v1/identify';
-const MAX_SAMPLE_BYTES = 5 * 1024 * 1024;
-/** Live MediaRecorder slices smaller than this are often invalid WebM and fail ACR fingerprinting (2004). */
-const MIN_WEBM_BYTES_FOR_IDENTIFY = 4096;
+const MAX_SAMPLE_BYTES = ACR_MAX_SAMPLE_BYTES;
+const MIN_WEBM_BYTES_FOR_IDENTIFY = MIN_IDENTIFY_SAMPLE_BYTES;
 const ACRCLOUD_CONSOLE_URL = 'https://console.acrcloud.com/';
 
 export type AcrCloudRecognizeResult = {
@@ -179,15 +182,16 @@ export async function recognizeMusicWithAcrCloud(
     return { ok: false, error: 'Could not read audio sample.' };
   }
 
-  const sampleBytes = bytes.byteLength;
+  let sampleBytes = bytes.byteLength;
   if (sampleBytes === 0) {
     return { ok: false, error: 'Empty audio sample.' };
   }
   if (sampleBytes > MAX_SAMPLE_BYTES) {
-    return {
-      ok: false,
-      error: `Audio sample too large for ACRCloud (max ${MAX_SAMPLE_BYTES} bytes).`,
-    };
+    console.warn(
+      `[ACRCloud] Trimming sample from ${sampleBytes} to ${MAX_SAMPLE_BYTES} bytes file=${filename}`,
+    );
+    bytes = bytes.slice(0, MAX_SAMPLE_BYTES);
+    sampleBytes = bytes.byteLength;
   }
 
   const safeName =

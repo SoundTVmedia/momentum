@@ -16,8 +16,7 @@ import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
-/** AudD standard recognition: max ~25s per file (see docs). Keep parallel snippet under that while video can run to {@link MAX_RECORDING_TIME}. */
-const MAX_AUDD_PARALLEL_RECORD_MS = 20_000;
+/** Parallel mic track for song ID — runs with main recording (stopped when recording ends). */
 /**
  * Live ID: one complete mic recording per segment (not MediaRecorder timeslices — those are
  * often invalid WebM fragments and ACR returns 2004).
@@ -1210,26 +1209,6 @@ export default function QuickRecordButton({
               };
               ar.start();
               auddParallelAudioRecorderRef.current = ar;
-              clearAuddParallelCapTimer();
-              auddParallelCapTimerRef.current = setTimeout(() => {
-                auddParallelCapTimerRef.current = null;
-                const capAr = auddParallelAudioRecorderRef.current;
-                if (
-                  !capAr ||
-                  (capAr.state !== 'recording' && capAr.state !== 'paused')
-                ) {
-                  return;
-                }
-                capAr.onstop = () => finalizeParallelAuddRecorderOnly(capAr);
-                if (typeof capAr.requestData === 'function') {
-                  try {
-                    capAr.requestData();
-                  } catch {
-                    /* ignore */
-                  }
-                }
-                capAr.stop();
-              }, MAX_AUDD_PARALLEL_RECORD_MS);
 
               startLiveSongPipeline(stream);
             }

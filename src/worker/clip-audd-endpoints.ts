@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { MAX_IDENTIFY_UPLOAD_BYTES } from '../shared/identify-music-limits';
 import {
   describeMusicRecognitionConfig,
   inferIdentifyFilename,
@@ -6,7 +7,7 @@ import {
   recognizeMusic,
 } from './music-recognition';
 
-const MAX_SNIPPET_BYTES = 12 * 1024 * 1024;
+const MAX_SNIPPET_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
 
 /** GET — which provider/credentials the Worker sees (no secrets returned). */
 export async function getClipIdentifyMusicConfig(c: Context) {
