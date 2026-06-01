@@ -61,7 +61,8 @@ export default function HeroConcertBackdrop() {
             className={`hero-clip-montage__media hero-clip-montage__media--kb-${index % 2}`}
             width={1920}
             height={720}
-            decoding={index === 0 ? 'async' : 'lazy'}
+            decoding={index === 0 ? 'async' : 'auto'}
+            loading={index === 0 ? 'eager' : 'lazy'}
             fetchPriority={index === 0 ? 'high' : undefined}
           />
         </div>
