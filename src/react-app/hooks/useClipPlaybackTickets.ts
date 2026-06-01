@@ -1,109 +1,75 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
-import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import {
-  pickClosestUpcomingTicketmasterEvent,
-  pickFirstUpcomingTicketmasterEvent,
-  ticketmasterSearchEndDateIso,
-  ticketmasterSearchStartDateIso,
-  type TicketmasterEvent,
-} from '@/shared/ticketmaster-events';
+  pickClosestUpcomingJamBaseShow,
+  type JamBaseShowPick,
+} from '@/shared/jambase-events';
 
 type ClipPlaybackTicketsState = {
-  ticketEvent: TicketmasterEvent | null;
+  show: JamBaseShowPick | null;
   loading: boolean;
-  /** User denied or blocked location and no cached city. */
-  needsLocation: boolean;
-  /** Search finished but no upcoming shows with ticket URLs. */
-  noShows: boolean;
-  openTickets: () => Promise<void>;
-  enableLocation: () => Promise<void>;
+  openTickets: () => void;
 };
 
+async function fetchArtistUpcomingShows(
+  artistName: string,
+): Promise<Record<string, unknown>[]> {
+  const qs = new URLSearchParams({
+    artistName: artistName.trim(),
+    perPage: '40',
+  });
+  const res = await fetch(`/api/jambase/events/by-artist-name?${qs}`);
+  if (!res.ok) return [];
+  const data = (await res.json()) as { events?: Record<string, unknown>[] };
+  return data.events ?? [];
+}
+
 export function useClipPlaybackTickets(artistName?: string | null): ClipPlaybackTicketsState {
-  const { location, getDeviceCoordinates, requestLocation } = useGeolocation();
-  const { searchEvents, trackTicketClick } = useTicketmaster();
-  const [ticketEvent, setTicketEvent] = useState<TicketmasterEvent | null>(null);
+  const { getDeviceCoordinates } = useGeolocation();
+  const [show, setShow] = useState<JamBaseShowPick | null>(null);
   const [loading, setLoading] = useState(true);
-  const [needsLocation, setNeedsLocation] = useState(false);
-  const [noShows, setNoShows] = useState(false);
 
-  const resolveTickets = useCallback(
-    async (forceLocationRequest = false) => {
-      setLoading(true);
-      setNeedsLocation(false);
-      setNoShows(false);
-      setTicketEvent(null);
-
-      let geo = location;
-      if (!geo?.latitude) {
-        geo = (await getDeviceCoordinates()) ?? geo;
-      }
-      if (!geo?.latitude && !geo?.city && forceLocationRequest) {
-        geo = (await requestLocation()) ?? geo;
-      }
-
-      if (!geo?.latitude && !geo?.city) {
-        setNeedsLocation(true);
-        setLoading(false);
-        return;
-      }
-
-      const searchParams = {
-        city: geo.city || undefined,
-        state: geo.state || undefined,
-        startDate: ticketmasterSearchStartDateIso(),
-        endDate: ticketmasterSearchEndDateIso(),
-        lat: geo.latitude,
-        lon: geo.longitude,
-        radiusMiles: 150,
-      };
-
-      const pickFromResult = (raw: { events?: unknown[] }) => {
-        const events = (raw?.events ?? []) as TicketmasterEvent[];
-        if (geo.latitude != null && geo.longitude != null) {
-          return pickClosestUpcomingTicketmasterEvent(events, geo.latitude, geo.longitude);
-        }
-        return pickFirstUpcomingTicketmasterEvent(events);
-      };
-
-      const artistQuery = artistName?.trim() || undefined;
-      const result = await searchEvents({ ...searchParams, q: artistQuery });
-      const pick = pickFromResult(result);
-
-      setTicketEvent(pick);
-      setNoShows(!pick && Boolean(artistQuery));
-      setLoading(false);
-    },
-    [artistName, getDeviceCoordinates, location, requestLocation, searchEvents],
-  );
+  const artist = artistName?.trim() ?? '';
 
   useEffect(() => {
-    void resolveTickets(false);
-  }, [resolveTickets]);
+    if (!artist) {
+      setShow(null);
+      setLoading(false);
+      return;
+    }
 
-  const enableLocation = useCallback(async () => {
-    await requestLocation();
-    await resolveTickets(true);
-  }, [requestLocation, resolveTickets]);
+    let cancelled = false;
 
-  const openTickets = useCallback(async () => {
-    if (!ticketEvent?.url) return;
-    await trackTicketClick(
-      ticketEvent.id,
-      ticketEvent.name,
-      ticketEvent.url,
-      ticketEvent.priceRanges?.[0]?.min,
-    );
-    window.open(ticketEvent.url, '_blank', 'noopener,noreferrer');
-  }, [ticketEvent, trackTicketClick]);
+    (async () => {
+      setLoading(true);
+      setShow(null);
 
-  return {
-    ticketEvent,
-    loading,
-    needsLocation,
-    noShows,
-    openTickets,
-    enableLocation,
-  };
+      try {
+        const geo = await getDeviceCoordinates();
+        const events = await fetchArtistUpcomingShows(artist);
+        const pick = pickClosestUpcomingJamBaseShow(
+          events,
+          geo?.latitude,
+          geo?.longitude,
+        );
+        if (!cancelled) setShow(pick);
+      } catch (err) {
+        console.error('Clip playback tickets:', err);
+        if (!cancelled) setShow(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [artist, getDeviceCoordinates]);
+
+  const openTickets = useCallback(() => {
+    if (!show?.ticketUrl) return;
+    window.open(show.ticketUrl, '_blank', 'noopener,noreferrer');
+  }, [show]);
+
+  return { show, loading, openTickets };
 }
