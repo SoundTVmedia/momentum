@@ -23,7 +23,7 @@ export async function getClipIdentifyMusicConfig(c: Context) {
     },
     verify:
       config.acrcloud.ready
-        ? 'acrcloud.ready should be true; host must match your ACRCloud project region.'
+        ? 'acrcloud.ready is true. In console.acrcloud.com attach the "ACRCloud Music" bucket to this project (empty custom buckets → code 1001 on every request).'
         : config.hint ?? 'Set ACRCLOUD_* or AUDD_API_TOKEN on the production Worker.',
   });
 }
@@ -94,6 +94,8 @@ export async function postClipIdentifyMusic(c: Context) {
       match: null,
       status: out.status ?? 'no_match',
       provider: out.provider,
+      acrcloudCode: out.acrcloudCode,
+      skippedReason: out.skippedReason,
       config: configStatus,
     });
   }

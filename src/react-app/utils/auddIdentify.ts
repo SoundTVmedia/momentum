@@ -25,7 +25,7 @@ export type AudDIdentifyResult =
       confidence?: number;
     }
   | { status: 'skipped'; message?: string | null }
-  | { status: 'nomatch' }
+  | { status: 'nomatch'; message?: string | null }
   | { status: 'error'; message: string };
 
 /** Serialized in router state after identify completes (before caption screen). */
@@ -127,11 +127,27 @@ export function toAudDNavPrefill(sourceKey: string, r: AudDIdentifyResult): AudD
  * Short in-browser snippet → worker `/api/clips/identify-music` (ACRCloud or AudD).
  * Call after capture (before navigating to the caption screen) so fields can be prefilled for review.
  */
-const MIN_SNIPPET_BYTES = 220;
+/** Align with worker MIN_WEBM_BYTES_FOR_IDENTIFY — smaller blobs are skipped or fail fingerprinting. */
+const MIN_SNIPPET_BYTES = 4096;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+function pickStrongerMatch(a: AudDIdentifyResult, b: AudDIdentifyResult): AudDIdentifyResult {
+  if (a.status === 'match' && b.status !== 'match') return a;
+  if (b.status === 'match' && a.status !== 'match') return b;
+  if (a.status === 'match' && b.status === 'match') {
+    const ca = a.confidence ?? 0;
+    const cb = b.confidence ?? 0;
+    return cb > ca ? b : a;
+  }
+  if (a.status === 'skipped') return b;
+  if (b.status === 'skipped') return a;
+  if (a.status === 'error' && b.status !== 'error') return b;
+  if (b.status === 'error' && a.status !== 'error') return a;
+  return a;
+}
+
 /**
- * Post-capture pass: prefer dedicated mic audio, then extract from video; merge with live hint.
+ * Post-capture pass: dedicated mic audio + video extract in parallel when possible; merge with live hint.
  */
 export async function identifyMusicForClip(
   video: Blob,
@@ -139,13 +155,15 @@ export async function identifyMusicForClip(
 ): Promise<AudDIdentifyResult> {
   const live = options?.live;
   const audio = options?.audio;
-  if (audio && audio.size >= MIN_SNIPPET_BYTES) {
-    const fromAudio = await identifyMusicWithAudD(audio);
-    const merged = mergeLiveAndFinalSongIdentify(live, fromAudio);
-    if (merged.status === 'match' || merged.status === 'skipped') return merged;
-  }
-  const fromVideo = await identifyMusicWithAudD(video);
-  return mergeLiveAndFinalSongIdentify(live, fromVideo);
+  const useAudio = Boolean(audio && audio.size >= MIN_SNIPPET_BYTES);
+
+  const [fromAudio, fromVideo] = await Promise.all([
+    useAudio ? identifyMusicWithAudD(audio!) : Promise.resolve({ status: 'skipped' } as AudDIdentifyResult),
+    identifyMusicWithAudD(video),
+  ]);
+
+  const best = pickStrongerMatch(fromAudio, fromVideo);
+  return mergeLiveAndFinalSongIdentify(live, best);
 }
 
 export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
@@ -185,6 +203,7 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
       message?: string;
       provider?: string;
       acrcloudCode?: number;
+      skippedReason?: string;
       config?: { hint?: string | null; activeProvider?: string };
     };
 
@@ -219,7 +238,40 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
       };
     }
     if (!data.match || (!data.match.artist && !data.match.title)) {
-      return { status: 'nomatch' };
+      const provider =
+        typeof data.provider === 'string' && data.provider.trim() !== ''
+          ? data.provider.trim()
+          : null;
+      const code =
+        typeof data.acrcloudCode === 'number' && Number.isFinite(data.acrcloudCode)
+          ? data.acrcloudCode
+          : null;
+      if (code === 1001) {
+        return {
+          status: 'nomatch',
+          message:
+            'ACRCloud heard the audio but found no song (code 1001). In console.acrcloud.com, attach the "ACRCloud Music" bucket to your project — an empty custom bucket causes this on every request.',
+        };
+      }
+      const skipped =
+        typeof (data as { skippedReason?: string }).skippedReason === 'string'
+          ? (data as { skippedReason: string }).skippedReason
+          : null;
+      if (skipped === 'fragment_too_short') {
+        return {
+          status: 'nomatch',
+          message:
+            'Audio sample was too short to fingerprint. Record at least 8 seconds with clear music.',
+        };
+      }
+      return {
+        status: 'nomatch',
+        message: provider
+          ? `No match (${provider}${code != null ? `, ACR ${code}` : ''}). Point the mic at the PA and record at least 8 seconds of music.`
+          : code != null
+            ? `No match (ACR ${code}). Record at least 8 seconds of clear music from the speakers.`
+            : null,
+      };
     }
 
     const artist = (data.match.artist ?? '').trim();

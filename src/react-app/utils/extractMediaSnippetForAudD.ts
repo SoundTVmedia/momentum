@@ -1,5 +1,6 @@
 const SNIPPET_MS = 14_000;
-const MIN_RECORD_MS = 3_000;
+/** ACR/AudD fingerprinting works best with ~8–14s of clear audio. */
+const MIN_RECORD_MS = 8_000;
 
 /**
  * Records a short segment from a local video blob via `captureStream()` for music recognition (e.g. AudD).
@@ -58,6 +59,8 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
     const durMs = Math.floor(durationSec * 1000);
     /** At least ~3s when the clip is long enough; never longer than the clip or 14s. */
     const recordMs = Math.min(SNIPPET_MS, durMs, Math.max(MIN_RECORD_MS, durMs - 300));
+    /** Skip crowd noise at the start — sample from the middle of the clip when possible. */
+    const startSec = Math.max(0, durationSec / 2 - recordMs / 2000);
 
     const v = video as HTMLVideoElement & {
       captureStream?: (frameRate?: number) => MediaStream;
@@ -109,7 +112,33 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
       mr.onstop = () => resolve();
     });
 
+    const seekToStart = (): Promise<void> =>
+      new Promise((resolve, reject) => {
+        if (startSec <= 0.05) {
+          resolve();
+          return;
+        }
+        const onSeeked = () => {
+          video.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        const onSeekErr = () => {
+          video.removeEventListener('error', onSeekErr);
+          reject(new Error('seek failed'));
+        };
+        video.addEventListener('seeked', onSeeked);
+        video.addEventListener('error', onSeekErr);
+        try {
+          video.currentTime = startSec;
+        } catch {
+          video.removeEventListener('seeked', onSeeked);
+          video.removeEventListener('error', onSeekErr);
+          resolve();
+        }
+      });
+
     try {
+      await seekToStart();
       await video.play();
     } catch {
       if (mr.state !== 'inactive') {
@@ -126,7 +155,7 @@ export async function extractMediaSnippetForAudD(blob: Blob): Promise<Blob | nul
     /** Let the decoder produce audio frames before MediaRecorder starts. */
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-    mr.start(250);
+    mr.start();
 
     await new Promise((r) => setTimeout(r, recordMs));
 

@@ -14,7 +14,14 @@ export type MusicRecognizeMatch = AudDRecognizeResult & {
 
 export type MusicRecognizeResponse =
   | { ok: true; match: MusicRecognizeMatch; provider: 'acrcloud' | 'audd' }
-  | { ok: true; match: null; status: string; provider: 'acrcloud' | 'audd' }
+  | {
+      ok: true;
+      match: null;
+      status: string;
+      provider: 'acrcloud' | 'audd';
+      acrcloudCode?: number;
+      skippedReason?: string;
+    }
   | { ok: false; error: string; provider?: string; acrcloudCode?: number; raw?: unknown };
 
 type RecognizeEnv = {
@@ -61,7 +68,10 @@ export function describeMusicRecognitionConfig(env: RecognizeEnv): MusicRecognit
     hint = 'No music recognition credentials loaded on this Worker.';
   } else if (acrReady && !auddReady) {
     hint =
-      'ACRCloud only — add AUDD_API_TOKEN as optional fallback when ACR returns fingerprint/rate-limit errors.';
+      'ACRCloud only — attach "ACRCloud Music" bucket in console (not empty custom). Optional: AUDD_API_TOKEN for fallback.';
+  } else if (acrReady) {
+    hint =
+      'If every identify returns no match (ACR 1001), confirm "ACRCloud Music" bucket is attached in console.acrcloud.com.';
   }
 
   return {
@@ -101,10 +111,14 @@ export function shouldFallbackAcrToAudd(
     if (code === 3001 || code === 3002 || code === 3014) return false;
     if (code === 3003) return true;
     if (code === 2004 || code === 3015) return true;
-    if (code === 1001) return false;
     return true;
   }
-  return !acr.match && acr.skippedReason === 'fragment_too_short';
+  if (!acr.match) {
+    if (acr.skippedReason === 'fragment_too_short') return true;
+    // ACR 1001 / catalog miss — AudD uses a different DB and often still matches live audio.
+    return true;
+  }
+  return false;
 }
 
 function auddMatchToResponse(match: AudDRecognizeResult): MusicRecognizeMatch {
@@ -176,6 +190,8 @@ export async function recognizeMusic(
         match: null,
         status: out.status ?? 'no_match',
         provider: 'acrcloud',
+        acrcloudCode: out.acrcloudCode,
+        skippedReason: out.skippedReason,
       };
     }
     return { ok: true, match: acrMatchToResponse(out.match), provider: 'acrcloud' };

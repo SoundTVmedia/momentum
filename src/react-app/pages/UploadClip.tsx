@@ -725,6 +725,9 @@ export default function UploadClip() {
       }
       if (result.status === 'nomatch') {
         setAuddStatus('nomatch');
+        if (typeof result.message === 'string' && result.message.trim() !== '') {
+          setAuddMessage(result.message.trim());
+        }
         return;
       }
 
@@ -1470,7 +1473,10 @@ export default function UploadClip() {
               )}
               {auddStatus === 'nomatch' && (
                 <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-                  <p className="text-gray-400 text-sm">No match for this audio in our music catalog.</p>
+                  <p className="text-gray-400 text-sm">
+                    {auddMessage?.trim() ||
+                      'No match for this audio in our music catalog. Record at least 8 seconds with clear music from the speakers.'}
+                  </p>
                   <p className="text-gray-500 text-xs mt-2">
                     Optional: add the song title below — we&apos;ll tag it for search. Not required to post.
                   </p>

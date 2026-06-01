@@ -15,7 +15,7 @@ describe('describeMusicRecognitionConfig', () => {
     expect(s.activeProvider).toBe('acrcloud');
     expect(s.acrcloud.ready).toBe(true);
     expect(s.auddFallbackAvailable).toBe(false);
-    expect(s.hint).toMatch(/optional fallback/i);
+    expect(s.hint).toMatch(/ACRCloud Music/i);
   });
 
   it('hints when host is set without secrets', () => {
@@ -60,5 +60,14 @@ describe('shouldFallbackAcrToAudd', () => {
         true,
       ),
     ).toBe(false);
+  });
+
+  it('falls back on ACR catalog miss', () => {
+    expect(
+      shouldFallbackAcrToAudd(
+        { ok: true, match: null, status: 'no_match' },
+        true,
+      ),
+    ).toBe(true);
   });
 });

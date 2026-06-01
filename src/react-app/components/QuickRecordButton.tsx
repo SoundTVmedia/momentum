@@ -768,7 +768,7 @@ export default function QuickRecordButton({
       return;
     }
 
-    stopLiveAuddPipeline();
+    releaseAllCaptureResources();
 
     const geo = snapshotClipGeoForUpload();
     const sourceKey = auddSourceKey(file);
@@ -797,18 +797,7 @@ export default function QuickRecordButton({
   /** Open the device photo library for videos (not the camera / generic file chooser). */
   const openPhotoLibraryPicker = () => {
     const shouldRestoreCamera = Boolean(streamRef.current && showModalRef.current);
-
-    stopLiveAuddRecorder();
-    setLiveSongListening(false);
-
-    const stream = streamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      setPreviewStream(null);
-      setHasPermission(false);
-      setCameraReady(false);
-    }
+    releaseAllCaptureResources();
 
     const input = document.createElement('input');
     input.type = 'file';
@@ -862,6 +851,57 @@ export default function QuickRecordButton({
       clearTimeout(auddParallelCapTimerRef.current);
       auddParallelCapTimerRef.current = null;
     }
+  };
+
+  /** Stop camera, mic, recorders, and live ID — call when capture ends or modal closes. */
+  const releaseAllCaptureResources = () => {
+    stopLiveAuddPipeline();
+    clearAuddParallelCapTimer();
+
+    const par = auddParallelAudioRecorderRef.current;
+    auddParallelAudioRecorderRef.current = null;
+    if (par) {
+      try {
+        if (par.state === 'recording' || par.state === 'paused') {
+          par.stop();
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        par.stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        /* ignore */
+      }
+    }
+    auddParallelAudioChunksRef.current = [];
+
+    const mr = mediaRecorderRef.current;
+    mediaRecorderRef.current = null;
+    if (mr && (mr.state === 'recording' || mr.state === 'paused')) {
+      try {
+        mr.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const stream = streamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      video.srcObject = null;
+    }
+    setPreviewStream(null);
+    setHasPermission(false);
+    setCameraReady(false);
+    setLiveSongListening(false);
+    liveAuddStoppedRef.current = true;
   };
 
   const finalizeParallelAuddRecorderOnly = (ar: MediaRecorder) => {
@@ -1168,7 +1208,7 @@ export default function QuickRecordButton({
                   auddParallelAudioChunksRef.current.push(event.data);
                 }
               };
-              ar.start(250);
+              ar.start();
               auddParallelAudioRecorderRef.current = ar;
               clearAuddParallelCapTimer();
               auddParallelCapTimerRef.current = setTimeout(() => {
@@ -1269,10 +1309,7 @@ export default function QuickRecordButton({
 
   const handleRecordingComplete = async (blob: Blob) => {
     try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
+      releaseAllCaptureResources();
 
       const at = recordingStartedAtRef.current || new Date().toISOString();
       const geo =
@@ -1339,32 +1376,8 @@ export default function QuickRecordButton({
 
   const closeModal = () => {
     isRecordingRef.current = false;
-    stopLiveAuddPipeline();
-
-    clearAuddParallelCapTimer();
-
-    const par = auddParallelAudioRecorderRef.current;
-    if (par && (par.state === 'recording' || par.state === 'paused')) {
-      auddParallelAudioRecorderRef.current = null;
-      try {
-        par.stop();
-      } catch {
-        /* ignore */
-      }
-      try {
-        par.stream.getTracks().forEach((track) => track.stop());
-      } catch {
-        /* ignore */
-      }
-    }
-    auddParallelAudioChunksRef.current = [];
+    releaseAllCaptureResources();
     lastParallelAuddAudioBlobRef.current = null;
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setPreviewStream(null);
 
     if (timerRef.current) {
       clearInterval(timerRef.current);

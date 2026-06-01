@@ -16,7 +16,7 @@ export type AcrCloudRecognizeResult = {
 
 export type AcrCloudRecognizeResponse =
   | { ok: true; match: AcrCloudRecognizeResult }
-  | { ok: true; match: null; status: string; skippedReason?: string }
+  | { ok: true; match: null; status: string; acrcloudCode?: number; skippedReason?: string }
   | { ok: false; error: string; acrcloudCode?: number; acrcloud?: unknown };
 
 export type AcrCloudConfig = {
@@ -71,7 +71,11 @@ function acrStatusFromJson(json: Record<string, unknown>): {
 function friendlyAcrCloudError(code: number | undefined, msg: string): string {
   switch (code) {
     case 1001:
-      return 'No match in ACRCloud catalog for this audio.';
+      return (
+        'ACRCloud returned no match (code 1001). If every request fails, open console.acrcloud.com → your ' +
+        'Audio & Video Recognition project → attach the "ACRCloud Music" bucket (not an empty custom bucket). ' +
+        'Otherwise record 8+ seconds of clear music from the speakers.'
+      );
     case 2004:
       return 'ACRCloud could not fingerprint this audio (code 2004). Record a few more seconds with clear music, or use a longer clip.';
     case 3001:
@@ -99,10 +103,14 @@ function hasWebmEbmlHeader(bytes: Uint8Array): boolean {
   );
 }
 
-function shouldSkipFragmentedWebm(bytes: Uint8Array, filename: string): boolean {
+function looksLikeWebm(bytes: Uint8Array, filename: string): boolean {
   const name = filename.toLowerCase();
-  const looksWebm = name.endsWith('.webm') || name.endsWith('.weba');
-  if (!looksWebm) return false;
+  if (name.endsWith('.webm') || name.endsWith('.weba')) return true;
+  return hasWebmEbmlHeader(bytes);
+}
+
+function shouldSkipFragmentedWebm(bytes: Uint8Array, filename: string): boolean {
+  if (!looksLikeWebm(bytes, filename)) return false;
   if (bytes.byteLength < MIN_WEBM_BYTES_FOR_IDENTIFY) return true;
   if (!hasWebmEbmlHeader(bytes)) return true;
   return false;
@@ -191,6 +199,7 @@ export async function recognizeMusicWithAcrCloud(
       match: null,
       status: 'no_match',
       skippedReason: 'fragment_too_short',
+      acrcloudCode: undefined,
     };
   }
 
@@ -244,7 +253,7 @@ export async function recognizeMusicWithAcrCloud(
   }
 
   if (statusCode === 1001) {
-    return { ok: true, match: null, status: 'no_match' };
+    return { ok: true, match: null, status: 'no_match', acrcloudCode: 1001 };
   }
 
   if (statusCode !== undefined && statusCode !== 0) {
@@ -258,7 +267,10 @@ export async function recognizeMusicWithAcrCloud(
 
   const match = parseMatch(json);
   if (!match) {
-    return { ok: true, match: null, status: 'no_match' };
+    console.warn(
+      `[ACRCloud] code=${statusCode ?? 0} but empty metadata.music bytes=${sampleBytes} file=${safeName}`,
+    );
+    return { ok: true, match: null, status: 'no_match', acrcloudCode: statusCode };
   }
 
   return { ok: true, match };
