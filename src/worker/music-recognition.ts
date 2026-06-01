@@ -146,10 +146,12 @@ export async function recognizeMusic(
     const out = await recognizeMusicWithAcrCloud(acr, file, filename);
 
     if (shouldFallbackAcrToAudd(out, Boolean(auddToken))) {
-      console.warn(
-        '[music-recognition] ACR fallback to AudD',
-        !out.ok ? `acrError=${out.error}` : `skippedReason=${out.skippedReason}`,
-      );
+      const acrFallbackDetail = !out.ok
+        ? `acrError=${out.error}`
+        : 'skippedReason' in out
+          ? `skippedReason=${out.skippedReason ?? 'none'}`
+          : 'acr_no_match';
+      console.warn('[music-recognition] ACR fallback to AudD', acrFallbackDetail);
       const auddOut = await recognizeMusicWithAudD(auddToken!, file, filename);
       if (auddOut.ok && auddOut.match) {
         return { ok: true, match: auddMatchToResponse(auddOut.match), provider: 'audd' };
