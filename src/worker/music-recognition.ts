@@ -114,9 +114,8 @@ export function shouldFallbackAcrToAudd(
     return true;
   }
   if (!acr.match) {
-    if (acr.skippedReason === 'fragment_too_short') return true;
-    // ACR 1001 / catalog miss — AudD uses a different DB and often still matches live audio.
-    return true;
+    // Only retry via AudD when the sample was too small — not on catalog miss (1001).
+    return acr.skippedReason === 'fragment_too_short';
   }
   return false;
 }
