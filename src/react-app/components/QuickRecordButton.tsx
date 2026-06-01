@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Film, Loader2, Circle, Square, ImagePlus, RefreshCw, MapPin, Music, Disc3 } from 'lucide-react';
+import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music, Disc3 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
@@ -106,7 +106,6 @@ export default function QuickRecordButton({
   const [videoResolution, setVideoResolution] = useState({ width: 1080, height: 1920 });
   
   const videoRef = useRef<HTMLVideoElement>(null);
-  const deviceMediaInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   /** Parallel audio-only recorder on cloned mic tracks (same capture window) — camera WebM often muxes audio poorly for re-extraction. */
@@ -564,7 +563,7 @@ export default function QuickRecordButton({
         err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
       setPermissionDenied(isNotAllowed);
       const noDeviceHint =
-        'No camera was detected (common without a webcam, in Docker, or when the browser cannot access devices). Use the gallery button to pick a video.';
+        'No camera was detected (common without a webcam, in Docker, or when the browser cannot access devices). Use the photo library button to pick a video.';
       const fallbackMsg = isNotAllowed
         ? isIOS && isSafari
           ? 'Camera access is blocked for this site. In Settings → Safari → Camera, allow access, then use Capture again.'
@@ -736,12 +735,12 @@ export default function QuickRecordButton({
     }
   };
 
-  const handlePickFromDevice = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const fileIsVideo = file.type.startsWith('video/');
+  const processPickedVideoFile = async (file: File) => {
+    const fileIsVideo =
+      file.type.startsWith('video/') ||
+      /\.(mp4|mov|m4v|webm)$/i.test(file.name);
     if (!fileIsVideo) {
-      setCameraError('Please choose a video file.');
+      setCameraError('Please choose a video from your photo library.');
       return;
     }
 
@@ -766,9 +765,10 @@ export default function QuickRecordButton({
     });
     if (tooLong) {
       setCameraError(`Videos must be ${MAX_CLIP_LENGTH_SECONDS} seconds or shorter.`);
-      e.target.value = '';
       return;
     }
+
+    stopLiveAuddPipeline();
 
     const geo = snapshotClipGeoForUpload();
     const sourceKey = auddSourceKey(file);
@@ -794,8 +794,67 @@ export default function QuickRecordButton({
     (onAfterCaptureNavigate ?? onClose)?.();
   };
 
-  const openDeviceMediaPicker = () => {
-    deviceMediaInputRef.current?.click();
+  /** Open the device photo library for videos (not the camera / generic file chooser). */
+  const openPhotoLibraryPicker = () => {
+    const shouldRestoreCamera = Boolean(streamRef.current && showModalRef.current);
+
+    stopLiveAuddRecorder();
+    setLiveSongListening(false);
+
+    const stream = streamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setPreviewStream(null);
+      setHasPermission(false);
+      setCameraReady(false);
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,video/*';
+    input.style.cssText =
+      'position:fixed;left:-9999px;top:0;opacity:0;width:1px;height:1px;pointer-events:none;';
+    input.setAttribute('aria-hidden', 'true');
+
+    let settled = false;
+    const finish = (file: File | null) => {
+      if (settled) return;
+      settled = true;
+      input.remove();
+      if (file) {
+        void processPickedVideoFile(file);
+        return;
+      }
+      if (shouldRestoreCamera && showModalRef.current) {
+        void requestPermissions();
+      }
+    };
+
+    input.addEventListener('change', () => {
+      finish(input.files?.[0] ?? null);
+    });
+
+    document.body.appendChild(input);
+
+    const onWindowFocus = () => {
+      window.setTimeout(() => {
+        if (!settled && !input.files?.length) {
+          finish(null);
+        }
+      }, 400);
+    };
+    window.addEventListener('focus', onWindowFocus, { once: true });
+
+    try {
+      if (typeof input.showPicker === 'function') {
+        void input.showPicker().catch(() => input.click());
+      } else {
+        input.click();
+      }
+    } catch {
+      input.click();
+    }
   };
 
   const clearAuddParallelCapTimer = () => {
@@ -1388,7 +1447,7 @@ export default function QuickRecordButton({
                       <h3 className="text-xl font-bold text-white">Camera blocked</h3>
                       <p className="text-gray-400 text-sm">
                         Use your device settings to allow the camera for this site, then tap Capture again. You can also
-                        use the gallery button below to choose a video.
+                        use the photo library button below to pick a video.
                       </p>
                       {cameraError && <p className="text-red-400/90 text-xs mt-2">{cameraError}</p>}
                     </>
@@ -1457,14 +1516,6 @@ export default function QuickRecordButton({
               paddingRight: '1.5rem'
             }}
           >
-            <input
-              ref={deviceMediaInputRef}
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={handlePickFromDevice}
-            />
-
             {hasPermission && cameraReady && (
               <div className="mx-auto mb-3 w-full max-w-lg px-1">
                 {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
@@ -1586,12 +1637,13 @@ export default function QuickRecordButton({
                 </button>
                 <button
                   type="button"
-                  onClick={openDeviceMediaPicker}
+                  onClick={openPhotoLibraryPicker}
                   className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
                   style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-                  title="Choose video from your device"
+                  title="Photo library"
+                  aria-label="Choose video from photo library"
                 >
-                  <ImagePlus className="w-6 h-6" />
+                  <Images className="w-6 h-6" />
                 </button>
               </div>
 
