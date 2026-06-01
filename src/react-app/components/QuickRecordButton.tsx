@@ -353,10 +353,6 @@ export default function QuickRecordButton({
     liveStabilizerRef.current.setPriors(liveSongPriors);
   }, [liveSongPriors]);
 
-  useEffect(() => {
-    isRecordingRef.current = isRecording;
-  }, [isRecording]);
-
   /** Use coordinates we already have (launch tap). Does not call geolocation again. */
   const syncLastGeoFromNearbyCoordsRef = () => {
     const crd = coordsForNearbyVenuesRef.current;
@@ -1126,6 +1122,7 @@ export default function QuickRecordButton({
         }
         mr.stop();
       }
+      isRecordingRef.current = false;
       setIsRecording(false);
       setIsProcessingTransition(true);
       setProcessingProgress(14);
@@ -1256,6 +1253,7 @@ export default function QuickRecordButton({
   const closeModal = () => {
     if (isProcessingTransition) return;
 
+    isRecordingRef.current = false;
     stopLiveAuddPipeline();
 
     clearAuddParallelCapTimer();
