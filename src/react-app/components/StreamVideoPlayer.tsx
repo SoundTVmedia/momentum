@@ -40,6 +40,8 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   /** When true, restart from the beginning when playback reaches the end. */
   loop?: boolean;
   className?: string;
+  /** How the video frame fills its box (modal landscape uses `cover` for edge-to-edge width). */
+  videoObjectFit?: 'contain' | 'cover';
   /** Where play/mute/fullscreen chrome renders; `hidden` for parent-rendered controls (e.g. clip modal). */
   controlsPlacement?: StreamVideoPlayerControlsPlacement;
   /** Muted-first autoplay (e.g. shared `?clip=` links with no prior user gesture). */
@@ -69,6 +71,7 @@ function StreamVideoPlayer(
   autoPlay = false,
   loop = false,
   className = '',
+  videoObjectFit = 'contain',
   controlsPlacement = 'bottom',
   autoplayMutedFirst = false,
   onPlaybackStateChange,
@@ -391,7 +394,7 @@ function StreamVideoPlayer(
         loop={loop}
         playsInline
         muted={isMuted}
-        className="w-full h-full object-contain bg-black"
+        className={`w-full h-full bg-black ${videoObjectFit === 'cover' ? 'object-cover' : 'object-contain'}`}
         preload="auto"
       />
 

@@ -540,7 +540,7 @@ export default function ClipModal({
       {/* ——— Desktop ——— */}
       <div className="mx-auto hidden h-full w-full max-w-6xl items-center justify-center p-4 md:flex">
         <div className="flex h-full max-h-[90vh] w-full overflow-hidden rounded-2xl glass-dropdown animate-scale-in">
-          <div className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black p-4">
+          <div className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black">
             <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
               <button
                 type="button"

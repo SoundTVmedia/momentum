@@ -3,7 +3,11 @@ import StreamVideoPlayer, {
   type StreamVideoPlayerHandle,
   type StreamVideoPlayerPlaybackState,
 } from '@/react-app/components/StreamVideoPlayer';
-import { clipDisplayAspectRatio } from '@/react-app/utils/clipDisplayAspectRatio';
+import {
+  clipDisplayAspectRatio,
+  clipIsLandscape,
+  clipModalFallbackAspectRatio,
+} from '@/react-app/utils/clipDisplayAspectRatio';
 import type { ClipWithUser } from '@/shared/types';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 
@@ -20,7 +24,7 @@ type ClipModalMaximizedVideoProps = {
   autoplayMutedFirst?: boolean;
 };
 
-/** Fills available space while preserving the clip's aspect ratio (object-contain behavior). */
+/** Fills the player area; landscape (16:9) clips span full width, portrait clips span full height. */
 const ClipModalMaximizedVideo = forwardRef<
   StreamVideoPlayerHandle,
   ClipModalMaximizedVideoProps
@@ -29,39 +33,56 @@ const ClipModalMaximizedVideo = forwardRef<
   ref,
 ) {
   const clipId = clipNumericId(clip);
-  const ratioStr = clipDisplayAspectRatio(clip) ?? '9 / 16';
-  const parts = ratioStr.split('/').map((s) => parseFloat(s.trim()));
-  const rw = parts[0] || 16;
-  const rh = parts[1] || 9;
-  const portrait = rh > rw;
+  const landscape = clipIsLandscape(clip);
+  const ratioStr = clipDisplayAspectRatio(clip) ?? clipModalFallbackAspectRatio(clip);
+
+  const player = (
+    <StreamVideoPlayer
+      ref={ref}
+      stream_video_id={clip.stream_video_id}
+      stream_playback_url={clip.stream_playback_url}
+      stream_thumbnail_url={clip.stream_thumbnail_url}
+      video_url={clip.video_url}
+      thumbnail_url={clip.thumbnail_url}
+      autoPlay
+      loop
+      controlsPlacement="hidden"
+      videoObjectFit={landscape ? 'cover' : 'contain'}
+      onPlaybackStateChange={onPlaybackStateChange}
+      clipId={clipId}
+      onViewsCountChange={onViewsCountChange}
+      autoplayMutedFirst={autoplayMutedFirst}
+      className="absolute inset-0 h-full w-full"
+    />
+  );
+
+  if (landscape) {
+    return (
+      <div
+        className="relative h-full w-full min-h-0 overflow-hidden bg-black"
+        {...swipeHandlers}
+      >
+        <div
+          className="absolute left-0 right-0 top-1/2 w-full -translate-y-1/2 overflow-hidden bg-black"
+          style={{ aspectRatio: ratioStr }}
+        >
+          {player}
+          {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
-      className="relative flex h-full w-full min-h-0 items-center justify-center bg-black"
+      className="relative flex h-full w-full min-h-0 items-center justify-center overflow-hidden bg-black"
       {...swipeHandlers}
     >
       <div
-        className={`relative overflow-hidden bg-black ${
-          portrait ? 'h-full w-auto max-w-full' : 'h-auto w-full max-h-full'
-        }`}
+        className="relative h-full w-auto max-w-full overflow-hidden bg-black"
         style={{ aspectRatio: ratioStr }}
       >
-        <StreamVideoPlayer
-          ref={ref}
-          stream_video_id={clip.stream_video_id}
-          stream_playback_url={clip.stream_playback_url}
-          stream_thumbnail_url={clip.stream_thumbnail_url}
-          video_url={clip.video_url}
-          thumbnail_url={clip.thumbnail_url}
-          autoPlay
-          loop
-          controlsPlacement="hidden"
-          onPlaybackStateChange={onPlaybackStateChange}
-          clipId={clipId}
-          onViewsCountChange={onViewsCountChange}
-          autoplayMutedFirst={autoplayMutedFirst}
-          className="absolute inset-0 h-full w-full"
-        />
+        {player}
         {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}
       </div>
     </div>
