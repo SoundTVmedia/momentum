@@ -587,7 +587,7 @@ export async function getTrendingContent(c: Context) {
 }
 
 /** Discover page carousel always shows this many trending artists when data exists. */
-export const DISCOVER_TRENDING_ARTIST_COUNT = 4;
+export const DISCOVER_TRENDING_ARTIST_COUNT = 5;
 
 function artistDedupeKey(name: string): string {
   return name.trim().toLowerCase();

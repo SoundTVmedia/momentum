@@ -24,8 +24,12 @@ import {
   type AdvancedSearchCacheOpts,
 } from '@/react-app/lib/advanced-search-cache';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 
 const DISCOVER_SEARCH_DEBOUNCE_MS = 280;
+/** Mobile trending carousel unchanged; md+ shows one more tile in the row. */
+const TRENDING_ARTISTS_MOBILE_COUNT = 4;
+const TRENDING_ARTISTS_DESKTOP_COUNT = 5;
 
 interface SearchResults {
   clips: ClipWithUser[];
@@ -95,6 +99,7 @@ function nearbyShowsSubtitle(feed: DiscoverFeed): string {
 
 export default function DiscoverPage() {
   const navigate = useNavigate();
+  const isMobileViewport = useIsMobileViewport();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -574,7 +579,14 @@ export default function DiscoverPage() {
                 subtitle="Artists with the most new clips"
               />
               {discoverFeed.artists.length > 0 ? (
-                <DiscoverArtistCarousel artists={discoverFeed.artists.slice(0, 4)} />
+                <DiscoverArtistCarousel
+                  artists={discoverFeed.artists.slice(
+                    0,
+                    isMobileViewport
+                      ? TRENDING_ARTISTS_MOBILE_COUNT
+                      : TRENDING_ARTISTS_DESKTOP_COUNT,
+                  )}
+                />
               ) : (
                 <p className="text-sm text-gray-400">
                   Trending artists will appear here as more clips are shared on the platform.
