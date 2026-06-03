@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
-import PastShowsGrid, { type PastShowSummary } from '@/react-app/components/PastShowsGrid';
-import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserMinus, Radio, ShoppingBag, Play } from 'lucide-react';
+import PastShowsSection from '@/react-app/components/PastShowsSection';
+import { Music, MapPin, Ticket, Loader2, ExternalLink, UserPlus, UserMinus, Radio, ShoppingBag, Play } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
@@ -68,10 +68,6 @@ interface LiveShow {
   thumbnail_url: string;
 }
 
-interface PreviousShow extends PastShowSummary {
-  venue_name: string;
-}
-
 export default function ArtistPage() {
   const { artistName: artistNameParam } = useParams<{ artistName: string }>();
   const navigate = useNavigate();
@@ -116,19 +112,14 @@ export default function ArtistPage() {
   const followingArtist = isFollowingArtist(followArtistId, followArtistName);
   const artistFollowLoading = isArtistFollowLoading(followArtistId, followArtistName);
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
-  const [previousShows, setPreviousShows] = useState<PreviousShow[]>([]);
-  const [previousShowsLoading, setPreviousShowsLoading] = useState(false);
 
   useEffect(() => {
     if (!artistNameParam || !data?.artist?.name) {
       setLiveShow(null);
-      setPreviousShows([]);
-      setPreviousShowsLoading(false);
       return;
     }
 
     const ac = new AbortController();
-    setPreviousShowsLoading(true);
 
     void (async () => {
       try {
@@ -146,31 +137,10 @@ export default function ArtistPage() {
           console.error('Failed to fetch live show status:', err);
         }
       }
-
-      try {
-        const prevRes = await fetch(
-          `${apiArtistPath(artistNameParam)}/previous-shows?limit=8`,
-          { signal: ac.signal },
-        );
-        if (prevRes.ok) {
-          const prevData = (await prevRes.json()) as { shows?: PreviousShow[] };
-          setPreviousShows(prevData.shows ?? []);
-        } else {
-          setPreviousShows([]);
-        }
-      } catch (err) {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          console.error('Failed to fetch previous shows:', err);
-        }
-      } finally {
-        if (!ac.signal.aborted) setPreviousShowsLoading(false);
-      }
     })();
 
     return () => ac.abort();
   }, [artistNameParam, data?.artist?.name]);
-
-  const showPastShowsSection = previousShowsLoading || previousShows.length > 0;
 
   if (loading || !data?.artist) {
     return (
@@ -290,24 +260,12 @@ export default function ArtistPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {showPastShowsSection && (
-          <section className="mb-10">
-            <SectionHeading
-              title="Past Shows"
-              subtitle="Tap a show to browse all clips from that night"
-              icon={Calendar}
-              iconClassName="text-momentum-rose"
-              size="page"
-            />
-            {previousShowsLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
-              </div>
-            ) : (
-              <PastShowsGrid shows={previousShows} variant="artist" />
-            )}
-          </section>
-        )}
+        {artistNameParam ? (
+          <PastShowsSection
+            fetchUrl={`${apiArtistPath(artistNameParam)}/previous-shows`}
+            variant="artist"
+          />
+        ) : null}
 
         <div className="mb-8">
           <SectionHeading

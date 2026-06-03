@@ -3139,12 +3139,12 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
     c.req.param("artistName"),
     jamBaseQuotaFromEnv(c.env)
   );
-  const limit = Math.min(parseInt(c.req.query('limit') || '8'), 20);
+  const limit = Math.min(parseInt(c.req.query('limit') || '12'), 48);
 
   try {
     const previousShows = await c.env.DB.prepare(
       `SELECT 
-        clips.show_id,
+        clips.event_title,
         clips.artist_name,
         MIN(clips.timestamp) as show_date,
         clips.venue_name,
@@ -3154,8 +3154,10 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
       FROM clips
       WHERE clips.artist_name = ?
       AND clips.is_hidden = 0
-      AND clips.show_id IS NOT NULL
-      GROUP BY clips.show_id, clips.artist_name, clips.venue_name
+      AND clips.is_draft = 0
+      AND clips.event_title IS NOT NULL
+      AND TRIM(clips.event_title) != ''
+      GROUP BY clips.event_title, clips.artist_name, clips.venue_name
       ORDER BY show_date DESC
       LIMIT ?`
     )

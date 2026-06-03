@@ -5,7 +5,7 @@ import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import { MapPin, Calendar, Music, Loader2, UserPlus, UserMinus, Users } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
-import ShowArchive from '@/react-app/components/ShowArchive';
+import PastShowsSection from '@/react-app/components/PastShowsSection';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { useFollow } from '@/react-app/hooks/useFollow';
@@ -181,7 +181,11 @@ export default function VenuePage() {
               )}
             </div>
 
-            <ShowArchive venueName={venue.name} />
+            <PastShowsSection
+              fetchUrl={`${apiVenuePath(venue.name)}/archive`}
+              variant="venue"
+              showSort
+            />
 
             <section className={HOME_FEED_SECTION_CLASS}>
               <SectionHeading

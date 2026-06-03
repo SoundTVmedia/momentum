@@ -631,14 +631,13 @@ export async function getVenueArchive(c: Context) {
   const venueName = decodeURIComponent(venueNameParam);
   const sortBy = c.req.query('sort_by') || 'date_played';
   const page = parseInt(c.req.query('page') || '1');
-  const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50);
+  const limit = Math.min(parseInt(c.req.query('limit') || '20'), 48);
   const offset = (page - 1) * limit;
 
   try {
-    // Get distinct shows at venue (grouped by show_id)
     let query = `
       SELECT 
-        clips.show_id,
+        clips.event_title,
         clips.artist_name,
         MIN(clips.timestamp) as show_date,
         COUNT(DISTINCT clips.id) as clip_count,
@@ -647,8 +646,10 @@ export async function getVenueArchive(c: Context) {
       FROM clips
       WHERE clips.venue_name = ?
       AND clips.is_hidden = 0
-      AND clips.show_id IS NOT NULL
-      GROUP BY clips.show_id, clips.artist_name
+      AND clips.is_draft = 0
+      AND clips.event_title IS NOT NULL
+      AND TRIM(clips.event_title) != ''
+      GROUP BY clips.event_title, clips.artist_name
     `;
 
     const bindings: any[] = [venueName];
