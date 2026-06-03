@@ -68,7 +68,7 @@ export default function ShowClipsPage() {
         </button>
 
         {/* Show Header */}
-        <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-8">
+        <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-6">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
             {artistLabel || artistName}
           </h1>

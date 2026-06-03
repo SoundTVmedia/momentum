@@ -7,7 +7,13 @@ export const PAGE_CAROUSEL_BLEED =
   '-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 md:pt-1';
 
 /** Spacing between unboxed home feed sections (tighter on desktop). */
-export const HOME_FEED_SECTION_CLASS = 'mb-8 md:mb-6';
+export const HOME_FEED_SECTION_CLASS = 'mb-6 md:mb-5';
+
+/** Spacing between stacked page content blocks (artist/venue pages, clip lists). */
+export const PAGE_BLOCK_CLASS = 'mb-6';
+
+/** Vertical rhythm between multiple sections in a page shell. */
+export const PAGE_SECTION_STACK_CLASS = 'space-y-6 md:space-y-5';
 
 /** Equal-height event cards in carousels (image + body + ticket row). */
 export const EVENT_CAROUSEL_CARD_CLASS =

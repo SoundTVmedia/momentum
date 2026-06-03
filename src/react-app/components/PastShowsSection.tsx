@@ -1,7 +1,8 @@
-import { Calendar, ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import PastShowsCarousel, { type PastShowSummary } from '@/react-app/components/PastShowsCarousel';
 import SectionHeading from '@/react-app/components/SectionHeading';
+import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 
 interface PastShowsSectionProps {
   fetchUrl: string;
@@ -65,12 +66,10 @@ export default function PastShowsSection({
 
   if (loading) {
     return (
-      <section className="mb-10">
+      <section className={HOME_FEED_SECTION_CLASS}>
         <SectionHeading
           title="Past Shows"
           subtitle="Browse clips from previous concerts"
-          icon={Calendar}
-          iconClassName="text-momentum-rose"
           size="page"
         />
         <div className="flex justify-center py-10">
@@ -85,13 +84,11 @@ export default function PastShowsSection({
   }
 
   return (
-    <section className="mb-10 space-y-4">
+    <section className={`${HOME_FEED_SECTION_CLASS} space-y-4`}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <SectionHeading
           title="Past Shows"
           subtitle="Browse clips grouped by show"
-          icon={Calendar}
-          iconClassName="text-momentum-rose"
           size="page"
         />
         {showSort ? (

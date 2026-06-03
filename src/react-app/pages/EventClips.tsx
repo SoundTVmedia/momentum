@@ -88,7 +88,7 @@ export default function EventClipsPage() {
           <span>{artistName ? `Back to ${artistName}` : 'Back to Discover'}</span>
         </button>
 
-        <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-8">
+        <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-6">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4 leading-snug">
             {eventTitle || 'Event'}
           </h1>

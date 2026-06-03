@@ -23,7 +23,7 @@ import {
   setCachedAdvancedSearch,
   type AdvancedSearchCacheOpts,
 } from '@/react-app/lib/advanced-search-cache';
-import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+import { HOME_FEED_SECTION_CLASS, PAGE_SECTION_STACK_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 
 const DISCOVER_SEARCH_DEBOUNCE_MS = 280;
@@ -333,7 +333,7 @@ export default function DiscoverPage() {
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-12">
+        <div className="mb-10">
           <form onSubmit={handleSearch} className="w-full">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
@@ -428,7 +428,7 @@ export default function DiscoverPage() {
             <div className="inline-block w-12 h-12 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin" />
           </div>
         ) : results ? (
-          <div className="space-y-10 md:space-y-8">
+          <div className={PAGE_SECTION_STACK_CLASS}>
             {results.jambaseNotice && (
               <div className="rounded-xl border border-momentum-ember/40 bg-momentum-ink/50 px-4 py-3 text-momentum-glacier/95 text-sm max-w-3xl mx-auto">
                 {results.jambaseNotice}
@@ -536,7 +536,7 @@ export default function DiscoverPage() {
             )}
           </div>
         ) : discoverFeed ? (
-          <div className="space-y-10 md:space-y-8">
+          <div className={PAGE_SECTION_STACK_CLASS}>
             {discoverFeed.jambaseNotice && (
               <div className="rounded-xl border border-momentum-ember/40 bg-momentum-ink/50 px-4 py-3 text-momentum-glacier/95 text-sm">
                 {discoverFeed.jambaseNotice}

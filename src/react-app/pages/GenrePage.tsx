@@ -61,7 +61,7 @@ export default function GenrePage() {
           <p className="text-center text-gray-400 py-16">{error ?? 'Genre not found'}</p>
         ) : (
           <>
-            <div className="mb-10 rounded-2xl border border-momentum-ember/30 bg-gradient-to-r from-momentum-ember/15 to-momentum-flare/10 p-6 sm:p-8">
+            <div className="mb-8 rounded-2xl border border-momentum-ember/30 bg-gradient-to-r from-momentum-ember/15 to-momentum-flare/10 p-6 sm:p-8">
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 rounded-xl bg-momentum-ember/20 flex items-center justify-center shrink-0">
                   <Radio className="w-8 h-8 text-momentum-flare" />

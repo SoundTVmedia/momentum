@@ -13,7 +13,7 @@ import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
 import { apiArtistPath, venuePath } from '@/shared/app-paths';
 import SectionHeading from '@/react-app/components/SectionHeading';
-import { HOME_FEED_SECTION_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { HOME_FEED_SECTION_CLASS, PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 interface Artist {
   id: number;
@@ -260,14 +260,7 @@ export default function ArtistPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {artistNameParam ? (
-          <PastShowsSection
-            fetchUrl={`${apiArtistPath(artistNameParam)}/previous-shows`}
-            variant="artist"
-          />
-        ) : null}
-
-        <div className="mb-8">
+        <div className={PAGE_BLOCK_CLASS}>
           <SectionHeading
             title="Latest Concert Moments"
             subtitle="Fan-captured moments from live shows"
@@ -294,9 +287,16 @@ export default function ArtistPage() {
           )}
         </div>
 
+        {artistNameParam ? (
+          <PastShowsSection
+            fetchUrl={`${apiArtistPath(artistNameParam)}/previous-shows`}
+            variant="artist"
+          />
+        ) : null}
+
         {/* Live Now Section */}
         {liveShow && (
-          <div className="mb-8">
+          <div className={PAGE_BLOCK_CLASS}>
             <button
               onClick={() => navigate(venuePath(liveShow.venue_name))}
               className="w-full bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-rose rounded-2xl overflow-hidden hover:scale-[1.02] transition-transform group"
@@ -345,7 +345,7 @@ export default function ArtistPage() {
         )}
 
         {/* Nearby Shows CTA - Show if artist is performing near user */}
-        <div className="mb-8">
+        <div className={PAGE_BLOCK_CLASS}>
           <NearbyShowsCTA artistName={artist.name} variant="banner" maxShows={1} />
         </div>
 

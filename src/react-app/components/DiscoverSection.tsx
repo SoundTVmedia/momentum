@@ -61,7 +61,7 @@ export default function DiscoverSection() {
   return (
     <section className="pt-8 pb-20 bg-gradient-to-b from-black via-momentum-ember/6 to-slate-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 leading-tight">
             {user ? (
               welcomeName ? (
@@ -106,7 +106,7 @@ export default function DiscoverSection() {
         )}
 
         {/* Filter Tabs */}
-        <div className="flex flex-wrap justify-center gap-3 mb-12">
+        <div className="flex flex-wrap justify-center gap-3 mb-10">
           <button
             type="button"
             onClick={() => navigate('/discover')}

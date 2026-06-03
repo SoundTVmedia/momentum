@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Bookmark, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
+import { PAGE_BLOCK_CLASS } from '@/react-app/lib/homeFeedLayout';
 import ClipModal from '@/react-app/components/ClipModal';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
@@ -53,7 +54,7 @@ export default function SavedClips() {
       <Header />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
+        <div className={PAGE_BLOCK_CLASS}>
           <div className="flex items-center space-x-3 mb-4">
             <Bookmark className="w-8 h-8 text-momentum-ember" />
             <h1 className="text-4xl font-bold text-white">Saved Clips</h1>

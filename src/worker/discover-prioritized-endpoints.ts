@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
+import { resolveArtistNameForClipsQuery, resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
@@ -628,7 +628,15 @@ export async function getVenueArchive(c: Context) {
   if (venueNameParam === undefined) {
     return c.json({ error: 'venueName is required' }, 400);
   }
-  const venueName = decodeURIComponent(venueNameParam);
+  const venueName = await resolveVenueNameForClipsQuery(
+    c.env.DB,
+    c.env.JAMBASE_API_KEY,
+    venueNameParam,
+    jamBaseQuotaFromEnv(c.env),
+  );
+  if (!venueName.trim()) {
+    return c.json({ shows: [], page: 1, limit: 0, hasMore: false });
+  }
   const sortBy = c.req.query('sort_by') || 'date_played';
   const page = parseInt(c.req.query('page') || '1');
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 48);

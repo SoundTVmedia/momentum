@@ -74,7 +74,7 @@ export default function SongPage() {
           <p className="text-center text-gray-400 py-16">{error ?? 'Song not found'}</p>
         ) : (
           <>
-            <div className="mb-10 rounded-2xl border border-momentum-rose/30 bg-gradient-to-r from-momentum-rose/25 to-momentum-ink/15 p-6 sm:p-8">
+            <div className="mb-8 rounded-2xl border border-momentum-rose/30 bg-gradient-to-r from-momentum-rose/25 to-momentum-ink/15 p-6 sm:p-8">
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 rounded-xl bg-momentum-rose/20 flex items-center justify-center shrink-0">
                   <Disc3 className="w-8 h-8 text-momentum-rose/80" />

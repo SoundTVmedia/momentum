@@ -10,7 +10,7 @@ import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
-import { HOME_FEED_SECTION_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { HOME_FEED_SECTION_CLASS, PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { venueUpcomingCarouselProps } from '@/react-app/lib/venue-upcoming-events';
 import { apiVenuePath } from '@/shared/app-paths';
 
@@ -152,41 +152,44 @@ export default function VenuePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 flex flex-col gap-8">
-            {/* Live Clips/Moments Section */}
-            <div>
-              <div className="flex items-center space-x-3 mb-6">
-                <Music className="w-6 h-6 text-momentum-flare" />
-                <h2 className="text-3xl font-bold text-white">Live Moments</h2>
-                <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
-                  {clips.length} clips
-                </span>
-              </div>
-              
-              {clips.length > 0 ? (
-                <ConcertFeed
-                  venueName={venue.name}
-                  hideSectionHeader
-                  edgeBleed
-                  edgeBleedScope="page"
-                />
-              ) : (
-                <div className="text-center py-12 glass-panel border border-momentum-flare/20 rounded-xl">
-                  <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-400 text-lg">Nothing here yet</p>
-                  <p className="text-gray-500 mt-2">Drop the first clip from {venue.name}!</p>
-                </div>
-              )}
-            </div>
+        <div className={PAGE_BLOCK_CLASS}>
+          <SectionHeading
+            title="Live Moments"
+            subtitle="Fan-captured moments from shows at this venue"
+            badge={
+              <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
+                {clips.length} clips
+              </span>
+            }
+          />
 
-            <PastShowsSection
-              fetchUrl={`${apiVenuePath(venue.name)}/archive`}
-              variant="venue"
-              showSort
+          {clips.length > 0 ? (
+            <ConcertFeed
+              venueName={venue.name}
+              hideSectionHeader
+              edgeBleed
+              edgeBleedScope="page"
             />
+          ) : (
+            <div className="text-center py-12 glass-panel border border-momentum-flare/20 rounded-xl">
+              <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg">Nothing here yet</p>
+              <p className="text-gray-500 mt-2">Drop the first clip from {venue.name}!</p>
+            </div>
+          )}
+        </div>
 
+        {venueName ? (
+          <PastShowsSection
+            fetchUrl={`${apiVenuePath(venueName)}/archive`}
+            variant="venue"
+            showSort
+          />
+        ) : null}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="lg:col-span-2">
             <section className={HOME_FEED_SECTION_CLASS}>
               <SectionHeading
                 title="Upcoming shows"

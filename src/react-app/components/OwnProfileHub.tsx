@@ -64,17 +64,17 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
   }
 
   return (
-    <div className="mb-12">
+    <div className="mb-10">
       <div className="rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-6">
         <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Your account</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <PointsDisplay />
           <div className="lg:col-span-2">
             <BadgesDisplay compact />
           </div>
         </div>
 
-        <div className="space-y-12">
+        <div className="space-y-10">
           {user ? (
             <>
               <MyClipsSection onUploadClick={onOpenCapture} />

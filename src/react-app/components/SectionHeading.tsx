@@ -34,7 +34,7 @@ export default function SectionHeading({
 
   return (
     <div
-      className={`mb-4 md:mb-5 ${centered ? 'text-center' : ''} ${className}`.trim()}
+      className={`mb-3 md:mb-4 ${centered ? 'text-center' : ''} ${className}`.trim()}
     >
       <div
         className={`flex flex-wrap items-center gap-2 min-w-0 ${

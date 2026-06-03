@@ -431,13 +431,13 @@ export default function UserProfilePage() {
 
         {/* Favorite Artists — other users' profiles only (own profile ends at shows carousel) */}
         {favoriteArtists.length > 0 && !isOwnProfile && (
-          <div className="mb-12">
+          <div className="mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center space-x-2">
               <Star className="w-6 h-6 text-momentum-ember" />
               <span>Favorite Artists</span>
             </h2>
             
-            <div className="space-y-8">
+            <div className="space-y-6">
               {favoriteArtists.map((favoriteArtist) => (
                 <div key={favoriteArtist.artist.artist_id} className="glass-panel border border-momentum-rose/20 rounded-xl p-4 sm:p-6">
                   <button

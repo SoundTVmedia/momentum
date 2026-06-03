@@ -6,7 +6,7 @@ import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import type { ClipWithUser } from '@/shared/types';
-import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 export default function LikedClips() {
   const navigate = useNavigate();
@@ -53,7 +53,7 @@ export default function LikedClips() {
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
+        <div className={PAGE_BLOCK_CLASS}>
           <div className="flex items-center space-x-3 mb-4">
             <Heart className="w-8 h-8 text-red-400" />
             <h1 className="text-4xl font-bold text-white">Liked Clips</h1>

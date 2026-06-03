@@ -261,7 +261,7 @@ export default function FavoriteArtistFeedPanel({
         className={
           edgeBleed
             ? HOME_FEED_SECTION_CLASS
-            : 'mb-10 rounded-2xl border border-momentum-rose/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
+            : 'mb-8 rounded-2xl border border-momentum-rose/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -303,7 +303,7 @@ export default function FavoriteArtistFeedPanel({
         </div>
 
         {variant === 'feed' && showAddArtists ? (
-          <div className="mb-8 rounded-xl border border-momentum-rose/30 bg-black/50 p-4 sm:p-5">
+          <div className="mb-6 rounded-xl border border-momentum-rose/30 bg-black/50 p-4 sm:p-5">
             {loadingSavedArtists ? (
               <div className="flex items-center gap-2 text-gray-400 text-sm">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -352,7 +352,7 @@ export default function FavoriteArtistFeedPanel({
         ) : (
           <>
             {upcomingEvents.length > 0 && (
-              <div className="mb-8">
+              <div className="mb-6">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3 flex items-center gap-2">
                   <Ticket className="w-4 h-4 text-momentum-flare" />
                   Upcoming shows

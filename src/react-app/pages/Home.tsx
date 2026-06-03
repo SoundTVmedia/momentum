@@ -20,12 +20,12 @@ export default function Home() {
       {!user && (
         <>
           <div className="pb-8 sm:pb-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
               <section className="pt-6 md:pt-8">
                 <SectionHeading
                   title="Latest Feedback"
                   subtitle="Fresh moments from shows across the platform"
-                  className="mb-6"
+                  className="mb-4"
                 />
                 <ConcertFeed
                   feedType="latest"
@@ -39,7 +39,7 @@ export default function Home() {
                 <SectionHeading
                   title="Trending"
                   subtitle="What everyone&apos;s watching right now"
-                  className="mb-6"
+                  className="mb-4"
                 />
                 <ConcertFeed
                   feedType="trending"
