@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { useNotifications } from '@/react-app/hooks/useNotifications';
 
 type NotificationsContextValue = ReturnType<typeof useNotifications>;
@@ -7,23 +7,7 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
 
 /** Single shared notification state for header badge + panel. */
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const notifications = useNotifications();
-  const value = useMemo(
-    () => notifications,
-    [
-      notifications.notifications,
-      notifications.unreadNotifications,
-      notifications.readNotifications,
-      notifications.loading,
-      notifications.error,
-      notifications.unreadCount,
-      notifications.readCount,
-      notifications.markAsRead,
-      notifications.markAllAsRead,
-      notifications.refresh,
-      notifications.isNotificationUnread,
-    ],
-  );
+  const value = useNotifications();
   return (
     <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>
   );
@@ -35,4 +19,9 @@ export function useNotificationsContext(): NotificationsContextValue {
     throw new Error('useNotificationsContext must be used within NotificationsProvider');
   }
   return ctx;
+}
+
+/** Unread count shown in the modal Unread tab and on alert icons. */
+export function useUnreadNotificationCount(): number {
+  return useNotificationsContext().unreadNotifications.length;
 }

@@ -1,7 +1,8 @@
 import { Bell, Heart, MessageCircle, UserPlus, X, Check, Star, Award, Video, Radio, Shield, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import type { Notification } from '@/react-app/hooks/useNotifications';
-import { useNotificationsContext } from '@/react-app/contexts/NotificationsContext';
+import { useNotificationsContext, useUnreadNotificationCount } from '@/react-app/contexts/NotificationsContext';
+import { hasUnreadNotifications } from '@/react-app/lib/notification-badge';
 import { useNavigate } from 'react-router';
 import UserAvatar from '@/react-app/components/UserAvatar';
 
