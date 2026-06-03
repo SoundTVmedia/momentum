@@ -28,7 +28,7 @@ export default function MobileBottomNav() {
   const { user } = useAuth();
   const extendedUser = user as ExtendedMochaUser | null;
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
-  const { unreadCount } = useNotificationsContext();
+  const unreadCount = useUnreadNotificationCount();
   const quickCapture = useQuickCaptureLauncher();
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -178,9 +178,9 @@ export default function MobileBottomNav() {
             }
 
             const Icon = item.icon!;
-            const unread = 'unreadCount' in item ? Number(item.unreadCount) : 0;
+            const unread = item.alerts ? unreadCount : 0;
             const alertsLabel =
-              item.label === 'Alerts' && unread > 0
+              item.alerts && hasUnreadNotifications(unread)
                 ? `${item.label}, ${unread} unread`
                 : item.label;
             return (
@@ -198,14 +198,10 @@ export default function MobileBottomNav() {
                 <div className="relative">
                   <Icon
                     className={`w-6 h-6 transition-all ${
-                      active ? 'scale-110' : unread > 0 ? 'animate-pulse' : ''
+                      active ? 'scale-110' : hasUnreadNotifications(unread) ? 'animate-pulse' : ''
                     }`}
                   />
-                  {unread > 0 ? (
-                    <span className="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 momentum-grad-interactive rounded-full text-white text-[10px] flex items-center justify-center font-bold shadow-lg shadow-momentum-ember/40">
-                      {unread > 9 ? '9+' : unread}
-                    </span>
-                  ) : null}
+                  {item.alerts ? <NotificationAlertBadge variant="nav" /> : null}
                 </div>
                 {active && (
                   <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 momentum-grad-interactive rounded-full" />

@@ -23,7 +23,7 @@ export default function Header() {
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null
-  const { unreadCount } = useNotificationsContext()
+  const unreadCount = useUnreadNotificationCount()
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -146,15 +146,10 @@ export default function Header() {
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors group"
                 >
-                  <Bell className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${unreadCount > 0 ? 'animate-pulse' : ''} group-hover:scale-110`} />
-                  {unreadCount > 0 && (
-                    <>
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 momentum-grad-interactive rounded-full text-white text-[10px] sm:text-xs flex items-center justify-center font-bold shadow-lg shadow-momentum-ember/40 animate-pulse">
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                      </span>
-                      <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-momentum-ember rounded-full animate-ping opacity-75" />
-                    </>
-                  )}
+                  <Bell
+                    className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${hasUnreadNotifications(unreadCount) ? 'animate-pulse' : ''} group-hover:scale-110`}
+                  />
+                  <NotificationAlertBadge variant="header" />
                 </button>
 
                 {showNotifications && (
