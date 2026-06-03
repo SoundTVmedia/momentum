@@ -237,9 +237,9 @@ export default function UserProfilePage() {
                       )}
                     </button>
                   )}
-                  
+
                   {isOwnProfile && (
-                    <div className="mt-3 sm:mt-4 md:mt-0 flex gap-2 justify-center md:justify-start">
+                    <div className="mt-3 sm:mt-4 flex gap-2 justify-center md:hidden">
                       <button
                         onClick={() => setShowProfileEditor(true)}
                         className="px-4 py-2 sm:px-6 sm:py-3 bg-white/10 border border-momentum-ember/50 rounded-xl font-semibold text-white hover:bg-white/20 transition-colors flex items-center space-x-2 text-sm sm:text-base"
@@ -271,16 +271,47 @@ export default function UserProfilePage() {
                   <p className="text-gray-300 max-w-2xl mb-4">{profile.bio}</p>
                 )}
                 
-                {genres.length > 0 && (
-                  <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                    {genres.map((genre: string) => (
-                      <span
-                        key={genre}
-                        className="px-3 py-1 bg-momentum-ember/20 text-momentum-flare text-sm rounded-full"
-                      >
-                        {genre}
-                      </span>
-                    ))}
+                {(genres.length > 0 || isOwnProfile) && (
+                  <div
+                    className={`flex flex-col gap-3 ${
+                      isOwnProfile
+                        ? 'md:flex-row md:items-end md:gap-4 ' +
+                          (genres.length > 0 ? 'md:justify-between' : 'md:justify-end')
+                        : ''
+                    }`}
+                  >
+                    {genres.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 justify-center md:justify-start md:flex-1 md:min-w-0">
+                        {genres.map((genre: string) => (
+                          <span
+                            key={genre}
+                            className="px-3 py-1 bg-momentum-ember/20 text-momentum-flare text-sm rounded-full"
+                          >
+                            {genre}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {isOwnProfile && (
+                      <div className="hidden md:flex gap-2 shrink-0">
+                        <button
+                          onClick={() => setShowProfileEditor(true)}
+                          className="px-6 py-3 bg-white/10 border border-momentum-ember/50 rounded-xl font-semibold text-white hover:bg-white/20 transition-colors flex items-center space-x-2 text-base"
+                        >
+                          <Edit className="w-5 h-5" />
+                          <span>Edit Profile</span>
+                        </button>
+                        {profile.is_verified === 0 && ['artist', 'venue', 'influencer'].includes(profile.role) && (
+                          <button
+                            onClick={() => setShowVerificationRequest(true)}
+                            className="px-4 py-3 bg-momentum-flare/20 border border-momentum-flare/50 rounded-xl text-momentum-flare hover:bg-momentum-flare/30 transition-colors"
+                            title="Request Verification"
+                          >
+                            <Shield className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

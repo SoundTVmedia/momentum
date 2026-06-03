@@ -23,6 +23,10 @@ import {
   resolveOAuthCallbackUrl,
 } from "./google-oauth";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
+import {
+  NOTIFICATIONS_FROM_FOLLOWED_SQL,
+  notifyFollowers,
+} from "./notification-utils";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
@@ -861,20 +865,19 @@ app.post("/api/clips", authMiddleware, async (c) => {
       console.error('Failed to broadcast feed update:', err);
     }
 
-    // Trigger personalization notifications for users who follow this artist or are near this location
-    if (artist_name || (geolocation_latitude && geolocation_longitude)) {
+    const publishedClipId =
+      parseD1LastRowId((newClip as { id?: unknown } | null)?.id) ??
+      parseD1LastRowId(result.meta.last_row_id);
+
+    if (publishedClipId != null && (status || 'published') !== 'draft') {
       try {
-        await personalization.triggerPersonalizationNotifications(c.env, {
-          id: result.meta.last_row_id as number,
-          artist_name,
-          venue_name,
-          location,
-          latitude: geolocation_latitude,
-          longitude: geolocation_longitude,
-          type: 'clip'
+        await notifyFollowers(c.env, mochaUser, {
+          type: 'clip',
+          content: 'posted a new clip',
+          related_clip_id: publishedClipId,
         });
       } catch (err) {
-        console.error('Failed to trigger personalization notifications:', err);
+        console.error('Failed to notify followers of new clip:', err);
       }
     }
 
@@ -1117,51 +1120,24 @@ app.post("/api/clips/:id/like", authMiddleware, async (c) => {
       console.error('Failed to award points:', err);
     }
 
-    // Create notification for clip owner (if not self-like)
-    if (clip.mocha_user_id !== mochaUser.id) {
-      // Check if clip has been featured on live show
+    try {
       const featured = await c.env.DB.prepare(
-        `SELECT id FROM live_featured_clips WHERE clip_id = ? LIMIT 1`
+        `SELECT id FROM live_featured_clips WHERE clip_id = ? LIMIT 1`,
       )
         .bind(clipId)
         .first();
 
-      const notificationContent = featured 
-        ? 'liked your clip that was featured on Feedback Live'
-        : 'liked your clip';
+      const likeContent = featured
+        ? 'liked a clip that was featured on Feedback Live'
+        : 'liked a clip';
 
-      const notificationResult = await c.env.DB.prepare(
-        `INSERT INTO notifications (mocha_user_id, type, content, related_user_id, related_clip_id, created_at)
-         VALUES (?, 'like', ?, ?, ?, CURRENT_TIMESTAMP)`
-      )
-        .bind(
-          clip.mocha_user_id,
-          notificationContent,
-          mochaUser.id,
-          clipId
-        )
-        .run();
-
-      // Fetch the notification to broadcast
-      const notification = await c.env.DB.prepare(
-        `SELECT 
-          notifications.*,
-          user_profiles.display_name as user_display_name,
-          user_profiles.profile_image_url as user_avatar
-        FROM notifications
-        LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
-        WHERE notifications.id = ?`
-      )
-        .bind(notificationResult.meta.last_row_id)
-        .first();
-
-      // Broadcast real-time notification
-      try {
-        const realtime = createRealtimeService(c.env);
-        await realtime.broadcastNotification(clip.mocha_user_id as string, notification);
-      } catch (err) {
-        console.error('Failed to broadcast notification:', err);
-      }
+      await notifyFollowers(c.env, mochaUser, {
+        type: 'like',
+        content: likeContent,
+        related_clip_id: Number(clipId),
+      });
+    } catch (err) {
+      console.error('Failed to notify followers of like:', err);
     }
 
     return c.json({ liked: true });
@@ -1295,45 +1271,15 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
     .bind(clipId)
     .run();
 
-  const clipOwnerKey = mochaUserIdKey({ id: clip.mocha_user_id });
-
-  // Create notification for clip owner (if not commenting on own clip)
-  if (clipOwnerKey.toLowerCase() !== uid.toLowerCase()) {
-    try {
-      const notificationResult = await c.env.DB.prepare(
-        `INSERT INTO notifications (mocha_user_id, type, content, related_user_id, related_clip_id, related_comment_id, created_at)
-         VALUES (?, 'comment', ?, ?, ?, ?, CURRENT_TIMESTAMP)`
-      )
-        .bind(
-          clipOwnerKey,
-          'commented on your clip',
-          uid,
-          clipId,
-          commentRowId
-        )
-        .run();
-
-      const notification = await c.env.DB.prepare(
-        `SELECT 
-        notifications.*,
-        user_profiles.display_name as user_display_name,
-        user_profiles.profile_image_url as user_avatar
-      FROM notifications
-      LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
-      WHERE notifications.id = ?`
-      )
-        .bind(notificationResult.meta.last_row_id)
-        .first();
-
-      try {
-        const realtime = createRealtimeService(c.env);
-        await realtime.broadcastNotification(clipOwnerKey, notification);
-      } catch (err) {
-        console.error('Failed to broadcast notification:', err);
-      }
-    } catch (err) {
-      console.error('Failed to create comment notification:', err);
-    }
+  try {
+    await notifyFollowers(c.env, mochaUser, {
+      type: 'comment',
+      content: 'commented on a clip',
+      related_clip_id: Number(clipId),
+      related_comment_id: commentRowId,
+    });
+  } catch (err) {
+    console.error('Failed to notify followers of comment:', err);
   }
 
   // Award points for commenting (non-blocking for the client)
@@ -1514,7 +1460,7 @@ app.get("/api/users/me/liked-clips-feed", authMiddleware, async (c) => {
   });
 });
 
-// Get user's notifications (optimized with limit on unread)
+// Get user's notifications (social activity from followed users only)
 app.get("/api/notifications", authMiddleware, async (c) => {
   const mochaUser = c.get("user");
   
@@ -1522,7 +1468,8 @@ app.get("/api/notifications", authMiddleware, async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  // Fetch notifications efficiently - prioritize unread
+  const uid = mochaUserIdKey(mochaUser);
+
   const notifications = await c.env.DB.prepare(
     `SELECT 
       notifications.*,
@@ -1531,16 +1478,21 @@ app.get("/api/notifications", authMiddleware, async (c) => {
     FROM notifications
     LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
     WHERE notifications.mocha_user_id = ?
+      AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})
     ORDER BY notifications.is_read ASC, notifications.created_at DESC
     LIMIT 50`
   )
-    .bind(mochaUser.id)
+    .bind(uid, uid)
     .all();
 
-  // Don't cache notifications - always fresh
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
 
-  return c.json({ notifications: notifications.results || [] });
+  const rows = (notifications.results || []) as { is_read?: unknown }[];
+  const unread_count = rows.filter(
+    (r) => r.is_read === 0 || r.is_read === false || r.is_read == null,
+  ).length;
+
+  return c.json({ notifications: rows, unread_count });
 });
 
 // Mark notification as read
@@ -1552,14 +1504,26 @@ app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
   }
 
   const notificationId = c.req.param('id');
+  const uid = mochaUserIdKey(mochaUser);
 
   await c.env.DB.prepare(
     "UPDATE notifications SET is_read = 1 WHERE id = ? AND mocha_user_id = ?"
   )
-    .bind(notificationId, mochaUser.id)
+    .bind(notificationId, uid)
     .run();
 
-  return c.json({ success: true });
+  const countRow = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS count FROM notifications
+     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL)
+       AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})`,
+  )
+    .bind(uid, uid)
+    .first() as { count?: number } | null;
+
+  return c.json({
+    success: true,
+    unread_count: Number(countRow?.count ?? 0),
+  });
 });
 
 // Mark all notifications as read
@@ -1570,13 +1534,17 @@ app.post("/api/notifications/read-all", authMiddleware, async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+
   await c.env.DB.prepare(
-    "UPDATE notifications SET is_read = 1 WHERE mocha_user_id = ? AND is_read = 0"
+    `UPDATE notifications SET is_read = 1
+     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL)
+       AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})`,
   )
-    .bind(mochaUser.id)
+    .bind(uid, uid)
     .run();
 
-  return c.json({ success: true });
+  return c.json({ success: true, unread_count: 0 });
 });
 
 // Search clips (optimized with better indexing and rate limiting)

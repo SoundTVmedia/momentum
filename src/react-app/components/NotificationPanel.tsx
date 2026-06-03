@@ -1,6 +1,6 @@
 import { Bell, Heart, MessageCircle, UserPlus, X, Check, Star, Award, Video, Radio, Shield, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNotifications } from '@/react-app/hooks/useNotifications';
+import { useNotifications, type Notification } from '@/react-app/hooks/useNotifications';
 import { useNavigate } from 'react-router';
 import UserAvatar from '@/react-app/components/UserAvatar';
 
@@ -10,7 +10,14 @@ interface NotificationPanelProps {
 
 export default function NotificationPanel({ onClose }: NotificationPanelProps) {
   const navigate = useNavigate();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, loading } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    loading,
+    isNotificationUnread,
+  } = useNotifications();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   const getIcon = (type: string) => {
@@ -52,21 +59,34 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
     return `${diffDays}d ago`;
   };
 
-  const handleNotificationClick = (notification: any) => {
-    markAsRead(notification.id);
-    
-    if (notification.related_clip_id) {
-      navigate('/');
+  const handleNotificationClick = async (notification: Notification) => {
+    if (isNotificationUnread(notification.is_read)) {
+      await markAsRead(notification.id);
+    }
+
+    const clipId = notification.related_clip_id;
+    if (clipId != null && Number(clipId) > 0) {
       onClose();
-    } else if (notification.related_user_id) {
-      // Navigate to user profile when we have that page
+      navigate({ pathname: '/', search: `?clip=${clipId}` });
+      return;
+    }
+
+    if (notification.type === 'follow' && notification.related_user_id) {
       onClose();
+      navigate(`/users/${notification.related_user_id}`);
+      return;
+    }
+
+    if (notification.related_user_id) {
+      onClose();
+      navigate(`/users/${notification.related_user_id}`);
     }
   };
 
-  const filteredNotifications = filter === 'unread' 
-    ? notifications.filter(n => n.is_read === 0)
-    : notifications;
+  const filteredNotifications =
+    filter === 'unread'
+      ? notifications.filter((n) => isNotificationUnread(n.is_read))
+      : notifications;
 
   return (
     <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 glass-dropdown rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-ember/15">
@@ -119,7 +139,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
           </button>
           {unreadCount > 0 && (
             <button
-              onClick={markAllAsRead}
+              onClick={() => void markAllAsRead()}
               className="p-1.5 text-momentum-flare hover:text-momentum-flare/90 transition-colors"
               title="Mark all as read"
             >
@@ -142,23 +162,26 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
               {filter === 'unread' ? 'All caught up!' : 'No notifications yet'}
             </p>
             <p className="text-xs text-gray-500">
-              {filter === 'unread' ? 'You have no unread notifications' : 'New notifications will appear here'}
+              {filter === 'unread'
+                ? 'You have no unread notifications'
+                : 'Activity from people you follow will appear here'}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-white/5">
             {filteredNotifications.map((notification) => {
               const iconData = getIcon(notification.type);
+              const unread = isNotificationUnread(notification.is_read);
               return (
                 <button
                   key={notification.id}
-                  onClick={() => handleNotificationClick(notification)}
+                  type="button"
+                  onClick={() => void handleNotificationClick(notification)}
                   className={`w-full p-3 sm:p-4 hover:bg-white/5 transition-all text-left group relative ${
-                    notification.is_read === 0 ? 'bg-gradient-to-r from-momentum-ember/8 to-transparent' : ''
+                    unread ? 'bg-gradient-to-r from-momentum-ember/8 to-transparent' : ''
                   }`}
                 >
                   <div className="flex items-start space-x-3">
-                    {/* Avatar with icon overlay */}
                     <div className="relative flex-shrink-0">
                       <UserAvatar
                         imageUrl={notification.user_avatar}
@@ -174,7 +197,6 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                       </div>
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-sm sm:text-base leading-snug">
                         <span className="font-semibold">
@@ -184,7 +206,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                       </p>
                       <p className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
                         <span>{formatTimestamp(notification.created_at)}</span>
-                        {notification.is_read === 0 && (
+                        {unread && (
                           <span className="px-1.5 py-0.5 bg-momentum-ember/20 text-momentum-flare rounded text-[10px] font-medium">
                             NEW
                           </span>
@@ -192,8 +214,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
                       </p>
                     </div>
 
-                    {/* Unread indicator */}
-                    {notification.is_read === 0 && (
+                    {unread && (
                       <div className="flex-shrink-0 mt-2">
                         <div className="w-2 h-2 bg-momentum-flare rounded-full animate-pulse" />
                       </div>
