@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 
 const SWIPE_MIN_PX = 40;
 const HORIZONTAL_INTENT_PX = 14;
@@ -8,6 +8,8 @@ type UseHorizontalFeedSwipeOptions = {
   enabled: boolean;
   onPrev: () => void;
   onNext: () => void;
+  /** Share a container with other gesture hooks (e.g. vertical swipe up). */
+  containerRef?: RefObject<HTMLElement | null>;
 };
 
 /**
@@ -18,8 +20,10 @@ export function useHorizontalFeedSwipe({
   enabled,
   onPrev,
   onNext,
+  containerRef: externalContainerRef,
 }: UseHorizontalFeedSwipeOptions) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const internalContainerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = externalContainerRef ?? internalContainerRef;
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const navLockRef = useRef(false);

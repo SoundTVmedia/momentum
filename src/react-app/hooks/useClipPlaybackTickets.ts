@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import {
   pickClosestUpcomingJamBaseShow,
@@ -8,7 +8,6 @@ import {
 type ClipPlaybackTicketsState = {
   show: JamBaseShowPick | null;
   loading: boolean;
-  openTickets: () => void;
 };
 
 async function fetchArtistUpcomingShows(
@@ -66,10 +65,5 @@ export function useClipPlaybackTickets(artistName?: string | null): ClipPlayback
     };
   }, [artist, getDeviceCoordinates]);
 
-  const openTickets = useCallback(() => {
-    if (!show?.ticketUrl) return;
-    window.open(show.ticketUrl, '_blank', 'noopener,noreferrer');
-  }, [show]);
-
-  return { show, loading, openTickets };
+  return { show, loading };
 }

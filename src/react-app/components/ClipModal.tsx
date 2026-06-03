@@ -28,15 +28,19 @@ import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
+import { useVerticalSwipeUp } from '@/react-app/hooks/useVerticalSwipeUp';
+import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets';
+import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import type { StreamVideoPlayerHandle, StreamVideoPlayerPlaybackState } from '@/react-app/components/StreamVideoPlayer';
 import CommentSection from './CommentSection';
 import { ClipLikeHeart } from './ClipLikeHeart';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
 import ClipModalBuyTickets from './ClipModalBuyTickets';
+import ClipModalTicketSheet from './ClipModalTicketSheet';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import UserAvatar from './UserAvatar';
-import type { ClipWithUser } from '@/shared/types';
+import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import { artistPath, eventClipsPath, genrePath, globalSongPath, songPath, venuePath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import { genreSlugFromName } from '@/shared/genre-tag';
@@ -73,6 +77,13 @@ export default function ClipModal({
   const { setHideBottomNav } = useMobileChrome();
   const autoplayMutedFirst = searchParams.has('clip');
   const { user } = useAuth();
+  const extendedUser = user as ExtendedMochaUser | null;
+  const { trackTicketClick } = useTicketmaster();
+  const { show: nearestTicketShow, loading: nearestTicketLoading } = useClipPlaybackTickets(
+    clip.artist_name,
+  );
+  const mobileContainerRef = useRef<HTMLDivElement>(null);
+  const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
 
   useEffect(() => {
     setHideBottomNav(true);
@@ -144,12 +155,56 @@ export default function ClipModal({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  const mobileSwipeEnabled = canFeedNav && mobileViewport && !mobileCommentsOpen;
+  const mobileSwipeEnabled =
+    canFeedNav && mobileViewport && !mobileCommentsOpen && !ticketSheetOpen;
 
-  const { containerRef: mobileSwipeRef } = useHorizontalFeedSwipe({
+  const ticketSwipeEnabled =
+    mobileViewport &&
+    !mobileCommentsOpen &&
+    !ticketSheetOpen &&
+    !!nearestTicketShow?.ticketUrl;
+
+  const ticketEventTitle =
+    nearestTicketShow && typeof nearestTicketShow.event.name === 'string'
+      ? nearestTicketShow.event.name
+      : 'Upcoming show';
+
+  const openTicketSheet = useCallback(async () => {
+    if (!nearestTicketShow?.ticketUrl) return;
+    const ev = nearestTicketShow.event;
+    const eventId = String(ev.identifier ?? ev['@id'] ?? ev.id ?? 'jambase');
+    const isAmbassador = extendedUser?.profile?.role === 'ambassador';
+    await trackTicketClick(
+      eventId,
+      ticketEventTitle,
+      nearestTicketShow.ticketUrl,
+      undefined,
+      isAmbassador && user ? user.id : undefined,
+    );
+    setTicketSheetOpen(true);
+  }, [
+    nearestTicketShow,
+    ticketEventTitle,
+    trackTicketClick,
+    extendedUser?.profile?.role,
+    user,
+  ]);
+
+  const closeTicketSheet = useCallback(() => {
+    setTicketSheetOpen(false);
+  }, []);
+
+  useHorizontalFeedSwipe({
     enabled: mobileSwipeEnabled,
     onPrev: goPrev,
     onNext: goNext,
+    containerRef: mobileContainerRef,
+  });
+
+  useVerticalSwipeUp({
+    enabled: ticketSwipeEnabled,
+    containerRef: mobileContainerRef,
+    onSwipeUp: openTicketSheet,
   });
 
   useEffect(() => {
@@ -163,6 +218,7 @@ export default function ClipModal({
     setLinkCopied(false);
     setMobileCommentsOpen(false);
     setEditOpen(false);
+    setTicketSheetOpen(false);
     setPlayback({ isPlaying: true, isMuted: false });
   }, [clip.id]);
 
@@ -208,10 +264,14 @@ export default function ClipModal({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (ticketSheetOpen) {
+          closeTicketSheet();
+          return;
+        }
         onClose();
         return;
       }
-      if (!canFeedNav) return;
+      if (!canFeedNav || ticketSheetOpen) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) {
         return;
@@ -226,7 +286,7 @@ export default function ClipModal({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [canFeedNav, goPrev, goNext, onClose]);
+  }, [canFeedNav, goPrev, goNext, onClose, ticketSheetOpen, closeTicketSheet]);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -365,6 +425,13 @@ export default function ClipModal({
             </button>
           </div>
         </div>
+        {canFeedNav ? (
+          <p className="pointer-events-none mt-2.5 flex items-center justify-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+            <ChevronLeft className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
+            <span>Swipe for next clip</span>
+            <ChevronRight className="h-4 w-4 shrink-0 animate-pulse" aria-hidden />
+          </p>
+        ) : null}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-4 pt-20">
@@ -402,14 +469,12 @@ export default function ClipModal({
             <p className="fb-clip-caption mt-2">{clip.content_description}</p>
           ) : null}
           <div className="mt-3">
-            <ClipModalBuyTickets artistName={clip.artist_name} />
+            <ClipModalBuyTickets
+              show={nearestTicketShow}
+              loading={nearestTicketLoading}
+              onActivate={openTicketSheet}
+            />
           </div>
-          {canFeedNav ? (
-            <p className="mt-2 flex items-center gap-1 text-[11px] uppercase tracking-wide text-white/45">
-              <span>Swipe for next clip</span>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            </p>
-          ) : null}
         </div>
       </div>
 
@@ -506,9 +571,9 @@ export default function ClipModal({
     <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay">
       {/* ——— Mobile: full-viewport video + overlays ——— */}
       <div
-        ref={mobileSwipeRef}
+        ref={mobileContainerRef}
         className={`relative flex h-[100dvh] w-full flex-col md:hidden overscroll-none ${
-          mobileSwipeEnabled ? 'touch-none' : ''
+          mobileSwipeEnabled || ticketSwipeEnabled ? 'touch-none' : ''
         }`}
       >
         <div className="relative min-h-0 flex-1">
@@ -556,6 +621,14 @@ export default function ClipModal({
               </div>
             </div>
           </div>
+        ) : null}
+
+        {ticketSheetOpen && nearestTicketShow?.ticketUrl ? (
+          <ClipModalTicketSheet
+            ticketUrl={nearestTicketShow.ticketUrl}
+            eventTitle={ticketEventTitle}
+            onClose={closeTicketSheet}
+          />
         ) : null}
       </div>
 
@@ -630,6 +703,14 @@ export default function ClipModal({
                 />
               ) : null}
             </div>
+
+            {ticketSheetOpen && nearestTicketShow?.ticketUrl ? (
+              <ClipModalTicketSheet
+                ticketUrl={nearestTicketShow.ticketUrl}
+                eventTitle={ticketEventTitle}
+                onClose={closeTicketSheet}
+              />
+            ) : null}
           </div>
 
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
@@ -725,7 +806,12 @@ export default function ClipModal({
               ) : null}
 
               <div className="mt-4">
-                <ClipModalBuyTickets artistName={clip.artist_name} className="w-full" />
+                <ClipModalBuyTickets
+                  show={nearestTicketShow}
+                  loading={nearestTicketLoading}
+                  onActivate={openTicketSheet}
+                  className="w-full"
+                />
               </div>
 
               <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">

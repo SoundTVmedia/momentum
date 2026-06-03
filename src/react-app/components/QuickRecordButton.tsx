@@ -785,25 +785,11 @@ export default function QuickRecordButton({
 
     releaseAllCaptureResources();
 
-    const geo = snapshotClipGeoForUpload();
-    const sourceKey = auddSourceKey(file);
-    const auddPrefill = auddPrefillFromLiveMatch(sourceKey, lastLiveSongMatchRef.current);
-    const prefetchShow = captureResolveCandidateRef.current;
     navigate({ pathname: '/upload', search: '' }, {
       state: {
         videoFile: file,
+        fromPhotoLibrary: true,
         recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
-        captureGeo: geo
-          ? {
-              latitude: geo.latitude,
-              longitude: geo.longitude,
-              city: geo.city,
-              state: geo.state,
-              country: geo.country,
-            }
-          : null,
-        auddPrefill,
-        ...(prefetchShow ? { showData: clipCandidateToNavShowData(prefetchShow) } : {}),
       },
     });
     (onAfterCaptureNavigate ?? onClose)?.();

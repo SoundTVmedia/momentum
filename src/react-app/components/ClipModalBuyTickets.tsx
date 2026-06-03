@@ -1,40 +1,37 @@
-import { ExternalLink, Ticket } from 'lucide-react';
-import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets';
+import { ChevronUp, Ticket } from 'lucide-react';
+import type { JamBaseShowPick } from '@/shared/jambase-events';
 
 type ClipModalBuyTicketsProps = {
-  artistName?: string | null;
+  show: JamBaseShowPick | null;
+  loading: boolean;
+  onActivate: () => void;
   className?: string;
 };
 
 export default function ClipModalBuyTickets({
-  artistName,
+  show,
+  loading,
+  onActivate,
   className = '',
 }: ClipModalBuyTicketsProps) {
-  const artist = artistName?.trim() ?? '';
-  const { show, loading, openTickets } = useClipPlaybackTickets(artistName);
-
-  if (!artist || loading || !show) {
+  if (loading || !show?.ticketUrl) {
     return null;
   }
 
-  const title =
-    typeof show.event.name === 'string'
-      ? show.event.name
-      : 'Upcoming show';
-
-  const btnClass =
-    'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white momentum-grad-interactive whitespace-nowrap shadow-lg shadow-momentum-ember/30 hover:scale-[1.02] tap-feedback';
+  const hintClass =
+    'flex w-full items-center justify-center gap-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20 active:scale-[0.98] tap-feedback';
 
   return (
     <button
       type="button"
-      onClick={openTickets}
-      className={`${btnClass} ${className}`}
-      title={title}
+      onClick={onActivate}
+      className={`${hintClass} ${className}`}
+      aria-label="Swipe up to buy tickets to nearest show"
     >
-      <Ticket className="h-4 w-4 shrink-0" aria-hidden />
-      <span>Buy Tickets</span>
-      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+      <Ticket className="h-4 w-4 shrink-0 text-momentum-flare" aria-hidden />
+      <span className="md:hidden">Swipe up to buy tickets to nearest show</span>
+      <span className="hidden md:inline">Buy tickets to nearest show</span>
+      <ChevronUp className="h-4 w-4 shrink-0 animate-bounce md:hidden" aria-hidden />
     </button>
   );
 }

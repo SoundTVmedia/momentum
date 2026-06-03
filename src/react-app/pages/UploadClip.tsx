@@ -47,6 +47,10 @@ import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
 import ClipUploadStatusBanner from '@/react-app/components/ClipUploadStatusBanner';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
+import {
+  extractVideoFileMetadata,
+  type ExtractedVideoFileMetadata,
+} from '@/react-app/utils/extractVideoFileMetadata';
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -75,6 +79,23 @@ export default function UploadClip() {
   /** After Share — ignore stale `location.state` video until a new recording navigates here. */
   const skipNavVideoHydrationRef = useRef(false);
   const lastCaptionFromNavAtRef = useRef<string | null>(null);
+  /** User changed tags — block auto-tag / song ID from overwriting edits. */
+  const userOverrodeAutoTagsRef = useRef(false);
+  /** Auto venue match from GPS applied at most once per clip. */
+  const autoShowTagAppliedRef = useRef(false);
+  const [libraryFileMeta, setLibraryFileMeta] = useState<ExtractedVideoFileMetadata | null>(null);
+  const [libraryMetaReady, setLibraryMetaReady] = useState(false);
+
+  type UploadSource = 'capture' | 'library';
+  const [uploadSource, setUploadSource] = useState<UploadSource>(() => {
+    const nav = location.state as {
+      fromPhotoLibrary?: boolean;
+      videoBlob?: unknown;
+      videoFile?: unknown;
+    } | null;
+    if (nav?.fromPhotoLibrary || (nav?.videoFile && !nav?.videoBlob)) return 'library';
+    return 'capture';
+  });
 
   // Caption / review screen video preview (must not live inside `if (showCaptionScreen)` — Rules of Hooks)
   const captionVideoRef = useRef<HTMLVideoElement>(null);
@@ -276,13 +297,20 @@ export default function UploadClip() {
       const fileUrl = URL.createObjectURL(selectedFile);
       setVideoBlobUrl(fileUrl);
       setShowCaptionScreen(true);
+      setUploadSource('library');
+      setIsEditingTags(false);
+      setLibraryFileMeta(null);
+      setLibraryMetaReady(false);
       setShowQuickCapture(false);
       setReRecordPrimedStream((prev) => { prev?.getTracks().forEach((t) => t.stop()); return null; });
       setReRecordGesturePending(false);
     }
     
-    // Check if we received show data from auto-tagging
-    if (location.state?.showData) {
+    // Check if we received show data from auto-tagging (live capture only — not photo library)
+    const navFromLibrary = Boolean(
+      (location.state as { fromPhotoLibrary?: boolean } | null)?.fromPhotoLibrary,
+    );
+    if (location.state?.showData && !navFromLibrary) {
       const showData = location.state.showData as Record<string, unknown>;
       const cap = location.state.captureGeo as
         | { city?: string | null; state?: string | null }
@@ -354,10 +382,15 @@ export default function UploadClip() {
     }
 
     const nav = location.state as Record<string, unknown> | undefined;
-    if (typeof nav?.recordingStartedAt === 'string') {
+    if (typeof nav?.recordingStartedAt === 'string' && !navFromLibrary) {
       setRecordingAtIso(nav.recordingStartedAt);
     }
-    if (nav?.captureGeo && typeof nav.captureGeo === 'object' && nav.captureGeo !== null) {
+    if (
+      nav?.captureGeo &&
+      typeof nav.captureGeo === 'object' &&
+      nav.captureGeo !== null &&
+      !navFromLibrary
+    ) {
       const cg = nav.captureGeo as {
         latitude: number;
         longitude: number;
@@ -388,9 +421,12 @@ export default function UploadClip() {
     }
 
     // Live capture may have prefilled song — show immediately; caption screen still runs a full identify pass.
-    const navWithAudD = location.state as { auddPrefill?: AudDNavPrefill } | null | undefined;
+    const navWithAudD = location.state as {
+      auddPrefill?: AudDNavPrefill;
+      fromPhotoLibrary?: boolean;
+    } | null | undefined;
     const ap = navWithAudD?.auddPrefill;
-    if (ap?.sourceKey) {
+    if (ap?.sourceKey && !navWithAudD?.fromPhotoLibrary) {
       if (ap.status === 'done') {
         const artist = (ap.artist ?? '').trim();
         const title = (ap.title ?? '').trim();
@@ -495,6 +531,92 @@ export default function UploadClip() {
     }
   }, [debouncedVenueSearch, venueLocationHint, searchVenues]);
 
+  /** Read GPS + recorded-at from library video file bytes (not current device location). */
+  useEffect(() => {
+    const file = formData.video_file;
+    if (!file || uploadSource !== 'library') {
+      setLibraryFileMeta(null);
+      setLibraryMetaReady(uploadSource !== 'library');
+      return;
+    }
+
+    let cancelled = false;
+    setLibraryMetaReady(false);
+    setLibraryFileMeta(null);
+
+    void (async () => {
+      try {
+        const meta = await extractVideoFileMetadata(file);
+        if (cancelled) return;
+        setLibraryFileMeta(meta);
+
+        if (meta.recordedAtIso) {
+          setRecordingAtIso(meta.recordedAtIso);
+        }
+        if (meta.latitude != null && meta.longitude != null) {
+          setCaptureGeo({
+            latitude: meta.latitude,
+            longitude: meta.longitude,
+            city: null,
+            state: null,
+            country: null,
+          });
+        } else {
+          setCaptureGeo(null);
+        }
+        if (meta.recording_orientation || meta.width || meta.height) {
+          setVideoMetadata((prev) => ({
+            ...prev,
+            recording_orientation: meta.recording_orientation ?? prev.recording_orientation,
+            video_resolution_w: meta.width ?? prev.video_resolution_w,
+            video_resolution_h: meta.height ?? prev.video_resolution_h,
+          }));
+        }
+
+        const hasUsefulMeta =
+          Boolean(meta.recordedAtIso) ||
+          (meta.latitude != null && meta.longitude != null);
+        if (!hasUsefulMeta) {
+          setIsEditingTags(true);
+          setResolveNotice(
+            'No date or location found in this video file — add artist, venue, and song below.',
+          );
+        } else {
+          setIsEditingTags(false);
+          autoShowTagAppliedRef.current = false;
+          const parts: string[] = [];
+          if (meta.recordedAtIso) {
+            parts.push(
+              meta.recordedAtSource === 'embedded'
+                ? 'recorded date from video file'
+                : 'date from file timestamp',
+            );
+          }
+          if (meta.locationSource === 'embedded') {
+            parts.push('location from video file');
+          }
+          setResolveNotice(
+            parts.length > 0
+              ? `Using ${parts.join(' and ')} to find a matching show…`
+              : null,
+          );
+        }
+      } catch (err) {
+        console.error('extractVideoFileMetadata', err);
+        if (!cancelled) {
+          setIsEditingTags(true);
+          setResolveNotice('Could not read video metadata — add details manually below.');
+        }
+      } finally {
+        if (!cancelled) setLibraryMetaReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.video_file, uploadSource]);
+
   // Keep caption search fields aligned with committed tags when not editing (mobile).
   useEffect(() => {
     if (!showCaptionScreen || isEditingTags) return;
@@ -505,6 +627,8 @@ export default function UploadClip() {
   }, [showCaptionScreen, isEditingTags, formData.artist_name, formData.venue_name]);
 
   const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
+    if (userOverrodeAutoTagsRef.current) return;
+    autoShowTagAppliedRef.current = true;
     setFormData((prev) => ({
       ...prev,
       artist_name: c.artist_name ?? '',
@@ -531,11 +655,12 @@ export default function UploadClip() {
   useEffect(() => {
     if (
       formData.video_file &&
+      uploadSource !== 'library' &&
       !(location.state as { recordingStartedAt?: string } | null)?.recordingStartedAt
     ) {
       setRecordingAtIso(new Date(formData.video_file.lastModified).toISOString());
     }
-  }, [formData.video_file, location.state]);
+  }, [formData.video_file, uploadSource, location.state]);
 
   useEffect(() => {
     if (!user) return;
@@ -564,10 +689,18 @@ export default function UploadClip() {
 
     if (!resolveForFile && !resolveForAutoTagQuick) return;
 
-    if (resolveForFile && (jambaseLink?.event || jambaseLink?.venue)) return;
+    if (uploadSource === 'library') {
+      if (!libraryMetaReady) return;
+      if (autoShowTagAppliedRef.current || userOverrodeAutoTagsRef.current) return;
+      if (!captureGeo?.latitude || !captureGeo?.longitude) return;
+    } else {
+      if (autoShowTagAppliedRef.current || userOverrodeAutoTagsRef.current) return;
+      if (resolveForFile && (jambaseLink?.event || jambaseLink?.venue)) return;
+    }
 
     const at =
       recordingAtIso ||
+      libraryFileMeta?.recordedAtIso ||
       (formData.video_file ? new Date(formData.video_file.lastModified).toISOString() : null) ||
       (typeof nav?.recordingStartedAt === 'string' ? nav.recordingStartedAt : null) ||
       new Date().toISOString();
@@ -575,7 +708,15 @@ export default function UploadClip() {
     let cancelled = false;
     (async () => {
       let geo = captureGeo;
-      if (
+      if (uploadSource === 'library') {
+        if (
+          !geo ||
+          !Number.isFinite(geo.latitude) ||
+          !Number.isFinite(geo.longitude)
+        ) {
+          return;
+        }
+      } else if (
         (geo == null || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) &&
         nav?.captureGeo != null &&
         Number.isFinite(nav.captureGeo.latitude) &&
@@ -590,7 +731,7 @@ export default function UploadClip() {
           Number.isFinite(g.latitude) &&
           Number.isFinite(g.longitude);
 
-        if (fromQuick && !cancelled) {
+        if (fromQuick && uploadSource !== 'library' && !cancelled) {
           const device = await getDeviceCoordinates();
           if (cancelled) return;
           if (validG(device)) {
@@ -606,7 +747,10 @@ export default function UploadClip() {
           }
         }
 
-        if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) {
+        if (
+          uploadSource !== 'library' &&
+          (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude))
+        ) {
           const g = validG(lastKnownGeo) ? lastKnownGeo : null;
           if (cancelled) return;
           if (validG(g)) {
@@ -702,6 +846,9 @@ export default function UploadClip() {
     applyClipCandidate,
     getDeviceCoordinates,
     ingestCaptureGeo,
+    uploadSource,
+    libraryMetaReady,
+    libraryFileMeta,
   ]);
 
   /**
@@ -748,6 +895,12 @@ export default function UploadClip() {
       );
       if (cancelled) return;
 
+      if (userOverrodeAutoTagsRef.current) {
+        setAuddStatus('idle');
+        setAuddMessage(null);
+        return;
+      }
+
       if (
         result.status === 'skipped' ||
         result.status === 'nomatch' ||
@@ -789,9 +942,23 @@ export default function UploadClip() {
     formData.video_blob,
     formData.video_file,
     location.state,
+    uploadSource,
   ]);
 
+  const markTagsEdited = useCallback(() => {
+    userOverrodeAutoTagsRef.current = true;
+  }, []);
+
   const handleInputChange = (field: string, value: string) => {
+    if (
+      field === 'artist_name' ||
+      field === 'venue_name' ||
+      field === 'location' ||
+      field === 'song_title' ||
+      field === 'content_description'
+    ) {
+      markTagsEdited();
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -810,6 +977,7 @@ export default function UploadClip() {
   };
 
   const handleCaptionArtistSearchChange = (value: string) => {
+    markTagsEdited();
     setArtistSearch(value);
     if (value.trim() === '') {
       captionCommittedArtistNameRef.current = '';
@@ -819,12 +987,13 @@ export default function UploadClip() {
     }
     if (value !== captionCommittedArtistNameRef.current) {
       captionCommittedArtistNameRef.current = '';
-      setFormData((prev) => ({ ...prev, artist_name: '' }));
+      setFormData((prev) => ({ ...prev, artist_name: value.trim() }));
       setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null, eventTitle: null } : null));
     }
   };
 
   const handleCaptionVenueSearchChange = (value: string) => {
+    markTagsEdited();
     setVenueSearch(value);
     if (value.trim() === '') {
       captionCommittedVenueNameRef.current = '';
@@ -834,7 +1003,7 @@ export default function UploadClip() {
     }
     if (value !== captionCommittedVenueNameRef.current) {
       captionCommittedVenueNameRef.current = '';
-      setFormData((prev) => ({ ...prev, venue_name: '' }));
+      setFormData((prev) => ({ ...prev, venue_name: value.trim() }));
       setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null, eventTitle: null } : null));
     }
   };
@@ -894,7 +1063,34 @@ export default function UploadClip() {
       e.target.value = '';
       return;
     }
-    setFormData((prev) => ({ ...prev, video_file: file }));
+    setFormData((prev) => ({
+      ...prev,
+      video_file: file,
+      video_blob: null,
+      artist_name: '',
+      venue_name: '',
+      location: '',
+      song_title: '',
+      content_description: '',
+    }));
+    setUploadSource('library');
+    setIsEditingTags(false);
+    setLibraryFileMeta(null);
+    setLibraryMetaReady(false);
+    setJambaseLink(null);
+    setResolveNotice(null);
+    setAuddStatus('idle');
+    setAuddMessage(null);
+    userOverrodeAutoTagsRef.current = false;
+    autoShowTagAppliedRef.current = false;
+    auddAttemptedForSourceKeyRef.current = null;
+    captionCommittedArtistNameRef.current = '';
+    captionCommittedVenueNameRef.current = '';
+    setArtistSearch('');
+    setVenueSearch('');
+    if (videoBlobUrl) URL.revokeObjectURL(videoBlobUrl);
+    setVideoBlobUrl(URL.createObjectURL(file));
+    setShowCaptionScreen(true);
     setError(null);
   };
 
@@ -1018,6 +1214,11 @@ export default function UploadClip() {
     setAuddStatus('idle');
     setAuddMessage(null);
     setIsEditingTags(false);
+    userOverrodeAutoTagsRef.current = false;
+    autoShowTagAppliedRef.current = false;
+    setUploadSource('capture');
+    setLibraryFileMeta(null);
+    setLibraryMetaReady(false);
   }, [videoBlobUrl]);
 
   /** Prime geo + camera in the same tap as Share (iOS Safari). */
@@ -1393,7 +1594,10 @@ export default function UploadClip() {
               <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">Share your moment</h1>
               <p className="text-gray-300 text-sm sm:text-lg">
                 Add details and post. After you share, upload continues in the background so you can record your next
-                clip right away. Venue and location are filled from GPS and JamBase when we find a match.
+                clip right away.
+                {uploadSource === 'library'
+                  ? ' We read date and location from your video file when available to find a matching show.'
+                  : ' Venue and location are filled from GPS and JamBase when we find a match.'}
               </p>
             </div>
             <button
@@ -1515,37 +1719,51 @@ export default function UploadClip() {
                 </div>
               )}
 
-              {/* Event, venue & location (auto from capture / JamBase) */}
+              {/* Event, venue & location */}
               <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-momentum-flare/90">
                   Show
                 </div>
-                {captionEventTitle ? (
+                {uploadSource === 'library' ? (
+                  <p className="text-sm text-gray-400">
+                    {libraryMetaReady
+                      ? libraryFileMeta?.locationSource === 'embedded'
+                        ? 'Matching show from GPS embedded in your video…'
+                        : libraryFileMeta?.recordedAtIso
+                          ? 'Using the video file date to find a show — add venue manually if needed.'
+                          : 'Add artist and venue below, or pick from JamBase search results.'
+                      : 'Reading date and location from your video file…'}
+                  </p>
+                ) : captionEventTitle ? (
                   <p className="text-lg sm:text-xl font-bold text-white leading-snug">{captionEventTitle}</p>
                 ) : (
                   <p className="text-sm text-gray-400">
                     Event title will appear when we match your recording to a nearby show.
                   </p>
                 )}
-                <div className="flex items-start gap-2 text-white border-t border-white/10 pt-3">
-                  <MapPin className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{formData.venue_name || 'Venue not set yet'}</p>
-                    <p className="text-sm text-gray-300 break-words">
-                      {formData.location || 'Location will appear from your GPS or after you pick a show.'}
+                {uploadSource !== 'library' ? (
+                  <>
+                    <div className="flex items-start gap-2 text-white border-t border-white/10 pt-3">
+                      <MapPin className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{formData.venue_name || 'Venue not set yet'}</p>
+                        <p className="text-sm text-gray-300 break-words">
+                          {formData.location || 'Location will appear from your GPS or after you pick a show.'}
+                        </p>
+                      </div>
+                    </div>
+                    {formData.artist_name ? (
+                      <div className="flex items-center gap-2 text-gray-300 text-sm">
+                        <Music className="w-4 h-4 text-momentum-rose shrink-0" />
+                        <span>{formData.artist_name}</span>
+                      </div>
+                    ) : null}
+                    <p className="text-xs text-gray-500">
+                      Filled automatically when we match your recording to a nearby venue. Use &quot;Change
+                      Artist/Venue&quot; below to edit.
                     </p>
-                  </div>
-                </div>
-                {formData.artist_name ? (
-                  <div className="flex items-center gap-2 text-gray-300 text-sm">
-                    <Music className="w-4 h-4 text-momentum-rose shrink-0" />
-                    <span>{formData.artist_name}</span>
-                  </div>
+                  </>
                 ) : null}
-                <p className="text-xs text-gray-500">
-                  Filled automatically when we match your recording to a nearby venue. Use &quot;Change Artist/Venue&quot;
-                  below to edit.
-                </p>
               </div>
 
               {/* Caption Field */}
@@ -1680,7 +1898,7 @@ export default function UploadClip() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-momentum-rose pointer-events-none" />
                       </div>
                       <p className="text-gray-500 text-xs mt-1">
-                        Pick an artist from the results — free-text names are not saved for this field.
+                        Search JamBase or type an artist name — pick a result for a verified link.
                       </p>
 
                       {showArtistSuggestions && debouncedArtistSearch.length >= 2 && (
@@ -1735,7 +1953,7 @@ export default function UploadClip() {
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400 pointer-events-none" />
                       </div>
                       <p className="text-gray-500 text-xs mt-1">
-                        Pick a venue from the results — free-text names are not saved for this field.
+                        Search JamBase or type a venue name — pick a result for a verified link.
                       </p>
 
                       {showVenueSuggestions && debouncedVenueSearch.length >= 2 && (
@@ -2092,7 +2310,9 @@ export default function UploadClip() {
                 ))}
               </div>
             )}
-            <p className="text-gray-400 text-sm mt-2">Who rocked the stage?</p>
+              <p className="text-gray-400 text-sm mt-2">
+                Search JamBase or type an artist name — pick a result for a verified link.
+              </p>
           </div>
 
           {/* Song title (optional) — adds hashtag token for search when AudD or user fills it */}
@@ -2181,7 +2401,7 @@ export default function UploadClip() {
                 </div>
               )}
               <p className="text-gray-400 text-sm mt-2">
-                Pick a venue from JamBase — free-text names are not saved.
+                Search JamBase or type a venue name — pick a result for a verified link.
               </p>
             </div>
 
