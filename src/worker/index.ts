@@ -77,6 +77,7 @@ import {
   postClipIdentifyMusicAudD,
 } from "./clip-audd-endpoints";
 import { computeShowId } from "../shared/show-id";
+import { resolveClipEventTitle } from "../shared/event-title";
 import {
   buildHashtagsForClipBody,
   genreFieldsFromBody,
@@ -776,6 +777,7 @@ app.post("/api/clips", authMiddleware, async (c) => {
     jambase_event_id,
     jambase_artist_id,
     jambase_venue_id,
+    event_title: bodyEventTitle,
   } = body;
 
   if (!video_url && !stream_video_id) {
@@ -801,6 +803,11 @@ app.post("/api/clips", authMiddleware, async (c) => {
     venue_name: venue_name || null,
     timestamp: resolvedTimestamp,
   });
+  const eventTitle = resolveClipEventTitle({
+    event_title: bodyEventTitle || null,
+    artist_name: artist_name || null,
+    venue_name: venue_name || null,
+  });
 
   try {
     const result = await c.env.DB.prepare(
@@ -811,9 +818,9 @@ app.post("/api/clips", authMiddleware, async (c) => {
         stream_thumbnail_url, video_status, video_duration, status, 
         geolocation_latitude, geolocation_longitude, geolocation_accuracy_radius, 
         recording_orientation, video_resolution_w, video_resolution_h,
-        jambase_event_id, jambase_artist_id, jambase_venue_id, show_id,
+        jambase_event_id, jambase_artist_id, jambase_venue_id, show_id, event_title,
         is_draft, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     )
       .bind(
         mochaUser.id,
@@ -845,6 +852,7 @@ app.post("/api/clips", authMiddleware, async (c) => {
         jambase_artist_id || null,
         jambase_venue_id || null,
         showId,
+        eventTitle,
         (status === 'draft') ? 1 : 0
       )
       .run();

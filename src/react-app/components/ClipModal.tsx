@@ -38,6 +38,7 @@ import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, genrePath, globalSongPath, songPath, venuePath } from '@/shared/app-paths';
+import { resolveClipEventTitle } from '@/shared/event-title';
 import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
@@ -291,6 +292,12 @@ export default function ClipModal({
     if (slug) navigate(genrePath(slug));
   };
 
+  const eventTitle = resolveClipEventTitle({
+    event_title: clip.event_title,
+    artist_name: clip.artist_name,
+    venue_name: clip.venue_name,
+  });
+
   const mobileVideoOverlay = (
     <>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-16 pt-3">
@@ -356,6 +363,11 @@ export default function ClipModal({
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-4 pt-20">
         <div className="pointer-events-auto pr-14">
+          {eventTitle ? (
+            <p className="text-base font-semibold text-white leading-snug line-clamp-2 mb-1">
+              {eventTitle}
+            </p>
+          ) : null}
           {clip.artist_name ? (
             <button type="button" onClick={goArtist} className="block max-w-full text-left">
               <p className="fb-clip-artist-name text-lg">{clip.artist_name}</p>
@@ -636,6 +648,12 @@ export default function ClipModal({
               </div>
 
               <div className="space-y-2">
+                {eventTitle ? (
+                  <div className="flex min-w-0 items-start space-x-2">
+                    <Calendar className="h-4 w-4 shrink-0 text-momentum-flare mt-0.5" />
+                    <span className="text-base font-semibold text-white leading-snug">{eventTitle}</span>
+                  </div>
+                ) : null}
                 {clip.artist_name ? (
                   <button
                     type="button"

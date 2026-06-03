@@ -8,6 +8,7 @@ import {
 } from './jambase-client';
 import { headlinerFromEvent } from './jambase-map';
 import type { ClipShowCandidate } from '../shared/types';
+import { artistAtVenueTitle, jamBaseEventTitle } from '../shared/event-title';
 
 /** Extra miles beyond profile radius so GPS jitter does not drop the venue you are standing in front of. */
 const GPS_DISTANCE_SLACK_MILES = 1.25;
@@ -244,6 +245,7 @@ function stripArtistIfEventNotOnCaptureDay(base: ClipShowCandidate, captureDayYm
     jambase_event_id: null,
     jambase_artist_id: null,
     artist_name: null,
+    event_title: artistAtVenueTitle(base.artist_name, base.venue_name),
     startDate: '',
   };
 }
@@ -337,6 +339,8 @@ async function enrichWithSameDayShowAtVenue(
   const startDate = typeof bestEv.startDate === 'string' ? bestEv.startDate : '';
   const vName = venueNameFromEvent(bestEv);
   const locLine = venueCityStateLine(bestEv);
+  const eventTitle =
+    jamBaseEventTitle(bestEv) ?? artistAtVenueTitle(artistName, base.venue_name ?? vName);
 
   return {
     ...base,
@@ -345,6 +349,7 @@ async function enrichWithSameDayShowAtVenue(
     artist_name: artistName,
     venue_name: base.venue_name ?? vName,
     location: base.location ?? locLine,
+    event_title: eventTitle,
     startDate,
   };
 }
@@ -386,6 +391,8 @@ function candidateFromEvent(
   if (!withinRadius) return null;
 
   const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
+  const eventTitle =
+    jamBaseEventTitle(ev) ?? artistAtVenueTitle(artistName, venueName);
 
   return {
     jambase_event_id: id,
@@ -394,6 +401,7 @@ function candidateFromEvent(
     artist_name: artistName,
     venue_name: venueName,
     location: locationLine,
+    event_title: eventTitle,
     startDate,
     distance_miles: distanceMiles,
   };

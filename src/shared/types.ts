@@ -61,6 +61,7 @@ export const ClipSchema = z.object({
   jambase_artist_id: z.string().nullable().optional(),
   jambase_venue_id: z.string().nullable().optional(),
   jambase_event_id: z.string().nullable().optional(),
+  event_title: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
   recording_orientation: z.string().nullable().optional(),
@@ -124,6 +125,8 @@ export interface ClipShowCandidate {
   artist_name: string | null;
   venue_name: string | null;
   location: string | null;
+  /** JamBase event name when matched, e.g. "Don Toliver at Colonial Life Arena". */
+  event_title: string | null;
   startDate: string;
   distance_miles: number | null;
 }

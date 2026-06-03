@@ -95,6 +95,7 @@ export default function UploadClip() {
     event: string | null;
     artist: string | null;
     venue: string | null;
+    eventTitle: string | null;
   } | null>(null);
   const [recordingAtIso, setRecordingAtIso] = useState<string | null>(null);
   const [captureGeo, setCaptureGeo] = useState<{
@@ -316,12 +317,14 @@ export default function UploadClip() {
           event: showData.jambase_event_id,
           artist: typeof showData.jambase_artist_id === 'string' ? showData.jambase_artist_id : null,
           venue: typeof showData.jambase_venue_id === 'string' ? showData.jambase_venue_id : null,
+          eventTitle: typeof showData.event_title === 'string' ? showData.event_title : null,
         });
       } else if (typeof showData.jambase_venue_id === 'string') {
         setJambaseLink({
           event: null,
           artist: typeof showData.jambase_artist_id === 'string' ? showData.jambase_artist_id : null,
           venue: showData.jambase_venue_id,
+          eventTitle: typeof showData.event_title === 'string' ? showData.event_title : null,
         });
       }
       setResolveNotice(null);
@@ -492,6 +495,7 @@ export default function UploadClip() {
       event: c.jambase_event_id ?? null,
       artist: c.jambase_artist_id,
       venue: c.jambase_venue_id,
+      eventTitle: c.event_title ?? null,
     });
     captionCommittedArtistNameRef.current = c.artist_name ?? '';
     setResolveNotice(null);
@@ -774,6 +778,7 @@ export default function UploadClip() {
       event: null,
       artist: artist.identifier,
       venue: prev?.venue ?? null,
+      eventTitle: null,
     }));
   };
 
@@ -782,13 +787,13 @@ export default function UploadClip() {
     if (value.trim() === '') {
       captionCommittedArtistNameRef.current = '';
       setFormData((prev) => ({ ...prev, artist_name: '' }));
-      setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null } : null));
+      setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null, eventTitle: null } : null));
       return;
     }
     if (value !== captionCommittedArtistNameRef.current) {
       captionCommittedArtistNameRef.current = '';
       setFormData((prev) => ({ ...prev, artist_name: '' }));
-      setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null } : null));
+      setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null, eventTitle: null } : null));
     }
   };
 
@@ -797,13 +802,13 @@ export default function UploadClip() {
     if (value.trim() === '') {
       captionCommittedVenueNameRef.current = '';
       setFormData((prev) => ({ ...prev, venue_name: '' }));
-      setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null } : null));
+      setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null, eventTitle: null } : null));
       return;
     }
     if (value !== captionCommittedVenueNameRef.current) {
       captionCommittedVenueNameRef.current = '';
       setFormData((prev) => ({ ...prev, venue_name: '' }));
-      setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null } : null));
+      setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null, eventTitle: null } : null));
     }
   };
 
@@ -826,6 +831,7 @@ export default function UploadClip() {
       event: null,
       artist: prev?.artist ?? null,
       venue: venue.identifier,
+      eventTitle: null,
     }));
   };
 
@@ -1097,6 +1103,7 @@ export default function UploadClip() {
         jambase_event_id: jambaseLink?.event ?? undefined,
         jambase_artist_id: jambaseLink?.artist ?? undefined,
         jambase_venue_id: jambaseLink?.venue ?? undefined,
+        event_title: jambaseLink?.eventTitle ?? undefined,
         geolocation_latitude: captureGeo?.latitude,
         geolocation_longitude: captureGeo?.longitude,
         // Include video metadata if available (orientation and resolution)

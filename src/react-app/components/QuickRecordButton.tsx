@@ -35,6 +35,7 @@ function clipCandidateToNavShowData(c: ClipShowCandidate): Record<string, unknow
   if (c.jambase_event_id) out.jambase_event_id = c.jambase_event_id;
   if (c.jambase_artist_id) out.jambase_artist_id = c.jambase_artist_id;
   if (c.jambase_venue_id) out.jambase_venue_id = c.jambase_venue_id;
+  if (c.event_title) out.event_title = c.event_title;
   return out;
 }
 

@@ -22,6 +22,7 @@ export type ClipUploadJobPayload = {
     event: string | null;
     artist: string | null;
     venue: string | null;
+    eventTitle?: string | null;
   } | null;
   recordingAtIso: string | null;
   captureGeo: {
@@ -142,6 +143,7 @@ export async function processClipUpload(
     jambase_event_id: payload.jambaseLink?.event ?? undefined,
     jambase_artist_id: payload.jambaseLink?.artist ?? undefined,
     jambase_venue_id: payload.jambaseLink?.venue ?? undefined,
+    event_title: payload.jambaseLink?.eventTitle ?? undefined,
     geolocation_latitude: payload.captureGeo?.latitude,
     geolocation_longitude: payload.captureGeo?.longitude,
     recording_orientation: payload.videoMetadata.recording_orientation || null,
