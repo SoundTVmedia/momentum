@@ -1,14 +1,20 @@
 import { Bell, Heart, MessageCircle, UserPlus, X, Check, Star, Award, Video, Radio, Shield, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNotifications, type Notification } from '@/react-app/hooks/useNotifications';
+import type { Notification } from '@/react-app/hooks/useNotifications';
+import { useNotificationsContext } from '@/react-app/contexts/NotificationsContext';
 import { useNavigate } from 'react-router';
 import UserAvatar from '@/react-app/components/UserAvatar';
 
 interface NotificationPanelProps {
   onClose: () => void;
+  /** `mobile` = sheet above bottom nav; default = header dropdown anchor */
+  variant?: 'dropdown' | 'mobile';
 }
 
-export default function NotificationPanel({ onClose }: NotificationPanelProps) {
+export default function NotificationPanel({
+  onClose,
+  variant = 'dropdown',
+}: NotificationPanelProps) {
   const navigate = useNavigate();
   const {
     notifications,
@@ -17,8 +23,8 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
     markAllAsRead,
     loading,
     isNotificationUnread,
-  } = useNotifications();
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  } = useNotificationsContext();
+  const [filter, setFilter] = useState<'all' | 'unread'>('unread');
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -88,8 +94,13 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
       ? notifications.filter((n) => isNotificationUnread(n.is_read))
       : notifications;
 
+  const panelClass =
+    variant === 'mobile'
+      ? 'w-full glass-dropdown rounded-xl overflow-hidden shadow-xl shadow-momentum-ember/15'
+      : 'absolute top-full right-0 mt-2 w-80 sm:w-96 glass-dropdown rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-ember/15';
+
   return (
-    <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 glass-dropdown rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-ember/15">
+    <div className={panelClass} role="dialog" aria-label="Notifications">
       {/* Header */}
       <div className="p-3 sm:p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">
@@ -118,16 +129,7 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
         {/* Filters */}
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => setFilter('all')}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              filter === 'all'
-                ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10'
-            }`}
-          >
-            All
-          </button>
-          <button
+            type="button"
             onClick={() => setFilter('unread')}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               filter === 'unread'
@@ -136,6 +138,17 @@ export default function NotificationPanel({ onClose }: NotificationPanelProps) {
             }`}
           >
             Unread {unreadCount > 0 && `(${unreadCount})`}
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
+              filter === 'all'
+                ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10'
+            }`}
+          >
+            All
           </button>
           {unreadCount > 0 && (
             <button

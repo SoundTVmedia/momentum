@@ -1,8 +1,9 @@
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Home, Search, Bell, Video, LogIn } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { useNotifications } from '@/react-app/hooks/useNotifications';
+import { useNotificationsContext } from '@/react-app/contexts/NotificationsContext';
+import NotificationPanel from '@/react-app/components/NotificationPanel';
 import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
 import UserAvatar from './UserAvatar';
 import type { ExtendedMochaUser } from '@/shared/types';
@@ -25,10 +26,15 @@ export default function MobileBottomNav() {
   const { user } = useAuth();
   const extendedUser = user as ExtendedMochaUser | null;
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
-  const { unreadCount } = useNotifications();
+  const { unreadCount } = useNotificationsContext();
   const quickCapture = useQuickCaptureLauncher();
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const profilePath = user ? `/users/${user.id}` : '/auth';
+
+  useEffect(() => {
+    setShowNotifications(false);
+  }, [location.pathname]);
 
   const navItems = [
     { icon: Home, label: 'The Feed', path: '/', onClick: () => navigate('/') },
@@ -37,9 +43,16 @@ export default function MobileBottomNav() {
     {
       icon: Bell,
       label: 'Alerts',
-      path: '/notifications',
-      onClick: () => (user ? navigate('/notifications') : navigate('/auth')),
-      hasUnread: unreadCount > 0,
+      path: '__alerts__',
+      onClick: () => {
+        if (!user) {
+          navigate('/auth');
+          return;
+        }
+        setShowNotifications((open) => !open);
+      },
+      unreadCount,
+      alerts: true,
     },
     {
       label: 'Profile',
@@ -50,6 +63,9 @@ export default function MobileBottomNav() {
   ];
 
   const isActive = (path: string) => {
+    if (path === '__alerts__') {
+      return showNotifications;
+    }
     if (path === '/') {
       return location.pathname === '/';
     }
@@ -160,27 +176,33 @@ export default function MobileBottomNav() {
             }
 
             const Icon = item.icon!;
+            const unread = 'unreadCount' in item ? Number(item.unreadCount) : 0;
             const alertsLabel =
-              item.label === 'Alerts' && item.hasUnread
-                ? `${item.label}, new notifications`
+              item.label === 'Alerts' && unread > 0
+                ? `${item.label}, ${unread} unread`
                 : item.label;
             return (
               <button
                 key={item.label}
+                type="button"
                 onClick={item.onClick}
                 aria-label={alertsLabel}
                 title={alertsLabel}
+                aria-expanded={item.alerts ? showNotifications : undefined}
                 className={`flex items-center justify-center w-full h-full relative transition-all ${
                   active ? 'text-momentum-flare' : 'text-gray-400'
                 }`}
               >
                 <div className="relative">
-                  <Icon className={`w-6 h-6 transition-all ${active ? 'scale-110' : ''}`} />
-                  {item.hasUnread ? (
-                    <span
-                      className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500 ring-2 ring-black/80"
-                      aria-hidden
-                    />
+                  <Icon
+                    className={`w-6 h-6 transition-all ${
+                      active ? 'scale-110' : unread > 0 ? 'animate-pulse' : ''
+                    }`}
+                  />
+                  {unread > 0 ? (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-0.5 momentum-grad-interactive rounded-full text-white text-[10px] flex items-center justify-center font-bold shadow-lg shadow-momentum-ember/40">
+                      {unread > 9 ? '9+' : unread}
+                    </span>
                   ) : null}
                 </div>
                 {active && (
@@ -191,6 +213,25 @@ export default function MobileBottomNav() {
           })}
         </div>
       </nav>
+
+      {showNotifications && user ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[60] bg-black/50 md:hidden"
+            aria-label="Close notifications"
+            onClick={() => setShowNotifications(false)}
+          />
+          <div className="fixed left-0 right-0 bottom-16 z-[70] px-3 md:hidden pointer-events-none">
+            <div className="pointer-events-auto max-w-lg mx-auto">
+              <NotificationPanel
+                variant="mobile"
+                onClose={() => setShowNotifications(false)}
+              />
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <QuickCaptureOverlay {...quickCapture} />
     </>

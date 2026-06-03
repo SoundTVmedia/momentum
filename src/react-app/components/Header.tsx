@@ -2,7 +2,7 @@ import { Search, LogOut, Bell, Shield } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
 import { useLocation, useNavigate } from 'react-router'
-import { useNotifications } from '@/react-app/hooks/useNotifications'
+import { useNotificationsContext } from '@/react-app/contexts/NotificationsContext'
 import NotificationPanel from './NotificationPanel'
 import ClipModal from './ClipModal'
 import UserAvatar from './UserAvatar'
@@ -21,7 +21,7 @@ export default function Header() {
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null
-  const { unreadCount } = useNotifications()
+  const { unreadCount } = useNotificationsContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearchResults, setShowSearchResults] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -139,7 +139,7 @@ export default function Header() {
             </div>
 
             {user && (
-              <div className="relative">
+              <div className="relative hidden md:block">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors group"

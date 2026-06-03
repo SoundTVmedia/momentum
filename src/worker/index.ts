@@ -1488,45 +1488,15 @@ app.get("/api/notifications", authMiddleware, async (c) => {
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
 
   const rows = (notifications.results || []) as { is_read?: unknown }[];
-  const unread_count = rows.filter(
-    (r) => r.is_read === 0 || r.is_read === false || r.is_read == null,
-  ).length;
+  const unread_count = rows.filter((r) => {
+    const read = (r as { is_read?: unknown }).is_read;
+    return read === 0 || read === false || read == null;
+  }).length;
 
   return c.json({ notifications: rows, unread_count });
 });
 
-// Mark notification as read
-app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
-  const mochaUser = c.get("user");
-  
-  if (!mochaUser) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  const notificationId = c.req.param('id');
-  const uid = mochaUserIdKey(mochaUser);
-
-  await c.env.DB.prepare(
-    "UPDATE notifications SET is_read = 1 WHERE id = ? AND mocha_user_id = ?"
-  )
-    .bind(notificationId, uid)
-    .run();
-
-  const countRow = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS count FROM notifications
-     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL)
-       AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})`,
-  )
-    .bind(uid, uid)
-    .first() as { count?: number } | null;
-
-  return c.json({
-    success: true,
-    unread_count: Number(countRow?.count ?? 0),
-  });
-});
-
-// Mark all notifications as read
+// Mark all notifications as read (register before :id/read so "read-all" is not captured as an id)
 app.post("/api/notifications/read-all", authMiddleware, async (c) => {
   const mochaUser = c.get("user");
   
@@ -1538,13 +1508,53 @@ app.post("/api/notifications/read-all", authMiddleware, async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE notifications SET is_read = 1
-     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL)
+     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL OR is_read = false)
        AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})`,
   )
     .bind(uid, uid)
     .run();
 
   return c.json({ success: true, unread_count: 0 });
+});
+
+// Mark notification as read
+app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
+  const mochaUser = c.get("user");
+
+  if (!mochaUser) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const notificationId = Number.parseInt(c.req.param('id') ?? '', 10);
+  if (!Number.isFinite(notificationId) || notificationId <= 0) {
+    return c.json({ error: 'Invalid notification id' }, 400);
+  }
+
+  const uid = mochaUserIdKey(mochaUser);
+
+  const update = await c.env.DB.prepare(
+    `UPDATE notifications SET is_read = 1
+     WHERE id = ? AND mocha_user_id = ?
+       AND (is_read = 0 OR is_read IS NULL OR is_read = false)`,
+  )
+    .bind(notificationId, uid)
+    .run();
+
+  const changes = Number(update.meta?.changes ?? 0);
+
+  const countRow = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS count FROM notifications
+     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL OR is_read = false)
+       AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})`,
+  )
+    .bind(uid, uid)
+    .first() as { count?: number } | null;
+
+  return c.json({
+    success: true,
+    updated: changes > 0,
+    unread_count: Number(countRow?.count ?? 0),
+  });
 });
 
 // Search clips (optimized with better indexing and rate limiting)
