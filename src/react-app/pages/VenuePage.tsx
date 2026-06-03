@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
-import { MapPin, Calendar, Music, Loader2, UserPlus, UserCheck, Users } from 'lucide-react';
+import { MapPin, Calendar, Music, Loader2, UserPlus, UserMinus, Users } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ShowArchive from '@/react-app/components/ShowArchive';
@@ -58,7 +58,12 @@ interface RecentShow {
 export default function VenuePage() {
   const { venueName } = useParams<{ venueName: string }>();
   const navigate = useNavigate();
-  const { toggleFollow, isFollowing, isLoading: followLoading } = useFollow();
+  const {
+    toggleFollowVenue,
+    isFollowingVenue,
+    isVenueFollowLoading,
+    hydrated: followHydrated,
+  } = useFollow();
   
   const loadVenuePage = useCallback(
     async (signal: AbortSignal): Promise<VenueData> => {
@@ -353,18 +358,18 @@ export default function VenuePage() {
           {/* Sidebar */}
           <div className="space-y-6">
             <button 
-              onClick={() => venue && toggleFollow(`venue-${venue.id}`)}
-              disabled={followLoading(`venue-${venue?.id || 0}`)}
-              className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 ${
-                isFollowing(`venue-${venue?.id || 0}`)
+              onClick={() => venue && void toggleFollowVenue(venue.id)}
+              disabled={!followHydrated || !venue || isVenueFollowLoading(venue.id)}
+              className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
+                venue && isFollowingVenue(venue.id)
                   ? 'bg-white/10 border border-momentum-flare/50 text-white'
                   : 'bg-gradient-to-r from-momentum-ember to-momentum-flare text-white'
               }`}
             >
-              {isFollowing(`venue-${venue?.id || 0}`) ? (
+              {venue && isFollowingVenue(venue.id) ? (
                 <>
-                  <UserCheck className="w-5 h-5" />
-                  <span>Following</span>
+                  <UserMinus className="w-5 h-5" />
+                  <span>Unfollow Venue</span>
                 </>
               ) : (
                 <>

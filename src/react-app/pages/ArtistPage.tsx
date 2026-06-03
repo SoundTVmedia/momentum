@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
-import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserCheck, Radio, ShoppingBag, Play } from 'lucide-react';
+import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserMinus, Radio, ShoppingBag, Play } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA';
 import ArtistYouTubeSection from '@/react-app/components/ArtistYouTubeSection';
-import { useArtistFavorite } from '@/react-app/hooks/useArtistFavorite';
+import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
 import { apiArtistPath, artistPath, venuePath } from '@/shared/app-paths';
 import SectionHeading from '@/react-app/components/SectionHeading';
@@ -110,10 +110,17 @@ export default function ArtistPage() {
     validate: (payload) => Boolean(payload.artist?.name?.trim()),
   });
 
-  const { favorited, favoritedKnown, loading: favoriteLoading, toggleFavorite } = useArtistFavorite(
-    data?.artist?.id ?? 0,
-    data?.artist?.name ?? routeArtistLabel,
-  );
+  const artist = data?.artist;
+  const artistId = artist?.id ?? 0;
+  const artistName = artist?.name ?? routeArtistLabel;
+  const {
+    toggleFollowArtist,
+    isFollowingArtist,
+    isArtistFollowLoading,
+    hydrated: followHydrated,
+  } = useFollow();
+  const followingArtist = isFollowingArtist(artistId, artistName);
+  const artistFollowLoading = isArtistFollowLoading(artistId, artistName);
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
   const [previousShows, setPreviousShows] = useState<PreviousShow[]>([]);
 
@@ -497,28 +504,28 @@ export default function ArtistPage() {
           <div>
             <button
               type="button"
-              onClick={() => void toggleFavorite()}
-              disabled={!favoritedKnown || favoriteLoading}
+              onClick={() => void toggleFollowArtist(artistId, artistName)}
+              disabled={!followHydrated || artistFollowLoading || !artistName.trim()}
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
-                favorited
+                followingArtist
                   ? 'bg-white/10 border border-momentum-rose/50 text-white'
                   : 'bg-gradient-to-r from-momentum-flare to-momentum-rose text-white'
               }`}
             >
-              {favoriteLoading ? (
+              {artistFollowLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{favorited ? 'Updating…' : 'Saving…'}</span>
+                  <span>{followingArtist ? 'Updating…' : 'Saving…'}</span>
                 </>
-              ) : favorited ? (
+              ) : followingArtist ? (
                 <>
-                  <UserCheck className="w-5 h-5" />
-                  <span>Remove from Favorites</span>
+                  <UserMinus className="w-5 h-5" />
+                  <span>Unfollow Artist</span>
                 </>
               ) : (
                 <>
                   <UserPlus className="w-5 h-5" />
-                  <span>Add Artist to Favorites</span>
+                  <span>Follow Artist</span>
                 </>
               )}
             </button>

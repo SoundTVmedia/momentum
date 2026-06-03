@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Heart, Eye, Video, Users, UserPlus, UserCheck, Loader2, MapPin, Edit, Shield, Star, TrendingUp } from 'lucide-react';
+import { Heart, Eye, Video, Users, UserPlus, UserCheck, UserMinus, Loader2, MapPin, Edit, Shield, Star, TrendingUp } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import OwnProfileHub from '@/react-app/components/OwnProfileHub';
 import ClipModal from '@/react-app/components/ClipModal';
 import ProfileEditor from '@/react-app/components/ProfileEditor';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import VerificationRequest from '@/react-app/components/VerificationRequest';
+import FollowingUsersModal from '@/react-app/components/FollowingUsersModal';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
 import type { ClipWithUser, UserProfile } from '@/shared/types';
@@ -45,7 +46,7 @@ export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { toggleFollow, isFollowing, isLoading: followLoading } = useFollow();
+  const { toggleFollow, isFollowing, isLoading: followLoading, hydrated: followHydrated } = useFollow();
   const { stats: lifetimeStats } = useUserStats(userId || '');
   const [data, setData] = useState<UserProfileData | null>(null);
   const [favoriteArtists, setFavoriteArtists] = useState<FavoriteArtistWithClips[]>([]);
@@ -56,6 +57,7 @@ export default function UserProfilePage() {
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   const [showVerificationRequest, setShowVerificationRequest] = useState(false);
   const [likedClipsCount, setLikedClipsCount] = useState<number | null>(null);
+  const [showFollowingModal, setShowFollowingModal] = useState(false);
 
   const isOwnProfile = user?.id === userId;
   const quickCapture = useQuickCaptureLauncher();
@@ -100,6 +102,13 @@ export default function UserProfilePage() {
   useEffect(() => {
     fetchUserProfile();
   }, [userId]);
+
+  useEffect(() => {
+    if (!isOwnProfile) return;
+    const onFollowingChanged = () => void fetchUserProfile();
+    window.addEventListener('following-changed', onFollowingChanged);
+    return () => window.removeEventListener('following-changed', onFollowingChanged);
+  }, [isOwnProfile, userId]);
 
   useEffect(() => {
     if (!isOwnProfile || !user) {
@@ -208,7 +217,7 @@ export default function UserProfilePage() {
                   {!isOwnProfile && user && (
                     <button
                       onClick={() => userId && toggleFollow(userId)}
-                      disabled={followLoading(userId || '')}
+                      disabled={!followHydrated || followLoading(userId || '')}
                       className={`mt-4 md:mt-0 px-6 py-3 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center space-x-2 ${
                         isFollowing(userId || '')
                           ? 'bg-white/10 border border-momentum-ember/50 text-white'
@@ -217,8 +226,8 @@ export default function UserProfilePage() {
                     >
                       {isFollowing(userId || '') ? (
                         <>
-                          <UserCheck className="w-5 h-5" />
-                          <span>Following</span>
+                          <UserMinus className="w-5 h-5" />
+                          <span>Unfollow</span>
                         </>
                       ) : (
                         <>
@@ -328,13 +337,28 @@ export default function UserProfilePage() {
                 <div className="text-xs sm:text-sm text-gray-400">Followers</div>
               </div>
               
-              <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
-                <div className="flex items-center justify-center mb-1 sm:mb-2">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+              {isOwnProfile && user ? (
+                <button
+                  type="button"
+                  onClick={() => setShowFollowingModal(true)}
+                  className="glass-panel rounded-xl p-3 sm:p-4 text-center w-full hover:bg-white/5 transition-colors cursor-pointer"
+                  aria-label="View users you follow"
+                >
+                  <div className="flex items-center justify-center mb-1 sm:mb-2">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-white">{stats.following.toLocaleString()}</div>
+                  <div className="text-xs sm:text-sm text-gray-400">Following</div>
+                </button>
+              ) : (
+                <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
+                  <div className="flex items-center justify-center mb-1 sm:mb-2">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-white">{stats.following.toLocaleString()}</div>
+                  <div className="text-xs sm:text-sm text-gray-400">Following</div>
                 </div>
-                <div className="text-xl sm:text-2xl font-bold text-white">{stats.following.toLocaleString()}</div>
-                <div className="text-xs sm:text-sm text-gray-400">Following</div>
-              </div>
+              )}
             </div>
 
             {/* Lifetime Feedback stats */}
@@ -484,6 +508,13 @@ export default function UserProfilePage() {
           userRole={data.profile.role}
         />
       )}
+
+      {showFollowingModal ? (
+        <FollowingUsersModal
+          onClose={() => setShowFollowingModal(false)}
+          onFollowingChanged={() => void fetchUserProfile()}
+        />
+      ) : null}
 
       {isOwnProfile && user ? <QuickCaptureOverlay {...quickCapture} /> : null}
     </div>

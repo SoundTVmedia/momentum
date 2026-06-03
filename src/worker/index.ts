@@ -23,10 +23,6 @@ import {
   resolveOAuthCallbackUrl,
 } from "./google-oauth";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
-import {
-  getOrCreateArtistIdByName,
-  toggleArtistFollowFavorite,
-} from "./favorite-artists-sync";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
 import * as moderation from "./moderation-endpoints";
@@ -48,6 +44,7 @@ import * as ticketmaster from "./ticketmaster-endpoints";
 import * as googleMaps from "./google-maps-endpoints";
 import * as rating from "./rating-endpoints";
 import * as favorite from "./favorite-endpoints";
+import * as follow from "./follow-endpoints";
 import * as profile from "./profile-endpoints";
 import * as discoverPrioritized from "./discover-prioritized-endpoints";
 import * as deviceToken from "./device-token-endpoints";
@@ -1372,119 +1369,10 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
   return c.json(newComment, 201);
 });
 
-// Follow a user (or JamBase artist via `artist-{numericId}` — same rows as favorite / “artists you follow”)
-app.post("/api/users/:userId/follow", authMiddleware, async (c) => {
-  const mochaUser = c.get("user");
-  
-  if (!mochaUser) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  
-  const targetUserId = c.req.param('userId');
-  const uid = mochaUserIdKey(mochaUser);
-  const artistFollow = /^artist-(\d+)$/.exec(targetUserId);
-
-  let followBody: { artist_name?: string } = {};
-  try {
-    followBody = (await c.req.json()) as { artist_name?: string };
-  } catch {
-    /* empty body is fine */
-  }
-
-  if (artistFollow) {
-    let artistId = Number(artistFollow[1]);
-    if ((!Number.isInteger(artistId) || artistId <= 0) && typeof followBody.artist_name === 'string') {
-      try {
-        artistId = await getOrCreateArtistIdByName(c.env.DB, followBody.artist_name);
-      } catch (err) {
-        console.error('follow artist getOrCreateArtistIdByName:', err);
-        return c.json({ error: 'Could not resolve artist' }, 400);
-      }
-    }
-    if (!Number.isInteger(artistId) || artistId <= 0) {
-      return c.json({ error: 'Invalid artist' }, 400);
-    }
-    const artistName =
-      typeof followBody.artist_name === 'string' ? followBody.artist_name.trim() : '';
-
-    try {
-      const result = await toggleArtistFollowFavorite(
-        c.env.DB,
-        uid,
-        artistId,
-        artistName,
-      );
-      return c.json(result);
-    } catch (err) {
-      console.error('toggleArtistFollowFavorite:', err);
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg === 'Invalid artist' || msg === 'empty artist name') {
-        return c.json({ error: 'Invalid artist' }, 400);
-      }
-      return c.json({ error: 'Could not update favorite artist' }, 500);
-    }
-  }
-
-  if (targetUserId === String(mochaUser.id) || targetUserId === uid) {
-    return c.json({ error: "Cannot follow yourself" }, 400);
-  }
-
-  // Check if already following
-  const existingFollow = await c.env.DB.prepare(
-    "SELECT id FROM follows WHERE follower_id = ? AND following_id = ?"
-  )
-    .bind(uid, targetUserId)
-    .first();
-
-  if (existingFollow) {
-    // Unfollow
-    await c.env.DB.prepare(
-      "DELETE FROM follows WHERE follower_id = ? AND following_id = ?"
-    )
-      .bind(uid, targetUserId)
-      .run();
-
-    return c.json({ following: false });
-  } else {
-    // Follow
-    await c.env.DB.prepare(
-      "INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)"
-    )
-      .bind(uid, targetUserId)
-      .run();
-
-    // Create notification
-    const notificationResult = await c.env.DB.prepare(
-      `INSERT INTO notifications (mocha_user_id, type, content, related_user_id, created_at)
-       VALUES (?, 'follow', ?, ?, CURRENT_TIMESTAMP)`
-    )
-      .bind(targetUserId, 'started following you', uid)
-      .run();
-
-    // Fetch the notification to broadcast
-    const notification = await c.env.DB.prepare(
-      `SELECT 
-        notifications.*,
-        user_profiles.display_name as user_display_name,
-        user_profiles.profile_image_url as user_avatar
-      FROM notifications
-      LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
-      WHERE notifications.id = ?`
-    )
-      .bind(notificationResult.meta.last_row_id)
-      .first();
-
-    // Broadcast real-time notification
-    try {
-      const realtime = createRealtimeService(c.env);
-      await realtime.broadcastNotification(targetUserId, notification);
-    } catch (err) {
-      console.error('Failed to broadcast notification:', err);
-    }
-
-    return c.json({ following: true });
-  }
-});
+app.get("/api/users/me/following", authMiddleware, follow.getMyFollowing);
+app.get("/api/users/me/following/users", authMiddleware, follow.getMyFollowingUsers);
+app.get("/api/users/me/following/list", authMiddleware, follow.getMyFollowingList);
+app.post("/api/users/:userId/follow", authMiddleware, follow.toggleFollow);
 
 // Get user profile by ID
 app.get("/api/users/:userId", async (c) => {

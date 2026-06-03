@@ -1,80 +1,106 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
+import { apiFetch } from '@/react-app/lib/apiFetch'
 import {
-  artistFollowTarget,
+  artistFollowApiTarget,
+  artistFollowStateKeys,
   artistNameFollowKey,
   isArtistFollowTarget,
+  parseArtistIdFromFollowTarget,
 } from '@/react-app/lib/artist-follow-key'
-import { artistFollowApiTarget } from '@/react-app/lib/artist-follow-key'
 
 export type ToggleFollowOptions = {
   /** Required when following JamBase-only artists (`artist.id === 0`). */
   artistName?: string
 }
 
+export const FOLLOWING_CHANGED_EVENT = 'following-changed'
+
+function dispatchFollowingChanged(): void {
+  window.dispatchEvent(new CustomEvent(FOLLOWING_CHANGED_EVENT))
+  window.dispatchEvent(new CustomEvent('favorite-artists-changed'))
+}
+
 /**
- * Follow hook — user follows use `follows`; artist follows use `user_favorite_artists`.
+ * Follow hook — users and venues use `follows`; artists use `user_favorite_artists`.
+ * Tap again while following to unfollow (same POST toggle endpoint).
  */
 export function useFollow() {
   const { user } = useAuth()
-  const [following, setFollowing] = useState<Set<string>>(() => {
-    if (typeof window !== 'undefined' && user) {
-      try {
-        const stored = localStorage.getItem(`following_${user.id}`)
-        return stored ? new Set(JSON.parse(stored)) : new Set()
-      } catch {
-        return new Set()
-      }
-    }
-    return new Set()
-  })
+  const [following, setFollowing] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState<Set<string>>(new Set())
+  const [hydrated, setHydrated] = useState(false)
 
-  useEffect(() => {
-    if (user && following.size > 0) {
-      try {
-        localStorage.setItem(`following_${user.id}`, JSON.stringify([...following]))
-      } catch (err) {
-        console.error('Failed to persist following:', err)
-      }
-    }
-  }, [following, user])
-
-  /** Keep artist follow buttons in sync with `user_favorite_artists`. */
-  useEffect(() => {
+  const refreshFollowing = useCallback(async () => {
     if (!user) return
-    let cancelled = false
-    void (async () => {
+    try {
+      const res = await apiFetch('/api/users/me/following', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = (await res.json()) as { following_ids?: unknown }
+      const ids = Array.isArray(data.following_ids)
+        ? data.following_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : []
+      setFollowing(new Set(ids))
       try {
-        const res = await fetch('/api/users/me/favorite-artists', { credentials: 'include' })
-        if (!res.ok || cancelled) return
-        const data = (await res.json()) as {
-          artists?: { artist_id?: unknown; name?: unknown }[]
-        }
-        const rows = Array.isArray(data.artists) ? data.artists : []
-        const keys: string[] = []
-        for (const a of rows) {
-          const id =
-            typeof a.artist_id === 'number' ? a.artist_id : Number(a.artist_id)
-          if (Number.isFinite(id) && id > 0) keys.push(`artist-${id}`)
-          if (typeof a.name === 'string' && a.name.trim()) {
-            keys.push(artistNameFollowKey(a.name))
-          }
-        }
-        if (keys.length === 0) return
-        setFollowing((prev) => {
-          const next = new Set(prev)
-          for (const k of keys) next.add(k)
-          return next
-        })
+        localStorage.setItem(`following_${user.id}`, JSON.stringify(ids))
       } catch {
         /* ignore */
       }
+    } catch {
+      /* ignore */
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user) {
+      setFollowing(new Set())
+      setHydrated(false)
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      try {
+        await refreshFollowing()
+      } catch {
+        if (!cancelled) {
+          try {
+            const stored = localStorage.getItem(`following_${user.id}`)
+            if (stored) {
+              setFollowing(new Set(JSON.parse(stored) as string[]))
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      } finally {
+        if (!cancelled) setHydrated(true)
+      }
     })()
+
     return () => {
       cancelled = true
     }
-  }, [user?.id])
+  }, [user?.id, refreshFollowing])
+
+  useEffect(() => {
+    if (!user || !hydrated) return
+    try {
+      localStorage.setItem(`following_${user.id}`, JSON.stringify([...following]))
+    } catch {
+      /* ignore */
+    }
+  }, [following, user, hydrated])
+
+  useEffect(() => {
+    const onChanged = () => void refreshFollowing()
+    window.addEventListener(FOLLOWING_CHANGED_EVENT, onChanged)
+    window.addEventListener('favorite-artists-changed', onChanged)
+    return () => {
+      window.removeEventListener(FOLLOWING_CHANGED_EVENT, onChanged)
+      window.removeEventListener('favorite-artists-changed', onChanged)
+    }
+  }, [refreshFollowing])
 
   const toggleFollow = useCallback(
     async (
@@ -91,19 +117,14 @@ export function useFollow() {
       }
 
       const artistName = options?.artistName?.trim()
-      const artistKeys =
-        isArtistFollowTarget(userId) && artistName
-          ? [
-              userId,
-              artistNameFollowKey(artistName),
-              artistFollowTarget(0, artistName),
-            ]
-          : [userId]
-      const wasFollowing = artistKeys.some((k) => following.has(k))
+      const stateKeys = isArtistFollowTarget(userId)
+        ? artistFollowStateKeys(parseArtistIdFromFollowTarget(userId), artistName)
+        : [userId]
+      const wasFollowing = stateKeys.some((k) => following.has(k))
 
       setFollowing((prev) => {
         const newSet = new Set(prev)
-        for (const k of artistKeys) {
+        for (const k of stateKeys) {
           if (wasFollowing) newSet.delete(k)
           else newSet.add(k)
         }
@@ -112,34 +133,31 @@ export function useFollow() {
 
       setLoading((prev) => {
         const next = new Set(prev)
-        for (const k of artistKeys) next.add(k)
+        for (const k of stateKeys) next.add(k)
         return next
       })
 
       try {
-        const apiTarget =
-          isArtistFollowTarget(userId) && artistName
-            ? artistFollowApiTarget(
-                /^artist-(\d+)$/.exec(userId)?.[1]
-                  ? Number(/^artist-(\d+)$/.exec(userId)![1])
-                  : 0,
-              )
-            : userId
+        const apiTarget = isArtistFollowTarget(userId)
+          ? artistFollowApiTarget(parseArtistIdFromFollowTarget(userId))
+          : userId
 
         const body: { artist_name?: string } = {}
         if (isArtistFollowTarget(userId) && artistName) {
           body.artist_name = artistName
         }
 
-        const response = await fetch(`/api/users/${encodeURIComponent(apiTarget)}/follow`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
-        })
+        const response = await apiFetch(
+          `/api/users/${encodeURIComponent(apiTarget)}/follow`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
+          },
+        )
 
         if (!response.ok) {
-          throw new Error('Failed to follow')
+          throw new Error(wasFollowing ? 'Failed to unfollow' : 'Failed to follow')
         }
 
         const data = (await response.json()) as {
@@ -147,37 +165,41 @@ export function useFollow() {
           artist_id?: number
         }
         const nowFollowing = data.following ?? !wasFollowing
-        const resolvedArtistKey =
-          typeof data.artist_id === 'number' && data.artist_id > 0
-            ? `artist-${data.artist_id}`
-            : null
 
         setFollowing((prev) => {
           const next = new Set(prev)
-          for (const k of artistKeys) next.delete(k)
+          for (const k of stateKeys) next.delete(k)
           if (nowFollowing) {
-            next.add(resolvedArtistKey ?? artistFollowApiTarget(0))
-            if (artistName) next.add(artistNameFollowKey(artistName))
+            if (isArtistFollowTarget(userId)) {
+              const resolvedId =
+                typeof data.artist_id === 'number' && data.artist_id > 0
+                  ? data.artist_id
+                  : parseArtistIdFromFollowTarget(userId)
+              for (const k of artistFollowStateKeys(resolvedId, artistName)) {
+                next.add(k)
+              }
+            } else {
+              next.add(userId)
+            }
           }
           return next
         })
 
         setLoading((prev) => {
           const newSet = new Set(prev)
-          for (const k of artistKeys) newSet.delete(k)
-          if (resolvedArtistKey) newSet.delete(resolvedArtistKey)
+          for (const k of stateKeys) newSet.delete(k)
           return newSet
         })
 
-        window.dispatchEvent(new CustomEvent('favorite-artists-changed'))
+        dispatchFollowingChanged()
 
         return { success: true, following: nowFollowing }
       } catch (error) {
-        console.error('Failed to follow:', error)
+        console.error('Failed to toggle follow:', error)
 
         setFollowing((prev) => {
           const newSet = new Set(prev)
-          for (const k of artistKeys) {
+          for (const k of stateKeys) {
             if (wasFollowing) newSet.add(k)
             else newSet.delete(k)
           }
@@ -186,7 +208,7 @@ export function useFollow() {
 
         setLoading((prev) => {
           const newSet = new Set(prev)
-          for (const k of artistKeys) newSet.delete(k)
+          for (const k of stateKeys) newSet.delete(k)
           return newSet
         })
 
@@ -203,20 +225,35 @@ export function useFollow() {
     [toggleFollow],
   )
 
+  const toggleFollowVenue = useCallback(
+    (venueId: number) => {
+      return toggleFollow(`venue-${venueId}`)
+    },
+    [toggleFollow],
+  )
+
   const isFollowingArtist = useCallback(
     (artistId: number, artistName: string) => {
-      if (artistId > 0 && following.has(`artist-${artistId}`)) return true
-      return following.has(artistNameFollowKey(artistName))
+      return artistFollowStateKeys(artistId, artistName).some((k) => following.has(k))
     },
     [following],
   )
 
   const isArtistFollowLoading = useCallback(
     (artistId: number, artistName: string) => {
-      if (artistId > 0 && loading.has(`artist-${artistId}`)) return true
-      return loading.has(artistNameFollowKey(artistName))
+      return artistFollowStateKeys(artistId, artistName).some((k) => loading.has(k))
     },
     [loading],
+  )
+
+  const isFollowingVenue = useCallback(
+    (venueId: number) => following.has(`venue-${venueId}`),
+    [following],
+  )
+
+  const isVenueFollowLoading = useCallback(
+    (venueId: number) => loading.has(`venue-${venueId}`),
+    [following],
   )
 
   const isFollowing = useCallback(
@@ -226,15 +263,20 @@ export function useFollow() {
 
   const isLoading = useCallback(
     (userId: string) => loading.has(userId),
-    [loading],
+    [following],
   )
 
   return {
     toggleFollow,
     toggleFollowArtist,
+    toggleFollowVenue,
     isFollowing,
     isFollowingArtist,
+    isFollowingVenue,
     isLoading,
     isArtistFollowLoading,
+    isVenueFollowLoading,
+    hydrated,
+    refreshFollowing,
   }
 }
