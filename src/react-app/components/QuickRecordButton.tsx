@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import type { ClipShowCandidate } from '@/shared/types';
+import { resolveClipEventTitle } from '@/shared/event-title';
 import {
   identifyMusicWithAudD,
   auddSourceKey,
@@ -162,11 +163,13 @@ export default function QuickRecordButton({
   /** JamBase resolve-show preview on camera (before record). */
   const [captureResolvePreview, setCaptureResolvePreview] = useState<{
     status: 'idle' | 'loading' | 'ready' | 'none' | 'error';
+    eventTitle: string | null;
     venueName: string | null;
     artistName: string | null;
     locationLine: string | null;
   }>({
     status: 'idle',
+    eventTitle: null,
     venueName: null,
     artistName: null,
     locationLine: null,
@@ -227,6 +230,7 @@ export default function QuickRecordButton({
       captureResolveCandidateRef.current = null;
       setCaptureResolvePreview({
         status: 'idle',
+        eventTitle: null,
         venueName: null,
         artistName: null,
         locationLine: null,
@@ -242,6 +246,7 @@ export default function QuickRecordButton({
       captureResolveCandidateRef.current = null;
       setCaptureResolvePreview({
         status: 'idle',
+        eventTitle: null,
         venueName: null,
         artistName: null,
         locationLine: null,
@@ -256,6 +261,7 @@ export default function QuickRecordButton({
       captureResolveCandidateRef.current = null;
       setCaptureResolvePreview({
         status: 'loading',
+        eventTitle: null,
         venueName: null,
         artistName: null,
         locationLine: null,
@@ -277,6 +283,7 @@ export default function QuickRecordButton({
           captureResolveCandidateRef.current = null;
           setCaptureResolvePreview({
             status: 'error',
+            eventTitle: null,
             venueName: null,
             artistName: null,
             locationLine: null,
@@ -291,8 +298,14 @@ export default function QuickRecordButton({
         const cand = data.match === 'single' ? data.candidates?.[0] : undefined;
         if (cand?.venue_name?.trim()) {
           captureResolveCandidateRef.current = cand;
+          const eventTitle = resolveClipEventTitle({
+            event_title: cand.event_title,
+            artist_name: cand.artist_name,
+            venue_name: cand.venue_name,
+          });
           setCaptureResolvePreview({
             status: 'ready',
+            eventTitle,
             venueName: cand.venue_name.trim(),
             artistName: cand.artist_name?.trim() ?? null,
             locationLine: cand.location?.trim() ?? null,
@@ -301,6 +314,7 @@ export default function QuickRecordButton({
           captureResolveCandidateRef.current = null;
           setCaptureResolvePreview({
             status: 'none',
+            eventTitle: null,
             venueName: null,
             artistName: null,
             locationLine: null,
@@ -311,6 +325,7 @@ export default function QuickRecordButton({
         captureResolveCandidateRef.current = null;
         setCaptureResolvePreview({
           status: 'error',
+          eventTitle: null,
           venueName: null,
           artistName: null,
           locationLine: null,
@@ -1561,10 +1576,34 @@ export default function QuickRecordButton({
                           )}
                           {captureResolvePreview.status === 'ready' && (
                             <>
-                              <p className="text-white text-xs font-semibold leading-snug truncate">
-                                {captureResolvePreview.venueName}
-                              </p>
-                              {captureResolvePreview.artistName ? (
+                              {captureResolvePreview.eventTitle ? (
+                                <p className="text-white text-sm font-bold leading-snug line-clamp-2">
+                                  {captureResolvePreview.eventTitle}
+                                </p>
+                              ) : captureResolvePreview.venueName ? (
+                                <p className="text-white text-xs font-semibold leading-snug truncate">
+                                  {captureResolvePreview.venueName}
+                                </p>
+                              ) : null}
+                              {captureResolvePreview.venueName &&
+                              captureResolvePreview.eventTitle &&
+                              !captureResolvePreview.eventTitle
+                                .toLowerCase()
+                                .includes(captureResolvePreview.venueName.toLowerCase()) ? (
+                                <p className="text-gray-300 text-[11px] leading-snug truncate">
+                                  {captureResolvePreview.venueName}
+                                </p>
+                              ) : null}
+                              {captureResolvePreview.artistName &&
+                              captureResolvePreview.eventTitle &&
+                              !captureResolvePreview.eventTitle
+                                .toLowerCase()
+                                .includes(captureResolvePreview.artistName.toLowerCase()) ? (
+                                <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
+                                  <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
+                                  <span>{captureResolvePreview.artistName}</span>
+                                </p>
+                              ) : captureResolvePreview.artistName && !captureResolvePreview.eventTitle ? (
                                 <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
                                   <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
                                   <span>{captureResolvePreview.artistName}</span>

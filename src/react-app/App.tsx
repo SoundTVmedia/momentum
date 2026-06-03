@@ -19,6 +19,7 @@ import UserProfilePage from "@/react-app/pages/UserProfile";
 import DiscoverPage from "@/react-app/pages/Discover";
 import AnalyticsPage from "@/react-app/pages/Analytics";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
+import EventClipsPage from "@/react-app/pages/EventClips";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="/songs/:songSlug" element={<GlobalSongPage />} />
               <Route path="/genres/:genreSlug" element={<GenrePage />} />
               <Route path="/artists/:artistName/shows/:showId/clips" element={<ShowClipsPage />} />
+              <Route path="/events/clips/:eventTitle" element={<EventClipsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

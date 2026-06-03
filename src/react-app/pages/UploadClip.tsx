@@ -40,6 +40,7 @@ import {
   type LiveSongSnapshot,
 } from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
+import { resolveClipEventTitle } from '@/shared/event-title';
 
 import { buildHashtagsArrayForPost } from '@/shared/clip-hashtags';
 import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
@@ -317,15 +318,37 @@ export default function UploadClip() {
           event: showData.jambase_event_id,
           artist: typeof showData.jambase_artist_id === 'string' ? showData.jambase_artist_id : null,
           venue: typeof showData.jambase_venue_id === 'string' ? showData.jambase_venue_id : null,
-          eventTitle: typeof showData.event_title === 'string' ? showData.event_title : null,
+          eventTitle: resolveClipEventTitle({
+            event_title: typeof showData.event_title === 'string' ? showData.event_title : null,
+            artist_name: typeof showData.artist_name === 'string' ? showData.artist_name : null,
+            venue_name: typeof showData.venue_name === 'string' ? showData.venue_name : null,
+          }),
         });
       } else if (typeof showData.jambase_venue_id === 'string') {
         setJambaseLink({
           event: null,
           artist: typeof showData.jambase_artist_id === 'string' ? showData.jambase_artist_id : null,
           venue: showData.jambase_venue_id,
-          eventTitle: typeof showData.event_title === 'string' ? showData.event_title : null,
+          eventTitle: resolveClipEventTitle({
+            event_title: typeof showData.event_title === 'string' ? showData.event_title : null,
+            artist_name: typeof showData.artist_name === 'string' ? showData.artist_name : null,
+            venue_name: typeof showData.venue_name === 'string' ? showData.venue_name : null,
+          }),
         });
+      } else {
+        const eventTitleFromShow = resolveClipEventTitle({
+          event_title: typeof showData.event_title === 'string' ? showData.event_title : null,
+          artist_name: typeof showData.artist_name === 'string' ? showData.artist_name : null,
+          venue_name: typeof showData.venue_name === 'string' ? showData.venue_name : null,
+        });
+        if (eventTitleFromShow) {
+          setJambaseLink({
+            event: null,
+            artist: null,
+            venue: null,
+            eventTitle: eventTitleFromShow,
+          });
+        }
       }
       setResolveNotice(null);
     }
@@ -495,7 +518,11 @@ export default function UploadClip() {
       event: c.jambase_event_id ?? null,
       artist: c.jambase_artist_id,
       venue: c.jambase_venue_id,
-      eventTitle: c.event_title ?? null,
+      eventTitle: resolveClipEventTitle({
+        event_title: c.event_title,
+        artist_name: c.artist_name,
+        venue_name: c.venue_name,
+      }),
     });
     captionCommittedArtistNameRef.current = c.artist_name ?? '';
     setResolveNotice(null);
@@ -1103,7 +1130,13 @@ export default function UploadClip() {
         jambase_event_id: jambaseLink?.event ?? undefined,
         jambase_artist_id: jambaseLink?.artist ?? undefined,
         jambase_venue_id: jambaseLink?.venue ?? undefined,
-        event_title: jambaseLink?.eventTitle ?? undefined,
+        event_title:
+          jambaseLink?.eventTitle ??
+          resolveClipEventTitle({
+            artist_name: formData.artist_name,
+            venue_name: formData.venue_name,
+          }) ??
+          undefined,
         geolocation_latitude: captureGeo?.latitude,
         geolocation_longitude: captureGeo?.longitude,
         // Include video metadata if available (orientation and resolution)
@@ -1343,6 +1376,11 @@ export default function UploadClip() {
       day: 'numeric',
       year: 'numeric',
     });
+    const captionEventTitle = resolveClipEventTitle({
+      event_title: jambaseLink?.eventTitle,
+      artist_name: formData.artist_name,
+      venue_name: formData.venue_name,
+    });
 
     return (
       <div className="min-h-screen text-white">
@@ -1477,12 +1515,19 @@ export default function UploadClip() {
                 </div>
               )}
 
-              {/* Venue & location (auto from capture / JamBase; editable via Change Artist/Venue) */}
-              <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-2">
+              {/* Event, venue & location (auto from capture / JamBase) */}
+              <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-momentum-flare/90">
-                  Venue and location
+                  Show
                 </div>
-                <div className="flex items-start gap-2 text-white">
+                {captionEventTitle ? (
+                  <p className="text-lg sm:text-xl font-bold text-white leading-snug">{captionEventTitle}</p>
+                ) : (
+                  <p className="text-sm text-gray-400">
+                    Event title will appear when we match your recording to a nearby show.
+                  </p>
+                )}
+                <div className="flex items-start gap-2 text-white border-t border-white/10 pt-3">
                   <MapPin className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <p className="font-medium truncate">{formData.venue_name || 'Venue not set yet'}</p>
@@ -1491,6 +1536,12 @@ export default function UploadClip() {
                     </p>
                   </div>
                 </div>
+                {formData.artist_name ? (
+                  <div className="flex items-center gap-2 text-gray-300 text-sm">
+                    <Music className="w-4 h-4 text-momentum-rose shrink-0" />
+                    <span>{formData.artist_name}</span>
+                  </div>
+                ) : null}
                 <p className="text-xs text-gray-500">
                   Filled automatically when we match your recording to a nearby venue. Use &quot;Change Artist/Venue&quot;
                   below to edit.
@@ -1735,6 +1786,9 @@ export default function UploadClip() {
                 ) : (
                   /* Tag Display */
                   <div className="bg-white/5 rounded-lg p-4 space-y-2">
+                    {captionEventTitle ? (
+                      <p className="text-base font-bold text-white leading-snug">{captionEventTitle}</p>
+                    ) : null}
                     <div className="flex items-center space-x-2 text-gray-300">
                       <Music className="w-4 h-4 text-momentum-rose" />
                       <span className="text-sm">{formData.artist_name || 'Artist not set'}</span>

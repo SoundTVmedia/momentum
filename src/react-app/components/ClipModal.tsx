@@ -37,7 +37,7 @@ import ClipModalBuyTickets from './ClipModalBuyTickets';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, genrePath, globalSongPath, songPath, venuePath } from '@/shared/app-paths';
+import { artistPath, eventClipsPath, genrePath, globalSongPath, songPath, venuePath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
@@ -298,6 +298,12 @@ export default function ClipModal({
     venue_name: clip.venue_name,
   });
 
+  const goEvent = () => {
+    onClose();
+    if (!eventTitle) return;
+    navigate(eventClipsPath(eventTitle));
+  };
+
   const mobileVideoOverlay = (
     <>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-16 pt-3">
@@ -364,13 +370,17 @@ export default function ClipModal({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-4 pt-20">
         <div className="pointer-events-auto pr-14">
           {eventTitle ? (
-            <p className="text-base font-semibold text-white leading-snug line-clamp-2 mb-1">
-              {eventTitle}
-            </p>
+            <button
+              type="button"
+              onClick={goEvent}
+              className="block max-w-full text-left transition-opacity hover:opacity-80 mb-2"
+            >
+              <p className="text-xl sm:text-2xl font-bold text-white leading-snug line-clamp-3">{eventTitle}</p>
+            </button>
           ) : null}
           {clip.artist_name ? (
             <button type="button" onClick={goArtist} className="block max-w-full text-left">
-              <p className="fb-clip-artist-name text-lg">{clip.artist_name}</p>
+              <p className="fb-clip-artist-name text-base font-semibold">{clip.artist_name}</p>
             </button>
           ) : null}
           {clip.song_title?.trim() ? (
@@ -649,10 +659,14 @@ export default function ClipModal({
 
               <div className="space-y-2">
                 {eventTitle ? (
-                  <div className="flex min-w-0 items-start space-x-2">
-                    <Calendar className="h-4 w-4 shrink-0 text-momentum-flare mt-0.5" />
-                    <span className="text-base font-semibold text-white leading-snug">{eventTitle}</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={goEvent}
+                    className="flex min-w-0 w-full items-start space-x-2 text-left transition-opacity hover:opacity-80 mb-1"
+                  >
+                    <Calendar className="h-5 w-5 shrink-0 text-momentum-flare mt-0.5" />
+                    <span className="text-xl font-bold text-white leading-snug">{eventTitle}</span>
+                  </button>
                 ) : null}
                 {clip.artist_name ? (
                   <button
@@ -661,7 +675,7 @@ export default function ClipModal({
                     className="flex min-w-0 items-center space-x-2 transition-opacity hover:opacity-80"
                   >
                     <Music className="h-4 w-4 shrink-0 text-momentum-rose" />
-                    <span className="truncate text-base font-bold text-white">{clip.artist_name}</span>
+                    <span className="truncate text-sm font-bold text-white">{clip.artist_name}</span>
                   </button>
                 ) : null}
                 {clip.song_title?.trim() ? (
@@ -694,8 +708,8 @@ export default function ClipModal({
                     onClick={goVenue}
                     className="flex min-w-0 items-center space-x-2 transition-opacity hover:opacity-80"
                   >
-                    <Calendar className="h-4 w-4 shrink-0 text-momentum-flare" />
-                    <span className="truncate text-base text-gray-300">{clip.venue_name}</span>
+                    <MapPin className="h-4 w-4 shrink-0 text-momentum-ember" />
+                    <span className="truncate text-sm text-gray-300">{clip.venue_name}</span>
                   </button>
                 ) : null}
                 {clip.location ? (

@@ -46,6 +46,19 @@ export function apiShowClipsPath(
   return `/api/artists/${artistSlug}/shows/${encodeURIComponent(id)}/clips`;
 }
 
+/** All clips sharing the same JamBase-style event title. */
+export function eventClipsPath(eventTitle: string | null | undefined): string {
+  const title = typeof eventTitle === 'string' ? eventTitle.trim() : '';
+  if (!title) return '/';
+  return `/events/clips/${encodeURIComponent(title)}`;
+}
+
+export function apiEventClipsPath(eventTitle: string | null | undefined): string {
+  const title = typeof eventTitle === 'string' ? eventTitle.trim() : '';
+  if (!title) return '';
+  return `/api/event-clips/${encodeURIComponent(title)}/clips`;
+}
+
 export function songPath(
   artistName: string | null | undefined,
   songSlug: string | null | undefined,

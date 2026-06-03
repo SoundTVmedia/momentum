@@ -1,4 +1,5 @@
 import { buildHashtagsArrayForPost } from '@/shared/clip-hashtags';
+import { resolveClipEventTitle } from '@/shared/event-title';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 
 export type ClipUploadFormFields = {
@@ -143,7 +144,13 @@ export async function processClipUpload(
     jambase_event_id: payload.jambaseLink?.event ?? undefined,
     jambase_artist_id: payload.jambaseLink?.artist ?? undefined,
     jambase_venue_id: payload.jambaseLink?.venue ?? undefined,
-    event_title: payload.jambaseLink?.eventTitle ?? undefined,
+    event_title:
+      payload.jambaseLink?.eventTitle ??
+      resolveClipEventTitle({
+        artist_name: form.artist_name,
+        venue_name: form.venue_name,
+      }) ??
+      undefined,
     geolocation_latitude: payload.captureGeo?.latitude,
     geolocation_longitude: payload.captureGeo?.longitude,
     recording_orientation: payload.videoMetadata.recording_orientation || null,

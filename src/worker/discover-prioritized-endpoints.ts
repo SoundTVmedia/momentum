@@ -550,6 +550,77 @@ export async function getShowClips(c: Context) {
 }
 
 /**
+ * Get clips for a specific event title (JamBase name or "{artist} at {venue}").
+ */
+export async function getEventClips(c: Context) {
+  const titleParam = c.req.param('eventTitle');
+  if (titleParam === undefined) {
+    return c.json({ error: 'eventTitle is required' }, 400);
+  }
+
+  let eventTitle: string;
+  try {
+    eventTitle = decodeURIComponent(titleParam).trim();
+  } catch {
+    eventTitle = titleParam.trim();
+  }
+
+  if (!eventTitle) {
+    return c.json({ error: 'eventTitle is required' }, 400);
+  }
+
+  const sortBy = c.req.query('sort_by') || 'time_posted';
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50);
+  const offset = (page - 1) * limit;
+
+  try {
+    let query = `
+      SELECT
+        clips.*,
+        user_profiles.display_name as user_display_name,
+        user_profiles.profile_image_url as user_avatar
+      FROM clips
+      LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+      WHERE clips.event_title = ?
+      AND clips.is_hidden = 0
+      AND clips.is_draft = 0
+    `;
+
+    const bindings: unknown[] = [eventTitle];
+
+    switch (sortBy) {
+      case 'most_liked':
+      case 'clip_rating':
+        query += ' ORDER BY clips.likes_count DESC, clips.created_at DESC';
+        break;
+      case 'time_posted':
+      default:
+        query += ' ORDER BY clips.created_at ASC';
+        break;
+    }
+
+    query += ' LIMIT ? OFFSET ?';
+    bindings.push(String(limit), String(offset));
+
+    const clips = await c.env.DB.prepare(query)
+      .bind(...bindings)
+      .all();
+
+    return c.json({
+      clips: clips.results || [],
+      event_title: eventTitle,
+      page,
+      limit,
+      hasMore: (clips.results || []).length === limit,
+    });
+  } catch (error) {
+    console.error('Get event clips error:', error);
+    return c.json({ error: 'Failed to get event clips' }, 500);
+  }
+}
+
+/**
  * Get venue archive (past shows)
  */
 export async function getVenueArchive(c: Context) {

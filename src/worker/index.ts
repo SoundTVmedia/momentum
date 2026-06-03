@@ -3084,6 +3084,7 @@ app.get("/api/artists/:artistName/songs/:songSlug", buildSongPagePayload);
 app.get("/api/songs/:songSlug", buildGlobalSongPagePayload);
 app.get("/api/genres/:genreSlug", buildGenrePagePayload);
 app.get("/api/artists/:artistName/shows/:showId/clips", discoverPrioritized.getShowClips);
+app.get("/api/event-clips/:eventTitle/clips", discoverPrioritized.getEventClips);
 app.get("/api/venues/:venueName/archive", discoverPrioritized.getVenueArchive);
 
 // Artist Live Status

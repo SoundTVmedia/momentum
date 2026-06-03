@@ -569,12 +569,26 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
     typeof row.jambase_event_id === 'string' ? row.jambase_event_id.trim() : '';
   const venueName = typeof row.venue_name === 'string' ? row.venue_name.trim() : '';
   const timestamp = typeof row.timestamp === 'string' ? row.timestamp.trim() : '';
+  const eventTitle = typeof row.event_title === 'string' ? row.event_title.trim() : '';
 
   type Scope = 'show' | 'artist';
   let scope: Scope = 'artist';
   let results: { results?: unknown[] } = { results: [] };
 
-  if (showId && artistName) {
+  if (eventTitle) {
+    scope = 'show';
+    results = await c.env.DB.prepare(
+      `${CLIP_WITH_USER_SELECT}
+       ${CLIP_WITH_USER_FROM}
+       WHERE clips.is_hidden = 0
+       AND clips.is_draft = 0
+       AND clips.event_title = ?
+       ORDER BY clips.created_at ASC
+       LIMIT 50`,
+    )
+      .bind(eventTitle)
+      .all();
+  } else if (showId && artistName) {
     scope = 'show';
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
