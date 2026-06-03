@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useCallback } from 'react';
+import { useParams } from 'react-router';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import { MapPin, Calendar, Music, Loader2, UserPlus, UserMinus, Users } from 'lucide-react';
@@ -10,10 +10,9 @@ import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
-import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { HOME_FEED_SECTION_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { venueUpcomingCarouselProps } from '@/react-app/lib/venue-upcoming-events';
-import { apiArtistPath, apiVenuePath, artistPath } from '@/shared/app-paths';
+import { apiVenuePath } from '@/shared/app-paths';
 
 interface Venue {
   id: number;
@@ -48,16 +47,8 @@ interface VenueData {
   jambase_attribution?: boolean;
 }
 
-interface RecentShow {
-  show_id: string;
-  artist_name: string;
-  show_date: string;
-  clips: ClipWithUser[];
-}
-
 export default function VenuePage() {
   const { venueName } = useParams<{ venueName: string }>();
-  const navigate = useNavigate();
   const {
     toggleFollowVenue,
     isFollowingVenue,
@@ -90,80 +81,6 @@ export default function VenuePage() {
     load: loadVenuePage,
     validate: (payload) => Boolean(payload.venue?.name?.trim()),
   });
-
-  const [recentShow, setRecentShow] = useState<RecentShow | null>(null);
-
-  useEffect(() => {
-    if (!venueName || !data?.venue?.name) {
-      setRecentShow(null);
-      return;
-    }
-
-    const ac = new AbortController();
-
-    void (async () => {
-      try {
-        const response = await fetch(
-          `${apiVenuePath(venueName)}/archive?sort_by=date_played&limit=1`,
-          { signal: ac.signal },
-        );
-
-        if (!response.ok) {
-          setRecentShow(null);
-          return;
-        }
-
-        const archiveData = (await response.json()) as { shows?: RecentShow[] };
-        const shows = archiveData.shows ?? [];
-
-        if (shows.length === 0) {
-          setRecentShow(null);
-          return;
-        }
-
-        const mostRecentShow = shows[0] as RecentShow & {
-          show_id: string;
-          artist_name: string;
-          show_date: string;
-        };
-
-        const clipsResponse = await fetch(
-          `${apiArtistPath(mostRecentShow.artist_name)}/shows/${mostRecentShow.show_id}/clips?limit=6`,
-          { signal: ac.signal },
-        );
-
-        if (clipsResponse.ok) {
-          const clipsData = (await clipsResponse.json()) as { clips?: ClipWithUser[] };
-          setRecentShow({
-            show_id: mostRecentShow.show_id,
-            artist_name: mostRecentShow.artist_name,
-            show_date: mostRecentShow.show_date,
-            clips: clipsData.clips ?? [],
-          });
-        } else {
-          setRecentShow(null);
-        }
-      } catch (err) {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          console.error('Failed to fetch recent show:', err);
-        }
-      }
-    })();
-
-    return () => ac.abort();
-  }, [venueName, data?.venue?.name]);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short',
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
-  };
 
   if (loading || !data?.venue) {
     return (
@@ -264,6 +181,8 @@ export default function VenuePage() {
               )}
             </div>
 
+            <ShowArchive venueName={venue.name} />
+
             <section className={HOME_FEED_SECTION_CLASS}>
               <SectionHeading
                 title="Upcoming shows"
@@ -300,59 +219,6 @@ export default function VenuePage() {
                 </p>
               ) : null}
             </section>
-
-            {/* Previous Shows at [Venue Name] Section */}
-            {recentShow && recentShow.clips.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-bold text-white flex items-center space-x-2">
-                    <Calendar className="w-6 h-6 text-momentum-rose" />
-                    <span>Previous Shows at {venue.name}</span>
-                  </h3>
-                </div>
-
-                <div className="glass-panel border border-momentum-rose/20 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="text-xl font-bold text-white">{recentShow.artist_name}</h4>
-                      <p className="text-gray-400 text-sm">{formatDate(recentShow.show_date)}</p>
-                    </div>
-                    <button
-                      onClick={() => navigate(`${artistPath(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
-                      className="px-4 py-2 bg-gradient-to-r from-momentum-flare to-momentum-rose rounded-lg text-white text-sm font-medium hover:scale-105 transition-transform"
-                    >
-                      View Full Show
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    {recentShow.clips.map((clip, index) => (
-                      <button
-                        key={clipListItemKey(clip, index)}
-                        onClick={() => navigate(`${artistPath(recentShow.artist_name)}/shows/${recentShow.show_id}/clips`)}
-                        className="relative aspect-video rounded-lg overflow-hidden group"
-                      >
-                        <img
-                          src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=200&h=150&fit=crop'}
-                          alt="Show moment"
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                            <div className="w-0 h-0 border-l-[10px] border-l-white border-y-[8px] border-y-transparent ml-0.5"></div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Full Show Archive */}
-            <div >
-              <ShowArchive venueName={venue.name} />
-            </div>
           </div>
 
           {/* Sidebar */}

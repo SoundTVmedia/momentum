@@ -25,6 +25,27 @@ export function apiVenuePath(name: string | null | undefined): string {
   return slug ? `/api/venues/${slug}` : '/api/venues';
 }
 
+/** Clips from a specific show (artist + show_id from JamBase or composite slug). */
+export function showClipsPath(
+  artistName: string | null | undefined,
+  showId: string | null | undefined,
+): string {
+  const artistSlug = slugifyEntityName(artistName);
+  const id = typeof showId === 'string' ? showId.trim() : '';
+  if (!artistSlug || !id) return artistPath(artistName);
+  return `/artists/${artistSlug}/shows/${encodeURIComponent(id)}/clips`;
+}
+
+export function apiShowClipsPath(
+  artistName: string | null | undefined,
+  showId: string | null | undefined,
+): string {
+  const artistSlug = slugifyEntityName(artistName);
+  const id = typeof showId === 'string' ? showId.trim() : '';
+  if (!artistSlug || !id) return '';
+  return `/api/artists/${artistSlug}/shows/${encodeURIComponent(id)}/clips`;
+}
+
 export function songPath(
   artistName: string | null | undefined,
   songSlug: string | null | undefined,

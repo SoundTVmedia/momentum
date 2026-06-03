@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
+import PastShowsGrid, { type PastShowSummary } from '@/react-app/components/PastShowsGrid';
 import { Music, MapPin, Calendar, Ticket, Loader2, ExternalLink, UserPlus, UserMinus, Radio, ShoppingBag, Play } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
@@ -67,14 +68,8 @@ interface LiveShow {
   thumbnail_url: string;
 }
 
-interface PreviousShow {
-  show_id: string;
-  artist_name: string;
-  show_date: string;
+interface PreviousShow extends PastShowSummary {
   venue_name: string;
-  clip_count: number;
-  average_show_rating: number;
-  thumbnail_url: string;
 }
 
 export default function ArtistPage() {
@@ -122,15 +117,18 @@ export default function ArtistPage() {
   const artistFollowLoading = isArtistFollowLoading(followArtistId, followArtistName);
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
   const [previousShows, setPreviousShows] = useState<PreviousShow[]>([]);
+  const [previousShowsLoading, setPreviousShowsLoading] = useState(false);
 
   useEffect(() => {
     if (!artistNameParam || !data?.artist?.name) {
       setLiveShow(null);
       setPreviousShows([]);
+      setPreviousShowsLoading(false);
       return;
     }
 
     const ac = new AbortController();
+    setPreviousShowsLoading(true);
 
     void (async () => {
       try {
@@ -164,21 +162,15 @@ export default function ArtistPage() {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
           console.error('Failed to fetch previous shows:', err);
         }
+      } finally {
+        if (!ac.signal.aborted) setPreviousShowsLoading(false);
       }
     })();
 
     return () => ac.abort();
   }, [artistNameParam, data?.artist?.name]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short',
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
+  const showPastShowsSection = previousShowsLoading || previousShows.length > 0;
 
   if (loading || !data?.artist) {
     return (
@@ -298,6 +290,25 @@ export default function ArtistPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {showPastShowsSection && (
+          <section className="mb-10">
+            <SectionHeading
+              title="Past Shows"
+              subtitle="Tap a show to browse all clips from that night"
+              icon={Calendar}
+              iconClassName="text-momentum-rose"
+              size="page"
+            />
+            {previousShowsLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
+              </div>
+            ) : (
+              <PastShowsGrid shows={previousShows} variant="artist" />
+            )}
+          </section>
+        )}
+
         <div className="mb-8">
           <SectionHeading
             title="Latest Concert Moments"
@@ -379,54 +390,6 @@ export default function ArtistPage() {
         <div className="mb-8">
           <NearbyShowsCTA artistName={artist.name} variant="banner" maxShows={1} />
         </div>
-
-        {/* Previous Shows Section */}
-        {previousShows.length > 0 && (
-          <div className="mb-8">
-            <SectionHeading
-              title="Previous Shows on Tour"
-              subtitle="Past shows with clips on Feedback"
-              icon={Calendar}
-              iconClassName="text-momentum-rose"
-              size="page"
-            />
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {previousShows.map((show) => (
-                <button
-                  key={show.show_id}
-                  onClick={() => navigate(`${artistPath(show.artist_name)}/shows/${show.show_id}/clips`)}
-                  className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all group"
-                >
-                  <div className="relative aspect-video">
-                    <img
-                      src={show.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
-                      alt={`${show.venue_name} - ${formatDate(show.show_date)}`}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                    {/* Play overlay — hidden on fine-pointer desktop */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity [@media(hover:hover)_and_(pointer:fine)]:hidden">
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-lg rounded-full flex items-center justify-center">
-                        <Play className="w-6 h-6 text-white fill-white ml-0.5" />
-                      </div>
-                    </div>
-
-                    {/* Clip count */}
-                    <div className="absolute bottom-2 left-2 flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
-                      <Music className="w-3 h-3 text-white" />
-                      <span className="text-white text-xs font-medium">{show.clip_count}</span>
-                    </div>
-                  </div>
-
-                  <div className="p-3">
-                    <h4 className="text-white font-bold text-sm mb-1 line-clamp-1">{show.venue_name}</h4>
-                    <p className="text-gray-400 text-xs">{formatDate(show.show_date)}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <section className={`${HOME_FEED_SECTION_CLASS} w-full`}>
           <SectionHeading

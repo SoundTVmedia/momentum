@@ -5,11 +5,15 @@ import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { apiArtistPath, artistPath } from '@/shared/app-paths';
+import { apiShowClipsPath, artistPath, venuePath } from '@/shared/app-paths';
+import { searchPhraseFromSlug, normalizedSlugFromRouteParam, titleCaseWords } from '@/shared/jambase-slug';
 
 export default function ShowClipsPage() {
   const { artistName, showId } = useParams<{ artistName: string; showId: string }>();
   const navigate = useNavigate();
+  const artistLabel = artistName
+    ? titleCaseWords(searchPhraseFromSlug(normalizedSlugFromRouteParam(artistName)))
+    : '';
   const [clips, setClips] = useState<ClipWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'time_posted' | 'most_liked'>('time_posted');
@@ -25,9 +29,7 @@ export default function ShowClipsPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `${apiArtistPath(artistName)}/shows/${showId}/clips?sort_by=${sortBy}`
-      );
+      const response = await fetch(`${apiShowClipsPath(artistName, showId)}?sort_by=${sortBy}`);
       if (response.ok) {
         const data = await response.json();
         setClips(data.clips || []);
@@ -62,13 +64,13 @@ export default function ShowClipsPage() {
           className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors mb-6"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to {decodeURIComponent(artistName || '')}</span>
+          <span>Back to {artistLabel || 'artist'}</span>
         </button>
 
         {/* Show Header */}
         <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-8">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
-            {decodeURIComponent(artistName || '')}
+            {artistLabel || artistName}
           </h1>
           
           <div className="flex flex-wrap gap-4 text-gray-300 mb-4">
@@ -79,11 +81,15 @@ export default function ShowClipsPage() {
               </div>
             )}
             {venueName && (
-              <div className="flex items-center space-x-2">
-                <MapPin className="w-5 h-5 text-momentum-ember" />
+              <button
+                type="button"
+                onClick={() => navigate(venuePath(venueName))}
+                className="flex items-center space-x-2 hover:text-white transition-colors text-left"
+              >
+                <MapPin className="w-5 h-5 text-momentum-ember shrink-0" />
                 <span>{venueName}</span>
                 {location && <span className="text-gray-500">• {location}</span>}
-              </div>
+              </button>
             )}
           </div>
 
