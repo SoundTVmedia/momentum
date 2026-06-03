@@ -6,6 +6,7 @@ import {
   genreFieldsFromBody,
   songFieldsFromBody,
 } from './clip-tag-fields';
+import { computeShowId } from '../shared/show-id';
 import { createRealtimeService } from './realtime-service';
 
 /** Resolve clip id from route params (Hono), query string, or URL path (fallback for some dev/proxy setups). */
@@ -420,6 +421,23 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const { genre_name, genre_slug } = genreFieldsFromBody(body);
   const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
 
+  const existingRow = existing as Record<string, unknown>;
+  const resolvedArtist =
+    artist_name ??
+    (typeof existingRow.artist_name === 'string' ? existingRow.artist_name : null);
+  const resolvedVenue =
+    venue_name ??
+    (typeof existingRow.venue_name === 'string' ? existingRow.venue_name : null);
+  const resolvedTimestamp =
+    typeof existingRow.timestamp === 'string' ? existingRow.timestamp : null;
+  const showId = computeShowId({
+    jambase_event_id:
+      typeof existingRow.jambase_event_id === 'string' ? existingRow.jambase_event_id : null,
+    artist_name: resolvedArtist,
+    venue_name: resolvedVenue,
+    timestamp: resolvedTimestamp,
+  });
+
   await c.env.DB.prepare(
     `UPDATE clips SET
       artist_name = ?,
@@ -431,6 +449,7 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       song_slug = ?,
       genre_name = ?,
       genre_slug = ?,
+      show_id = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?`
   )
@@ -444,6 +463,7 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       song_slug,
       genre_name,
       genre_slug,
+      showId,
       canonicalId,
     )
     .run();

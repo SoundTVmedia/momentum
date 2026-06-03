@@ -80,6 +80,9 @@ async function performanceOptimizations(env: Env): Promise<void> {
     // Clean up old clip shares (older than 90 days)
     await cleanupOldShares(env);
 
+    const { backfillClipShowIds } = await import('./show-id-backfill');
+    await backfillClipShowIds(env);
+
     console.log('Performance optimization tasks completed');
   } catch (error) {
     console.error('Error in performance optimization tasks:', error);
