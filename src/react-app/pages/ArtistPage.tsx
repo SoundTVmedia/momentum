@@ -11,7 +11,7 @@ import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA';
 import ArtistYouTubeSection from '@/react-app/components/ArtistYouTubeSection';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
-import { apiArtistPath, artistPath, venuePath } from '@/shared/app-paths';
+import { apiArtistPath, venuePath } from '@/shared/app-paths';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_SECTION_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
