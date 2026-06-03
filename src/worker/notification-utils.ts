@@ -167,3 +167,18 @@ export function notificationRecipientKeys(user: { id: unknown }): string[] {
 export function notificationRecipientPlaceholders(count: number): string {
   return Array.from({ length: Math.max(1, count) }, () => '?').join(', ');
 }
+
+/** SQL fragment: likes/comments/follows + clip posts only from users the viewer follows. */
+export const NOTIFICATIONS_LIST_FILTER_SQL = `
+  notifications.type NOT IN ('favorite_artist')
+  AND (
+    notifications.type != 'clip'
+    OR notifications.related_user_id IN (
+      SELECT following_id FROM follows
+      WHERE follower_id = ?
+        AND following_id NOT LIKE 'venue-%'
+        AND following_id NOT LIKE 'artist-%'
+        AND following_id NOT LIKE 'artist-name:%'
+    )
+  )
+`;

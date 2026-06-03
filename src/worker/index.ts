@@ -25,8 +25,10 @@ import {
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import {
   isSameMochaUser,
+  NOTIFICATIONS_LIST_FILTER_SQL,
   notificationRecipientKeys,
   notificationRecipientPlaceholders,
+  notifyFollowers,
   notifyUser,
 } from "./notification-utils";
 import { getCookie, setCookie } from "hono/cookie";
@@ -867,6 +869,22 @@ app.post("/api/clips", authMiddleware, async (c) => {
       console.error('Failed to broadcast feed update:', err);
     }
 
+    const publishedClipId =
+      parseD1LastRowId((newClip as { id?: unknown } | null)?.id) ??
+      parseD1LastRowId(result.meta.last_row_id);
+
+    if (publishedClipId != null && (status || 'published') !== 'draft') {
+      try {
+        await notifyFollowers(c.env, mochaUser, {
+          type: 'clip',
+          content: 'posted a new clip',
+          related_clip_id: publishedClipId,
+        });
+      } catch (err) {
+        console.error('Failed to notify followers of new clip:', err);
+      }
+    }
+
     return c.json(newClip, 201);
   } catch (err) {
     console.error('POST /api/clips:', err);
@@ -1461,6 +1479,7 @@ app.get("/api/notifications", authMiddleware, async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
   const recipientKeys = notificationRecipientKeys(mochaUser);
   const inList = notificationRecipientPlaceholders(recipientKeys.length);
 
@@ -1473,10 +1492,11 @@ app.get("/api/notifications", authMiddleware, async (c) => {
     FROM notifications
     LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
     WHERE notifications.mocha_user_id IN (${inList})
+      AND (${NOTIFICATIONS_LIST_FILTER_SQL})
     ORDER BY notifications.is_read ASC, notifications.created_at DESC
     LIMIT 50`
   )
-    .bind(...recipientKeys)
+    .bind(...recipientKeys, uid)
     .all();
 
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1498,15 +1518,17 @@ app.post("/api/notifications/read-all", authMiddleware, async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
   const recipientKeys = notificationRecipientKeys(mochaUser);
   const inList = notificationRecipientPlaceholders(recipientKeys.length);
 
   await c.env.DB.prepare(
     `UPDATE notifications SET is_read = 1
      WHERE mocha_user_id IN (${inList})
-       AND (is_read = 0 OR is_read IS NULL OR is_read = false)`,
+       AND (is_read = 0 OR is_read IS NULL OR is_read = false)
+       AND (${NOTIFICATIONS_LIST_FILTER_SQL})`,
   )
-    .bind(...recipientKeys)
+    .bind(...recipientKeys, uid)
     .run();
 
   return c.json({ success: true, unread_count: 0 });
@@ -1525,13 +1547,13 @@ app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
     return c.json({ error: 'Invalid notification id' }, 400);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
   const recipientKeys = notificationRecipientKeys(mochaUser);
   const inList = notificationRecipientPlaceholders(recipientKeys.length);
 
   const update = await c.env.DB.prepare(
     `UPDATE notifications SET is_read = 1
-     WHERE id = ? AND mocha_user_id IN (${inList})
-       AND (is_read = 0 OR is_read IS NULL OR is_read = false)`,
+     WHERE id = ? AND mocha_user_id IN (${inList})`,
   )
     .bind(notificationId, ...recipientKeys)
     .run();
@@ -1541,9 +1563,10 @@ app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
   const countRow = await c.env.DB.prepare(
     `SELECT COUNT(*) AS count FROM notifications
      WHERE mocha_user_id IN (${inList})
-       AND (is_read = 0 OR is_read IS NULL OR is_read = false)`,
+       AND (is_read = 0 OR is_read IS NULL OR is_read = false)
+       AND (${NOTIFICATIONS_LIST_FILTER_SQL})`,
   )
-    .bind(...recipientKeys)
+    .bind(...recipientKeys, uid)
     .first() as { count?: number } | null;
 
   return c.json({

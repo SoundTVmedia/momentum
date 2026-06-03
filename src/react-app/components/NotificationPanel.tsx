@@ -17,15 +17,21 @@ export default function NotificationPanel({
 }: NotificationPanelProps) {
   const navigate = useNavigate();
   const {
-    notifications,
+    unreadNotifications,
+    readNotifications,
     unreadCount,
+    readCount,
     markAsRead,
     markAllAsRead,
     loading,
     error,
     isNotificationUnread,
   } = useNotificationsContext();
-  const [filter, setFilter] = useState<'all' | 'unread'>('unread');
+  const [filter, setFilter] = useState<'unread' | 'read'>('unread');
+
+  const displayedNotifications =
+    filter === 'unread' ? unreadNotifications : readNotifications;
+  const displayedCount = displayedNotifications.length;
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -55,21 +61,19 @@ export default function NotificationPanel({
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return 'just now';
     if (diffMins < 60) return `${diffMins}m ago`;
-    
+
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
-    
+
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}d ago`;
   };
 
   const handleNotificationClick = async (notification: Notification) => {
-    if (isNotificationUnread(notification.is_read)) {
-      await markAsRead(notification.id);
-    }
+    await markAsRead(notification.id);
 
     const clipId = notification.related_clip_id;
     if (clipId != null && Number(clipId) > 0) {
@@ -90,11 +94,6 @@ export default function NotificationPanel({
     }
   };
 
-  const filteredNotifications =
-    filter === 'unread'
-      ? notifications.filter((n) => isNotificationUnread(n.is_read))
-      : notifications;
-
   const panelClass =
     variant === 'mobile'
       ? 'w-full glass-dropdown rounded-xl overflow-hidden shadow-xl shadow-momentum-ember/15'
@@ -102,7 +101,6 @@ export default function NotificationPanel({
 
   return (
     <div className={panelClass} role="dialog" aria-label="Notifications">
-      {/* Header */}
       <div className="p-3 sm:p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-white font-bold flex items-center space-x-2">
@@ -120,14 +118,15 @@ export default function NotificationPanel({
             )}
           </h3>
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors p-1"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Filters */}
         <div className="flex items-center space-x-2">
           <button
             type="button"
@@ -138,21 +137,22 @@ export default function NotificationPanel({
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
-            Unread {unreadCount > 0 && `(${unreadCount})`}
+            Unread ({unreadCount})
           </button>
           <button
             type="button"
-            onClick={() => setFilter('all')}
+            onClick={() => setFilter('read')}
             className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              filter === 'all'
+              filter === 'read'
                 ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
                 : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
-            All
+            Read ({readCount})
           </button>
           {unreadCount > 0 && (
             <button
+              type="button"
               onClick={() => void markAllAsRead()}
               className="p-1.5 text-momentum-flare hover:text-momentum-flare/90 transition-colors"
               title="Mark all as read"
@@ -163,7 +163,6 @@ export default function NotificationPanel({
         </div>
       </div>
 
-      {/* Notifications List */}
       <div className="max-h-80 sm:max-h-96 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -171,21 +170,21 @@ export default function NotificationPanel({
           </div>
         ) : error ? (
           <div className="p-8 text-center text-red-400 text-sm">{error}</div>
-        ) : filteredNotifications.length === 0 ? (
+        ) : displayedCount === 0 ? (
           <div className="p-8 text-center text-gray-400">
             <Bell className="w-12 h-12 text-gray-600 mx-auto mb-3 opacity-50" />
             <p className="font-medium mb-1">
-              {filter === 'unread' ? 'All caught up!' : 'No notifications yet'}
+              {filter === 'unread' ? 'All caught up!' : 'No read notifications yet'}
             </p>
             <p className="text-xs text-gray-500">
               {filter === 'unread'
-                ? 'You have no unread notifications. Try the All tab.'
-                : 'Likes and comments on your clips, and new followers, will appear here'}
+                ? 'New likes, comments, follows, and posts from people you follow appear here.'
+                : 'Notifications you open will move here.'}
             </p>
           </div>
         ) : (
           <div className="divide-y divide-white/5">
-            {filteredNotifications.map((notification) => {
+            {displayedNotifications.map((notification) => {
               const iconData = getIcon(notification.type);
               const unread = isNotificationUnread(notification.is_read);
               return (
@@ -208,7 +207,9 @@ export default function NotificationPanel({
                         letterClassName="text-sm sm:text-base font-semibold"
                         className="border-2 border-white/10 group-hover:border-momentum-ember/40 transition-colors"
                       />
-                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 ${iconData.color} rounded-full flex items-center justify-center ring-2 ${iconData.ringColor} ring-offset-1 ring-offset-black`}>
+                      <div
+                        className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 ${iconData.color} rounded-full flex items-center justify-center ring-2 ${iconData.ringColor} ring-offset-1 ring-offset-black`}
+                      >
                         {iconData.icon}
                       </div>
                     </div>

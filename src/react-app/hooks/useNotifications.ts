@@ -17,8 +17,6 @@ export interface Notification {
   user_avatar: string | null
 }
 
-export const NOTIFICATIONS_CHANGED_EVENT = 'notifications-changed'
-
 export function normalizeNotificationId(id: unknown): number | null {
   if (id == null || id === '') return null
   if (typeof id === 'bigint') {
@@ -27,14 +25,6 @@ export function normalizeNotificationId(id: unknown): number | null {
   }
   const n = typeof id === 'number' ? id : Number.parseInt(String(id), 10)
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
-}
-
-function dispatchNotificationsChanged(): void {
-  window.dispatchEvent(new CustomEvent(NOTIFICATIONS_CHANGED_EVENT))
-}
-
-function countUnread(rows: Notification[]): number {
-  return rows.filter((n) => isNotificationUnread(n.is_read)).length
 }
 
 function normalizeNotificationRow(row: Record<string, unknown>): Notification | null {
@@ -74,7 +64,18 @@ export function useNotifications() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const unreadCount = useMemo(() => countUnread(notifications), [notifications])
+  const unreadNotifications = useMemo(
+    () => notifications.filter((n) => isNotificationUnread(n.is_read)),
+    [notifications],
+  )
+
+  const readNotifications = useMemo(
+    () => notifications.filter((n) => !isNotificationUnread(n.is_read)),
+    [notifications],
+  )
+
+  const unreadCount = unreadNotifications.length
+  const readCount = readNotifications.length
 
   const fetchNotifications = useCallback(async (showLoading = true) => {
     if (!user) return
@@ -115,11 +116,13 @@ export function useNotifications() {
   const markAsRead = useCallback(
     async (notificationId: unknown) => {
       const nid = normalizeNotificationId(notificationId)
-      if (nid == null) return
+      if (nid == null) return false
 
       setNotifications((prev) =>
         prev.map((notif) =>
-          normalizeNotificationId(notif.id) === nid ? { ...notif, is_read: 1 } : notif,
+          normalizeNotificationId(notif.id) === nid
+            ? { ...notif, is_read: 1 as const }
+            : notif,
         ),
       )
 
@@ -133,17 +136,18 @@ export function useNotifications() {
         }
 
         await response.json().catch(() => ({}))
-        dispatchNotificationsChanged()
+        return true
       } catch (err) {
         console.error('Failed to mark notification as read:', err)
         void fetchNotifications(false)
+        return false
       }
     },
     [fetchNotifications],
   )
 
   const markAllAsRead = useCallback(async () => {
-    setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: 1 })))
+    setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: 1 as const })))
 
     try {
       const response = await apiFetch('/api/notifications/read-all', {
@@ -154,10 +158,11 @@ export function useNotifications() {
         throw new Error('Failed to mark all as read')
       }
 
-      dispatchNotificationsChanged()
+      return true
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err)
       void fetchNotifications(false)
+      return false
     }
   }, [fetchNotifications])
 
@@ -170,19 +175,17 @@ export function useNotifications() {
     void fetchNotifications(true)
 
     const interval = setInterval(() => void fetchNotifications(false), 15000)
-    const onChanged = () => void fetchNotifications(false)
-    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged)
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged)
-    }
+    return () => clearInterval(interval)
   }, [user, fetchNotifications])
 
   return {
     notifications,
+    unreadNotifications,
+    readNotifications,
     loading,
     error,
     unreadCount,
+    readCount,
     markAsRead,
     markAllAsRead,
     refresh: fetchNotifications,
