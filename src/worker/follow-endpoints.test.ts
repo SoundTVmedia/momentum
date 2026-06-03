@@ -114,7 +114,7 @@ describe('follow-endpoints', () => {
       json: (body: unknown) => ({ body }),
     } as unknown as Parameters<typeof getMyFollowing>[0];
 
-    const res = (await getMyFollowing(c)) as { body: { following_ids: string[] } };
+    const res = (await getMyFollowing(c)) as unknown as { body: { following_ids: string[] } };
     const ids = res.body.following_ids;
     expect(ids).toContain('venue-5');
     expect(ids).toContain('user-2');
@@ -157,7 +157,7 @@ describe('follow-endpoints', () => {
       json: (body: unknown) => ({ body }),
     } as unknown as Parameters<typeof getMyFollowingUsers>[0];
 
-    const res = (await getMyFollowingUsers(c)) as {
+    const res = (await getMyFollowingUsers(c)) as unknown as {
       body: { users: { mocha_user_id: string; display_name: string }[] };
     };
     expect(res.body.users).toHaveLength(1);
@@ -190,7 +190,7 @@ describe('follow-endpoints', () => {
 
     const db = makeDb([venueSelect, existing, insert]);
     const c = mockContext(db, 'user-1', 'venue-12');
-    const res = (await toggleFollow(c)) as { body: { following: boolean } };
+    const res = (await toggleFollow(c)) as unknown as { body: { following: boolean } };
     expect(res.body.following).toBe(true);
     expect(insert.runCalls).toBe(1);
   });

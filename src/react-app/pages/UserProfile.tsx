@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Heart, Eye, Video, Users, UserPlus, UserCheck, UserMinus, Loader2, MapPin, Edit, Shield, Star, TrendingUp } from 'lucide-react';
+import { Heart, Eye, Video, Users, UserPlus, UserMinus, Loader2, MapPin, Edit, Shield, Star, TrendingUp } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import OwnProfileHub from '@/react-app/components/OwnProfileHub';
 import ClipModal from '@/react-app/components/ClipModal';

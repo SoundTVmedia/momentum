@@ -110,17 +110,16 @@ export default function ArtistPage() {
     validate: (payload) => Boolean(payload.artist?.name?.trim()),
   });
 
-  const artist = data?.artist;
-  const artistId = artist?.id ?? 0;
-  const artistName = artist?.name ?? routeArtistLabel;
+  const followArtistId = data?.artist?.id ?? 0;
+  const followArtistName = data?.artist?.name ?? routeArtistLabel;
   const {
     toggleFollowArtist,
     isFollowingArtist,
     isArtistFollowLoading,
     hydrated: followHydrated,
   } = useFollow();
-  const followingArtist = isFollowingArtist(artistId, artistName);
-  const artistFollowLoading = isArtistFollowLoading(artistId, artistName);
+  const followingArtist = isFollowingArtist(followArtistId, followArtistName);
+  const artistFollowLoading = isArtistFollowLoading(followArtistId, followArtistName);
   const [liveShow, setLiveShow] = useState<LiveShow | null>(null);
   const [previousShows, setPreviousShows] = useState<PreviousShow[]>([]);
 
@@ -504,8 +503,8 @@ export default function ArtistPage() {
           <div>
             <button
               type="button"
-              onClick={() => void toggleFollowArtist(artistId, artistName)}
-              disabled={!followHydrated || artistFollowLoading || !artistName.trim()}
+              onClick={() => void toggleFollowArtist(followArtistId, followArtistName)}
+              disabled={!followHydrated || artistFollowLoading || !followArtistName.trim()}
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
                 followingArtist
                   ? 'bg-white/10 border border-momentum-rose/50 text-white'

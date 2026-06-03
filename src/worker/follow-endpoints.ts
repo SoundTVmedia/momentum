@@ -291,7 +291,7 @@ export async function toggleFollow(c: Context) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const targetUserId = c.req.param('userId');
+  const targetUserId = c.req.param('userId') ?? '';
   const uid = mochaUserIdKey(mochaUser);
   const artistFollow = /^artist-(\d+)$/.exec(targetUserId);
   const venueFollow = /^venue-(\d+)$/.exec(targetUserId);
@@ -428,11 +428,13 @@ export async function toggleFollow(c: Context) {
     .bind(parseD1LastRowId(notificationResult.meta.last_row_id))
     .first();
 
-  try {
-    const realtime = createRealtimeService(c.env);
-    await realtime.broadcastNotification(targetUserId, notification);
-  } catch (err) {
-    console.error('Failed to broadcast notification:', err);
+  if (targetUserId) {
+    try {
+      const realtime = createRealtimeService(c.env);
+      await realtime.broadcastNotification(targetUserId, notification);
+    } catch (err) {
+      console.error('Failed to broadcast notification:', err);
+    }
   }
 
   return c.json({ following: true });

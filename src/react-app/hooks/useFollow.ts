@@ -4,7 +4,6 @@ import { apiFetch } from '@/react-app/lib/apiFetch'
 import {
   artistFollowApiTarget,
   artistFollowStateKeys,
-  artistNameFollowKey,
   isArtistFollowTarget,
   parseArtistIdFromFollowTarget,
 } from '@/react-app/lib/artist-follow-key'
