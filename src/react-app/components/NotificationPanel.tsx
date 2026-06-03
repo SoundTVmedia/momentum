@@ -22,6 +22,7 @@ export default function NotificationPanel({
     markAsRead,
     markAllAsRead,
     loading,
+    error,
     isNotificationUnread,
   } = useNotificationsContext();
   const [filter, setFilter] = useState<'all' | 'unread'>('unread');
@@ -168,6 +169,8 @@ export default function NotificationPanel({
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
           </div>
+        ) : error ? (
+          <div className="p-8 text-center text-red-400 text-sm">{error}</div>
         ) : filteredNotifications.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
             <Bell className="w-12 h-12 text-gray-600 mx-auto mb-3 opacity-50" />
@@ -176,8 +179,8 @@ export default function NotificationPanel({
             </p>
             <p className="text-xs text-gray-500">
               {filter === 'unread'
-                ? 'You have no unread notifications'
-                : 'Activity from people you follow will appear here'}
+                ? 'You have no unread notifications. Try the All tab.'
+                : 'Likes and comments on your clips, and new followers, will appear here'}
             </p>
           </div>
         ) : (

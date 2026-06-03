@@ -38,7 +38,10 @@ function countUnread(rows: Notification[]): number {
 }
 
 function normalizeNotificationRow(row: Record<string, unknown>): Notification | null {
-  const id = normalizeNotificationId(row.id)
+  const id =
+    normalizeNotificationId(row.id) ??
+    normalizeNotificationId(row._notification_rowid) ??
+    normalizeNotificationId((row as { rowid?: unknown }).rowid)
   if (id == null) return null
   const clipId = row.related_clip_id
   const commentId = row.related_comment_id

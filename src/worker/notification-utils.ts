@@ -48,7 +48,66 @@ async function fetchNotificationRow(db: D1Database, notificationId: number) {
     .first();
 }
 
-/** Notify everyone who follows the actor (new clip, comment, like, etc.). */
+export type UserNotificationOptions = {
+  type: string;
+  content: string;
+  related_user_id?: string | null;
+  related_clip_id?: number | null;
+  related_comment_id?: number | null;
+};
+
+/** Compare Mocha user ids whether stored as number or string. */
+export function isSameMochaUser(a: unknown, b: unknown): boolean {
+  return (
+    mochaUserIdKey({ id: a }).toLowerCase() === mochaUserIdKey({ id: b }).toLowerCase()
+  );
+}
+
+/** In-app notification for one recipient (clip owner, followed user, etc.). */
+export async function notifyUser(
+  env: Env,
+  recipientUserId: string,
+  options: UserNotificationOptions,
+): Promise<void> {
+  const recipient = String(recipientUserId ?? '').trim();
+  if (!recipient) return;
+
+  const actorId =
+    options.related_user_id != null && String(options.related_user_id).trim()
+      ? String(options.related_user_id).trim()
+      : null;
+
+  try {
+    const insert = await env.DB.prepare(
+      `INSERT INTO notifications (
+         mocha_user_id, type, content, related_user_id,
+         related_clip_id, related_comment_id, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+    )
+      .bind(
+        recipient,
+        options.type,
+        options.content,
+        actorId,
+        options.related_clip_id ?? null,
+        options.related_comment_id ?? null,
+      )
+      .run();
+
+    const nid = parseD1LastRowId(insert.meta.last_row_id);
+    if (nid == null) return;
+
+    const row = await fetchNotificationRow(env.DB, nid);
+    if (row) {
+      const realtime = createRealtimeService(env);
+      await realtime.broadcastNotification(recipient, row);
+    }
+  } catch (err) {
+    console.error('notifyUser:', err);
+  }
+}
+
+/** Notify everyone who follows the actor (e.g. optional fan-out; not used for likes/comments). */
 export async function notifyFollowers(
   env: Env,
   actorUser: { id: unknown },
@@ -95,19 +154,16 @@ export async function notifyFollowers(
   }
 }
 
-/** SQL fragment: clip/comment/like only from followed users; keep system + follow alerts. */
-export const NOTIFICATIONS_FROM_FOLLOWED_SQL = `
-  (
-    notifications.type IN ('follow', 'verification', 'trending', 'achievement', 'live')
-    OR (
-      notifications.type IN ('clip', 'comment', 'like')
-      AND notifications.related_user_id IN (
-        SELECT following_id FROM follows
-        WHERE follower_id = ?
-          AND following_id NOT LIKE 'venue-%'
-          AND following_id NOT LIKE 'artist-%'
-          AND following_id NOT LIKE 'artist-name:%'
-      )
-    )
-  )
-`;
+/** Recipient keys for notifications (Mocha may use number or string ids in D1). */
+export function notificationRecipientKeys(user: { id: unknown }): string[] {
+  const uid = mochaUserIdKey(user);
+  const raw = String(user.id ?? '').trim();
+  if (!raw) return [uid];
+  if (raw === uid) return [uid];
+  return [uid, raw];
+}
+
+/** Placeholders for `mocha_user_id IN (...)` */
+export function notificationRecipientPlaceholders(count: number): string {
+  return Array.from({ length: Math.max(1, count) }, () => '?').join(', ');
+}

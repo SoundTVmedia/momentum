@@ -1,6 +1,5 @@
 import type { Context } from 'hono';
-import { createRealtimeService } from './realtime-service';
-import { parseD1LastRowId } from './mocha-user-id';
+import { notifyUser } from './notification-utils';
 import {
   getOrCreateArtistIdByName,
   loadCanonicalFavoriteArtistNames,
@@ -409,33 +408,11 @@ export async function toggleFollow(c: Context) {
     .bind(uid, targetUserId)
     .run();
 
-  const notificationResult = await c.env.DB.prepare(
-    `INSERT INTO notifications (mocha_user_id, type, content, related_user_id, created_at)
-     VALUES (?, 'follow', ?, ?, CURRENT_TIMESTAMP)`,
-  )
-    .bind(targetUserId, 'started following you', uid)
-    .run();
-
-  const notification = await c.env.DB.prepare(
-    `SELECT 
-        notifications.*,
-        user_profiles.display_name as user_display_name,
-        user_profiles.profile_image_url as user_avatar
-      FROM notifications
-      LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
-      WHERE notifications.id = ?`,
-  )
-    .bind(parseD1LastRowId(notificationResult.meta.last_row_id))
-    .first();
-
-  if (targetUserId) {
-    try {
-      const realtime = createRealtimeService(c.env);
-      await realtime.broadcastNotification(targetUserId, notification);
-    } catch (err) {
-      console.error('Failed to broadcast notification:', err);
-    }
-  }
+  await notifyUser(c.env, targetUserId, {
+    type: 'follow',
+    content: 'started following you',
+    related_user_id: uid,
+  });
 
   return c.json({ following: true });
 }

@@ -24,8 +24,10 @@ import {
 } from "./google-oauth";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import {
-  NOTIFICATIONS_FROM_FOLLOWED_SQL,
-  notifyFollowers,
+  isSameMochaUser,
+  notificationRecipientKeys,
+  notificationRecipientPlaceholders,
+  notifyUser,
 } from "./notification-utils";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
@@ -865,22 +867,6 @@ app.post("/api/clips", authMiddleware, async (c) => {
       console.error('Failed to broadcast feed update:', err);
     }
 
-    const publishedClipId =
-      parseD1LastRowId((newClip as { id?: unknown } | null)?.id) ??
-      parseD1LastRowId(result.meta.last_row_id);
-
-    if (publishedClipId != null && (status || 'published') !== 'draft') {
-      try {
-        await notifyFollowers(c.env, mochaUser, {
-          type: 'clip',
-          content: 'posted a new clip',
-          related_clip_id: publishedClipId,
-        });
-      } catch (err) {
-        console.error('Failed to notify followers of new clip:', err);
-      }
-    }
-
     return c.json(newClip, 201);
   } catch (err) {
     console.error('POST /api/clips:', err);
@@ -1120,24 +1106,27 @@ app.post("/api/clips/:id/like", authMiddleware, async (c) => {
       console.error('Failed to award points:', err);
     }
 
-    try {
-      const featured = await c.env.DB.prepare(
-        `SELECT id FROM live_featured_clips WHERE clip_id = ? LIMIT 1`,
-      )
-        .bind(clipId)
-        .first();
+    if (!isSameMochaUser(clip.mocha_user_id, mochaUser)) {
+      try {
+        const featured = await c.env.DB.prepare(
+          `SELECT id FROM live_featured_clips WHERE clip_id = ? LIMIT 1`,
+        )
+          .bind(clipId)
+          .first();
 
-      const likeContent = featured
-        ? 'liked a clip that was featured on Feedback Live'
-        : 'liked a clip';
+        const likeContent = featured
+          ? 'liked your clip that was featured on Feedback Live'
+          : 'liked your clip';
 
-      await notifyFollowers(c.env, mochaUser, {
-        type: 'like',
-        content: likeContent,
-        related_clip_id: Number(clipId),
-      });
-    } catch (err) {
-      console.error('Failed to notify followers of like:', err);
+        await notifyUser(c.env, mochaUserIdKey({ id: clip.mocha_user_id }), {
+          type: 'like',
+          content: likeContent,
+          related_user_id: mochaUserIdKey(mochaUser),
+          related_clip_id: Number(clipId),
+        });
+      } catch (err) {
+        console.error('Failed to create like notification:', err);
+      }
     }
 
     return c.json({ liked: true });
@@ -1271,15 +1260,19 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
     .bind(clipId)
     .run();
 
-  try {
-    await notifyFollowers(c.env, mochaUser, {
-      type: 'comment',
-      content: 'commented on a clip',
-      related_clip_id: Number(clipId),
-      related_comment_id: commentRowId,
-    });
-  } catch (err) {
-    console.error('Failed to notify followers of comment:', err);
+  const clipOwnerKey = mochaUserIdKey({ id: clip.mocha_user_id });
+  if (!isSameMochaUser(clipOwnerKey, mochaUser)) {
+    try {
+      await notifyUser(c.env, clipOwnerKey, {
+        type: 'comment',
+        content: 'commented on your clip',
+        related_user_id: uid,
+        related_clip_id: Number(clipId),
+        related_comment_id: commentRowId,
+      });
+    } catch (err) {
+      console.error('Failed to create comment notification:', err);
+    }
   }
 
   // Award points for commenting (non-blocking for the client)
@@ -1468,21 +1461,22 @@ app.get("/api/notifications", authMiddleware, async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const uid = mochaUserIdKey(mochaUser);
+  const recipientKeys = notificationRecipientKeys(mochaUser);
+  const inList = notificationRecipientPlaceholders(recipientKeys.length);
 
   const notifications = await c.env.DB.prepare(
     `SELECT 
       notifications.*,
+      notifications.rowid AS _notification_rowid,
       user_profiles.display_name as user_display_name,
       user_profiles.profile_image_url as user_avatar
     FROM notifications
     LEFT JOIN user_profiles ON notifications.related_user_id = user_profiles.mocha_user_id
-    WHERE notifications.mocha_user_id = ?
-      AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})
+    WHERE notifications.mocha_user_id IN (${inList})
     ORDER BY notifications.is_read ASC, notifications.created_at DESC
     LIMIT 50`
   )
-    .bind(uid, uid)
+    .bind(...recipientKeys)
     .all();
 
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1504,14 +1498,15 @@ app.post("/api/notifications/read-all", authMiddleware, async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const uid = mochaUserIdKey(mochaUser);
+  const recipientKeys = notificationRecipientKeys(mochaUser);
+  const inList = notificationRecipientPlaceholders(recipientKeys.length);
 
   await c.env.DB.prepare(
     `UPDATE notifications SET is_read = 1
-     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL OR is_read = false)
-       AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})`,
+     WHERE mocha_user_id IN (${inList})
+       AND (is_read = 0 OR is_read IS NULL OR is_read = false)`,
   )
-    .bind(uid, uid)
+    .bind(...recipientKeys)
     .run();
 
   return c.json({ success: true, unread_count: 0 });
@@ -1530,24 +1525,25 @@ app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
     return c.json({ error: 'Invalid notification id' }, 400);
   }
 
-  const uid = mochaUserIdKey(mochaUser);
+  const recipientKeys = notificationRecipientKeys(mochaUser);
+  const inList = notificationRecipientPlaceholders(recipientKeys.length);
 
   const update = await c.env.DB.prepare(
     `UPDATE notifications SET is_read = 1
-     WHERE id = ? AND mocha_user_id = ?
+     WHERE id = ? AND mocha_user_id IN (${inList})
        AND (is_read = 0 OR is_read IS NULL OR is_read = false)`,
   )
-    .bind(notificationId, uid)
+    .bind(notificationId, ...recipientKeys)
     .run();
 
   const changes = Number(update.meta?.changes ?? 0);
 
   const countRow = await c.env.DB.prepare(
     `SELECT COUNT(*) AS count FROM notifications
-     WHERE mocha_user_id = ? AND (is_read = 0 OR is_read IS NULL OR is_read = false)
-       AND (${NOTIFICATIONS_FROM_FOLLOWED_SQL})`,
+     WHERE mocha_user_id IN (${inList})
+       AND (is_read = 0 OR is_read IS NULL OR is_read = false)`,
   )
-    .bind(uid, uid)
+    .bind(...recipientKeys)
     .first() as { count?: number } | null;
 
   return c.json({
