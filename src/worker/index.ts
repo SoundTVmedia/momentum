@@ -1485,6 +1485,7 @@ app.get("/api/notifications", authMiddleware, async (c) => {
 
   const notifications = await c.env.DB.prepare(
     `SELECT 
+      notifications.id AS notification_id,
       notifications.*,
       notifications.rowid AS _notification_rowid,
       user_profiles.display_name as user_display_name,
@@ -1553,9 +1554,9 @@ app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
 
   const update = await c.env.DB.prepare(
     `UPDATE notifications SET is_read = 1
-     WHERE id = ? AND mocha_user_id IN (${inList})`,
+     WHERE (id = ? OR rowid = ?) AND mocha_user_id IN (${inList})`,
   )
-    .bind(notificationId, ...recipientKeys)
+    .bind(notificationId, notificationId, ...recipientKeys)
     .run();
 
   const changes = Number(update.meta?.changes ?? 0);

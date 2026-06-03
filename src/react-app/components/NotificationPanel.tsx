@@ -72,8 +72,8 @@ export default function NotificationPanel({
     return `${diffDays}d ago`;
   };
 
-  const handleNotificationClick = async (notification: Notification) => {
-    await markAsRead(notification.id);
+  const handleNotificationClick = (notification: Notification) => {
+    void markAsRead(notification);
 
     const clipId = notification.related_clip_id;
     if (clipId != null && Number(clipId) > 0) {

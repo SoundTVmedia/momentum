@@ -1,10 +1,17 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
 import { apiFetch } from '@/react-app/lib/apiFetch'
 import { isNotificationUnread } from '@/react-app/lib/notification-read'
+import {
+  applyMarkReadToNotifications,
+  normalizeNotificationId,
+  resolveNotificationKey,
+} from '@/react-app/lib/notification-ids'
 
 export interface Notification {
   id: number
+  /** D1 rowid when it differs from `id` in API payloads */
+  rowId: number | null
   mocha_user_id: string
   type: string
   content: string
@@ -17,26 +24,24 @@ export interface Notification {
   user_avatar: string | null
 }
 
-export function normalizeNotificationId(id: unknown): number | null {
-  if (id == null || id === '') return null
-  if (typeof id === 'bigint') {
-    const n = Number(id)
-    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
-  }
-  const n = typeof id === 'number' ? id : Number.parseInt(String(id), 10)
-  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null
-}
-
 function normalizeNotificationRow(row: Record<string, unknown>): Notification | null {
   const id =
+    normalizeNotificationId(row.notification_id) ??
     normalizeNotificationId(row.id) ??
     normalizeNotificationId(row._notification_rowid) ??
     normalizeNotificationId((row as { rowid?: unknown }).rowid)
   if (id == null) return null
+
+  const rowId =
+    normalizeNotificationId(row._notification_rowid) ??
+    normalizeNotificationId((row as { rowid?: unknown }).rowid) ??
+    id
+
   const clipId = row.related_clip_id
   const commentId = row.related_comment_id
   return {
     id,
+    rowId: rowId === id ? id : rowId,
     mocha_user_id: String(row.mocha_user_id ?? ''),
     type: String(row.type ?? ''),
     content: String(row.content ?? ''),
@@ -60,9 +65,11 @@ function normalizeNotificationRow(row: Record<string, unknown>): Notification | 
 
 export function useNotifications() {
   const { user } = useAuth()
+  const userId = user?.id != null ? String(user.id) : null
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const skipNextPollRef = useRef(false)
 
   const unreadNotifications = useMemo(
     () => notifications.filter((n) => isNotificationUnread(n.is_read)),
@@ -78,7 +85,7 @@ export function useNotifications() {
   const readCount = readNotifications.length
 
   const fetchNotifications = useCallback(async (showLoading = true) => {
-    if (!user) return
+    if (!userId) return
 
     if (showLoading) {
       setLoading(true)
@@ -111,20 +118,16 @@ export function useNotifications() {
         setLoading(false)
       }
     }
-  }, [user])
+  }, [userId])
 
   const markAsRead = useCallback(
-    async (notificationId: unknown) => {
-      const nid = normalizeNotificationId(notificationId)
+    async (target: Notification | number) => {
+      const nid =
+        typeof target === 'number' ? normalizeNotificationId(target) : resolveNotificationKey(target)
       if (nid == null) return false
 
-      setNotifications((prev) =>
-        prev.map((notif) =>
-          normalizeNotificationId(notif.id) === nid
-            ? { ...notif, is_read: 1 as const }
-            : notif,
-        ),
-      )
+      skipNextPollRef.current = true
+      setNotifications((prev) => applyMarkReadToNotifications(prev, target))
 
       try {
         const response = await apiFetch(`/api/notifications/${nid}/read`, {
@@ -141,13 +144,18 @@ export function useNotifications() {
         console.error('Failed to mark notification as read:', err)
         void fetchNotifications(false)
         return false
+      } finally {
+        window.setTimeout(() => {
+          skipNextPollRef.current = false
+        }, 2000)
       }
     },
     [fetchNotifications],
   )
 
   const markAllAsRead = useCallback(async () => {
-    setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: 1 as const })))
+    skipNextPollRef.current = true
+    setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true as const })))
 
     try {
       const response = await apiFetch('/api/notifications/read-all', {
@@ -163,20 +171,27 @@ export function useNotifications() {
       console.error('Failed to mark all notifications as read:', err)
       void fetchNotifications(false)
       return false
+    } finally {
+      window.setTimeout(() => {
+        skipNextPollRef.current = false
+      }, 2000)
     }
   }, [fetchNotifications])
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setNotifications([])
       return
     }
 
     void fetchNotifications(true)
 
-    const interval = setInterval(() => void fetchNotifications(false), 15000)
-    return () => clearInterval(interval)
-  }, [user, fetchNotifications])
+    const interval = window.setInterval(() => {
+      if (skipNextPollRef.current) return
+      void fetchNotifications(false)
+    }, 15000)
+    return () => window.clearInterval(interval)
+  }, [userId, fetchNotifications])
 
   return {
     notifications,
@@ -192,3 +207,6 @@ export function useNotifications() {
     isNotificationUnread,
   }
 }
+
+// Re-export for callers that only import from this module
+export { normalizeNotificationId } from '@/react-app/lib/notification-ids'
