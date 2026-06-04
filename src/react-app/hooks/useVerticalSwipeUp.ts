@@ -6,7 +6,7 @@ const SWIPE_LOCK_MS = 400;
 
 type UseVerticalSwipeUpOptions = {
   enabled: boolean;
-  containerRef: RefObject<HTMLElement | null>;
+  containerRef: RefObject<HTMLDivElement | null>;
   onSwipeUp: () => void;
 };
 

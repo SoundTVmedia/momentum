@@ -9,7 +9,7 @@ type UseHorizontalFeedSwipeOptions = {
   onPrev: () => void;
   onNext: () => void;
   /** Share a container with other gesture hooks (e.g. vertical swipe up). */
-  containerRef?: RefObject<HTMLElement | null>;
+  containerRef?: RefObject<HTMLDivElement | null>;
 };
 
 /**
