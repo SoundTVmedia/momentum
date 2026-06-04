@@ -83,6 +83,7 @@ export default function UploadClip() {
   const userOverrodeAutoTagsRef = useRef(false);
   /** Auto venue match from GPS applied at most once per clip. */
   const autoShowTagAppliedRef = useRef(false);
+  const isEditingTagsRef = useRef(false);
   const [libraryFileMeta, setLibraryFileMeta] = useState<ExtractedVideoFileMetadata | null>(null);
   const [libraryMetaReady, setLibraryMetaReady] = useState(false);
 
@@ -112,6 +113,21 @@ export default function UploadClip() {
   const [quickCaptureAwaitUserTap, setQuickCaptureAwaitUserTap] = useState(false);
 
   const [isEditingTags, setIsEditingTags] = useState(false);
+
+  useEffect(() => {
+    isEditingTagsRef.current = isEditingTags;
+  }, [isEditingTags]);
+
+  const markTagsEdited = useCallback(() => {
+    userOverrodeAutoTagsRef.current = true;
+  }, []);
+
+  const beginEditingTags = useCallback(() => {
+    markTagsEdited();
+    captionCommittedArtistNameRef.current = '';
+    captionCommittedVenueNameRef.current = '';
+    setIsEditingTags(true);
+  }, [markTagsEdited]);
 
   const [jambaseLink, setJambaseLink] = useState<{
     event: string | null;
@@ -488,6 +504,22 @@ export default function UploadClip() {
   const [venueSearchPending, setVenueSearchPending] = useState(false);
   const debouncedVenueSearch = useDebounce(venueSearch, 300);
 
+  const releaseVenueAutocompleteLock = useCallback(() => {
+    markTagsEdited();
+    captionCommittedVenueNameRef.current = '';
+    if (venueSearch.trim().length >= 2) {
+      setShowVenueSuggestions(true);
+    }
+  }, [markTagsEdited, venueSearch]);
+
+  const releaseArtistAutocompleteLock = useCallback(() => {
+    markTagsEdited();
+    captionCommittedArtistNameRef.current = '';
+    if (artistSearch.trim().length >= 2) {
+      setShowArtistSuggestions(true);
+    }
+  }, [markTagsEdited, artistSearch]);
+
   const venueLocationHint =
     formData.location?.trim() ||
     (captureGeo?.city
@@ -502,6 +534,7 @@ export default function UploadClip() {
         .then((results) => {
           setArtistSuggestions(results);
           const keepClosed =
+            !isEditingTags &&
             debouncedArtistSearch === captionCommittedArtistNameRef.current;
           setShowArtistSuggestions(!keepClosed && results.length > 0);
         })
@@ -511,7 +544,7 @@ export default function UploadClip() {
       setShowArtistSuggestions(false);
       setArtistSearchPending(false);
     }
-  }, [debouncedArtistSearch, searchArtists]);
+  }, [debouncedArtistSearch, searchArtists, isEditingTags]);
 
   // Search for venues (JamBase)
   useEffect(() => {
@@ -520,7 +553,9 @@ export default function UploadClip() {
       searchVenues(debouncedVenueSearch, venueLocationHint || undefined)
         .then((results) => {
           setVenueSuggestions(results);
-          const keepClosed = debouncedVenueSearch === captionCommittedVenueNameRef.current;
+          const keepClosed =
+            !isEditingTags &&
+            debouncedVenueSearch === captionCommittedVenueNameRef.current;
           setShowVenueSuggestions(!keepClosed && debouncedVenueSearch.length >= 2);
         })
         .finally(() => setVenueSearchPending(false));
@@ -529,7 +564,7 @@ export default function UploadClip() {
       setShowVenueSuggestions(false);
       setVenueSearchPending(false);
     }
-  }, [debouncedVenueSearch, venueLocationHint, searchVenues]);
+  }, [debouncedVenueSearch, venueLocationHint, searchVenues, isEditingTags]);
 
   /** Read GPS + recorded-at from library video file bytes (not current device location). */
   useEffect(() => {
@@ -577,7 +612,7 @@ export default function UploadClip() {
           Boolean(meta.recordedAtIso) ||
           (meta.latitude != null && meta.longitude != null);
         if (!hasUsefulMeta) {
-          setIsEditingTags(true);
+          beginEditingTags();
           setResolveNotice(
             'No date or location found in this video file — add artist, venue, and song below.',
           );
@@ -604,7 +639,7 @@ export default function UploadClip() {
       } catch (err) {
         console.error('extractVideoFileMetadata', err);
         if (!cancelled) {
-          setIsEditingTags(true);
+          beginEditingTags();
           setResolveNotice('Could not read video metadata — add details manually below.');
         }
       } finally {
@@ -615,7 +650,7 @@ export default function UploadClip() {
     return () => {
       cancelled = true;
     };
-  }, [formData.video_file, uploadSource]);
+  }, [formData.video_file, uploadSource, beginEditingTags, markTagsEdited]);
 
   // Keep caption search fields aligned with committed tags when not editing (mobile).
   useEffect(() => {
@@ -627,7 +662,7 @@ export default function UploadClip() {
   }, [showCaptionScreen, isEditingTags, formData.artist_name, formData.venue_name]);
 
   const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
-    if (userOverrodeAutoTagsRef.current) return;
+    if (userOverrodeAutoTagsRef.current || isEditingTagsRef.current) return;
     autoShowTagAppliedRef.current = true;
     setFormData((prev) => ({
       ...prev,
@@ -945,10 +980,6 @@ export default function UploadClip() {
     uploadSource,
   ]);
 
-  const markTagsEdited = useCallback(() => {
-    userOverrodeAutoTagsRef.current = true;
-  }, []);
-
   const handleInputChange = (field: string, value: string) => {
     if (
       field === 'artist_name' ||
@@ -963,6 +994,7 @@ export default function UploadClip() {
   };
 
   const handleArtistSelect = (artist: JamBaseArtist) => {
+    markTagsEdited();
     captionCommittedArtistNameRef.current = artist.name;
     setFormData((prev) => ({ ...prev, artist_name: artist.name }));
     setArtistSearch(artist.name);
@@ -979,36 +1011,31 @@ export default function UploadClip() {
   const handleCaptionArtistSearchChange = (value: string) => {
     markTagsEdited();
     setArtistSearch(value);
+    captionCommittedArtistNameRef.current = '';
     if (value.trim() === '') {
-      captionCommittedArtistNameRef.current = '';
       setFormData((prev) => ({ ...prev, artist_name: '' }));
       setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null, eventTitle: null } : null));
       return;
     }
-    if (value !== captionCommittedArtistNameRef.current) {
-      captionCommittedArtistNameRef.current = '';
-      setFormData((prev) => ({ ...prev, artist_name: value.trim() }));
-      setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null, eventTitle: null } : null));
-    }
+    setFormData((prev) => ({ ...prev, artist_name: value.trim() }));
+    setJambaseLink((prev) => (prev ? { ...prev, artist: null, event: null, eventTitle: null } : null));
   };
 
   const handleCaptionVenueSearchChange = (value: string) => {
     markTagsEdited();
     setVenueSearch(value);
+    captionCommittedVenueNameRef.current = '';
     if (value.trim() === '') {
-      captionCommittedVenueNameRef.current = '';
       setFormData((prev) => ({ ...prev, venue_name: '' }));
       setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null, eventTitle: null } : null));
       return;
     }
-    if (value !== captionCommittedVenueNameRef.current) {
-      captionCommittedVenueNameRef.current = '';
-      setFormData((prev) => ({ ...prev, venue_name: value.trim() }));
-      setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null, eventTitle: null } : null));
-    }
+    setFormData((prev) => ({ ...prev, venue_name: value.trim() }));
+    setJambaseLink((prev) => (prev ? { ...prev, venue: null, event: null, eventTitle: null } : null));
   };
 
   const handleVenueSelect = (venue: JamBaseVenue) => {
+    markTagsEdited();
     const venueName = venue.name;
     const venueLocation = venue.location?.city 
       ? `${venue.location.city}, ${venue.location.state || venue.location.country || ''}`
@@ -1853,7 +1880,13 @@ export default function UploadClip() {
                   <label className="text-white font-medium">Tags</label>
                   <button
                     type="button"
-                    onClick={() => setIsEditingTags(!isEditingTags)}
+                    onClick={() => {
+                      if (isEditingTags) {
+                        setIsEditingTags(false);
+                      } else {
+                        beginEditingTags();
+                      }
+                    }}
                     className="flex items-center space-x-2 text-momentum-flare hover:text-momentum-flare/90 transition-colors text-sm"
                   >
                     {isEditingTags ? (
@@ -1883,14 +1916,7 @@ export default function UploadClip() {
                           type="text"
                           value={artistSearch}
                           onChange={(e) => handleCaptionArtistSearchChange(e.target.value)}
-                          onFocus={() => {
-                            if (
-                              debouncedArtistSearch.length >= 2 &&
-                              artistSearch !== captionCommittedArtistNameRef.current
-                            ) {
-                              setShowArtistSuggestions(artistSuggestions.length > 0);
-                            }
-                          }}
+                          onFocus={releaseArtistAutocompleteLock}
                           autoComplete="off"
                           className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
                           placeholder="Search JamBase artists"
@@ -1938,14 +1964,7 @@ export default function UploadClip() {
                           type="text"
                           value={venueSearch}
                           onChange={(e) => handleCaptionVenueSearchChange(e.target.value)}
-                          onFocus={() => {
-                            if (
-                              debouncedVenueSearch.length >= 2 &&
-                              venueSearch !== captionCommittedVenueNameRef.current
-                            ) {
-                              setShowVenueSuggestions(true);
-                            }
-                          }}
+                          onFocus={releaseVenueAutocompleteLock}
                           autoComplete="off"
                           className="w-full px-4 py-2 pl-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
                           placeholder="Search JamBase venues"
@@ -2260,22 +2279,8 @@ export default function UploadClip() {
               <input
                 type="text"
                 value={artistSearch}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setArtistSearch(value);
-                  handleInputChange('artist_name', value);
-                  if (value !== captionCommittedArtistNameRef.current) {
-                    captionCommittedArtistNameRef.current = '';
-                  }
-                }}
-                onFocus={() => {
-                  if (
-                    artistSearch !== captionCommittedArtistNameRef.current &&
-                    artistSuggestions.length > 0
-                  ) {
-                    setShowArtistSuggestions(true);
-                  }
-                }}
+                onChange={(e) => handleCaptionArtistSearchChange(e.target.value)}
+                onFocus={releaseArtistAutocompleteLock}
                 className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                 placeholder="Taylor Swift"
               />
@@ -2346,14 +2351,7 @@ export default function UploadClip() {
                   type="text"
                   value={venueSearch}
                   onChange={(e) => handleCaptionVenueSearchChange(e.target.value)}
-                  onFocus={() => {
-                    if (
-                      debouncedVenueSearch.length >= 2 &&
-                      venueSearch !== captionCommittedVenueNameRef.current
-                    ) {
-                      setShowVenueSuggestions(true);
-                    }
-                  }}
+                  onFocus={releaseVenueAutocompleteLock}
                   autoComplete="off"
                   className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
                   placeholder="Search JamBase venues"
