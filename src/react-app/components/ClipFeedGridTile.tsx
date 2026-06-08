@@ -1,4 +1,4 @@
-import { MapPin, Flame } from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import ClipFeedPreviewMedia from '@/react-app/components/ClipFeedPreviewMedia';
@@ -114,8 +114,7 @@ export default function ClipFeedGridTile({
             </button>
           )}
           {clip.venue_name || clip.location ? (
-            <div className="fb-clip-place-row flex min-w-0 w-full items-center gap-1 overflow-hidden">
-              <MapPin className="h-2.5 w-2.5 shrink-0 opacity-90" aria-hidden />
+            <div className="fb-clip-place-row flex min-w-0 w-full overflow-hidden">
               <p className="min-w-0 flex-1 truncate leading-snug md:leading-none">
                 {clip.venue_name ? (
                   <button

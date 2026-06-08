@@ -12,6 +12,7 @@ import AdvancedSearchDropdown from './AdvancedSearchDropdown'
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types'
 import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
+import HeaderGradientPill from '@/react-app/components/HeaderGradientPill'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -92,15 +93,19 @@ export default function Header() {
           </button>
 
           <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
-            <nav className="hidden md:flex items-center gap-4 lg:gap-6 shrink-0">
-              <button
-                type="button"
-                onClick={() => navigate('/')}
-                className="text-white hover:text-momentum-flare transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
+            {user ? (
+              <nav
+                className="hidden md:flex items-center gap-2 shrink-0"
+                aria-label="Programs"
               >
-                The Feed
-              </button>
-            </nav>
+                <HeaderGradientPill onClick={() => navigate('/ambassadors')}>
+                  Ambassadors
+                </HeaderGradientPill>
+                <HeaderGradientPill onClick={() => navigate('/influencers')}>
+                  Influencers
+                </HeaderGradientPill>
+              </nav>
+            ) : null}
             <div
               className={`relative z-[100] hidden lg:block ${hideHeaderSearch ? 'lg:hidden' : ''}`}
               ref={searchDropdownRef}

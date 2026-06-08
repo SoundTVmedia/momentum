@@ -21,6 +21,8 @@ import BrowseClipsFeedPage from "@/react-app/pages/BrowseClipsFeed";
 import BrowseFavoriteClipsPage from "@/react-app/pages/BrowseFavoriteClips";
 import BrowseFavoriteShowsPage from "@/react-app/pages/BrowseFavoriteShows";
 import BrowseNearbyShowsPage from "@/react-app/pages/BrowseNearbyShows";
+import AmbassadorsPage from "@/react-app/pages/Ambassadors";
+import InfluencersPage from "@/react-app/pages/Influencers";
 import AnalyticsPage from "@/react-app/pages/Analytics";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import EventClipsPage from "@/react-app/pages/EventClips";
@@ -62,6 +64,8 @@ export default function App() {
               <Route path="/browse/favorites/clips" element={<BrowseFavoriteClipsPage />} />
               <Route path="/browse/favorites/shows" element={<BrowseFavoriteShowsPage />} />
               <Route path="/browse/shows/nearby" element={<BrowseNearbyShowsPage />} />
+              <Route path="/ambassadors" element={<AmbassadorsPage />} />
+              <Route path="/influencers" element={<InfluencersPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/premium" element={<Navigate to="/" replace />} />
