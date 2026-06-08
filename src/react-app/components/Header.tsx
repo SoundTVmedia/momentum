@@ -164,7 +164,8 @@ export default function Header() {
                 >
                   Share Your Moment
                 </button>
-                {extendedUser?.profile?.is_admin === 1 && (
+                {(extendedUser?.profile?.is_admin === 1 ||
+                  extendedUser?.profile?.is_superadmin === 1) && (
                   <button
                     onClick={() => navigate('/admin')}
                     className="p-1.5 sm:p-2 text-gray-400 hover:text-momentum-rose transition-colors"

@@ -20,6 +20,7 @@ export const UserProfileSchema = z.object({
   is_verified: z.number().int(), // 0 or 1
   is_premium: z.number().int(), // 0 or 1
   is_admin: z.number().int().optional(), // 0 or 1
+  is_superadmin: z.number().int().optional(), // 0 or 1
   is_moderator: z.number().int().optional(), // 0 or 1
   commission_rate: z.number().nullable(),
   created_at: z.string(),

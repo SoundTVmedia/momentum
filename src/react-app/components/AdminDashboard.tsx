@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle } from 'lucide-react';
+import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNavigate } from 'react-router';
 import LiveSessionManager from './LiveSessionManager';
@@ -7,6 +7,7 @@ import ChatModerationPanel from './ChatModerationPanel';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import ContentModerationPanel from './ContentModerationPanel';
 import VerificationAdminPanel from './VerificationAdminPanel';
+import UserRoleAdminPanel from './UserRoleAdminPanel';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 interface LiveSession {
@@ -28,7 +29,7 @@ export default function AdminDashboard() {
   const extendedUser = user as ExtendedMochaUser | null;
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'sessions' | 'moderation' | 'analytics' | 'content' | 'verification'>('sessions');
+  const [activeTab, setActiveTab] = useState<'sessions' | 'moderation' | 'analytics' | 'content' | 'verification' | 'roles'>('sessions');
   const [selectedSession, setSelectedSession] = useState<LiveSession | null>(null);
   const [showSessionManager, setShowSessionManager] = useState(false);
 
@@ -115,7 +116,7 @@ export default function AdminDashboard() {
     }
   };
 
-  if (!extendedUser?.profile?.is_admin) {
+  if (!extendedUser?.profile?.is_admin && !extendedUser?.profile?.is_superadmin) {
     return (
       <section className="py-20 bg-gradient-to-r from-black via-momentum-ember/14 to-black min-h-screen">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -197,6 +198,19 @@ export default function AdminDashboard() {
               <div className="flex items-center space-x-2">
                 <Shield className="w-5 h-5" />
                 <span>Content Moderation</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('roles')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'roles'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <UserCog className="w-5 h-5" />
+                <span>User Roles</span>
               </div>
             </button>
             <button
@@ -351,6 +365,8 @@ export default function AdminDashboard() {
         {activeTab === 'content' && <ContentModerationPanel />}
 
         {activeTab === 'verification' && <VerificationAdminPanel />}
+
+        {activeTab === 'roles' && <UserRoleAdminPanel extendedUser={extendedUser} />}
       </div>
     </section>
   );

@@ -1,67 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Users, Music, Star, Award, X, MapPin, Loader2 } from 'lucide-react';
+import { X, MapPin, Loader2 } from 'lucide-react';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
-
-type UserRole = 'fan' | 'artist' | 'ambassador' | 'influencer';
-
-interface RoleOption {
-  value: UserRole;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  description: string;
-  color: string;
-}
-
-const roleOptions: RoleOption[] = [
-  {
-    value: 'fan',
-    icon: Users,
-    label: 'Fan',
-    description: 'Drop clips, find shows, connect with the community',
-    color: 'from-momentum-ember via-momentum-flare to-momentum-ember'
-  },
-  {
-    value: 'artist',
-    icon: Music,
-    label: 'Artist/Venue',
-    description: 'Connect with your fans, share exclusive content, promote shows',
-    color: 'from-momentum-flare to-momentum-rose'
-  },
-  {
-    value: 'ambassador',
-    icon: Award,
-    label: 'Ambassador',
-    description: 'Rep your city\'s scene, earn commissions, get featured',
-    color: 'from-momentum-ember to-momentum-rose'
-  },
-  {
-    value: 'influencer',
-    icon: Star,
-    label: 'Influencer',
-    description: 'Curate the best moments, collab with artists, build your following',
-    color: 'from-momentum-ember to-momentum-flare'
-  },
-];
 
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
   const { getCurrentPosition } = useGeolocation();
-  
-  const [selectedRole, setSelectedRole] = useState<UserRole>('fan');
+
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     displayName: '',
     bio: '',
     location: '',
-    city: '',
     genres: [] as string[],
   });
 
-  // Personalization state
   const [favoriteArtists, setFavoriteArtists] = useState<string[]>([]);
   const [homeLocation, setHomeLocation] = useState('');
   const [homeLatitude, setHomeLatitude] = useState<number | null>(null);
@@ -93,12 +49,8 @@ export default function Onboarding() {
     }
   }, [user]);
 
-  const handleRoleSelect = (role: UserRole) => {
-    setSelectedRole(role);
-  };
-
   const handleInputChange = (field: string, value: string | string[]) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleGetCurrentLocation = async () => {
@@ -110,7 +62,7 @@ export default function Onboarding() {
 
       const response = await fetch(
         `/api/maps/reverse-geocode?lat=${lat}&lng=${lng}`,
-        { credentials: 'include' }
+        { credentials: 'include' },
       );
 
       if (response.ok) {
@@ -119,7 +71,7 @@ export default function Onboarding() {
         };
         setHomeLocation(
           data.formattedAddress?.trim() ||
-            `${lat.toFixed(4)}, ${lng.toFixed(4)}`
+            `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
         );
         setHomeLatitude(lat);
         setHomeLongitude(lng);
@@ -151,11 +103,9 @@ export default function Onboarding() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          role: selectedRole,
           display_name: displayName,
           bio: formData.bio,
           location: formData.location,
-          city: formData.city,
           genres: formData.genres,
         }),
       });
@@ -224,7 +174,6 @@ export default function Onboarding() {
   return (
     <div className="min-h-screen text-white">
       <div className="max-w-4xl mx-auto px-4 py-12">
-        {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4">
             <span className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
@@ -234,77 +183,31 @@ export default function Onboarding() {
           <p className="text-xl text-gray-300">Let's get you set up</p>
         </div>
 
-        {/* Progress */}
         <div className="flex items-center justify-center mb-12">
           <div className="flex items-center space-x-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 1 ? 'bg-momentum-ember' : 'bg-momentum-ember/50'}`}>
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                step === 1 ? 'bg-momentum-ember' : 'bg-momentum-ember/50'
+              }`}
+            >
               <span className="text-white font-bold text-sm">1</span>
             </div>
             <div className="w-16 h-1 bg-gray-700" />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 2 ? 'bg-momentum-ember' : step > 2 ? 'bg-momentum-ember/50' : 'bg-gray-700'}`}>
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                step === 2 ? 'bg-momentum-ember' : 'bg-gray-700'
+              }`}
+            >
               <span className="text-white font-bold text-sm">2</span>
-            </div>
-            <div className="w-16 h-1 bg-gray-700" />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === 3 ? 'bg-momentum-ember' : 'bg-gray-700'}`}>
-              <span className="text-white font-bold text-sm">3</span>
             </div>
           </div>
         </div>
 
-        {/* Step 1: Choose Role */}
         {step === 1 && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white text-center mb-8">How Will You Vibe?</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {roleOptions.map((option) => {
-                const Icon = option.icon;
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => handleRoleSelect(option.value)}
-                    className={`p-6 rounded-xl border-2 text-left transition-all ${
-                      selectedRole === option.value
-                        ? 'border-momentum-flare bg-black/60 scale-105'
-                        : 'border-gray-700 bg-black/40 hover:border-gray-600'
-                    }`}
-                  >
-                    <div className="flex items-start space-x-4">
-                      <div className={`p-3 rounded-lg bg-gradient-to-r ${option.color}`}>
-                        <Icon className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-white mb-2">{option.label}</h3>
-                        <p className="text-gray-300 text-sm">{option.description}</p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-center mt-8">
-              <button
-                onClick={() => setStep(2)}
-                className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Profile Details */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold text-white">Complete Your Profile</h2>
-              <button
-                onClick={() => setStep(1)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
+            <h2 className="text-2xl font-bold text-white text-center mb-8">
+              Complete Your Profile
+            </h2>
 
             <div className="glass-panel rounded-xl p-8 space-y-6">
               <div>
@@ -329,66 +232,49 @@ export default function Onboarding() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-white font-medium mb-2">Location</label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => handleInputChange('location', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                    placeholder="New York, NY"
-                  />
-                </div>
-
-                {selectedRole === 'ambassador' && (
-                  <div>
-                    <label className="block text-white font-medium mb-2">City</label>
-                    <input
-                      type="text"
-                      value={formData.city}
-                      onChange={(e) => handleInputChange('city', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                      placeholder="New York"
-                    />
-                  </div>
-                )}
+              <div>
+                <label className="block text-white font-medium mb-2">Location</label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => handleInputChange('location', e.target.value)}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
+                  placeholder="New York, NY"
+                />
               </div>
 
               <div>
                 <label className="block text-white font-medium mb-2">Favorite Genres</label>
                 <div className="flex flex-wrap gap-2">
-                  {['Pop', 'Rock', 'Hip-Hop', 'Electronic', 'R&B', 'Latin', 'Jazz', 'Country'].map((genre) => (
-                    <button
-                      key={genre}
-                      onClick={() => {
-                        const genres = formData.genres.includes(genre)
-                          ? formData.genres.filter(g => g !== genre)
-                          : [...formData.genres, genre];
-                        handleInputChange('genres', genres);
-                      }}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                        formData.genres.includes(genre)
-                          ? 'momentum-grad-interactive text-white'
-                          : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                      }`}
-                    >
-                      {genre}
-                    </button>
-                  ))}
+                  {['Pop', 'Rock', 'Hip-Hop', 'Electronic', 'R&B', 'Latin', 'Jazz', 'Country'].map(
+                    (genre) => (
+                      <button
+                        key={genre}
+                        type="button"
+                        onClick={() => {
+                          const genres = formData.genres.includes(genre)
+                            ? formData.genres.filter((g) => g !== genre)
+                            : [...formData.genres, genre];
+                          handleInputChange('genres', genres);
+                        }}
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                          formData.genres.includes(genre)
+                            ? 'momentum-grad-interactive text-white'
+                            : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                        }`}
+                      >
+                        {genre}
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-center space-x-4 mt-8">
+            <div className="flex justify-center mt-8">
               <button
-                onClick={() => setStep(1)}
-                className="px-8 py-4 bg-black/30 border border-momentum-ember/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => setStep(3)}
+                type="button"
+                onClick={() => setStep(2)}
                 className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform"
               >
                 Continue
@@ -397,13 +283,13 @@ export default function Onboarding() {
           </div>
         )}
 
-        {/* Step 3: Personalization */}
-        {step === 3 && (
+        {step === 2 && (
           <div className="space-y-6">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-bold text-white">Personalize Your Feed</h2>
               <button
-                onClick={() => setStep(2)}
+                type="button"
+                onClick={() => setStep(1)}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <X className="w-6 h-6" />
@@ -417,15 +303,17 @@ export default function Onboarding() {
                 labelExtra={<span className="text-gray-400 text-sm ml-2">(Select at least 3)</span>}
               />
 
-              {/* Home Location */}
               <div>
                 <label className="block text-white font-medium mb-4">
                   Home Location
-                  <span className="text-gray-400 text-sm ml-2">(For nearby show recommendations)</span>
+                  <span className="text-gray-400 text-sm ml-2">
+                    (For nearby show recommendations)
+                  </span>
                 </label>
-                
+
                 <div className="space-y-4">
                   <button
+                    type="button"
                     onClick={handleGetCurrentLocation}
                     disabled={loadingLocation}
                     className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-all disabled:opacity-50"
@@ -460,7 +348,7 @@ export default function Onboarding() {
                       max="200"
                       step="10"
                       value={locationRadius}
-                      onChange={(e) => setLocationRadius(parseInt(e.target.value))}
+                      onChange={(e) => setLocationRadius(parseInt(e.target.value, 10))}
                       className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
                     />
                     <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -473,7 +361,9 @@ export default function Onboarding() {
 
               <div className="p-4 bg-momentum-rose/10 border border-momentum-rose/20 rounded-lg">
                 <p className="text-momentum-rose/80 text-sm">
-                  <strong>Why personalize?</strong> We'll show you clips and concerts from your favorite artists and shows near you. You can update these preferences anytime in your settings.
+                  <strong>Why personalize?</strong> We'll show you clips and concerts from your
+                  favorite artists and shows near you. You can update these preferences anytime in
+                  your settings.
                 </p>
               </div>
             </div>
@@ -486,13 +376,15 @@ export default function Onboarding() {
 
             <div className="flex justify-center space-x-4 mt-8">
               <button
-                onClick={() => setStep(2)}
+                type="button"
+                onClick={() => setStep(1)}
                 disabled={submitting}
                 className="px-8 py-4 bg-black/30 border border-momentum-ember/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all disabled:opacity-50"
               >
                 Back
               </button>
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={favoriteArtists.length < 3 || submitting}
                 className="px-8 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"

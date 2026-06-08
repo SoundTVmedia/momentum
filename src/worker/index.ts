@@ -23,6 +23,7 @@ import {
   resolveOAuthCallbackUrl,
 } from "./google-oauth";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
+import { isAdmin } from "./admin-auth";
 import {
   isSameMochaUser,
   NOTIFICATIONS_LIST_FILTER_SQL,
@@ -59,6 +60,7 @@ import * as deviceToken from "./device-token-endpoints";
 import * as authEndpoints from "./auth-endpoints";
 import * as personalization from "./personalization-endpoints";
 import * as youtube from "./youtube-endpoints";
+import * as userRole from "./user-role-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -422,12 +424,12 @@ app.get("/api/admin/verification-requests", authMiddleware, async (c) => {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -468,12 +470,12 @@ app.post("/api/admin/verification-requests/:requestId/review", authMiddleware, a
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -561,7 +563,6 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
     const body = await c.req.json();
 
     const {
-      role,
       display_name,
       bio,
       location,
@@ -572,8 +573,6 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
       social_links,
     } = body;
 
-    const roleVal =
-      typeof role === "string" && role.trim() !== "" ? role : "fan";
     const genresJson = JSON.stringify(Array.isArray(genres) ? genres : []);
     const socialJson = JSON.stringify(
       social_links !== undefined &&
@@ -587,10 +586,13 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
 
     // Check if profile exists
     const existingProfile = await c.env.DB.prepare(
-      "SELECT id FROM user_profiles WHERE mocha_user_id = ?"
+      "SELECT id, role FROM user_profiles WHERE mocha_user_id = ?"
     )
       .bind(uid)
-      .first();
+      .first<{ id: number; role: string }>();
+
+    // New users always start as fans; existing users keep their assigned role.
+    const roleVal = existingProfile?.role ?? "fan";
 
     if (existingProfile) {
       // Update existing profile
@@ -2150,12 +2152,12 @@ app.post("/api/admin/live/sessions", authMiddleware, async (c) => {
 
   // Check if user is admin
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2191,12 +2193,12 @@ app.put("/api/admin/live/sessions/:sessionId", authMiddleware, async (c) => {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2236,12 +2238,12 @@ app.delete("/api/admin/live/sessions/:sessionId", authMiddleware, async (c) => {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2266,12 +2268,12 @@ app.get("/api/admin/live/sessions", authMiddleware, async (c) => {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2291,12 +2293,12 @@ app.post("/api/admin/live/sessions/:sessionId/clips", authMiddleware, async (c) 
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2344,12 +2346,12 @@ app.delete("/api/admin/live/sessions/:sessionId/clips/:scheduleId", authMiddlewa
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2373,12 +2375,12 @@ app.put("/api/admin/live/sessions/:sessionId/clips/reorder", authMiddleware, asy
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2411,12 +2413,12 @@ app.delete("/api/admin/live/:sessionId/chat/:messageId", authMiddleware, async (
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || (!userProfile.is_admin && !userProfile.is_moderator)) {
+  if (!userProfile || (!isAdmin(userProfile) && !userProfile.is_moderator)) {
     return c.json({ error: "Admin or moderator access required" }, 403);
   }
 
@@ -2442,12 +2444,12 @@ app.post("/api/admin/live/:sessionId/ban", authMiddleware, async (c) => {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || (!userProfile.is_admin && !userProfile.is_moderator)) {
+  if (!userProfile || (!isAdmin(userProfile) && !userProfile.is_moderator)) {
     return c.json({ error: "Admin or moderator access required" }, 403);
   }
 
@@ -2487,12 +2489,12 @@ app.delete("/api/admin/live/:sessionId/ban/:userId", authMiddleware, async (c) =
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || (!userProfile.is_admin && !userProfile.is_moderator)) {
+  if (!userProfile || (!isAdmin(userProfile) && !userProfile.is_moderator)) {
     return c.json({ error: "Admin or moderator access required" }, 403);
   }
 
@@ -2517,12 +2519,12 @@ app.get("/api/admin/live/:sessionId/bans", authMiddleware, async (c) => {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin, is_moderator FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || (!userProfile.is_admin && !userProfile.is_moderator)) {
+  if (!userProfile || (!isAdmin(userProfile) && !userProfile.is_moderator)) {
     return c.json({ error: "Admin or moderator access required" }, 403);
   }
 
@@ -2640,12 +2642,12 @@ app.post("/api/admin/live/sessions/:sessionId/feature-clip/:clipId", authMiddlew
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2723,12 +2725,12 @@ app.post("/api/admin/live/sessions/:sessionId/advance", authMiddleware, async (c
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2801,12 +2803,12 @@ app.put("/api/admin/live/sessions/:sessionId/clips/:scheduleId/duration", authMi
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2838,12 +2840,12 @@ app.get("/api/admin/analytics", authMiddleware, async (c) => {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -2962,6 +2964,8 @@ app.delete("/api/admin/clips/:clipId", authMiddleware, moderation.deleteClip);
 app.get("/api/admin/moderation/users", authMiddleware, moderation.getFlaggedUsers);
 app.post("/api/admin/users/:userId/ban", authMiddleware, moderation.banUser);
 app.post("/api/admin/users/:userId/unban", authMiddleware, moderation.unbanUser);
+app.get("/api/admin/users/search", authMiddleware, userRole.searchUsersForRoleAdmin);
+app.patch("/api/admin/users/:userId/role", authMiddleware, userRole.updateUserRole);
 
 // Stripe Payment Integration Endpoints
 app.post("/api/stripe/checkout/premium", authMiddleware, stripe.createPremiumCheckoutSession);
