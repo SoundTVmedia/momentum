@@ -17,6 +17,10 @@ import VenuePage from "@/react-app/pages/VenuePage";
 import AdminPage from "@/react-app/pages/Admin";
 import UserProfilePage from "@/react-app/pages/UserProfile";
 import DiscoverPage from "@/react-app/pages/Discover";
+import BrowseClipsFeedPage from "@/react-app/pages/BrowseClipsFeed";
+import BrowseFavoriteClipsPage from "@/react-app/pages/BrowseFavoriteClips";
+import BrowseFavoriteShowsPage from "@/react-app/pages/BrowseFavoriteShows";
+import BrowseNearbyShowsPage from "@/react-app/pages/BrowseNearbyShows";
 import AnalyticsPage from "@/react-app/pages/Analytics";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import EventClipsPage from "@/react-app/pages/EventClips";
@@ -54,6 +58,10 @@ export default function App() {
               <Route path="/venues/:venueName" element={<VenuePage />} />
               <Route path="/users/:userId" element={<UserProfilePage />} />
               <Route path="/discover" element={<DiscoverPage />} />
+              <Route path="/browse/clips/:feedType" element={<BrowseClipsFeedPage />} />
+              <Route path="/browse/favorites/clips" element={<BrowseFavoriteClipsPage />} />
+              <Route path="/browse/favorites/shows" element={<BrowseFavoriteShowsPage />} />
+              <Route path="/browse/shows/nearby" element={<BrowseNearbyShowsPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/premium" element={<Navigate to="/" replace />} />

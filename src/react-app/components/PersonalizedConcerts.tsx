@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { Calendar, MapPin, Loader2, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -7,6 +8,7 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { artistPath } from '@/shared/app-paths';
+import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import {
@@ -28,6 +30,10 @@ export type PersonalizedConcertsProps = {
   mode?: ShowsSectionMode;
   /** Omit title/subtitle when a parent section already provides them (e.g. feed toggles). */
   hideHeader?: boolean;
+  /** Cap carousel length before pointing users to a browse page. */
+  carouselMaxEvents?: number;
+  viewAllHref?: string;
+  viewAllLabel?: string;
 };
 
 interface D1Concert {
@@ -132,15 +138,28 @@ export default function PersonalizedConcerts({
   headingVariant = 'compact',
   mode = 'auto',
   hideHeader = false,
+  carouselMaxEvents = 12,
+  viewAllHref,
+  viewAllLabel = 'View all shows',
 }: PersonalizedConcertsProps) {
   const { user, isPending: authPending } = useAuth();
   const carouselBleed =
     carouselBleedScope === 'page' ? PAGE_CAROUSEL_BLEED : HOME_FEED_CAROUSEL_BLEED;
   const [payload, setPayload] = useState<ConcertsApi | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nearbyFetchLimit, setNearbyFetchLimit] = useState(carouselMaxEvents);
 
   const isLoggedIn = Boolean(user);
   const resolvedMode = resolveMode(mode, isLoggedIn);
+  const resolvedViewAllHref =
+    viewAllHref ?? (resolvedMode === 'nearby' ? BROWSE_NEARBY_SHOWS_PATH : undefined);
+
+  useEffect(() => {
+    if (resolvedMode === 'nearby') {
+      setNearbyFetchLimit(carouselMaxEvents);
+    }
+  }, [resolvedMode, carouselMaxEvents]);
 
   useEffect(() => {
     if (authPending) return;
@@ -151,8 +170,14 @@ export default function PersonalizedConcerts({
       return;
     }
 
+    const isNearbyLoadMore = resolvedMode === 'nearby' && nearbyFetchLimit > carouselMaxEvents;
+
     const fetchConcerts = async () => {
-      setLoading(true);
+      if (isNearbyLoadMore) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
       try {
         if (resolvedMode === 'favorite-artists') {
           const response = await fetch('/api/personalization/concerts?limit=40', {
@@ -167,7 +192,7 @@ export default function PersonalizedConcerts({
             message: typeof data.message === 'string' ? data.message : undefined,
           });
         } else {
-          const response = await fetch('/api/shows/nearby?limit=12', {
+          const response = await fetch(`/api/shows/nearby?limit=${nearbyFetchLimit}`, {
             credentials: 'include',
           });
           const data = (await response.json()) as ConcertsApi & {
@@ -192,14 +217,20 @@ export default function PersonalizedConcerts({
         }
       } catch (error) {
         console.error('Failed to fetch concerts:', error);
-        setPayload({ personalized: false, concerts: [], events: [] });
+        if (!isNearbyLoadMore) {
+          setPayload({ personalized: false, concerts: [], events: [] });
+        }
       } finally {
-        setLoading(false);
+        if (isNearbyLoadMore) {
+          setLoadingMore(false);
+        } else {
+          setLoading(false);
+        }
       }
     };
 
     void fetchConcerts();
-  }, [authPending, isLoggedIn, resolvedMode]);
+  }, [authPending, isLoggedIn, resolvedMode, nearbyFetchLimit, carouselMaxEvents]);
 
   useEffect(() => {
     if (!isLoggedIn || resolvedMode !== 'favorite-artists') return;
@@ -233,6 +264,13 @@ export default function PersonalizedConcerts({
     typeof payload?.location?.label === 'string' && payload.location.label.trim()
       ? payload.location.label.trim()
       : null;
+
+  const loadMoreNearby = useCallback(() => {
+    if (resolvedMode !== 'nearby' || loadingMore || loading) return;
+    const count = payload?.events?.length ?? 0;
+    if (count < nearbyFetchLimit || nearbyFetchLimit >= 40) return;
+    setNearbyFetchLimit((prev) => Math.min(prev + 12, 40));
+  }, [resolvedMode, loadingMore, loading, payload?.events?.length, nearbyFetchLimit]);
 
   const sectionTitle =
     resolvedMode === 'favorite-artists'
@@ -301,17 +339,27 @@ export default function PersonalizedConcerts({
       ? 'Upcoming shows from your favorite artists'
       : 'Upcoming shows near you';
 
+  const visibleJbEvents =
+    resolvedMode === 'nearby' ? jbEvents : jbEvents.slice(0, carouselMaxEvents);
+  const visibleD1Concerts =
+    resolvedMode === 'nearby' ? d1Concerts : d1Concerts.slice(0, carouselMaxEvents);
+  const hasMoreShows =
+    resolvedMode === 'nearby'
+      ? jbEvents.length >= nearbyFetchLimit && nearbyFetchLimit < 40
+      : jbEvents.length > carouselMaxEvents || d1Concerts.length > carouselMaxEvents;
+
   return (
     <div className={headingVariant === 'page' ? '' : HOME_FEED_SECTION_CLASS}>
       {!hideHeader ? sectionHeader : null}
 
       {jbEvents.length > 0 ? (
         <JamBaseEventGrid
-          preloadedEvents={jbEvents}
-          maxEvents={12}
+          preloadedEvents={visibleJbEvents}
+          maxEvents={visibleJbEvents.length || carouselMaxEvents}
           layout="carousel"
           carouselAriaLabel={carouselAriaLabel}
           carouselClassName={carouselBleed}
+          onReachEnd={resolvedMode === 'nearby' ? loadMoreNearby : undefined}
         />
       ) : (
         <HorizontalClipCarousel
@@ -320,13 +368,23 @@ export default function PersonalizedConcerts({
           className={carouselBleed}
           filmstrip={false}
         >
-          {d1Concerts.map((concert) => (
+          {visibleD1Concerts.map((concert) => (
             <HorizontalClipCarouselItem key={concert.id} mobilePeek="event">
               <D1ConcertCard concert={concert} />
             </HorizontalClipCarouselItem>
           ))}
         </HorizontalClipCarousel>
       )}
+
+      {hasShows && (resolvedViewAllHref || hasMoreShows) ? (
+        <CarouselFeedFooter
+          loading={loadingMore}
+          hasMore={hasMoreShows}
+          viewAllHref={resolvedViewAllHref}
+          viewAllLabel={viewAllLabel}
+          showEndMessage={false}
+        />
+      ) : null}
     </div>
   );
 }

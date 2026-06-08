@@ -8,9 +8,12 @@ import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJ
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import FeedFilters from '@/react-app/components/FeedFilters';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
+import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
+import { useCarouselInfiniteLoad } from '@/react-app/hooks/useCarouselInfiniteLoad';
+import { BROWSE_FAVORITE_CLIPS_PATH, BROWSE_FAVORITE_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import {
@@ -40,7 +43,9 @@ export default function FavoriteArtistFeedPanel({
 }: FavoriteArtistFeedPanelProps) {
   const { user, isPending } = useAuth();
   const sectionRef = useRef<HTMLElement>(null);
-  const clipsLimit = variant === 'feed' ? 8 : 12;
+  const carouselScrollRef = useRef<HTMLDivElement>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const clipsLimit = 12;
   const nextClipOffsetRef = useRef(0);
 
   const [panelView, setPanelView] = useState<FavoriteFeedFilterValue>('artists');
@@ -184,7 +189,7 @@ export default function FavoriteArtistFeedPanel({
     return () => cancelAnimationFrame(id);
   }, [scrollIntoViewOnMount, loading, hasFavoriteArtists]);
 
-  const loadMoreClips = () => {
+  const loadMoreClips = useCallback(() => {
     if (!hasMoreClips || loadingMore) return;
     setLoadingMore(true);
     void (async () => {
@@ -196,7 +201,17 @@ export default function FavoriteArtistFeedPanel({
         setLoadingMore(false);
       }
     })();
-  };
+  }, [fetchSlice, hasMoreClips, loadingMore]);
+
+  useCarouselInfiniteLoad({
+    scrollRef: carouselScrollRef,
+    sentinelRef: loadMoreSentinelRef,
+    enabled: variant === 'feed' && panelView === 'artists' && clips.length > 0,
+    hasMore: hasMoreClips,
+    loading: loadingMore,
+    onLoadMore: loadMoreClips,
+    itemCount: clips.length,
+  });
 
   const saveFavoriteArtists = async () => {
     setSavingArtists(true);
@@ -350,6 +365,9 @@ export default function FavoriteArtistFeedPanel({
               carouselBleedScope={edgeBleedScope}
               mode="favorite-artists"
               hideHeader
+              carouselMaxEvents={12}
+              viewAllHref={BROWSE_FAVORITE_SHOWS_PATH}
+              viewAllLabel="View all shows"
             />
           </div>
         ) : loading ? (
@@ -366,6 +384,7 @@ export default function FavoriteArtistFeedPanel({
               </p>
             ) : (
               <HorizontalClipCarousel
+                ref={variant === 'feed' ? carouselScrollRef : undefined}
                 ariaLabel="Clips from your artists"
                 stretchItems
                 className={
@@ -375,6 +394,9 @@ export default function FavoriteArtistFeedPanel({
                       : PAGE_CAROUSEL_BLEED
                     : '-mx-5 px-5 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2'
                 }
+                onReachEnd={() => {
+                  if (variant === 'feed' && hasMoreClips && !loadingMore) loadMoreClips();
+                }}
               >
                 {clips.map((clip, index) => (
                   <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
@@ -388,27 +410,28 @@ export default function FavoriteArtistFeedPanel({
                     />
                   </HorizontalClipCarouselItem>
                 ))}
+                {variant === 'feed' && hasMoreClips ? (
+                  <div
+                    ref={loadMoreSentinelRef}
+                    className="flex-shrink-0 w-px h-px opacity-0 snap-none"
+                    aria-hidden
+                  />
+                ) : null}
               </HorizontalClipCarousel>
             )}
 
-            {variant === 'discover' && hasMoreClips ? (
-              <div className="mt-6 flex justify-center">
-                <button
-                  type="button"
-                  disabled={loadingMore}
-                  onClick={loadMoreClips}
-                  className="px-6 py-3 rounded-xl font-semibold text-white text-sm border border-momentum-ember/40 bg-black/50 hover:bg-black/70 disabled:opacity-50 transition-colors"
-                >
-                  {loadingMore ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading…
-                    </span>
-                  ) : (
-                    'Load more clips'
-                  )}
-                </button>
-              </div>
+            {clips.length > 0 ? (
+              <CarouselFeedFooter
+                loading={loadingMore}
+                hasMore={hasMoreClips}
+                viewAllHref={
+                  variant === 'feed' || variant === 'discover'
+                    ? BROWSE_FAVORITE_CLIPS_PATH
+                    : undefined
+                }
+                viewAllLabel="View all clips"
+                showEndMessage={variant !== 'feed' && variant !== 'discover'}
+              />
             ) : null}
           </div>
         )}

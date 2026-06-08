@@ -29,6 +29,8 @@ export interface JamBaseEventGridProps {
   venueName?: string;
   /** When set, skips fetch and renders this list (e.g. server-merged favorites feed) */
   preloadedEvents?: Record<string, unknown>[];
+  /** Fired when the carousel reaches the last event (scroll or chevron). */
+  onReachEnd?: () => void;
 }
 
 function primaryTicketUrl(ev: Record<string, unknown>): string | null {
@@ -242,6 +244,7 @@ export default function JamBaseEventGrid({
   artistName,
   venueName,
   preloadedEvents,
+  onReachEnd,
 }: JamBaseEventGridProps) {
   const navigate = useNavigate();
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
@@ -399,6 +402,7 @@ export default function JamBaseEventGrid({
           ariaLabel={carouselAriaLabel}
           className={carouselClassName}
           filmstrip={false}
+          onReachEnd={onReachEnd}
         >
           {display.map((event) => (
             <HorizontalClipCarouselItem key={eventId(event)} mobilePeek="event">

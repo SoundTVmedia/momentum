@@ -29,6 +29,8 @@ export type HorizontalClipCarouselProps = {
   stretchItems?: boolean;
   /** Stacked gradient edge ticks on left/right of each clip card. */
   filmstrip?: boolean;
+  /** Fired when the leading item reaches the last slide (scroll or chevron). */
+  onReachEnd?: () => void;
 };
 
 const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarouselProps>(
@@ -39,10 +41,14 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
       ariaLabel = 'Clips carousel',
       stretchItems = false,
       filmstrip = true,
+      onReachEnd,
     },
     forwardedRef,
   ) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const onReachEndRef = useRef(onReachEnd);
+  onReachEndRef.current = onReachEnd;
+  const lastReachEndAtCountRef = useRef(-1);
 
   const setScrollRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -84,10 +90,18 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
     return bestIndex;
   }, []);
 
+  const maybeReachEnd = useCallback((index: number, itemCount: number) => {
+    if (itemCount <= 0 || index < itemCount - 1) return;
+    if (lastReachEndAtCountRef.current === itemCount) return;
+    lastReachEndAtCountRef.current = itemCount;
+    onReachEndRef.current?.();
+  }, []);
+
   const applyNavState = useCallback((index: number, itemCount: number) => {
     setCanScrollLeft(index > 0);
     setCanScrollRight(index < itemCount - 1);
-  }, []);
+    maybeReachEnd(index, itemCount);
+  }, [maybeReachEnd]);
 
   const syncActiveIndexFromScroll = useCallback(() => {
     if (isNavigatingRef.current) return;
@@ -128,6 +142,10 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
       ro.disconnect();
     };
   }, [syncActiveIndexFromScroll, children]);
+
+  useEffect(() => {
+    lastReachEndAtCountRef.current = -1;
+  }, [children]);
 
   const scrollToIndex = useCallback(
     (index: number, behavior: ScrollBehavior = 'smooth') => {

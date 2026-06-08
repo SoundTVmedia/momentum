@@ -7,6 +7,7 @@ import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPa
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
 import SectionHeading from '@/react-app/components/SectionHeading'
+import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths'
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
 
 export type MainFeedStackVariant = 'page' | 'home'
@@ -81,7 +82,12 @@ export default function MainFeedStack({
       </div>
 
       {isHome ? (
-        <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
+        <PersonalizedConcerts
+          carouselBleedScope="page"
+          mode="nearby"
+          viewAllHref={BROWSE_NEARBY_SHOWS_PATH}
+          viewAllLabel="View all shows"
+        />
       ) : null}
     </div>
   )

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useClips } from '@/react-app/hooks/useClips'
 import ClipModal from './ClipModal'
@@ -16,6 +16,9 @@ import {
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout'
+import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter'
+import { useCarouselInfiniteLoad } from '@/react-app/hooks/useCarouselInfiniteLoad'
+import { browseClipsPath } from '@/react-app/lib/browse-paths'
 import { getFeedFilterMeta, type FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
 
 interface ConcertFeedProps {
@@ -33,6 +36,8 @@ interface ConcertFeedProps {
   edgeBleedScope?: 'home' | 'page'
   /** Drop extra bottom padding when another home section follows (e.g. shows carousel). */
   suppressBottomPadding?: boolean
+  /** Link to a full browse page; shown when the carousel can paginate. */
+  viewAllHref?: string
 }
 
 export function FeedSectionHeader({
@@ -79,8 +84,12 @@ export default function ConcertFeed({
   edgeBleed = false,
   edgeBleedScope = 'page',
   suppressBottomPadding = false,
+  viewAllHref,
 }: ConcertFeedProps) {
   const navigate = useNavigate()
+  const isGlobalFeed =
+    !artistName && !venueName && !songSlug && !genreSlug && !userId
+
   const { clips, loading, hasMore, loadMore, error, refetch, updateClip } = useClips({
     feedType,
     artistName,
@@ -88,36 +97,26 @@ export default function ConcertFeed({
     songSlug,
     genreSlug,
     userId,
-    enablePolling:
-      feedType === 'latest' &&
-      !artistName &&
-      !venueName &&
-      !songSlug &&
-      !genreSlug &&
-      !userId,
+    limit: 12,
+    enablePolling: feedType === 'latest' && isGlobalFeed,
   })
 
   const carouselScrollRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null)
 
-  useEffect(() => {
-    const root = carouselScrollRef.current
-    const target = loadMoreSentinelRef.current
-    if (!root || !target || clips.length === 0) return
+  const resolvedViewAllHref =
+    viewAllHref ?? (isGlobalFeed ? browseClipsPath(feedType) : undefined)
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasMore && !loading) {
-          loadMore()
-        }
-      },
-      { root, threshold: 0.1, rootMargin: '120px' },
-    )
-
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [clips.length, hasMore, loading, loadMore])
+  useCarouselInfiniteLoad({
+    scrollRef: carouselScrollRef,
+    sentinelRef: loadMoreSentinelRef,
+    enabled: clips.length > 0,
+    hasMore,
+    loading,
+    onLoadMore: loadMore,
+    itemCount: clips.length,
+  })
 
   const carouselClass = edgeBleed
     ? edgeBleedScope === 'home'
@@ -159,6 +158,9 @@ export default function ConcertFeed({
               ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
               className={carouselClass}
               stretchItems
+              onReachEnd={() => {
+                if (hasMore && !loading) loadMore()
+              }}
             >
               {clips.map((clip, index) => (
                 <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
@@ -181,14 +183,13 @@ export default function ConcertFeed({
               ) : null}
             </HorizontalClipCarousel>
 
-            <div className="mt-4 flex flex-col items-center justify-center gap-1 min-h-[2rem]">
-              {loading && clips.length > 0 ? (
-                <p className="text-momentum-flare text-sm font-medium">Loading more moments…</p>
-              ) : null}
-              {!loading && !hasMore && clips.length > 0 ? (
-                <p className="text-gray-500 text-sm">You&apos;ve reached the end</p>
-              ) : null}
-            </div>
+            <CarouselFeedFooter
+              loading={loading && clips.length > 0}
+              hasMore={hasMore}
+              viewAllHref={resolvedViewAllHref}
+              viewAllLabel="View all clips"
+              showEndMessage={!resolvedViewAllHref}
+            />
           </>
         ) : null}
 
