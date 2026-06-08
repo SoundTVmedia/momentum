@@ -12,7 +12,9 @@ import AdvancedSearchDropdown from './AdvancedSearchDropdown'
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types'
 import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
-import HeaderGradientPill from '@/react-app/components/HeaderGradientPill'
+import HeaderGradientPill, {
+  HEADER_ACTION_BUTTON_CLASS,
+} from '@/react-app/components/HeaderGradientPill'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -158,7 +160,7 @@ export default function Header() {
               <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
                 <button
                   onClick={() => navigate('/upload')}
-                  className="hidden md:block px-[0.65rem] py-[0.325rem] momentum-grad-interactive rounded-md font-bold text-white hover:scale-105 transition-transform text-[0.65rem] leading-tight shadow-lg shadow-momentum-ember/35"
+                  className={`hidden md:block momentum-grad-interactive shadow-lg shadow-momentum-ember/35 ${HEADER_ACTION_BUTTON_CLASS}`}
                 >
                   Share Your Moment
                 </button>
