@@ -1,33 +1,27 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router';
-import { Calendar, Loader2, MapPin, Plus, Save, Ticket, X } from 'lucide-react';
+import { Loader2, Plus, Save, X } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { artistPath, venuePath } from '@/shared/app-paths';
 import ClipModal from '@/react-app/components/ClipModal';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
+import FeedFilters from '@/react-app/components/FeedFilters';
+import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import SectionHeading from '@/react-app/components/SectionHeading';
-import EventTicketActions from '@/react-app/components/EventTicketActions';
+import {
+  FAVORITE_FEED_FILTER_OPTIONS,
+  type FavoriteFeedFilterValue,
+} from '@/react-app/lib/favoriteFeedFilterMeta';
 import {
   HOME_FEED_CAROUSEL_BLEED,
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
-
-type FavoriteFeedEvent = {
-  artist_name?: string | null;
-  artist_image?: string | null;
-  venue_name?: string | null;
-  venue_location?: string | null;
-  date?: string | null;
-  ticket_url?: string | null;
-};
 
 export type FavoriteArtistFeedPanelProps = {
   variant: 'feed' | 'discover';
@@ -45,13 +39,12 @@ export default function FavoriteArtistFeedPanel({
   edgeBleedScope = 'page',
 }: FavoriteArtistFeedPanelProps) {
   const { user, isPending } = useAuth();
-  const navigate = useNavigate();
   const sectionRef = useRef<HTMLElement>(null);
   const clipsLimit = variant === 'feed' ? 8 : 12;
   const nextClipOffsetRef = useRef(0);
 
+  const [panelView, setPanelView] = useState<FavoriteFeedFilterValue>('artists');
   const [loading, setLoading] = useState(true);
-  const [upcomingEvents, setUpcomingEvents] = useState<FavoriteFeedEvent[]>([]);
   const [clips, setClips] = useState<ClipWithUser[]>([]);
   const [hasMoreClips, setHasMoreClips] = useState(false);
   const [hasFavoriteArtists, setHasFavoriteArtists] = useState(false);
@@ -112,20 +105,19 @@ export default function FavoriteArtistFeedPanel({
   const fetchSlice = useCallback(
     async (offset: number, append: boolean) => {
       const res = await apiFetch(
-        `/api/discover/favorite-artist-feed?events_limit=3&clips_limit=${clipsLimit}&clips_offset=${offset}`,
+        `/api/discover/favorite-artist-feed?events_limit=0&clips_limit=${clipsLimit}&clips_offset=${offset}`,
         { cache: 'no-store' },
       );
       if (!res.ok) throw new Error('favorite-artist-feed');
       const data = (await res.json()) as {
         hasFavoriteArtists?: boolean;
-        upcomingEvents?: FavoriteFeedEvent[];
+        upcomingEvents?: unknown[];
         clips?: ClipWithUser[];
         hasMoreClips?: boolean;
       };
 
       if (!data.hasFavoriteArtists) {
         setHasFavoriteArtists(false);
-        setUpcomingEvents([]);
         setClips([]);
         setHasMoreClips(false);
         nextClipOffsetRef.current = 0;
@@ -134,7 +126,6 @@ export default function FavoriteArtistFeedPanel({
 
       setHasFavoriteArtists(true);
       if (!append) {
-        setUpcomingEvents(data.upcomingEvents ?? []);
         setClips(data.clips ?? []);
         nextClipOffsetRef.current = (data.clips ?? []).length;
       } else {
@@ -163,7 +154,6 @@ export default function FavoriteArtistFeedPanel({
       } catch {
         if (!cancelled) {
           setHasFavoriteArtists(false);
-          setUpcomingEvents([]);
           setClips([]);
           setHasMoreClips(false);
         }
@@ -267,8 +257,7 @@ export default function FavoriteArtistFeedPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <SectionHeading
-              title="Clips From Your Favorite Artists"
-              subtitle="Clips and upcoming shows from the artists you follow"
+              title="Clips and Shows From Your Favorite Artists"
               className="mb-0"
             />
           </div>
@@ -345,137 +334,83 @@ export default function FavoriteArtistFeedPanel({
           </div>
         ) : null}
 
-        {loading ? (
-          <div className="flex justify-center py-10">
+        {variant === 'feed' ? (
+          <div className="mt-3 md:mt-4">
+            <FeedFilters
+              options={FAVORITE_FEED_FILTER_OPTIONS}
+              currentFilter={panelView}
+              onFilterChange={setPanelView}
+            />
+          </div>
+        ) : null}
+
+        {variant === 'feed' && panelView === 'upcoming' ? (
+          <div className="mt-4 md:mt-5">
+            <PersonalizedConcerts
+              carouselBleedScope={edgeBleedScope}
+              mode="favorite-artists"
+              hideHeader
+            />
+          </div>
+        ) : loading ? (
+          <div className="mt-4 md:mt-5 flex justify-center py-10">
             <Loader2 className="w-10 h-10 text-momentum-flare animate-spin" />
           </div>
         ) : (
-          <>
-            {upcomingEvents.length > 0 && (
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-3 flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-momentum-flare" />
-                  Upcoming shows
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                  {upcomingEvents.slice(0, 3).map((ev, i) => {
-                    const artist = ev.artist_name ?? 'Artist';
-                    const venue = ev.venue_name;
-                    const when = ev.date ? new Date(ev.date) : null;
-                    return (
-                      <div
-                        key={`${artist}-${venue ?? ''}-${String(ev.date)}-${i}`}
-                        className="rounded-xl border border-white/10 bg-black/40 p-4 flex flex-col gap-2"
-                      >
-                        <div className="flex gap-3">
-                          {ev.artist_image ? (
-                            <img
-                              src={ev.artist_image}
-                              alt=""
-                              className="w-14 h-14 rounded-lg object-cover shrink-0"
-                            />
-                          ) : (
-                            <div className="w-14 h-14 rounded-lg bg-white/10 shrink-0" />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={() => navigate(artistPath(artist))}
-                              className="font-semibold text-white text-left hover:text-momentum-flare/90 truncate block w-full"
-                            >
-                              {artist}
-                            </button>
-                            {venue ? (
-                              <button
-                                type="button"
-                                onClick={() => navigate(venuePath(venue))}
-                                className="text-sm text-gray-400 hover:text-momentum-flare flex items-start gap-1 text-left mt-0.5"
-                              >
-                                <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                                <span className="truncate">{venue}</span>
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                        {when && !Number.isNaN(when.getTime()) ? (
-                          <div className="flex items-center gap-2 text-sm text-gray-300">
-                            <Calendar className="w-4 h-4 shrink-0" />
-                            {when.toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                            })}
-                          </div>
-                        ) : null}
-                        {typeof ev.ticket_url === 'string' && ev.ticket_url ? (
-                          <EventTicketActions
-                            ticketUrl={ev.ticket_url}
-                            eventTitle={artist}
-                            className="mt-auto w-full"
-                          />
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+          <div className="mt-4 md:mt-5">
+            {clips.length === 0 ? (
+              <p className="text-gray-400 text-sm py-4">
+                {hasFavoriteArtists
+                  ? 'No clips yet from these artists — check back after the next show.'
+                  : 'Add favorite artists to see their clips and tour picks here.'}
+              </p>
+            ) : (
+              <HorizontalClipCarousel
+                ariaLabel="Clips from your artists"
+                stretchItems
+                className={
+                  edgeBleed
+                    ? edgeBleedScope === 'home'
+                      ? HOME_FEED_CAROUSEL_BLEED
+                      : PAGE_CAROUSEL_BLEED
+                    : '-mx-5 px-5 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2'
+                }
+              >
+                {clips.map((clip, index) => (
+                  <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
+                    <ClipFeedGridTile
+                      clip={clip}
+                      onOpenClip={setSelectedClip}
+                      neighborClips={{
+                        prev: clips[index - 1],
+                        next: clips[index + 1],
+                      }}
+                    />
+                  </HorizontalClipCarouselItem>
+                ))}
+              </HorizontalClipCarousel>
             )}
 
-            <div>
-              {clips.length === 0 ? (
-                <p className="text-gray-400 text-sm py-4">
-                  {hasFavoriteArtists
-                    ? 'No clips yet from these artists — check back after the next show.'
-                    : 'Add favorite artists to see their clips and tour picks here.'}
-                </p>
-              ) : (
-                <HorizontalClipCarousel
-                  ariaLabel="Clips from your artists"
-                  stretchItems
-                  className={
-                    edgeBleed
-                      ? edgeBleedScope === 'home'
-                        ? HOME_FEED_CAROUSEL_BLEED
-                        : PAGE_CAROUSEL_BLEED
-                      : '-mx-5 px-5 sm:-mx-6 sm:px-6 md:mx-0 md:px-0 md:pt-1 md:pb-2'
-                  }
+            {variant === 'discover' && hasMoreClips ? (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  disabled={loadingMore}
+                  onClick={loadMoreClips}
+                  className="px-6 py-3 rounded-xl font-semibold text-white text-sm border border-momentum-ember/40 bg-black/50 hover:bg-black/70 disabled:opacity-50 transition-colors"
                 >
-                  {clips.map((clip, index) => (
-                    <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
-                      <ClipFeedGridTile
-                        clip={clip}
-                        onOpenClip={setSelectedClip}
-                        neighborClips={{
-                          prev: clips[index - 1],
-                          next: clips[index + 1],
-                        }}
-                      />
-                    </HorizontalClipCarouselItem>
-                  ))}
-                </HorizontalClipCarousel>
-              )}
-
-              {variant === 'discover' && hasMoreClips ? (
-                <div className="mt-6 flex justify-center">
-                  <button
-                    type="button"
-                    disabled={loadingMore}
-                    onClick={loadMoreClips}
-                    className="px-6 py-3 rounded-xl font-semibold text-white text-sm border border-momentum-ember/40 bg-black/50 hover:bg-black/70 disabled:opacity-50 transition-colors"
-                  >
-                    {loadingMore ? (
-                      <span className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Loading…
-                      </span>
-                    ) : (
-                      'Load more clips'
-                    )}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </>
+                  {loadingMore ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading…
+                    </span>
+                  ) : (
+                    'Load more clips'
+                  )}
+                </button>
+              </div>
+            ) : null}
+          </div>
         )}
       </section>
 

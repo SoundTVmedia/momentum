@@ -4,12 +4,10 @@ import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
 import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFeed'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
-import FavoriteFavoritesSection from '@/react-app/components/FavoriteFavoritesSection'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
-import FavoriteArtistYouTubeSection from '@/react-app/components/FavoriteArtistYouTubeSection'
-import DiscoverTrendingMusicSection from '@/react-app/components/DiscoverTrendingMusicSection'
 import SectionHeading from '@/react-app/components/SectionHeading'
+import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
 
 export type MainFeedStackVariant = 'page' | 'home'
 
@@ -58,62 +56,32 @@ export default function MainFeedStack({
       )}
 
       {user ? (
-        <>
-          <FavoriteArtistFeedPanel
-            variant="feed"
-            edgeBleed={isHome}
-            edgeBleedScope="page"
-          />
+        <FavoriteArtistFeedPanel
+          variant="feed"
+          edgeBleed={isHome}
+          edgeBleedScope="page"
+        />
+      ) : null}
 
-          {isHome ? (
-            <FavoriteFavoritesSection />
-          ) : (
-            <>
-              <div className="mb-5 md:mb-5">
-                <FeedSectionHeader feedType={feedType} />
-                <div className="mt-3 md:mt-4">
-                  <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
-                </div>
-              </div>
-
-              <ConcertFeed
-                feedType={feedType}
-                hideSectionHeader
-                edgeBleed={isHome}
-                edgeBleedScope="page"
-                suppressBottomPadding={isHome}
-              />
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="mb-5 md:mb-5">
-            <FeedSectionHeader feedType={feedType} />
-            <div className="mt-3 md:mt-4">
-              <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
-            </div>
+      <div className={isHome && user ? HOME_FEED_SECTION_CLASS : ''}>
+        <div className="mb-5 md:mb-5">
+          <FeedSectionHeader feedType={feedType} />
+          <div className="mt-3 md:mt-4">
+            <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
           </div>
+        </div>
 
-          <ConcertFeed
-            feedType={feedType}
-            hideSectionHeader
-            edgeBleed={isHome}
-            edgeBleedScope="page"
-            suppressBottomPadding={isHome}
-          />
-        </>
-      )}
+        <ConcertFeed
+          feedType={feedType}
+          hideSectionHeader
+          edgeBleed={isHome}
+          edgeBleedScope="page"
+          suppressBottomPadding={isHome}
+        />
+      </div>
 
       {isHome ? (
-        <div className="space-y-6 md:space-y-5">
-          <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
-          {user ? (
-            <FavoriteArtistYouTubeSection carouselBleedScope="page" />
-          ) : (
-            <DiscoverTrendingMusicSection />
-          )}
-        </div>
+        <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
       ) : null}
     </div>
   )

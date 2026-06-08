@@ -1,4 +1,4 @@
-export type FavoriteFeedFilterValue = 'latest' | 'upcoming';
+export type FavoriteFeedFilterValue = 'artists' | 'upcoming';
 
 export type FavoriteFeedFilterMeta = {
   value: FavoriteFeedFilterValue;
@@ -8,19 +8,19 @@ export type FavoriteFeedFilterMeta = {
 
 export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
   {
-    value: 'latest',
-    label: 'Latest From Your Favorites',
-    description: 'Fresh clips from artists you follow',
+    value: 'artists',
+    label: 'Your Artists',
+    description: 'Clips from artists you follow',
   },
   {
     value: 'upcoming',
     label: 'Upcoming Shows',
-    description: 'Tour dates for your favorite artists',
+    description: 'Tour dates from your favorite artists',
   },
 ];
 
 export function getFavoriteFeedFilterMeta(
-  filter: FavoriteFeedFilterValue = 'latest',
+  filter: FavoriteFeedFilterValue = 'artists',
 ): FavoriteFeedFilterMeta {
   return (
     FAVORITE_FEED_FILTER_OPTIONS.find((o) => o.value === filter) ??
