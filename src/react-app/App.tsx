@@ -23,6 +23,7 @@ import EventClipsPage from "@/react-app/pages/EventClips";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
+import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
@@ -39,6 +40,7 @@ export default function App() {
           <Routes>
             <Route element={<AppRouteChrome />}>
               <Route path="/" element={<HomePage />} />
+              <Route path="/share/clip/:clipId" element={<ShareClipRedirect />} />
               <Route path="/feed" element={<Navigate to="/" replace />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />

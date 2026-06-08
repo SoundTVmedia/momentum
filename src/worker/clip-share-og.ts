@@ -2,11 +2,25 @@ import {
   buildClipShareMeta,
   buildMinimalClipShareOgHtml,
   injectClipShareMetaIntoHtml,
-  isSocialShareCrawler,
   type ClipShareMetaFields,
 } from '../shared/clip-share-meta';
 
 type AssetsBinding = { fetch: typeof fetch };
+
+const CLIP_SHARE_SELECT = `SELECT
+  clips.rowid AS _clipRowId,
+  clips.id,
+  clips.artist_name,
+  clips.venue_name,
+  clips.event_title,
+  clips.content_description,
+  clips.thumbnail_url,
+  clips.stream_thumbnail_url,
+  clips.stream_video_id,
+  clips.stream_playback_url,
+  clips.video_url
+FROM clips
+WHERE clips.id = ?`;
 
 function resolveWorkerAppOrigin(request: Request, env: Env): string {
   const publicApp =
@@ -23,6 +37,17 @@ function parsePositiveClipId(raw: string | null): number | null {
   return id;
 }
 
+function clipIdFromShareRequest(url: URL): number | null {
+  const shareMatch = /^\/share\/clip\/([^/]+)\/?$/.exec(url.pathname);
+  if (shareMatch) {
+    return parsePositiveClipId(decodeURIComponent(shareMatch[1]));
+  }
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    return parsePositiveClipId(url.searchParams.get('clip'));
+  }
+  return null;
+}
+
 function ogHtmlResponse(html: string, status = 200): Response {
   return new Response(html, {
     status,
@@ -33,60 +58,15 @@ function ogHtmlResponse(html: string, status = 200): Response {
   });
 }
 
-/**
- * For `/?clip=<id>` requests, serve HTML with clip thumbnail + title in OG/Twitter meta
- * so link previews (iMessage, Facebook, X, etc.) show the moment, not the FEEDBACK logo.
- */
-export async function maybeServeClipShareOgHtml(
+async function fetchClipShareRow(env: Env, clipId: number) {
+  return env.DB.prepare(CLIP_SHARE_SELECT).bind(clipId).first();
+}
+
+async function buildInjectedShareHtml(
   request: Request,
   env: Env & { ASSETS?: AssetsBinding },
-): Promise<Response | null> {
-  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
-
-  const url = new URL(request.url);
-  if (url.pathname !== '/' && url.pathname !== '/index.html') return null;
-
-  const clipId = parsePositiveClipId(url.searchParams.get('clip'));
-  if (clipId == null) return null;
-
-  const row = await env.DB.prepare(
-    `SELECT
-      clips.rowid AS _clipRowId,
-      clips.id,
-      clips.artist_name,
-      clips.venue_name,
-      clips.event_title,
-      clips.content_description,
-      clips.thumbnail_url,
-      clips.stream_thumbnail_url,
-      clips.stream_video_id,
-      clips.stream_playback_url,
-      clips.video_url
-    FROM clips
-    WHERE clips.id = ?`,
-  )
-    .bind(clipId)
-    .first();
-
-  if (!row) return null;
-
-  const origin = resolveWorkerAppOrigin(request, env);
-  const meta = buildClipShareMeta(row as ClipShareMetaFields, clipId, origin);
-  const userAgent = request.headers.get('User-Agent');
-
-  if (isSocialShareCrawler(userAgent)) {
-    if (request.method === 'HEAD') {
-      return new Response(null, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=300',
-        },
-      });
-    }
-    return ogHtmlResponse(buildMinimalClipShareOgHtml(meta));
-  }
-
+  meta: ReturnType<typeof buildClipShareMeta>,
+): Promise<string | null> {
   const assets = env.ASSETS;
   if (!assets) return null;
 
@@ -95,16 +75,44 @@ export async function maybeServeClipShareOgHtml(
   assetUrl.search = '';
   assetUrl.hash = '';
 
-  const assetRequest = new Request(assetUrl.toString(), {
-    method: 'GET',
-    headers: request.headers,
-  });
-  const assetResponse = await assets.fetch(assetRequest);
+  const assetResponse = await assets.fetch(
+    new Request(assetUrl.toString(), { method: 'GET', headers: request.headers }),
+  );
   if (!assetResponse.ok) return null;
+
+  return injectClipShareMetaIntoHtml(await assetResponse.text(), meta);
+}
+
+/**
+ * Serve HTML with clip thumbnail in OG/Twitter meta for share + deep-link URLs.
+ * `/share/clip/:id` — primary share URL (never matches a static asset).
+ * `/?clip=:id` — legacy deep links (worker must run before static index.html).
+ */
+export async function maybeServeClipShareOgHtml(
+  request: Request,
+  env: Env & { ASSETS?: AssetsBinding },
+): Promise<Response | null> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null;
+
+  const url = new URL(request.url);
+  const clipId = clipIdFromShareRequest(url);
+  if (clipId == null) return null;
+
+  const row = await fetchClipShareRow(env, clipId);
+  if (!row) return null;
+
+  const origin = resolveWorkerAppOrigin(request, env);
+  const sharePath = url.pathname.startsWith('/share/clip/')
+    ? url.pathname.replace(/\/$/, '') || `/share/clip/${clipId}`
+    : `/share/clip/${clipId}`;
+  const meta = buildClipShareMeta(row as ClipShareMetaFields, clipId, origin, sharePath);
+
+  const injected = await buildInjectedShareHtml(request, env, meta);
+  const html = injected ?? buildMinimalClipShareOgHtml(meta);
 
   if (request.method === 'HEAD') {
     return new Response(null, {
-      status: assetResponse.status,
+      status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'public, max-age=300',
@@ -112,6 +120,5 @@ export async function maybeServeClipShareOgHtml(
     });
   }
 
-  const html = injectClipShareMetaIntoHtml(await assetResponse.text(), meta);
   return ogHtmlResponse(html);
 }

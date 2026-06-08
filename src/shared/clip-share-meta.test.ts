@@ -4,6 +4,7 @@ import {
   buildMinimalClipShareOgHtml,
   injectClipShareMetaIntoHtml,
   isSocialShareCrawler,
+  resolveClipShareImageUrl,
   toAbsoluteAssetUrl,
 } from './clip-share-meta';
 
@@ -20,7 +21,7 @@ describe('clip-share-meta', () => {
     );
 
     expect(meta.image).toBe('https://feedback.example.com/api/files/thumb.jpg');
-    expect(meta.url).toBe('https://feedback.example.com/?clip=42');
+    expect(meta.url).toBe('https://feedback.example.com/share/clip/42');
     expect(meta.title).toContain('Phish');
   });
 
@@ -75,5 +76,14 @@ describe('clip-share-meta', () => {
   it('detects social crawlers', () => {
     expect(isSocialShareCrawler('facebookexternalhit/1.1')).toBe(true);
     expect(isSocialShareCrawler('Mozilla/5.0 (iPhone)')).toBe(false);
+  });
+
+  it('prefers Stream CDN thumbnail for share previews', () => {
+    const image = resolveClipShareImageUrl(
+      { stream_video_id: 'a'.repeat(32) },
+      'https://feedback.example.com',
+    );
+    expect(image).toContain('videodelivery.net');
+    expect(image).toContain('thumbnails/thumbnail.jpg');
   });
 });

@@ -1,5 +1,11 @@
-/** Query path that opens a specific clip on the home feed (see `ClipDeepLinkHandler`). */
+/** Path for shared clip links (worker injects clip OG thumbnail before SPA loads). */
 export function clipSharePath(clipId: number | string): string {
+  const id = String(clipId).trim();
+  return id ? `/share/clip/${encodeURIComponent(id)}` : '/';
+}
+
+/** In-app deep link that opens the clip modal (see `ClipDeepLinkHandler`). */
+export function clipDeepLinkPath(clipId: number | string): string {
   const id = String(clipId).trim();
   return id ? `/?clip=${encodeURIComponent(id)}` : '/';
 }

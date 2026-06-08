@@ -1,4 +1,9 @@
-import { type ClipPlaybackFields, resolveClipPosterUrl } from './clip-poster-url';
+import {
+  type ClipPlaybackFields,
+  resolveClipPosterUrl,
+  streamThumbnailUrl,
+  streamVideoIdFromClip,
+} from './clip-poster-url';
 import { resolveClipEventTitle } from './event-title';
 
 export type ClipShareMeta = {
@@ -20,6 +25,22 @@ export function resolveAppOrigin(origin?: string): string {
   return trimmed.replace(/\/$/, '');
 }
 
+/** Prefer public Stream CDN thumbnails — most reliable for iMessage / SMS link previews. */
+export function resolveClipShareImageUrl(
+  clip: ClipPlaybackFields,
+  origin: string,
+): string {
+  const streamId = streamVideoIdFromClip(clip);
+  if (streamId) {
+    return streamThumbnailUrl(streamId, { height: 720, width: 1280 });
+  }
+  const poster = resolveClipPosterUrl(clip);
+  if (poster.trim()) {
+    return toAbsoluteAssetUrl(origin, poster, '');
+  }
+  return toAbsoluteAssetUrl(origin, '', '/og-feedback.png');
+}
+
 export function toAbsoluteAssetUrl(origin: string, url: string, fallbackPath = '/og-feedback.png'): string {
   const trimmed = url.trim();
   const base = origin.replace(/\/$/, '');
@@ -33,11 +54,11 @@ export function buildClipShareMeta(
   clip: ClipShareMetaFields,
   clipId: number | string,
   origin?: string,
+  sharePath?: string,
 ): ClipShareMeta {
   const appOrigin = resolveAppOrigin(origin);
   const id = String(clipId).trim();
-  const poster = resolveClipPosterUrl(clip);
-  const image = toAbsoluteAssetUrl(appOrigin, poster);
+  const image = resolveClipShareImageUrl(clip, appOrigin);
 
   const artist = typeof clip.artist_name === 'string' ? clip.artist_name.trim() : '';
   const venue = typeof clip.venue_name === 'string' ? clip.venue_name.trim() : '';
@@ -58,7 +79,8 @@ export function buildClipShareMeta(
       ? clip.content_description.trim()
       : `Watch this live music moment${artist ? ` from ${artist}` : ''}${venue ? ` at ${venue}` : ''} on FEEDBACK.`;
 
-  const url = appOrigin ? `${appOrigin}/?clip=${encodeURIComponent(id)}` : `/?clip=${encodeURIComponent(id)}`;
+  const path = sharePath ?? `/share/clip/${encodeURIComponent(id)}`;
+  const url = appOrigin ? `${appOrigin}${path.startsWith('/') ? path : `/${path}`}` : path;
 
   return { title, description, image, url };
 }
@@ -120,6 +142,12 @@ export function injectClipShareMetaIntoHtml(html: string, meta: ClipShareMeta): 
     /<meta property="og:image:height" content="[^"]*" \/>/,
     '',
   );
+  if (!next.includes('rel="image_src"')) {
+    next = next.replace(
+      '</head>',
+      `    <link rel="image_src" href="${image}" />\n    <meta name="description" content="${description}" />\n    <meta name="twitter:image" content="${image}" />\n    <meta property="og:image:secure_url" content="${image}" />\n  </head>`,
+    );
+  }
   return next;
 }
 
@@ -139,8 +167,12 @@ export function buildMinimalClipShareOgHtml(meta: ClipShareMeta): string {
     <meta property="og:title" content="${title}" />
     <meta property="og:description" content="${description}" />
     <meta property="og:image" content="${image}" />
+    <meta property="og:image:secure_url" content="${image}" />
     <meta property="og:image:type" content="${imageType}" />
     <meta property="og:url" content="${url}" />
+    <link rel="image_src" href="${image}" />
+    <meta name="description" content="${description}" />
+    <meta name="twitter:image" content="${image}" />
     <meta property="og:type" content="video.other" />
     <meta property="og:site_name" content="FEEDBACK" />
     <meta property="twitter:card" content="summary_large_image" />
