@@ -49,7 +49,8 @@ import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelative
 import { formatCount } from '@/react-app/lib/formatCount';
 import { prefetchModalPlayback } from '@/shared/clip-playback';
 import { clipShareUrl } from '@/shared/clip-share';
-import { applyClipShareMetaToDocument, buildClipShareMeta } from '@/shared/clip-share-meta';
+import { buildClipShareMeta } from '@/shared/clip-share-meta';
+import { applyClipShareMetaToDocument } from '@/react-app/lib/applyClipShareMetaToDocument';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
@@ -226,7 +227,9 @@ export default function ClipModal({
   useEffect(() => {
     const nid = clipNumericId(clip);
     if (nid == null) return;
-    const restoreMeta = applyClipShareMetaToDocument(buildClipShareMeta(clip, nid));
+    const restoreMeta = applyClipShareMetaToDocument(
+      buildClipShareMeta(clip, nid, window.location.origin),
+    );
     return restoreMeta;
   }, [clip]);
 
