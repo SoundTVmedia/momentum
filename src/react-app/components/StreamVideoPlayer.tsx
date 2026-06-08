@@ -44,8 +44,6 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   videoObjectFit?: 'contain' | 'cover';
   /** Where play/mute/fullscreen chrome renders; `hidden` for parent-rendered controls (e.g. clip modal). */
   controlsPlacement?: StreamVideoPlayerControlsPlacement;
-  /** Muted-first autoplay (e.g. shared `?clip=` links with no prior user gesture). */
-  autoplayMutedFirst?: boolean;
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
   /** When set, each play / loop records a view and reports the server total. */
   clipId?: number | null;
@@ -73,7 +71,6 @@ function StreamVideoPlayer(
   className = '',
   videoObjectFit = 'contain',
   controlsPlacement = 'bottom',
-  autoplayMutedFirst = false,
   onPlaybackStateChange,
   clipId = null,
   onViewsCountChange,
@@ -88,12 +85,10 @@ function StreamVideoPlayer(
   const lastTimeRef = useRef(0);
   const autoPlayRef = useRef(autoPlay);
   autoPlayRef.current = autoPlay;
-  const autoplayMutedFirstRef = useRef(autoplayMutedFirst);
-  autoplayMutedFirstRef.current = autoplayMutedFirst;
   /** When set, user explicitly chose mute state — autoplay/loop must not override it. */
   const userMutePreferenceRef = useRef<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
-  const [isMuted, setIsMuted] = useState(() => Boolean(autoplayMutedFirst && autoPlay));
+  const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -122,7 +117,6 @@ function StreamVideoPlayer(
 
   const resolveAutoplayMuted = useCallback((): boolean => {
     if (userMutePreferenceRef.current !== null) return userMutePreferenceRef.current;
-    if (autoplayMutedFirstRef.current) return true;
     return false;
   }, []);
 
@@ -138,20 +132,9 @@ function StreamVideoPlayer(
       return video.play();
     };
 
-    const muted = resolveAutoplayMuted();
+    const preferredMuted = resolveAutoplayMuted();
 
-    if (autoplayMutedFirstRef.current) {
-      void attempt(muted).catch(() => {});
-      for (const delay of [350, 750]) {
-        window.setTimeout(() => {
-          if (!video.paused) return;
-          void attempt(resolveAutoplayMuted()).catch(() => {});
-        }, delay);
-      }
-      return;
-    }
-
-    if (muted) {
+    if (preferredMuted) {
       void attempt(true).catch(() => {});
       return;
     }
@@ -285,12 +268,21 @@ function StreamVideoPlayer(
       }
     };
     const handleTimeUpdate = () => {
-      if (!clipId || !loop) return;
       const d = video.duration;
       const t = video.currentTime;
       if (!Number.isFinite(d) || d <= 0) return;
       const prev = lastTimeRef.current;
       lastTimeRef.current = t;
+
+      if (loop && prev > d * 0.88 && t < 0.4) {
+        const keepMuted = userMutePreferenceRef.current ?? video.muted;
+        if (video.muted !== keepMuted) {
+          video.muted = keepMuted;
+          setIsMuted(keepMuted);
+        }
+      }
+
+      if (!clipId || !loop) return;
       if (prev > d * 0.88 && t < 0.4) {
         const now = Date.now();
         if (now - lastLoopViewAtRef.current > 800) {

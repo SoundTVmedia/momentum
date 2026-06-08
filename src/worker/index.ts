@@ -3174,12 +3174,16 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const ogHtml = await maybeServeClipShareOgHtml(
-      request,
-      env as Env & { ASSETS?: { fetch: typeof fetch } },
-    );
+    const envWithAssets = env as Env & { ASSETS?: { fetch: typeof fetch } };
+
+    const ogHtml = await maybeServeClipShareOgHtml(request, envWithAssets);
     if (ogHtml) return ogHtml;
-    return app.fetch(request, env, ctx);
+
+    const response = await app.fetch(request, env, ctx);
+    if (response.status === 404 && envWithAssets.ASSETS) {
+      return envWithAssets.ASSETS.fetch(request);
+    }
+    return response;
   },
   scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
     ctx.waitUntil(handleScheduled(env));

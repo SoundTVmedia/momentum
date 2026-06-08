@@ -20,8 +20,6 @@ type ClipModalMaximizedVideoProps = {
   overlay?: ReactNode;
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
   onViewsCountChange?: (viewsCount: number) => void;
-  /** Shared `?clip=` deep links — start muted so autoplay is allowed without a tap. */
-  autoplayMutedFirst?: boolean;
 };
 
 /** Fills the player area; landscape (16:9) clips span full width, portrait clips span full height. */
@@ -29,7 +27,7 @@ const ClipModalMaximizedVideo = forwardRef<
   StreamVideoPlayerHandle,
   ClipModalMaximizedVideoProps
 >(function ClipModalMaximizedVideo(
-  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange, autoplayMutedFirst },
+  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange },
   ref,
 ) {
   const clipId = clipNumericId(clip);
@@ -51,7 +49,6 @@ const ClipModalMaximizedVideo = forwardRef<
       onPlaybackStateChange={onPlaybackStateChange}
       clipId={clipId}
       onViewsCountChange={onViewsCountChange}
-      autoplayMutedFirst={autoplayMutedFirst}
       className="absolute inset-0 h-full w-full"
     />
   );

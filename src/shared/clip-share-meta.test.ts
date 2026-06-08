@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildClipShareMeta,
+  buildMinimalClipShareOgHtml,
   injectClipShareMetaIntoHtml,
+  isSocialShareCrawler,
   toAbsoluteAssetUrl,
 } from './clip-share-meta';
 
@@ -57,5 +59,21 @@ describe('clip-share-meta', () => {
     expect(toAbsoluteAssetUrl('https://feedback.example.com', '')).toBe(
       'https://feedback.example.com/og-feedback.png',
     );
+  });
+
+  it('builds minimal crawler HTML with clip thumbnail', () => {
+    const html = buildMinimalClipShareOgHtml({
+      title: 'Phish at MSG on FEEDBACK',
+      description: 'Watch this moment',
+      image: 'https://videodelivery.net/abc/thumbnails/thumbnail.jpg',
+      url: 'https://feedback.example.com/?clip=7',
+    });
+    expect(html).toContain('property="og:image" content="https://videodelivery.net/abc/thumbnails/thumbnail.jpg"');
+    expect(html).not.toContain('og-feedback.png');
+  });
+
+  it('detects social crawlers', () => {
+    expect(isSocialShareCrawler('facebookexternalhit/1.1')).toBe(true);
+    expect(isSocialShareCrawler('Mozilla/5.0 (iPhone)')).toBe(false);
   });
 });

@@ -108,5 +108,56 @@ export function injectClipShareMetaIntoHtml(html: string, meta: ClipShareMeta): 
     `<meta property="twitter:image" content="${image}" />`,
   );
   next = next.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+  next = next.replace(
+    /<meta property="og:image:type" content="[^"]*" \/>/,
+    `<meta property="og:image:type" content="${meta.image.toLowerCase().includes('.png') ? 'image/png' : 'image/jpeg'}" />`,
+  );
+  next = next.replace(
+    /<meta property="og:image:width" content="[^"]*" \/>/,
+    '',
+  );
+  next = next.replace(
+    /<meta property="og:image:height" content="[^"]*" \/>/,
+    '',
+  );
   return next;
+}
+
+/** Lightweight HTML for social crawlers (no SPA required). */
+export function buildMinimalClipShareOgHtml(meta: ClipShareMeta): string {
+  const title = escapeHtml(meta.title);
+  const description = escapeHtml(meta.description);
+  const image = escapeHtml(meta.image);
+  const url = escapeHtml(meta.url);
+  const imageType = meta.image.toLowerCase().includes('.png') ? 'image/png' : 'image/jpeg';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${image}" />
+    <meta property="og:image:type" content="${imageType}" />
+    <meta property="og:url" content="${url}" />
+    <meta property="og:type" content="video.other" />
+    <meta property="og:site_name" content="FEEDBACK" />
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="${title}" />
+    <meta property="twitter:description" content="${description}" />
+    <meta property="twitter:image" content="${image}" />
+    <title>${title}</title>
+  </head>
+  <body>
+    <p><a href="${url}">Watch on FEEDBACK</a></p>
+  </body>
+</html>`;
+}
+
+const SOCIAL_CRAWLER_UA =
+  /facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|discordbot|whatsapp|telegrambot|applebot|preview|embedly|pinterest|redditbot|vkshare|quora link preview/i;
+
+export function isSocialShareCrawler(userAgent: string | null | undefined): boolean {
+  return SOCIAL_CRAWLER_UA.test(userAgent ?? '');
 }

@@ -1,6 +1,8 @@
 import {
   buildClipShareMeta,
+  buildMinimalClipShareOgHtml,
   injectClipShareMetaIntoHtml,
+  isSocialShareCrawler,
   type ClipShareMetaFields,
 } from '../shared/clip-share-meta';
 
@@ -21,8 +23,18 @@ function parsePositiveClipId(raw: string | null): number | null {
   return id;
 }
 
+function ogHtmlResponse(html: string, status = 200): Response {
+  return new Response(html, {
+    status,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
+}
+
 /**
- * For `/?clip=<id>` requests, serve `index.html` with clip thumbnail + title in OG/Twitter meta
+ * For `/?clip=<id>` requests, serve HTML with clip thumbnail + title in OG/Twitter meta
  * so link previews (iMessage, Facebook, X, etc.) show the moment, not the FEEDBACK logo.
  */
 export async function maybeServeClipShareOgHtml(
@@ -36,9 +48,6 @@ export async function maybeServeClipShareOgHtml(
 
   const clipId = parsePositiveClipId(url.searchParams.get('clip'));
   if (clipId == null) return null;
-
-  const assets = env.ASSETS;
-  if (!assets) return null;
 
   const row = await env.DB.prepare(
     `SELECT
@@ -63,6 +72,23 @@ export async function maybeServeClipShareOgHtml(
 
   const origin = resolveWorkerAppOrigin(request, env);
   const meta = buildClipShareMeta(row as ClipShareMetaFields, clipId, origin);
+  const userAgent = request.headers.get('User-Agent');
+
+  if (isSocialShareCrawler(userAgent)) {
+    if (request.method === 'HEAD') {
+      return new Response(null, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+    return ogHtmlResponse(buildMinimalClipShareOgHtml(meta));
+  }
+
+  const assets = env.ASSETS;
+  if (!assets) return null;
 
   const assetUrl = new URL(request.url);
   assetUrl.pathname = '/index.html';
@@ -87,11 +113,5 @@ export async function maybeServeClipShareOgHtml(
   }
 
   const html = injectClipShareMetaIntoHtml(await assetResponse.text(), meta);
-  return new Response(html, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=300',
-    },
-  });
+  return ogHtmlResponse(html);
 }

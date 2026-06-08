@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
@@ -75,9 +75,7 @@ export default function ClipModal({
   onClipUpdated,
 }: ClipModalProps) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { setHideBottomNav } = useMobileChrome();
-  const autoplayMutedFirst = searchParams.has('clip');
   const { user } = useAuth();
   const extendedUser = user as ExtendedMochaUser | null;
   const { trackTicketClick } = useTicketmaster();
@@ -95,10 +93,10 @@ export default function ClipModal({
   const { toggleSave, isSaved } = useClipSave();
   const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
   const desktopPlayerRef = useRef<StreamVideoPlayerHandle>(null);
-  const [playback, setPlayback] = useState<StreamVideoPlayerPlaybackState>(() => ({
+  const [playback, setPlayback] = useState<StreamVideoPlayerPlaybackState>({
     isPlaying: true,
-    isMuted: autoplayMutedFirst,
-  }));
+    isMuted: false,
+  });
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
@@ -221,8 +219,8 @@ export default function ClipModal({
     setMobileCommentsOpen(false);
     setEditOpen(false);
     setTicketSheetOpen(false);
-    setPlayback({ isPlaying: true, isMuted: autoplayMutedFirst });
-  }, [clip.id, autoplayMutedFirst]);
+    setPlayback({ isPlaying: true, isMuted: false });
+  }, [clip.id]);
 
   useEffect(() => {
     const nid = clipNumericId(clip);
@@ -595,7 +593,6 @@ export default function ClipModal({
               overlay={mobileVideoOverlay}
               onPlaybackStateChange={setPlayback}
               onViewsCountChange={handleViewsCountChange}
-              autoplayMutedFirst={autoplayMutedFirst}
             />
           ) : null}
         </div>
@@ -710,7 +707,6 @@ export default function ClipModal({
                   clip={clip}
                   onPlaybackStateChange={setPlayback}
                   onViewsCountChange={handleViewsCountChange}
-                  autoplayMutedFirst={autoplayMutedFirst}
                 />
               ) : null}
             </div>
