@@ -3172,26 +3172,20 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
   }
 });
 
+/** SPA shell + static files — registered last so /api/* routes win. */
+app.all('*', async (c) => {
+  return c.env.ASSETS.fetch(c.req.raw);
+});
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const envWithAssets = env as Env & { ASSETS?: { fetch: typeof fetch } };
-    const { pathname } = new URL(request.url);
-
-    const ogHtml = await maybeServeClipShareOgHtml(request, envWithAssets);
+    const ogHtml = await maybeServeClipShareOgHtml(
+      request,
+      env as Env & { ASSETS: { fetch: typeof fetch } },
+    );
     if (ogHtml) return ogHtml;
 
-    if (pathname.startsWith('/api/') || pathname === '/realtime') {
-      return app.fetch(request, env, ctx);
-    }
-
-    const response = await app.fetch(request, env, ctx);
-    if (response.status !== 404) return response;
-
-    if (envWithAssets.ASSETS) {
-      return envWithAssets.ASSETS.fetch(request);
-    }
-
-    return response;
+    return app.fetch(request, env, ctx);
   },
   scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
     ctx.waitUntil(handleScheduled(env));
