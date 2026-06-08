@@ -20,8 +20,8 @@ interface Env {
   /** Web origin for password-reset links when Origin header is absent (e.g. server-side or non-browser clients). */
   PUBLIC_APP_URL?: string;
 
-  /** Static assets binding (Vite build output) — used for clip share OG HTML injection. */
-  ASSETS?: { fetch: typeof fetch };
+  /** Static assets binding (Vite build output) — SPA shell + clip share OG injection. */
+  ASSETS: { fetch: typeof fetch };
   RESEND_API_KEY?: string;
   TRANSACTIONAL_EMAIL_FROM?: string;
   

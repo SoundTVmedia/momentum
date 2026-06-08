@@ -3175,14 +3175,22 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const envWithAssets = env as Env & { ASSETS?: { fetch: typeof fetch } };
+    const { pathname } = new URL(request.url);
 
     const ogHtml = await maybeServeClipShareOgHtml(request, envWithAssets);
     if (ogHtml) return ogHtml;
 
+    if (pathname.startsWith('/api/') || pathname === '/realtime') {
+      return app.fetch(request, env, ctx);
+    }
+
     const response = await app.fetch(request, env, ctx);
-    if (response.status === 404 && envWithAssets.ASSETS) {
+    if (response.status !== 404) return response;
+
+    if (envWithAssets.ASSETS) {
       return envWithAssets.ASSETS.fetch(request);
     }
+
     return response;
   },
   scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
