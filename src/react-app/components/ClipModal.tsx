@@ -49,6 +49,7 @@ import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelative
 import { formatCount } from '@/react-app/lib/formatCount';
 import { prefetchModalPlayback } from '@/shared/clip-playback';
 import { clipShareUrl } from '@/shared/clip-share';
+import { applyClipShareMetaToDocument, buildClipShareMeta } from '@/shared/clip-share-meta';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
@@ -93,10 +94,10 @@ export default function ClipModal({
   const { toggleSave, isSaved } = useClipSave();
   const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
   const desktopPlayerRef = useRef<StreamVideoPlayerHandle>(null);
-  const [playback, setPlayback] = useState<StreamVideoPlayerPlaybackState>({
+  const [playback, setPlayback] = useState<StreamVideoPlayerPlaybackState>(() => ({
     isPlaying: true,
-    isMuted: false,
-  });
+    isMuted: autoplayMutedFirst,
+  }));
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
@@ -219,8 +220,15 @@ export default function ClipModal({
     setMobileCommentsOpen(false);
     setEditOpen(false);
     setTicketSheetOpen(false);
-    setPlayback({ isPlaying: true, isMuted: false });
-  }, [clip.id]);
+    setPlayback({ isPlaying: true, isMuted: autoplayMutedFirst });
+  }, [clip.id, autoplayMutedFirst]);
+
+  useEffect(() => {
+    const nid = clipNumericId(clip);
+    if (nid == null) return;
+    const restoreMeta = applyClipShareMetaToDocument(buildClipShareMeta(clip, nid));
+    return restoreMeta;
+  }, [clip]);
 
   const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
 

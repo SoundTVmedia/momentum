@@ -1,0 +1,583 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:w="urn:schemas-microsoft-com:office:word"
+xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Microsoft Word">
+<title>MOMENTUM Developer Report — June 8, 2026</title>
+<!--[if gte mso 9]><xml>
+<w:WordDocument>
+<w:View>Print</w:View>
+<w:Zoom>100</w:Zoom>
+</w:WordDocument>
+</xml><![endif]-->
+<style>
+body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; line-height: 1.35; margin: 1in; color: #000; }
+h1 { font-size: 20pt; color: #1a1a1a; border-bottom: 2px solid #333; padding-bottom: 6px; }
+h2 { font-size: 14pt; color: #2c2c2c; margin-top: 18pt; page-break-after: avoid; }
+h3 { font-size: 12pt; color: #444; margin-top: 14pt; page-break-after: avoid; }
+h4 { font-size: 11pt; color: #555; margin-top: 10pt; font-weight: bold; }
+p { margin: 6pt 0; }
+table { border-collapse: collapse; width: 100%; margin: 10pt 0; font-size: 10pt; }
+th, td { border: 1px solid #999; padding: 6pt 8pt; vertical-align: top; text-align: left; }
+th { background: #f0f0f0; font-weight: bold; }
+.meta { font-size: 10pt; color: #555; margin-bottom: 14pt; }
+ul, ol { margin: 6pt 0 6pt 20pt; }
+li { margin: 3pt 0; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #f5f5f5; padding: 1pt 3pt; }
+pre { font-family: Consolas, monospace; font-size: 9pt; background: #f5f5f5; padding: 8pt; border: 1px solid #ddd; white-space: pre-wrap; }
+.done { color: #0d6b0d; }
+.partial { color: #b8860b; }
+.gap { color: #a00; }
+hr { border: none; border-top: 1px solid #ccc; margin: 16pt 0; }
+</style>
+</head>
+<body>
+
+<h1>MOMENTUM Developer Report</h1>
+<p class="meta">
+<strong>Product:</strong> MOMENTUM (UI brand: FEEDBACK &mdash; &ldquo;Where live music lives online&rdquo;)<br>
+<strong>Report date:</strong> June 8, 2026<br>
+<strong>Repository:</strong> /Users/user/Documents/GitHub/momentum<br>
+<strong>Origin:</strong> Scaffolded via getmocha.com
+</p>
+
+<h2>Executive Summary</h2>
+<p>MOMENTUM is a full-stack social video platform for live music. Users capture, upload, and discover short concert clips; follow artists, venues, and other fans; and engage around shows, songs, and genres. The backend is feature-complete on Cloudflare Workers; the frontend is a React SPA with a polished core loop but several advanced features built but not fully wired into routes.</p>
+
+<table>
+<tr><th>Area</th><th>Maturity</th><th>Notes</th></tr>
+<tr><td>Backend API</td><td class="done">~95%</td><td>~170 REST endpoints + WebSocket; broad feature surface</td></tr>
+<tr><td>Database</td><td class="done">~95%</td><td>54 migrations; 50+ tables</td></tr>
+<tr><td>Frontend core UX</td><td class="done">~85%</td><td>Feed, upload, discover, profiles, clip modal all functional</td></tr>
+<tr><td>Frontend advanced</td><td class="partial">~60%</td><td>Live viewer, premium, role dashboards exist but are not routed</td></tr>
+<tr><td>Testing</td><td class="partial">~40%</td><td>24 Vitest unit tests; no E2E suite</td></tr>
+<tr><td><strong>Overall</strong></td><td class="done"><strong>~80%</strong></td><td>Production-viable for core clip social loop; polish and wiring remain</td></tr>
+</table>
+
+<p>Recent development (2026) has focused on <strong>event/show organization</strong>, <strong>notifications</strong>, <strong>social/following</strong>, <strong>user feed</strong>, and <strong>discover UX</strong> &mdash; not greenfield architecture.</p>
+
+<hr>
+
+<h2>Architecture</h2>
+
+<h3>System Overview</h3>
+<pre>
+Browser (React 19 SPA)
+    |
+    |  /api/*  and  /realtime (WebSocket)
+    v
+Cloudflare Worker (Hono)
+    |-- D1 SQLite (momentum-db)
+    |-- R2 (momentum-videos, momentum-thumbnails)
+    |-- Durable Objects (RealtimeDurableObject)
+    |-- Cloudflare Stream
+    |
+    +-- External: Mocha Users, JamBase, YouTube, Stripe,
+                 Ticketmaster, Google Maps, ACRCloud/AudD, Resend
+</pre>
+
+<h3>Tech Stack</h3>
+<table>
+<tr><th>Layer</th><th>Technology</th></tr>
+<tr><td>Frontend</td><td>React 19, React Router 7, Tailwind CSS 3, Vite 7, TypeScript</td></tr>
+<tr><td>Backend</td><td>Hono 4, Zod validation, Cloudflare Workers</td></tr>
+<tr><td>Database</td><td>Cloudflare D1 (SQLite)</td></tr>
+<tr><td>Storage</td><td>Cloudflare R2 (videos + thumbnails), Cloudflare Stream</td></tr>
+<tr><td>Realtime</td><td>Durable Objects + WebSocket at /realtime</td></tr>
+<tr><td>Auth</td><td>Mocha Users Service + direct Google OAuth + email/password</td></tr>
+<tr><td>Payments</td><td>Stripe (subscriptions, Connect payouts, webhooks)</td></tr>
+<tr><td>Email</td><td>Resend (password reset)</td></tr>
+<tr><td>Testing</td><td>Vitest (24 test files)</td></tr>
+<tr><td>Deploy</td><td>Single Worker serves API + built SPA from dist/</td></tr>
+</table>
+
+<h3>Project Structure</h3>
+<pre>
+momentum/
+  src/react-app/     ~22 pages, ~92 components, 36 hooks, 34 lib modules
+  src/worker/        ~83 files; monolithic Hono router + modular *-endpoints.ts
+  src/shared/        Shared types/utils (show IDs, genres, JamBase helpers)
+  migrations/        54 numbered SQL migrations
+  docs/              Cloudflare setup, staging, upload-outbox design
+  scripts/dev.mjs    Smart dev launcher (Vite + optional Wrangler)
+  wrangler.json      D1, R2, DO bindings
+</pre>
+
+<h3>Dev Environment</h3>
+<ul>
+<li><strong>Node:</strong> ^20.19.0 or &gt;=22.12.0</li>
+<li><strong>npm run dev</strong> &mdash; auto-detects macOS version; proxies /api to Wrangler on older macOS</li>
+<li><strong>npm run db:migrate:local</strong> &mdash; required on fresh clone</li>
+<li><strong>DevContainer</strong> &mdash; full D1/R2/DO parity on Linux</li>
+<li><strong>Optional:</strong> Docker Compose Postgres (supplementary; D1 is primary)</li>
+</ul>
+
+<hr>
+
+<h2>Feature Catalog</h2>
+
+<h3>1. Authentication &amp; Identity</h3>
+<p><strong>Status: Production-ready (hybrid auth)</strong></p>
+<p>Three parallel session systems resolved by hybrid-auth.ts:</p>
+<ol>
+<li><strong>Mocha Users Service</strong> &mdash; primary Google OAuth path</li>
+<li><strong>Direct Google OAuth</strong> &mdash; fallback via google_accounts / google_sessions tables</li>
+<li><strong>Email/password</strong> &mdash; email_accounts, email_sessions, password reset via Resend</li>
+</ol>
+
+<table>
+<tr><th>Feature</th><th>Backend</th><th>Frontend</th><th>Notes</th></tr>
+<tr><td>Google OAuth sign-in</td><td class="done">Yes</td><td class="done">Yes</td><td>/auth, /auth/callback</td></tr>
+<tr><td>Email signup/signin</td><td class="done">Yes</td><td class="done">Yes</td><td>Full flow with validation</td></tr>
+<tr><td>Password reset</td><td class="done">Yes</td><td class="done">Yes</td><td>/auth/reset-password</td></tr>
+<tr><td>Session cookies</td><td class="done">Yes</td><td class="done">Yes</td><td>credentials: include via apiFetch</td></tr>
+<tr><td>Account linking</td><td class="done">Yes</td><td>&mdash;</td><td>Merges Google + email identities across ~18 tables</td></tr>
+<tr><td>Device tokens (Remember Me)</td><td class="done">Yes</td><td class="done">Yes</td><td>DeviceManagement in profile editor</td></tr>
+<tr><td>Two-factor auth (TOTP)</td><td class="done">Yes</td><td class="partial">Partial</td><td>Backend complete; limited UI exposure</td></tr>
+<tr><td>Logout</td><td class="done">Yes</td><td class="done">Yes</td><td>Clears all session types</td></tr>
+</table>
+
+<p><strong>User roles</strong> (stored on user_profiles.role): fan (default), artist, venue, influencer, ambassador. Additional flags: is_admin, is_moderator, is_verified, is_premium.</p>
+
+<h3>2. User Profiles &amp; Onboarding</h3>
+<table>
+<tr><th>Feature</th><th>Description</th></tr>
+<tr><td>Onboarding (/onboarding)</td><td>3-step flow: role selection, profile basics, location + favorite artists</td></tr>
+<tr><td>Public profiles (/users/:userId)</td><td>Stats, clips grid, follow button, gamification hub</td></tr>
+<tr><td>Profile editor</td><td>Display name, bio, images, location, favorite artists, device management</td></tr>
+<tr><td>Verification</td><td>Users submit proof; admins approve/reject via admin panel</td></tr>
+<tr><td>Privacy settings</td><td>Profile visibility, tagging, notification toggles (GDPR component exists)</td></tr>
+<tr><td>Profile analytics</td><td>Profile view tracking</td></tr>
+<tr><td>Own profile hub</td><td>Points, badges, my clips, saved clips, shows attended</td></tr>
+</table>
+
+<h3>3. Clip Content (Core Product)</h3>
+<p>The central content unit is a <strong>clip</strong> &mdash; a short concert video with rich metadata.</p>
+
+<h4>Upload Pipeline</h4>
+<table>
+<tr><th>Step</th><th>Implementation</th></tr>
+<tr><td>Capture</td><td>Quick Record modal (mobile) or /upload page</td></tr>
+<tr><td>Video storage</td><td>R2 direct upload + resumable chunked upload</td></tr>
+<tr><td>Stream processing</td><td>Cloudflare Stream ingest, status polling, thumbnails</td></tr>
+<tr><td>Metadata</td><td>Artist, venue, location, song, genre, show/event, geolocation</td></tr>
+<tr><td>Auto-tagging</td><td>JamBase show matching by geolocation + timestamp</td></tr>
+<tr><td>Song ID</td><td>ACRCloud (primary) + AudD (fallback) during upload/capture</td></tr>
+<tr><td>Background upload</td><td>ClipUploadQueueContext &mdash; up to 5 queued jobs with retry</td></tr>
+<tr><td>Drafts</td><td>is_draft flag; publish when ready</td></tr>
+</table>
+
+<h4>Clip Engagement</h4>
+<table>
+<tr><th>Action</th><th>API</th><th>UI</th></tr>
+<tr><td>View</td><td>POST /api/clips/:id/view</td><td>Fire-and-forget analytics</td></tr>
+<tr><td>Like</td><td>POST /api/clips/:id/like</td><td>Animated heart in modal + feed</td></tr>
+<tr><td>Save/bookmark</td><td>POST /api/clips/:id/save</td><td>/saved page</td></tr>
+<tr><td>Comment</td><td>Threaded comments API</td><td>CommentSection in clip modal</td></tr>
+<tr><td>Rate (1&ndash;5 stars)</td><td>Rating endpoints</td><td>StarRating component</td></tr>
+<tr><td>Share</td><td>Share tracking + Web Share API</td><td>Share sheet in modal</td></tr>
+<tr><td>Report/flag</td><td>Moderation queue</td><td>Report from clip modal</td></tr>
+<tr><td>Favorite by artist</td><td>Per-artist favorite clip</td><td>Profile favorites section</td></tr>
+<tr><td>Edit own clip</td><td>POST /api/clips/update-own</td><td>ClipEditModal</td></tr>
+<tr><td>Delete own clip</td><td>Delete endpoints</td><td>Owner actions in modal</td></tr>
+</table>
+
+<h4>Clip Playback</h4>
+<ul>
+<li><strong>StreamVideoPlayer</strong> &mdash; Cloudflare Stream HLS playback</li>
+<li><strong>ClipModal</strong> &mdash; full-screen viewer with swipe navigation between clips</li>
+<li><strong>Deep links</strong> &mdash; ?clip=&lt;id&gt; URL param opens modal via ClipDeepLinkHandler</li>
+<li><strong>Feed preview limiter</strong> &mdash; caps concurrent autoplay videos in feeds</li>
+</ul>
+
+<h4>Clip Metadata Model (post-migration 54)</h4>
+<p>Key fields: artist_name, venue_name, location, song_title, song_slug, genre_name, genre_slug, event_title, show_id, jambase_event_id, jambase_artist_id, jambase_venue_id, geolocation, video_status, stream_playback_url, engagement counters, is_trending_score, average_rating</p>
+
+<h3>4. Feed &amp; Discovery</h3>
+
+<h4>Home Feed (/)</h4>
+<table>
+<tr><th>Mode</th><th>Behavior</th></tr>
+<tr><td>Logged out</td><td>Hero section, latest/trending clips, nearby shows CTA</td></tr>
+<tr><td>Logged in</td><td>MainFeedStack: favorite-artist panel, personalized feed, YouTube, shows</td></tr>
+</table>
+<p>Feed features: infinite scroll (IntersectionObserver), filters (Latest / Trending / Most Liked / Top Rated), skeleton loading, empty states, favorite-artist feed panel.</p>
+
+<h4>Discover (/discover)</h4>
+<ul>
+<li>Full-text advanced search across clips, artists, venues, users, JamBase events</li>
+<li>Geo-scoped search with radius control</li>
+<li>Trending music section, artist/venue carousels</li>
+<li>JamBase + Ticketmaster event grids</li>
+<li>&ldquo;For You&rdquo; personalized feed section</li>
+</ul>
+
+<h4>Entity Hub Pages</h4>
+<table>
+<tr><th>Route</th><th>Content</th></tr>
+<tr><td>/artists/:artistName</td><td>Bio, clips, tour dates, JamBase events, YouTube, past shows, follow</td></tr>
+<tr><td>/venues/:venueName</td><td>Clips archive, upcoming events, past shows, follow</td></tr>
+<tr><td>/artists/:artistName/songs/:songSlug</td><td>Clips for a song under one artist</td></tr>
+<tr><td>/songs/:songSlug</td><td>Cross-artist song aggregation</td></tr>
+<tr><td>/genres/:genreSlug</td><td>Clips filtered by genre</td></tr>
+<tr><td>/artists/:artistName/shows/:showId/clips</td><td>All clips from a specific show</td></tr>
+<tr><td>/events/clips/:eventTitle</td><td>Clips grouped by event title</td></tr>
+</table>
+
+<h3>5. Social Graph</h3>
+<table>
+<tr><th>Feature</th><th>Description</th></tr>
+<tr><td>Follow users</td><td>Follow/unfollow with follower counts</td></tr>
+<tr><td>Follow artists</td><td>Favorite artists with JamBase sync</td></tr>
+<tr><td>Follow venues</td><td>Venue follow tracking</td></tr>
+<tr><td>Following list</td><td>Modal showing who you follow</td></tr>
+<tr><td>Notifications</td><td>Likes, comments, follows, achievements &mdash; in-app panel + badge</td></tr>
+<tr><td>Realtime notifications</td><td>WebSocket delivery via useRealtime / NotificationsContext</td></tr>
+</table>
+
+<h3>6. Personalization</h3>
+<table>
+<tr><th>Feature</th><th>Backend</th><th>Frontend</th></tr>
+<tr><td>Home location preferences</td><td class="done">Yes</td><td class="done">Yes</td></tr>
+<tr><td>Favorite artists tracking</td><td class="done">Yes</td><td class="done">Yes</td></tr>
+<tr><td>Personalized clip feed</td><td class="done">Yes</td><td class="done">Yes</td></tr>
+<tr><td>Concert recommendations</td><td class="done">Yes</td><td class="done">Yes</td></tr>
+<tr><td>Favorite-artist YouTube carousel</td><td class="done">Yes</td><td class="done">Yes</td></tr>
+<tr><td>Nearby shows</td><td class="done">Yes</td><td class="done">Yes</td></tr>
+<tr><td>Prioritized show recommendations</td><td class="done">Yes</td><td class="done">Yes</td></tr>
+</table>
+
+<h3>7. Live Streaming (&ldquo;Momentum Live&rdquo;)</h3>
+<p><strong>Backend: Complete. Frontend viewer: Built but not routed.</strong></p>
+
+<h4>Admin (fully wired at /admin)</h4>
+<ul>
+<li>Create/edit/delete live sessions</li>
+<li>Schedule clips with ordering and duration control</li>
+<li>Feature clips during broadcast; manual clip advancement</li>
+<li>Chat moderation (ban/delete messages)</li>
+<li>Poll creation and management</li>
+</ul>
+
+<h4>Public Live API</h4>
+<ul>
+<li>Current session + viewer count; clip schedule</li>
+<li>Live chat (post + read); viewer heartbeats</li>
+<li>Polls (create, vote, results, end)</li>
+</ul>
+
+<h4>Scheduled Tasks (scheduled.ts)</h4>
+<ul>
+<li>Auto-advance live clips; trending score recalculation</li>
+<li>Viewer cleanup, chat ban expiry, JamBase quota pruning</li>
+</ul>
+
+<p class="gap"><strong>Gap:</strong> LiveBroadcast.tsx (stream viewer + chat + polls) exists but is not mounted on any route. Live features are admin-accessible only today.</p>
+
+<h3>8. Gamification</h3>
+<table>
+<tr><th>Feature</th><th>Description</th></tr>
+<tr><td>Points system</td><td>Earned for engagement; tracked in user_points + point_transactions</td></tr>
+<tr><td>Levels</td><td>Level progression based on points</td></tr>
+<tr><td>Badges</td><td>7 default badges seeded via admin endpoint</td></tr>
+<tr><td>Leaderboard</td><td>Public leaderboard API + Leaderboard component</td></tr>
+<tr><td>Display</td><td>PointsDisplay, BadgesDisplay on profiles</td></tr>
+</table>
+
+<h3>9. Payments &amp; Monetization</h3>
+<table>
+<tr><th>Feature</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Stripe premium subscriptions</td><td class="done">Backend complete</td><td>Checkout, status, cancel</td></tr>
+<tr><td>Premium UI</td><td class="gap">Not launched</td><td>/premium redirects to /; PremiumCTA is a no-op stub</td></tr>
+<tr><td>Creator earnings</td><td class="done">Backend complete</td><td>Balance tracking on profiles</td></tr>
+<tr><td>Payout requests</td><td class="done">Backend complete</td><td>Stripe Connect for ambassadors/influencers</td></tr>
+<tr><td>Admin payout processing</td><td class="done">Backend complete</td><td>Admin panel</td></tr>
+<tr><td>Affiliate ticket sales</td><td class="done">Backend complete</td><td>Commission tracking</td></tr>
+<tr><td>Ticketmaster affiliate clicks</td><td class="done">Backend complete</td><td>Click analytics</td></tr>
+<tr><td>Stripe webhooks</td><td class="done">Backend complete</td><td>Signature-verified</td></tr>
+</table>
+
+<h3>10. Events &amp; Ticketing</h3>
+<table>
+<tr><th>Integration</th><th>Features</th></tr>
+<tr><td>JamBase</td><td>Artist/venue/event search, tour dates, show matching, quota tracking in D1</td></tr>
+<tr><td>Ticketmaster</td><td>Event search, venue/attraction lookup, purchase tracking</td></tr>
+<tr><td>Google Maps</td><td>Geocoding, reverse geocode, nearby venues, autocomplete, distance</td></tr>
+<tr><td>Clip modal tickets</td><td>ClipModalBuyTickets / ClipModalTicketSheet &mdash; Ticketmaster CTAs</td></tr>
+<tr><td>Event sharing</td><td>Web Share API for event tickets</td></tr>
+</table>
+
+<h3>11. YouTube Integration</h3>
+<ul>
+<li>Artist video carousels via YouTube Data API v3 with D1 quota tracking + response cache</li>
+<li>Favorite-artist videos on home feed; trending music on Discover</li>
+<li>IFrame API loader (youtube-iframe-api.ts) with autoplay helpers</li>
+</ul>
+
+<h3>12. Music Recognition</h3>
+<table>
+<tr><th>Provider</th><th>Role</th></tr>
+<tr><td>ACRCloud</td><td>Primary song identification</td></tr>
+<tr><td>AudD</td><td>Fallback identification</td></tr>
+</table>
+<p>Used during quick capture (live song stabilization) and upload flow.</p>
+
+<h3>13. Moderation &amp; Admin</h3>
+<p><strong>Route:</strong> /admin (requires is_admin)</p>
+<table>
+<tr><th>Panel</th><th>Capabilities</th></tr>
+<tr><td>Live session manager</td><td>CRUD sessions, schedule, feature clips</td></tr>
+<tr><td>Chat moderation</td><td>Ban/unban users, delete messages</td></tr>
+<tr><td>Content moderation</td><td>Review flagged clips, admin delete</td></tr>
+<tr><td>User moderation</td><td>Ban/unban platform users</td></tr>
+<tr><td>Verification</td><td>Review identity verification requests</td></tr>
+<tr><td>Analytics</td><td>Platform-wide stats via AnalyticsDashboard</td></tr>
+<tr><td>GDPR</td><td>Process account deletion requests</td></tr>
+</table>
+<p>Moderators (is_moderator) can moderate live chat alongside admins.</p>
+
+<h3>14. Analytics</h3>
+<table>
+<tr><th>Endpoint</th><th>Audience</th><th>Data</th></tr>
+<tr><td>/api/analytics/platform</td><td>Admin</td><td>Platform-wide metrics</td></tr>
+<tr><td>/api/analytics/user</td><td>User (own) or admin</td><td>Per-user stats</td></tr>
+<tr><td>/api/analytics/ambassador</td><td>Ambassadors</td><td>Commission analytics</td></tr>
+<tr><td>/api/analytics/trends</td><td>Public</td><td>Trend analysis</td></tr>
+<tr><td>/api/analytics/clip/:clipId</td><td>Owner or admin</td><td>Per-clip metrics</td></tr>
+<tr><td>Profile view tracking</td><td>Public</td><td>Fire-and-forget POST</td></tr>
+<tr><td>API performance logs</td><td>Internal</td><td>Response time tracking in D1</td></tr>
+</table>
+<p><strong>Frontend:</strong> /analytics page with UserAnalytics and PlatformStats.</p>
+
+<h3>15. GDPR &amp; Privacy</h3>
+<table>
+<tr><th>Feature</th><th>Backend</th><th>Frontend</th></tr>
+<tr><td>Data export</td><td class="done">Yes</td><td>&mdash;</td></tr>
+<tr><td>Account deletion request</td><td class="done">Yes</td><td class="gap">GDPRSettings exists, not wired to route</td></tr>
+<tr><td>Privacy settings CRUD</td><td class="done">Yes</td><td class="partial">Partial</td></tr>
+<tr><td>Admin deletion processing</td><td class="done">Yes</td><td class="done">Admin panel</td></tr>
+</table>
+
+<h3>16. Collaboration (Artist &harr; Influencer)</h3>
+<ul>
+<li>Artists send collaboration briefs to influencers; accept/reject workflow</li>
+<li>Compensation tracked in collaboration_requests table</li>
+<li>Backend complete; CollaborationRequest component exists; role dashboards not routed</li>
+</ul>
+
+<h3>17. Realtime (WebSocket)</h3>
+<p><strong>Endpoint:</strong> GET /realtime &rarr; RealtimeDurableObject</p>
+<p>Channels: feed updates, live chat, notifications, leaderboard updates. Frontend: useRealtime hook.</p>
+
+<hr>
+
+<h2>Database Schema Summary</h2>
+<p><strong>54 migrations</strong> &rarr; <strong>50+ tables</strong> on Cloudflare D1 (SQLite).</p>
+
+<table>
+<tr><th>Domain</th><th>Tables</th></tr>
+<tr><td>Users</td><td>user_profiles, user_privacy_settings, user_bans, verification_requests, account_deletion_requests, profile_views, daily_active_users, user_device_tokens</td></tr>
+<tr><td>Auth</td><td>email_accounts, email_sessions, email_password_resets, google_accounts, google_sessions, two_factor_auth, two_factor_verifications</td></tr>
+<tr><td>Clips</td><td>clips, clip_likes, comments, saved_clips, clip_ratings, clip_shares, clip_flags, user_favorite_clips_by_artist</td></tr>
+<tr><td>Social</td><td>follows, notifications</td></tr>
+<tr><td>Artists/Venues</td><td>artists, venues, artist_tour_dates, user_favorite_artists, artist_pinned_clips, collaboration_requests</td></tr>
+<tr><td>Live</td><td>live_sessions, live_session_clips, live_session_viewers, live_featured_clips, live_chat_messages, live_chat_bans, live_polls, live_poll_votes</td></tr>
+<tr><td>Payments</td><td>subscriptions, transactions, payout_requests, affiliate_sales, affiliate_ticket_clicks</td></tr>
+<tr><td>Gamification</td><td>user_points, point_transactions, badges, user_badges</td></tr>
+<tr><td>Caching/Telemetry</td><td>jambase_api_usage, youtube_api_usage, youtube_response_cache, venue_logo_cache, clip_show_resolve_telemetry, api_performance_logs</td></tr>
+</table>
+
+<p><strong>Identity model:</strong> Most tables use mocha_user_id (TEXT). Auth tables use separate UUID primary keys. Only 3 enforced foreign keys (email/google session &rarr; account).</p>
+
+<h3>Recent Migrations (45&ndash;54)</h3>
+<table>
+<tr><th>#</th><th>What it added</th></tr>
+<tr><td>45</td><td>venues.jambase_id for stable JamBase venue lookups</td></tr>
+<tr><td>46</td><td>clips.song_title, clips.song_slug for per-song hub pages</td></tr>
+<tr><td>47</td><td>google_accounts and google_sessions for direct Google OAuth</td></tr>
+<tr><td>48</td><td>email_accounts.google_sub for linking Google to email accounts</td></tr>
+<tr><td>49</td><td>clips.genre_name, clips.genre_slug for genre hub pages</td></tr>
+<tr><td>50</td><td>youtube_api_usage and youtube_response_cache</td></tr>
+<tr><td>51</td><td>venue_logo_cache for permanent logo resolution</td></tr>
+<tr><td>52</td><td>Data backfill: show_id from jambase_event_id</td></tr>
+<tr><td>53</td><td>clips.event_title column + backfill</td></tr>
+<tr><td>54</td><td>Index on clips.event_title for search/filtering</td></tr>
+</table>
+
+<hr>
+
+<h2>API Surface</h2>
+<p><strong>~170 HTTP routes</strong> in a single Hono app (src/worker/index.ts) plus WebSocket.</p>
+
+<h3>Route Modules</h3>
+<table>
+<tr><th>Module</th><th>Domain</th></tr>
+<tr><td>auth-endpoints.ts</td><td>Email auth</td></tr>
+<tr><td>google-oauth.ts</td><td>Direct Google OAuth</td></tr>
+<tr><td>clip-endpoints.ts</td><td>Clip CRUD</td></tr>
+<tr><td>discovery-endpoints.ts</td><td>Discover feeds</td></tr>
+<tr><td>artist-venue-pages.ts</td><td>Entity page payloads</td></tr>
+<tr><td>song-page-endpoints.ts / genre-page-endpoints.ts</td><td>Song and genre hubs</td></tr>
+<tr><td>jambase-endpoints.ts</td><td>JamBase proxy</td></tr>
+<tr><td>youtube-endpoints.ts</td><td>YouTube proxy</td></tr>
+<tr><td>stripe-endpoints.ts / stripe-webhooks.ts</td><td>Payments</td></tr>
+<tr><td>ticketmaster-endpoints.ts</td><td>Events</td></tr>
+<tr><td>google-maps-endpoints.ts</td><td>Geocoding</td></tr>
+<tr><td>gamification-endpoints.ts</td><td>Points/badges</td></tr>
+<tr><td>gdpr-endpoints.ts</td><td>Privacy compliance</td></tr>
+<tr><td>moderation-endpoints.ts</td><td>Content moderation</td></tr>
+<tr><td>analytics-endpoints.ts</td><td>Metrics</td></tr>
+<tr><td>personalization-endpoints.ts</td><td>User prefs</td></tr>
+<tr><td>live-polls-endpoints.ts</td><td>Live polls</td></tr>
+<tr><td>collaboration-endpoints.ts</td><td>Artist collabs</td></tr>
+<tr><td>follow-endpoints.ts / rating-endpoints.ts</td><td>Social graph, ratings</td></tr>
+<tr><td>stream-endpoints.ts / resumable-upload-endpoints.ts</td><td>Video upload pipeline</td></tr>
+<tr><td>music-recognition.ts</td><td>Song ID</td></tr>
+<tr><td>scheduled.ts</td><td>Cron tasks</td></tr>
+</table>
+
+<h3>Cross-cutting Concerns</h3>
+<ul>
+<li><strong>Rate limiting</strong> &mdash; per-IP/user buckets for auth, upload, search, JamBase, YouTube</li>
+<li><strong>Performance headers</strong> &mdash; cache control via performance-utils.ts</li>
+<li><strong>Validation</strong> &mdash; Zod schemas via @hono/zod-validator</li>
+</ul>
+
+<hr>
+
+<h2>Frontend Architecture</h2>
+
+<h3>Active Routes (22)</h3>
+<table>
+<tr><th>Route</th><th>Page</th><th>Purpose</th></tr>
+<tr><td>/</td><td>Home</td><td>Main feed (personalized when logged in)</td></tr>
+<tr><td>/auth</td><td>Auth</td><td>Sign in/up (email + Google OAuth)</td></tr>
+<tr><td>/auth/callback</td><td>AuthCallback</td><td>OAuth callback</td></tr>
+<tr><td>/auth/reset-password</td><td>ResetPassword</td><td>Password reset</td></tr>
+<tr><td>/onboarding</td><td>Onboarding</td><td>New-user setup</td></tr>
+<tr><td>/upload</td><td>UploadClip</td><td>Full clip upload flow</td></tr>
+<tr><td>/saved</td><td>SavedClips</td><td>Bookmarked clips</td></tr>
+<tr><td>/liked</td><td>LikedClips</td><td>Liked clips feed</td></tr>
+<tr><td>/discover</td><td>Discover</td><td>Search and browse</td></tr>
+<tr><td>/users/:userId</td><td>UserProfile</td><td>Public/own profile</td></tr>
+<tr><td>/artists/:artistName</td><td>ArtistPage</td><td>Artist hub</td></tr>
+<tr><td>/venues/:venueName</td><td>VenuePage</td><td>Venue hub</td></tr>
+<tr><td>/artists/.../songs/:songSlug</td><td>SongPage</td><td>Song clips under artist</td></tr>
+<tr><td>/songs/:songSlug</td><td>GlobalSongPage</td><td>Cross-artist song clips</td></tr>
+<tr><td>/genres/:genreSlug</td><td>GenrePage</td><td>Genre-filtered clips</td></tr>
+<tr><td>/artists/.../shows/:showId/clips</td><td>ShowClips</td><td>Show-specific clips</td></tr>
+<tr><td>/events/clips/:eventTitle</td><td>EventClips</td><td>Event-grouped clips</td></tr>
+<tr><td>/admin</td><td>Admin</td><td>Admin dashboard</td></tr>
+<tr><td>/analytics</td><td>Analytics</td><td>User analytics</td></tr>
+<tr><td>/premium</td><td>&mdash;</td><td>Redirects to / (not launched)</td></tr>
+<tr><td>*</td><td>NotFound</td><td>404 page</td></tr>
+</table>
+
+<h3>State Management</h3>
+<p>No Redux, Zustand, or React Query. Three layers:</p>
+<ol>
+<li><strong>AuthProvider</strong> (@getmocha/users-service) &mdash; session state</li>
+<li><strong>React Context</strong> &mdash; MobileChromeContext, ClipUploadQueueContext, NotificationsContext</li>
+<li><strong>36 custom hooks</strong> &mdash; domain data fetching with useState + fetch/apiFetch</li>
+</ol>
+<p>Cross-component sync via custom DOM events and localStorage caches.</p>
+
+<h3>Key UI Patterns</h3>
+<ul>
+<li><strong>Mobile-first</strong> &mdash; bottom tab nav (Feed, Discover, Capture, Alerts, Profile)</li>
+<li><strong>Dark concert aesthetic</strong> &mdash; momentum-ember, momentum-flare brand palette</li>
+<li><strong>Immersive clip viewing</strong> &mdash; chrome hides during modal playback</li>
+<li><strong>Background uploads</strong> &mdash; non-blocking share after capture</li>
+</ul>
+
+<hr>
+
+<h2>Testing &amp; Quality</h2>
+<table>
+<tr><th>Area</th><th>Coverage</th></tr>
+<tr><td>Unit tests</td><td>24 Vitest files (worker logic, shared utils, some frontend lib)</td></tr>
+<tr><td>E2E tests</td><td>None</td></tr>
+<tr><td>Linting</td><td>ESLint 9 with React hooks plugin</td></tr>
+<tr><td>Type checking</td><td>tsc -b in build</td></tr>
+<tr><td>Deploy check</td><td>npm run check &mdash; typecheck + build + wrangler deploy --dry-run</td></tr>
+</table>
+
+<hr>
+
+<h2>Known Gaps &amp; Incomplete Features</h2>
+<p>Features that exist in code but are <strong>not fully user-facing</strong>:</p>
+<table>
+<tr><th>Feature</th><th>Status</th></tr>
+<tr><td>Live broadcast viewer</td><td class="gap">LiveBroadcast.tsx built; no public route</td></tr>
+<tr><td>Premium subscription</td><td class="gap">Backend + Premium.tsx built; route redirects to /; CTAs stubbed</td></tr>
+<tr><td>Role dashboards</td><td class="gap">Fan/Artist/Ambassador/Influencer/Premium dashboards exist; not routed</td></tr>
+<tr><td>GDPR settings page</td><td class="gap">Component exists; no dedicated settings route</td></tr>
+<tr><td>Leaderboard page</td><td class="gap">Component exists; no dedicated route</td></tr>
+<tr><td>2FA UI</td><td class="partial">Backend complete; limited frontend exposure</td></tr>
+<tr><td>Push notifications</td><td class="partial">Device tokens stored; no push delivery pipeline</td></tr>
+</table>
+
+<p>Items from the December 2024 status report that <strong>have since been addressed</strong>:</p>
+<ul>
+<li class="done">Infinite scroll feed</li>
+<li class="done">Feed filters (latest/trending/most liked/top rated)</li>
+<li class="done">Loading skeletons and empty states</li>
+<li class="done">Error boundary and 404 page</li>
+<li class="done">Recording timer, geolocation auto-tagging, camera permissions</li>
+<li class="done">Advanced search (filters/pagination still improvable)</li>
+</ul>
+
+<hr>
+
+<h2>Recent Development Activity</h2>
+<p>Last commits on main (most recent first):</p>
+<table>
+<tr><th>Theme</th><th>Examples</th></tr>
+<tr><td>User feed</td><td>Personalized feed refinements</td></tr>
+<tr><td>Clip/show organization</td><td>Event titles, show pages, grouping by event</td></tr>
+<tr><td>Past shows</td><td>Artist and venue page past-show sections</td></tr>
+<tr><td>Notifications</td><td>Badge counter, alert system, debugging/refinement</td></tr>
+<tr><td>Social</td><td>Following and connection refinements</td></tr>
+<tr><td>Discover</td><td>Trending artist updates</td></tr>
+<tr><td>UX polish</td><td>Spacing, clip bases, general improvements</td></tr>
+</table>
+<p><strong>Branches:</strong> main, staging, features, cursor/cloudflare-wiring-c9ba</p>
+
+<hr>
+
+<h2>Deployment</h2>
+<table>
+<tr><th>Config</th><th>Value</th></tr>
+<tr><td>Production URL</td><td>https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev</td></tr>
+<tr><td>Worker</td><td>Serves API + SPA from dist/</td></tr>
+<tr><td>D1</td><td>momentum-db</td></tr>
+<tr><td>R2</td><td>momentum-videos, momentum-thumbnails</td></tr>
+<tr><td>Secrets</td><td>Documented in .dev.vars.example</td></tr>
+</table>
+<p>Staging setup documented in docs/staging-vercel-cloudflare-checklist.md (optional Vercel frontend + Cloudflare API).</p>
+
+<hr>
+
+<h2>Developer Onboarding Checklist</h2>
+<ol>
+<li>npm install</li>
+<li>Copy .dev.vars.example &rarr; .dev.vars and fill secrets</li>
+<li>npm run db:migrate:local</li>
+<li>npm run dev (or npm run dev:worker for full Cloudflare emulation)</li>
+<li>Read docs/cloudflare-setup.md for production resource wiring</li>
+<li>Run npm test to verify unit tests pass</li>
+<li>Run npm run check before deploy</li>
+</ol>
+
+<hr>
+
+<h2>Summary Assessment</h2>
+<p>MOMENTUM is a <strong>substantial, production-architected</strong> live-music social platform. The <strong>core loop</strong> &mdash; capture &rarr; upload &rarr; discover &rarr; engage with clips &mdash; is functional end-to-end with rich metadata (shows, songs, genres, events), strong third-party integrations (JamBase, Ticketmaster, YouTube, music recognition), and a complete backend for social, gamification, payments, and admin.</p>
+<p>The main gaps are <strong>frontend wiring</strong> for advanced features (live viewer, premium, role dashboards, settings pages) and <strong>test coverage</strong> beyond unit tests. The codebase has evolved significantly since the December 2024 status report, with 2026 work focused on show/event organization, notifications, and social refinement.</p>
+
+<p class="meta" style="margin-top: 24pt;"><em>End of report. Generated June 8, 2026.</em></p>
+
+</body>
+</html>

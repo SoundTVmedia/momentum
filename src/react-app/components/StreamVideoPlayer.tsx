@@ -90,6 +90,8 @@ function StreamVideoPlayer(
   autoPlayRef.current = autoPlay;
   const autoplayMutedFirstRef = useRef(autoplayMutedFirst);
   autoplayMutedFirstRef.current = autoplayMutedFirst;
+  /** When set, user explicitly chose mute state — autoplay/loop must not override it. */
+  const userMutePreferenceRef = useRef<boolean | null>(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isMuted, setIsMuted] = useState(() => Boolean(autoplayMutedFirst && autoPlay));
   const [showControls, setShowControls] = useState(true);
@@ -118,10 +120,17 @@ function StreamVideoPlayer(
     if (count != null) onViewsCountChange?.(count);
   }, [clipId, onViewsCountChange]);
 
+  const resolveAutoplayMuted = useCallback((): boolean => {
+    if (userMutePreferenceRef.current !== null) return userMutePreferenceRef.current;
+    if (autoplayMutedFirstRef.current) return true;
+    return false;
+  }, []);
+
   const tryAutoplay = useCallback(() => {
     if (!autoPlayRef.current) return;
     const video = videoRef.current;
     if (!video || !videoSrc) return;
+    if (!video.paused) return;
 
     const attempt = (muted: boolean) => {
       video.muted = muted;
@@ -129,38 +138,28 @@ function StreamVideoPlayer(
       return video.play();
     };
 
-    const tryUnmute = () => {
-      window.setTimeout(() => {
-        if (video.paused) return;
-        try {
-          video.muted = false;
-          setIsMuted(false);
-        } catch {
-          /* ignore */
-        }
-      }, 280);
-    };
+    const muted = resolveAutoplayMuted();
 
     if (autoplayMutedFirstRef.current) {
-      void attempt(true).then(tryUnmute).catch(() => {});
+      void attempt(muted).catch(() => {});
       for (const delay of [350, 750]) {
         window.setTimeout(() => {
           if (!video.paused) return;
-          void attempt(true).then(tryUnmute).catch(() => {});
+          void attempt(resolveAutoplayMuted()).catch(() => {});
         }, delay);
       }
       return;
     }
 
+    if (muted) {
+      void attempt(true).catch(() => {});
+      return;
+    }
+
     void attempt(false).catch(() => {
-      void attempt(true)
-        .then(() => {
-          tryUnmute();
-          void video.play().catch(() => {});
-        })
-        .catch(() => {});
+      void attempt(true).catch(() => {});
     });
-  }, [videoSrc]);
+  }, [videoSrc, resolveAutoplayMuted]);
 
   const destroyHls = useCallback(() => {
     if (hlsRef.current) {
@@ -267,6 +266,10 @@ function StreamVideoPlayer(
   }, [destroyHls]);
 
   useEffect(() => {
+    userMutePreferenceRef.current = null;
+  }, [videoSrc]);
+
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
@@ -305,6 +308,9 @@ function StreamVideoPlayer(
     };
     const handleEnded = () => {
       if (!loop) return;
+      const keepMuted = userMutePreferenceRef.current ?? video.muted;
+      video.muted = keepMuted;
+      setIsMuted(keepMuted);
       video.currentTime = 0;
       void video.play().catch(() => {});
     };
@@ -354,8 +360,10 @@ function StreamVideoPlayer(
   const toggleMute = () => {
     const video = videoRef.current;
     if (!video) return;
-    video.muted = !video.muted;
-    setIsMuted(video.muted);
+    const nextMuted = !video.muted;
+    video.muted = nextMuted;
+    setIsMuted(nextMuted);
+    userMutePreferenceRef.current = nextMuted;
   };
 
   const toggleFullscreen = () => {

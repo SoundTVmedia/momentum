@@ -89,6 +89,7 @@ import { buildSongPagePayload } from "./song-page-endpoints";
 import { normalizeClipApiRows } from "./clip-row-normalize";
 import { r2ForClipObjectKey } from "./r2-clip-key";
 import { serveR2ClipFile } from "./r2-serve";
+import { maybeServeClipShareOgHtml } from "./clip-share-og";
 export { RealtimeDurableObject } from "./realtime-durable-object";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -3172,7 +3173,14 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
 });
 
 export default {
-  fetch: app.fetch,
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const ogHtml = await maybeServeClipShareOgHtml(
+      request,
+      env as Env & { ASSETS?: { fetch: typeof fetch } },
+    );
+    if (ogHtml) return ogHtml;
+    return app.fetch(request, env, ctx);
+  },
   scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
     ctx.waitUntil(handleScheduled(env));
   }
