@@ -17,8 +17,7 @@ export default function Header() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const isHome = pathname === '/'
-  const isDiscover = pathname === '/discover'
-  const hideHeaderSearch = isHome || isDiscover
+  const hideHeaderSearch = isHome
   const { hideBottomNav: hideSiteChrome } = useMobileChrome()
   const { user, logout } = useAuth()
   const extendedUser = user as ExtendedMochaUser | null
@@ -100,13 +99,6 @@ export default function Header() {
                 className="text-white hover:text-momentum-flare transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
               >
                 The Feed
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/discover')}
-                className="text-white hover:text-momentum-flare transition-colors font-medium text-sm lg:text-base whitespace-nowrap"
-              >
-                Discover
               </button>
             </nav>
             <div

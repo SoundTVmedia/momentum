@@ -2,10 +2,7 @@ import { Link } from 'react-router'
 import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
 import Footer from '@/react-app/components/Footer'
-import ConcertFeed from '@/react-app/components/ConcertFeed'
 import MainFeedStack from '@/react-app/components/MainFeedStack'
-import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
-import SectionHeading from '@/react-app/components/SectionHeading'
 import { useAuth } from '@getmocha/users-service/react'
 
 export default function Home() {
@@ -17,52 +14,9 @@ export default function Home() {
 
       <HeroSection />
 
-      {!user && (
-        <>
-          <div className="pb-8 sm:pb-12">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
-              <section className="pt-6 md:pt-8">
-                <SectionHeading
-                  title="Latest Feedback"
-                  subtitle="Fresh moments from shows across the platform"
-                  className="mb-4"
-                />
-                <ConcertFeed
-                  feedType="latest"
-                  hideSectionHeader
-                  edgeBleed
-                  edgeBleedScope="page"
-                  suppressBottomPadding
-                />
-              </section>
-              <section className="pt-6 md:pt-8">
-                <SectionHeading
-                  title="Trending"
-                  subtitle="What everyone&apos;s watching right now"
-                  className="mb-4"
-                />
-                <ConcertFeed
-                  feedType="trending"
-                  hideSectionHeader
-                  edgeBleed
-                  edgeBleedScope="page"
-                  suppressBottomPadding
-                />
-              </section>
-
-              <section className="pt-6 md:pt-8">
-                <PersonalizedConcerts carouselBleedScope="page" mode="nearby" />
-              </section>
-            </div>
-          </div>
-        </>
-      )}
-
-      {user && (
-        <div className="relative z-0 bg-gradient-to-b from-black via-slate-900 to-black">
-          <MainFeedStack variant="home" defaultFeedType="latest" />
-        </div>
-      )}
+      <div className="relative z-0 bg-gradient-to-b from-black via-slate-900 to-black">
+        <MainFeedStack variant="home" defaultFeedType="latest" />
+      </div>
 
       {!user && (
         <section className="border-t border-white/10 bg-gradient-to-b from-slate-950 to-black py-10 sm:py-12">

@@ -26,6 +26,8 @@ export type PersonalizedConcertsProps = {
   headingVariant?: 'compact' | 'page';
   /** `auto`: favorites when logged in, nearby when logged out. */
   mode?: ShowsSectionMode;
+  /** Omit title/subtitle when a parent section already provides them (e.g. feed toggles). */
+  hideHeader?: boolean;
 };
 
 interface D1Concert {
@@ -129,6 +131,7 @@ export default function PersonalizedConcerts({
   carouselBleedScope = 'home',
   headingVariant = 'compact',
   mode = 'auto',
+  hideHeader = false,
 }: PersonalizedConcertsProps) {
   const { user, isPending: authPending } = useAuth();
   const carouselBleed =
@@ -300,7 +303,7 @@ export default function PersonalizedConcerts({
 
   return (
     <div className={headingVariant === 'page' ? '' : HOME_FEED_SECTION_CLASS}>
-      {sectionHeader}
+      {!hideHeader ? sectionHeader : null}
 
       {jbEvents.length > 0 ? (
         <JamBaseEventGrid

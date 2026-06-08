@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Filter, Users, X } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
@@ -95,6 +95,22 @@ function nearbyShowsSubtitle(feed: DiscoverFeed): string {
     return 'Upcoming shows near you (based on your area)';
   }
   return 'Upcoming shows in your area';
+}
+
+function discoverHasActiveQuery(params: URLSearchParams): boolean {
+  const q = params.get('q')?.trim();
+  if (q) return true;
+  return ['genre', 'location', 'dateRange', 'sortBy'].some((key) => {
+    const value = params.get(key)?.trim();
+    if (!value) return false;
+    if (key === 'dateRange' && value === '30d') return false;
+    if (key === 'sortBy' && value === 'latest') return false;
+    return true;
+  });
+}
+
+function discoverShowsSearchOnly(params: URLSearchParams): boolean {
+  return params.get('focus') === '1' || discoverHasActiveQuery(params);
 }
 
 export default function DiscoverPage() {
@@ -246,6 +262,8 @@ export default function DiscoverPage() {
     [debouncedQuery, performSearch],
   );
 
+  const searchOnlyMode = searchParams.get('focus') === '1' && !discoverHasActiveQuery(searchParams);
+
   useEffect(() => {
     if (debouncedQuery.trim()) {
       void performSearch(debouncedQuery);
@@ -253,9 +271,14 @@ export default function DiscoverPage() {
       searchAbortRef.current?.abort();
       setResults(null);
       setIsGeoSearch(false);
-      void fetchDiscoverFeed();
+      if (searchOnlyMode) {
+        setDiscoverFeed(null);
+        setLoading(false);
+      } else {
+        void fetchDiscoverFeed();
+      }
     }
-  }, [debouncedQuery, filters, performSearch]);
+  }, [debouncedQuery, filters, performSearch, searchOnlyMode]);
 
   const fetchDiscoverFeed = async () => {
     setLoading(true);
@@ -327,6 +350,10 @@ export default function DiscoverPage() {
   const updateFilter = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
+
+  if (!discoverShowsSearchOnly(searchParams)) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="min-h-screen text-white">
@@ -618,6 +645,10 @@ export default function DiscoverPage() {
 
             <DiscoverTrendingMusicSection />
           </div>
+        ) : searchOnlyMode ? (
+          <p className="text-center text-gray-400 py-12 text-sm max-w-md mx-auto">
+            Search artists, venues, or cities to explore clips and upcoming shows.
+          </p>
         ) : null}
       </div>
 

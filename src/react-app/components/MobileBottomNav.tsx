@@ -40,7 +40,7 @@ export default function MobileBottomNav() {
 
   const navItems = [
     { icon: Home, label: 'The Feed', path: '/', onClick: () => navigate('/') },
-    { icon: Search, label: 'Discover', path: '/discover', onClick: () => navigate('/discover') },
+    { icon: Search, label: 'Discover', path: '/discover', onClick: () => navigate('/discover?focus=1') },
     { icon: Video, label: 'Capture Moment', path: '/capture', onClick: quickCapture.openQuickCapture, special: true },
     {
       icon: Bell,

@@ -64,7 +64,7 @@ export default function HeroSearchBar({
     if (q) {
       navigate(`/discover?q=${encodeURIComponent(q)}`);
     } else {
-      navigate('/discover');
+      navigate('/discover?focus=1');
     }
   };
 

@@ -92,7 +92,7 @@ export default function FavoriteArtistYouTubeSection({
     return (
       <div className={HOME_FEED_SECTION_CLASS}>
         <div className="mb-4 md:mb-5">
-          <h2 className="fb-section-title">On YouTube</h2>
+          <h2 className="fb-section-title">Your Artists on YouTube</h2>
           <p className="mt-1 text-sm text-gray-400">
             {isNoFavorites
               ? 'Add favorite artists to see their most liked videos here.'
@@ -107,7 +107,7 @@ export default function FavoriteArtistYouTubeSection({
     <section className={HOME_FEED_SECTION_CLASS}>
       <YouTubeVideoCarousel
         videos={mostLiked}
-        title="On YouTube"
+        title="Your Artists on YouTube"
         subtitle="Most liked videos from artists you follow"
         ariaLabel="Most liked YouTube videos from your favorite artists"
         carouselClassName={carouselBleed}

@@ -1,25 +1,34 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import {
-  FEED_FILTER_OPTIONS,
-  type FeedFilterValue,
-} from '@/react-app/lib/feedFilterMeta';
+import { FEED_FILTER_OPTIONS } from '@/react-app/lib/feedFilterMeta';
 
-interface FeedFiltersProps {
-  currentFilter: FeedFilterValue;
-  onFilterChange: (filter: FeedFilterValue) => void;
-}
+export type FilterToggleOption<T extends string> = {
+  value: T;
+  label: string;
+  description: string;
+};
 
-export default function FeedFilters({ currentFilter, onFilterChange }: FeedFiltersProps) {
+type FeedFiltersProps<T extends string> = {
+  options?: FilterToggleOption<T>[];
+  currentFilter: T;
+  onFilterChange: (filter: T) => void;
+};
+
+export default function FeedFilters<T extends string>({
+  options,
+  currentFilter,
+  onFilterChange,
+}: FeedFiltersProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
+  const filterOptions = (options ?? FEED_FILTER_OPTIONS) as FilterToggleOption<T>[];
 
   const currentOption =
-    FEED_FILTER_OPTIONS.find((opt) => opt.value === currentFilter) ?? FEED_FILTER_OPTIONS[0];
+    filterOptions.find((opt) => opt.value === currentFilter) ?? filterOptions[0];
 
   return (
     <div className="relative">
       <div className="hidden md:flex items-center space-x-2 glass-panel rounded-xl p-2">
-        {FEED_FILTER_OPTIONS.map((option) => {
+        {filterOptions.map((option) => {
           const isActive = currentFilter === option.value;
 
           return (
@@ -58,7 +67,7 @@ export default function FeedFilters({ currentFilter, onFilterChange }: FeedFilte
             />
 
             <div className="absolute top-full left-0 right-0 mt-2 glass-dropdown rounded-xl overflow-hidden z-50">
-              {FEED_FILTER_OPTIONS.map((option) => {
+              {filterOptions.map((option) => {
                 const isActive = currentFilter === option.value;
 
                 return (
