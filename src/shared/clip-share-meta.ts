@@ -25,11 +25,17 @@ export function resolveAppOrigin(origin?: string): string {
   return trimmed.replace(/\/$/, '');
 }
 
-/** Prefer public Stream CDN thumbnails — most reliable for iMessage / SMS link previews. */
+/** Share preview image: JamBase artist photo when available, else clip thumbnail. */
 export function resolveClipShareImageUrl(
   clip: ClipPlaybackFields,
   origin: string,
+  artistImageUrl?: string | null,
 ): string {
+  const artistImg = typeof artistImageUrl === 'string' ? artistImageUrl.trim() : '';
+  if (artistImg) {
+    return toAbsoluteAssetUrl(origin, artistImg, '');
+  }
+
   const streamId = streamVideoIdFromClip(clip);
   if (streamId) {
     return streamThumbnailUrl(streamId, { height: 720, width: 1280 });
@@ -55,10 +61,11 @@ export function buildClipShareMeta(
   clipId: number | string,
   origin?: string,
   sharePath?: string,
+  artistImageUrl?: string | null,
 ): ClipShareMeta {
   const appOrigin = resolveAppOrigin(origin);
   const id = String(clipId).trim();
-  const image = resolveClipShareImageUrl(clip, appOrigin);
+  const image = resolveClipShareImageUrl(clip, appOrigin, artistImageUrl);
 
   const artist = typeof clip.artist_name === 'string' ? clip.artist_name.trim() : '';
   const venue = typeof clip.venue_name === 'string' ? clip.venue_name.trim() : '';

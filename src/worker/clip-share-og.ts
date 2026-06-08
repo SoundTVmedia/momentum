@@ -1,3 +1,4 @@
+import { resolveClipShareArtistImageUrl } from './clip-share-artist-image';
 import {
   buildClipShareMeta,
   buildMinimalClipShareOgHtml,
@@ -105,7 +106,13 @@ export async function maybeServeClipShareOgHtml(
   const sharePath = url.pathname.startsWith('/share/clip/')
     ? url.pathname.replace(/\/$/, '') || `/share/clip/${clipId}`
     : `/share/clip/${clipId}`;
-  const meta = buildClipShareMeta(row as ClipShareMetaFields, clipId, origin, sharePath);
+  const clipFields = row as ClipShareMetaFields;
+  const artistImageUrl = await resolveClipShareArtistImageUrl(
+    env,
+    clipFields.artist_name,
+    origin,
+  );
+  const meta = buildClipShareMeta(clipFields, clipId, origin, sharePath, artistImageUrl);
 
   const injected = await buildInjectedShareHtml(request, env, meta);
   const html = injected ?? buildMinimalClipShareOgHtml(meta);

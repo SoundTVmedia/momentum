@@ -78,7 +78,16 @@ describe('clip-share-meta', () => {
     expect(isSocialShareCrawler('Mozilla/5.0 (iPhone)')).toBe(false);
   });
 
-  it('prefers Stream CDN thumbnail for share previews', () => {
+  it('prefers JamBase artist image over clip thumbnail', () => {
+    const image = resolveClipShareImageUrl(
+      { stream_video_id: 'a'.repeat(32), thumbnail_url: '/api/files/thumb.jpg' },
+      'https://feedback.example.com',
+      'https://cdn.jambase.com/don-toliver.jpg',
+    );
+    expect(image).toBe('https://cdn.jambase.com/don-toliver.jpg');
+  });
+
+  it('falls back to Stream CDN thumbnail when no artist image', () => {
     const image = resolveClipShareImageUrl(
       { stream_video_id: 'a'.repeat(32) },
       'https://feedback.example.com',

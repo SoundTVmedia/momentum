@@ -41,7 +41,15 @@ import ClipModalTicketSheet from './ClipModalTicketSheet';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
-import { artistPath, eventClipsPath, genrePath, globalSongPath, songPath, venuePath } from '@/shared/app-paths';
+import {
+  apiArtistPath,
+  artistPath,
+  eventClipsPath,
+  genrePath,
+  globalSongPath,
+  songPath,
+  venuePath,
+} from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
@@ -225,10 +233,39 @@ export default function ClipModal({
   useEffect(() => {
     const nid = clipNumericId(clip);
     if (nid == null) return;
-    const restoreMeta = applyClipShareMetaToDocument(
-      buildClipShareMeta(clip, nid, window.location.origin),
-    );
-    return restoreMeta;
+
+    let cancelled = false;
+    let restoreMeta: (() => void) | undefined;
+
+    const applyMeta = (artistImageUrl?: string | null) => {
+      if (cancelled) return;
+      restoreMeta?.();
+      restoreMeta = applyClipShareMetaToDocument(
+        buildClipShareMeta(clip, nid, window.location.origin, undefined, artistImageUrl),
+      );
+    };
+
+    applyMeta(null);
+
+    if (clip.artist_name?.trim()) {
+      void (async () => {
+        try {
+          const res = await fetch(apiArtistPath(clip.artist_name));
+          if (!res.ok) return;
+          const data = (await res.json()) as { artist?: { image_url?: string | null } };
+          const img =
+            typeof data.artist?.image_url === 'string' ? data.artist.image_url.trim() : '';
+          if (img) applyMeta(img);
+        } catch {
+          /* keep clip-thumbnail meta */
+        }
+      })();
+    }
+
+    return () => {
+      cancelled = true;
+      restoreMeta?.();
+    };
   }, [clip]);
 
   const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
