@@ -9,6 +9,8 @@ import {
 } from '@getmocha/users-service/backend';
 import type { MochaUser } from '@/shared/mocha-user';
 import { validateGoogleSession, revokeGoogleSession } from './google-oauth';
+import { isUserSuspended } from './user-ban-utils';
+import { mochaUserIdKey } from './mocha-user-id';
 
 export const EMAIL_SESSION_COOKIE_NAME = 'momentum_email_session';
 export const GOOGLE_SESSION_COOKIE_NAME = 'momentum_google_session';
@@ -269,13 +271,21 @@ export const optionalAuthMiddleware = createMiddleware<{ Bindings: Env }>(async 
  */
 export const authMiddleware = createMiddleware<{ Bindings: Env }>(async (c, next) => {
   const user = await resolveUserFromRequest(c);
-  if (user) {
-    c.set('user', user);
-    await next();
-    return;
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  return c.json({ error: 'Unauthorized' }, 401);
+  c.set('user', user);
+
+  const method = c.req.method.toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    const suspended = await isUserSuspended(c.env.DB, mochaUserIdKey(user));
+    if (suspended) {
+      return c.json({ error: 'Your account has been suspended.' }, 403);
+    }
+  }
+
+  await next();
 });
 
 export { SESSION_MAX_AGE_SEC };

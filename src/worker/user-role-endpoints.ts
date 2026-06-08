@@ -20,7 +20,14 @@ export async function searchUsersForRoleAdmin(c: Context) {
   }
 
   const users = await c.env.DB.prepare(
-    `SELECT mocha_user_id, display_name, role, is_admin, is_moderator, is_superadmin, profile_image_url
+    `SELECT mocha_user_id, display_name, role, is_admin, is_moderator, is_superadmin, profile_image_url,
+            COALESCE(
+              (SELECT 1 FROM user_bans
+               WHERE user_bans.mocha_user_id = user_profiles.mocha_user_id
+               AND (user_bans.expires_at IS NULL OR user_bans.expires_at > datetime('now'))
+               LIMIT 1),
+              0
+            ) AS is_suspended
      FROM user_profiles
      WHERE display_name LIKE ? OR mocha_user_id LIKE ?
      ORDER BY display_name ASC

@@ -90,7 +90,7 @@ export default function ContentModerationPanel() {
   };
 
   const handleDeleteClip = async (clipId: number) => {
-    if (!confirm('Are you sure you want to permanently delete this clip?')) {
+    if (!confirm('Are you sure you want to permanently delete this clip? Superadmin access is required.')) {
       return;
     }
 
@@ -101,6 +101,9 @@ export default function ContentModerationPanel() {
 
       if (response.ok) {
         fetchFlaggedClips();
+      } else {
+        const errBody = (await response.json().catch(() => ({}))) as { error?: string };
+        alert(errBody.error || 'Could not delete clip. Superadmin access is required.');
       }
     } catch (error) {
       console.error('Failed to delete clip:', error);

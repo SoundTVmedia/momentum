@@ -139,23 +139,6 @@ export default function Header() {
               />
             </div>
 
-            {user && (
-              <div className="relative hidden md:block">
-                <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors group"
-                >
-                  <Bell
-                    className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${hasUnreadNotifications(unreadCount) ? 'animate-pulse' : ''} group-hover:scale-110`}
-                  />
-                  <NotificationAlertBadge variant="header" />
-                </button>
-
-                {showNotifications && (
-                  <NotificationPanel onClose={() => setShowNotifications(false)} />
-                )}
-              </div>
-            )}
             {user ? (
               <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
                 <button
@@ -164,18 +147,8 @@ export default function Header() {
                 >
                   Share Your Moment
                 </button>
-                {(extendedUser?.profile?.is_admin === 1 ||
-                  extendedUser?.profile?.is_superadmin === 1) && (
-                  <button
-                    onClick={() => navigate('/admin')}
-                    className="p-1.5 sm:p-2 text-gray-400 hover:text-momentum-rose transition-colors"
-                    title="Admin Dashboard"
-                  >
-                    <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                )}
                 <button
-                  onClick={() => navigate(user ? `/users/${user.id}` : '/auth')}
+                  onClick={() => navigate(`/users/${user.id}`)}
                   className="hidden md:inline-flex items-center justify-center p-0.5 sm:p-1 rounded-full text-gray-400 hover:text-white transition-colors ring-2 ring-transparent hover:ring-white/20 tap-feedback"
                   title="Your profile"
                   type="button"
@@ -196,10 +169,39 @@ export default function Header() {
                     letterClassName="text-xs sm:text-sm font-semibold"
                   />
                 </button>
+                <div className="relative hidden md:block">
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="relative p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors group"
+                    title="Notifications"
+                    type="button"
+                  >
+                    <Bell
+                      className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${hasUnreadNotifications(unreadCount) ? 'animate-pulse' : ''} group-hover:scale-110`}
+                    />
+                    <NotificationAlertBadge variant="header" />
+                  </button>
+
+                  {showNotifications && (
+                    <NotificationPanel onClose={() => setShowNotifications(false)} />
+                  )}
+                </div>
+                {(extendedUser?.profile?.is_admin === 1 ||
+                  extendedUser?.profile?.is_superadmin === 1) && (
+                  <button
+                    onClick={() => navigate('/admin')}
+                    className="hidden md:block p-1.5 sm:p-2 text-gray-400 hover:text-momentum-rose transition-colors"
+                    title="Admin Dashboard"
+                    type="button"
+                  >
+                    <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                )}
                 <button
                   onClick={logout}
                   className="p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors"
                   title="Sign out"
+                  type="button"
                 >
                   <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>

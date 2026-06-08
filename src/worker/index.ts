@@ -61,6 +61,7 @@ import * as authEndpoints from "./auth-endpoints";
 import * as personalization from "./personalization-endpoints";
 import * as youtube from "./youtube-endpoints";
 import * as userRole from "./user-role-endpoints";
+import * as superadminModeration from "./superadmin-moderation-endpoints";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -2966,6 +2967,10 @@ app.post("/api/admin/users/:userId/ban", authMiddleware, moderation.banUser);
 app.post("/api/admin/users/:userId/unban", authMiddleware, moderation.unbanUser);
 app.get("/api/admin/users/search", authMiddleware, userRole.searchUsersForRoleAdmin);
 app.patch("/api/admin/users/:userId/role", authMiddleware, userRole.updateUserRole);
+app.post("/api/admin/users/:userId/suspend", authMiddleware, superadminModeration.suspendUserAccount);
+app.post("/api/admin/users/:userId/unsuspend", authMiddleware, superadminModeration.unsuspendUserAccount);
+app.delete("/api/admin/users/:userId", authMiddleware, superadminModeration.deleteUserAccount);
+app.get("/api/admin/clips/search", authMiddleware, superadminModeration.searchClipsForModeration);
 
 // Stripe Payment Integration Endpoints
 app.post("/api/stripe/checkout/premium", authMiddleware, stripe.createPremiumCheckoutSession);

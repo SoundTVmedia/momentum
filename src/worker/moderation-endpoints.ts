@@ -1,5 +1,7 @@
 import { Context } from 'hono';
 import { purgeClipFromDatabase } from './clip-delete-utils';
+import { getStaffProfile, isAdmin, isSuperAdmin } from './admin-auth';
+import { mochaUserIdKey } from './mocha-user-id';
 
 // Report/flag a clip
 export async function reportClip(c: Context) {
@@ -59,12 +61,12 @@ export async function getFlaggedClips(c: Context) {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -111,12 +113,12 @@ export async function reviewFlaggedClip(c: Context) {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -176,14 +178,10 @@ export async function deleteClip(c: Context) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
-  )
-    .bind(mochaUser.id)
-    .first();
+  const userProfile = await getStaffProfile(c.env.DB, mochaUserIdKey(mochaUser));
 
-  if (!userProfile || !userProfile.is_admin) {
-    return c.json({ error: "Admin access required" }, 403);
+  if (!isSuperAdmin(userProfile)) {
+    return c.json({ error: "Superadmin access required" }, 403);
   }
 
   const clipIdParam = c.req.param('clipId');
@@ -209,12 +207,12 @@ export async function getFlaggedUsers(c: Context) {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -255,12 +253,12 @@ export async function banUser(c: Context) {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 
@@ -315,12 +313,12 @@ export async function unbanUser(c: Context) {
   }
 
   const userProfile = await c.env.DB.prepare(
-    "SELECT is_admin FROM user_profiles WHERE mocha_user_id = ?"
+    "SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?"
   )
     .bind(mochaUser.id)
     .first();
 
-  if (!userProfile || !userProfile.is_admin) {
+  if (!userProfile || !isAdmin(userProfile)) {
     return c.json({ error: "Admin access required" }, 403);
   }
 

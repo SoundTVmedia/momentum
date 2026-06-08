@@ -8,7 +8,7 @@ type EmailAccountRow = {
 };
 
 /** Tables with a single `mocha_user_id` column to re-point when merging identities. */
-const MOCHA_USER_ID_TABLES = [
+export const MOCHA_USER_ID_TABLES = [
   'notifications',
   'saved_clips',
   'clip_likes',
