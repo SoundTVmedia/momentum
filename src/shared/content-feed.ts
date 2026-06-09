@@ -32,8 +32,6 @@ export type ClassifyContentFeedInput = {
 export const CONTENT_FEED_REJECTION_MESSAGES: Record<string, string> = {
   acr_no_headliner_match:
     'This sounds like a song, but it does not match the headliner for this show. Performance clips must match the artist on stage.',
-  no_acr_no_speech:
-    'We could not detect live music or clear speech. Share a performance clip (song match) or a talking moment before/after the show.',
   missing_headliner:
     'Set the show artist before posting a performance clip so we can verify the song matches the headliner.',
 };
@@ -42,7 +40,7 @@ export const CONTENT_FEED_REJECTION_MESSAGES: Record<string, string> = {
  * Decision matrix:
  * - ACR match + headliner match → main (public performance feed)
  * - ACR no match + speech → pre_post (friends-only)
- * - ACR no match + no speech → rejected
+ * - ACR no match + no speech → pre_post (friends-only)
  * - ACR match + headliner mismatch → rejected
  */
 export function classifyContentFeed(input: ClassifyContentFeedInput): ContentFeedClassification {
@@ -101,12 +99,11 @@ export function classifyContentFeed(input: ClassifyContentFeedInput): ContentFee
   }
 
   return {
-    content_feed: 'rejected',
+    content_feed: 'pre_post',
     acr_matched: false,
     has_speech: false,
     headliner_matched: false,
     reason: 'no_acr_no_speech',
-    message: CONTENT_FEED_REJECTION_MESSAGES.no_acr_no_speech,
     acr_artist: null,
     acr_title: null,
   };

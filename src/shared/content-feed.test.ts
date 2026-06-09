@@ -33,15 +33,14 @@ describe('classifyContentFeed', () => {
     expect(r.content_feed).toBe('pre_post');
   });
 
-  it('rejects no ACR and no speech', () => {
+  it('routes no ACR and no speech to pre_post', () => {
     const r = classifyContentFeed({
       acrMatch: null,
       headlinerName: 'Taylor Swift',
       hasSpeech: false,
     });
-    expect(r.content_feed).toBe('rejected');
-    if (r.content_feed === 'rejected') {
-      expect(r.reason).toBe('no_acr_no_speech');
-    }
+    expect(r.content_feed).toBe('pre_post');
+    expect(r.reason).toBe('no_acr_no_speech');
+    expect(r.has_speech).toBe(false);
   });
 });

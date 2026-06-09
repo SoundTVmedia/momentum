@@ -96,7 +96,7 @@ export function contentFeedUserMessage(
   if (result.content_feed === 'pre_post') {
     return {
       tone: 'info',
-      message: 'Talking moment — will appear on the friends-only pre/post feed.',
+      message: 'Pre/post moment — will appear on the friends-only feed.',
     };
   }
   if (result.content_feed === 'rejected') {
