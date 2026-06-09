@@ -83,9 +83,9 @@ import {
   getContentFeedConfig,
   getFriendsPrePostFeed,
   loadValidClassification,
-  MAIN_FEED_CLIP_SQL,
   postClassifyClipContent,
 } from "./content-feed-endpoints";
+import { mainFeedClipFilterSql } from "./content-feed-sql";
 import { computeShowId } from "../shared/show-id";
 import { resolveClipEventTitle } from "../shared/event-title";
 import {
@@ -1043,7 +1043,8 @@ app.get("/api/clips", async (c) => {
 
   // Public discovery feeds show performance clips only; profile pages show all lanes.
   if (!userId && feedScope !== 'all') {
-    query += ` AND ${MAIN_FEED_CLIP_SQL}`;
+    const mainFeedFilter = await mainFeedClipFilterSql(c.env.DB);
+    query += ` AND ${mainFeedFilter}`;
   }
   
   if (artistName) {

@@ -1,6 +1,6 @@
 import { Context } from 'hono';
 import { normalizeClipApiRows } from './clip-row-normalize';
-import { MAIN_FEED_CLIP_SQL } from '../shared/content-feed';
+import { mainFeedClipFilterSql } from './content-feed-sql';
 import {
   jamBaseApiKeyConfigured,
   jamBaseMissingKeyNotice,
@@ -457,6 +457,7 @@ export async function getPersonalizedFeed(c: Context) {
     const favoriteArtists = profile.favorite_artists ? JSON.parse(profile.favorite_artists as string) : [];
     const hasLocation = profile.home_latitude && profile.home_longitude;
     const radiusMiles = profile.location_radius_miles || 50;
+    const mainFeedFilter = await mainFeedClipFilterSql(c.env.DB);
 
     // Build personalized query
     let query = `
@@ -476,7 +477,7 @@ export async function getPersonalizedFeed(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       WHERE clips.is_hidden = 0 AND clips.is_draft = 0
-      AND ${MAIN_FEED_CLIP_SQL}
+      AND ${mainFeedFilter}
       AND clips.mocha_user_id != ?
     `;
 
@@ -520,7 +521,7 @@ export async function getPersonalizedFeed(c: Context) {
         FROM clips
         LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
         WHERE clips.is_hidden = 0 AND clips.is_draft = 0
-        AND ${MAIN_FEED_CLIP_SQL}
+        AND ${mainFeedFilter}
         AND clips.mocha_user_id != ?
       `;
 

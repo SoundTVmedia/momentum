@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { MAX_IDENTIFY_UPLOAD_BYTES } from '../shared/identify-music-limits';
-import { MAIN_FEED_CLIP_SQL } from '../shared/content-feed';
+import { clipsContentFeedColumnReady } from './content-feed-sql';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
 import {
@@ -103,6 +103,17 @@ export async function getFriendsPrePostFeed(c: Context) {
   const offset = (page - 1) * limit;
   const uid = mochaUserIdKey(mochaUser);
 
+  if (!(await clipsContentFeedColumnReady(c.env.DB))) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+    return c.json({
+      clips: [],
+      page,
+      limit,
+      hasMore: false,
+      feed_scope: 'pre_post',
+    });
+  }
+
   const clips = await c.env.DB.prepare(
     `SELECT
       clips.rowid AS _clipRowId,
@@ -140,4 +151,4 @@ export async function getFriendsPrePostFeed(c: Context) {
   });
 }
 
-export { loadValidClassification, MAIN_FEED_CLIP_SQL };
+export { loadValidClassification };
