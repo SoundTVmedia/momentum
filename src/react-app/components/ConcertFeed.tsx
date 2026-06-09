@@ -19,11 +19,15 @@ import {
 import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter'
 import { useCarouselInfiniteLoad } from '@/react-app/hooks/useCarouselInfiniteLoad'
 import { browseClipsPath } from '@/react-app/lib/browse-paths'
-import { getFeedFilterMeta, type FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
+import {
+  FROM_THE_SCENE_SECTION,
+  getFeedFilterMeta,
+  type FeedFilterValue,
+} from '@/react-app/lib/feedFilterMeta'
 
 interface ConcertFeedProps {
-  feedType?: 'latest' | 'trending' | 'most_liked'
-  feedScope?: 'main' | 'pre_post'
+  feedType?: FeedFilterValue
+  feedScope?: 'main' | 'friends'
   artistName?: string
   venueName?: string
   songSlug?: string
@@ -46,10 +50,14 @@ export function FeedSectionHeader({
 }: {
   feedType?: FeedFilterValue
 }) {
-  const { label, description } = getFeedFilterMeta(feedType)
+  const { description } = getFeedFilterMeta(feedType)
 
   return (
-    <SectionHeading title={label} subtitle={description} size="section" />
+    <SectionHeading
+      title={FROM_THE_SCENE_SECTION.title}
+      subtitle={description}
+      size="section"
+    />
   )
 }
 
@@ -65,10 +73,10 @@ function feedCarouselLabel(
   if (songSlug) return `Clips for song ${songSlug.replace(/-/g, ' ')}`
   if (genreSlug) return `Clips in ${genreSlug.replace(/-/g, ' ')}`
   switch (feedType) {
-    case 'trending':
-      return 'Trending clips'
     case 'most_liked':
       return 'Most liked clips'
+    case 'most_viewed':
+      return 'Most viewed clips'
     default:
       return 'From the scene clips'
   }

@@ -7,8 +7,9 @@ import { useClips } from '@/react-app/hooks/useClips';
 import { getFeedFilterMeta, type FeedFilterValue } from '@/react-app/lib/feedFilterMeta';
 
 function parseFeedType(param: string | undefined): FeedFilterValue | null {
-  if (param === 'latest' || param === 'trending') return param;
+  if (param === 'latest') return 'latest';
   if (param === 'most-liked') return 'most_liked';
+  if (param === 'most-viewed') return 'most_viewed';
   return null;
 }
 

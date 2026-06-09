@@ -3,9 +3,9 @@ import type { ClipWithUser } from '@/shared/types'
 import { apiFetch } from '@/react-app/lib/apiFetch'
 
 interface UseClipsOptions {
-  feedType?: 'latest' | 'trending' | 'most_liked' | 'most_viewed'
-  /** `main` = public performance feed (default); `pre_post` = friends-only talking moments. */
-  feedScope?: 'main' | 'pre_post'
+  feedType?: 'latest' | 'most_liked' | 'most_viewed'
+  /** `main` = public performance feed (default); `friends` = clips from people you follow. */
+  feedScope?: 'main' | 'friends'
   artistName?: string
   venueName?: string
   songSlug?: string
@@ -73,8 +73,8 @@ export function useClips(options: UseClipsOptions = {}) {
         if (mine && contentFeed) params.append('content_feed', contentFeed)
 
         const listPath =
-          feedScope === 'pre_post' && !mine
-            ? `/api/clips/friends-prepost?${params}`
+          feedScope === 'friends' && !mine
+            ? `/api/clips/friends?${params}`
             : mine
               ? `/api/me/clips?${params}`
               : `/api/clips?${params}`
@@ -189,8 +189,8 @@ export function useClips(options: UseClipsOptions = {}) {
         if (mine && contentFeed) params.append('content_feed', contentFeed)
 
         const listPath =
-          feedScope === 'pre_post' && !mine
-            ? `/api/clips/friends-prepost?${params}`
+          feedScope === 'friends' && !mine
+            ? `/api/clips/friends?${params}`
             : mine
               ? `/api/me/clips?${params}`
               : `/api/clips?${params}`

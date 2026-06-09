@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
 import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFeed'
+import type { FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
@@ -15,7 +16,7 @@ export type MainFeedStackVariant = 'page' | 'home'
 type MainFeedStackProps = {
   variant?: MainFeedStackVariant
   /** Initial filter for the main clip grid on home and feed-style stacks. */
-  defaultFeedType?: 'latest' | 'trending' | 'most_liked'
+  defaultFeedType?: FeedFilterValue
 }
 
 export default function MainFeedStack({

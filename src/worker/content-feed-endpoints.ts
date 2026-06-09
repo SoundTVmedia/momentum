@@ -1,6 +1,5 @@
 import type { Context } from 'hono';
 import { MAX_IDENTIFY_UPLOAD_BYTES } from '../shared/identify-music-limits';
-import { clipsContentFeedColumnReady } from './content-feed-sql';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
 import {
@@ -25,7 +24,8 @@ export async function getContentFeedConfig(c: Context) {
   return c.json({
     endpoints: {
       classify: 'POST /api/clips/classify-content (multipart: file, headliner_name?)',
-      friendsPrePost: 'GET /api/clips/friends-prepost',
+      friends: 'GET /api/clips/friends',
+      friendsPrePost: 'GET /api/clips/friends-prepost (deprecated alias)',
     },
     acrcloud: music.acrcloud,
     whisper: speech,
@@ -91,8 +91,16 @@ export async function postClassifyClipContent(c: Context) {
   return c.json({ ok: true, ...result });
 }
 
-/** Friends-only pre/post feed (clips from people you follow + your own). */
-export async function getFriendsPrePostFeed(c: Context) {
+const FRIENDS_FEED_USER_FOLLOWS_SQL = `
+  SELECT following_id FROM follows
+  WHERE follower_id = ?
+    AND following_id NOT LIKE 'venue-%'
+    AND following_id NOT LIKE 'artist-%'
+    AND following_id NOT LIKE 'artist-name:%'
+`;
+
+/** All clips (main + pre/post) from people you follow, plus your own. */
+export async function getFriendsFeed(c: Context) {
   const mochaUser = c.get('user');
   if (!mochaUser) {
     return c.json({ error: 'Unauthorized' }, 401);
@@ -102,17 +110,6 @@ export async function getFriendsPrePostFeed(c: Context) {
   const limit = Math.min(parseInt(c.req.query('limit') || '12', 10), 50);
   const offset = (page - 1) * limit;
   const uid = mochaUserIdKey(mochaUser);
-
-  if (!(await clipsContentFeedColumnReady(c.env.DB))) {
-    c.header('Cache-Control', 'private, no-store, must-revalidate');
-    return c.json({
-      clips: [],
-      page,
-      limit,
-      hasMore: false,
-      feed_scope: 'pre_post',
-    });
-  }
 
   const clips = await c.env.DB.prepare(
     `SELECT
@@ -127,12 +124,9 @@ export async function getFriendsPrePostFeed(c: Context) {
     LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
     WHERE clips.is_hidden = 0
       AND clips.is_draft = 0
-      AND clips.content_feed = 'pre_post'
       AND (
         clips.mocha_user_id = ?
-        OR clips.mocha_user_id IN (
-          SELECT following_id FROM follows WHERE follower_id = ?
-        )
+        OR clips.mocha_user_id IN (${FRIENDS_FEED_USER_FOLLOWS_SQL})
       )
     ORDER BY clips.created_at DESC
     LIMIT ? OFFSET ?`,
@@ -147,8 +141,11 @@ export async function getFriendsPrePostFeed(c: Context) {
     page,
     limit,
     hasMore: (clips.results || []).length === limit,
-    feed_scope: 'pre_post',
+    feed_scope: 'friends',
   });
 }
+
+/** @deprecated Use getFriendsFeed — kept as route alias. */
+export const getFriendsPrePostFeed = getFriendsFeed;
 
 export { loadValidClassification };

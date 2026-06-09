@@ -9,7 +9,7 @@ export type FavoriteFeedFilterMeta = {
 export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
   {
     value: 'artists',
-    label: 'Artists',
+    label: 'Your Artists',
     description: 'Clips from artists you follow',
   },
   {
@@ -19,8 +19,8 @@ export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
   },
   {
     value: 'friends',
-    label: 'Friends',
-    description: 'Pre- and post-show talking moments from people you follow',
+    label: 'Your Friends',
+    description: 'All clips from people you follow',
   },
 ];
 

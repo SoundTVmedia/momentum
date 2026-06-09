@@ -43,7 +43,7 @@ export default function PrePostClipsCarousel({
 
   const { clips, loading, hasMore, loadMore } = useClips({
     feedType: 'latest',
-    feedScope: scope === 'friends' ? 'pre_post' : 'main',
+    feedScope: scope === 'friends' ? 'friends' : 'main',
     mine: scope === 'mine',
     contentFeed: scope === 'mine' ? 'pre_post' : undefined,
     limit: 12,

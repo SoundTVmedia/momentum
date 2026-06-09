@@ -771,6 +771,12 @@ app.post(
   postClassifyClipContent
 );
 app.get(
+  "/api/clips/friends",
+  authMiddleware,
+  rateLimiter(RateLimits.API),
+  getFriendsPrePostFeed
+);
+app.get(
   "/api/clips/friends-prepost",
   authMiddleware,
   rateLimiter(RateLimits.API),

@@ -274,7 +274,7 @@ export default function FavoriteArtistFeedPanel({
           <div className="min-w-0 flex-1">
             <SectionHeading
               title="Favorites"
-              subtitle="Clips and shows from your favorite artists, plus friends' pre/post moments."
+              subtitle="Clips and shows from your favorite artists, plus everything from people you follow."
               className="mb-0"
             />
           </div>
@@ -376,8 +376,8 @@ export default function FavoriteArtistFeedPanel({
           <div className="mt-4 md:mt-5">
             <PrePostClipsCarousel
               scope="friends"
-              ariaLabel="Pre and post show moments from friends"
-              emptyMessage="No pre/post moments from people you follow yet."
+              ariaLabel="Clips from people you follow"
+              emptyMessage="No clips from people you follow yet."
               edgeBleed={edgeBleed}
               edgeBleedScope={edgeBleedScope}
               enableInfiniteScroll
