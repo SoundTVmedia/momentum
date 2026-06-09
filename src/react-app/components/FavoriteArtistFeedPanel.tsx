@@ -8,6 +8,7 @@ import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJ
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import FeedFilters from '@/react-app/components/FeedFilters';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
+import PrePostClipsCarousel from '@/react-app/components/PrePostClipsCarousel';
 import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
@@ -273,7 +274,7 @@ export default function FavoriteArtistFeedPanel({
           <div className="min-w-0 flex-1">
             <SectionHeading
               title="Favorites"
-              subtitle="Latest clips and upcoming shows from your favorite artists."
+              subtitle="Clips and shows from your favorite artists, plus friends' pre/post moments."
               className="mb-0"
             />
           </div>
@@ -369,6 +370,17 @@ export default function FavoriteArtistFeedPanel({
               carouselMaxEvents={12}
               viewAllHref={BROWSE_FAVORITE_SHOWS_PATH}
               viewAllLabel="View all shows"
+            />
+          </div>
+        ) : variant === 'feed' && panelView === 'friends' ? (
+          <div className="mt-4 md:mt-5">
+            <PrePostClipsCarousel
+              scope="friends"
+              ariaLabel="Pre and post show moments from friends"
+              emptyMessage="No pre/post moments from people you follow yet."
+              edgeBleed={edgeBleed}
+              edgeBleedScope={edgeBleedScope}
+              enableInfiniteScroll
             />
           </div>
         ) : loading ? (

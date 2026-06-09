@@ -1,6 +1,8 @@
 import type { Context } from 'hono';
 import { purgeClipFromDatabase } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
+import { clipsContentFeedColumnReady } from './content-feed-sql';
+import { MAIN_FEED_CLIP_SQL } from '../shared/content-feed';
 import {
   buildHashtagsForClipBody,
   genreFieldsFromBody,
@@ -248,9 +250,11 @@ export async function getMyClipsFeed(c: Context<{ Bindings: Env }>) {
   const page = parseInt(c.req.query('page') || '1');
   const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50);
   const sortBy = c.req.query('sort_by') || 'latest';
+  const contentFeed = c.req.query('content_feed');
   const offset = (page - 1) * limit;
 
   const ownerKey = normalizeMochaUserIdKey(String(user.id));
+  const hasContentFeedColumn = await clipsContentFeedColumnReady(c.env.DB);
 
   let query = `
     SELECT 
@@ -269,6 +273,12 @@ export async function getMyClipsFeed(c: Context<{ Bindings: Env }>) {
   `;
 
   const bindings: unknown[] = [ownerKey];
+
+  if (hasContentFeedColumn && contentFeed === 'pre_post') {
+    query += ` AND clips.content_feed = 'pre_post'`;
+  } else if (hasContentFeedColumn && contentFeed === 'main') {
+    query += ` AND ${MAIN_FEED_CLIP_SQL}`;
+  }
 
   switch (sortBy) {
     case 'trending':

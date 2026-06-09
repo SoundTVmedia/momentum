@@ -42,8 +42,8 @@ import {
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 import { resolveClipEventTitle } from '@/shared/event-title';
 
-import { buildHashtagsArrayForPost } from '@/shared/clip-hashtags';
 import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
+import { clipShowFieldsForContentFeed, isPrePostContentFeed } from '@/shared/pre-post-clip';
 import ClipUploadStatusBanner from '@/react-app/components/ClipUploadStatusBanner';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
@@ -162,6 +162,8 @@ export default function UploadClip() {
   );
   const [classifyResult, setClassifyResult] = useState<ContentFeedClassification | null>(null);
   const [classifyMessage, setClassifyMessage] = useState<string | null>(null);
+  const [storedClassificationId, setStoredClassificationId] = useState<string | null>(null);
+  const classifyAttemptedForSourceKeyRef = useRef<string | null>(null);
 
   /** Apply GPS from navigation state before paint so resolve-show sees coords on first run. */
   useLayoutEffect(() => {
@@ -897,12 +899,101 @@ export default function UploadClip() {
     libraryFileMeta,
   ]);
 
+  const clearShowAssociationFields = useCallback(() => {
+    setFormData((prev) => ({
+      ...prev,
+      artist_name: '',
+      venue_name: '',
+      location: '',
+      song_title: '',
+      genre_name: '',
+      hashtags: '',
+    }));
+    setArtistSearch('');
+    setVenueSearch('');
+    setJambaseLink(null);
+    setResolveNotice(null);
+    captionCommittedArtistNameRef.current = '';
+    captionCommittedVenueNameRef.current = '';
+    setIsEditingTags(false);
+    setAuddStatus('idle');
+    setAuddMessage(null);
+  }, []);
+
+  /**
+   * Classify feed lane when the caption screen opens so we can simplify UI for talking clips.
+   */
+  useEffect(() => {
+    if (!showCaptionScreen || !user || isPending) return;
+    const source = formData.video_blob ?? formData.video_file;
+    if (!source || !(source instanceof Blob)) return;
+
+    const sourceKey = auddSourceKey(source);
+    if (classifyAttemptedForSourceKeyRef.current === sourceKey) return;
+    classifyAttemptedForSourceKeyRef.current = sourceKey;
+
+    let cancelled = false;
+    setClassifyStatus('loading');
+    setClassifyMessage(null);
+    setClassifyResult(null);
+    setStoredClassificationId(null);
+
+    void (async () => {
+      const nav = location.state as { captureAudioBlob?: unknown } | null;
+      const captureAudio =
+        nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null;
+
+      const out = await classifyContentFeedForClip({
+        video: source,
+        captureAudio,
+        headlinerName: formData.artist_name?.trim() || null,
+      });
+      if (cancelled) return;
+
+      if (!out.ok) {
+        setClassifyStatus('error');
+        setClassifyMessage(out.error);
+        return;
+      }
+
+      setClassifyResult(out);
+      setStoredClassificationId(out.classification_id ?? null);
+      const ui = contentFeedUserMessage(out);
+      setClassifyMessage(ui?.message ?? null);
+
+      if (out.content_feed === 'rejected') {
+        setClassifyStatus('error');
+        return;
+      }
+
+      if (out.content_feed === 'pre_post') {
+        clearShowAssociationFields();
+      }
+
+      setClassifyStatus('done');
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showCaptionScreen,
+    user,
+    isPending,
+    formData.video_blob,
+    formData.video_file,
+    formData.artist_name,
+    location.state,
+    clearShowAssociationFields,
+  ]);
+
   /**
    * Authoritative song ID on the clip details screen (ACRCloud/AudD).
    * Uses parallel mic audio from capture when available, then a video snippet; merges live preview matches.
    */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
+    if (isPrePostContentFeed(classifyResult?.content_feed)) return;
     const source = formData.video_blob ?? formData.video_file;
     if (!source || !(source instanceof Blob)) return;
 
@@ -989,6 +1080,7 @@ export default function UploadClip() {
     formData.video_file,
     location.state,
     uploadSource,
+    classifyResult?.content_feed,
   ]);
 
   const handleInputChange = (field: string, value: string) => {
@@ -1184,7 +1276,22 @@ export default function UploadClip() {
     return data;
   };
 
-  const resolveClassificationForPost = useCallback(async (): Promise<string> => {
+  const resolveClassificationForPost = useCallback(async (): Promise<{
+    classificationId: string;
+    contentFeed: 'main' | 'pre_post';
+  }> => {
+    if (
+      storedClassificationId &&
+      classifyResult &&
+      classifyResult.content_feed !== 'rejected' &&
+      (classifyResult.content_feed === 'main' || classifyResult.content_feed === 'pre_post')
+    ) {
+      return {
+        classificationId: storedClassificationId,
+        contentFeed: classifyResult.content_feed,
+      };
+    }
+
     const source = formData.video_blob ?? formData.video_file;
     if (!source || !(source instanceof Blob)) {
       throw new Error('No video available for content classification.');
@@ -1197,6 +1304,7 @@ export default function UploadClip() {
     setClassifyStatus('loading');
     setClassifyMessage(null);
     setClassifyResult(null);
+    setStoredClassificationId(null);
 
     const out = await classifyContentFeedForClip({
       video: source,
@@ -1211,6 +1319,7 @@ export default function UploadClip() {
     }
 
     setClassifyResult(out);
+    setStoredClassificationId(out.classification_id ?? null);
     const ui = contentFeedUserMessage(out);
     setClassifyMessage(ui?.message ?? null);
 
@@ -1219,15 +1328,33 @@ export default function UploadClip() {
       throw new Error(out.message);
     }
 
+    if (out.content_feed === 'pre_post') {
+      clearShowAssociationFields();
+    }
+
     setClassifyStatus('done');
     if (!out.classification_id) {
       throw new Error('Classification did not return an id. Try again.');
     }
-    return out.classification_id;
-  }, [formData.video_blob, formData.video_file, formData.artist_name, location.state]);
+    if (out.content_feed !== 'main' && out.content_feed !== 'pre_post') {
+      throw new Error('Invalid content feed classification.');
+    }
+    return {
+      classificationId: out.classification_id,
+      contentFeed: out.content_feed,
+    };
+  }, [
+    storedClassificationId,
+    classifyResult,
+    formData.video_blob,
+    formData.video_file,
+    formData.artist_name,
+    location.state,
+    clearShowAssociationFields,
+  ]);
 
   const buildUploadPayload = useCallback(
-    (classificationId: string): ClipUploadJobPayload => {
+    (classificationId: string, contentFeed: 'main' | 'pre_post'): ClipUploadJobPayload => {
     const nav = location.state as { captureAudioBlob?: unknown } | null;
     return {
       uploadMethod,
@@ -1236,6 +1363,7 @@ export default function UploadClip() {
       thumbnailFile: formData.thumbnail_file,
       videoUrl: formData.video_url,
       classificationId,
+      contentFeed,
       captureAudioBlob:
         nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null,
       form: {
@@ -1304,6 +1432,8 @@ export default function UploadClip() {
     setClassifyStatus('idle');
     setClassifyResult(null);
     setClassifyMessage(null);
+    setStoredClassificationId(null);
+    classifyAttemptedForSourceKeyRef.current = null;
     setIsEditingTags(false);
     userOverrodeAutoTagsRef.current = false;
     autoShowTagAppliedRef.current = false;
@@ -1345,15 +1475,17 @@ export default function UploadClip() {
     }
 
     if (showCaptionScreen && uploadMethod === 'file') {
-      let classificationId: string;
+      let resolved: { classificationId: string; contentFeed: 'main' | 'pre_post' };
       try {
-        classificationId = await resolveClassificationForPost();
+        resolved = await resolveClassificationForPost();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Content classification failed');
         return;
       }
 
-      const jobId = enqueueClipUpload(buildUploadPayload(classificationId));
+      const jobId = enqueueClipUpload(
+        buildUploadPayload(resolved.classificationId, resolved.contentFeed),
+      );
       if (!jobId) {
         setError('Too many clips are uploading. Wait for one to finish, then try again.');
         return;
@@ -1370,9 +1502,9 @@ export default function UploadClip() {
     setError(null);
 
     try {
-      let classificationId: string;
+      let resolved: { classificationId: string; contentFeed: 'main' | 'pre_post' };
       try {
-        classificationId = await resolveClassificationForPost();
+        resolved = await resolveClassificationForPost();
       } catch (e) {
         throw e;
       }
@@ -1416,35 +1548,37 @@ export default function UploadClip() {
         setUploadProgress(prev => ({ ...prev, thumbnail: 100 }));
       }
 
-      const hashtagsArray = buildHashtagsArrayForPost(
-        formData.hashtags,
-        formData.artist_name,
-        formData.song_title,
-        formData.genre_name,
-      );
-
-      // Prepare clip data based on upload type (Stream or R2)
-      const clipData: any = {
-        classification_id: classificationId,
-        artist_name: formData.artist_name || null,
-        venue_name: formData.venue_name || null,
-        location: formData.location || null,
-        content_description: formData.content_description || null,
-        hashtags: hashtagsArray,
-        song_title: formData.song_title?.trim() || null,
-        genre_name: formData.genre_name?.trim() || null,
-        status: 'published',
-        timestamp: recordingAtIso || undefined,
-        jambase_event_id: jambaseLink?.event ?? undefined,
-        jambase_artist_id: jambaseLink?.artist ?? undefined,
-        jambase_venue_id: jambaseLink?.venue ?? undefined,
-        event_title:
-          jambaseLink?.eventTitle ??
+      const showFields = clipShowFieldsForContentFeed(resolved.contentFeed, {
+        artist_name: formData.artist_name,
+        venue_name: formData.venue_name,
+        location: formData.location,
+        song_title: formData.song_title,
+        genre_name: formData.genre_name,
+        hashtagsInput: formData.hashtags,
+        jambaseLink,
+        eventTitleFallback:
           resolveClipEventTitle({
             artist_name: formData.artist_name,
             venue_name: formData.venue_name,
-          }) ??
-          undefined,
+          }) ?? null,
+      });
+
+      // Prepare clip data based on upload type (Stream or R2)
+      const clipData: any = {
+        classification_id: resolved.classificationId,
+        artist_name: showFields.artist_name,
+        venue_name: showFields.venue_name,
+        location: showFields.location,
+        content_description: formData.content_description || null,
+        hashtags: showFields.hashtags,
+        song_title: showFields.song_title,
+        genre_name: showFields.genre_name,
+        status: 'published',
+        timestamp: recordingAtIso || undefined,
+        jambase_event_id: showFields.jambase_event_id ?? undefined,
+        jambase_artist_id: showFields.jambase_artist_id ?? undefined,
+        jambase_venue_id: showFields.jambase_venue_id ?? undefined,
+        event_title: showFields.event_title ?? undefined,
         geolocation_latitude: captureGeo?.latitude,
         geolocation_longitude: captureGeo?.longitude,
         // Include video metadata if available (orientation and resolution)
@@ -1679,6 +1813,9 @@ export default function UploadClip() {
 
   // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
+    const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
+    const showPerformanceCaptionDetails =
+      classifyStatus === 'done' && classifyResult?.content_feed === 'main';
     const currentDate = new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -1698,13 +1835,20 @@ export default function UploadClip() {
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-fade-in">
           <div className="mb-6 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">Share your moment</h1>
+              <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">
+                {isPrePostClip ? 'Talking moment' : 'Share your moment'}
+              </h1>
               <p className="text-gray-300 text-sm sm:text-lg">
-                Add details and post. After you share, upload continues in the background so you can record your next
-                clip right away.
-                {uploadSource === 'library'
-                  ? ' We read date and location from your video file when available to find a matching show.'
-                  : ' Venue and location are filled from GPS and JamBase when we find a match.'}
+                {isPrePostClip
+                  ? 'Add a short description and post. This clip goes to your friends-only pre/post feed — we will not link it to an artist or venue.'
+                  : classifyStatus === 'loading'
+                    ? 'Checking whether this is a performance clip or a talking moment…'
+                    : 'Add details and post. After you share, upload continues in the background so you can record your next clip right away.'}
+                {!isPrePostClip && classifyStatus !== 'loading'
+                  ? uploadSource === 'library'
+                    ? ' We read date and location from your video file when available to find a matching show.'
+                    : ' Venue and location are filled from GPS and JamBase when we find a match.'
+                  : null}
               </p>
             </div>
             <button
@@ -1798,18 +1942,18 @@ export default function UploadClip() {
                   <p className="text-red-400">{error}</p>
                 </div>
               )}
-              {resolveNotice && (
+              {showPerformanceCaptionDetails && resolveNotice && (
                 <div className="p-3 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
                   <p className="text-momentum-glacier/90 text-sm">{resolveNotice}</p>
                 </div>
               )}
-              {auddStatus === 'loading' && (
+              {showPerformanceCaptionDetails && auddStatus === 'loading' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg flex items-center gap-2 text-violet-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                   <span>Identifying song (ACRCloud)…</span>
                 </div>
               )}
-              {auddStatus === 'done' && (
+              {showPerformanceCaptionDetails && auddStatus === 'done' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg">
                   <p className="text-violet-100 text-sm font-medium">
                     {auddMessage?.trim() || 'Song and artist prefilled below.'}
@@ -1820,7 +1964,7 @@ export default function UploadClip() {
                   </p>
                 </div>
               )}
-              {auddStatus === 'error' && auddMessage && (
+              {showPerformanceCaptionDetails && auddStatus === 'error' && auddMessage && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                   <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
@@ -1848,7 +1992,7 @@ export default function UploadClip() {
                 </div>
               )}
 
-              {/* Event, venue & location */}
+              {showPerformanceCaptionDetails && (
               <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-momentum-flare/90">
                   Show
@@ -1894,11 +2038,12 @@ export default function UploadClip() {
                   </>
                 ) : null}
               </div>
+              )}
 
               {/* Caption Field */}
               <div>
                 <label className="block text-gray-300 font-normal mb-2">
-                  What was this moment?
+                  {isPrePostClip ? 'Description' : 'What was this moment?'}
                 </label>
                 <textarea
                   value={formData.content_description}
@@ -1907,10 +2052,12 @@ export default function UploadClip() {
                   className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
                   placeholder="What was this moment?"
                 />
-                <p className="text-gray-400 text-xs mt-2">Caption is optional</p>
+                <p className="text-gray-400 text-xs mt-2">
+                  {isPrePostClip ? 'Optional — tell your friends what this moment was about' : 'Caption is optional'}
+                </p>
               </div>
 
-              {auddStatus !== 'loading' && (
+              {showPerformanceCaptionDetails && auddStatus !== 'loading' && (
                 <div
                   className={
                     shouldShowManualSongTitleEntry(auddStatus)
@@ -1953,6 +2100,7 @@ export default function UploadClip() {
                 </div>
               )}
 
+              {showPerformanceCaptionDetails && (
               <div>
                 <label className="block text-gray-300 font-normal mb-2">
                   Genre <span className="text-gray-500 font-normal">(optional)</span>
@@ -1975,8 +2123,9 @@ export default function UploadClip() {
                   Tags this clip with a genre hub page fans can browse.
                 </p>
               </div>
+              )}
 
-              {/* Auto-Populated Tags */}
+              {showPerformanceCaptionDetails && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-white font-medium">Tags</label>
@@ -2151,8 +2300,9 @@ export default function UploadClip() {
                   </div>
                 )}
               </div>
+              )}
 
-              {/* Hashtags — same field as full Share your moment form */}
+              {showPerformanceCaptionDetails && (
               <div>
                 <label className="block text-gray-300 font-normal mb-2">Hashtags</label>
                 <input
@@ -2164,15 +2314,24 @@ export default function UploadClip() {
                 />
                 <p className="text-gray-400 text-xs mt-2">Separate with spaces (optional)</p>
               </div>
+              )}
 
               <div className="space-y-3 pt-4">
                 <button
                   type="button"
-                  disabled={classifyStatus === 'loading' || loading}
+                  disabled={
+                    classifyStatus === 'loading' ||
+                    classifyStatus === 'error' ||
+                    loading
+                  }
                   onClick={() => void handleSubmit(null)}
                   className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {classifyStatus === 'loading' ? 'Checking clip…' : 'Share your moment'}
+                  {classifyStatus === 'loading'
+                    ? 'Checking clip…'
+                    : isPrePostClip
+                      ? 'Share talking moment'
+                      : 'Share your moment'}
                 </button>
                 <p className="text-center text-xs text-gray-500">
                   Your clip uploads in the background — you can record again immediately.

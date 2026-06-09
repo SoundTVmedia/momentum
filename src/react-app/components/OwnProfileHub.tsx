@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
 import MyClipsSection from '@/react-app/components/MyClipsSection';
+import MyPrePostClipsSection from '@/react-app/components/MyPrePostClipsSection';
 import SavedClipsSection from '@/react-app/components/SavedClipsSection';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
 import type { ExtendedMochaUser } from '@/shared/types';
@@ -78,6 +79,7 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
           {user ? (
             <>
               <MyClipsSection onUploadClick={onOpenCapture} />
+              <MyPrePostClipsSection onUploadClick={onOpenCapture} />
               <SavedClipsSection />
             </>
           ) : null}

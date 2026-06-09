@@ -20,6 +20,7 @@ export default function MyClipsSection({ onUploadClick }: MyClipsSectionProps) {
     mine: true,
     limit: 20,
     feedType: 'latest',
+    contentFeed: 'main',
   });
 
   const onDeleteClip = async (clip: DashboardGridClip) => {

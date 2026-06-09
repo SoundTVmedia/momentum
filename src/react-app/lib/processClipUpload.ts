@@ -1,4 +1,4 @@
-import { buildHashtagsArrayForPost } from '@/shared/clip-hashtags';
+import { clipShowFieldsForContentFeed } from '@/shared/pre-post-clip';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 
@@ -20,6 +20,8 @@ export type ClipUploadJobPayload = {
   videoUrl: string;
   /** From POST /api/clips/classify-content — required for published clips. */
   classificationId: string;
+  /** Lane from classify-content; pre_post clips must not carry show associations. */
+  contentFeed?: 'main' | 'pre_post';
   captureAudioBlob?: Blob | null;
   form: ClipUploadFormFields;
   jambaseLink: {
@@ -127,34 +129,36 @@ export async function processClipUpload(
     onProgress?.({ video: 100, thumbnail: 100 });
   }
 
-  const hashtagsArray = buildHashtagsArrayForPost(
-    form.hashtags,
-    form.artist_name,
-    form.song_title,
-    form.genre_name,
-  );
-
-  const clipData: Record<string, unknown> = {
-    classification_id: payload.classificationId,
-    artist_name: form.artist_name || null,
-    venue_name: form.venue_name || null,
-    location: form.location || null,
-    content_description: form.content_description || null,
-    hashtags: hashtagsArray,
-    song_title: form.song_title?.trim() || null,
-    genre_name: form.genre_name?.trim() || null,
-    status: 'published',
-    timestamp: payload.recordingAtIso || undefined,
-    jambase_event_id: payload.jambaseLink?.event ?? undefined,
-    jambase_artist_id: payload.jambaseLink?.artist ?? undefined,
-    jambase_venue_id: payload.jambaseLink?.venue ?? undefined,
-    event_title:
-      payload.jambaseLink?.eventTitle ??
+  const showFields = clipShowFieldsForContentFeed(payload.contentFeed ?? 'main', {
+    artist_name: form.artist_name,
+    venue_name: form.venue_name,
+    location: form.location,
+    song_title: form.song_title,
+    genre_name: form.genre_name,
+    hashtagsInput: form.hashtags,
+    jambaseLink: payload.jambaseLink,
+    eventTitleFallback:
       resolveClipEventTitle({
         artist_name: form.artist_name,
         venue_name: form.venue_name,
-      }) ??
-      undefined,
+      }) ?? null,
+  });
+
+  const clipData: Record<string, unknown> = {
+    classification_id: payload.classificationId,
+    artist_name: showFields.artist_name,
+    venue_name: showFields.venue_name,
+    location: showFields.location,
+    content_description: form.content_description || null,
+    hashtags: showFields.hashtags,
+    song_title: showFields.song_title,
+    genre_name: showFields.genre_name,
+    status: 'published',
+    timestamp: payload.recordingAtIso || undefined,
+    jambase_event_id: showFields.jambase_event_id ?? undefined,
+    jambase_artist_id: showFields.jambase_artist_id ?? undefined,
+    jambase_venue_id: showFields.jambase_venue_id ?? undefined,
+    event_title: showFields.event_title ?? undefined,
     geolocation_latitude: payload.captureGeo?.latitude,
     geolocation_longitude: payload.captureGeo?.longitude,
     recording_orientation: payload.videoMetadata.recording_orientation || null,

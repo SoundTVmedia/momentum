@@ -89,10 +89,10 @@ import { mainFeedClipFilterSql } from "./content-feed-sql";
 import { computeShowId } from "../shared/show-id";
 import { resolveClipEventTitle } from "../shared/event-title";
 import {
-  buildHashtagsForClipBody,
-  genreFieldsFromBody,
-  songFieldsFromBody,
-} from "./clip-tag-fields";
+  clipShowFieldsForContentFeed,
+  isPrePostContentFeed,
+} from "../shared/pre-post-clip";
+import { genreFieldsFromBody, songFieldsFromBody } from "./clip-tag-fields";
 import { buildGenrePagePayload } from "./genre-page-endpoints";
 import { buildGlobalSongPagePayload } from "./global-song-page-endpoints";
 import { buildSongPagePayload } from "./song-page-endpoints";
@@ -867,22 +867,69 @@ app.post("/api/clips", authMiddleware, async (c) => {
 
   // `clips.video_url` is NOT NULL; allow Stream-only payloads where playback URL carries the link.
   const resolvedVideoUrl = (video_url || stream_playback_url || "") as string;
-  const { song_title, song_slug } = songFieldsFromBody(body as Record<string, unknown>);
-  const { genre_name, genre_slug } = genreFieldsFromBody(body as Record<string, unknown>);
-  const hashtagList = buildHashtagsForClipBody(body as Record<string, unknown>);
-
   const resolvedTimestamp = timestamp || new Date().toISOString();
-  const showId = computeShowId({
-    jambase_event_id: jambase_event_id || null,
-    artist_name: artist_name || null,
-    venue_name: venue_name || null,
-    timestamp: resolvedTimestamp,
+  const contentFeed = classification?.content_feed ?? 'main';
+  const showFields = clipShowFieldsForContentFeed(contentFeed, {
+    artist_name: typeof artist_name === 'string' ? artist_name : '',
+    venue_name: typeof venue_name === 'string' ? venue_name : '',
+    location: typeof location === 'string' ? location : '',
+    song_title:
+      typeof (body as Record<string, unknown>).song_title === 'string'
+        ? String((body as Record<string, unknown>).song_title)
+        : typeof (body as Record<string, unknown>).songTitle === 'string'
+          ? String((body as Record<string, unknown>).songTitle)
+          : '',
+    genre_name:
+      typeof (body as Record<string, unknown>).genre_name === 'string'
+        ? String((body as Record<string, unknown>).genre_name)
+        : typeof (body as Record<string, unknown>).genreName === 'string'
+          ? String((body as Record<string, unknown>).genreName)
+          : '',
+    hashtagsInput: (() => {
+      const raw = (body as Record<string, unknown>).hashtags;
+      if (typeof raw === 'string') return raw;
+      if (Array.isArray(raw)) {
+        return raw.map((t) => `#${String(t).replace(/^#+/, '')}`).join(' ');
+      }
+      return '';
+    })(),
+    jambaseLink: {
+      event: typeof jambase_event_id === 'string' ? jambase_event_id : null,
+      artist: typeof jambase_artist_id === 'string' ? jambase_artist_id : null,
+      venue: typeof jambase_venue_id === 'string' ? jambase_venue_id : null,
+      eventTitle: typeof bodyEventTitle === 'string' ? bodyEventTitle : null,
+    },
+    eventTitleFallback: resolveClipEventTitle({
+      event_title: typeof bodyEventTitle === 'string' ? bodyEventTitle : null,
+      artist_name: typeof artist_name === 'string' ? artist_name : null,
+      venue_name: typeof venue_name === 'string' ? venue_name : null,
+    }),
   });
-  const eventTitle = resolveClipEventTitle({
-    event_title: bodyEventTitle || null,
-    artist_name: artist_name || null,
-    venue_name: venue_name || null,
-  });
+
+  const resolvedArtist = showFields.artist_name;
+  const resolvedVenue = showFields.venue_name;
+  const resolvedLocation = showFields.location;
+  const resolvedSongTitle = showFields.song_title;
+  const resolvedGenreName = showFields.genre_name;
+  const resolvedJambaseEventId = showFields.jambase_event_id;
+  const resolvedJambaseArtistId = showFields.jambase_artist_id;
+  const resolvedJambaseVenueId = showFields.jambase_venue_id;
+  const resolvedEventTitle = showFields.event_title;
+  const hashtagList = showFields.hashtags;
+
+  const song_slug = resolvedSongTitle ? songFieldsFromBody({ song_title: resolvedSongTitle }).song_slug : null;
+  const genre_slug = resolvedGenreName
+    ? genreFieldsFromBody({ genre_name: resolvedGenreName }).genre_slug
+    : null;
+
+  const showId = isPrePostContentFeed(contentFeed)
+    ? null
+    : computeShowId({
+        jambase_event_id: resolvedJambaseEventId,
+        artist_name: resolvedArtist,
+        venue_name: resolvedVenue,
+        timestamp: resolvedTimestamp,
+      });
 
   try {
     const result = await c.env.DB.prepare(
@@ -900,17 +947,17 @@ app.post("/api/clips", authMiddleware, async (c) => {
     )
       .bind(
         uid,
-        artist_name || null,
-        venue_name || null,
-        location || null,
+        resolvedArtist,
+        resolvedVenue,
+        resolvedLocation,
         resolvedTimestamp,
         content_description || null,
         resolvedVideoUrl,
         thumbnail_url || null,
         JSON.stringify(hashtagList),
-        song_title,
+        resolvedSongTitle,
         song_slug,
-        genre_name,
+        resolvedGenreName,
         genre_slug,
         stream_video_id || null,
         stream_playback_url || null,
@@ -924,11 +971,11 @@ app.post("/api/clips", authMiddleware, async (c) => {
         recording_orientation || null,
         video_resolution_w || null,
         video_resolution_h || null,
-        jambase_event_id || null,
-        jambase_artist_id || null,
-        jambase_venue_id || null,
+        resolvedJambaseEventId,
+        resolvedJambaseArtistId,
+        resolvedJambaseVenueId,
         showId,
-        eventTitle,
+        resolvedEventTitle,
         classification?.content_feed ?? 'main',
         classification?.acr_matched ? 1 : 0,
         classification?.has_speech ? 1 : 0,
@@ -1011,6 +1058,7 @@ app.get("/api/me/clips", authMiddleware, getMyClipsFeed);
 
 // Get clips feed (optimized with caching headers)
 app.get("/api/clips", async (c) => {
+  try {
   const page = parseInt(c.req.query('page') || '1');
   const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50); // Cap at 50
   const sortBy = c.req.query('sort_by') || 'latest';
@@ -1121,6 +1169,11 @@ app.get("/api/clips", async (c) => {
     limit,
     hasMore: (clips.results || []).length === limit
   });
+  } catch (err) {
+    console.error('GET /api/clips:', err);
+    const message = err instanceof Error ? err.message : 'Failed to load clips feed';
+    return c.json({ error: message }, 500);
+  }
 });
 
 app.get("/api/clips/:id/related-clips", getRelatedClipsForShare);

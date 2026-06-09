@@ -1,4 +1,4 @@
-export type FavoriteFeedFilterValue = 'artists' | 'upcoming';
+export type FavoriteFeedFilterValue = 'artists' | 'upcoming' | 'friends';
 
 export type FavoriteFeedFilterMeta = {
   value: FavoriteFeedFilterValue;
@@ -16,6 +16,11 @@ export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
     value: 'upcoming',
     label: 'Nearest Shows',
     description: 'Tour dates from your favorite artists',
+  },
+  {
+    value: 'friends',
+    label: 'Friends',
+    description: 'Pre- and post-show talking moments from people you follow',
   },
 ];
 

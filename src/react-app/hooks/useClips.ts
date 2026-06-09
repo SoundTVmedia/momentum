@@ -13,6 +13,8 @@ interface UseClipsOptions {
   userId?: string
   /** When true, uses GET /api/me/clips (session user) so list ids always match delete/update. */
   mine?: boolean
+  /** Filter own clips by lane (`/api/me/clips?content_feed=`). */
+  contentFeed?: 'main' | 'pre_post'
   limit?: number
   enablePolling?: boolean
 }
@@ -27,6 +29,7 @@ export function useClips(options: UseClipsOptions = {}) {
     genreSlug,
     userId,
     mine = false,
+    contentFeed,
     limit = 10,
     enablePolling = false,
   } = options
@@ -67,6 +70,7 @@ export function useClips(options: UseClipsOptions = {}) {
         if (songSlug) params.append('song_slug', songSlug)
         if (genreSlug) params.append('genre_slug', genreSlug)
         if (!mine && userId) params.append('user_id', userId)
+        if (mine && contentFeed) params.append('content_feed', contentFeed)
 
         const listPath =
           feedScope === 'pre_post' && !mine
@@ -122,7 +126,7 @@ export function useClips(options: UseClipsOptions = {}) {
         }
       }
     },
-    [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, limit],
+    [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, contentFeed, limit],
   )
 
   const loadMore = useCallback(() => {
@@ -164,7 +168,7 @@ export function useClips(options: UseClipsOptions = {}) {
   useEffect(() => {
     setPage(1)
     void fetchClips(1, false)
-  }, [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, limit, fetchClips])
+  }, [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, contentFeed, limit, fetchClips])
 
   useEffect(() => {
     if (!enablePolling || feedType !== 'latest' || clips.length === 0) return
@@ -182,6 +186,7 @@ export function useClips(options: UseClipsOptions = {}) {
         if (songSlug) params.append('song_slug', songSlug)
         if (genreSlug) params.append('genre_slug', genreSlug)
         if (!mine && userId) params.append('user_id', userId)
+        if (mine && contentFeed) params.append('content_feed', contentFeed)
 
         const listPath =
           feedScope === 'pre_post' && !mine
@@ -210,7 +215,7 @@ export function useClips(options: UseClipsOptions = {}) {
     }, 15000)
 
     return () => clearInterval(interval)
-  }, [enablePolling, feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, clips, limit])
+  }, [enablePolling, feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, contentFeed, clips, limit])
 
   return {
     clips,
