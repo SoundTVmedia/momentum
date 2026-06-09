@@ -36,6 +36,9 @@
       "bucket_name": "momentum-thumbnails"
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
   "durable_objects": {
     "bindings": [
       {

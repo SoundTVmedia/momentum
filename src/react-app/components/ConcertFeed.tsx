@@ -23,6 +23,7 @@ import { getFeedFilterMeta, type FeedFilterValue } from '@/react-app/lib/feedFil
 
 interface ConcertFeedProps {
   feedType?: 'latest' | 'trending' | 'most_liked'
+  feedScope?: 'main' | 'pre_post'
   artistName?: string
   venueName?: string
   songSlug?: string
@@ -75,6 +76,7 @@ function feedCarouselLabel(
 
 export default function ConcertFeed({
   feedType = 'latest',
+  feedScope = 'main',
   artistName,
   venueName,
   songSlug,
@@ -92,6 +94,7 @@ export default function ConcertFeed({
 
   const { clips, loading, hasMore, loadMore, error, refetch, updateClip } = useClips({
     feedType,
+    feedScope,
     artistName,
     venueName,
     songSlug,

@@ -79,6 +79,13 @@ import {
   getClipIdentifyMusicConfig,
   postClipIdentifyMusicAudD,
 } from "./clip-audd-endpoints";
+import {
+  getContentFeedConfig,
+  getFriendsPrePostFeed,
+  loadValidClassification,
+  MAIN_FEED_CLIP_SQL,
+  postClassifyClipContent,
+} from "./content-feed-endpoints";
 import { computeShowId } from "../shared/show-id";
 import { resolveClipEventTitle } from "../shared/event-title";
 import {
@@ -751,6 +758,24 @@ app.post(
   rateLimiter(RateLimits.IDENTIFY_MUSIC),
   postClipIdentifyMusicAudD
 );
+app.get(
+  "/api/clips/classify-content/config",
+  authMiddleware,
+  rateLimiter(RateLimits.IDENTIFY_MUSIC),
+  getContentFeedConfig
+);
+app.post(
+  "/api/clips/classify-content",
+  authMiddleware,
+  rateLimiter(RateLimits.IDENTIFY_MUSIC),
+  postClassifyClipContent
+);
+app.get(
+  "/api/clips/friends-prepost",
+  authMiddleware,
+  rateLimiter(RateLimits.API),
+  getFriendsPrePostFeed
+);
 
 // Create a new clip
 app.post("/api/clips", authMiddleware, async (c) => {
@@ -782,10 +807,56 @@ app.post("/api/clips", authMiddleware, async (c) => {
     jambase_artist_id,
     jambase_venue_id,
     event_title: bodyEventTitle,
+    classification_id,
   } = body;
 
   if (!video_url && !stream_video_id) {
     return c.json({ error: "video_url or stream_video_id is required" }, 400);
+  }
+
+  const uid = mochaUserIdKey(mochaUser);
+  const isDraft = status === 'draft';
+
+  let classification: {
+    content_feed: string;
+    acr_matched: number;
+    has_speech: number;
+    headliner_matched: number;
+  } | null = null;
+  let classificationId = '';
+
+  if (!isDraft) {
+    classificationId =
+      typeof classification_id === 'string' ? classification_id.trim() : '';
+    if (!classificationId) {
+      return c.json(
+        {
+          error:
+            'Content classification is required. Run classify-content on your clip audio before posting.',
+        },
+        422,
+      );
+    }
+
+    classification = await loadValidClassification(c.env.DB, classificationId, uid);
+    if (!classification) {
+      return c.json(
+        {
+          error:
+            'Classification expired or invalid. Re-check your clip on the caption screen before posting.',
+        },
+        422,
+      );
+    }
+    if (classification.content_feed === 'rejected') {
+      return c.json(
+        { error: 'This clip cannot be posted to either feed based on music and speech detection.' },
+        422,
+      );
+    }
+    if (classification.content_feed !== 'main' && classification.content_feed !== 'pre_post') {
+      return c.json({ error: 'Invalid content feed classification.' }, 422);
+    }
   }
 
   const { 
@@ -823,11 +894,12 @@ app.post("/api/clips", authMiddleware, async (c) => {
         geolocation_latitude, geolocation_longitude, geolocation_accuracy_radius, 
         recording_orientation, video_resolution_w, video_resolution_h,
         jambase_event_id, jambase_artist_id, jambase_venue_id, show_id, event_title,
+        content_feed, acr_matched, has_speech, headliner_matched,
         is_draft, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     )
       .bind(
-        mochaUser.id,
+        uid,
         artist_name || null,
         venue_name || null,
         location || null,
@@ -857,9 +929,25 @@ app.post("/api/clips", authMiddleware, async (c) => {
         jambase_venue_id || null,
         showId,
         eventTitle,
-        (status === 'draft') ? 1 : 0
+        classification?.content_feed ?? 'main',
+        classification?.acr_matched ? 1 : 0,
+        classification?.has_speech ? 1 : 0,
+        classification?.headliner_matched ? 1 : 0,
+        isDraft ? 1 : 0
       )
       .run();
+
+    if (classificationId) {
+      try {
+        await c.env.DB.prepare(
+          'DELETE FROM clip_content_classifications WHERE id = ?',
+        )
+          .bind(classificationId)
+          .run();
+      } catch (err) {
+        console.error('Failed to delete used classification:', err);
+      }
+    }
 
     // Some local schemas have nullable `clips.id`; ensure canonical numeric id is present.
     await c.env.DB.prepare(
@@ -932,6 +1020,7 @@ app.get("/api/clips", async (c) => {
   const genreSlug = c.req.query('genre_slug');
   const userId = c.req.query('user_id');
   const since = c.req.query('since');
+  const feedScope = c.req.query('feed_scope') || 'main';
   
   const offset = (page - 1) * limit;
   
@@ -951,6 +1040,11 @@ app.get("/api/clips", async (c) => {
   `;
   
   const bindings: any[] = [];
+
+  // Public discovery feeds show performance clips only; profile pages show all lanes.
+  if (!userId && feedScope !== 'all') {
+    query += ` AND ${MAIN_FEED_CLIP_SQL}`;
+  }
   
   if (artistName) {
     query += ` AND clips.artist_name = ?`;
@@ -3061,6 +3155,11 @@ app.get("/api/ticketmaster/events/:eventId", ticketmaster.getEventById);
 app.get("/api/ticketmaster/venues/:venueId", ticketmaster.getVenueById);
 app.get("/api/ticketmaster/attractions/search", rateLimiter(RateLimits.SEARCH), ticketmaster.searchAttractions);
 app.post("/api/ticketmaster/purchase", authMiddleware, ticketmaster.createTicketPurchase);
+app.post(
+  "/api/ticketmaster/track-purchase",
+  authMiddleware,
+  ticketmaster.createTicketPurchase,
+);
 
 // Google Maps API Integration Endpoints
 app.get("/api/maps/geocode", rateLimiter(RateLimits.API), googleMaps.geocodeAddress);

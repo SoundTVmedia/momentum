@@ -84,19 +84,24 @@ export function useTicketmaster() {
     eventName: string,
     ticketUrl: string,
     price?: number,
-    referrerId?: string
+    referrerId?: string,
+    relatedClipId?: number,
+    venueName?: string,
   ) => {
     try {
       await fetch('/api/ticketmaster/track-purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           event_id: eventId,
           event_name: eventName,
+          venue_name: venueName ?? null,
           ticket_url: ticketUrl,
-          ticket_price: price || 0,
+          ticket_price: price ?? 0,
           quantity: 1,
-          referrer_user_id: referrerId,
+          referrer_user_id: referrerId ?? null,
+          related_clip_id: relatedClipId ?? null,
         }),
       });
     } catch (err) {

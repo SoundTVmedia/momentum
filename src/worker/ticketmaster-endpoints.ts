@@ -1,4 +1,6 @@
 import { Context } from 'hono';
+import { mochaUserIdKey } from './mocha-user-id';
+import { notifyFollowers } from './notification-utils';
 
 /**
  * Ticketmaster API Integration
@@ -185,14 +187,38 @@ export async function createTicketPurchase(c: Context) {
     ticket_url,
     ticket_price,
     quantity,
-    referrer_user_id
+    referrer_user_id,
+    related_clip_id,
   } = body;
 
-  if (!event_id || !ticket_url || !ticket_price || !quantity) {
+  if (!event_id || !ticket_url) {
     return c.json({ error: 'Missing required fields' }, 400);
   }
 
+  const uid = mochaUserIdKey(mochaUser);
+  const qty = Number(quantity);
+  const resolvedQty = Number.isFinite(qty) && qty > 0 ? Math.trunc(qty) : 1;
+  const priceRaw = ticket_price != null ? Number(ticket_price) : 0;
+  const resolvedPrice = Number.isFinite(priceRaw) && priceRaw >= 0 ? Math.trunc(priceRaw) : 0;
+
+  let relatedClipId: number | null = null;
+  if (related_clip_id != null) {
+    const n = Number(related_clip_id);
+    if (Number.isFinite(n) && n > 0) relatedClipId = Math.trunc(n);
+  }
+
   try {
+    const priorClick = await c.env.DB.prepare(
+      `SELECT id FROM affiliate_ticket_clicks
+       WHERE mocha_user_id = ? AND event_id = ?
+         AND created_at >= datetime('now', '-6 hours')
+       LIMIT 1`,
+    )
+      .bind(uid, String(event_id))
+      .first();
+
+    const shouldNotifyFollowers = !priorClick;
+
     // Create affiliate tracking record
     await c.env.DB.prepare(
       `INSERT INTO affiliate_ticket_clicks 
@@ -200,16 +226,35 @@ export async function createTicketPurchase(c: Context) {
         ticket_url, estimated_price, quantity, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
     ).bind(
-      mochaUser.id,
+      uid,
       referrer_user_id || null,
-      event_id,
+      String(event_id),
       event_name || null,
       event_date || null,
       venue_name || null,
       ticket_url,
-      ticket_price,
-      quantity
+      resolvedPrice,
+      resolvedQty,
     ).run();
+
+    if (shouldNotifyFollowers) {
+      const showLabel =
+        typeof event_name === 'string' && event_name.trim()
+          ? event_name.trim()
+          : typeof venue_name === 'string' && venue_name.trim()
+            ? venue_name.trim()
+            : 'a show';
+
+      try {
+        await notifyFollowers(c.env, mochaUser, {
+          type: 'ticket_interest',
+          content: `looked at tickets for ${showLabel}`,
+          related_clip_id: relatedClipId,
+        });
+      } catch (err) {
+        console.error('ticket_interest notifyFollowers:', err);
+      }
+    }
 
     // Award points for ticket discovery
     if (referrer_user_id) {
@@ -219,7 +264,8 @@ export async function createTicketPurchase(c: Context) {
 
     return c.json({ 
       success: true,
-      redirectUrl: ticket_url 
+      redirectUrl: ticket_url,
+      notified_followers: shouldNotifyFollowers,
     });
   } catch (error) {
     console.error('Ticket purchase tracking error:', error);

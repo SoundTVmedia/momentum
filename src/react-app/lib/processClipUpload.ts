@@ -18,6 +18,9 @@ export type ClipUploadJobPayload = {
   videoBlob: Blob | null;
   thumbnailFile: File | null;
   videoUrl: string;
+  /** From POST /api/clips/classify-content — required for published clips. */
+  classificationId: string;
+  captureAudioBlob?: Blob | null;
   form: ClipUploadFormFields;
   jambaseLink: {
     event: string | null;
@@ -132,6 +135,7 @@ export async function processClipUpload(
   );
 
   const clipData: Record<string, unknown> = {
+    classification_id: payload.classificationId,
     artist_name: form.artist_name || null,
     venue_name: form.venue_name || null,
     location: form.location || null,

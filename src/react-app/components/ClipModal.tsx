@@ -182,12 +182,19 @@ export default function ClipModal({
     const ev = nearestTicketShow.event;
     const eventId = String(ev.identifier ?? ev['@id'] ?? ev.id ?? 'jambase');
     const isAmbassador = extendedUser?.profile?.role === 'ambassador';
+    const venueName =
+      typeof clip.venue_name === 'string' && clip.venue_name.trim()
+        ? clip.venue_name.trim()
+        : undefined;
+
     await trackTicketClick(
       eventId,
       ticketEventTitle,
       nearestTicketShow.ticketUrl,
       undefined,
       isAmbassador && user ? user.id : undefined,
+      clipNumericId(clip) ?? undefined,
+      venueName,
     );
     setTicketSheetOpen(true);
   }, [
@@ -196,6 +203,7 @@ export default function ClipModal({
     trackTicketClick,
     extendedUser?.profile?.role,
     user,
+    clip,
   ]);
 
   const closeTicketSheet = useCallback(() => {

@@ -4,6 +4,8 @@ import { apiFetch } from '@/react-app/lib/apiFetch'
 
 interface UseClipsOptions {
   feedType?: 'latest' | 'trending' | 'most_liked' | 'most_viewed'
+  /** `main` = public performance feed (default); `pre_post` = friends-only talking moments. */
+  feedScope?: 'main' | 'pre_post'
   artistName?: string
   venueName?: string
   songSlug?: string
@@ -18,6 +20,7 @@ interface UseClipsOptions {
 export function useClips(options: UseClipsOptions = {}) {
   const {
     feedType = 'latest',
+    feedScope = 'main',
     artistName,
     venueName,
     songSlug,
@@ -65,7 +68,12 @@ export function useClips(options: UseClipsOptions = {}) {
         if (genreSlug) params.append('genre_slug', genreSlug)
         if (!mine && userId) params.append('user_id', userId)
 
-        const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
+        const listPath =
+          feedScope === 'pre_post' && !mine
+            ? `/api/clips/friends-prepost?${params}`
+            : mine
+              ? `/api/me/clips?${params}`
+              : `/api/clips?${params}`
         const response = await apiFetch(listPath, {
           cache: 'no-store',
           headers: {
@@ -114,7 +122,7 @@ export function useClips(options: UseClipsOptions = {}) {
         }
       }
     },
-    [feedType, artistName, venueName, songSlug, genreSlug, userId, mine, limit],
+    [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, limit],
   )
 
   const loadMore = useCallback(() => {
@@ -156,7 +164,7 @@ export function useClips(options: UseClipsOptions = {}) {
   useEffect(() => {
     setPage(1)
     void fetchClips(1, false)
-  }, [feedType, artistName, venueName, songSlug, genreSlug, userId, mine, limit, fetchClips])
+  }, [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, limit, fetchClips])
 
   useEffect(() => {
     if (!enablePolling || feedType !== 'latest' || clips.length === 0) return
@@ -175,7 +183,12 @@ export function useClips(options: UseClipsOptions = {}) {
         if (genreSlug) params.append('genre_slug', genreSlug)
         if (!mine && userId) params.append('user_id', userId)
 
-        const listPath = mine ? `/api/me/clips?${params}` : `/api/clips?${params}`
+        const listPath =
+          feedScope === 'pre_post' && !mine
+            ? `/api/clips/friends-prepost?${params}`
+            : mine
+              ? `/api/me/clips?${params}`
+              : `/api/clips?${params}`
         const response = await apiFetch(listPath, {
           cache: 'no-store',
         })
@@ -197,7 +210,7 @@ export function useClips(options: UseClipsOptions = {}) {
     }, 15000)
 
     return () => clearInterval(interval)
-  }, [enablePolling, feedType, artistName, venueName, songSlug, genreSlug, userId, mine, clips, limit])
+  }, [enablePolling, feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, clips, limit])
 
   return {
     clips,

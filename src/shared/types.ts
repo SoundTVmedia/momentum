@@ -75,6 +75,8 @@ export const ClipSchema = z.object({
   stream_video_id: z.string().nullable().optional(),
   stream_playback_url: z.string().nullable().optional(),
   stream_thumbnail_url: z.string().nullable().optional(),
+  /** `main` = public performance feed; `pre_post` = friends-only talking moments */
+  content_feed: z.enum(['main', 'pre_post']).optional(),
 });
 
 export type Clip = z.infer<typeof ClipSchema>;

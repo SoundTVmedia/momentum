@@ -1,4 +1,4 @@
-import { Bell, Heart, MessageCircle, UserPlus, X, Check, Star, Award, Video, Radio, Shield, Loader2 } from 'lucide-react';
+import { Bell, Heart, MessageCircle, UserPlus, X, Check, Star, Award, Video, Radio, Shield, Loader2, Ticket } from 'lucide-react';
 import { useState } from 'react';
 import type { Notification } from '@/react-app/hooks/useNotifications';
 import { useNotificationsContext } from '@/react-app/contexts/NotificationsContext';
@@ -51,6 +51,8 @@ export default function NotificationPanel({
         return { icon: <Video className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
       case 'live':
         return { icon: <Radio className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-red-500/20 text-red-400', ringColor: 'ring-red-500/30' };
+      case 'ticket_interest':
+        return { icon: <Ticket className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
       default:
         return { icon: <Bell className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
     }
@@ -178,7 +180,7 @@ export default function NotificationPanel({
             </p>
             <p className="text-xs text-gray-500">
               {filter === 'unread'
-                ? 'New likes, comments, follows, and posts from people you follow appear here.'
+                ? 'New likes, comments, follows, ticket lookups, and posts from people you follow appear here.'
                 : 'Notifications you open will move here.'}
             </p>
           </div>

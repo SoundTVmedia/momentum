@@ -60,6 +60,9 @@ interface Env {
   /** Optional — [AudD](https://docs.audd.io/) fallback when ACRCloud is not configured */
   AUDD_API_TOKEN?: string;
 
+  /** Cloudflare Workers AI — Whisper speech detection for pre/post feed gate */
+  AI?: Ai;
+
   /** YouTube Data API v3 — favorite-artist video carousels (server-side only). */
   YOUTUBE_API_KEY?: string;
   /** Set to `1` / `true` / `on` to cap daily YouTube API units in D1 (requires migration 50). */

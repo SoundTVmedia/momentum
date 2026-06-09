@@ -6,6 +6,7 @@ import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFe
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
+import FriendsPrePostFeed from '@/react-app/components/FriendsPrePostFeed'
 import SectionHeading from '@/react-app/components/SectionHeading'
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths'
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
@@ -63,6 +64,8 @@ export default function MainFeedStack({
           edgeBleedScope="page"
         />
       ) : null}
+
+      {user ? <FriendsPrePostFeed edgeBleed={isHome} /> : null}
 
       <div className={isHome && user ? HOME_FEED_SECTION_CLASS : ''}>
         <div className="mb-5 md:mb-5">

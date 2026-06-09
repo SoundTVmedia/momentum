@@ -48,6 +48,11 @@ import ClipUploadStatusBanner from '@/react-app/components/ClipUploadStatusBanne
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import {
+  classifyContentFeedForClip,
+  contentFeedUserMessage,
+} from '@/react-app/utils/classifyContentFeed';
+import type { ContentFeedClassification } from '@/shared/content-feed';
+import {
   extractVideoFileMetadata,
   type ExtractedVideoFileMetadata,
 } from '@/react-app/utils/extractVideoFileMetadata';
@@ -151,6 +156,12 @@ export default function UploadClip() {
   >('idle');
   const [auddMessage, setAuddMessage] = useState<string | null>(null);
   const auddAttemptedForSourceKeyRef = useRef<string | null>(null);
+
+  const [classifyStatus, setClassifyStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(
+    'idle',
+  );
+  const [classifyResult, setClassifyResult] = useState<ContentFeedClassification | null>(null);
+  const [classifyMessage, setClassifyMessage] = useState<string | null>(null);
 
   /** Apply GPS from navigation state before paint so resolve-show sees coords on first run. */
   useLayoutEffect(() => {
@@ -1173,13 +1184,60 @@ export default function UploadClip() {
     return data;
   };
 
-  const buildUploadPayload = useCallback((): ClipUploadJobPayload => {
+  const resolveClassificationForPost = useCallback(async (): Promise<string> => {
+    const source = formData.video_blob ?? formData.video_file;
+    if (!source || !(source instanceof Blob)) {
+      throw new Error('No video available for content classification.');
+    }
+
+    const nav = location.state as { captureAudioBlob?: unknown } | null;
+    const captureAudio =
+      nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null;
+
+    setClassifyStatus('loading');
+    setClassifyMessage(null);
+    setClassifyResult(null);
+
+    const out = await classifyContentFeedForClip({
+      video: source,
+      captureAudio,
+      headlinerName: formData.artist_name?.trim() || null,
+    });
+
+    if (!out.ok) {
+      setClassifyStatus('error');
+      setClassifyMessage(out.error);
+      throw new Error(out.error);
+    }
+
+    setClassifyResult(out);
+    const ui = contentFeedUserMessage(out);
+    setClassifyMessage(ui?.message ?? null);
+
+    if (out.content_feed === 'rejected') {
+      setClassifyStatus('error');
+      throw new Error(out.message);
+    }
+
+    setClassifyStatus('done');
+    if (!out.classification_id) {
+      throw new Error('Classification did not return an id. Try again.');
+    }
+    return out.classification_id;
+  }, [formData.video_blob, formData.video_file, formData.artist_name, location.state]);
+
+  const buildUploadPayload = useCallback(
+    (classificationId: string): ClipUploadJobPayload => {
+    const nav = location.state as { captureAudioBlob?: unknown } | null;
     return {
       uploadMethod,
       videoFile: formData.video_file,
       videoBlob: formData.video_blob,
       thumbnailFile: formData.thumbnail_file,
       videoUrl: formData.video_url,
+      classificationId,
+      captureAudioBlob:
+        nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null,
       form: {
         artist_name: formData.artist_name,
         venue_name: formData.venue_name,
@@ -1194,14 +1252,17 @@ export default function UploadClip() {
       captureGeo,
       videoMetadata,
     };
-  }, [
-    uploadMethod,
-    formData,
-    jambaseLink,
-    recordingAtIso,
-    captureGeo,
-    videoMetadata,
-  ]);
+  },
+    [
+      uploadMethod,
+      formData,
+      jambaseLink,
+      recordingAtIso,
+      captureGeo,
+      videoMetadata,
+      location.state,
+    ],
+  );
 
   const resetForNextCapture = useCallback(() => {
     if (videoBlobUrl) {
@@ -1240,6 +1301,9 @@ export default function UploadClip() {
     auddAttemptedForSourceKeyRef.current = null;
     setAuddStatus('idle');
     setAuddMessage(null);
+    setClassifyStatus('idle');
+    setClassifyResult(null);
+    setClassifyMessage(null);
     setIsEditingTags(false);
     userOverrodeAutoTagsRef.current = false;
     autoShowTagAppliedRef.current = false;
@@ -1281,7 +1345,15 @@ export default function UploadClip() {
     }
 
     if (showCaptionScreen && uploadMethod === 'file') {
-      const jobId = enqueueClipUpload(buildUploadPayload());
+      let classificationId: string;
+      try {
+        classificationId = await resolveClassificationForPost();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Content classification failed');
+        return;
+      }
+
+      const jobId = enqueueClipUpload(buildUploadPayload(classificationId));
       if (!jobId) {
         setError('Too many clips are uploading. Wait for one to finish, then try again.');
         return;
@@ -1298,6 +1370,13 @@ export default function UploadClip() {
     setError(null);
 
     try {
+      let classificationId: string;
+      try {
+        classificationId = await resolveClassificationForPost();
+      } catch (e) {
+        throw e;
+      }
+
       let videoData: any = null;
       let thumbnailUrl = formData.thumbnail_url;
       let thumbnailFile = formData.thumbnail_file;
@@ -1346,6 +1425,7 @@ export default function UploadClip() {
 
       // Prepare clip data based on upload type (Stream or R2)
       const clipData: any = {
+        classification_id: classificationId,
         artist_name: formData.artist_name || null,
         venue_name: formData.venue_name || null,
         location: formData.location || null,
@@ -1745,6 +1825,28 @@ export default function UploadClip() {
                   <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
               )}
+              {classifyStatus === 'loading' && (
+                <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-lg flex items-center gap-2 text-sky-100 text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                  <span>Checking music match and speech (ACRCloud + Whisper)…</span>
+                </div>
+              )}
+              {classifyStatus === 'done' && classifyMessage && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <p className="text-emerald-100 text-sm font-medium">{classifyMessage}</p>
+                  {classifyResult?.content_feed === 'main' && classifyResult.acr_title ? (
+                    <p className="text-gray-400 text-xs mt-1">
+                      Matched: {classifyResult.acr_title}
+                      {classifyResult.acr_artist ? ` — ${classifyResult.acr_artist}` : ''}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              {classifyStatus === 'error' && classifyMessage && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                  <p className="text-red-200 text-sm">{classifyMessage}</p>
+                </div>
+              )}
 
               {/* Event, venue & location */}
               <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
@@ -2066,10 +2168,11 @@ export default function UploadClip() {
               <div className="space-y-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => handleSubmit(null)}
-                  className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35"
+                  disabled={classifyStatus === 'loading' || loading}
+                  onClick={() => void handleSubmit(null)}
+                  className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  Share your moment
+                  {classifyStatus === 'loading' ? 'Checking clip…' : 'Share your moment'}
                 </button>
                 <p className="text-center text-xs text-gray-500">
                   Your clip uploads in the background — you can record again immediately.
