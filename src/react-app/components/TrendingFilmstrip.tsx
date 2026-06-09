@@ -13,7 +13,7 @@ import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 
 export default function TrendingFilmstrip() {
   const navigate = useNavigate();
-  const { clips, loading } = useClips({ feedType: 'trending', limit: 12 });
+  const { clips, loading } = useClips({ feedType: 'most_liked', limit: 12 });
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [modalFeed, setModalFeed] = useState<ClipWithUser[] | null>(null);
 
