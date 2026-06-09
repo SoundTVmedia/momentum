@@ -4,23 +4,27 @@ export type FeedFilterMeta = {
   value: FeedFilterValue;
   label: string;
   description: string;
+  viewAllClipsLabel: string;
 };
 
 export const FEED_FILTER_OPTIONS: FeedFilterMeta[] = [
   {
     value: 'latest',
-    label: 'Latest',
-    description: "Fresh drops from tonight's shows",
+    label: 'From The Scene',
+    description: "The latest clips from tonight's shows",
+    viewAllClipsLabel: 'View All Latest Clips',
   },
   {
     value: 'trending',
     label: 'Trending',
     description: 'Clips with the most likes and views',
+    viewAllClipsLabel: 'View All Trending Clips',
   },
   {
     value: 'most_liked',
     label: 'Most Liked',
     description: 'The clips fans love most',
+    viewAllClipsLabel: 'View All Most Liked Clips',
   },
 ];
 

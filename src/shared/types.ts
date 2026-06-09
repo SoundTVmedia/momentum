@@ -22,6 +22,10 @@ export const UserProfileSchema = z.object({
   is_admin: z.number().int().optional(), // 0 or 1
   is_superadmin: z.number().int().optional(), // 0 or 1
   is_moderator: z.number().int().optional(), // 0 or 1
+  staff_flagged: z.number().int().optional(),
+  staff_flag_reason: z.string().nullable().optional(),
+  staff_flagged_by: z.string().nullable().optional(),
+  staff_flagged_at: z.string().nullable().optional(),
   commission_rate: z.number().nullable(),
   created_at: z.string(),
   updated_at: z.string(),

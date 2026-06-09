@@ -1,7 +1,7 @@
 import { Context } from 'hono';
 import { getStaffProfile, isSuperAdmin } from './admin-auth';
 import { mochaUserIdKey } from './mocha-user-id';
-import { suspendUser, unsuspendUser } from './user-ban-utils';
+import { suspendUser, unsuspendUser, isUserSuspended } from './user-ban-utils';
 import { purgeUserAccount } from './user-purge-utils';
 import { revokeAllEmailSessionsForUser } from './hybrid-auth';
 
@@ -186,4 +186,136 @@ export async function searchClipsForModeration(c: Context) {
   }
 
   return c.json({ clips: clips.results || [] });
+}
+
+export async function listUsersByRole(c: Context) {
+  const gate = await requireSuperAdmin(c);
+  if (!gate.ok) {
+    return gate.response;
+  }
+
+  const role = (c.req.query('role') || '').trim();
+  if (role !== 'ambassador' && role !== 'influencer') {
+    return c.json({ error: 'Invalid role' }, 400);
+  }
+
+  const users = await c.env.DB.prepare(
+    `SELECT mocha_user_id, display_name, profile_image_url, city, location, role,
+            staff_flagged, staff_flag_reason,
+            COALESCE(
+              (SELECT 1 FROM user_bans
+               WHERE user_bans.mocha_user_id = user_profiles.mocha_user_id
+               AND (user_bans.expires_at IS NULL OR user_bans.expires_at > datetime('now'))
+               LIMIT 1),
+              0
+            ) AS is_suspended
+     FROM user_profiles
+     WHERE role = ?
+     ORDER BY display_name ASC
+     LIMIT 200`,
+  )
+    .bind(role)
+    .all();
+
+  return c.json({ users: users.results || [], role });
+}
+
+export async function getUserModerationStatus(c: Context) {
+  const gate = await requireSuperAdmin(c);
+  if (!gate.ok) {
+    return gate.response;
+  }
+
+  const targetUserId = requireUserIdParam(c);
+  if (targetUserId instanceof Response) {
+    return targetUserId;
+  }
+
+  const profile = (await c.env.DB.prepare(
+    `SELECT mocha_user_id, display_name, role, is_superadmin, staff_flagged, staff_flag_reason
+     FROM user_profiles WHERE mocha_user_id = ?`,
+  )
+    .bind(targetUserId)
+    .first()) as {
+    mocha_user_id: string;
+    display_name: string | null;
+    role: string;
+    is_superadmin: number;
+    staff_flagged: number;
+    staff_flag_reason: string | null;
+  } | null;
+
+  if (!profile) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  const suspended = await isUserSuspended(c.env.DB, targetUserId);
+
+  return c.json({
+    ...profile,
+    is_suspended: suspended ? 1 : 0,
+  });
+}
+
+export async function flagUserAccount(c: Context) {
+  const gate = await requireSuperAdmin(c);
+  if (!gate.ok) {
+    return gate.response;
+  }
+
+  const targetUserId = requireUserIdParam(c);
+  if (targetUserId instanceof Response) {
+    return targetUserId;
+  }
+
+  const targetProfile = await getTargetProfile(c.env.DB, targetUserId);
+  const blocked = assertCanModerateTarget(c, gate.actorId, targetUserId, targetProfile);
+  if (blocked) {
+    return blocked;
+  }
+
+  const body = (await c.req.json()) as { reason?: string };
+  const reason = body.reason?.trim();
+  if (!reason) {
+    return c.json({ error: 'Flag reason is required' }, 400);
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE user_profiles
+     SET staff_flagged = 1, staff_flag_reason = ?, staff_flagged_by = ?,
+         staff_flagged_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE mocha_user_id = ?`,
+  )
+    .bind(reason, gate.actorId, targetUserId)
+    .run();
+
+  return c.json({ success: true, staff_flagged: true, staff_flag_reason: reason });
+}
+
+export async function unflagUserAccount(c: Context) {
+  const gate = await requireSuperAdmin(c);
+  if (!gate.ok) {
+    return gate.response;
+  }
+
+  const targetUserId = requireUserIdParam(c);
+  if (targetUserId instanceof Response) {
+    return targetUserId;
+  }
+
+  const targetProfile = await getTargetProfile(c.env.DB, targetUserId);
+  if (!targetProfile) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE user_profiles
+     SET staff_flagged = 0, staff_flag_reason = NULL, staff_flagged_by = NULL,
+         staff_flagged_at = NULL, updated_at = CURRENT_TIMESTAMP
+     WHERE mocha_user_id = ?`,
+  )
+    .bind(targetUserId)
+    .run();
+
+  return c.json({ success: true, staff_flagged: false });
 }

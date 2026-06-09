@@ -2971,6 +2971,10 @@ app.post("/api/admin/users/:userId/suspend", authMiddleware, superadminModeratio
 app.post("/api/admin/users/:userId/unsuspend", authMiddleware, superadminModeration.unsuspendUserAccount);
 app.delete("/api/admin/users/:userId", authMiddleware, superadminModeration.deleteUserAccount);
 app.get("/api/admin/clips/search", authMiddleware, superadminModeration.searchClipsForModeration);
+app.get("/api/admin/super/users/by-role", authMiddleware, superadminModeration.listUsersByRole);
+app.get("/api/admin/super/users/:userId/moderation", authMiddleware, superadminModeration.getUserModerationStatus);
+app.post("/api/admin/users/:userId/flag", authMiddleware, superadminModeration.flagUserAccount);
+app.post("/api/admin/users/:userId/unflag", authMiddleware, superadminModeration.unflagUserAccount);
 
 // Stripe Payment Integration Endpoints
 app.post("/api/stripe/checkout/premium", authMiddleware, stripe.createPremiumCheckoutSession);

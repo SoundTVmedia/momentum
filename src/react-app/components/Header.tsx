@@ -15,6 +15,7 @@ import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 import HeaderGradientPill, {
   HEADER_ACTION_BUTTON_CLASS,
 } from '@/react-app/components/HeaderGradientPill'
+import { showAmbassadorNav, showInfluencerNav } from '@/react-app/lib/program-nav'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -95,17 +96,27 @@ export default function Header() {
           </button>
 
           <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
-            {user ? (
+            {user && (showAmbassadorNav(extendedUser) || showInfluencerNav(extendedUser)) ? (
               <nav
                 className="hidden md:flex items-center gap-2 shrink-0"
                 aria-label="Programs"
               >
-                <HeaderGradientPill onClick={() => navigate('/ambassadors')}>
-                  Ambassadors
-                </HeaderGradientPill>
-                <HeaderGradientPill onClick={() => navigate('/influencers')}>
-                  Influencers
-                </HeaderGradientPill>
+                {showAmbassadorNav(extendedUser) ? (
+                  <HeaderGradientPill
+                    active={pathname === '/ambassadors'}
+                    onClick={() => navigate('/ambassadors')}
+                  >
+                    Ambassadors
+                  </HeaderGradientPill>
+                ) : null}
+                {showInfluencerNav(extendedUser) ? (
+                  <HeaderGradientPill
+                    active={pathname === '/influencers'}
+                    onClick={() => navigate('/influencers')}
+                  >
+                    Influencers
+                  </HeaderGradientPill>
+                ) : null}
               </nav>
             ) : null}
             <div

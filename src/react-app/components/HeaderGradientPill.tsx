@@ -8,18 +8,25 @@ type HeaderGradientPillProps = {
   children: ReactNode;
   onClick: () => void;
   className?: string;
+  active?: boolean;
 };
 
 export default function HeaderGradientPill({
   children,
   onClick,
   className = '',
+  active = false,
 }: HeaderGradientPillProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center justify-center bg-transparent shadow-[inset_0_0_0_1.5px_#fff] hover:bg-white/5 ${HEADER_ACTION_BUTTON_CLASS} ${className}`}
+      aria-current={active ? 'page' : undefined}
+      className={`inline-flex shrink-0 items-center justify-center bg-transparent ${
+        active
+          ? 'shadow-[inset_0_0_0_1.5px_theme(colors.momentum.flare)] bg-white/10 text-momentum-flare'
+          : 'shadow-[inset_0_0_0_1.5px_#fff] hover:bg-white/5'
+      } ${HEADER_ACTION_BUTTON_CLASS} ${className}`}
     >
       {children}
     </button>

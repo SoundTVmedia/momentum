@@ -102,7 +102,7 @@ export default function BrowseFavoriteClipsPage() {
         </button>
 
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-headline font-bold text-white">Your Artists</h1>
+          <h1 className="text-3xl sm:text-4xl font-headline font-bold text-white">Artists</h1>
           <p className="mt-2 text-gray-400">All clips from artists you follow</p>
         </div>
 

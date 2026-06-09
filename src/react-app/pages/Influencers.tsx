@@ -4,11 +4,15 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import InfluencerDashboard from '@/react-app/components/dashboards/InfluencerDashboard';
+import ProgramRosterPanel from '@/react-app/components/ProgramRosterPanel';
+import { influencerHubMode } from '@/react-app/lib/program-nav';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 export default function InfluencersPage() {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
+  const extendedUser = user as ExtendedMochaUser | null;
+  const mode = influencerHubMode(extendedUser);
 
   useEffect(() => {
     if (!isPending && !user) {
@@ -16,12 +20,22 @@ export default function InfluencersPage() {
     }
   }, [user, isPending, navigate]);
 
+  useEffect(() => {
+    if (!isPending && user && mode === 'denied') {
+      navigate('/', { replace: true });
+    }
+  }, [user, isPending, mode, navigate]);
+
   if (isPending || !user) {
     return (
       <div className="min-h-screen text-white flex items-center justify-center">
         <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
       </div>
     );
+  }
+
+  if (mode === 'denied') {
+    return null;
   }
 
   return (
@@ -38,7 +52,15 @@ export default function InfluencersPage() {
           <span>Back to feed</span>
         </button>
 
-        <InfluencerDashboard user={user as ExtendedMochaUser} />
+        {mode === 'roster' ? (
+          <ProgramRosterPanel
+            programRole="influencer"
+            title="Influencers"
+            subtitle="Select an influencer to view their profile and take moderation action."
+          />
+        ) : (
+          <InfluencerDashboard user={extendedUser!} />
+        )}
       </div>
     </div>
   );

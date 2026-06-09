@@ -272,7 +272,8 @@ export default function FavoriteArtistFeedPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <SectionHeading
-              title="Clips and Shows From Your Favorite Artists"
+              title="Favorites"
+              subtitle="Latest clips and upcoming shows from your favorite artists."
               className="mb-0"
             />
           </div>

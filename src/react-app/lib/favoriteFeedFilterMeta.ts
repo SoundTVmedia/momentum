@@ -9,12 +9,12 @@ export type FavoriteFeedFilterMeta = {
 export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
   {
     value: 'artists',
-    label: 'Your Artists',
+    label: 'Artists',
     description: 'Clips from artists you follow',
   },
   {
     value: 'upcoming',
-    label: 'Upcoming Shows',
+    label: 'Nearest Shows',
     description: 'Tour dates from your favorite artists',
   },
 ];

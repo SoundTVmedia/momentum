@@ -11,7 +11,9 @@ import VerificationRequest from '@/react-app/components/VerificationRequest';
 import FollowingUsersModal from '@/react-app/components/FollowingUsersModal';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
-import type { ClipWithUser, UserProfile } from '@/shared/types';
+import type { ClipWithUser, ExtendedMochaUser, UserProfile } from '@/shared/types';
+import { isSuperAdminUser } from '@/react-app/lib/program-nav';
+import SuperadminProfileModerationBar from '@/react-app/components/SuperadminProfileModerationBar';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
 import { useQuickCaptureLauncher } from '@/react-app/hooks/useQuickCaptureLauncher';
@@ -46,6 +48,7 @@ export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const extendedUser = user as ExtendedMochaUser | null;
   const { toggleFollow, isFollowing, isLoading: followLoading, hydrated: followHydrated } = useFollow();
   const { stats: lifetimeStats } = useUserStats(userId || '');
   const [data, setData] = useState<UserProfileData | null>(null);
@@ -60,6 +63,8 @@ export default function UserProfilePage() {
   const [showFollowingModal, setShowFollowingModal] = useState(false);
 
   const isOwnProfile = user?.id === userId;
+  const showSuperadminModeration =
+    !isOwnProfile && isSuperAdminUser(extendedUser) && !!userId;
   const quickCapture = useQuickCaptureLauncher();
 
   const fetchUserProfile = async () => {
@@ -183,6 +188,15 @@ export default function UserProfilePage() {
         )}
         
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
+          {showSuperadminModeration && userId ? (
+            <div className="pt-6">
+              <SuperadminProfileModerationBar
+                targetUserId={userId}
+                targetDisplayName={profile.display_name}
+                onUpdated={() => void fetchUserProfile()}
+              />
+            </div>
+          ) : null}
           <div className="relative pb-6 sm:pb-8">
             {/* Profile Image */}
             <div className={`flex flex-col md:flex-row items-center md:items-end space-y-3 sm:space-y-4 md:space-y-0 md:space-x-6 ${profile.cover_image_url ? '-mt-12 sm:-mt-16' : 'pt-6 sm:pt-8'}`}>

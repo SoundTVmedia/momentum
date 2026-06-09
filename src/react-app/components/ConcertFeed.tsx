@@ -69,7 +69,7 @@ function feedCarouselLabel(
     case 'most_liked':
       return 'Most liked clips'
     default:
-      return 'Latest clips'
+      return 'From the scene clips'
   }
 }
 
@@ -187,7 +187,7 @@ export default function ConcertFeed({
               loading={loading && clips.length > 0}
               hasMore={hasMore}
               viewAllHref={resolvedViewAllHref}
-              viewAllLabel="View all clips"
+              viewAllLabel={getFeedFilterMeta(feedType).viewAllClipsLabel}
               showEndMessage={!resolvedViewAllHref}
             />
           </>
