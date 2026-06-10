@@ -133,6 +133,7 @@ export function useShowMarks() {
     loading,
     refresh,
     toggleMark,
+    removeMark,
     getMarkForEvent,
   };
 }

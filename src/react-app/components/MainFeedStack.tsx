@@ -87,8 +87,6 @@ export default function MainFeedStack({
         />
       </div>
 
-      {isHome && user ? <MyGoingShowsSection variant="home" /> : null}
-
       {isHome ? (
         <PersonalizedConcerts
           carouselBleedScope="page"
@@ -97,6 +95,8 @@ export default function MainFeedStack({
           viewAllLabel="View all shows"
         />
       ) : null}
+
+      {isHome && user ? <MyGoingShowsSection variant="home" /> : null}
 
       {isHome && user ? <BeenHistoryShowsSection /> : null}
     </div>
