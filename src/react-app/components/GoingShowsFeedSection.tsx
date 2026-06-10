@@ -1,20 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Loader2, Users } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import SectionHeading from '@/react-app/components/SectionHeading';
-import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
-import {
-  isUpcomingShowMark,
-  showMarkToJamBaseEvent,
-  type UserShowMark,
-} from '@/shared/show-marks';
+import { isUpcomingShowMark, type UserShowMark } from '@/shared/show-marks';
 
 type FriendGoingGroup = {
   mocha_user_id: string;
@@ -78,44 +72,23 @@ function FriendGoingCard({
   );
 }
 
-type RecommendedPayload = {
-  events?: Record<string, unknown>[];
-  message?: string;
-};
-
 export default function GoingShowsFeedSection() {
   const { user, isPending } = useAuth();
-  const [myGoing, setMyGoing] = useState<UserShowMark[]>([]);
   const [friends, setFriends] = useState<FriendGoingGroup[]>([]);
-  const [recommended, setRecommended] = useState<RecommendedPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!user) {
-      setMyGoing([]);
       setFriends([]);
-      setRecommended(null);
       setLoading(false);
       return;
     }
 
     setLoading(true);
     try {
-      const [mineRes, friendsRes, recRes] = await Promise.all([
-        fetch('/api/users/me/show-marks?status=going', { credentials: 'include' }),
-        fetch('/api/shows/friends-going?limit=40', { credentials: 'include' }),
-        fetch('/api/personalization/concerts/recommended?limit=12', {
-          credentials: 'include',
-        }),
-      ]);
-
-      if (mineRes.ok) {
-        const data = (await mineRes.json()) as { marks?: UserShowMark[] };
-        const marks = Array.isArray(data.marks) ? data.marks : [];
-        setMyGoing(marks.filter((m) => isUpcomingShowMark(m)));
-      } else {
-        setMyGoing([]);
-      }
+      const friendsRes = await fetch('/api/shows/friends-going?limit=40', {
+        credentials: 'include',
+      });
 
       if (friendsRes.ok) {
         const data = (await friendsRes.json()) as { friends?: FriendGoingGroup[] };
@@ -124,11 +97,6 @@ export default function GoingShowsFeedSection() {
         setFriends([]);
       }
 
-      if (recRes.ok) {
-        setRecommended((await recRes.json()) as RecommendedPayload);
-      } else {
-        setRecommended(null);
-      }
     } catch (e) {
       console.error('GoingShowsFeedSection load failed', e);
     } finally {
@@ -147,11 +115,6 @@ export default function GoingShowsFeedSection() {
     return () => window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
   }, [load]);
 
-  const myEvents = useMemo(
-    () => myGoing.map(showMarkToJamBaseEvent),
-    [myGoing],
-  );
-
   const friendCards = useMemo(() => {
     const cards: { key: string; friend: FriendGoingGroup; mark: UserShowMark }[] = [];
     for (const friend of friends) {
@@ -167,8 +130,6 @@ export default function GoingShowsFeedSection() {
     return cards;
   }, [friends]);
 
-  const recEvents = recommended?.events ?? [];
-
   if (!user || isPending) return null;
 
   if (loading) {
@@ -179,43 +140,13 @@ export default function GoingShowsFeedSection() {
     );
   }
 
-  const hasMyGoing = myEvents.length > 0;
-  const hasFriends = friendCards.length > 0;
-  const hasRecommended = recEvents.length > 0;
-
-  if (!hasMyGoing && !hasFriends && !hasRecommended) {
+  if (friendCards.length === 0) {
     return null;
   }
 
   return (
     <div className={`${HOME_FEED_SECTION_CLASS} space-y-10`}>
-      {hasMyGoing ? (
-        <section>
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
-            <SectionHeading
-              title="Shows you're going to"
-              subtitle="Your upcoming plans — we use these for capture and venue matching"
-              size="section"
-              className="mb-0"
-            />
-            <Link
-              to={MY_SHOWS_PATH}
-              className="text-sm text-momentum-flare hover:text-momentum-flare/80"
-            >
-              Manage my shows
-            </Link>
-          </div>
-          <JamBaseEventGrid
-            preloadedEvents={myEvents}
-            maxEvents={myEvents.length}
-            layout="carousel"
-            carouselAriaLabel="Shows you are going to"
-            carouselClassName={HOME_FEED_CAROUSEL_BLEED}
-          />
-        </section>
-      ) : null}
-
-      {hasFriends ? (
+      {friendCards.length > 0 ? (
         <section>
           <SectionHeading
             title="Friends' plans"
@@ -234,23 +165,6 @@ export default function GoingShowsFeedSection() {
               </HorizontalClipCarouselItem>
             ))}
           </HorizontalClipCarousel>
-        </section>
-      ) : null}
-
-      {hasRecommended ? (
-        <section>
-          <SectionHeading
-            title="Because you've been to…"
-            subtitle="Upcoming shows from artists you've marked as Been"
-            size="section"
-          />
-          <JamBaseEventGrid
-            preloadedEvents={recEvents}
-            maxEvents={recEvents.length}
-            layout="carousel"
-            carouselAriaLabel="Recommended shows from your history"
-            carouselClassName={HOME_FEED_CAROUSEL_BLEED}
-          />
         </section>
       ) : null}
     </div>

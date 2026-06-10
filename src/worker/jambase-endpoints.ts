@@ -509,6 +509,31 @@ function mergeJamBaseFetchDiag(target: JamBaseFetchDiag, call: JamBaseFetchDiag)
   }
 }
 
+/** GET /v3/events/{jambase:eventId} — full event including image, performers, offers. */
+export async function fetchJamBaseEventById(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  eventId: string,
+): Promise<Record<string, unknown> | null> {
+  const id = eventId.trim();
+  if (!id) return null;
+  const data = await jamBaseFetch<Record<string, unknown>>(
+    apiKey,
+    `/events/${encodeURIComponent(id)}`,
+    {},
+    jbQ,
+  );
+  if (!data) return null;
+  const nested = data.event;
+  if (typeof nested === 'object' && nested !== null) {
+    return nested as Record<string, unknown>;
+  }
+  if (typeof data.identifier === 'string' || typeof data.name === 'string') {
+    return data;
+  }
+  return null;
+}
+
 export async function fetchJamBaseEventsByArtistName(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,

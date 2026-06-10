@@ -1,7 +1,20 @@
 import type { Context } from 'hono';
 import { mochaUserIdKey, normalizeArtistDisplayName } from './favorite-artists-sync';
 import { isUserFollowTargetId } from './follow-endpoints';
-import type { ShowMarkStatus, ShowMarkUpsertInput, UserShowMark } from '../shared/show-marks';
+import {
+  isUpcomingShowMarkStartDate,
+  mergeJamBaseEventWithShowMark,
+  showMarkToJamBaseEvent,
+  type ShowMarkStatus,
+  type ShowMarkUpsertInput,
+  type UserShowMark,
+} from '../shared/show-marks';
+import {
+  jamBaseApiKeyConfigured,
+  jamBaseQuotaFromEnv,
+  normalizeJamBaseApiKey,
+} from './jambase-client';
+import { fetchJamBaseEventById } from './jambase-endpoints';
 
 /** Going marks that are tonight or later (SQLite date compare on YYYY-MM-DD prefix). */
 export const UPCOMING_SHOW_MARK_SQL = `(
@@ -102,7 +115,27 @@ function parseUpsertBody(body: Record<string, unknown>): ShowMarkUpsertInput | n
   };
 }
 
-/** GET /api/users/me/show-marks?status=going|attended */
+async function enrichMarksWithJamBaseEvents(
+  c: Context,
+  marks: UserShowMark[],
+): Promise<Record<string, unknown>[]> {
+  const key = normalizeJamBaseApiKey(c.env.JAMBASE_API_KEY);
+  if (!key || marks.length === 0) {
+    return marks.map(showMarkToJamBaseEvent);
+  }
+  const jbQ = jamBaseQuotaFromEnv(c.env);
+  const cap = Math.min(marks.length, 24);
+  const slice = marks.slice(0, cap);
+  const events = await Promise.all(
+    slice.map(async (mark) => {
+      const jb = await fetchJamBaseEventById(key, jbQ, mark.jambase_event_id);
+      return mergeJamBaseEventWithShowMark(mark, jb);
+    }),
+  );
+  return events;
+}
+
+/** GET /api/users/me/show-marks?status=going|attended&enrich=jambase */
 export async function getMyShowMarks(c: Context) {
   const mochaUser = c.get('user');
   if (!mochaUser) return c.json({ error: 'Unauthorized' }, 401);
@@ -133,7 +166,15 @@ export async function getMyShowMarks(c: Context) {
           .all();
 
     const marks = ((rows.results ?? []) as Record<string, unknown>[]).map(rowToMark);
-    return c.json({ marks });
+    const enrich = c.req.query('enrich') === 'jambase';
+    const events =
+      enrich && jamBaseApiKeyConfigured(c.env.JAMBASE_API_KEY)
+        ? await enrichMarksWithJamBaseEvents(c, marks)
+        : undefined;
+    return c.json({
+      marks,
+      ...(events ? { events } : {}),
+    });
   } catch (e) {
     console.error('getMyShowMarks', e);
     return c.json({ error: 'Failed to load show marks' }, 500);
@@ -155,6 +196,20 @@ export async function upsertMyShowMark(c: Context) {
   const input = parseUpsertBody(body);
   if (!input) {
     return c.json({ error: 'status and jambase_event_id are required' }, 400);
+  }
+
+  const upcoming = isUpcomingShowMarkStartDate(input.start_date);
+  if (input.status === 'going' && !upcoming) {
+    return c.json(
+      { error: 'Going is only for upcoming shows. Mark past shows as Went instead.' },
+      400,
+    );
+  }
+  if (input.status === 'attended' && upcoming) {
+    return c.json(
+      { error: 'Went is only for past shows. Mark upcoming shows as Going instead.' },
+      400,
+    );
   }
 
   const uid = mochaUserIdKey(mochaUser);

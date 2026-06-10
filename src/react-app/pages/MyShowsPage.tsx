@@ -105,7 +105,7 @@ export default function MyShowsPage() {
                   : 'text-gray-400 hover:text-white'
               }`}
             >
-              {key === 'going' ? `Going (${goingMarks.length})` : `Been (${attendedMarks.length})`}
+              {key === 'going' ? `Going (${goingMarks.length})` : `Went (${attendedMarks.length})`}
             </button>
           ))}
         </div>
@@ -122,8 +122,8 @@ export default function MyShowsPage() {
                 : 'No past shows marked yet.'}
             </p>
             <p className="text-gray-500 text-sm mt-2 max-w-md mx-auto">
-              Tap <span className="text-white">Going</span> or{' '}
-              <span className="text-white">Been</span> on any show listing in Discover or on a venue
+              Tap <span className="text-white">Going</span> on upcoming shows or{' '}
+              <span className="text-white">Went</span> on past shows in Discover or on a venue
               page.
             </p>
             <button

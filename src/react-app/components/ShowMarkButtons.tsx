@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Loader2 } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import {
+  allowedShowMarkStatusForEvent,
   jamBaseEventToShowMarkInput,
   type ShowMarkStatus,
 } from '@/shared/show-marks';
@@ -13,6 +14,11 @@ type ShowMarkButtonsProps = {
   compact?: boolean;
 };
 
+const STATUS_LABEL: Record<ShowMarkStatus, string> = {
+  going: 'Going',
+  attended: 'Went',
+};
+
 export default function ShowMarkButtons({
   event,
   className = '',
@@ -20,69 +26,57 @@ export default function ShowMarkButtons({
 }: ShowMarkButtonsProps) {
   const { user } = useAuth();
   const { getMarkForEvent, toggleMark, hydrated } = useShowMarks();
-  const [pending, setPending] = useState<ShowMarkStatus | null>(null);
+  const [pending, setPending] = useState(false);
 
   const eventId = typeof event.identifier === 'string' ? event.identifier : null;
+  const allowedStatus = allowedShowMarkStatusForEvent(event);
   const current = eventId ? getMarkForEvent(eventId) : null;
+  const active = current?.status === allowedStatus;
 
-  if (!eventId) return null;
+  if (!eventId || !allowedStatus) return null;
 
-  const handleToggle = async (status: ShowMarkStatus) => {
+  const handleToggle = async () => {
     if (!user) {
-      alert('Sign in to mark shows you are going to or have been to.');
+      alert(
+        allowedStatus === 'going'
+          ? 'Sign in to mark shows you are going to.'
+          : 'Sign in to mark shows you went to.',
+      );
       return;
     }
-    const input = jamBaseEventToShowMarkInput(event, status);
+    const input = jamBaseEventToShowMarkInput(event, allowedStatus);
     if (!input) return;
-    setPending(status);
+    setPending(true);
     try {
       await toggleMark(input);
     } finally {
-      setPending(null);
+      setPending(false);
     }
   };
 
-  const btnClass = (active: boolean) =>
-    [
-      'inline-flex items-center justify-center gap-1 rounded-lg border text-xs font-medium transition-colors',
-      compact ? 'px-2 py-1' : 'px-2.5 py-1.5 flex-1',
-      active
-        ? 'border-momentum-flare bg-momentum-flare/20 text-momentum-flare'
-        : 'border-white/20 bg-white/5 text-gray-300 hover:border-momentum-flare/50 hover:text-white',
-    ].join(' ');
+  const btnClass = [
+    'inline-flex items-center justify-center gap-1 rounded-lg border text-xs font-medium transition-colors',
+    compact ? 'px-2 py-1' : 'px-2.5 py-1.5 w-full',
+    active
+      ? 'border-momentum-flare bg-momentum-flare/20 text-momentum-flare'
+      : 'border-white/20 bg-white/5 text-gray-300 hover:border-momentum-flare/50 hover:text-white',
+  ].join(' ');
 
   return (
-    <div
-      className={`flex gap-2 ${compact ? '' : 'w-full'} ${className}`}
-      aria-busy={!hydrated || pending != null}
-    >
+    <div className={className} aria-busy={!hydrated || pending}>
       <button
         type="button"
-        disabled={pending != null}
-        onClick={() => void handleToggle('going')}
-        className={btnClass(current?.status === 'going')}
-        aria-pressed={current?.status === 'going'}
+        disabled={pending}
+        onClick={() => void handleToggle()}
+        className={btnClass}
+        aria-pressed={active}
       >
-        {pending === 'going' ? (
+        {pending ? (
           <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-        ) : current?.status === 'going' ? (
+        ) : active ? (
           <Check className="w-3.5 h-3.5 shrink-0" />
         ) : null}
-        <span>Going</span>
-      </button>
-      <button
-        type="button"
-        disabled={pending != null}
-        onClick={() => void handleToggle('attended')}
-        className={btnClass(current?.status === 'attended')}
-        aria-pressed={current?.status === 'attended'}
-      >
-        {pending === 'attended' ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-        ) : current?.status === 'attended' ? (
-          <Check className="w-3.5 h-3.5 shrink-0" />
-        ) : null}
-        <span>Been</span>
+        <span>{STATUS_LABEL[allowedStatus]}</span>
       </button>
     </div>
   );

@@ -8,6 +8,8 @@ import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPa
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
 import GoingShowsFeedSection from '@/react-app/components/GoingShowsFeedSection'
+import MyGoingShowsSection from '@/react-app/components/MyGoingShowsSection'
+import BeenHistoryShowsSection from '@/react-app/components/BeenHistoryShowsSection'
 import SectionHeading from '@/react-app/components/SectionHeading'
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths'
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
@@ -85,6 +87,8 @@ export default function MainFeedStack({
         />
       </div>
 
+      {isHome && user ? <MyGoingShowsSection variant="home" /> : null}
+
       {isHome ? (
         <PersonalizedConcerts
           carouselBleedScope="page"
@@ -93,6 +97,8 @@ export default function MainFeedStack({
           viewAllLabel="View all shows"
         />
       ) : null}
+
+      {isHome && user ? <BeenHistoryShowsSection /> : null}
     </div>
   )
 }

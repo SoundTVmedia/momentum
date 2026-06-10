@@ -9,6 +9,7 @@ import MyClipsSection from '@/react-app/components/MyClipsSection';
 import MyPrePostClipsSection from '@/react-app/components/MyPrePostClipsSection';
 import SavedClipsSection from '@/react-app/components/SavedClipsSection';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
+import MyGoingShowsSection from '@/react-app/components/MyGoingShowsSection';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 /**
@@ -83,7 +84,7 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
             className="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-momentum-flare/30 bg-momentum-flare/10 text-momentum-flare hover:bg-momentum-flare/20 transition-colors text-sm font-medium"
           >
             <Calendar className="w-4 h-4 shrink-0" />
-            My shows — going &amp; been
+            My shows — going &amp; went
           </button>
         </div>
 
@@ -95,6 +96,7 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
               <SavedClipsSection />
             </>
           ) : null}
+          <MyGoingShowsSection variant="profile" />
           <PersonalizedConcerts />
         </div>
       </div>

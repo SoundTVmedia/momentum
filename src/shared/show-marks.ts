@@ -1,5 +1,6 @@
 import type { ClipShowCandidate } from './types';
 import { jamBaseEventMatchesCapture } from './jambase-event-day';
+import { isJamBaseEventOnOrAfterToday } from './jambase-events';
 
 export type ShowMarkStatus = 'going' | 'attended';
 
@@ -130,6 +131,60 @@ export function showMarkToJamBaseEvent(mark: UserShowMark): Record<string, unkno
           : undefined,
     },
   };
+}
+
+/** Prefer JamBase API event payload (images, offers) with mark ids as fallback. */
+export function mergeJamBaseEventWithShowMark(
+  mark: UserShowMark,
+  jbEvent: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const fallback = showMarkToJamBaseEvent(mark);
+  if (!jbEvent || typeof jbEvent !== 'object') return fallback;
+  return {
+    ...jbEvent,
+    identifier: mark.jambase_event_id,
+    name:
+      (typeof jbEvent.name === 'string' && jbEvent.name.trim()) ||
+      fallback.name,
+    startDate:
+      (typeof jbEvent.startDate === 'string' && jbEvent.startDate) ||
+      mark.start_date ||
+      undefined,
+  };
+}
+
+/** JamBase event is today or later (no startDate → treat as upcoming). */
+export function isUpcomingJamBaseEvent(
+  ev: Record<string, unknown>,
+  now: Date = new Date(),
+): boolean {
+  return isJamBaseEventOnOrAfterToday(ev, now);
+}
+
+/** JamBase event is before today (requires startDate). */
+export function isPastJamBaseEvent(ev: Record<string, unknown>, now: Date = new Date()): boolean {
+  const start = typeof ev.startDate === 'string' ? ev.startDate.trim() : '';
+  if (!start) return false;
+  return !isJamBaseEventOnOrAfterToday(ev, now);
+}
+
+/** Which mark type is valid for this event date. */
+export function allowedShowMarkStatusForEvent(
+  ev: Record<string, unknown>,
+  now: Date = new Date(),
+): ShowMarkStatus | null {
+  if (isUpcomingJamBaseEvent(ev, now)) return 'going';
+  if (isPastJamBaseEvent(ev, now)) return 'attended';
+  return null;
+}
+
+export function isUpcomingShowMarkStartDate(
+  startDate: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  const sd = startDate?.trim();
+  if (!sd) return true;
+  return isJamBaseEventOnOrAfterToday({ startDate: sd }, now);
 }
 
 /** True for going marks tonight or in the future (includes in-progress shows). */

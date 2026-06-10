@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  allowedShowMarkStatusForEvent,
+  isPastJamBaseEvent,
+  isUpcomingJamBaseEvent,
   isUpcomingShowMark,
   pickGoingShowMarkForCapture,
   showMarkToJamBaseEvent,
@@ -32,6 +35,36 @@ describe('showMarkToJamBaseEvent', () => {
     expect(ev.identifier).toBe('jambase:ev1');
     expect(ev.name).toBe('Night One');
     expect(Array.isArray(ev.performer)).toBe(true);
+  });
+});
+
+describe('allowedShowMarkStatusForEvent', () => {
+  const now = new Date('2026-06-10T12:00:00');
+
+  it('allows Going on future events', () => {
+    expect(
+      allowedShowMarkStatusForEvent({ startDate: '2026-06-15T20:00:00' }, now),
+    ).toBe('going');
+  });
+
+  it('allows Went on past events', () => {
+    expect(
+      allowedShowMarkStatusForEvent({ startDate: '2026-06-01T20:00:00' }, now),
+    ).toBe('attended');
+  });
+
+  it('defaults missing startDate to Going', () => {
+    expect(allowedShowMarkStatusForEvent({}, now)).toBe('going');
+  });
+});
+
+describe('isUpcomingJamBaseEvent / isPastJamBaseEvent', () => {
+  const now = new Date('2026-06-10T12:00:00');
+
+  it('classifies today as upcoming', () => {
+    const ev = { startDate: '2026-06-10T20:00:00' };
+    expect(isUpcomingJamBaseEvent(ev, now)).toBe(true);
+    expect(isPastJamBaseEvent(ev, now)).toBe(false);
   });
 });
 
