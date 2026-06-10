@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
+import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
   primeGeolocationOnUserGesture,
@@ -22,6 +23,7 @@ export type QuickCaptureLauncherState = {
 export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
+  const isMobile = useIsMobileViewport();
   const [showQuickCapture, setShowQuickCapture] = useState(false);
   const [primedMediaStream, setPrimedMediaStream] = useState<MediaStream | null>(null);
   const [openedWithGestureCamera, setOpenedWithGestureCamera] = useState(false);
@@ -43,6 +45,10 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     if (isPending) return;
     if (!user) {
       navigate('/auth');
+      return;
+    }
+    if (!isMobile) {
+      navigate('/upload');
       return;
     }
 
@@ -72,7 +78,7 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
       .finally(() => {
         setGesturePrimePending(false);
       });
-  }, [isPending, navigate, user]);
+  }, [isPending, isMobile, navigate, user]);
 
   return {
     showQuickCapture,

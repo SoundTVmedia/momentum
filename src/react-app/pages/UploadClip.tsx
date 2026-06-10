@@ -64,6 +64,7 @@ import {
   saveCaptureShowSession,
 } from '@/react-app/utils/captureShowSession';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
+import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import {
   jamBaseEventToShowMarkInput,
   pickGoingShowMarkForCapture,
@@ -78,6 +79,7 @@ export default function UploadClip() {
   const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
   const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight } = useClipUploadQueue();
+  const isMobile = useIsMobileViewport();
   const { goingMarks, hydrated: showMarksHydrated } = useShowMarks();
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ video: 0, thumbnail: 0 });
@@ -266,6 +268,17 @@ export default function UploadClip() {
     return () => setHideBottomNav(false);
   }, [showCaptionScreen, showQuickCapture, setHideBottomNav]);
 
+  useEffect(() => {
+    if (isMobile) return;
+    setShowQuickCapture(false);
+    setQuickCaptureAwaitUserTap(false);
+    setReRecordPrimedStream((prev) => {
+      prev?.getTracks().forEach((t) => t.stop());
+      return null;
+    });
+    setReRecordGesturePending(false);
+  }, [isMobile]);
+
   // Open quick capture when ?quickCapture=true — needs an explicit Continue tap for location (iOS gesture policy).
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -287,12 +300,18 @@ export default function UploadClip() {
       navigate('/auth', { replace: true });
       return;
     }
+    if (!isMobile) {
+      setShowQuickCapture(false);
+      setQuickCaptureAwaitUserTap(false);
+      navigate({ pathname: '/upload', search: '' }, { replace: true });
+      return;
+    }
     if (showQuickCapture) {
       setQuickCaptureAwaitUserTap(false);
       return;
     }
     setQuickCaptureAwaitUserTap(true);
-  }, [location.search, showCaptionScreen, user, isPending, navigate, showQuickCapture]);
+  }, [location.search, showCaptionScreen, user, isPending, isMobile, navigate, showQuickCapture]);
 
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
@@ -1640,8 +1659,9 @@ export default function UploadClip() {
     setLibraryMetaReady(false);
   }, [videoBlobUrl]);
 
-  /** Prime geo + camera in the same tap as Share (iOS Safari). */
+  /** Prime geo + camera in the same tap as Share (iOS Safari). Desktop uses file upload only. */
   const openCaptureFromShareGesture = useCallback(() => {
+    if (!isMobile) return;
     const geoPromise = primeGeolocationOnUserGesture();
     setReRecordLaunchGeo(null);
     setReRecordLaunchGeoResolved(false);
@@ -1657,7 +1677,7 @@ export default function UploadClip() {
       .then((stream) => setReRecordPrimedStream(stream))
       .catch(() => setReRecordPrimedStream(null))
       .finally(() => setReRecordGesturePending(false));
-  }, []);
+  }, [isMobile]);
 
   const handleSubmit = async (e: React.FormEvent | null) => {
     if (e) e.preventDefault();
@@ -1734,9 +1754,14 @@ export default function UploadClip() {
       }
       skipNavVideoHydrationRef.current = true;
       setShowCaptionScreen(false);
-      setShowQuickCapture(true);
       resetForNextCapture();
-      openCaptureFromShareGesture();
+      if (isMobile) {
+        setShowQuickCapture(true);
+        openCaptureFromShareGesture();
+      } else {
+        setShowQuickCapture(false);
+        navigate({ pathname: '/upload', search: '' }, { replace: true });
+      }
       return;
     }
 
@@ -1960,7 +1985,7 @@ export default function UploadClip() {
 
   const wantQuickCaptureUrl = new URLSearchParams(location.search).get('quickCapture') === 'true';
 
-  if (quickCaptureAwaitUserTap && wantQuickCaptureUrl && !showCaptionScreen) {
+  if (quickCaptureAwaitUserTap && wantQuickCaptureUrl && !showCaptionScreen && isMobile) {
     return (
       <div className="min-h-screen text-white flex flex-col items-center justify-center px-6 text-center">
         <ClipUploadStatusBanner />
@@ -2015,8 +2040,8 @@ export default function UploadClip() {
     );
   }
 
-  // Show quick capture modal if requested
-  if (showQuickCapture) {
+  // Show quick capture modal if requested (mobile only — desktop uses file upload)
+  if (showQuickCapture && isMobile) {
     return (
       <div className="min-h-screen text-white">
         <ClipUploadStatusBanner />

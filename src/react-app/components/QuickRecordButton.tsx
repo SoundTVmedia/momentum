@@ -833,7 +833,7 @@ export default function QuickRecordButton({
   );
 
   const handlePreviewTouchStart = (e: React.TouchEvent) => {
-    if (!zoomRange || isRecording || e.touches.length !== 2) return;
+    if (!zoomRange || e.touches.length !== 2) return;
     pinchZoomRef.current = {
       dist: touchPairDistance(e.touches),
       zoom: zoomLevel,
@@ -842,7 +842,8 @@ export default function QuickRecordButton({
   };
 
   const handlePreviewTouchMove = (e: React.TouchEvent) => {
-    if (!zoomRange || !pinchZoomRef.current || isRecording || e.touches.length !== 2) return;
+    if (!zoomRange || !pinchZoomRef.current || e.touches.length !== 2) return;
+    e.preventDefault();
     const next = zoomFromPinchScale(
       pinchZoomRef.current.zoom,
       pinchZoomRef.current.dist,
@@ -1606,20 +1607,6 @@ export default function QuickRecordButton({
               muted
               className="absolute inset-0 z-0 w-full h-full object-cover"
             />
-            {zoomControlsVisible ? (
-              <CameraZoomControls
-                presets={zoomPresets}
-                value={zoomLevel}
-                disabled={isRecording}
-                onSelect={(z) => void handleZoomSelect(z)}
-                className="absolute left-1/2 z-20 -translate-x-1/2"
-                style={{
-                  bottom: isPortrait
-                    ? 'max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
-                    : '1.25rem',
-                }}
-              />
-            ) : null}
             {(!hasPermission || !cameraReady) && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
                 <div className="text-center space-y-4 p-6 max-w-sm">
@@ -1832,6 +1819,16 @@ export default function QuickRecordButton({
                 )}
               </div>
             )}
+
+            {zoomControlsVisible ? (
+              <div className="mx-auto mb-4 flex w-full max-w-lg justify-center px-1">
+                <CameraZoomControls
+                  presets={zoomPresets}
+                  value={zoomLevel}
+                  onSelect={(z) => void handleZoomSelect(z)}
+                />
+              </div>
+            ) : null}
 
             <div
               className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
