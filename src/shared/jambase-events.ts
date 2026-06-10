@@ -1,6 +1,40 @@
 /** JamBase event JSON (subset used for ticketing + distance). */
 export type JamBaseEventRecord = Record<string, unknown>;
 
+const JAMBASE_EVENT_IMAGE_FALLBACK =
+  'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop';
+
+export function jamBaseEventHeadliner(ev: JamBaseEventRecord): Record<string, unknown> | null {
+  const perf = ev.performer;
+  if (!Array.isArray(perf) || perf.length === 0) return null;
+  const head = perf.find(
+    (p: unknown) =>
+      typeof p === 'object' &&
+      p !== null &&
+      (p as Record<string, unknown>)['x-isHeadliner'] === true,
+  );
+  const pick = head ?? perf[0];
+  return typeof pick === 'object' && pick !== null ? (pick as Record<string, unknown>) : null;
+}
+
+/** Event image URL from JamBase payload (event → venue → headliner), or null if none. */
+export function jamBaseEventImageUrl(ev: JamBaseEventRecord): string | null {
+  const eventImg = typeof ev.image === 'string' ? ev.image.trim() : '';
+  if (eventImg) return eventImg;
+  const loc = ev.location as Record<string, unknown> | undefined;
+  const venueImg = typeof loc?.image === 'string' ? loc.image.trim() : '';
+  if (venueImg) return venueImg;
+  const head = jamBaseEventHeadliner(ev);
+  const artistImg = typeof head?.image === 'string' ? head.image.trim() : '';
+  if (artistImg) return artistImg;
+  return null;
+}
+
+/** Same priority as `jamBaseEventImageUrl` with a stock concert photo fallback. */
+export function jamBaseEventCardImageUrl(ev: JamBaseEventRecord): string {
+  return jamBaseEventImageUrl(ev) ?? JAMBASE_EVENT_IMAGE_FALLBACK;
+}
+
 export function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;

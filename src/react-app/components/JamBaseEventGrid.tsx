@@ -11,6 +11,10 @@ import {
   EVENT_CAROUSEL_CARD_CLASS,
   EVENT_CAROUSEL_IMAGE_CLASS,
 } from '@/react-app/lib/homeFeedLayout';
+import {
+  jamBaseEventCardImageUrl,
+  jamBaseEventHeadliner,
+} from '@/shared/jambase-events';
 
 export interface JamBaseEventGridProps {
   maxEvents?: number;
@@ -50,7 +54,7 @@ function primaryTicketUrl(ev: Record<string, unknown>): string | null {
 }
 
 function headlinerName(ev: Record<string, unknown>): string | null {
-  const head = headlinerFromEvent(ev);
+  const head = jamBaseEventHeadliner(ev);
   return typeof head?.name === 'string' ? head.name : null;
 }
 
@@ -73,42 +77,10 @@ function venueCityLine(ev: Record<string, unknown>): string {
   return [city, st].filter(Boolean).join(', ');
 }
 
-function headlinerFromEvent(ev: Record<string, unknown>): Record<string, unknown> | null {
-  const p = ev.performer;
-  if (!Array.isArray(p) || !p.length) return null;
-  const head = p.find(
-    (x: unknown) =>
-      typeof x === 'object' &&
-      x !== null &&
-      (x as Record<string, unknown>)['x-isHeadliner'] === true,
-  ) as Record<string, unknown> | undefined;
-  const pick = head ?? (p[0] as Record<string, unknown>);
-  return typeof pick === 'object' && pick !== null ? pick : null;
-}
-
-function eventCardImage(ev: Record<string, unknown>): string {
-  const fallback =
-    'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop';
-  const eventImg = typeof ev.image === 'string' ? ev.image.trim() : '';
-  if (eventImg) return eventImg;
-  const loc = ev.location as Record<string, unknown> | undefined;
-  const venueImg = typeof loc?.image === 'string' ? loc.image.trim() : '';
-  if (venueImg) return venueImg;
-  const head = headlinerFromEvent(ev);
-  const artistImg = typeof head?.image === 'string' ? head.image.trim() : '';
-  if (artistImg) return artistImg;
-  return fallback;
-}
-
 function headlinerGenre(ev: Record<string, unknown>): string {
   const p = ev.performer;
   if (!Array.isArray(p) || !p.length) return 'Live';
-  const head = p.find(
-    (x: unknown) =>
-      typeof x === 'object' &&
-      x !== null &&
-      (x as Record<string, unknown>)['x-isHeadliner'] === true
-  ) as Record<string, unknown> | undefined;
+  const head = jamBaseEventHeadliner(ev);
   const pick = head ?? (p[0] as Record<string, unknown>);
   const genres = pick?.genre;
   if (Array.isArray(genres) && genres.length && typeof genres[0] === 'string') {
@@ -140,7 +112,7 @@ function JamBaseEventCard({
 }) {
   const title = typeof event.name === 'string' ? event.name : 'Show';
   const start = typeof event.startDate === 'string' ? event.startDate : '';
-  const image = eventCardImage(event);
+  const image = jamBaseEventCardImageUrl(event);
   const ticket = primaryTicketUrl(event);
   const head = headlinerName(event);
   const vn = venueLabel(event);

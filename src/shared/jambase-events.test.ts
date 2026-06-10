@@ -1,5 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { isJamBaseEventOnOrAfterToday, pickClosestUpcomingJamBaseShow } from './jambase-events';
+import {
+  isJamBaseEventOnOrAfterToday,
+  jamBaseEventCardImageUrl,
+  jamBaseEventImageUrl,
+  pickClosestUpcomingJamBaseShow,
+} from './jambase-events';
+
+describe('jamBaseEventImageUrl', () => {
+  it('prefers event image over performer image', () => {
+    const url = jamBaseEventImageUrl({
+      image: 'https://example.com/event.jpg',
+      performer: [{ name: 'Artist', image: 'https://example.com/artist.jpg', 'x-isHeadliner': true }],
+    });
+    expect(url).toBe('https://example.com/event.jpg');
+  });
+
+  it('falls back to headliner image', () => {
+    const url = jamBaseEventImageUrl({
+      performer: [{ name: 'Artist', image: 'https://example.com/artist.jpg', 'x-isHeadliner': true }],
+    });
+    expect(url).toBe('https://example.com/artist.jpg');
+  });
+
+  it('uses stock fallback in card helper', () => {
+    expect(jamBaseEventCardImageUrl({})).toContain('unsplash.com');
+  });
+});
 
 describe('pickClosestUpcomingJamBaseShow', () => {
   it('prefers the nearer venue', () => {

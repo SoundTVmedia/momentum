@@ -14,7 +14,8 @@ import {
   jamBaseQuotaFromEnv,
   normalizeJamBaseApiKey,
 } from './jambase-client';
-import { fetchJamBaseEventById } from './jambase-endpoints';
+import { jamBaseEventImageUrl } from '../shared/jambase-events';
+import { fetchJamBaseEventById, fetchJamBaseEventsByArtistName } from './jambase-endpoints';
 
 /** Going marks that are tonight or later (SQLite date compare on YYYY-MM-DD prefix). */
 export const UPCOMING_SHOW_MARK_SQL = `(
@@ -115,6 +116,42 @@ function parseUpsertBody(body: Record<string, unknown>): ShowMarkUpsertInput | n
   };
 }
 
+async function enrichMarkWithJamBaseEvent(
+  key: string,
+  jbQ: ReturnType<typeof jamBaseQuotaFromEnv>,
+  mark: UserShowMark,
+  artistEventsCache: Map<string, Record<string, unknown>[]>,
+): Promise<Record<string, unknown>> {
+  const eventId = mark.jambase_event_id.trim();
+
+  let jb: Record<string, unknown> | null = null;
+  if (eventId.startsWith('jambase:')) {
+    jb = await fetchJamBaseEventById(key, jbQ, eventId);
+  }
+
+  let merged = mergeJamBaseEventWithShowMark(mark, jb);
+
+  if (!jamBaseEventImageUrl(merged) && eventId) {
+    const artist = mark.artist_name?.trim();
+    if (artist) {
+      let list = artistEventsCache.get(artist);
+      if (!list) {
+        const { events } = await fetchJamBaseEventsByArtistName(key, jbQ, artist, '40');
+        list = events;
+        artistEventsCache.set(artist, list);
+      }
+      const match = list.find(
+        (ev) => typeof ev.identifier === 'string' && ev.identifier.trim() === eventId,
+      );
+      if (match) {
+        merged = mergeJamBaseEventWithShowMark(mark, match);
+      }
+    }
+  }
+
+  return merged;
+}
+
 async function enrichMarksWithJamBaseEvents(
   c: Context,
   marks: UserShowMark[],
@@ -126,17 +163,10 @@ async function enrichMarksWithJamBaseEvents(
   const jbQ = jamBaseQuotaFromEnv(c.env);
   const cap = Math.min(marks.length, 24);
   const slice = marks.slice(0, cap);
-  const events = await Promise.all(
-    slice.map(async (mark) => {
-      const eventId = mark.jambase_event_id.trim();
-      const jb =
-        eventId.startsWith('jambase:')
-          ? await fetchJamBaseEventById(key, jbQ, eventId)
-          : null;
-      return mergeJamBaseEventWithShowMark(mark, jb);
-    }),
+  const artistEventsCache = new Map<string, Record<string, unknown>[]>();
+  return Promise.all(
+    slice.map((mark) => enrichMarkWithJamBaseEvent(key, jbQ, mark, artistEventsCache)),
   );
-  return events;
 }
 
 /** GET /api/users/me/show-marks?status=going|attended&enrich=jambase */

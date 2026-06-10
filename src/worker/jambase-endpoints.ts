@@ -509,21 +509,7 @@ function mergeJamBaseFetchDiag(target: JamBaseFetchDiag, call: JamBaseFetchDiag)
   }
 }
 
-/** GET /v3/events/{jambase:eventId} — full event including image, performers, offers. */
-export async function fetchJamBaseEventById(
-  apiKey: string,
-  jbQ: JamBaseQuotaContext | undefined,
-  eventId: string,
-): Promise<Record<string, unknown> | null> {
-  const id = eventId.trim();
-  if (!id) return null;
-  const data = await jamBaseFetch<Record<string, unknown>>(
-    apiKey,
-    `/events/${encodeURIComponent(id)}`,
-    {},
-    jbQ,
-  );
-  if (!data) return null;
+function unwrapJamBaseEventPayload(data: Record<string, unknown>): Record<string, unknown> | null {
   const nested = data.event;
   if (typeof nested === 'object' && nested !== null) {
     return nested as Record<string, unknown>;
@@ -531,6 +517,30 @@ export async function fetchJamBaseEventById(
   if (typeof data.identifier === 'string' || typeof data.name === 'string') {
     return data;
   }
+  return null;
+}
+
+/** GET /v3/events/id/{source}:{id} — full event including image, performers, offers. */
+export async function fetchJamBaseEventById(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  eventId: string,
+): Promise<Record<string, unknown> | null> {
+  const id = eventId.trim();
+  if (!id) return null;
+
+  const paths = [
+    `/events/id/${encodeURIComponent(id)}`,
+    `/events/${encodeURIComponent(id)}`,
+  ];
+
+  for (const path of paths) {
+    const data = await jamBaseFetch<Record<string, unknown>>(apiKey, path, {}, jbQ);
+    if (!data) continue;
+    const ev = unwrapJamBaseEventPayload(data);
+    if (ev) return ev;
+  }
+
   return null;
 }
 

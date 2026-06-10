@@ -68,15 +68,15 @@ export default function BeenHistoryShowsSection() {
   return (
     <section className={HOME_FEED_SECTION_CLASS}>
       <SectionHeading
-        title="Because you've been to…"
-        subtitle="Upcoming shows from artists you've marked as Went"
+        title="Recommended"
+        subtitle="Shows especially curated for you."
         size="section"
       />
       <JamBaseEventGrid
         preloadedEvents={recEvents}
         maxEvents={recEvents.length}
         layout="carousel"
-        carouselAriaLabel="Recommended shows from your history"
+        carouselAriaLabel="Recommended shows curated for you"
         carouselClassName={HOME_FEED_CAROUSEL_BLEED}
       />
     </section>
