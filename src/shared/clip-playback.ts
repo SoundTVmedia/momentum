@@ -81,12 +81,19 @@ export function prefetchFeedPreviewMp4(src: string | null | undefined): void {
   const url = typeof src === 'string' ? src.trim() : '';
   if (!url || prefetchedFeedMp4.has(url) || isHlsPlaybackUrl(url)) return;
   prefetchedFeedMp4.add(url);
-  const link = document.createElement('link');
-  link.rel = 'preload';
-  link.as = 'video';
-  link.href = url;
-  document.head.appendChild(link);
-  window.setTimeout(() => link.remove(), 45_000);
+
+  // `<link rel=preload as=video>` is not supported in Chromium — use a muted video element instead.
+  const el = document.createElement('video');
+  el.preload = 'auto';
+  el.muted = true;
+  el.playsInline = true;
+  el.src = url;
+  el.load();
+  window.setTimeout(() => {
+    el.removeAttribute('src');
+    el.load();
+    el.remove();
+  }, 45_000);
 }
 
 /** Warm feed MP4 + modal HLS for carousel neighbors on hover (best-effort). */

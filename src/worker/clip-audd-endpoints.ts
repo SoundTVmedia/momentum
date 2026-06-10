@@ -84,17 +84,14 @@ export async function postClipIdentifyMusic(c: Context) {
   const out = await recognizeMusic(c.env, blob, filename);
 
   if (!out.ok) {
-    return c.json(
-      {
-        ok: false,
-        error: out.error,
-        provider: out.provider,
-        acrcloudCode: out.acrcloudCode,
-        raw: out.raw,
-        config: configStatus,
-      },
-      502,
-    );
+    return c.json({
+      ok: false,
+      error: out.error,
+      provider: out.provider,
+      acrcloudCode: out.acrcloudCode,
+      raw: out.raw,
+      config: configStatus,
+    });
   }
   if (!out.match) {
     return c.json({
