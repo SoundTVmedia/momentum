@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music, Disc3 } from 'lucide-react';
+import CameraZoomControls from '@/react-app/components/CameraZoomControls';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
@@ -24,6 +25,16 @@ import {
   pickGoingShowMarkForCapture,
   showMarkToClipCandidate,
 } from '@/shared/show-marks';
+import {
+  applyCameraZoom,
+  buildCameraZoomPresets,
+  clampCameraZoom,
+  readCameraZoomRange,
+  readCurrentCameraZoom,
+  touchPairDistance,
+  zoomFromPinchScale,
+  type CameraZoomRange,
+} from '@/react-app/utils/cameraZoom';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -141,6 +152,11 @@ export default function QuickRecordButton({
   const [audioEnabled, setAudioEnabled] = useState(true);
   /** Bound to preview <video>; drives loadedmetadata / play without mount-order deadlock */
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
+  const [zoomRange, setZoomRange] = useState<CameraZoomRange | null>(null);
+  const [zoomPresets, setZoomPresets] = useState<number[]>([]);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const pinchZoomRef = useRef<{ dist: number; zoom: number } | null>(null);
+  const lastPinchApplyRef = useRef(0);
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
   const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
   /** GPS used for lastGeoRef + upload `captureGeo`; JamBase tagging runs on the upload screen only. */
@@ -784,6 +800,65 @@ export default function QuickRecordButton({
       video.removeEventListener('playing', onPlaying);
     };
   }, [previewStream]);
+
+  useEffect(() => {
+    if (!previewStream || !cameraReady) {
+      setZoomRange(null);
+      setZoomPresets([]);
+      setZoomLevel(1);
+      return;
+    }
+
+    const track = previewStream.getVideoTracks()[0];
+    const range = readCameraZoomRange(track);
+    setZoomRange(range);
+    if (range) {
+      setZoomPresets(buildCameraZoomPresets(range));
+      setZoomLevel(readCurrentCameraZoom(track, range));
+    } else {
+      setZoomPresets([]);
+      setZoomLevel(1);
+    }
+  }, [previewStream, cameraReady]);
+
+  const handleZoomSelect = useCallback(
+    async (next: number) => {
+      const track = streamRef.current?.getVideoTracks()[0];
+      if (!track || !zoomRange) return;
+      const clamped = clampCameraZoom(next, zoomRange);
+      const ok = await applyCameraZoom(track, clamped, zoomRange);
+      if (ok) setZoomLevel(clamped);
+    },
+    [zoomRange],
+  );
+
+  const handlePreviewTouchStart = (e: React.TouchEvent) => {
+    if (!zoomRange || isRecording || e.touches.length !== 2) return;
+    pinchZoomRef.current = {
+      dist: touchPairDistance(e.touches),
+      zoom: zoomLevel,
+    };
+    lastPinchApplyRef.current = zoomLevel;
+  };
+
+  const handlePreviewTouchMove = (e: React.TouchEvent) => {
+    if (!zoomRange || !pinchZoomRef.current || isRecording || e.touches.length !== 2) return;
+    const next = zoomFromPinchScale(
+      pinchZoomRef.current.zoom,
+      pinchZoomRef.current.dist,
+      touchPairDistance(e.touches),
+      zoomRange,
+    );
+    if (Math.abs(next - lastPinchApplyRef.current) < 0.04) return;
+    lastPinchApplyRef.current = next;
+    void handleZoomSelect(next);
+  };
+
+  const handlePreviewTouchEnd = () => {
+    pinchZoomRef.current = null;
+  };
+
+  const zoomControlsVisible = hasPermission && cameraReady && zoomPresets.length >= 2;
 
   const toggleCameraFacing = async () => {
     if (isRecording) return;
@@ -1517,7 +1592,13 @@ export default function QuickRecordButton({
       {showModal && (
         <div className={modalClass}>
           {/* Camera View */}
-          <div className="flex-1 min-h-0 relative bg-black">
+          <div
+            className="flex-1 min-h-0 relative bg-black touch-none"
+            onTouchStart={handlePreviewTouchStart}
+            onTouchMove={handlePreviewTouchMove}
+            onTouchEnd={handlePreviewTouchEnd}
+            onTouchCancel={handlePreviewTouchEnd}
+          >
             <video
               ref={videoRef}
               autoPlay
@@ -1525,6 +1606,20 @@ export default function QuickRecordButton({
               muted
               className="absolute inset-0 z-0 w-full h-full object-cover"
             />
+            {zoomControlsVisible ? (
+              <CameraZoomControls
+                presets={zoomPresets}
+                value={zoomLevel}
+                disabled={isRecording}
+                onSelect={(z) => void handleZoomSelect(z)}
+                className="absolute left-1/2 z-20 -translate-x-1/2"
+                style={{
+                  bottom: isPortrait
+                    ? 'max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))'
+                    : '1.25rem',
+                }}
+              />
+            ) : null}
             {(!hasPermission || !cameraReady) && (
               <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
                 <div className="text-center space-y-4 p-6 max-w-sm">
