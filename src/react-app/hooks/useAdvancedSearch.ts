@@ -56,7 +56,21 @@ export function useAdvancedSearch() {
       if (err instanceof Error && err.name === 'AbortError') return;
       if (requestId !== requestIdRef.current) return;
       console.error('Advanced search failed:', err);
-      if (!hadStale) setResults(null);
+      if (!hadStale) {
+        const timedOut =
+          err instanceof Error &&
+          (err.name === 'TimeoutError' || err.name === 'AbortError');
+        setResults({
+          clips: [],
+          artists: [],
+          venues: [],
+          users: [],
+          jambase: { artists: [], venues: [], events: [] },
+          jambaseNotice: timedOut
+            ? 'Search timed out — JamBase may be slow or misconfigured on the worker. Try again or check JAMBASE_API_KEY.'
+            : 'Search could not complete. Try again.',
+        });
+      }
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);

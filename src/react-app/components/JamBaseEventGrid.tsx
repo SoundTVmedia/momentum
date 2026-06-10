@@ -286,7 +286,7 @@ export default function JamBaseEventGrid({
         url = `/api/jambase/events/live-tab?${qs}`;
       }
 
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(22_000) });
       if (!res.ok) {
         throw new Error('Could not load JamBase events');
       }
@@ -297,7 +297,16 @@ export default function JamBaseEventGrid({
       setEvents(data.events ?? []);
       setUpstreamNotice(typeof data.notice === 'string' && data.notice.trim() ? data.notice.trim() : null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
+      const timedOut =
+        e instanceof Error &&
+        (e.name === 'TimeoutError' || e.name === 'AbortError');
+      setError(
+        timedOut
+          ? 'JamBase shows took too long to load — try again'
+          : e instanceof Error
+            ? e.message
+            : 'Failed to load',
+      );
       setEvents([]);
     } finally {
       setLoading(false);

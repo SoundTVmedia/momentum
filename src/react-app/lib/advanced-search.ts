@@ -26,6 +26,8 @@ export type AdvancedSearchPayload = {
     venues: Record<string, unknown>[];
     events: Record<string, unknown>[];
   };
+  /** Set when JamBase could not return live-music results (missing/invalid key, timeout, quota). */
+  jambaseNotice?: string | null;
   /** True when results are scoped to a city/state within the user's search radius. */
   locationScoped?: boolean;
   searchGeo?: { label: string; radius_miles: number };
@@ -54,6 +56,8 @@ export function advancedSearchHasHits(data: AdvancedSearchPayload | null): boole
     data.venues.length > 0 ||
     data.users.length > 0 ||
     (data.jambase !== undefined &&
-      (data.jambase.venues.length > 0 || data.jambase.events.length > 0))
+      (data.jambase.artists.length > 0 ||
+        data.jambase.venues.length > 0 ||
+        data.jambase.events.length > 0))
   );
 }

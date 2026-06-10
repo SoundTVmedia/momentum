@@ -5,6 +5,7 @@ import {
   jamBaseMissingKeyNotice,
   jamBaseApiKeyConfigured,
   jamBaseQuotaFromEnv,
+  jamBaseUpstreamFailureNotice,
   type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
@@ -39,23 +40,31 @@ async function fetchJamBaseCompactCatalog(
   apiKey: string,
   query: string,
   jbQ: JamBaseQuotaContext | undefined,
-): Promise<{ artists: unknown[]; venues: unknown[] }> {
+): Promise<{ artists: unknown[]; venues: unknown[]; failed: boolean }> {
   const phrase = jamBaseArtistVenueSearchPhrase(query);
+  const aDiag: JamBaseFetchDiag = {};
+  const vDiag: JamBaseFetchDiag = {};
   const [a, v] = await Promise.all([
     jamBaseFetch<{ artists?: unknown[] }>(
       apiKey,
       '/artists',
       { artistName: phrase, perPage: '4', page: '1' },
       jbQ,
+      aDiag,
     ),
     jamBaseFetch<{ venues?: unknown[] }>(
       apiKey,
       '/venues',
       { venueName: phrase, perPage: '4', page: '1' },
       jbQ,
+      vDiag,
     ),
   ]);
-  return { artists: a?.artists ?? [], venues: v?.venues ?? [] };
+  return {
+    artists: a?.artists ?? [],
+    venues: v?.venues ?? [],
+    failed: Boolean(aDiag.failure || vDiag.failure),
+  };
 }
 
 function venueDedupeKey(name: string): string {
@@ -444,25 +453,29 @@ export async function advancedSearch(c: Context) {
             artists: jb.artists,
             venues: jb.venues,
             events: [] as unknown[],
-            failed: false,
+            failed: jb.failed,
           }))
         : (async () => {
             const q = trimmedQuery;
             const jbPer = '10';
             const eventCap = 18;
             const phrase = jamBaseArtistVenueSearchPhrase(q);
+            const aDiag: JamBaseFetchDiag = {};
+            const vDiag: JamBaseFetchDiag = {};
             const [a, v] = await Promise.all([
               jamBaseFetch<{ artists?: unknown[] }>(
                 jbKeyTrimmed,
                 '/artists',
                 { artistName: phrase, perPage: jbPer, page: '1' },
                 jbQ,
+                aDiag,
               ),
               jamBaseFetch<{ venues?: unknown[] }>(
                 jbKeyTrimmed,
                 '/venues',
                 { venueName: phrase, perPage: jbPer, page: '1' },
                 jbQ,
+                vDiag,
               ),
             ]);
             const eventList = await buildTightJamBaseEventResults(jbKeyTrimmed, q, eventCap, jbQ, {
@@ -473,7 +486,7 @@ export async function advancedSearch(c: Context) {
               artists: a?.artists ?? [],
               venues: v?.venues ?? [],
               events: eventList,
-              failed: a == null && v == null,
+              failed: Boolean(aDiag.failure || vDiag.failure),
             };
           })()
       : Promise.resolve({
@@ -491,11 +504,12 @@ export async function advancedSearch(c: Context) {
     events: jbResult.events,
   };
   let jambaseNotice: string | null = null;
-  if (jbResult.failed) {
-    jambaseNotice =
-      'JamBase artist/venue search did not complete (network error, invalid API key, or JAMBASE_QUOTA_ENFORCEMENT may have blocked upstream calls). Your Feedback clips and on-platform matches below are unchanged — check worker logs.';
-  } else if (trimmedQuery.length >= 2 && !jamBaseApiKeyConfigured(jbKey)) {
+  if (trimmedQuery.length >= 2 && !jamBaseApiKeyConfigured(jbKey)) {
     jambaseNotice = jamBaseMissingKeyNotice();
+  } else if (jbResult.failed) {
+    jambaseNotice =
+      jamBaseUpstreamFailureNotice(jbKey) ??
+      'JamBase artist/venue search did not complete. Your Feedback clips and on-platform matches below are unchanged.';
   }
 
   const venuesBase = (venues.results ?? []) as SearchVenueRow[];
@@ -522,7 +536,7 @@ export async function advancedSearch(c: Context) {
     venues: enrichedVenues,
     users: users.results || [],
     jambase: {
-      artists: [],
+      artists: jambase.artists,
       venues: jambase.venues,
       events: jambase.events,
     },
@@ -808,23 +822,12 @@ export async function getNearbyShows(c: Context) {
     jbDiag,
   );
 
-  if (!jambaseNotice && events.length === 0 && jamBaseApiKeyConfigured(apiKey)) {
-    if (jbDiag.failure === 'timeout') {
-      jambaseNotice =
-        'JamBase timed out loading nearby shows. Try again in a moment — if this keeps happening, check JAMBASE_API_KEY and worker logs.';
-    } else if (jbDiag.failure === 'quota') {
-      jambaseNotice =
-        'JamBase call quota reached (JAMBASE_QUOTA_ENFORCEMENT). Nearby shows are paused until the budget resets.';
-    } else if (jbDiag.failure === 'http' && (jbDiag.httpStatus === 401 || jbDiag.httpStatus === 403)) {
-      jambaseNotice =
-        'JamBase rejected the API key (401/403). Regenerate your key at data.jambase.com and update JAMBASE_API_KEY.';
-    } else if (jbDiag.failure) {
-      jambaseNotice =
-        'JamBase did not return nearby shows (upstream error). Check JAMBASE_API_KEY and worker logs.';
-    } else {
-      jambaseNotice =
-        'No upcoming JamBase shows were returned for this location. Try a larger radius or check again later.';
-    }
+  if (!jambaseNotice && events.length === 0) {
+    jambaseNotice =
+      jamBaseUpstreamFailureNotice(apiKey, jbDiag) ??
+      (jamBaseApiKeyConfigured(apiKey)
+        ? 'No upcoming JamBase shows were returned for this location. Try a larger radius or check again later.'
+        : null);
   }
 
   cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });

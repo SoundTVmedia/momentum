@@ -316,6 +316,36 @@ export function jamBaseMissingKeyNotice(): string {
   return 'JamBase is not configured. Set JAMBASE_API_KEY in .dev.vars (local) or run `wrangler secret put JAMBASE_API_KEY` (production), then restart the worker.';
 }
 
+/** Map upstream `jamBaseFetch` failures to a user-visible notice (empty results, no failure → null). */
+export function jamBaseUpstreamFailureNotice(
+  apiKey: string | undefined,
+  diag?: JamBaseFetchDiag,
+): string | null {
+  if (!jamBaseApiKeyConfigured(apiKey)) {
+    return jamBaseMissingKeyNotice();
+  }
+  if (!diag?.failure) {
+    return null;
+  }
+  switch (diag.failure) {
+    case 'timeout':
+      return 'JamBase timed out loading shows. Try again — if this persists, check JAMBASE_API_KEY and worker logs.';
+    case 'quota':
+      return 'JamBase call quota reached (JAMBASE_QUOTA_ENFORCEMENT). Shows are paused until the budget resets.';
+    case 'http':
+      if (diag.httpStatus === 401 || diag.httpStatus === 403) {
+        return 'JamBase rejected the API key (401/403). Regenerate your key at data.jambase.com and update JAMBASE_API_KEY.';
+      }
+      return 'JamBase returned an HTTP error loading shows. Check worker logs and JAMBASE_API_KEY.';
+    case 'missing_key':
+      return jamBaseMissingKeyNotice();
+    case 'network':
+      return 'Could not reach JamBase (network error). Try again shortly.';
+    default:
+      return 'JamBase did not return shows (upstream error). Check JAMBASE_API_KEY and worker logs.';
+  }
+}
+
 /**
  * Housekeeping for `jambase_api_usage`.
  * - Removes legacy `jam:h:*` buckets from older quota experiments.

@@ -5,6 +5,7 @@ import {
   jamBaseApiKeyConfigured,
   jamBaseMissingKeyNotice,
   jamBaseQuotaFromEnv,
+  jamBaseUpstreamFailureNotice,
   type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
@@ -21,17 +22,44 @@ import {
  * @see https://data.jambase.com/api/docs/getting-started
  */
 
-/** Public config check (does not call JamBase upstream). */
+/** Public config check with a lightweight upstream probe (edge-cached). */
 export async function getJamBaseStatus(c: Context) {
   cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 60 });
-  const configured = jamBaseApiKeyConfigured(c.env.JAMBASE_API_KEY);
+  const key = c.env.JAMBASE_API_KEY;
+  const configured = jamBaseApiKeyConfigured(key);
+  let upstreamOk: boolean | null = null;
+  let upstreamHint: string | null = null;
+
+  if (configured) {
+    const diag: JamBaseFetchDiag = {};
+    const jbQ = jamBaseQuotaFromEnv(c.env);
+    const probe = await jamBaseFetch<{ artists?: unknown[] }>(
+      key,
+      '/artists',
+      { artistName: 'a', perPage: '1', page: '1' },
+      jbQ,
+      diag,
+    );
+    upstreamOk = probe != null && !diag.failure;
+    if (!upstreamOk) {
+      upstreamHint =
+        jamBaseUpstreamFailureNotice(key, diag) ??
+        'JamBase upstream probe failed. Regenerate JAMBASE_API_KEY at data.jambase.com.';
+    }
+  }
+
   return c.json({
     configured,
+    upstreamOk,
+    upstreamHint,
     apiVersion: 3,
     baseUrl: 'https://api.data.jambase.com/v3',
-    hint: configured
-      ? 'API key is loaded on the worker. Use GET /api/jambase/connection-test (signed in) to verify upstream.'
-      : jamBaseMissingKeyNotice(),
+    hint: !configured
+      ? jamBaseMissingKeyNotice()
+      : upstreamOk
+        ? 'JamBase API key is loaded and upstream responded OK.'
+        : (upstreamHint ??
+          'API key is loaded but upstream check failed. Use GET /api/jambase/connection-test (signed in) for details.'),
   });
 }
 
@@ -126,6 +154,7 @@ export async function searchArtists(c: Context) {
     }
 
     const jbQ = jamBaseQuotaFromEnv(c.env);
+    const diag: JamBaseFetchDiag = {};
     const data = await jamBaseFetch<{ artists?: unknown[] }>(
       key,
       '/artists',
@@ -134,7 +163,8 @@ export async function searchArtists(c: Context) {
         page: c.req.query('page') || '1',
         perPage,
       },
-      jbQ
+      jbQ,
+      diag,
     );
 
     if (!data) {
@@ -142,6 +172,7 @@ export async function searchArtists(c: Context) {
       return c.json({
         artists: [],
         notice:
+          jamBaseUpstreamFailureNotice(key, diag) ??
           'JamBase did not return artist results (API error or upstream unavailable). Check worker logs and JAMBASE_API_KEY.',
       });
     }
@@ -466,12 +497,20 @@ export async function getLiveTabEvents(c: Context) {
 /**
  * Resolve JamBase upcoming events for a single artist display name (worker-internal; no HTTP cache).
  */
+function mergeJamBaseFetchDiag(target: JamBaseFetchDiag, call: JamBaseFetchDiag): void {
+  if (!target.failure && call.failure) {
+    target.failure = call.failure;
+    target.httpStatus = call.httpStatus;
+  }
+}
+
 export async function fetchJamBaseEventsByArtistName(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,
   raw: string,
   perPage: string,
-  page = '1'
+  page = '1',
+  diag?: JamBaseFetchDiag,
 ): Promise<{
   events: Record<string, unknown>[];
   artist: { name: unknown; identifier: string } | null;
@@ -484,17 +523,27 @@ export async function fetchJamBaseEventsByArtistName(
   const slug = slugifyEntityName(trim) || normalizedSlugFromRouteParam(trim);
   const phrase = searchPhraseFromSlug(slug);
 
-  const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
-    apiKey,
-    '/artists',
-    {
-      artistName: phrase,
-      perPage: '8',
-      page: '1',
-    },
-    jbQ
-  );
-  const artists = list?.artists ?? [];
+  const searchArtists = async (artistNameTerm: string) => {
+    const call: JamBaseFetchDiag = {};
+    const data = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+      apiKey,
+      '/artists',
+      {
+        artistName: artistNameTerm,
+        perPage: '8',
+        page: '1',
+      },
+      jbQ,
+      call,
+    );
+    if (diag) mergeJamBaseFetchDiag(diag, call);
+    return data?.artists ?? [];
+  };
+
+  let artists = await searchArtists(phrase || trim);
+  if (!artists.length && trim.toLowerCase() !== (phrase || '').toLowerCase()) {
+    artists = await searchArtists(trim);
+  }
   if (!artists.length) {
     return { events: [], artist: null };
   }
@@ -506,6 +555,7 @@ export async function fetchJamBaseEventsByArtistName(
     return { events: [], artist: null };
   }
 
+  const evCall: JamBaseFetchDiag = {};
   const ev = await jamBaseFetch<{ events?: unknown[] }>(
     apiKey,
     '/events',
@@ -515,8 +565,10 @@ export async function fetchJamBaseEventsByArtistName(
       perPage,
       page,
     },
-    jbQ
+    jbQ,
+    evCall,
   );
+  if (diag) mergeJamBaseFetchDiag(diag, evCall);
 
   const rawEvents = ev?.events ?? [];
   const events = rawEvents.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
@@ -535,7 +587,8 @@ export async function fetchJamBaseEventsByVenueName(
   jbQ: JamBaseQuotaContext | undefined,
   raw: string,
   perPage: string,
-  page = '1'
+  page = '1',
+  diag?: JamBaseFetchDiag,
 ): Promise<{
   events: Record<string, unknown>[];
   venue: { name: unknown; identifier: string } | null;
@@ -548,8 +601,9 @@ export async function fetchJamBaseEventsByVenueName(
   const slug = slugifyEntityName(trim) || normalizedSlugFromRouteParam(trim);
   const phraseFromSlug = searchPhraseFromSlug(slug);
 
-  const searchOnce = async (venueNameTerm: string) =>
-    jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+  const searchOnce = async (venueNameTerm: string) => {
+    const call: JamBaseFetchDiag = {};
+    const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
       apiKey,
       '/venues',
       {
@@ -557,8 +611,12 @@ export async function fetchJamBaseEventsByVenueName(
         perPage: '18',
         page: '1',
       },
-      jbQ
+      jbQ,
+      call,
     );
+    if (diag) mergeJamBaseFetchDiag(diag, call);
+    return data;
+  };
 
   let venues = (await searchOnce(phraseFromSlug || trim))?.venues ?? [];
   if (!venues.length && trim.toLowerCase() !== (phraseFromSlug || '').toLowerCase()) {
@@ -578,6 +636,7 @@ export async function fetchJamBaseEventsByVenueName(
     return { events: [], venue: null };
   }
 
+  const evCall: JamBaseFetchDiag = {};
   const ev = await jamBaseFetch<{ events?: unknown[] }>(
     apiKey,
     '/events',
@@ -587,8 +646,10 @@ export async function fetchJamBaseEventsByVenueName(
       perPage,
       page,
     },
-    jbQ
+    jbQ,
+    evCall,
   );
+  if (diag) mergeJamBaseFetchDiag(diag, evCall);
 
   const rawEvents = ev?.events ?? [];
   const events = rawEvents.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
@@ -599,6 +660,21 @@ export async function fetchJamBaseEventsByVenueName(
   };
 }
 
+function jamBaseEntityEventsNotice(
+  apiKey: string | undefined,
+  diag: JamBaseFetchDiag,
+  entity: { name: unknown } | null,
+  entityLabel: 'artist' | 'venue',
+  query: string,
+): string | null {
+  const upstream = jamBaseUpstreamFailureNotice(apiKey, diag);
+  if (upstream) return upstream;
+  if (entity) {
+    return `No upcoming JamBase dates listed for this ${entityLabel} right now.`;
+  }
+  return `No JamBase ${entityLabel} match for “${query}”. Check spelling or try the exact billing name.`;
+}
+
 export async function getEventsByArtistName(c: Context) {
   const raw = (c.req.query('artistName') || '').trim();
   if (!raw) {
@@ -606,20 +682,31 @@ export async function getEventsByArtistName(c: Context) {
   }
 
   const key = c.env.JAMBASE_API_KEY;
-  if (!key?.trim()) {
-    return c.json({ events: [], artist: null });
-  }
 
   try {
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const perPage = c.req.query('perPage') || '32';
     const page = c.req.query('page') || '1';
-    const { events, artist } = await fetchJamBaseEventsByArtistName(key, jbQ, raw, perPage, page);
+    const diag: JamBaseFetchDiag = {};
+    const { events, artist } = await fetchJamBaseEventsByArtistName(
+      key?.trim() ?? '',
+      jbQ,
+      raw,
+      perPage,
+      page,
+      diag,
+    );
+
+    const notice =
+      events.length === 0
+        ? jamBaseEntityEventsNotice(key, diag, artist, 'artist', raw)
+        : null;
 
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
       events,
       artist,
+      ...(notice ? { notice } : {}),
     });
   } catch (error) {
     console.error('JamBase events by artist name error:', error);
@@ -634,20 +721,31 @@ export async function getEventsByVenueName(c: Context) {
   }
 
   const key = c.env.JAMBASE_API_KEY;
-  if (!key?.trim()) {
-    return c.json({ events: [], venue: null });
-  }
 
   try {
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const perPage = c.req.query('perPage') || '32';
     const page = c.req.query('page') || '1';
-    const { events, venue } = await fetchJamBaseEventsByVenueName(key, jbQ, raw, perPage, page);
+    const diag: JamBaseFetchDiag = {};
+    const { events, venue } = await fetchJamBaseEventsByVenueName(
+      key?.trim() ?? '',
+      jbQ,
+      raw,
+      perPage,
+      page,
+      diag,
+    );
+
+    const notice =
+      events.length === 0
+        ? jamBaseEntityEventsNotice(key, diag, venue, 'venue', raw)
+        : null;
 
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
       events,
       venue,
+      ...(notice ? { notice } : {}),
     });
   } catch (error) {
     console.error('JamBase events by venue name error:', error);

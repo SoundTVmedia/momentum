@@ -69,8 +69,13 @@ function SearchDropdownPanel({
         </div>
       )}
       {!loading && !revalidating && results && !hasHits && (
-        <div className="p-4 text-center text-gray-400 text-sm">
-          No matches yet — press Enter for full Discover search
+        <div className="p-4 text-center text-gray-400 text-sm space-y-2">
+          {results.jambaseNotice?.trim() ? (
+            <p className="text-momentum-glacier/90 text-xs leading-relaxed max-w-sm mx-auto">
+              {results.jambaseNotice.trim()}
+            </p>
+          ) : null}
+          <p>No matches yet — press Enter for full Discover search</p>
         </div>
       )}
       {showResults && hasHits && results && (

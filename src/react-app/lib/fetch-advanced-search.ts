@@ -25,8 +25,14 @@ export async function fetchAdvancedSearch(
     params.set('radius_miles', String(Math.trunc(opts.radiusMiles)));
   }
 
+  const timeoutSignal = AbortSignal.timeout(22_000);
+  const signal =
+    opts.signal != null
+      ? AbortSignal.any([opts.signal, timeoutSignal])
+      : timeoutSignal;
+
   const res = await fetch(`/api/search/advanced?${params}`, {
-    signal: opts.signal,
+    signal,
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Search failed');
