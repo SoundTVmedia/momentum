@@ -117,7 +117,13 @@ export default function ShowClipsPage() {
               <span className="text-gray-400">
                 {clips.length} moment{clips.length !== 1 ? 's' : ''}
               </span>
-              {markEvent ? <ShowMarkButtons event={markEvent} className="shrink-0" /> : null}
+              {markEvent ? (
+                <ShowMarkButtons
+                  event={markEvent}
+                  statusOverride="attended"
+                  className="shrink-0"
+                />
+              ) : null}
             </div>
 
             <select

@@ -98,7 +98,9 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                   <div className="mb-3 min-h-[1rem]" />
                 )}
                 <div className="mt-auto space-y-2">
-                  {markEvent ? <ShowMarkButtons event={markEvent} /> : null}
+                  {markEvent ? (
+                    <ShowMarkButtons event={markEvent} statusOverride="attended" />
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => navigate(eventClipsPath(show.event_title))}

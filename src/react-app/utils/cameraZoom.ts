@@ -6,6 +6,22 @@ export type CameraZoomRange = {
 
 type ZoomCapableSettings = MediaTrackSettings & { zoom?: number };
 type ZoomCapableCapabilities = MediaTrackCapabilities & { zoom?: CameraZoomRange };
+type ZoomMediaTrackConstraints = MediaTrackConstraints & {
+  zoom?: number;
+  advanced?: Array<{ zoom?: number }>;
+};
+
+/** Minimal touch point for pinch distance (works with DOM and React touch types). */
+export type TouchPoint = {
+  clientX: number;
+  clientY: number;
+};
+
+/** DOM and React touch lists both implement `item()` without a shared iterator type. */
+export type TouchPairList = {
+  readonly length: number;
+  item(index: number): TouchPoint | null;
+};
 
 export function readCameraZoomRange(
   track: MediaStreamTrack | null | undefined,
@@ -14,7 +30,7 @@ export function readCameraZoomRange(
     return null;
   }
 
-  const zoom = track.getCapabilities().zoom as CameraZoomRange | undefined;
+  const zoom = (track.getCapabilities() as ZoomCapableCapabilities).zoom;
   if (!zoom || typeof zoom.min !== 'number' || typeof zoom.max !== 'number') return null;
   if (zoom.max <= zoom.min + 0.01) return null;
 
@@ -73,8 +89,8 @@ export async function applyCameraZoom(
   range: CameraZoomRange,
 ): Promise<boolean> {
   const value = clampCameraZoom(zoom, range);
-  const withAdvanced = { advanced: [{ zoom: value }] } as MediaTrackConstraints;
-  const withDirect = { zoom: value } as MediaTrackConstraints;
+  const withAdvanced: ZoomMediaTrackConstraints = { advanced: [{ zoom: value }] };
+  const withDirect: ZoomMediaTrackConstraints = { zoom: value };
 
   try {
     await track.applyConstraints(withAdvanced);
@@ -101,10 +117,13 @@ export function formatCameraZoomLabel(zoom: number, active: boolean): string {
   return active ? `${text}×` : text;
 }
 
-export function touchPairDistance(touches: TouchList): number {
+export function touchPairDistance(touches: TouchPairList): number {
   if (touches.length < 2) return 0;
-  const dx = touches[0].clientX - touches[1].clientX;
-  const dy = touches[0].clientY - touches[1].clientY;
+  const t0 = touches.item(0);
+  const t1 = touches.item(1);
+  if (!t0 || !t1) return 0;
+  const dx = t0.clientX - t1.clientX;
+  const dy = t0.clientY - t1.clientY;
   return Math.hypot(dx, dy);
 }
 

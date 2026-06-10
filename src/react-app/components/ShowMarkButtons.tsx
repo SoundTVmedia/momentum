@@ -12,6 +12,8 @@ type ShowMarkButtonsProps = {
   event: Record<string, unknown>;
   className?: string;
   compact?: boolean;
+  /** Past-show cards always use Went instead of inferring from event date. */
+  statusOverride?: ShowMarkStatus;
 };
 
 const STATUS_LABEL: Record<ShowMarkStatus, string> = {
@@ -23,13 +25,14 @@ export default function ShowMarkButtons({
   event,
   className = '',
   compact = false,
+  statusOverride,
 }: ShowMarkButtonsProps) {
   const { user } = useAuth();
   const { getMarkForEvent, toggleMark, removeMark, hydrated } = useShowMarks();
   const [pending, setPending] = useState(false);
 
   const eventId = typeof event.identifier === 'string' ? event.identifier : null;
-  const allowedStatus = allowedShowMarkStatusForEvent(event);
+  const allowedStatus = statusOverride ?? allowedShowMarkStatusForEvent(event);
   const current = eventId ? getMarkForEvent(eventId) : null;
   const active = current?.status === allowedStatus;
 
