@@ -144,11 +144,6 @@ function venueNameFromEvent(ev: Record<string, unknown>): string | null {
   return typeof loc?.name === 'string' ? loc.name : null;
 }
 
-function venueIdentifier(ev: Record<string, unknown>): string | null {
-  const loc = ev.location as Record<string, unknown> | undefined;
-  return typeof loc?.identifier === 'string' ? loc.identifier : null;
-}
-
 async function nominatimReverse(
   lat: number,
   lon: number

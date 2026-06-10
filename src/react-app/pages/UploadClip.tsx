@@ -1028,7 +1028,7 @@ export default function UploadClip() {
     const derived = classifyContentFeed({
       acrMatch,
       headlinerName: formData.artist_name?.trim() || null,
-      has_speech: classifyResult.has_speech,
+      hasSpeech: classifyResult.has_speech,
     });
 
     const feedChanged = derived.content_feed !== classifyResult.content_feed;
