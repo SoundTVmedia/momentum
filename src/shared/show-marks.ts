@@ -1,6 +1,7 @@
 import type { ClipShowCandidate } from './types';
 import { jamBaseEventMatchesCapture } from './jambase-event-day';
 import { isJamBaseEventOnOrAfterToday } from './jambase-events';
+import { computeShowId } from './show-id';
 
 export type ShowMarkStatus = 'going' | 'attended';
 
@@ -49,6 +50,66 @@ function headlinerFromJamBaseEvent(ev: Record<string, unknown>): Record<string, 
   );
   const pick = head ?? perf[0];
   return typeof pick === 'object' && pick !== null ? (pick as Record<string, unknown>) : null;
+}
+
+export type PastShowMarkSource = {
+  event_title: string;
+  artist_name: string;
+  show_date: string;
+  venue_name?: string | null;
+  venue_location?: string | null;
+  jambase_event_id?: string | null;
+  jambase_venue_id?: string | null;
+  jambase_artist_id?: string | null;
+};
+
+/** Build a JamBase-shaped event from a past-show card or clip row (for Went button). */
+export function pastShowSummaryToJamBaseEvent(
+  show: PastShowMarkSource,
+): Record<string, unknown> | null {
+  const eventId =
+    (typeof show.jambase_event_id === 'string' ? show.jambase_event_id.trim() : '') ||
+    computeShowId({
+      jambase_event_id: show.jambase_event_id,
+      artist_name: show.artist_name,
+      venue_name: show.venue_name,
+      timestamp: show.show_date,
+    });
+  if (!eventId) return null;
+
+  const artistName = show.artist_name?.trim();
+  const performers = artistName
+    ? [
+        {
+          name: artistName,
+          identifier: show.jambase_artist_id?.trim() || undefined,
+          'x-isHeadliner': true,
+        },
+      ]
+    : [];
+
+  const locality = show.venue_location?.split(',')[0]?.trim();
+  const regionPart = show.venue_location?.includes(',')
+    ? show.venue_location.split(',')[1]?.trim()
+    : null;
+
+  return {
+    identifier: eventId,
+    name: show.event_title?.trim() || 'Show',
+    startDate: show.show_date,
+    performer: performers,
+    location: {
+      name: show.venue_name?.trim() || undefined,
+      identifier: show.jambase_venue_id?.trim() || undefined,
+      address:
+        locality || regionPart
+          ? {
+              addressLocality: locality ?? undefined,
+              addressRegion: regionPart ? { alternateName: regionPart } : undefined,
+            }
+          : undefined,
+    },
+  };
 }
 
 /** Build a show-mark payload from a JamBase event JSON object. */
@@ -151,6 +212,41 @@ export function mergeJamBaseEventWithShowMark(
       mark.start_date ||
       undefined,
   };
+}
+
+/** Map enriched JamBase events to marks (API returns both arrays in the same order). */
+export function enrichedEventsByMarkId(
+  marks: UserShowMark[],
+  enriched: Record<string, unknown>[] | undefined,
+): Map<string, Record<string, unknown>> {
+  const map = new Map<string, Record<string, unknown>>();
+  if (!Array.isArray(enriched)) return map;
+
+  const len = Math.min(marks.length, enriched.length);
+  for (let i = 0; i < len; i++) {
+    map.set(marks[i].jambase_event_id, enriched[i]);
+  }
+
+  for (const ev of enriched) {
+    const id = typeof ev.identifier === 'string' ? ev.identifier.trim() : '';
+    if (id && !map.has(id)) map.set(id, ev);
+  }
+
+  return map;
+}
+
+/** Upcoming going marks as JamBase-shaped carousel events (with images when enriched). */
+export function upcomingGoingMarkEvents(
+  marks: UserShowMark[],
+  enriched: Record<string, unknown>[] | undefined,
+): Record<string, unknown>[] {
+  const byId = enrichedEventsByMarkId(marks, enriched);
+  return marks
+    .filter((m) => isUpcomingShowMark(m))
+    .map(
+      (mark) =>
+        byId.get(mark.jambase_event_id) ?? mergeJamBaseEventWithShowMark(mark, null),
+    );
 }
 
 /** JamBase event is today or later (no startDate → treat as upcoming). */

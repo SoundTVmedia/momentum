@@ -128,7 +128,11 @@ async function enrichMarksWithJamBaseEvents(
   const slice = marks.slice(0, cap);
   const events = await Promise.all(
     slice.map(async (mark) => {
-      const jb = await fetchJamBaseEventById(key, jbQ, mark.jambase_event_id);
+      const eventId = mark.jambase_event_id.trim();
+      const jb =
+        eventId.startsWith('jambase:')
+          ? await fetchJamBaseEventById(key, jbQ, eventId)
+          : null;
       return mergeJamBaseEventWithShowMark(mark, jb);
     }),
   );

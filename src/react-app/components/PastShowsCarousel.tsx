@@ -9,12 +9,18 @@ import {
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
 import { eventClipsPath } from '@/shared/app-paths';
+import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
+import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 
 export interface PastShowSummary {
   event_title: string;
   artist_name: string;
   show_date: string;
   venue_name?: string | null;
+  venue_location?: string | null;
+  jambase_event_id?: string | null;
+  jambase_venue_id?: string | null;
+  jambase_artist_id?: string | null;
   clip_count: number;
   average_show_rating?: number;
   thumbnail_url: string | null;
@@ -49,6 +55,7 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
           variant === 'artist'
             ? show.venue_name?.trim() || null
             : show.artist_name?.trim() || null;
+        const markEvent = pastShowSummaryToJamBaseEvent(show);
 
         return (
           <HorizontalClipCarouselItem key={show.event_title} mobilePeek="event">
@@ -90,13 +97,16 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                 ) : (
                   <div className="mb-3 min-h-[1rem]" />
                 )}
-                <button
-                  type="button"
-                  onClick={() => navigate(eventClipsPath(show.event_title))}
-                  className="mt-auto w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-momentum-flare to-momentum-rose text-white text-sm font-semibold hover:scale-[1.02] transition-transform"
-                >
-                  View Show Clips
-                </button>
+                <div className="mt-auto space-y-2">
+                  {markEvent ? <ShowMarkButtons event={markEvent} /> : null}
+                  <button
+                    type="button"
+                    onClick={() => navigate(eventClipsPath(show.event_title))}
+                    className="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-momentum-flare to-momentum-rose text-white text-sm font-semibold hover:scale-[1.02] transition-transform"
+                  >
+                    View Show Clips
+                  </button>
+                </div>
               </div>
             </article>
           </HorizontalClipCarouselItem>

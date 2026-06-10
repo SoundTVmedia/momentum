@@ -4,8 +4,10 @@ import {
   isPastJamBaseEvent,
   isUpcomingJamBaseEvent,
   isUpcomingShowMark,
+  pastShowSummaryToJamBaseEvent,
   pickGoingShowMarkForCapture,
   showMarkToJamBaseEvent,
+  upcomingGoingMarkEvents,
   type UserShowMark,
 } from './show-marks';
 
@@ -26,6 +28,62 @@ function mark(overrides: Partial<UserShowMark>): UserShowMark {
     ...overrides,
   };
 }
+
+describe('pastShowSummaryToJamBaseEvent', () => {
+  it('prefers jambase_event_id from clip data', () => {
+    const ev = pastShowSummaryToJamBaseEvent({
+      event_title: 'Phish at MSG',
+      artist_name: 'Phish',
+      show_date: '2025-04-20T01:00:00.000Z',
+      venue_name: 'Madison Square Garden',
+      jambase_event_id: 'jambase:999',
+    });
+    expect(ev?.identifier).toBe('jambase:999');
+    expect(ev?.name).toBe('Phish at MSG');
+    expect(allowedShowMarkStatusForEvent(ev!, new Date('2026-06-10T12:00:00'))).toBe(
+      'attended',
+    );
+  });
+
+  it('falls back to composite show id when jambase id is missing', () => {
+    const ev = pastShowSummaryToJamBaseEvent({
+      event_title: 'Taylor Swift at MSG',
+      artist_name: 'Taylor Swift',
+      show_date: '2025-04-20T01:00:00.000Z',
+      venue_name: 'Madison Square Garden',
+    });
+    expect(ev?.identifier).toBe('taylor-swift-madison-square-garden-2025-04-20');
+  });
+});
+
+describe('upcomingGoingMarkEvents', () => {
+  const now = new Date('2026-06-10T12:00:00');
+
+  it('pairs enriched events with marks by id, not filtered index', () => {
+    const pastGoing = mark({
+      jambase_event_id: 'jambase:past',
+      start_date: '2026-06-01T20:00:00',
+    });
+    const futureGoing = mark({
+      jambase_event_id: 'jambase:future',
+      start_date: '2026-06-20T20:00:00',
+    });
+    const enriched = [
+      { identifier: 'jambase:past', name: 'Past Night', image: 'https://example.com/past.jpg' },
+      {
+        identifier: 'jambase:future',
+        name: 'Future Night',
+        image: 'https://example.com/future.jpg',
+      },
+    ];
+
+    const events = upcomingGoingMarkEvents([pastGoing, futureGoing], enriched);
+    expect(events).toHaveLength(1);
+    expect(events[0].identifier).toBe('jambase:future');
+    expect(events[0].image).toBe('https://example.com/future.jpg');
+    expect(isUpcomingShowMark(futureGoing, now.getTime())).toBe(true);
+  });
+});
 
 describe('showMarkToJamBaseEvent', () => {
   it('builds a grid-compatible event object', () => {

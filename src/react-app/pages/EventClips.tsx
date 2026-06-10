@@ -6,6 +6,8 @@ import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiEventClipsPath, artistPath, venuePath } from '@/shared/app-paths';
+import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
+import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 
 function decodeEventTitleParam(param: string | undefined): string {
   if (!param) return '';
@@ -73,6 +75,19 @@ export default function EventClipsPage() {
   const venueName = clips.length > 0 ? clips[0].venue_name : '';
   const location = clips.length > 0 ? clips[0].location : '';
   const artistName = clips.length > 0 ? clips[0].artist_name : null;
+  const markEvent =
+    clips.length > 0
+      ? pastShowSummaryToJamBaseEvent({
+          event_title: eventTitle || clips[0].event_title || '',
+          artist_name: clips[0].artist_name?.trim() || '',
+          show_date: clips[0].timestamp ?? '',
+          venue_name: clips[0].venue_name,
+          venue_location: clips[0].location,
+          jambase_event_id: clips[0].jambase_event_id,
+          jambase_venue_id: clips[0].jambase_venue_id,
+          jambase_artist_id: clips[0].jambase_artist_id,
+        })
+      : null;
 
   return (
     <div className="min-h-screen text-white">
@@ -113,10 +128,13 @@ export default function EventClipsPage() {
             )}
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-gray-400 text-sm">
-              {clips.length} moment{clips.length !== 1 ? 's' : ''}
-            </span>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-gray-400 text-sm">
+                {clips.length} moment{clips.length !== 1 ? 's' : ''}
+              </span>
+              {markEvent ? <ShowMarkButtons event={markEvent} className="shrink-0" /> : null}
+            </div>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'time_posted' | 'most_liked')}

@@ -6,6 +6,8 @@ import ClipModal from '@/react-app/components/ClipModal';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiShowClipsPath, artistPath, venuePath } from '@/shared/app-paths';
+import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
+import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { searchPhraseFromSlug, normalizedSlugFromRouteParam, titleCaseWords } from '@/shared/jambase-slug';
 
 export default function ShowClipsPage() {
@@ -52,6 +54,23 @@ export default function ShowClipsPage() {
 
   const venueName = clips.length > 0 ? clips[0].venue_name : '';
   const location = clips.length > 0 ? clips[0].location : '';
+  const markEvent =
+    clips.length > 0
+      ? pastShowSummaryToJamBaseEvent({
+          event_title:
+            clips[0].event_title?.trim() ||
+            [clips[0].artist_name, clips[0].venue_name].filter(Boolean).join(' at ') ||
+            artistLabel ||
+            'Show',
+          artist_name: clips[0].artist_name?.trim() || artistLabel || '',
+          show_date: clips[0].timestamp ?? '',
+          venue_name: clips[0].venue_name,
+          venue_location: clips[0].location,
+          jambase_event_id: clips[0].jambase_event_id ?? showId,
+          jambase_venue_id: clips[0].jambase_venue_id,
+          jambase_artist_id: clips[0].jambase_artist_id,
+        })
+      : null;
 
   return (
     <div className="min-h-screen text-white">
@@ -93,11 +112,12 @@ export default function ShowClipsPage() {
             )}
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-6 text-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="text-gray-400">
                 {clips.length} moment{clips.length !== 1 ? 's' : ''}
               </span>
+              {markEvent ? <ShowMarkButtons event={markEvent} className="shrink-0" /> : null}
             </div>
 
             <select

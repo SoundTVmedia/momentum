@@ -3367,6 +3367,10 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
         clips.artist_name,
         MIN(clips.timestamp) as show_date,
         clips.venue_name,
+        MAX(clips.location) as venue_location,
+        MAX(CASE WHEN clips.jambase_event_id IS NOT NULL AND TRIM(clips.jambase_event_id) != '' THEN clips.jambase_event_id END) as jambase_event_id,
+        MAX(CASE WHEN clips.jambase_venue_id IS NOT NULL AND TRIM(clips.jambase_venue_id) != '' THEN clips.jambase_venue_id END) as jambase_venue_id,
+        MAX(CASE WHEN clips.jambase_artist_id IS NOT NULL AND TRIM(clips.jambase_artist_id) != '' THEN clips.jambase_artist_id END) as jambase_artist_id,
         COUNT(DISTINCT clips.id) as clip_count,
         AVG(clips.average_rating) as average_show_rating,
         MAX(clips.thumbnail_url) as thumbnail_url

@@ -7,12 +7,7 @@ import SectionHeading from '@/react-app/components/SectionHeading';
 import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
-import {
-  isUpcomingShowMark,
-  mergeJamBaseEventWithShowMark,
-  showMarkToJamBaseEvent,
-  type UserShowMark,
-} from '@/shared/show-marks';
+import { upcomingGoingMarkEvents, type UserShowMark } from '@/shared/show-marks';
 
 type MyGoingShowsSectionProps = {
   /** Home feed vs own profile shell */
@@ -50,19 +45,8 @@ export default function MyGoingShowsSection({
         events?: Record<string, unknown>[];
       };
       const marks = Array.isArray(data.marks) ? data.marks : [];
-      const upcoming = marks.filter((m) => isUpcomingShowMark(m));
-      const enriched = Array.isArray(data.events) ? data.events : [];
-      const byId = new Map(
-        upcoming.map((mark, i) => [
-          mark.jambase_event_id,
-          enriched[i] ?? mergeJamBaseEventWithShowMark(mark, null),
-        ]),
-      );
-      setEvents(
-        upcoming.map(
-          (mark) => byId.get(mark.jambase_event_id) ?? showMarkToJamBaseEvent(mark),
-        ),
-      );
+      const enriched = Array.isArray(data.events) ? data.events : undefined;
+      setEvents(upcomingGoingMarkEvents(marks, enriched));
     } catch (e) {
       console.error('MyGoingShowsSection load failed', e);
       setEvents([]);
