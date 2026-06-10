@@ -7,6 +7,7 @@ import type { FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
+import GoingShowsFeedSection from '@/react-app/components/GoingShowsFeedSection'
 import SectionHeading from '@/react-app/components/SectionHeading'
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths'
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
@@ -56,6 +57,8 @@ export default function MainFeedStack({
           )}
         </div>
       )}
+
+      {user ? <GoingShowsFeedSection /> : null}
 
       {user ? (
         <FavoriteArtistFeedPanel

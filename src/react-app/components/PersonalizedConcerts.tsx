@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
+import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
 import { Calendar, MapPin, Loader2, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -55,6 +56,10 @@ type ConcertsApi = {
   source?: 'jambase' | 'd1';
   message?: string;
   location?: { label?: string; source?: string };
+  recommendation_sources?: {
+    favorite_artists?: number;
+    attended_artists?: number;
+  };
 };
 
 function D1ConcertCard({ concert }: { concert: D1Concert }) {
@@ -257,7 +262,11 @@ export default function PersonalizedConcerts({
       })();
     };
     window.addEventListener('favorite-artists-changed', refresh);
-    return () => window.removeEventListener('favorite-artists-changed', refresh);
+    window.addEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener('favorite-artists-changed', refresh);
+      window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
+    };
   }, [isLoggedIn, resolvedMode]);
 
   const locationLabel =
@@ -279,11 +288,16 @@ export default function PersonalizedConcerts({
         ? 'Shows Near You'
         : 'Shows at Venues Near You';
 
+  const attendedHint =
+    (payload?.recommendation_sources?.attended_artists ?? 0) > 0
+      ? ' Includes artists from shows you have been to.'
+      : '';
+
   const sectionSubtitle =
     resolvedMode === 'favorite-artists'
       ? payload?.source === 'jambase'
-        ? 'Upcoming shows from JamBase for your favorite artists'
-        : 'Upcoming concerts from artists you love'
+        ? `Upcoming shows from JamBase for your favorite artists.${attendedHint}`
+        : `Upcoming concerts from artists you love.${attendedHint}`
       : locationLabel
         ? `Upcoming shows at venues near ${locationLabel}`
         : 'Upcoming shows at venues near you from JamBase';

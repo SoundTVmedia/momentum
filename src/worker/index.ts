@@ -376,6 +376,12 @@ app.post("/api/personalization/update", authMiddleware, personalization.updatePe
 app.get("/api/feed/personalized", authMiddleware, personalization.getPersonalizedFeed);
 app.get("/api/personalization/concerts", authMiddleware, personalization.getPersonalizedConcerts);
 app.get(
+  "/api/personalization/concerts/recommended",
+  authMiddleware,
+  personalization.getRecommendedConcertsFromAttended,
+);
+app.get("/api/shows/friends-going", authMiddleware, showMarks.getFriendsGoingShows);
+app.get(
   "/api/youtube/favorite-artist-videos",
   authMiddleware,
   youtube.getFavoriteArtistYoutubeVideos,

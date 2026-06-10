@@ -18,6 +18,13 @@ export type UserShowMark = {
   updated_at: string;
 };
 
+export type FriendGoingPlan = {
+  mocha_user_id: string;
+  display_name: string | null;
+  profile_image_url: string | null;
+  mark: UserShowMark;
+};
+
 export type ShowMarkUpsertInput = {
   status: ShowMarkStatus;
   jambase_event_id: string;
@@ -83,6 +90,58 @@ export function jamBaseEventToShowMarkInput(
     venue_location: venueLocation,
     start_date: startDate,
   };
+}
+
+/** JamBase-shaped event for grids/carousels from a stored mark. */
+export function showMarkToJamBaseEvent(mark: UserShowMark): Record<string, unknown> {
+  const performers =
+    mark.artist_name?.trim()
+      ? [
+          {
+            name: mark.artist_name,
+            identifier: mark.jambase_artist_id ?? undefined,
+            'x-isHeadliner': true,
+          },
+        ]
+      : [];
+
+  const locality = mark.venue_location?.split(',')[0]?.trim();
+  const regionPart = mark.venue_location?.includes(',')
+    ? mark.venue_location.split(',')[1]?.trim()
+    : null;
+
+  return {
+    identifier: mark.jambase_event_id,
+    name:
+      mark.event_title?.trim() ||
+      [mark.artist_name, mark.venue_name].filter(Boolean).join(' at ') ||
+      'Show',
+    startDate: mark.start_date ?? undefined,
+    performer: performers,
+    location: {
+      name: mark.venue_name ?? undefined,
+      identifier: mark.jambase_venue_id ?? undefined,
+      address:
+        locality || regionPart
+          ? {
+              addressLocality: locality ?? undefined,
+              addressRegion: regionPart ? { alternateName: regionPart } : undefined,
+            }
+          : undefined,
+    },
+  };
+}
+
+/** True for going marks tonight or in the future (includes in-progress shows). */
+export function isUpcomingShowMark(mark: UserShowMark, nowMs: number = Date.now()): boolean {
+  if (mark.status !== 'going') return false;
+  const sd = mark.start_date?.trim();
+  if (!sd) return true;
+  const ev = { startDate: sd, location: { name: mark.venue_name ?? '' } };
+  if (jamBaseEventMatchesCapture(ev, nowMs)) return true;
+  const eventMs = Date.parse(sd);
+  if (!Number.isFinite(eventMs)) return true;
+  return eventMs >= nowMs - 12 * 60 * 60 * 1000;
 }
 
 export function showMarkToClipCandidate(mark: UserShowMark): ClipShowCandidate {

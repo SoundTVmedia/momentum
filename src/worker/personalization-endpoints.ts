@@ -16,6 +16,10 @@ import {
   loadCanonicalFavoriteArtistNames,
 } from './favorite-artists-sync';
 import { mochaUserIdKey } from './mocha-user-id';
+import {
+  loadAttendedArtistNames,
+  loadGoingEventIds,
+} from './user-show-marks-endpoints';
 
 function normalizeFavoriteArtistNamesFromBody(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -584,19 +588,22 @@ export async function getPersonalizedConcerts(c: Context) {
     }
 
     const favoriteArtists = await loadCanonicalFavoriteArtistNames(c.env.DB, uid, 40);
+    const attendedArtists = await loadAttendedArtistNames(c.env.DB, uid, 25);
 
-    if (favoriteArtists.length === 0) {
+    const uniqueArtists = [
+      ...new Set(
+        [...favoriteArtists, ...attendedArtists].map((n) => normalizeArtistDisplayName(n)),
+      ),
+    ].filter(Boolean);
+
+    if (uniqueArtists.length === 0) {
       return c.json({
         concerts: [],
         events: [],
         personalized: true,
-        message: 'No favorite artists set',
+        message: 'No favorite artists or show history yet',
       });
     }
-
-    const uniqueArtists = [...new Set(favoriteArtists.map((n) => normalizeArtistDisplayName(n)))].filter(
-      Boolean,
-    );
     const key = c.env.JAMBASE_API_KEY;
 
     if (!jamBaseApiKeyConfigured(key)) {
@@ -655,6 +662,10 @@ export async function getPersonalizedConcerts(c: Context) {
           personalized: true,
           source: 'jambase' as const,
           radius_meta: radiusMeta,
+          recommendation_sources: {
+            favorite_artists: favoriteArtists.length,
+            attended_artists: attendedArtists.length,
+          },
         });
       }
 
@@ -700,10 +711,105 @@ export async function getPersonalizedConcerts(c: Context) {
       events: [],
       personalized: true,
       source: 'd1' as const,
+      recommendation_sources: {
+        favorite_artists: favoriteArtists.length,
+        attended_artists: attendedArtists.length,
+      },
     });
   } catch (error) {
     console.error('Get personalized concerts error:', error);
     return c.json({ error: 'Failed to get personalized concerts' }, 500);
+  }
+}
+
+/**
+ * Upcoming JamBase shows from artists you've marked as attended (excluding shows you already marked going).
+ */
+export async function getRecommendedConcertsFromAttended(c: Context) {
+  const mochaUser = c.get('user');
+  if (!mochaUser) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const uid = mochaUserIdKey(mochaUser);
+  const limit = Math.min(parseInt(c.req.query('limit') || '12', 10), 30);
+
+  try {
+    const profile = await c.env.DB.prepare(
+      `SELECT personalization_enabled FROM user_profiles WHERE mocha_user_id = ?`,
+    )
+      .bind(uid)
+      .first();
+
+    if (!profile || Number((profile as { personalization_enabled?: number }).personalization_enabled) === 0) {
+      return c.json({ events: [], personalized: false });
+    }
+
+    const attendedArtists = await loadAttendedArtistNames(c.env.DB, uid, 20);
+    if (attendedArtists.length === 0) {
+      return c.json({
+        events: [],
+        personalized: true,
+        message: 'Mark shows you have been to — we will suggest similar upcoming dates.',
+      });
+    }
+
+    const key = c.env.JAMBASE_API_KEY;
+    if (!jamBaseApiKeyConfigured(key)) {
+      return c.json({
+        events: [],
+        personalized: true,
+        message: jamBaseMissingKeyNotice(),
+      });
+    }
+
+    const goingIds = await loadGoingEventIds(c.env.DB, uid);
+    const jbQ = jamBaseQuotaFromEnv(c.env);
+    const eventsByArtist = new Map<string, Record<string, unknown>[]>();
+
+    await Promise.all(
+      attendedArtists.slice(0, 12).map(async (artistName) => {
+        const keyName = normalizeArtistDisplayName(artistName);
+        try {
+          const { events } = await fetchJamBaseEventsByArtistName(
+            key,
+            jbQ,
+            artistName,
+            '8',
+            '1',
+          );
+          eventsByArtist.set(keyName, events);
+        } catch (e) {
+          console.error('Attended recommendation JamBase fetch failed for', artistName, e);
+          eventsByArtist.set(keyName, []);
+        }
+      }),
+    );
+
+    const merged: Record<string, unknown>[] = [];
+    const seenEvents = new Set<string>();
+    for (const artistName of attendedArtists) {
+      const keyName = normalizeArtistDisplayName(artistName);
+      for (const ev of eventsByArtist.get(keyName) ?? []) {
+        const id = typeof ev.identifier === 'string' ? ev.identifier : '';
+        if (!id || goingIds.has(id) || seenEvents.has(id)) continue;
+        seenEvents.add(id);
+        merged.push(ev);
+      }
+      if (merged.length >= limit) break;
+    }
+
+    const slice = dedupeJamBaseEvents(merged).slice(0, limit);
+
+    return c.json({
+      events: slice,
+      personalized: true,
+      source: 'jambase' as const,
+      attended_artist_count: attendedArtists.length,
+    });
+  } catch (error) {
+    console.error('Get recommended concerts from attended error:', error);
+    return c.json({ error: 'Failed to get recommendations' }, 500);
   }
 }
 

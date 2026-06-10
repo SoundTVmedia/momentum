@@ -1,6 +1,62 @@
 import type { Context } from 'hono';
-import { mochaUserIdKey } from './favorite-artists-sync';
+import { mochaUserIdKey, normalizeArtistDisplayName } from './favorite-artists-sync';
+import { isUserFollowTargetId } from './follow-endpoints';
 import type { ShowMarkStatus, ShowMarkUpsertInput, UserShowMark } from '../shared/show-marks';
+
+/** Going marks that are tonight or later (SQLite date compare on YYYY-MM-DD prefix). */
+export const UPCOMING_SHOW_MARK_SQL = `(
+  start_date IS NULL OR start_date = ''
+  OR substr(start_date, 1, 10) >= date('now', '-1 day')
+)`;
+
+export async function loadAttendedArtistNames(
+  db: D1Database,
+  mochaUserId: string,
+  limit = 30,
+): Promise<string[]> {
+  const rows = await db
+    .prepare(
+      `SELECT artist_name, COUNT(*) AS c
+       FROM user_show_marks
+       WHERE mocha_user_id = ? AND status = 'attended' AND artist_name IS NOT NULL AND trim(artist_name) != ''
+       GROUP BY lower(trim(artist_name))
+       ORDER BY c DESC, MAX(updated_at) DESC
+       LIMIT ?`,
+    )
+    .bind(mochaUserId, limit)
+    .all();
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows.results ?? []) {
+    const name = normalizeArtistDisplayName(
+      String((row as { artist_name?: unknown }).artist_name ?? ''),
+    );
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+export async function loadGoingEventIds(db: D1Database, mochaUserId: string): Promise<Set<string>> {
+  const rows = await db
+    .prepare(
+      `SELECT jambase_event_id FROM user_show_marks
+       WHERE mocha_user_id = ? AND status = 'going' AND ${UPCOMING_SHOW_MARK_SQL}`,
+    )
+    .bind(mochaUserId)
+    .all();
+
+  const ids = new Set<string>();
+  for (const row of rows.results ?? []) {
+    const id = String((row as { jambase_event_id?: unknown }).jambase_event_id ?? '').trim();
+    if (id) ids.add(id);
+  }
+  return ids;
+}
 
 function rowToMark(row: Record<string, unknown>): UserShowMark {
   return {
@@ -145,6 +201,70 @@ export async function upsertMyShowMark(c: Context) {
   } catch (e) {
     console.error('upsertMyShowMark', e);
     return c.json({ error: 'Failed to save show mark' }, 500);
+  }
+}
+
+/** GET /api/shows/friends-going — going marks from people you follow */
+export async function getFriendsGoingShows(c: Context) {
+  const mochaUser = c.get('user');
+  if (!mochaUser) return c.json({ error: 'Unauthorized' }, 401);
+
+  const uid = mochaUserIdKey(mochaUser);
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '40', 10), 1), 80);
+
+  try {
+    const rows = await c.env.DB.prepare(
+      `SELECT
+         m.*,
+         up.display_name,
+         up.profile_image_url
+       FROM follows f
+       INNER JOIN user_show_marks m
+         ON m.mocha_user_id = f.following_id AND m.status = 'going'
+       LEFT JOIN user_profiles up ON up.mocha_user_id = f.following_id
+       WHERE f.follower_id = ?
+         AND ${UPCOMING_SHOW_MARK_SQL}
+       ORDER BY
+         CASE WHEN m.start_date IS NULL OR m.start_date = '' THEN 1 ELSE 0 END,
+         m.start_date ASC
+       LIMIT ?`,
+    )
+      .bind(uid, limit)
+      .all();
+
+    type FriendGroup = {
+      mocha_user_id: string;
+      display_name: string | null;
+      profile_image_url: string | null;
+      marks: UserShowMark[];
+    };
+
+    const byUser = new Map<string, FriendGroup>();
+    for (const raw of rows.results ?? []) {
+      const row = raw as Record<string, unknown>;
+      const friendId = String(row.mocha_user_id ?? '').trim();
+      if (!friendId || !isUserFollowTargetId(friendId)) continue;
+
+      const mark = rowToMark(row);
+      let group = byUser.get(friendId);
+      if (!group) {
+        group = {
+          mocha_user_id: friendId,
+          display_name:
+            typeof row.display_name === 'string' ? row.display_name : null,
+          profile_image_url:
+            typeof row.profile_image_url === 'string' ? row.profile_image_url : null,
+          marks: [],
+        };
+        byUser.set(friendId, group);
+      }
+      group.marks.push(mark);
+    }
+
+    return c.json({ friends: [...byUser.values()] });
+  } catch (e) {
+    console.error('getFriendsGoingShows', e);
+    return c.json({ error: 'Failed to load friends show plans' }, 500);
   }
 }
 

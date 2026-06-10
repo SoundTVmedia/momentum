@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { pickGoingShowMarkForCapture, type UserShowMark } from './show-marks';
+import {
+  isUpcomingShowMark,
+  pickGoingShowMarkForCapture,
+  showMarkToJamBaseEvent,
+  type UserShowMark,
+} from './show-marks';
 
 function mark(overrides: Partial<UserShowMark>): UserShowMark {
   return {
@@ -18,6 +23,28 @@ function mark(overrides: Partial<UserShowMark>): UserShowMark {
     ...overrides,
   };
 }
+
+describe('showMarkToJamBaseEvent', () => {
+  it('builds a grid-compatible event object', () => {
+    const ev = showMarkToJamBaseEvent(
+      mark({ event_title: 'Night One', artist_name: 'Artist', venue_name: 'Venue' }),
+    );
+    expect(ev.identifier).toBe('jambase:ev1');
+    expect(ev.name).toBe('Night One');
+    expect(Array.isArray(ev.performer)).toBe(true);
+  });
+});
+
+describe('isUpcomingShowMark', () => {
+  it('includes future going marks', () => {
+    const future = mark({ start_date: '2099-06-09T20:00:00' });
+    expect(isUpcomingShowMark(future)).toBe(true);
+  });
+
+  it('excludes attended marks', () => {
+    expect(isUpcomingShowMark(mark({ status: 'attended' }))).toBe(false);
+  });
+});
 
 describe('pickGoingShowMarkForCapture', () => {
   it('prefers a going mark on the capture night', () => {
