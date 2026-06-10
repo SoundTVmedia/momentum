@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import Header from '@/react-app/components/Header';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import type { UserShowMark } from '@/shared/show-marks';
-import { artistPath, venuePath } from '@/shared/app-paths';
+import { artistPath, showMarkClipsPath, venuePath } from '@/shared/app-paths';
 
 type Tab = 'going' | 'attended';
 
@@ -20,20 +20,30 @@ function formatShowDate(iso: string | null): string {
   });
 }
 
-function ShowMarkRow({ mark }: { mark: UserShowMark }) {
+function ShowMarkRow({
+  mark,
+  linkToClips,
+}: {
+  mark: UserShowMark;
+  linkToClips?: boolean;
+}) {
   const navigate = useNavigate();
   const title =
     mark.event_title?.trim() ||
     [mark.artist_name, mark.venue_name].filter(Boolean).join(' at ') ||
     'Show';
+  const clipsPath = linkToClips ? showMarkClipsPath(mark) : null;
 
-  return (
-    <div className="glass-panel rounded-xl border border-white/10 p-4 sm:p-5 space-y-2">
+  const content = (
+    <>
       <h2 className="text-lg font-bold text-white leading-snug">{title}</h2>
       {mark.artist_name ? (
         <button
           type="button"
-          onClick={() => navigate(artistPath(mark.artist_name!))}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(artistPath(mark.artist_name!));
+          }}
           className="flex items-center gap-2 text-sm text-momentum-rose hover:text-momentum-rose/80"
         >
           <Music className="w-4 h-4 shrink-0" />
@@ -43,7 +53,10 @@ function ShowMarkRow({ mark }: { mark: UserShowMark }) {
       {mark.venue_name ? (
         <button
           type="button"
-          onClick={() => navigate(venuePath(mark.venue_name!))}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(venuePath(mark.venue_name!));
+          }}
           className="flex items-center gap-2 text-sm text-gray-300 hover:text-white text-left"
         >
           <MapPin className="w-4 h-4 shrink-0 text-green-400" />
@@ -57,6 +70,24 @@ function ShowMarkRow({ mark }: { mark: UserShowMark }) {
         <Calendar className="w-4 h-4 shrink-0" />
         <span>{formatShowDate(mark.start_date)}</span>
       </div>
+    </>
+  );
+
+  if (clipsPath) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate(clipsPath)}
+        className="glass-panel w-full rounded-xl border border-white/10 p-4 sm:p-5 space-y-2 text-left transition-colors hover:border-momentum-flare/40 hover:bg-white/[0.03]"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="glass-panel rounded-xl border border-white/10 p-4 sm:p-5 space-y-2">
+      {content}
     </div>
   );
 }
@@ -137,7 +168,11 @@ export default function MyShowsPage() {
         ) : (
           <div className="space-y-4">
             {list.map((mark) => (
-              <ShowMarkRow key={mark.jambase_event_id} mark={mark} />
+              <ShowMarkRow
+                key={mark.jambase_event_id}
+                mark={mark}
+                linkToClips={tab === 'attended'}
+              />
             ))}
           </div>
         )}

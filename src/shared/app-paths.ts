@@ -1,4 +1,13 @@
 import { slugifyEntityName } from '@/shared/jambase-slug';
+import { computeShowId } from './show-id';
+
+export type ShowMarkClipsInput = {
+  event_title?: string | null;
+  artist_name?: string | null;
+  venue_name?: string | null;
+  start_date?: string | null;
+  jambase_event_id?: string | null;
+};
 
 export function artistPath(name: string | null | undefined): string {
   const slug = slugifyEntityName(name);
@@ -57,6 +66,25 @@ export function apiEventClipsPath(eventTitle: string | null | undefined): string
   const title = typeof eventTitle === 'string' ? eventTitle.trim() : '';
   if (!title) return '';
   return `/api/event-clips/${encodeURIComponent(title)}/clips`;
+}
+
+/** Route to the show clips page for a stored mark (event title preferred, else artist + show id). */
+export function showMarkClipsPath(mark: ShowMarkClipsInput): string | null {
+  const title = mark.event_title?.trim();
+  if (title) return eventClipsPath(title);
+
+  const artist = mark.artist_name?.trim();
+  const showId =
+    mark.jambase_event_id?.trim() ||
+    computeShowId({
+      jambase_event_id: mark.jambase_event_id,
+      artist_name: mark.artist_name,
+      venue_name: mark.venue_name,
+      timestamp: mark.start_date,
+    });
+  if (artist && showId) return showClipsPath(artist, showId);
+
+  return null;
 }
 
 export function songPath(
