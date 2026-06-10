@@ -29,16 +29,17 @@ export async function getJamBaseStatus(c: Context) {
   const configured = jamBaseApiKeyConfigured(key);
   let upstreamOk: boolean | null = null;
   let upstreamHint: string | null = null;
+  const diag: JamBaseFetchDiag = {};
 
   if (configured) {
-    const diag: JamBaseFetchDiag = {};
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const probe = await jamBaseFetch<{ artists?: unknown[] }>(
       key,
       '/artists',
-      { artistName: 'a', perPage: '1', page: '1' },
+      { artistName: 'taylor', perPage: '1', page: '1' },
       jbQ,
       diag,
+      { bypassEdgeCache: true },
     );
     upstreamOk = probe != null && !diag.failure;
     if (!upstreamOk) {
@@ -51,6 +52,9 @@ export async function getJamBaseStatus(c: Context) {
   return c.json({
     configured,
     upstreamOk,
+    upstreamHttpStatus: diag?.httpStatus ?? null,
+    upstreamFailure: diag?.failure ?? null,
+    upstreamDetail: diag?.httpDetail ?? null,
     upstreamHint,
     apiVersion: 3,
     baseUrl: 'https://api.data.jambase.com/v3',
@@ -90,7 +94,8 @@ export async function connectionTest(c: Context) {
       page: '1',
     },
     jbQ,
-    diag
+    diag,
+    { bypassEdgeCache: true },
   );
 
   const venueCount = Array.isArray(data?.venues) ? data.venues.length : 0;

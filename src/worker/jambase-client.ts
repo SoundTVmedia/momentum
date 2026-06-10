@@ -4,21 +4,11 @@ const JAMBASE_USER_AGENT = 'Feedback/1.0';
 /** All-time upstream counter (when `JAMBASE_QUOTA_WINDOW` is unset or `all`). */
 const JAMBASE_USAGE_BUCKET_ALLTIME = 'jam:upstream';
 
-/**
- * Edge cache TTLs (seconds). `cacheEverything` + identical URLs share hits across users and isolates.
- * Tune for fewer upstream calls vs fresher listings (important for monthly API caps).
- */
-const TTL_GEOGRAPHIES_SEC = 604_800; // 7d — city/metro lookups rarely change
-const TTL_GENRES_SEC = 604_800; // 7d
-const TTL_ENTITY_BY_ID_SEC = 21_600; // 6h — GET /v3/artists/{id}, /v3/venues/{id}
-const TTL_ARTISTS_SEARCH_SEC = 28_800; // 8h — name search lists (edge cache; reduces upstream)
-const TTL_VENUES_SEARCH_SEC = 28_800; // 8h — geo / city venue lists
-const TTL_EVENTS_SEARCH_SEC = 7_200; // 2h — event grids (fresher than artist/venue lists)
-const TTL_DEFAULT_SEC = 1_800; // 30m
-
 export type JamBaseJson = Record<string, unknown> & {
   success?: boolean;
   errors?: unknown[];
+  detail?: string;
+  title?: string;
 };
 
 /** Env slice used to build optional global JamBase quota (D1-backed). */
@@ -103,20 +93,6 @@ async function jamBaseRecordUpstream(quota: JamBaseQuotaContext): Promise<void> 
   }
 }
 
-/** Cloudflare edge cache TTL for identical JamBase URLs (reduces upstream / quota use). */
-function jamBaseCacheTtlSeconds(url: URL): number {
-  const p = url.pathname;
-  if (p.includes('/geographies')) return TTL_GEOGRAPHIES_SEC;
-  if (p.includes('/genres')) return TTL_GENRES_SEC;
-  // Single-entity by ID: longer cache (detail pages, tour lookups).
-  if (/^\/v3\/artists\/[^/]+$/.test(p)) return TTL_ENTITY_BY_ID_SEC;
-  if (/^\/v3\/venues\/[^/]+$/.test(p)) return TTL_ENTITY_BY_ID_SEC;
-  if (p.includes('/artists')) return TTL_ARTISTS_SEARCH_SEC;
-  if (p.includes('/venues')) return TTL_VENUES_SEARCH_SEC;
-  if (p.includes('/events')) return TTL_EVENTS_SEARCH_SEC;
-  return TTL_DEFAULT_SEC;
-}
-
 const inflight = new Map<string, Promise<JamBaseJson | null>>();
 
 const JAMBASE_429_MAX_ATTEMPTS = 3;
@@ -156,12 +132,53 @@ export type JamBaseFetchDiag = {
     | 'timeout'
     | 'unknown';
   httpStatus?: number;
+  /** JamBase RFC7807 `detail` or first error message when present. */
+  httpDetail?: string;
 };
+
+export type JamBaseFetchOptions = {
+  /** Skip Cloudflare subrequest cache (use for health probes after key rotation). */
+  bypassEdgeCache?: boolean;
+};
+
+/** Strip quotes / accidental `Bearer ` prefix from dashboard or .dev.vars pastes. */
+export function normalizeJamBaseApiKey(apiKey: string | undefined): string {
+  let k = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!k) return '';
+  if (k.toLowerCase().startsWith('bearer ')) {
+    k = k.slice(7).trim();
+  }
+  if (
+    (k.startsWith('"') && k.endsWith('"')) ||
+    (k.startsWith("'") && k.endsWith("'"))
+  ) {
+    k = k.slice(1, -1).trim();
+  }
+  return k;
+}
+
+function jamBaseProblemDetail(json: JamBaseJson, text: string): string | undefined {
+  const detail = json.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail.trim();
+  const title = json.title;
+  if (typeof title === 'string' && title.trim()) return title.trim();
+  const errors = json.errors;
+  if (Array.isArray(errors) && errors.length > 0) {
+    const first = errors[0];
+    if (typeof first === 'string' && first.trim()) return first.trim();
+    if (typeof first === 'object' && first !== null) {
+      const msg = (first as Record<string, unknown>).message;
+      if (typeof msg === 'string' && msg.trim()) return msg.trim();
+    }
+  }
+  if (text.length > 0 && text.length < 240) return text;
+  return undefined;
+}
 
 /**
  * JamBase Data API v3 fetch with:
- * - Edge cache (cf.cacheEverything) so repeat queries often skip JamBase
  * - In-flight deduplication for concurrent identical requests in the same isolate
+ * - No CF subrequest cache (auth header is not part of URL cache keys — caused stale errors)
  * - Optional D1-backed global cap on upstream calls (non-cache hits only)
  */
 export async function jamBaseFetch<T extends JamBaseJson>(
@@ -169,9 +186,10 @@ export async function jamBaseFetch<T extends JamBaseJson>(
   path: string,
   params: Record<string, string | undefined> = {},
   quota?: JamBaseQuotaContext | undefined,
-  diag?: JamBaseFetchDiag
+  diag?: JamBaseFetchDiag,
+  options?: JamBaseFetchOptions,
 ): Promise<T | null> {
-  const key = typeof apiKey === 'string' ? apiKey.trim() : '';
+  const key = normalizeJamBaseApiKey(apiKey);
   if (!key) {
     if (diag) diag.failure = 'missing_key';
     return null;
@@ -186,7 +204,7 @@ export async function jamBaseFetch<T extends JamBaseJson>(
   const existing = inflight.get(urlKey) as Promise<T | null> | undefined;
   if (existing) return existing;
 
-  const cacheTtl = jamBaseCacheTtlSeconds(url);
+  const bypassEdgeCache = options?.bypassEdgeCache === true;
 
   const promise = (async (): Promise<T | null> => {
     const startedAt = Date.now();
@@ -207,24 +225,25 @@ export async function jamBaseFetch<T extends JamBaseJson>(
         }
         try {
           const remaining = JAMBASE_FETCH_BUDGET_MS - elapsed;
-          res = await fetch(url.toString(), {
+          const fetchInit: RequestInit = {
             headers: {
               Authorization: `Bearer ${key}`,
               Accept: 'application/json',
               'User-Agent': JAMBASE_USER_AGENT,
             },
             signal: AbortSignal.timeout(Math.min(JAMBASE_FETCH_TIMEOUT_MS, remaining)),
-            cf: {
-              cacheEverything: true,
-              cacheTtl,
-              cacheTtlByStatus: {
-                '200-299': cacheTtl,
-                '400-499': 120,
-                '429': 0,
-                '500-599': 0,
-              },
-            },
-          } as RequestInit);
+          };
+          // Do NOT use cacheEverything: JamBase auth is in Authorization, but CF subrequest
+          // cache keys are URL-only — stale 401/400 responses survive key rotation.
+          if (!bypassEdgeCache) {
+            (fetchInit as RequestInit & { cf?: unknown }).cf = {
+              cacheTtl: 0,
+              cacheEverything: false,
+            };
+          } else {
+            (fetchInit as RequestInit & { cf?: unknown }).cf = { cacheTtl: 0 };
+          }
+          res = await fetch(url.toString(), fetchInit);
         } catch (e) {
           const timedOut =
             e instanceof Error &&
@@ -270,6 +289,8 @@ export async function jamBaseFetch<T extends JamBaseJson>(
         return null;
       }
 
+      const problemDetail = jamBaseProblemDetail(json, text);
+
       if (!res.ok) {
         const errBody = json as { errors?: unknown; success?: unknown };
         console.error('JamBase HTTP error', path, res.status, text.slice(0, 800), {
@@ -279,13 +300,17 @@ export async function jamBaseFetch<T extends JamBaseJson>(
         if (diag) {
           diag.failure = 'http';
           diag.httpStatus = res.status;
+          if (problemDetail) diag.httpDetail = problemDetail;
         }
         return null;
       }
 
       if (json.success === false) {
         console.error('JamBase API error', path, json.errors);
-        if (diag) diag.failure = 'api_error';
+        if (diag) {
+          diag.failure = 'api_error';
+          if (problemDetail) diag.httpDetail = problemDetail;
+        }
         return null;
       }
 
@@ -308,7 +333,7 @@ export function jamBaseEventDateFromToday(): string {
 }
 
 export function jamBaseApiKeyConfigured(apiKey: string | undefined): boolean {
-  return typeof apiKey === 'string' && apiKey.trim().length > 0;
+  return normalizeJamBaseApiKey(apiKey).length > 0;
 }
 
 /** User-facing notice when the worker has no JamBase token loaded. */
@@ -332,11 +357,21 @@ export function jamBaseUpstreamFailureNotice(
       return 'JamBase timed out loading shows. Try again — if this persists, check JAMBASE_API_KEY and worker logs.';
     case 'quota':
       return 'JamBase call quota reached (JAMBASE_QUOTA_ENFORCEMENT). Shows are paused until the budget resets.';
-    case 'http':
+    case 'http': {
+      const status = diag.httpStatus != null ? ` (HTTP ${diag.httpStatus})` : '';
+      const detail = diag.httpDetail ? ` — ${diag.httpDetail}` : '';
       if (diag.httpStatus === 401 || diag.httpStatus === 403) {
-        return 'JamBase rejected the API key (401/403). Regenerate your key at data.jambase.com and update JAMBASE_API_KEY.';
+        return `JamBase rejected the API key${status}${detail}. Regenerate at data.jambase.com and update JAMBASE_API_KEY (raw token only, no "Bearer").`;
       }
-      return 'JamBase returned an HTTP error loading shows. Check worker logs and JAMBASE_API_KEY.';
+      if (diag.httpStatus === 429) {
+        return `JamBase rate limit${status}${detail}. Wait a few minutes or check your plan limits at data.jambase.com.`;
+      }
+      return `JamBase returned an HTTP error${status}${detail}. Check worker logs and JAMBASE_API_KEY.`;
+    }
+    case 'api_error':
+      return diag.httpDetail
+        ? `JamBase API error — ${diag.httpDetail}`
+        : 'JamBase returned success: false. Check worker logs for errors[].';
     case 'missing_key':
       return jamBaseMissingKeyNotice();
     case 'network':

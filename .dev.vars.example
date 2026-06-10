@@ -36,6 +36,8 @@ MOCHA_USERS_SERVICE_API_KEY=
 # PUBLIC_APP_URL=http://localhost:5173
 # JamBase Data API v3 — Worker→JamBase requests use Cloudflare edge cache (see jambase-client.ts TTLs).
 # Get a key from https://data.jambase.com — paste the raw token only (no "Bearer", no quotes).
+# Verify locally: node scripts/jambase-probe.mjs  → HTTP 200 and artists count > 0
+# Production health: GET /api/jambase/status → upstreamOk true (after deploy)
 # If venue resolve says HTTP 401/403: key is wrong, expired, or not loaded (restart `wrangler dev` after editing .dev.vars).
 # Optional D1 cap on **upstream** calls only (cache HITs do not count). Apply migration 42.sql.
 # For local debugging, leave quota OFF unless you need it:  JAMBASE_QUOTA_ENFORCEMENT=0
