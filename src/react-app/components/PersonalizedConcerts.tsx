@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
 import { Calendar, MapPin, Loader2, Heart } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import HorizontalClipCarousel, {
@@ -199,6 +199,7 @@ export default function PersonalizedConcerts({
         } else {
           const response = await fetch(`/api/shows/nearby?limit=${nearbyFetchLimit}`, {
             credentials: 'include',
+            signal: AbortSignal.timeout(22_000),
           });
           const data = (await response.json()) as ConcertsApi & {
             jambaseNotice?: string | null;
@@ -223,7 +224,18 @@ export default function PersonalizedConcerts({
       } catch (error) {
         console.error('Failed to fetch concerts:', error);
         if (!isNearbyLoadMore) {
-          setPayload({ personalized: false, concerts: [], events: [] });
+          const timedOut =
+            error instanceof Error &&
+            (error.name === 'TimeoutError' || error.name === 'AbortError');
+          setPayload({
+            personalized: true,
+            concerts: [],
+            events: [],
+            source: 'jambase',
+            message: timedOut
+              ? 'Nearby shows took too long to load. Try again — if this persists, JamBase may be misconfigured on the worker.'
+              : 'Could not load nearby shows. Check your connection and try again.',
+          });
         }
       } finally {
         if (isNearbyLoadMore) {
@@ -327,7 +339,27 @@ export default function PersonalizedConcerts({
 
   if (!payload?.personalized || !hasShows) {
     if (resolvedMode === 'nearby') {
-      return null;
+      return (
+        <div className={headingVariant === 'page' ? '' : HOME_FEED_SECTION_CLASS}>
+          {!hideHeader ? sectionHeader : null}
+          <div className="glass-highlight rounded-xl p-8 text-center">
+            <MapPin className="w-12 h-12 text-momentum-flare mx-auto mb-4" />
+            <p className="text-gray-300 max-w-lg mx-auto leading-relaxed">
+              {typeof payload?.message === 'string' && payload.message.length > 0
+                ? payload.message
+                : 'No upcoming shows found near your area right now.'}
+            </p>
+            {resolvedViewAllHref ? (
+              <Link
+                to={resolvedViewAllHref}
+                className="inline-block mt-4 text-sm text-momentum-flare hover:text-momentum-flare/80"
+              >
+                {viewAllLabel}
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      );
     }
     return (
       <div className="glass-highlight rounded-xl p-8">

@@ -5,6 +5,7 @@ import {
   jamBaseMissingKeyNotice,
   jamBaseApiKeyConfigured,
   jamBaseQuotaFromEnv,
+  type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { cacheJsonProxy } from './performance-utils';
@@ -796,6 +797,7 @@ export async function getNearbyShows(c: Context) {
     jambaseNotice = jamBaseMissingKeyNotice();
   }
 
+  const jbDiag: JamBaseFetchDiag = {};
   const events = await fetchNearbyJamBaseEvents(
     apiKey,
     jbQ,
@@ -803,11 +805,26 @@ export async function getNearbyShows(c: Context) {
     location.longitude,
     radiusMiles,
     limit,
+    jbDiag,
   );
 
   if (!jambaseNotice && events.length === 0 && jamBaseApiKeyConfigured(apiKey)) {
-    jambaseNotice =
-      'No upcoming JamBase shows were returned for this location. Try a larger radius or check worker logs for upstream errors.';
+    if (jbDiag.failure === 'timeout') {
+      jambaseNotice =
+        'JamBase timed out loading nearby shows. Try again in a moment — if this keeps happening, check JAMBASE_API_KEY and worker logs.';
+    } else if (jbDiag.failure === 'quota') {
+      jambaseNotice =
+        'JamBase call quota reached (JAMBASE_QUOTA_ENFORCEMENT). Nearby shows are paused until the budget resets.';
+    } else if (jbDiag.failure === 'http' && (jbDiag.httpStatus === 401 || jbDiag.httpStatus === 403)) {
+      jambaseNotice =
+        'JamBase rejected the API key (401/403). Regenerate your key at data.jambase.com and update JAMBASE_API_KEY.';
+    } else if (jbDiag.failure) {
+      jambaseNotice =
+        'JamBase did not return nearby shows (upstream error). Check JAMBASE_API_KEY and worker logs.';
+    } else {
+      jambaseNotice =
+        'No upcoming JamBase shows were returned for this location. Try a larger radius or check again later.';
+    }
   }
 
   cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });

@@ -1,6 +1,7 @@
 import {
   jamBaseFetch,
   jamBaseEventDateFromToday,
+  type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
 import {
@@ -503,6 +504,7 @@ export async function fetchNearbyJamBaseEvents(
   longitude: number,
   radiusMiles = 50,
   limit = 20,
+  diag?: JamBaseFetchDiag,
 ): Promise<Record<string, unknown>[]> {
   const key = typeof apiKey === 'string' ? apiKey.trim() : '';
   if (!key) return [];
@@ -520,6 +522,7 @@ export async function fetchNearbyJamBaseEvents(
       page: '1',
     },
     jbQ,
+    diag,
   );
 
   return data?.events ?? [];

@@ -119,7 +119,11 @@ function jamBaseCacheTtlSeconds(url: URL): number {
 
 const inflight = new Map<string, Promise<JamBaseJson | null>>();
 
-const JAMBASE_429_MAX_ATTEMPTS = 4;
+const JAMBASE_429_MAX_ATTEMPTS = 3;
+/** Per-request ceiling so home-feed nearby lookups do not hang ~30s+ on slow upstream. */
+const JAMBASE_FETCH_TIMEOUT_MS = 12_000;
+/** Total wall time for one logical `jamBaseFetch` (includes 429 backoff). */
+const JAMBASE_FETCH_BUDGET_MS = 18_000;
 
 function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -149,6 +153,7 @@ export type JamBaseFetchDiag = {
     | 'non_json'
     | 'api_error'
     | 'network'
+    | 'timeout'
     | 'unknown';
   httpStatus?: number;
 };
@@ -184,21 +189,31 @@ export async function jamBaseFetch<T extends JamBaseJson>(
   const cacheTtl = jamBaseCacheTtlSeconds(url);
 
   const promise = (async (): Promise<T | null> => {
+    const startedAt = Date.now();
     try {
       let res: Response;
       let attempt = 0;
       while (true) {
+        const elapsed = Date.now() - startedAt;
+        if (elapsed >= JAMBASE_FETCH_BUDGET_MS) {
+          console.warn('[JamBase] fetch budget exceeded', path, { elapsedMs: elapsed });
+          if (diag) diag.failure = 'timeout';
+          return null;
+        }
+
         if (quota && !(await jamBaseQuotaPrecheck(quota))) {
           if (diag) diag.failure = 'quota';
           return null;
         }
         try {
+          const remaining = JAMBASE_FETCH_BUDGET_MS - elapsed;
           res = await fetch(url.toString(), {
             headers: {
               Authorization: `Bearer ${key}`,
               Accept: 'application/json',
               'User-Agent': JAMBASE_USER_AGENT,
             },
+            signal: AbortSignal.timeout(Math.min(JAMBASE_FETCH_TIMEOUT_MS, remaining)),
             cf: {
               cacheEverything: true,
               cacheTtl,
@@ -211,13 +226,24 @@ export async function jamBaseFetch<T extends JamBaseJson>(
             },
           } as RequestInit);
         } catch (e) {
+          const timedOut =
+            e instanceof Error &&
+            (e.name === 'TimeoutError' || e.name === 'AbortError' || /aborted|timeout/i.test(e.message));
           console.error('JamBase fetch network error', path, e);
-          if (diag) diag.failure = 'network';
+          if (diag) diag.failure = timedOut ? 'timeout' : 'network';
           return null;
         }
 
         if (res.status === 429 && attempt < JAMBASE_429_MAX_ATTEMPTS - 1) {
-          const waitMs = retryAfterDelayMs(res.headers.get('Retry-After'), attempt);
+          const budgetLeft = JAMBASE_FETCH_BUDGET_MS - (Date.now() - startedAt);
+          const waitMs = Math.min(
+            retryAfterDelayMs(res.headers.get('Retry-After'), attempt),
+            Math.max(0, budgetLeft - 500),
+          );
+          if (waitMs <= 0) {
+            if (diag) diag.failure = 'timeout';
+            return null;
+          }
           console.warn('JamBase HTTP 429, backing off (ms)', path, waitMs, { attempt });
           await res.text().catch(() => {});
           await sleepMs(waitMs);
