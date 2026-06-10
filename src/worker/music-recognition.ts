@@ -81,7 +81,9 @@ export function inferIdentifyFilename(blob: Blob, rawName?: string): string {
   const name = rawName?.trim() ?? '';
   if (name) return name;
   const t = (blob.type ?? '').toLowerCase();
-  if (t.includes('quicktime') || t.includes('mp4') || t.includes('aac')) return 'snippet.m4a';
+  if (t.includes('quicktime') || t.includes('mp4') || t.includes('aac') || t.includes('caf')) {
+    return 'snippet.m4a';
+  }
   if (t.includes('mpeg') || t.includes('mp3')) return 'snippet.mp3';
   if (t.includes('webm')) return 'snippet.webm';
   if (t.includes('wav')) return 'snippet.wav';

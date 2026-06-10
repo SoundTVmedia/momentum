@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { jamBaseEventOnCaptureDay, jamBaseEventLocalYmd } from './jambase-event-day';
+import {
+  inferTimezoneFromCoords,
+  jamBaseEventLocalYmd,
+  jamBaseEventMatchesCapture,
+  jamBaseEventOnCaptureDay,
+} from './jambase-event-day';
 
 describe('jamBaseEventLocalYmd', () => {
   it('reads the date prefix without timezone conversion', () => {
     expect(jamBaseEventLocalYmd('2026-06-09T20:00:00')).toBe('2026-06-09');
+  });
+});
+
+describe('inferTimezoneFromCoords', () => {
+  it('infers Eastern for NYC coordinates', () => {
+    expect(inferTimezoneFromCoords(40.73, -73.99)).toBe('America/New_York');
   });
 });
 
@@ -33,5 +44,22 @@ describe('jamBaseEventOnCaptureDay', () => {
   it('rejects a show on a different venue-local day', () => {
     const captureMs = Date.parse('2026-06-10T15:00:00.000Z'); // June 10 in NYC
     expect(jamBaseEventOnCaptureDay(event, captureMs)).toBe(false);
+  });
+});
+
+describe('jamBaseEventMatchesCapture without x-timezone', () => {
+  const eventNoTz = {
+    startDate: '2026-06-09T20:00:00',
+    location: { name: 'Brooklyn Steel' },
+  };
+
+  it('uses GPS-inferred US timezone when x-timezone is missing', () => {
+    const captureMs = Date.parse('2026-06-10T03:30:00.000Z');
+    expect(jamBaseEventMatchesCapture(eventNoTz, captureMs, 40.73, -73.99)).toBe(true);
+  });
+
+  it('matches after-midnight capture for a late show', () => {
+    const captureMs = Date.parse('2026-06-10T05:00:00.000Z'); // 1am Eastern
+    expect(jamBaseEventMatchesCapture(eventNoTz, captureMs, 40.73, -73.99)).toBe(true);
   });
 });

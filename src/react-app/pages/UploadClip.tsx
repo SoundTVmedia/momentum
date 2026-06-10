@@ -945,6 +945,39 @@ export default function UploadClip() {
     setAuddMessage(null);
   }, []);
 
+  /** Probe Worker ACR config once on caption screen — surfaces missing keys before song ID runs. */
+  useEffect(() => {
+    if (!showCaptionScreen || !user || isPending) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/clips/identify-music/config', { credentials: 'include' });
+        if (cancelled || !res.ok) return;
+        const data = (await res.json()) as {
+          activeProvider?: string;
+          acrcloud?: { ready?: boolean };
+          hint?: string | null;
+          verify?: string;
+        };
+        if (cancelled) return;
+        if (data.acrcloud?.ready) return;
+        const hint =
+          (typeof data.hint === 'string' && data.hint.trim()) ||
+          (typeof data.verify === 'string' && data.verify.trim()) ||
+          'Song ID (ACRCloud) is not configured on the worker.';
+        setAuddStatus((prev) =>
+          prev === 'done' || prev === 'loading' ? prev : 'error',
+        );
+        setAuddMessage((prev) => (prev?.trim() ? prev : hint));
+      } catch {
+        /* offline / proxy — identify pass will report errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showCaptionScreen, user, isPending]);
+
   /**
    * Classify feed lane when the caption screen opens so we can simplify UI for talking clips.
    */
@@ -985,11 +1018,6 @@ export default function UploadClip() {
       setStoredClassificationId(out.classification_id ?? null);
       const ui = contentFeedUserMessage(out);
       setClassifyMessage(ui?.message ?? null);
-
-      if (out.content_feed === 'rejected') {
-        setClassifyStatus('error');
-        return;
-      }
 
       if (out.content_feed === 'pre_post') {
         clearShowAssociationFields();
@@ -1040,10 +1068,6 @@ export default function UploadClip() {
     setStoredClassificationId(null);
     const ui = contentFeedUserMessage(derived);
     setClassifyMessage(ui?.message ?? null);
-    if (derived.content_feed === 'rejected') {
-      setClassifyStatus('error');
-      return;
-    }
     setClassifyStatus('done');
   }, [
     classifyStatus,
@@ -1124,22 +1148,24 @@ export default function UploadClip() {
           (ap?.status === 'done' && (ap.artist?.trim() || ap.title?.trim())),
       );
 
-      if (
-        result.status === 'skipped' ||
-        result.status === 'nomatch' ||
-        (result.status === 'error' && !isFatalSongIdentifyError(result))
-      ) {
+      if (result.status === 'skipped' && result.message?.trim()) {
+        setAuddStatus('error');
+        setAuddMessage(result.message);
+        return;
+      }
+      if (result.status === 'nomatch') {
         if (!hadLivePrefill) {
-          setAuddStatus('idle');
+          setAuddStatus('nomatch');
           setAuddMessage(null);
         }
         return;
       }
       if (result.status === 'error') {
         setAuddStatus('error');
-        setAuddMessage(result.message);
+        setAuddMessage(result.message ?? 'Song lookup failed');
         return;
       }
+      if (result.status !== 'match') return;
 
       const { artist, title, message } = result;
       const titleTrim = typeof title === 'string' ? title.trim() : '';
@@ -1412,7 +1438,7 @@ export default function UploadClip() {
     setClassifyMessage(ui?.message ?? null);
 
     if (out.content_feed === 'rejected') {
-      setClassifyStatus('error');
+      setClassifyStatus('done');
       throw new Error(out.message);
     }
 
@@ -1903,8 +1929,9 @@ export default function UploadClip() {
   // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
     const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
-    const showPerformanceCaptionDetails =
-      classifyStatus === 'done' && classifyResult?.content_feed === 'main';
+    const isAcrArtistRejected = classifyResult?.content_feed === 'rejected';
+    /** Venue/show fields are independent of ACR artist match (only hidden for friends-only clips). */
+    const showVenueAndShowFields = !isPrePostClip && classifyStatus !== 'loading';
     const currentDate = new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -2031,12 +2058,12 @@ export default function UploadClip() {
                   <p className="text-red-400">{error}</p>
                 </div>
               )}
-              {showPerformanceCaptionDetails && resolveNotice && (
+              {showVenueAndShowFields && resolveNotice && (
                 <div className="p-3 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
                   <p className="text-momentum-glacier/90 text-sm">{resolveNotice}</p>
                 </div>
               )}
-              {showPerformanceCaptionDetails && nearbyVenueChoices.length > 0 && (
+              {showVenueAndShowFields && nearbyVenueChoices.length > 0 && (
                 <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
                   <p className="text-sm font-medium text-white">Nearby shows tonight</p>
                   <p className="text-xs text-gray-400">
@@ -2084,13 +2111,13 @@ export default function UploadClip() {
                   </div>
                 </div>
               )}
-              {showPerformanceCaptionDetails && auddStatus === 'loading' && (
+              {showVenueAndShowFields && auddStatus === 'loading' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg flex items-center gap-2 text-violet-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                   <span>Identifying song (ACRCloud)…</span>
                 </div>
               )}
-              {showPerformanceCaptionDetails && auddStatus === 'done' && (
+              {showVenueAndShowFields && auddStatus === 'done' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg">
                   <p className="text-violet-100 text-sm font-medium">
                     {auddMessage?.trim() || 'Song and artist prefilled below.'}
@@ -2101,7 +2128,7 @@ export default function UploadClip() {
                   </p>
                 </div>
               )}
-              {showPerformanceCaptionDetails && auddStatus === 'error' && auddMessage && (
+              {showVenueAndShowFields && auddStatus === 'error' && auddMessage && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                   <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
@@ -2112,7 +2139,7 @@ export default function UploadClip() {
                   <span>Checking music match and speech (ACRCloud + Whisper)…</span>
                 </div>
               )}
-              {classifyStatus === 'done' && classifyMessage && (
+              {classifyStatus === 'done' && classifyMessage && !isAcrArtistRejected && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
                   <p className="text-emerald-100 text-sm font-medium">{classifyMessage}</p>
                   {classifyResult?.content_feed === 'main' && classifyResult.acr_title ? (
@@ -2123,13 +2150,13 @@ export default function UploadClip() {
                   ) : null}
                 </div>
               )}
-              {classifyStatus === 'error' && classifyMessage && (
+              {(classifyStatus === 'error' || isAcrArtistRejected) && classifyMessage && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                   <p className="text-red-200 text-sm">{classifyMessage}</p>
                 </div>
               )}
 
-              {showPerformanceCaptionDetails && (
+              {showVenueAndShowFields && (
               <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-momentum-flare/90">
                   Show
@@ -2194,7 +2221,7 @@ export default function UploadClip() {
                 </p>
               </div>
 
-              {showPerformanceCaptionDetails && auddStatus !== 'loading' && (
+              {showVenueAndShowFields && auddStatus !== 'loading' && (
                 <div
                   className={
                     shouldShowManualSongTitleEntry(auddStatus)
@@ -2237,7 +2264,7 @@ export default function UploadClip() {
                 </div>
               )}
 
-              {showPerformanceCaptionDetails && (
+              {showVenueAndShowFields && (
               <div>
                 <label className="block text-gray-300 font-normal mb-2">
                   Genre <span className="text-gray-500 font-normal">(optional)</span>
@@ -2262,7 +2289,7 @@ export default function UploadClip() {
               </div>
               )}
 
-              {showPerformanceCaptionDetails && (
+              {showVenueAndShowFields && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-white font-medium">Tags</label>
@@ -2439,7 +2466,7 @@ export default function UploadClip() {
               </div>
               )}
 
-              {showPerformanceCaptionDetails && (
+              {showVenueAndShowFields && (
               <div>
                 <label className="block text-gray-300 font-normal mb-2">Hashtags</label>
                 <input
@@ -2458,7 +2485,7 @@ export default function UploadClip() {
                   type="button"
                   disabled={
                     classifyStatus === 'loading' ||
-                    classifyStatus === 'error' ||
+                    isAcrArtistRejected ||
                     loading
                   }
                   onClick={() => void handleSubmit(null)}

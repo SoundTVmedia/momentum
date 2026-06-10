@@ -21,8 +21,8 @@ function baseCandidate(overrides: Partial<ClipShowCandidate> = {}): ClipShowCand
 }
 
 describe('canAutoApplyCandidate', () => {
-  it('rejects venue-only rows without a JamBase show', () => {
-    expect(canAutoApplyCandidate(baseCandidate())).toBe(false);
+  it('allows close venue-only rows (show/artist resolved separately from ACR)', () => {
+    expect(canAutoApplyCandidate(baseCandidate())).toBe(true);
   });
 
   it('rejects when farther than auto-apply threshold', () => {
@@ -65,6 +65,18 @@ describe('canAutoApplyCandidate', () => {
         baseCandidate({
           jambase_event_id: 'jambase:ev',
           distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 0.05,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects rows without a venue identity', () => {
+    expect(
+      canAutoApplyCandidate(
+        baseCandidate({
+          jambase_venue_id: null,
+          venue_name: null,
+          distance_miles: 0.1,
         }),
       ),
     ).toBe(false);

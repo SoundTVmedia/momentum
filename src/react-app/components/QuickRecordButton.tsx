@@ -12,6 +12,7 @@ import {
 } from '@/react-app/utils/auddIdentify';
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
+import { pickAudioRecorderMime } from '@/react-app/utils/audioRecorderMime';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -299,10 +300,8 @@ export default function QuickRecordButton({
         const cand =
           data.match === 'single'
             ? data.candidates?.[0]
-            : data.match === 'ambiguous'
-              ? data.nearbyVenues?.[0]
-              : undefined;
-        const previewOnly = data.match === 'ambiguous';
+            : data.nearbyVenues?.[0] ?? data.candidates?.[0];
+        const previewOnly = data.match !== 'single';
         if (cand?.venue_name?.trim()) {
           captureResolveCandidateRef.current = previewOnly ? null : cand;
           const eventTitle = resolveClipEventTitle({
@@ -1085,9 +1084,7 @@ export default function QuickRecordButton({
     const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
     if (liveTracks.length === 0) return false;
 
-    const audioMime = ['audio/webm;codecs=opus', 'audio/webm'].find((m) =>
-      MediaRecorder.isTypeSupported(m),
-    );
+    const audioMime = pickAudioRecorderMime();
     if (!audioMime) return false;
 
     try {
@@ -1199,9 +1196,7 @@ export default function QuickRecordButton({
       auddParallelAudioRecorderRef.current = null;
       if (hasAudio && audioEnabled) {
         try {
-          const audioMime = ['audio/webm;codecs=opus', 'audio/webm'].find((m) =>
-            MediaRecorder.isTypeSupported(m),
-          );
+          const audioMime = pickAudioRecorderMime();
           if (audioMime) {
             const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
             if (liveTracks.length > 0) {

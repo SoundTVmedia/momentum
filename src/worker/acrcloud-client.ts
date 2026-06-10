@@ -112,7 +112,34 @@ function looksLikeWebm(bytes: Uint8Array, filename: string): boolean {
   return hasWebmEbmlHeader(bytes);
 }
 
+function looksLikeWav(bytes: Uint8Array, filename: string): boolean {
+  const name = filename.toLowerCase();
+  if (name.endsWith('.wav')) return true;
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46
+  );
+}
+
+function looksLikeMp4Family(bytes: Uint8Array, filename: string): boolean {
+  const name = filename.toLowerCase();
+  if (name.endsWith('.m4a') || name.endsWith('.mp4') || name.endsWith('.aac') || name.endsWith('.caf')) {
+    return true;
+  }
+  return (
+    bytes.length >= 8 &&
+    bytes[4] === 0x66 &&
+    bytes[5] === 0x74 &&
+    bytes[6] === 0x79 &&
+    bytes[7] === 0x70
+  );
+}
+
 function shouldSkipFragmentedWebm(bytes: Uint8Array, filename: string): boolean {
+  if (looksLikeWav(bytes, filename) || looksLikeMp4Family(bytes, filename)) return false;
   if (!looksLikeWebm(bytes, filename)) return false;
   if (bytes.byteLength < MIN_WEBM_BYTES_FOR_IDENTIFY) return true;
   if (!hasWebmEbmlHeader(bytes)) return true;

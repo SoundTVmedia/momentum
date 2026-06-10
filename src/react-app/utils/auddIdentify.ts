@@ -150,9 +150,10 @@ const MIN_SNIPPET_BYTES = MIN_IDENTIFY_SAMPLE_BYTES;
 function identifyFilenameForBlob(blob: Blob): string {
   const t = (blob.type ?? '').toLowerCase();
   if (t.includes('wav')) return 'clip-snippet.wav';
-  if (t.includes('quicktime') || t.includes('mp4') || t.includes('mpeg')) return 'clip-snippet.m4a';
+  if (t.includes('aac')) return 'clip-snippet.m4a';
+  if (t.includes('mp4') || t.includes('quicktime') || t.includes('mpeg')) return 'clip-snippet.m4a';
   if (t.includes('webm')) return 'clip-snippet.webm';
-  if (t.startsWith('audio/')) return 'clip-snippet.webm';
+  if (t.startsWith('audio/')) return 'clip-snippet.m4a';
   return 'recording.webm';
 }
 
@@ -238,9 +239,23 @@ export function isFatalSongIdentifyError(r: AudDIdentifyResult): boolean {
   );
 }
 
+function isConfigOrQuotaSkippedMessage(message: string | null | undefined): boolean {
+  if (!message?.trim()) return false;
+  return /not configured|acrcloud_host|access_key|access_secret|quota exceeded|signature rejected|invalid acrcloud/i.test(
+    message,
+  );
+}
+
 /** ACR no-match must not surface as an error banner — show manual song title only. */
 export function normalizeIdentifyResult(r: AudDIdentifyResult): AudDIdentifyResult {
-  if (r.status === 'nomatch' || r.status === 'skipped') {
+  if (r.status === 'skipped') {
+    const msg = typeof r.message === 'string' ? r.message.trim() : '';
+    if (isConfigOrQuotaSkippedMessage(msg)) {
+      return { status: 'error', message: msg };
+    }
+    return { ...r, message: msg || null };
+  }
+  if (r.status === 'nomatch') {
     return { ...r, message: null };
   }
   if (r.status === 'error' && r.message) {
@@ -249,11 +264,15 @@ export function normalizeIdentifyResult(r: AudDIdentifyResult): AudDIdentifyResu
       msg.includes('no match') ||
       msg.includes('no result') ||
       msg.includes('catalog') ||
-      msg.includes('fingerprint') ||
+      msg.includes('(code 1001)') ||
+      msg.includes('code 1001') ||
       msg.includes('(audd)') ||
       /\baudd\b/.test(msg)
     ) {
       return { status: 'nomatch', message: null };
+    }
+    if (msg.includes('timed out')) {
+      return r;
     }
     if (!isFatalSongIdentifyError(r)) {
       return { status: 'nomatch', message: null };
@@ -331,9 +350,9 @@ export async function identifyMusicForClip(
     if (shouldStopIdentifyPass(mic)) return finish(mic);
   }
 
-  const head = sliceHeadForIdentify(video);
-  if (head && headSliceLikelyValid(video, head)) {
-    const r = await tryIdentifyBlob(head);
+  const wav = await extractWavSnippetViaWebAudio(video);
+  if (wav) {
+    const r = await tryIdentifyBlob(wav);
     if (r) {
       best = pickStrongerMatch(best, r);
       if (shouldStopIdentifyPass(r)) return finish(r);
@@ -363,9 +382,9 @@ export async function identifyMusicForClip(
     }
   }
 
-  const wav = await extractWavSnippetViaWebAudio(video);
-  if (wav) {
-    const r = await tryIdentifyBlob(wav);
+  const head = sliceHeadForIdentify(video);
+  if (head && headSliceLikelyValid(video, head)) {
+    const r = await tryIdentifyBlob(head);
     if (r) {
       best = pickStrongerMatch(best, r);
       if (shouldStopIdentifyPass(r)) return finish(r);
@@ -429,7 +448,7 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
         typeof data.message === 'string' && data.message.trim() !== ''
           ? data.message.trim()
           : null;
-      return { status: 'skipped', message: fromApi };
+      return normalizeIdentifyResult({ status: 'skipped', message: fromApi });
     }
     if (res.status === 429) {
       return {
@@ -450,6 +469,12 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
       return normalizeIdentifyResult(err);
     }
     if (!data.match || (!data.match.artist && !data.match.title)) {
+      if (data.skippedReason === 'fragment_too_short') {
+        return {
+          status: 'skipped',
+          message: 'Audio sample was too short or incomplete for song ID.',
+        };
+      }
       return { status: 'nomatch', message: null };
     }
 

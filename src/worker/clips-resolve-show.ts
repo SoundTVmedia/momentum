@@ -9,7 +9,7 @@ import {
 import { headlinerFromEvent } from './jambase-map';
 import type { ClipShowCandidate } from '../shared/types';
 import { artistAtVenueTitle, jamBaseEventTitle } from '../shared/event-title';
-import { jamBaseEventOnCaptureDay } from '../shared/jambase-event-day';
+import { jamBaseEventMatchesCapture } from '../shared/jambase-event-day';
 
 /** Extra miles beyond profile radius so GPS jitter does not drop the venue you are standing in front of. */
 const GPS_DISTANCE_SLACK_MILES = 1.25;
@@ -218,9 +218,11 @@ function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidat
   return sortCandidatesByDistance([...map.values()]);
 }
 
-/** True when we may auto-fill venue/artist without showing the nearby picker. */
+/** True when we may auto-fill venue (and show when present) without the nearby picker. */
 export function canAutoApplyCandidate(candidate: ClipShowCandidate): boolean {
-  if (!candidate.jambase_event_id?.trim()) return false;
+  const hasVenue =
+    Boolean(candidate.jambase_venue_id?.trim()) || Boolean(candidate.venue_name?.trim());
+  if (!hasVenue) return false;
   const dist = candidate.distance_miles;
   if (dist == null || !Number.isFinite(dist) || dist > AUTO_APPLY_MAX_DISTANCE_MILES) {
     return false;
@@ -261,7 +263,7 @@ function candidateFromJamBaseEvent(
   matchRadiusMiles: number,
   captureMs: number,
 ): ClipShowCandidate | null {
-  if (!jamBaseEventOnCaptureDay(ev, captureMs)) return null;
+  if (!jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) return null;
 
   const eventId = typeof ev.identifier === 'string' ? ev.identifier : null;
   if (!eventId) return null;
@@ -333,41 +335,21 @@ function jamBaseVenueEventsQueryParams(
   return p;
 }
 
-/**
- * Load shows at a venue; return a candidate only when JamBase lists a show on the capture
- * venue-local calendar day. Venues with no events (e.g. permanently closed) are excluded.
- */
-async function enrichWithSameDayShowAtVenue(
-  apiKey: string,
-  jbQ: JamBaseQuotaContext | undefined,
-  base: ClipShowCandidate,
-  captureMs: number
-): Promise<ClipShowCandidate | null> {
-  const venueId = base.jambase_venue_id?.trim();
+function eventHoursFromCapture(ev: Record<string, unknown>, captureMs: number): number | null {
+  const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
+  const t = Date.parse(sd);
+  if (!Number.isFinite(t)) return null;
+  return (captureMs - t) / (3600 * 1000);
+}
 
-  if (!venueId) return null;
-
-  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-    apiKey,
-    '/events',
-    jamBaseVenueEventsQueryParams(venueId, captureMs),
-    jbQ
-  );
-  const raw = data?.events ?? [];
-  if (raw.length === 0) return null;
-
-  const sameDay: Record<string, unknown>[] = [];
-  for (const ev of raw) {
-    if (typeof ev !== 'object' || ev === null) continue;
-    const evo = ev as Record<string, unknown>;
-    if (jamBaseEventOnCaptureDay(evo, captureMs)) sameDay.push(evo);
-  }
-
-  if (sameDay.length === 0) return null;
-
-  let bestEv = sameDay[0]!;
+function pickClosestEventToCapture(
+  events: Record<string, unknown>[],
+  captureMs: number,
+): Record<string, unknown> | null {
+  if (events.length === 0) return null;
+  let bestEv = events[0]!;
   let bestScore = Number.POSITIVE_INFINITY;
-  for (const ev of sameDay) {
+  for (const ev of events) {
     const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
     const t = Date.parse(sd);
     const score = Number.isFinite(t) ? Math.abs(t - captureMs) : Number.POSITIVE_INFINITY;
@@ -376,7 +358,13 @@ async function enrichWithSameDayShowAtVenue(
       bestEv = ev;
     }
   }
+  return bestEv;
+}
 
+function mergeEventIntoVenueCandidate(
+  base: ClipShowCandidate,
+  bestEv: Record<string, unknown>,
+): ClipShowCandidate {
   const head = headlinerFromEvent(bestEv);
   const artistName = typeof head?.name === 'string' ? head.name : null;
   const artistId = typeof head?.identifier === 'string' ? head.identifier : null;
@@ -397,6 +385,65 @@ async function enrichWithSameDayShowAtVenue(
     event_title: eventTitle,
     startDate,
   };
+}
+
+/**
+ * Load shows at a venue. Prefer same capture-day listings; fall back to in-show time window,
+ * then venue-only when JamBase lists any event (closed / inactive venues excluded).
+ */
+async function enrichWithSameDayShowAtVenue(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  base: ClipShowCandidate,
+  captureMs: number,
+  userLat: number,
+  userLon: number,
+): Promise<ClipShowCandidate | null> {
+  const venueId = base.jambase_venue_id?.trim();
+
+  if (!venueId) return null;
+
+  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+    apiKey,
+    '/events',
+    jamBaseVenueEventsQueryParams(venueId, captureMs),
+    jbQ
+  );
+  const raw = data?.events ?? [];
+  if (raw.length === 0) return null;
+
+  const sameDay: Record<string, unknown>[] = [];
+  for (const ev of raw) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const evo = ev as Record<string, unknown>;
+    if (jamBaseEventMatchesCapture(evo, captureMs, userLat, userLon)) sameDay.push(evo);
+  }
+
+  if (sameDay.length > 0) {
+    const bestEv = pickClosestEventToCapture(sameDay, captureMs);
+    if (bestEv) return mergeEventIntoVenueCandidate(base, bestEv);
+  }
+
+  const inShowWindow: Record<string, unknown>[] = [];
+  for (const ev of raw) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const hours = eventHoursFromCapture(ev as Record<string, unknown>, captureMs);
+    if (hours == null) continue;
+    if (hours >= -IN_SHOW_EXPAND_PAST_HOURS && hours <= 6) inShowWindow.push(ev as Record<string, unknown>);
+  }
+
+  if (inShowWindow.length > 0) {
+    const bestEv = pickClosestEventToCapture(inShowWindow, captureMs);
+    if (bestEv) return mergeEventIntoVenueCandidate(base, bestEv);
+  }
+
+  const bestEv = pickClosestEventToCapture(
+    raw.filter((ev): ev is Record<string, unknown> => typeof ev === 'object' && ev !== null),
+    captureMs,
+  );
+  if (bestEv) return mergeEventIntoVenueCandidate(base, bestEv);
+
+  return { ...base };
 }
 
 function venueNameFromJamBaseVenue(venue: Record<string, unknown>): string | null {
@@ -684,7 +731,7 @@ export async function postResolveShowForClip(c: Context) {
       const enriched = await Promise.all(
         toScan.map(async (base) => {
           if (base.jambase_event_id) return base;
-          return enrichWithSameDayShowAtVenue(key, jbQ, base, resolveAnchorMs);
+          return enrichWithSameDayShowAtVenue(key, jbQ, base, resolveAnchorMs, lat, lon);
         }),
       );
       enrichedSorted = sortCandidatesByDistance(

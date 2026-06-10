@@ -28,6 +28,23 @@ describe('normalizeIdentifyResult', () => {
     expect(r.status).toBe('error');
     expect(r.status === 'error' && r.message).toMatch(/not configured/i);
   });
+
+  it('promotes skipped config responses to error', () => {
+    const r = normalizeIdentifyResult({
+      status: 'skipped',
+      message: 'Song ID is not configured. Add ACRCLOUD_HOST on the Worker.',
+    });
+    expect(r.status).toBe('error');
+    expect(r.status === 'error' && r.message).toMatch(/not configured/i);
+  });
+
+  it('keeps timeout errors visible', () => {
+    const r = normalizeIdentifyResult({
+      status: 'error',
+      message: 'Song lookup timed out — try again or enter the song manually.',
+    });
+    expect(r.status).toBe('error');
+  });
 });
 
 describe('isFatalSongIdentifyError', () => {
