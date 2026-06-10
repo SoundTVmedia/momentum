@@ -312,10 +312,10 @@ export default function QuickRecordButton({
           });
           setCaptureResolvePreview({
             status: previewOnly ? 'ambiguous' : 'ready',
-            eventTitle: previewOnly ? null : eventTitle,
-            venueName: previewOnly ? null : cand.venue_name.trim(),
-            artistName: previewOnly ? null : (cand.artist_name?.trim() ?? null),
-            locationLine: previewOnly ? null : (cand.location?.trim() ?? null),
+            eventTitle,
+            venueName: cand.venue_name.trim(),
+            artistName: cand.artist_name?.trim() ?? null,
+            locationLine: cand.location?.trim() ?? null,
           });
         } else {
           captureResolveCandidateRef.current = null;
@@ -1567,7 +1567,8 @@ export default function QuickRecordButton({
                               Matching nearest JamBase show at your location…
                             </p>
                           )}
-                          {captureResolvePreview.status === 'ready' && (
+                          {(captureResolvePreview.status === 'ready' ||
+                            captureResolvePreview.status === 'ambiguous') && (
                             <>
                               {captureResolvePreview.eventTitle ? (
                                 <p className="text-white text-sm font-bold leading-snug line-clamp-2">
@@ -1607,12 +1608,12 @@ export default function QuickRecordButton({
                                   {captureResolvePreview.locationLine}
                                 </p>
                               ) : null}
+                              {captureResolvePreview.status === 'ambiguous' ? (
+                                <p className="text-gray-400 text-[10px] leading-snug pt-1">
+                                  Confirm after you record — a bit far for auto-fill.
+                                </p>
+                              ) : null}
                             </>
-                          )}
-                          {captureResolvePreview.status === 'ambiguous' && (
-                            <p className="text-gray-300 text-[11px] leading-snug">
-                              Several venues nearby — you will pick the right one after you record.
-                            </p>
                           )}
                           {captureResolvePreview.status === 'none' && (
                             <p className="text-gray-300 text-[11px] leading-snug">

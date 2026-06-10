@@ -21,42 +21,52 @@ function baseCandidate(overrides: Partial<ClipShowCandidate> = {}): ClipShowCand
 }
 
 describe('canAutoApplyCandidate', () => {
-  const captureDay = '2026-06-09';
-
   it('rejects venue-only rows without a JamBase show', () => {
-    expect(canAutoApplyCandidate(baseCandidate(), captureDay)).toBe(false);
+    expect(canAutoApplyCandidate(baseCandidate())).toBe(false);
   });
 
   it('rejects when farther than auto-apply threshold', () => {
     expect(
       canAutoApplyCandidate(
-        baseCandidate({ distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 0.01 }),
-        captureDay,
-      ),
-    ).toBe(false);
-  });
-
-  it('rejects same-day event on wrong calendar day', () => {
-    expect(
-      canAutoApplyCandidate(
         baseCandidate({
           jambase_event_id: 'jambase:ev',
-          startDate: '2026-06-10T01:00:00Z',
+          distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 0.01,
         }),
-        captureDay,
       ),
     ).toBe(false);
   });
 
-  it('allows same-day event on capture day', () => {
+  it('allows close venue with a same-day show attached', () => {
     expect(
       canAutoApplyCandidate(
         baseCandidate({
           jambase_event_id: 'jambase:ev',
           startDate: '2026-06-09T20:00:00Z',
+          distance_miles: 0.1,
         }),
-        captureDay,
       ),
     ).toBe(true);
+  });
+
+  it('allows auto-apply within one mile', () => {
+    expect(
+      canAutoApplyCandidate(
+        baseCandidate({
+          jambase_event_id: 'jambase:ev',
+          distance_miles: 0.7,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects auto-apply beyond one mile', () => {
+    expect(
+      canAutoApplyCandidate(
+        baseCandidate({
+          jambase_event_id: 'jambase:ev',
+          distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 0.05,
+        }),
+      ),
+    ).toBe(false);
   });
 });
