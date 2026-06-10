@@ -22,9 +22,21 @@ const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 25;
 /** Never match tighter than this when comparing GPS ↔ venue coords (profile can be 1–5 mi). */
 const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
 
+/** Auto-apply only when GPS ↔ venue is within this distance (high confidence). */
+export const AUTO_APPLY_MAX_DISTANCE_MILES = 0.25;
+
+/** Venues returned for manual picker when auto-apply is skipped. */
+export const NEARBY_VENUE_PICKER_COUNT = 3;
+
+/** How many closest venues to enrich with same-day show data (expandPastEvents). */
+const VENUES_TO_ENRICH = 5;
+
+/** Include in-progress / recently started shows on venue-scoped event lookups. */
+export const IN_SHOW_EXPAND_PAST_HOURS = 8;
+
 type CandidateGeoTrust = { trustJamBaseGeoList?: boolean };
 
-type ClipResolveMatch = 'none' | 'single';
+type ClipResolveMatch = 'none' | 'single' | 'ambiguous';
 
 async function recordResolveTelemetry(
   c: Context,
@@ -210,15 +222,42 @@ function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidat
   return sortCandidatesByDistance([...map.values()]);
 }
 
-/**
- * Pick the single closest event (hence venue with show data) after dedupe — nearest GPS ↔ venue coords.
- */
-function finalizeMatch(dedupedSorted: ClipShowCandidate[]): {
+/** True when we may auto-fill venue/artist without showing the nearby picker. */
+export function canAutoApplyCandidate(
+  candidate: ClipShowCandidate,
+  captureDayYmd: string,
+): boolean {
+  const dist = candidate.distance_miles;
+  if (dist == null || !Number.isFinite(dist) || dist > AUTO_APPLY_MAX_DISTANCE_MILES) {
+    return false;
+  }
+  if (candidate.jambase_event_id && candidate.startDate) {
+    const eventDay = utcYmdFromStartDate(candidate.startDate);
+    if (eventDay && eventDay !== captureDayYmd) return false;
+  }
+  return true;
+}
+
+function resolveMatchFromEnrichedVenues(
+  enrichedSorted: ClipShowCandidate[],
+  captureDayYmd: string,
+): {
   match: ClipResolveMatch;
   candidates: ClipShowCandidate[];
+  nearbyVenues: ClipShowCandidate[];
 } {
-  if (dedupedSorted.length === 0) return { match: 'none', candidates: [] };
-  return { match: 'single', candidates: [dedupedSorted[0]!] };
+  const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
+  if (enrichedSorted.length === 0) {
+    return { match: 'none', candidates: [], nearbyVenues: [] };
+  }
+  const top = enrichedSorted[0]!;
+  if (canAutoApplyCandidate(top, captureDayYmd)) {
+    return { match: 'single', candidates: [top], nearbyVenues };
+  }
+  if (nearbyVenues.length > 0) {
+    return { match: 'ambiguous', candidates: [], nearbyVenues };
+  }
+  return { match: 'none', candidates: [], nearbyVenues: [] };
 }
 
 function utcYmdFromMs(ms: number): string {
@@ -277,7 +316,10 @@ function jamBaseVenueEventsQueryParams(
     perPage: '50',
     page: '1',
   };
-  if (eventDateFrom < todayUtc) {
+  const hoursFromCaptureToNow = (Date.now() - captureMs) / (1000 * 60 * 60);
+  const withinInShowWindow =
+    hoursFromCaptureToNow >= 0 && hoursFromCaptureToNow <= IN_SHOW_EXPAND_PAST_HOURS;
+  if (eventDateFrom < todayUtc || withinInShowWindow) {
     p.expandPastEvents = 'true';
   }
   return p;
@@ -354,26 +396,28 @@ async function enrichWithSameDayShowAtVenue(
   };
 }
 
-function candidateFromEvent(
-  ev: Record<string, unknown>,
+function venueNameFromJamBaseVenue(venue: Record<string, unknown>): string | null {
+  return typeof venue.name === 'string' ? venue.name : null;
+}
+
+function venueIdFromJamBaseVenue(venue: Record<string, unknown>): string | null {
+  return typeof venue.identifier === 'string' ? venue.identifier : null;
+}
+
+function candidateFromJamBaseVenue(
+  venue: Record<string, unknown>,
   userLat: number,
   userLon: number,
   matchRadiusMiles: number,
   userCityLower: string | null,
-  opts?: CandidateGeoTrust
+  opts?: CandidateGeoTrust,
 ): ClipShowCandidate | null {
-  const id = typeof ev.identifier === 'string' ? ev.identifier : null;
-  if (!id) return null;
+  const venueId = venueIdFromJamBaseVenue(venue);
+  const venueName = venueNameFromJamBaseVenue(venue);
+  if (!venueId || !venueName) return null;
 
-  const head = headlinerFromEvent(ev);
-  const artistName = typeof head?.name === 'string' ? head.name : null;
-  const artistId = typeof head?.identifier === 'string' ? head.identifier : null;
-
-  const venueName = venueNameFromEvent(ev);
-  const venueId = venueIdentifier(ev);
-  const locationLine = venueCityStateLine(ev);
-
-  const coords = extractVenueCoords(ev);
+  const locationLine = venueCityStateLine(venue);
+  const coords = extractVenueCoords(venue);
   let distanceMiles: number | null = null;
   let withinRadius = false;
 
@@ -390,24 +434,20 @@ function candidateFromEvent(
 
   if (!withinRadius) return null;
 
-  const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
-  const eventTitle =
-    jamBaseEventTitle(ev) ?? artistAtVenueTitle(artistName, venueName);
-
   return {
-    jambase_event_id: id,
-    jambase_artist_id: artistId,
+    jambase_event_id: null,
+    jambase_artist_id: null,
     jambase_venue_id: venueId,
-    artist_name: artistName,
+    artist_name: null,
     venue_name: venueName,
     location: locationLine,
-    event_title: eventTitle,
-    startDate,
+    event_title: null,
+    startDate: '',
     distance_miles: distanceMiles,
   };
 }
 
-/** User-facing copy when a JamBase `/events` call returns null (see `JamBaseFetchDiag`). */
+/** User-facing copy when a JamBase call returns null (see `JamBaseFetchDiag`). */
 function jamBaseFetchFailureNotice(
   failure?: JamBaseFetchDiag['failure'],
   httpStatus?: number
@@ -440,8 +480,10 @@ function jamBaseFetchFailureNotice(
  * POST /api/clips/resolve-show
  * Body: { latitude, longitude, at? (ISO; capture instant for same-day show + artist merge), city?, state?, country? }
  *
- * **Only considers JamBase concerts** (geo `/events`): the closest event by GPS ↔ venue coordinates wins
- * (deduped per venue). Then `/events?venueId=…` refines same **UTC calendar day** as `at` when possible.
+ * **Venues first** (geo `/venues`): closest physical venues by GPS, then `/events?venueId=…&expandPastEvents`
+ * for same **UTC calendar day** as `at` (includes in-progress shows within {@link IN_SHOW_EXPAND_PAST_HOURS}h).
+ * Auto-applies only when ≤ {@link AUTO_APPLY_MAX_DISTANCE_MILES} mi and same calendar day; otherwise returns
+ * top {@link NEARBY_VENUE_PICKER_COUNT} venues for manual pick.
  */
 export async function postResolveShowForClip(c: Context) {
   const mochaUser = c.get('user');
@@ -549,76 +591,93 @@ export async function postResolveShowForClip(c: Context) {
   const userCityLower = city ? city.toLowerCase() : null;
 
   const resolveAnchorMs = hasAt ? atMs : Date.now();
+  const captureDayYmd = utcYmdFromMs(resolveAnchorMs);
   const eventDateFrom = jamBaseGeoEventDateFromUtc(resolveAnchorMs);
 
-  const eventSearchMiles = Math.max(
+  const venueSearchMiles = Math.max(
     profileRadiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
-    VENUE_JAMBASE_SEARCH_MIN_MILES
+    VENUE_JAMBASE_SEARCH_MIN_MILES,
   );
-  const eventRadius = Math.min(
+  const venueRadius = Math.min(
     5000,
-    Math.max(1, Math.ceil(eventSearchMiles + GPS_DISTANCE_SLACK_MILES))
+    Math.max(1, Math.ceil(venueSearchMiles + GPS_DISTANCE_SLACK_MILES)),
   );
 
-  const eventParams: Record<string, string> = {
-    eventDateFrom,
-    perPage: '80',
+  const venueParams: Record<string, string> = {
+    perPage: '40',
     page: '1',
     geoLatitude: String(lat),
     geoLongitude: String(lon),
-    geoRadiusAmount: String(eventRadius),
+    geoRadiusAmount: String(venueRadius),
     geoRadiusUnits: 'mi',
   };
 
-  const eventsDiag: JamBaseFetchDiag = {};
-  const geoEventsPayload = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+  const venuesDiag: JamBaseFetchDiag = {};
+  const geoVenuesPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
     key,
-    '/events',
-    eventParams,
+    '/venues',
+    venueParams,
     jbQ,
-    eventsDiag
+    venuesDiag,
   );
 
-  const eventsFetchFailed = geoEventsPayload == null;
-  const rawEvents = geoEventsPayload?.events ?? [];
-  const rawUpstreamCount = rawEvents.length;
+  const venuesFetchFailed = geoVenuesPayload == null;
+  const rawVenues = geoVenuesPayload?.venues ?? [];
+  const rawUpstreamCount = rawVenues.length;
 
-  const matchSource = 'events_geo' as const;
+  const matchSource = 'venues_geo' as const;
 
-  const fromEvents: ClipShowCandidate[] = [];
-  for (const ev of rawEvents) {
-    if (typeof ev !== 'object' || ev === null) continue;
-    const cnd = candidateFromEvent(ev as Record<string, unknown>, lat, lon, matchRadiusMiles, userCityLower, {
-      trustJamBaseGeoList: true,
-    });
-    if (cnd) fromEvents.push(cnd);
+  const fromVenues: ClipShowCandidate[] = [];
+  for (const venue of rawVenues) {
+    if (typeof venue !== 'object' || venue === null) continue;
+    const cnd = candidateFromJamBaseVenue(
+      venue as Record<string, unknown>,
+      lat,
+      lon,
+      matchRadiusMiles,
+      userCityLower,
+      { trustJamBaseGeoList: true },
+    );
+    if (cnd) fromVenues.push(cnd);
   }
 
-  const working = dedupeKeepClosestPerVenue(fromEvents);
+  const working = dedupeKeepClosestPerVenue(fromVenues);
+  const toEnrich = working.slice(0, VENUES_TO_ENRICH);
 
-  let { match, candidates } = finalizeMatch(working);
-  const nearbyVenues = working.slice(0, 15);
-
-  if (match === 'single' && candidates.length === 1) {
-    const anchorMs = hasAt ? atMs : Date.now();
+  let enrichedSorted: ClipShowCandidate[] = working;
+  if (toEnrich.length > 0) {
     try {
-      const enriched = await enrichWithSameDayShowAtVenue(key, jbQ, candidates[0]!, anchorMs);
-      candidates = [enriched];
+      const enriched = await Promise.all(
+        toEnrich.map((base) => enrichWithSameDayShowAtVenue(key, jbQ, base, resolveAnchorMs)),
+      );
+      const enrichedIds = new Set(
+        enriched.map((r) => r.jambase_venue_id).filter((id): id is string => Boolean(id)),
+      );
+      const tail = working.filter((v) => !enrichedIds.has(v.jambase_venue_id ?? ''));
+      enrichedSorted = sortCandidatesByDistance([...enriched, ...tail]);
     } catch (e) {
-      console.error('resolve-show same-day venue events merge failed:', e);
+      console.error('resolve-show venue show enrichment failed:', e);
     }
   }
 
+  const { match, candidates, nearbyVenues } = resolveMatchFromEnrichedVenues(
+    enrichedSorted,
+    captureDayYmd,
+  );
+
   let notice: string | null = null;
-  if (match === 'none') {
-    if (eventsFetchFailed) {
-      notice = jamBaseFetchFailureNotice(eventsDiag.failure, eventsDiag.httpStatus);
-    } else if (rawEvents.length === 0) {
+  if (match === 'ambiguous') {
+    notice =
+      'Several venues are nearby — pick the one you are at. We only auto-fill when you are within a quarter mile of the venue.';
+  } else if (match === 'none') {
+    if (venuesFetchFailed) {
+      notice = jamBaseFetchFailureNotice(venuesDiag.failure, venuesDiag.httpStatus);
+    } else if (rawVenues.length === 0) {
       notice =
-        'JamBase has no upcoming concerts near this location in the current search window. We only match venues that have JamBase show listings — you can enter the venue manually.';
+        'JamBase has no venues near this location. You can search for a venue manually below.';
     } else {
       notice =
-        'JamBase returned concerts in the area, but none within your location radius. You can enter the venue manually.';
+        'JamBase returned venues in the area, but none are close enough to auto-fill. Pick from the list or search manually.';
     }
   }
 
@@ -649,16 +708,18 @@ export async function postResolveShowForClip(c: Context) {
       geoCityId: null,
       geoCityIds: [] as string[],
       postcodeFromNominatim: Boolean(postcode),
-      eventsGeoSearch: true,
-      rawEventCount: rawEvents.length,
-      matchedEventCandidateCount: fromEvents.length,
+      eventsGeoSearch: false,
+      venuesGeoSearch: true,
+      rawVenueCount: rawVenues.length,
+      rawEventCount: rawVenues.length,
+      matchedEventCandidateCount: fromVenues.length,
       eventDateFrom,
       matchSource,
       lat,
       lon,
-      jamBaseEventsFetchFailed: eventsFetchFailed,
-      jamBaseEventsFetchFailure: eventsFetchFailed ? eventsDiag.failure ?? null : null,
-      jamBaseEventsFetchHttpStatus: eventsFetchFailed ? eventsDiag.httpStatus ?? null : null,
+      jamBaseVenuesFetchFailed: venuesFetchFailed,
+      jamBaseVenuesFetchFailure: venuesFetchFailed ? venuesDiag.failure ?? null : null,
+      jamBaseVenuesFetchHttpStatus: venuesFetchFailed ? venuesDiag.httpStatus ?? null : null,
     },
   });
 }

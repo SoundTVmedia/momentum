@@ -97,10 +97,12 @@ export async function loadValidClassification(
   acr_matched: number;
   has_speech: number;
   headliner_matched: number;
+  acr_artist: string | null;
+  acr_title: string | null;
 } | null> {
   const row = await db
     .prepare(
-      `SELECT content_feed, acr_matched, has_speech, headliner_matched
+      `SELECT content_feed, acr_matched, has_speech, headliner_matched, acr_artist, acr_title
        FROM clip_content_classifications
        WHERE id = ? AND mocha_user_id = ? AND expires_at > CURRENT_TIMESTAMP`,
     )
@@ -113,6 +115,8 @@ export async function loadValidClassification(
     acr_matched: number;
     has_speech: number;
     headliner_matched: number;
+    acr_artist: string | null;
+    acr_title: string | null;
   };
 }
 

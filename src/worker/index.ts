@@ -86,6 +86,10 @@ import {
   postClassifyClipContent,
 } from "./content-feed-endpoints";
 import { mainFeedClipFilterSql } from "./content-feed-sql";
+import {
+  CONTENT_FEED_REJECTION_MESSAGES,
+} from "../shared/content-feed";
+import { headlinerMatchesAcrArtist } from "../shared/artist-name-match";
 import { computeShowId } from "../shared/show-id";
 import { resolveClipEventTitle } from "../shared/event-title";
 import {
@@ -828,6 +832,8 @@ app.post("/api/clips", authMiddleware, async (c) => {
     acr_matched: number;
     has_speech: number;
     headliner_matched: number;
+    acr_artist: string | null;
+    acr_title: string | null;
   } | null = null;
   let classificationId = '';
 
@@ -862,6 +868,35 @@ app.post("/api/clips", authMiddleware, async (c) => {
     }
     if (classification.content_feed !== 'main' && classification.content_feed !== 'pre_post') {
       return c.json({ error: 'Invalid content feed classification.' }, 422);
+    }
+  }
+
+  const postedArtistName =
+    typeof artist_name === 'string' ? artist_name.trim() : '';
+
+  if (
+    !isDraft &&
+    classification?.content_feed === 'main' &&
+    classification.acr_matched
+  ) {
+    const acrArtist = classification.acr_artist?.trim() ?? '';
+    if (!acrArtist) {
+      return c.json(
+        { error: 'Music was identified but artist data is missing. Re-check your clip and try again.' },
+        422,
+      );
+    }
+    if (!postedArtistName) {
+      return c.json(
+        { error: CONTENT_FEED_REJECTION_MESSAGES.missing_headliner },
+        422,
+      );
+    }
+    if (!headlinerMatchesAcrArtist(acrArtist, postedArtistName)) {
+      return c.json(
+        { error: CONTENT_FEED_REJECTION_MESSAGES.acr_no_headliner_match },
+        422,
+      );
     }
   }
 

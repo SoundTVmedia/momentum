@@ -162,7 +162,7 @@ export default function QuickRecordButton({
 
   /** JamBase resolve-show preview on camera (before record). */
   const [captureResolvePreview, setCaptureResolvePreview] = useState<{
-    status: 'idle' | 'loading' | 'ready' | 'none' | 'error';
+    status: 'idle' | 'loading' | 'ready' | 'ambiguous' | 'none' | 'error';
     eventTitle: string | null;
     venueName: string | null;
     artistName: string | null;
@@ -293,22 +293,29 @@ export default function QuickRecordButton({
         const data = (await res.json()) as {
           match?: string;
           candidates?: ClipShowCandidate[];
+          nearbyVenues?: ClipShowCandidate[];
         };
         if (cancelled) return;
-        const cand = data.match === 'single' ? data.candidates?.[0] : undefined;
+        const cand =
+          data.match === 'single'
+            ? data.candidates?.[0]
+            : data.match === 'ambiguous'
+              ? data.nearbyVenues?.[0]
+              : undefined;
+        const previewOnly = data.match === 'ambiguous';
         if (cand?.venue_name?.trim()) {
-          captureResolveCandidateRef.current = cand;
+          captureResolveCandidateRef.current = previewOnly ? null : cand;
           const eventTitle = resolveClipEventTitle({
             event_title: cand.event_title,
             artist_name: cand.artist_name,
             venue_name: cand.venue_name,
           });
           setCaptureResolvePreview({
-            status: 'ready',
-            eventTitle,
-            venueName: cand.venue_name.trim(),
-            artistName: cand.artist_name?.trim() ?? null,
-            locationLine: cand.location?.trim() ?? null,
+            status: previewOnly ? 'ambiguous' : 'ready',
+            eventTitle: previewOnly ? null : eventTitle,
+            venueName: previewOnly ? null : cand.venue_name.trim(),
+            artistName: previewOnly ? null : (cand.artist_name?.trim() ?? null),
+            locationLine: previewOnly ? null : (cand.location?.trim() ?? null),
           });
         } else {
           captureResolveCandidateRef.current = null;
@@ -1601,6 +1608,11 @@ export default function QuickRecordButton({
                                 </p>
                               ) : null}
                             </>
+                          )}
+                          {captureResolvePreview.status === 'ambiguous' && (
+                            <p className="text-gray-300 text-[11px] leading-snug">
+                              Several venues nearby — you will pick the right one after you record.
+                            </p>
                           )}
                           {captureResolvePreview.status === 'none' && (
                             <p className="text-gray-300 text-[11px] leading-snug">

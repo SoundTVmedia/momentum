@@ -12,9 +12,20 @@ describe('classifyContentFeed', () => {
     expect(r.headliner_matched).toBe(true);
   });
 
+  it('routes ACR match without headliner to main (artist required at post)', () => {
+    const r = classifyContentFeed({
+      acrMatch: { artist: 'Taylor Swift', title: 'Anti-Hero' },
+      headlinerName: null,
+      hasSpeech: false,
+    });
+    expect(r.content_feed).toBe('main');
+    expect(r.headliner_matched).toBe(false);
+    expect(r.reason).toBe('acr_pending_headliner');
+  });
+
   it('rejects ACR match when headliner differs', () => {
     const r = classifyContentFeed({
-      acrMatch: { artist: 'Drake', title: 'God\'s Plan' },
+      acrMatch: { artist: 'Drake', title: "God's Plan" },
       headlinerName: 'Taylor Swift',
       hasSpeech: true,
     });
@@ -33,13 +44,13 @@ describe('classifyContentFeed', () => {
     expect(r.content_feed).toBe('pre_post');
   });
 
-  it('routes no ACR and no speech to pre_post', () => {
+  it('routes no ACR and no speech to main for manual performance entry', () => {
     const r = classifyContentFeed({
       acrMatch: null,
       headlinerName: 'Taylor Swift',
       hasSpeech: false,
     });
-    expect(r.content_feed).toBe('pre_post');
+    expect(r.content_feed).toBe('main');
     expect(r.reason).toBe('no_acr_no_speech');
     expect(r.has_speech).toBe(false);
   });

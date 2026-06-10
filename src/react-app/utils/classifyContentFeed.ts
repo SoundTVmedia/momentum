@@ -88,6 +88,20 @@ export function contentFeedUserMessage(
   result: ContentFeedClassification,
 ): { tone: 'success' | 'info' | 'error'; message: string } | null {
   if (result.content_feed === 'main') {
+    if (result.acr_matched && !result.headliner_matched) {
+      return {
+        tone: 'success',
+        message:
+          'Performance clip — will appear on the main feed. Select the artist that matches the identified song.',
+      };
+    }
+    if (!result.acr_matched) {
+      return {
+        tone: 'success',
+        message:
+          'Performance clip — will appear on the main feed. Add artist, venue, and song details below.',
+      };
+    }
     return {
       tone: 'success',
       message: 'Performance clip — will appear on the main public feed.',

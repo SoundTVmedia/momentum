@@ -31,17 +31,20 @@ export type ClassifyContentFeedInput = {
 
 export const CONTENT_FEED_REJECTION_MESSAGES: Record<string, string> = {
   acr_no_headliner_match:
-    'This sounds like a song, but it does not match the headliner for this show. Performance clips must match the artist on stage.',
+    'This sounds like a song, but the artist you selected does not match the identified track. Pick the artist ACR detected, or post as a friends-only talking moment.',
   missing_headliner:
-    'Set the show artist before posting a performance clip so we can verify the song matches the headliner.',
+    'Select the show artist that matches the identified song before posting to the main feed.',
+  acr_artist_required:
+    'The main feed requires an artist that matches the identified song.',
 };
 
 /**
  * Decision matrix:
- * - ACR match + headliner match → main (public performance feed)
- * - ACR no match + speech → pre_post (friends-only)
- * - ACR no match + no speech → pre_post (friends-only)
+ * - ACR match + headliner match → main
+ * - ACR match + no headliner yet → main (artist required at post; must match ACR)
  * - ACR match + headliner mismatch → rejected
+ * - ACR no match + speech → pre_post (friends-only talking moment)
+ * - ACR no match + no speech → main (manual song/artist/venue entry)
  */
 export function classifyContentFeed(input: ClassifyContentFeedInput): ContentFeedClassification {
   const acrArtist = input.acrMatch?.artist?.trim() || null;
@@ -52,12 +55,11 @@ export function classifyContentFeed(input: ClassifyContentFeedInput): ContentFee
   if (acrMatched) {
     if (!headliner) {
       return {
-        content_feed: 'rejected',
+        content_feed: 'main',
         acr_matched: true,
         has_speech: input.hasSpeech,
         headliner_matched: false,
-        reason: 'missing_headliner',
-        message: CONTENT_FEED_REJECTION_MESSAGES.missing_headliner,
+        reason: 'acr_pending_headliner',
         acr_artist: acrArtist,
         acr_title: acrTitle,
       };
@@ -99,7 +101,7 @@ export function classifyContentFeed(input: ClassifyContentFeedInput): ContentFee
   }
 
   return {
-    content_feed: 'pre_post',
+    content_feed: 'main',
     acr_matched: false,
     has_speech: false,
     headliner_matched: false,

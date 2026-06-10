@@ -51,7 +51,7 @@ import {
   classifyContentFeedForClip,
   contentFeedUserMessage,
 } from '@/react-app/utils/classifyContentFeed';
-import type { ContentFeedClassification } from '@/shared/content-feed';
+import { classifyContentFeed, type ContentFeedClassification } from '@/shared/content-feed';
 import {
   extractVideoFileMetadata,
   type ExtractedVideoFileMetadata,
@@ -149,6 +149,8 @@ export default function UploadClip() {
     country: string | null;
   } | null>(null);
   const [resolveNotice, setResolveNotice] = useState<string | null>(null);
+  /** Top nearby venues when auto-apply is skipped (wrong day or >0.25 mi). */
+  const [nearbyVenueChoices, setNearbyVenueChoices] = useState<ClipShowCandidate[]>([]);
 
   /** ACRCloud song ID on the post-capture screen (short audio snippet from the clip). */
   const [auddStatus, setAuddStatus] = useState<
@@ -674,8 +676,13 @@ export default function UploadClip() {
     setShowVenueSuggestions(false);
   }, [showCaptionScreen, isEditingTags, formData.artist_name, formData.venue_name]);
 
-  const applyClipCandidate = useCallback((c: ClipShowCandidate) => {
-    if (userOverrodeAutoTagsRef.current || isEditingTagsRef.current) return;
+  const applyClipCandidate = useCallback((c: ClipShowCandidate, opts?: { force?: boolean }) => {
+    if (
+      !opts?.force &&
+      (userOverrodeAutoTagsRef.current || isEditingTagsRef.current)
+    ) {
+      return;
+    }
     autoShowTagAppliedRef.current = true;
     setFormData((prev) => ({
       ...prev,
@@ -698,7 +705,16 @@ export default function UploadClip() {
     });
     captionCommittedArtistNameRef.current = c.artist_name ?? '';
     setResolveNotice(null);
+    setNearbyVenueChoices([]);
   }, []);
+
+  const handleNearbyVenuePick = useCallback(
+    (c: ClipShowCandidate) => {
+      applyClipCandidate(c, { force: true });
+      setResolveNotice(null);
+    },
+    [applyClipCandidate],
+  );
 
   useEffect(() => {
     if (
@@ -855,10 +871,18 @@ export default function UploadClip() {
         };
         if (cancelled) return;
 
+        const pickerVenues = (data.nearbyVenues ?? []).slice(0, 3);
+        setNearbyVenueChoices(pickerVenues);
+
         const applyClosest = () => {
           if (data.match === 'single' && data.candidates?.[0]) {
             applyClipCandidate(data.candidates[0]);
             setResolveNotice(null);
+          } else if (data.match === 'ambiguous' && pickerVenues.length > 0) {
+            setResolveNotice(
+              data.notice ??
+                'Several venues are nearby — pick the one you are at.',
+            );
           } else if (data.match === 'none') {
             setResolveNotice(
               data.notice ??
@@ -913,6 +937,7 @@ export default function UploadClip() {
     setVenueSearch('');
     setJambaseLink(null);
     setResolveNotice(null);
+    setNearbyVenueChoices([]);
     captionCommittedArtistNameRef.current = '';
     captionCommittedVenueNameRef.current = '';
     setIsEditingTags(false);
@@ -985,6 +1010,50 @@ export default function UploadClip() {
     formData.artist_name,
     location.state,
     clearShowAssociationFields,
+  ]);
+
+  /** Re-derive main vs rejected when the user picks an artist after ACR identification. */
+  useEffect(() => {
+    if (classifyStatus !== 'done' || !classifyResult) return;
+    if (!classifyResult.acr_matched) return;
+
+    const acrMatch =
+      classifyResult.acr_artist || classifyResult.acr_title
+        ? {
+            artist: classifyResult.acr_artist ?? '',
+            title: classifyResult.acr_title ?? '',
+          }
+        : null;
+
+    const derived = classifyContentFeed({
+      acrMatch,
+      headlinerName: formData.artist_name?.trim() || null,
+      has_speech: classifyResult.has_speech,
+    });
+
+    const feedChanged = derived.content_feed !== classifyResult.content_feed;
+    const headlinerChanged =
+      derived.headliner_matched !== classifyResult.headliner_matched;
+    if (!feedChanged && !headlinerChanged) return;
+
+    setClassifyResult(derived);
+    setStoredClassificationId(null);
+    const ui = contentFeedUserMessage(derived);
+    setClassifyMessage(ui?.message ?? null);
+    if (derived.content_feed === 'rejected') {
+      setClassifyStatus('error');
+      return;
+    }
+    setClassifyStatus('done');
+  }, [
+    classifyStatus,
+    classifyResult?.acr_matched,
+    classifyResult?.acr_artist,
+    classifyResult?.acr_title,
+    classifyResult?.has_speech,
+    classifyResult?.content_feed,
+    classifyResult?.headliner_matched,
+    formData.artist_name,
   ]);
 
   /**
@@ -1419,6 +1488,7 @@ export default function UploadClip() {
     setVideoMetadata({});
     setJambaseLink(null);
     setResolveNotice(null);
+    setNearbyVenueChoices([]);
     setRecordingAtIso(null);
     setCaptureGeo(null);
     setError(null);
@@ -1945,6 +2015,54 @@ export default function UploadClip() {
               {showPerformanceCaptionDetails && resolveNotice && (
                 <div className="p-3 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
                   <p className="text-momentum-glacier/90 text-sm">{resolveNotice}</p>
+                </div>
+              )}
+              {showPerformanceCaptionDetails && nearbyVenueChoices.length > 0 && (
+                <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
+                  <p className="text-sm font-medium text-white">Nearby venues</p>
+                  <p className="text-xs text-gray-400">
+                    Pick the venue you are at. We only auto-fill when you are within a quarter mile.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {nearbyVenueChoices.map((venue) => {
+                      const selected =
+                        formData.venue_name === venue.venue_name &&
+                        jambaseLink?.venue === venue.jambase_venue_id;
+                      const distLabel =
+                        venue.distance_miles != null && Number.isFinite(venue.distance_miles)
+                          ? `${venue.distance_miles.toFixed(2)} mi`
+                          : null;
+                      return (
+                        <button
+                          key={venue.jambase_venue_id ?? venue.venue_name ?? 'venue'}
+                          type="button"
+                          onClick={() => handleNearbyVenuePick(venue)}
+                          className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+                            selected
+                              ? 'border-momentum-flare bg-momentum-flare/15'
+                              : 'border-white/15 bg-white/5 hover:border-momentum-flare/50 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-medium text-white truncate">
+                                {venue.venue_name ?? 'Venue'}
+                              </p>
+                              {venue.location ? (
+                                <p className="text-xs text-gray-400 mt-0.5">{venue.location}</p>
+                              ) : null}
+                              {venue.artist_name ? (
+                                <p className="text-xs text-momentum-rose mt-1">{venue.artist_name}</p>
+                              ) : null}
+                            </div>
+                            {distLabel ? (
+                              <span className="text-xs text-gray-500 shrink-0">{distLabel}</span>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
               {showPerformanceCaptionDetails && auddStatus === 'loading' && (
