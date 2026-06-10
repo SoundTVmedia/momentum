@@ -56,6 +56,19 @@ import {
   extractVideoFileMetadata,
   type ExtractedVideoFileMetadata,
 } from '@/react-app/utils/extractVideoFileMetadata';
+import {
+  captureShowCandidateFromPostedClip,
+  clipShowCandidateToNavState,
+  loadCaptureShowSession,
+  markCaptureShowSessionPosted,
+  saveCaptureShowSession,
+} from '@/react-app/utils/captureShowSession';
+import { useShowMarks } from '@/react-app/hooks/useShowMarks';
+import {
+  jamBaseEventToShowMarkInput,
+  pickGoingShowMarkForCapture,
+  showMarkToClipCandidate,
+} from '@/shared/show-marks';
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -64,7 +77,8 @@ export default function UploadClip() {
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
   const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
-  const { enqueue: enqueueClipUpload } = useClipUploadQueue();
+  const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight } = useClipUploadQueue();
+  const { goingMarks, hydrated: showMarksHydrated } = useShowMarks();
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ video: 0, thumbnail: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -341,8 +355,38 @@ export default function UploadClip() {
     const navFromLibrary = Boolean(
       (location.state as { fromPhotoLibrary?: boolean } | null)?.fromPhotoLibrary,
     );
-    if (location.state?.showData && !navFromLibrary) {
-      const showData = location.state.showData as Record<string, unknown>;
+    const navQuickCapture = Boolean(
+      (location.state as { videoBlob?: unknown } | null)?.videoBlob,
+    );
+    let showData = location.state?.showData as Record<string, unknown> | undefined;
+    if (!showData && !navFromLibrary && navQuickCapture) {
+      const capGeo = location.state?.captureGeo as
+        | { latitude?: number; longitude?: number }
+        | undefined;
+      const sticky = loadCaptureShowSession({
+        lat: capGeo?.latitude,
+        lon: capGeo?.longitude,
+        uploadsInFlight: clipUploadsInFlight > 0,
+      });
+      if (sticky) {
+        showData = clipShowCandidateToNavState(sticky.candidate);
+      } else if (showMarksHydrated) {
+        const capGeo = location.state?.captureGeo as
+          | { latitude?: number; longitude?: number }
+          | undefined;
+        const going = pickGoingShowMarkForCapture(
+          goingMarks,
+          Date.now(),
+          capGeo?.latitude,
+          capGeo?.longitude,
+        );
+        if (going) {
+          showData = clipShowCandidateToNavState(showMarkToClipCandidate(going));
+        }
+      }
+    }
+
+    if (showData && !navFromLibrary) {
       const cap = location.state.captureGeo as
         | { city?: string | null; state?: string | null }
         | undefined;
@@ -706,7 +750,15 @@ export default function UploadClip() {
     captionCommittedArtistNameRef.current = c.artist_name ?? '';
     setResolveNotice(null);
     setNearbyVenueChoices([]);
-  }, []);
+    const geo = captureGeo;
+    if (
+      geo &&
+      Number.isFinite(geo.latitude) &&
+      Number.isFinite(geo.longitude)
+    ) {
+      saveCaptureShowSession(c, geo.latitude, geo.longitude);
+    }
+  }, [captureGeo]);
 
   const handleNearbyVenuePick = useCallback(
     (c: ClipShowCandidate) => {
@@ -748,8 +800,9 @@ export default function UploadClip() {
     const resolveForFile =
       Boolean(formData.video_file && uploadMethod === 'file' && !fromQuick);
 
-    /** Auto-tag from GPS when QuickRecord did not preload show data */
-    const resolveForAutoTagQuick = isQuickCaption && !nav?.showData;
+    /** Auto-tag from GPS when QuickRecord / session did not preload show data */
+    const resolveForAutoTagQuick =
+      isQuickCaption && !nav?.showData && !jambaseLink?.venue && !jambaseLink?.event;
 
     if (!resolveForFile && !resolveForAutoTagQuick) return;
 
@@ -840,6 +893,32 @@ export default function UploadClip() {
       }
       if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude) || cancelled) return;
 
+      const stickySession = loadCaptureShowSession({
+        lat: geo.latitude,
+        lon: geo.longitude,
+        uploadsInFlight: clipUploadsInFlight > 0,
+      });
+      if (stickySession && resolveForAutoTagQuick) {
+        applyClipCandidate(stickySession.candidate);
+        return;
+      }
+
+      if (showMarksHydrated && resolveForAutoTagQuick) {
+        const atMs = Date.parse(at);
+        const going = pickGoingShowMarkForCapture(
+          goingMarks,
+          Number.isFinite(atMs) ? atMs : Date.now(),
+          geo.latitude,
+          geo.longitude,
+        );
+        if (going) {
+          const cand = showMarkToClipCandidate(going);
+          applyClipCandidate(cand);
+          saveCaptureShowSession(cand, geo.latitude, geo.longitude);
+          return;
+        }
+      }
+
       try {
         const res = await fetch('/api/clips/resolve-show', {
           method: 'POST',
@@ -877,6 +956,7 @@ export default function UploadClip() {
         const applyClosest = () => {
           if (data.match === 'single' && data.candidates?.[0]) {
             applyClipCandidate(data.candidates[0]);
+            saveCaptureShowSession(data.candidates[0], geo.latitude, geo.longitude);
             setResolveNotice(null);
           } else if (data.match === 'ambiguous' && pickerVenues.length > 0) {
             setResolveNotice(
@@ -921,6 +1001,9 @@ export default function UploadClip() {
     uploadSource,
     libraryMetaReady,
     libraryFileMeta,
+    clipUploadsInFlight,
+    showMarksHydrated,
+    goingMarks,
   ]);
 
   const clearShowAssociationFields = useCallback(() => {
@@ -1604,6 +1687,50 @@ export default function UploadClip() {
       if (!jobId) {
         setError('Too many clips are uploading. Wait for one to finish, then try again.');
         return;
+      }
+      if (resolved.contentFeed === 'main' && formData.venue_name?.trim()) {
+        const posted = captureShowCandidateFromPostedClip({
+          artist_name: formData.artist_name,
+          venue_name: formData.venue_name,
+          location: formData.location,
+          jambaseLink,
+        });
+        if (
+          posted &&
+          captureGeo &&
+          Number.isFinite(captureGeo.latitude) &&
+          Number.isFinite(captureGeo.longitude)
+        ) {
+          markCaptureShowSessionPosted(posted, captureGeo.latitude, captureGeo.longitude);
+        }
+        if (jambaseLink?.event?.trim()) {
+          const markInput = jamBaseEventToShowMarkInput(
+            {
+              identifier: jambaseLink.event,
+              name: jambaseLink.eventTitle ?? formData.venue_name,
+              startDate: recordingAtIso ?? new Date().toISOString(),
+              performer: formData.artist_name
+                ? [{ name: formData.artist_name, identifier: jambaseLink.artist, 'x-isHeadliner': true }]
+                : [],
+              location: {
+                name: formData.venue_name,
+                identifier: jambaseLink.venue,
+                address: { addressLocality: formData.location?.split(',')[0]?.trim() },
+              },
+            },
+            'attended',
+          );
+          if (markInput) {
+            void fetch('/api/users/me/show-marks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(markInput),
+            }).then(() => {
+              window.dispatchEvent(new CustomEvent('show-marks-changed'));
+            });
+          }
+        }
       }
       skipNavVideoHydrationRef.current = true;
       setShowCaptionScreen(false);

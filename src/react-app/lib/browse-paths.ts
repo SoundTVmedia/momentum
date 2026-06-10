@@ -7,3 +7,4 @@ export function browseClipsPath(feedType: FeedFilterValue): string {
 export const BROWSE_FAVORITE_CLIPS_PATH = '/browse/favorites/clips';
 export const BROWSE_FAVORITE_SHOWS_PATH = '/browse/favorites/shows';
 export const BROWSE_NEARBY_SHOWS_PATH = '/browse/shows/nearby';
+export const MY_SHOWS_PATH = '/my/shows';

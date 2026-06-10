@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Loader2 } from 'lucide-react';
+import { Calendar, Loader2 } from 'lucide-react';
+import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
 import MyClipsSection from '@/react-app/components/MyClipsSection';
@@ -73,6 +74,17 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
           <div className="lg:col-span-2">
             <BadgesDisplay compact />
           </div>
+        </div>
+
+        <div className="mb-8">
+          <button
+            type="button"
+            onClick={() => navigate(MY_SHOWS_PATH)}
+            className="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-momentum-flare/30 bg-momentum-flare/10 text-momentum-flare hover:bg-momentum-flare/20 transition-colors text-sm font-medium"
+          >
+            <Calendar className="w-4 h-4 shrink-0" />
+            My shows — going &amp; been
+          </button>
         </div>
 
         <div className="space-y-10">

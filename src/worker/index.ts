@@ -75,6 +75,7 @@ import {
   getRelatedClipsForShare,
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
+import * as showMarks from "./user-show-marks-endpoints";
 import {
   getClipIdentifyMusicConfig,
   postClipIdentifyMusicAudD,
@@ -3269,6 +3270,10 @@ app.post("/api/clips/:id/rate", authMiddleware, rating.rateClip);
 app.get("/api/clips/:id/rating", authMiddleware, rating.getUserClipRating);
 
 // Favorite Artists & Clips Endpoints
+app.get("/api/users/me/show-marks", authMiddleware, showMarks.getMyShowMarks);
+app.post("/api/users/me/show-marks", authMiddleware, showMarks.upsertMyShowMark);
+app.delete("/api/users/me/show-marks/:jambaseEventId", authMiddleware, showMarks.deleteMyShowMark);
+
 app.get("/api/users/me/favorite-artists", authMiddleware, favorite.getFavoriteArtists);
 app.post("/api/users/favorite-artist", authMiddleware, favorite.toggleFavoriteArtist);
 app.post("/api/users/favorite-artists/sync-by-name", authMiddleware, favorite.syncFavoriteArtistsByName);

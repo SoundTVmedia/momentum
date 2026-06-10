@@ -13,6 +13,17 @@ import {
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { pickAudioRecorderMime } from '@/react-app/utils/audioRecorderMime';
+import {
+  clipShowCandidateToNavState,
+  loadCaptureShowSession,
+  saveCaptureShowSession,
+} from '@/react-app/utils/captureShowSession';
+import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
+import { useShowMarks } from '@/react-app/hooks/useShowMarks';
+import {
+  pickGoingShowMarkForCapture,
+  showMarkToClipCandidate,
+} from '@/shared/show-marks';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -26,20 +37,6 @@ const HAPTIC_WARNING_TIME = 50;
 const LIVE_AUDD_SEGMENT_MS = 8_000;
 /** ACRCloud often rejects tiny/incomplete WebM (2004); align with worker MIN_WEBM_BYTES. */
 const MIN_LIVE_AUDD_CHUNK_BYTES = 4096;
-
-/** Build `location.state.showData` so UploadClip prefills JamBase fields without calling resolve-show again. */
-function clipCandidateToNavShowData(c: ClipShowCandidate): Record<string, unknown> {
-  const out: Record<string, unknown> = {
-    artist_name: c.artist_name ?? '',
-    venue_name: c.venue_name ?? '',
-    location: c.location ?? '',
-  };
-  if (c.jambase_event_id) out.jambase_event_id = c.jambase_event_id;
-  if (c.jambase_artist_id) out.jambase_artist_id = c.jambase_artist_id;
-  if (c.jambase_venue_id) out.jambase_venue_id = c.jambase_venue_id;
-  if (c.event_title) out.event_title = c.event_title;
-  return out;
-}
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -82,6 +79,8 @@ export default function QuickRecordButton({
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
+  const { activeCount: clipUploadsInFlight } = useClipUploadQueue();
+  const { goingMarks, hydrated: showMarksHydrated } = useShowMarks();
   const lastGeoRef = useRef<{
     latitude: number;
     longitude: number;
@@ -258,6 +257,42 @@ export default function QuickRecordButton({
     const ac = new AbortController();
     let cancelled = false;
 
+    const applySessionCandidate = (cand: ClipShowCandidate) => {
+      captureResolveCandidateRef.current = cand;
+      const eventTitle = resolveClipEventTitle({
+        event_title: cand.event_title,
+        artist_name: cand.artist_name,
+        venue_name: cand.venue_name,
+      });
+      setCaptureResolvePreview({
+        status: 'ready',
+        eventTitle,
+        venueName: cand.venue_name?.trim() ?? null,
+        artistName: cand.artist_name?.trim() ?? null,
+        locationLine: cand.location?.trim() ?? null,
+      });
+    };
+
+    const sticky = loadCaptureShowSession({
+      lat: c.lat,
+      lon: c.lon,
+      uploadsInFlight: clipUploadsInFlight > 0,
+    });
+    if (sticky?.candidate.venue_name?.trim()) {
+      applySessionCandidate(sticky.candidate);
+      return;
+    }
+
+    if (showMarksHydrated) {
+      const going = pickGoingShowMarkForCapture(goingMarks, Date.now(), c.lat, c.lon);
+      if (going?.venue_name?.trim()) {
+        const cand = showMarkToClipCandidate(going);
+        saveCaptureShowSession(cand, c.lat, c.lon);
+        applySessionCandidate(cand);
+        return;
+      }
+    }
+
     void (async () => {
       captureResolveCandidateRef.current = null;
       setCaptureResolvePreview({
@@ -303,19 +338,24 @@ export default function QuickRecordButton({
             : data.nearbyVenues?.[0] ?? data.candidates?.[0];
         const previewOnly = data.match !== 'single';
         if (cand?.venue_name?.trim()) {
-          captureResolveCandidateRef.current = previewOnly ? null : cand;
-          const eventTitle = resolveClipEventTitle({
-            event_title: cand.event_title,
-            artist_name: cand.artist_name,
-            venue_name: cand.venue_name,
-          });
-          setCaptureResolvePreview({
-            status: previewOnly ? 'ambiguous' : 'ready',
-            eventTitle,
-            venueName: cand.venue_name.trim(),
-            artistName: cand.artist_name?.trim() ?? null,
-            locationLine: cand.location?.trim() ?? null,
-          });
+          if (!previewOnly) {
+            saveCaptureShowSession(cand, c.lat, c.lon);
+            applySessionCandidate(cand);
+          } else {
+            captureResolveCandidateRef.current = null;
+            const eventTitle = resolveClipEventTitle({
+              event_title: cand.event_title,
+              artist_name: cand.artist_name,
+              venue_name: cand.venue_name,
+            });
+            setCaptureResolvePreview({
+              status: 'ambiguous',
+              eventTitle,
+              venueName: cand.venue_name.trim(),
+              artistName: cand.artist_name?.trim() ?? null,
+              locationLine: cand.location?.trim() ?? null,
+            });
+          }
         } else {
           captureResolveCandidateRef.current = null;
           setCaptureResolvePreview({
@@ -343,7 +383,16 @@ export default function QuickRecordButton({
       cancelled = true;
       ac.abort();
     };
-  }, [showModal, user, isPending, coordsForNearbyVenues?.lat, coordsForNearbyVenues?.lon]);
+  }, [
+    showModal,
+    user,
+    isPending,
+    coordsForNearbyVenues?.lat,
+    coordsForNearbyVenues?.lon,
+    clipUploadsInFlight,
+    showMarksHydrated,
+    goingMarks,
+  ]);
 
   // Apply GPS from the same user gesture as camera launch (parent primed); no getCurrentPosition here.
   useEffect(() => {
@@ -1336,7 +1385,18 @@ export default function QuickRecordButton({
         lastLiveSongMatchRef.current,
       );
 
-      const prefetchShow = captureResolveCandidateRef.current;
+      const sticky =
+        geo &&
+        Number.isFinite(geo.latitude) &&
+        Number.isFinite(geo.longitude)
+          ? loadCaptureShowSession({
+              lat: geo.latitude,
+              lon: geo.longitude,
+              uploadsInFlight: clipUploadsInFlight > 0,
+            })
+          : null;
+      const prefetchShow =
+        captureResolveCandidateRef.current ?? sticky?.candidate ?? null;
       navigate(
         { pathname: '/upload', search: '' },
         {
@@ -1360,7 +1420,9 @@ export default function QuickRecordButton({
               video_resolution_h: videoResolution.height,
             },
             auddPrefill,
-            ...(prefetchShow ? { showData: clipCandidateToNavShowData(prefetchShow) } : {}),
+            ...(prefetchShow
+              ? { showData: clipShowCandidateToNavState(prefetchShow) }
+              : {}),
           },
         },
       );

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Calendar, MapPin, Clock, Loader2 } from 'lucide-react';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
+import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { useNavigate } from 'react-router';
 import { artistPath, venuePath } from '@/shared/app-paths';
 import HorizontalClipCarousel, {
@@ -222,7 +223,8 @@ function JamBaseEventCard({
           ) : null}
         </div>
 
-        <div className="mt-auto pt-2 min-h-[44px] flex items-end w-full">
+        <div className="mt-auto pt-2 space-y-2 w-full">
+          <ShowMarkButtons event={event} />
           {ticket ? (
             <EventTicketActions ticketUrl={ticket} eventTitle={title} className="w-full" />
           ) : null}
