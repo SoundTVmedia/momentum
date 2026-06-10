@@ -451,7 +451,7 @@ export default function UploadClip() {
       });
     }
 
-    // Live capture may have prefilled song — show immediately; caption screen still runs a full identify pass.
+    // Live capture may have prefilled song from stabilized in-camera ID.
     const navWithAudD = location.state as {
       auddPrefill?: AudDNavPrefill;
       fromPhotoLibrary?: boolean;
@@ -1068,7 +1068,6 @@ export default function UploadClip() {
 
     const sourceKey = auddSourceKey(source);
     if (auddAttemptedForSourceKeyRef.current === sourceKey) return;
-    auddAttemptedForSourceKeyRef.current = sourceKey;
 
     const nav = location.state as {
       captureAudioBlob?: unknown;
@@ -1077,6 +1076,18 @@ export default function UploadClip() {
     const captureAudio =
       nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null;
     const ap = nav?.auddPrefill;
+
+    /** Live capture already stabilized a match — skip the slow full re-identify pass. */
+    if (
+      ap?.sourceKey === sourceKey &&
+      ap.status === 'done' &&
+      (ap.artist?.trim() || ap.title?.trim())
+    ) {
+      auddAttemptedForSourceKeyRef.current = sourceKey;
+      return;
+    }
+
+    auddAttemptedForSourceKeyRef.current = sourceKey;
     const liveHint: LiveSongSnapshot | null =
       ap?.status === 'done' && (ap.artist?.trim() || ap.title?.trim())
         ? { artist: (ap.artist ?? '').trim(), title: (ap.title ?? '').trim() }
@@ -1107,13 +1118,21 @@ export default function UploadClip() {
         return;
       }
 
+      const hadLivePrefill = Boolean(
+        liveHint?.title?.trim() ||
+          liveHint?.artist?.trim() ||
+          (ap?.status === 'done' && (ap.artist?.trim() || ap.title?.trim())),
+      );
+
       if (
         result.status === 'skipped' ||
         result.status === 'nomatch' ||
         (result.status === 'error' && !isFatalSongIdentifyError(result))
       ) {
-        setAuddStatus('idle');
-        setAuddMessage(null);
+        if (!hadLivePrefill) {
+          setAuddStatus('idle');
+          setAuddMessage(null);
+        }
         return;
       }
       if (result.status === 'error') {
@@ -2019,9 +2038,9 @@ export default function UploadClip() {
               )}
               {showPerformanceCaptionDetails && nearbyVenueChoices.length > 0 && (
                 <div className="rounded-lg border border-white/15 bg-white/[0.06] p-4 space-y-3">
-                  <p className="text-sm font-medium text-white">Nearby venues</p>
+                  <p className="text-sm font-medium text-white">Nearby shows tonight</p>
                   <p className="text-xs text-gray-400">
-                    Pick the venue you are at. We only auto-fill when you are within a quarter mile.
+                    JamBase listings with a show on your capture date — pick the venue you are at.
                   </p>
                   <div className="flex flex-col gap-2">
                     {nearbyVenueChoices.map((venue) => {

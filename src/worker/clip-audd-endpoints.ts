@@ -81,7 +81,12 @@ export async function postClipIdentifyMusic(c: Context) {
     typeof (raw as { name?: unknown }).name === 'string' ? (raw as { name: string }).name : '';
   const filename = inferIdentifyFilename(blob, rawName);
 
+  const started = Date.now();
   const out = await recognizeMusic(c.env, blob, filename);
+  const elapsedMs = Date.now() - started;
+  if (elapsedMs > 3000) {
+    console.log(`[identify-music] recognizeMusic ${elapsedMs}ms bytes=${blob.size} file=${filename}`);
+  }
 
   if (!out.ok) {
     return c.json({

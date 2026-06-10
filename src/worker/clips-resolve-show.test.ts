@@ -23,8 +23,8 @@ function baseCandidate(overrides: Partial<ClipShowCandidate> = {}): ClipShowCand
 describe('canAutoApplyCandidate', () => {
   const captureDay = '2026-06-09';
 
-  it('allows close venue-only match', () => {
-    expect(canAutoApplyCandidate(baseCandidate(), captureDay)).toBe(true);
+  it('rejects venue-only rows without a JamBase show', () => {
+    expect(canAutoApplyCandidate(baseCandidate(), captureDay)).toBe(false);
   });
 
   it('rejects when farther than auto-apply threshold', () => {

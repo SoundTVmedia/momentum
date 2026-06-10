@@ -57,7 +57,7 @@ export async function extractMediaSnippetForAudDWithReason(
           video.removeEventListener('loadedmetadata', onReady);
           video.removeEventListener('loadeddata', onReady);
           reject(new Error('load timeout'));
-        }, 25_000);
+        }, 12_000);
         const onReady = () => {
           if (settled) return;
           settled = true;

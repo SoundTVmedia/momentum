@@ -28,8 +28,8 @@ export const AUTO_APPLY_MAX_DISTANCE_MILES = 0.25;
 /** Venues returned for manual picker when auto-apply is skipped. */
 export const NEARBY_VENUE_PICKER_COUNT = 3;
 
-/** How many closest venues to enrich with same-day show data (expandPastEvents). */
-const VENUES_TO_ENRICH = 5;
+/** Max closest venues to scan for a same-day JamBase show (expandPastEvents per venue). */
+const MAX_VENUES_TO_SCAN = 20;
 
 /** Include in-progress / recently started shows on venue-scoped event lookups. */
 export const IN_SHOW_EXPAND_PAST_HOURS = 8;
@@ -222,11 +222,12 @@ export function canAutoApplyCandidate(
   candidate: ClipShowCandidate,
   captureDayYmd: string,
 ): boolean {
+  if (!candidate.jambase_event_id?.trim()) return false;
   const dist = candidate.distance_miles;
   if (dist == null || !Number.isFinite(dist) || dist > AUTO_APPLY_MAX_DISTANCE_MILES) {
     return false;
   }
-  if (candidate.jambase_event_id && candidate.startDate) {
+  if (candidate.startDate) {
     const eventDay = utcYmdFromStartDate(candidate.startDate);
     if (eventDay && eventDay !== captureDayYmd) return false;
   }
@@ -269,21 +270,6 @@ function utcYmdFromStartDate(startDate: string): string | null {
   return utcYmdFromMs(parsed);
 }
 
-/** If we loaded a geo event on the wrong calendar day, drop event/artist and keep venue only. */
-function stripArtistIfEventNotOnCaptureDay(base: ClipShowCandidate, captureDayYmd: string): ClipShowCandidate {
-  if (!base.jambase_event_id || !base.startDate) return base;
-  const eventDay = utcYmdFromStartDate(base.startDate);
-  if (eventDay === captureDayYmd) return base;
-  return {
-    ...base,
-    jambase_event_id: null,
-    jambase_artist_id: null,
-    artist_name: null,
-    event_title: artistAtVenueTitle(base.artist_name, base.venue_name),
-    startDate: '',
-  };
-}
-
 /**
  * Geo `/events` cannot use `expandPastEvents` unless combined with `venueId` or `artistId`. If
  * `eventDateFrom` is before UTC "today", JamBase responds with HTTP 400.
@@ -321,21 +307,19 @@ function jamBaseVenueEventsQueryParams(
 }
 
 /**
- * Closest venue is already chosen. Load shows at that venue and, if one starts on the capture
- * UTC calendar day, merge headliner + event id (pick start time nearest to capture instant).
+ * Load shows at a venue; return a candidate only when JamBase lists a show on the capture UTC day.
+ * Venues with no events (e.g. permanently closed) or only on other days are excluded.
  */
 async function enrichWithSameDayShowAtVenue(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,
   base: ClipShowCandidate,
   captureMs: number
-): Promise<ClipShowCandidate> {
+): Promise<ClipShowCandidate | null> {
   const venueId = base.jambase_venue_id?.trim();
   const captureDay = utcYmdFromMs(captureMs);
 
-  if (!venueId) {
-    return stripArtistIfEventNotOnCaptureDay(base, captureDay);
-  }
+  if (!venueId) return null;
 
   const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
     apiKey,
@@ -344,6 +328,8 @@ async function enrichWithSameDayShowAtVenue(
     jbQ
   );
   const raw = data?.events ?? [];
+  if (raw.length === 0) return null;
+
   const sameDay: Record<string, unknown>[] = [];
   for (const ev of raw) {
     if (typeof ev !== 'object' || ev === null) continue;
@@ -353,9 +339,7 @@ async function enrichWithSameDayShowAtVenue(
     if (day === captureDay) sameDay.push(evo);
   }
 
-  if (sameDay.length === 0) {
-    return stripArtistIfEventNotOnCaptureDay(base, captureDay);
-  }
+  if (sameDay.length === 0) return null;
 
   let bestEv = sameDay[0]!;
   let bestScore = Number.POSITIVE_INFINITY;
@@ -475,10 +459,11 @@ function jamBaseFetchFailureNotice(
  * POST /api/clips/resolve-show
  * Body: { latitude, longitude, at? (ISO; capture instant for same-day show + artist merge), city?, state?, country? }
  *
- * **Venues first** (geo `/venues`): closest physical venues by GPS, then `/events?venueId=…&expandPastEvents`
- * for same **UTC calendar day** as `at` (includes in-progress shows within {@link IN_SHOW_EXPAND_PAST_HOURS}h).
- * Auto-applies only when ≤ {@link AUTO_APPLY_MAX_DISTANCE_MILES} mi and same calendar day; otherwise returns
- * top {@link NEARBY_VENUE_PICKER_COUNT} venues for manual pick.
+ * **Venues with shows only** — geo `/venues` for physical proximity, then `/events?venueId=…&expandPastEvents`
+ * to keep venues that have a JamBase show on the capture **UTC calendar day** (includes in-progress shows
+ * within {@link IN_SHOW_EXPAND_PAST_HOURS}h). Closed venues with no listings are skipped.
+ * Auto-applies only when ≤ {@link AUTO_APPLY_MAX_DISTANCE_MILES} mi; otherwise returns top
+ * {@link NEARBY_VENUE_PICKER_COUNT} venues with tonight's shows for manual pick.
  */
 export async function postResolveShowForClip(c: Context) {
   const mochaUser = c.get('user');
@@ -637,19 +622,17 @@ export async function postResolveShowForClip(c: Context) {
   }
 
   const working = dedupeKeepClosestPerVenue(fromVenues);
-  const toEnrich = working.slice(0, VENUES_TO_ENRICH);
+  const toScan = working.slice(0, MAX_VENUES_TO_SCAN);
 
-  let enrichedSorted: ClipShowCandidate[] = working;
-  if (toEnrich.length > 0) {
+  let enrichedSorted: ClipShowCandidate[] = [];
+  if (toScan.length > 0) {
     try {
       const enriched = await Promise.all(
-        toEnrich.map((base) => enrichWithSameDayShowAtVenue(key, jbQ, base, resolveAnchorMs)),
+        toScan.map((base) => enrichWithSameDayShowAtVenue(key, jbQ, base, resolveAnchorMs)),
       );
-      const enrichedIds = new Set(
-        enriched.map((r) => r.jambase_venue_id).filter((id): id is string => Boolean(id)),
+      enrichedSorted = sortCandidatesByDistance(
+        enriched.filter((r): r is ClipShowCandidate => r != null),
       );
-      const tail = working.filter((v) => !enrichedIds.has(v.jambase_venue_id ?? ''));
-      enrichedSorted = sortCandidatesByDistance([...enriched, ...tail]);
     } catch (e) {
       console.error('resolve-show venue show enrichment failed:', e);
     }
@@ -663,16 +646,19 @@ export async function postResolveShowForClip(c: Context) {
   let notice: string | null = null;
   if (match === 'ambiguous') {
     notice =
-      'Several venues are nearby — pick the one you are at. We only auto-fill when you are within a quarter mile of the venue.';
+      'Several venues with shows tonight are nearby — pick the one you are at. We only auto-fill within a quarter mile.';
   } else if (match === 'none') {
     if (venuesFetchFailed) {
       notice = jamBaseFetchFailureNotice(venuesDiag.failure, venuesDiag.httpStatus);
     } else if (rawVenues.length === 0) {
       notice =
         'JamBase has no venues near this location. You can search for a venue manually below.';
+    } else if (enrichedSorted.length === 0) {
+      notice =
+        'No JamBase shows tonight at venues near you (closed or inactive venues are skipped). Search for your venue manually.';
     } else {
       notice =
-        'JamBase returned venues in the area, but none are close enough to auto-fill. Pick from the list or search manually.';
+        'Several venues with shows tonight are nearby — pick the one you are at. We only auto-fill within a quarter mile.';
     }
   }
 
@@ -707,7 +693,7 @@ export async function postResolveShowForClip(c: Context) {
       venuesGeoSearch: true,
       rawVenueCount: rawVenues.length,
       rawEventCount: rawVenues.length,
-      matchedEventCandidateCount: fromVenues.length,
+      matchedEventCandidateCount: enrichedSorted.length,
       eventDateFrom,
       matchSource,
       lat,

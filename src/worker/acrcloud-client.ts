@@ -224,12 +224,23 @@ export async function recognizeMusicWithAcrCloud(
 
   const url = `https://${host}${IDENTIFY_PATH}`;
 
+  const ac = new AbortController();
+  const acTimer = setTimeout(() => ac.abort(), 18_000);
+
   let res: Response;
   try {
-    res = await fetch(url, { method: 'POST', body: form });
+    res = await fetch(url, { method: 'POST', body: form, signal: ac.signal });
   } catch (e) {
     console.error('[ACRCloud] network error', e);
-    return { ok: false, error: 'Could not reach ACRCloud.' };
+    const timedOut = e instanceof Error && e.name === 'AbortError';
+    return {
+      ok: false,
+      error: timedOut
+        ? 'ACRCloud timed out — try again or enter the song manually.'
+        : 'Could not reach ACRCloud.',
+    };
+  } finally {
+    clearTimeout(acTimer);
   }
 
   let json: Record<string, unknown>;
