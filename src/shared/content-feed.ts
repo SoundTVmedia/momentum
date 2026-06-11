@@ -119,3 +119,11 @@ export function effectiveContentFeedForPost(feed: string | null | undefined): Co
   if (BYPASS_CONTENT_FEED_BIFURCATION) return 'main';
   return feed === 'pre_post' ? 'pre_post' : 'main';
 }
+
+/** User-provided show tags — skip ACR clip-type gate when both are present. */
+export function hasManualShowAssociation(
+  artistName: string | null | undefined,
+  venueName: string | null | undefined,
+): boolean {
+  return Boolean(artistName?.trim() && venueName?.trim());
+}

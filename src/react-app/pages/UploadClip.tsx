@@ -55,6 +55,7 @@ import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   classifyContentFeed,
   effectiveContentFeedForPost,
+  hasManualShowAssociation,
   type ContentFeedClassification,
 } from '@/shared/content-feed';
 import {
@@ -1090,6 +1091,11 @@ export default function UploadClip() {
    */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
+    if (hasManualShowAssociation(formData.artist_name, formData.venue_name)) {
+      setClassifyStatus('done');
+      setClassifyMessage(null);
+      return;
+    }
     const source = formData.video_blob ?? formData.video_file;
     if (!source || !(source instanceof Blob)) return;
 
@@ -1143,6 +1149,7 @@ export default function UploadClip() {
     formData.video_blob,
     formData.video_file,
     formData.artist_name,
+    formData.venue_name,
     location.state,
     clearShowAssociationFields,
   ]);
@@ -1499,6 +1506,10 @@ export default function UploadClip() {
     classificationId: string;
     contentFeed: 'main' | 'pre_post';
   }> => {
+    if (hasManualShowAssociation(formData.artist_name, formData.venue_name)) {
+      return { classificationId: '', contentFeed: 'main' };
+    }
+
     if (
       storedClassificationId &&
       classifyResult &&
@@ -1570,6 +1581,7 @@ export default function UploadClip() {
     formData.video_blob,
     formData.video_file,
     formData.artist_name,
+    formData.venue_name,
     location.state,
     clearShowAssociationFields,
   ]);
@@ -1837,7 +1849,7 @@ export default function UploadClip() {
 
       // Prepare clip data based on upload type (Stream or R2)
       const clipData: any = {
-        classification_id: resolved.classificationId,
+        ...(resolved.classificationId ? { classification_id: resolved.classificationId } : {}),
         artist_name: showFields.artist_name,
         venue_name: showFields.venue_name,
         location: showFields.location,
@@ -2086,8 +2098,10 @@ export default function UploadClip() {
   // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
     const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
+    const hasShowAssociation = hasManualShowAssociation(formData.artist_name, formData.venue_name);
     /** Venue/show fields are independent of ACR artist match (only hidden for friends-only clips). */
-    const showVenueAndShowFields = !isPrePostClip && classifyStatus !== 'loading';
+    const showVenueAndShowFields =
+      !isPrePostClip && (hasShowAssociation || classifyStatus !== 'loading');
     const currentDate = new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -2289,7 +2303,7 @@ export default function UploadClip() {
                   <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
               )}
-              {classifyStatus === 'loading' && (
+              {classifyStatus === 'loading' && !hasShowAssociation && (
                 <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-lg flex items-center gap-2 text-sky-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                   <span>Checking music match…</span>
@@ -2643,13 +2657,13 @@ export default function UploadClip() {
                 <button
                   type="button"
                   disabled={
-                    classifyStatus === 'loading' ||
+                    (classifyStatus === 'loading' && !hasShowAssociation) ||
                     loading
                   }
                   onClick={() => void handleSubmit(null)}
                   className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {classifyStatus === 'loading'
+                  {classifyStatus === 'loading' && !hasShowAssociation
                     ? 'Checking clip…'
                     : isPrePostClip
                       ? 'Share talking moment'

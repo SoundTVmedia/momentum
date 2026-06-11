@@ -3,6 +3,7 @@ import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   classifyContentFeed,
   effectiveContentFeedForPost,
+  hasManualShowAssociation,
 } from './content-feed';
 
 describe('classifyContentFeed', () => {
@@ -57,5 +58,11 @@ describe('classifyContentFeed', () => {
       expect(effectiveContentFeedForPost('rejected')).toBe('main');
     }
     expect(effectiveContentFeedForPost('main')).toBe('main');
+  });
+
+  it('hasManualShowAssociation requires both artist and venue', () => {
+    expect(hasManualShowAssociation('Taylor Swift', 'Madison Square Garden')).toBe(true);
+    expect(hasManualShowAssociation('Taylor Swift', '')).toBe(false);
+    expect(hasManualShowAssociation('', 'Madison Square Garden')).toBe(false);
   });
 });

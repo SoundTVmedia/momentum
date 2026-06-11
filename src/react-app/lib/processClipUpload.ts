@@ -18,7 +18,7 @@ export type ClipUploadJobPayload = {
   videoBlob: Blob | null;
   thumbnailFile: File | null;
   videoUrl: string;
-  /** From POST /api/clips/classify-content — required for published clips. */
+  /** From POST /api/clips/classify-content — omitted when artist + venue are set manually. */
   classificationId: string;
   /** Lane from classify-content; pre_post clips must not carry show associations. */
   contentFeed?: 'main' | 'pre_post';
@@ -145,7 +145,6 @@ export async function processClipUpload(
   });
 
   const clipData: Record<string, unknown> = {
-    classification_id: payload.classificationId,
     artist_name: showFields.artist_name,
     venue_name: showFields.venue_name,
     location: showFields.location,
@@ -165,6 +164,10 @@ export async function processClipUpload(
     video_resolution_w: payload.videoMetadata.video_resolution_w || null,
     video_resolution_h: payload.videoMetadata.video_resolution_h || null,
   };
+
+  if (payload.classificationId) {
+    clipData.classification_id = payload.classificationId;
+  }
 
   if (videoData?.type === 'stream') {
     clipData.stream_video_id = videoData.streamVideoId;

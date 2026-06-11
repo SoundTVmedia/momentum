@@ -90,6 +90,7 @@ import { mainFeedClipFilterSql } from "./content-feed-sql";
 import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   CONTENT_FEED_REJECTION_MESSAGES,
+  hasManualShowAssociation,
 } from "../shared/content-feed";
 import { headlinerMatchesAcrArtist } from "../shared/artist-name-match";
 import { computeShowId } from "../shared/show-id";
@@ -845,10 +846,16 @@ app.post("/api/clips", authMiddleware, async (c) => {
   } | null = null;
   let classificationId = '';
 
+  const postedArtistName =
+    typeof artist_name === 'string' ? artist_name.trim() : '';
+  const postedVenueName =
+    typeof venue_name === 'string' ? venue_name.trim() : '';
+  const hasManualShowTags = hasManualShowAssociation(postedArtistName, postedVenueName);
+
   if (!isDraft) {
     classificationId =
       typeof classification_id === 'string' ? classification_id.trim() : '';
-    if (!classificationId) {
+    if (!classificationId && !hasManualShowTags) {
       return c.json(
         {
           error:
@@ -858,36 +865,36 @@ app.post("/api/clips", authMiddleware, async (c) => {
       );
     }
 
-    classification = await loadValidClassification(c.env.DB, classificationId, uid);
-    if (!classification) {
-      return c.json(
-        {
-          error:
-            'Classification expired or invalid. Re-check your clip on the caption screen before posting.',
-        },
-        422,
-      );
-    }
-    if (!BYPASS_CONTENT_FEED_BIFURCATION && classification.content_feed === 'rejected') {
-      return c.json(
-        { error: 'This clip cannot be posted based on music identification.' },
-        422,
-      );
-    }
-    if (
-      !BYPASS_CONTENT_FEED_BIFURCATION &&
-      classification.content_feed !== 'main' &&
-      classification.content_feed !== 'pre_post'
-    ) {
-      return c.json({ error: 'Invalid content feed classification.' }, 422);
+    if (classificationId) {
+      classification = await loadValidClassification(c.env.DB, classificationId, uid);
+      if (!classification) {
+        return c.json(
+          {
+            error:
+              'Classification expired or invalid. Re-check your clip on the caption screen before posting.',
+          },
+          422,
+        );
+      }
+      if (!BYPASS_CONTENT_FEED_BIFURCATION && classification.content_feed === 'rejected') {
+        return c.json(
+          { error: 'This clip cannot be posted based on music identification.' },
+          422,
+        );
+      }
+      if (
+        !BYPASS_CONTENT_FEED_BIFURCATION &&
+        classification.content_feed !== 'main' &&
+        classification.content_feed !== 'pre_post'
+      ) {
+        return c.json({ error: 'Invalid content feed classification.' }, 422);
+      }
     }
   }
 
-  const postedArtistName =
-    typeof artist_name === 'string' ? artist_name.trim() : '';
-
   if (
     !isDraft &&
+    !hasManualShowTags &&
     !BYPASS_CONTENT_FEED_BIFURCATION &&
     classification?.content_feed === 'main' &&
     classification.acr_matched
@@ -922,8 +929,9 @@ app.post("/api/clips", authMiddleware, async (c) => {
   // `clips.video_url` is NOT NULL; allow Stream-only payloads where playback URL carries the link.
   const resolvedVideoUrl = (video_url || stream_playback_url || "") as string;
   const resolvedTimestamp = timestamp || new Date().toISOString();
-  const contentFeed =
-    BYPASS_CONTENT_FEED_BIFURCATION && classification?.content_feed === 'pre_post'
+  const contentFeed = hasManualShowTags
+    ? 'main'
+    : BYPASS_CONTENT_FEED_BIFURCATION && classification?.content_feed === 'pre_post'
       ? 'main'
       : classification?.content_feed ?? 'main';
   const showFields = clipShowFieldsForContentFeed(contentFeed, {
