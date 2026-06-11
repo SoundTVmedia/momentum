@@ -25,7 +25,7 @@ export default function MyPrePostClipsSection({ onUploadClick }: MyPrePostClipsS
       <PrePostClipsCarousel
         scope="mine"
         ariaLabel="Your pre and post show moments"
-        emptyMessage="No pre/post moments yet. Record a talking clip when there is no song match and clear speech is detected."
+        emptyMessage="No pre/post moments yet. Post a friends-only clip from your profile."
         edgeBleed
         edgeBleedScope="page"
       />

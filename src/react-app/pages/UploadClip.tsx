@@ -51,7 +51,12 @@ import {
   classifyContentFeedForClip,
   contentFeedUserMessage,
 } from '@/react-app/utils/classifyContentFeed';
-import { classifyContentFeed, type ContentFeedClassification } from '@/shared/content-feed';
+import {
+  BYPASS_CONTENT_FEED_BIFURCATION,
+  classifyContentFeed,
+  effectiveContentFeedForPost,
+  type ContentFeedClassification,
+} from '@/shared/content-feed';
 import {
   extractVideoFileMetadata,
   type ExtractedVideoFileMetadata,
@@ -1121,7 +1126,7 @@ export default function UploadClip() {
       const ui = contentFeedUserMessage(out);
       setClassifyMessage(ui?.message ?? null);
 
-      if (out.content_feed === 'pre_post') {
+      if (out.content_feed === 'pre_post' && !BYPASS_CONTENT_FEED_BIFURCATION) {
         clearShowAssociationFields();
       }
 
@@ -1158,7 +1163,6 @@ export default function UploadClip() {
     const derived = classifyContentFeed({
       acrMatch,
       headlinerName: formData.artist_name?.trim() || null,
-      hasSpeech: classifyResult.has_speech,
     });
 
     const feedChanged = derived.content_feed !== classifyResult.content_feed;
@@ -1176,7 +1180,6 @@ export default function UploadClip() {
     classifyResult?.acr_matched,
     classifyResult?.acr_artist,
     classifyResult?.acr_title,
-    classifyResult?.has_speech,
     classifyResult?.content_feed,
     classifyResult?.headliner_matched,
     formData.artist_name,
@@ -1499,12 +1502,13 @@ export default function UploadClip() {
     if (
       storedClassificationId &&
       classifyResult &&
-      classifyResult.content_feed !== 'rejected' &&
-      (classifyResult.content_feed === 'main' || classifyResult.content_feed === 'pre_post')
+      (BYPASS_CONTENT_FEED_BIFURCATION ||
+        (classifyResult.content_feed !== 'rejected' &&
+          (classifyResult.content_feed === 'main' || classifyResult.content_feed === 'pre_post')))
     ) {
       return {
         classificationId: storedClassificationId,
-        contentFeed: classifyResult.content_feed,
+        contentFeed: effectiveContentFeedForPost(classifyResult.content_feed),
       };
     }
 
@@ -1539,12 +1543,12 @@ export default function UploadClip() {
     const ui = contentFeedUserMessage(out);
     setClassifyMessage(ui?.message ?? null);
 
-    if (out.content_feed === 'rejected') {
+    if (out.content_feed === 'rejected' && !BYPASS_CONTENT_FEED_BIFURCATION) {
       setClassifyStatus('done');
       throw new Error(out.message);
     }
 
-    if (out.content_feed === 'pre_post') {
+    if (out.content_feed === 'pre_post' && !BYPASS_CONTENT_FEED_BIFURCATION) {
       clearShowAssociationFields();
     }
 
@@ -1552,12 +1556,13 @@ export default function UploadClip() {
     if (!out.classification_id) {
       throw new Error('Classification did not return an id. Try again.');
     }
-    if (out.content_feed !== 'main' && out.content_feed !== 'pre_post') {
+    const contentFeed = effectiveContentFeedForPost(out.content_feed);
+    if (contentFeed !== 'main' && contentFeed !== 'pre_post') {
       throw new Error('Invalid content feed classification.');
     }
     return {
       classificationId: out.classification_id,
-      contentFeed: out.content_feed,
+      contentFeed,
     };
   }, [
     storedClassificationId,
@@ -2081,7 +2086,6 @@ export default function UploadClip() {
   // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
     const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
-    const isAcrArtistRejected = classifyResult?.content_feed === 'rejected';
     /** Venue/show fields are independent of ACR artist match (only hidden for friends-only clips). */
     const showVenueAndShowFields = !isPrePostClip && classifyStatus !== 'loading';
     const currentDate = new Date().toLocaleDateString('en-US', {
@@ -2110,7 +2114,7 @@ export default function UploadClip() {
                 {isPrePostClip
                   ? 'Add a short description and post. This clip goes to your friends-only pre/post feed — we will not link it to an artist or venue.'
                   : classifyStatus === 'loading'
-                    ? 'Checking whether this is a performance clip or a talking moment…'
+                    ? 'Checking your clip…'
                     : 'Add details and post. After you share, upload continues in the background so you can record your next clip right away.'}
                 {!isPrePostClip && classifyStatus !== 'loading'
                   ? uploadSource === 'library'
@@ -2288,10 +2292,10 @@ export default function UploadClip() {
               {classifyStatus === 'loading' && (
                 <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-lg flex items-center gap-2 text-sky-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                  <span>Checking music match and speech (ACRCloud + Whisper)…</span>
+                  <span>Checking music match…</span>
                 </div>
               )}
-              {classifyStatus === 'done' && classifyMessage && !isAcrArtistRejected && (
+              {classifyStatus === 'done' && classifyMessage && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
                   <p className="text-emerald-100 text-sm font-medium">{classifyMessage}</p>
                   {classifyResult?.content_feed === 'main' && classifyResult.acr_title ? (
@@ -2302,9 +2306,12 @@ export default function UploadClip() {
                   ) : null}
                 </div>
               )}
-              {(classifyStatus === 'error' || isAcrArtistRejected) && classifyMessage && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <p className="text-red-200 text-sm">{classifyMessage}</p>
+              {classifyStatus === 'error' && classifyMessage && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                  <p className="text-amber-100 text-sm">{classifyMessage}</p>
+                  <p className="text-gray-400 text-xs mt-1">
+                    You can still add artist, venue, and song details below and post to the main feed.
+                  </p>
                 </div>
               )}
 
@@ -2637,7 +2644,6 @@ export default function UploadClip() {
                   type="button"
                   disabled={
                     classifyStatus === 'loading' ||
-                    isAcrArtistRejected ||
                     loading
                   }
                   onClick={() => void handleSubmit(null)}

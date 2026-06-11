@@ -88,6 +88,7 @@ import {
 } from "./content-feed-endpoints";
 import { mainFeedClipFilterSql } from "./content-feed-sql";
 import {
+  BYPASS_CONTENT_FEED_BIFURCATION,
   CONTENT_FEED_REJECTION_MESSAGES,
 } from "../shared/content-feed";
 import { headlinerMatchesAcrArtist } from "../shared/artist-name-match";
@@ -867,13 +868,17 @@ app.post("/api/clips", authMiddleware, async (c) => {
         422,
       );
     }
-    if (classification.content_feed === 'rejected') {
+    if (!BYPASS_CONTENT_FEED_BIFURCATION && classification.content_feed === 'rejected') {
       return c.json(
-        { error: 'This clip cannot be posted to either feed based on music and speech detection.' },
+        { error: 'This clip cannot be posted based on music identification.' },
         422,
       );
     }
-    if (classification.content_feed !== 'main' && classification.content_feed !== 'pre_post') {
+    if (
+      !BYPASS_CONTENT_FEED_BIFURCATION &&
+      classification.content_feed !== 'main' &&
+      classification.content_feed !== 'pre_post'
+    ) {
       return c.json({ error: 'Invalid content feed classification.' }, 422);
     }
   }
@@ -883,6 +888,7 @@ app.post("/api/clips", authMiddleware, async (c) => {
 
   if (
     !isDraft &&
+    !BYPASS_CONTENT_FEED_BIFURCATION &&
     classification?.content_feed === 'main' &&
     classification.acr_matched
   ) {
@@ -916,7 +922,10 @@ app.post("/api/clips", authMiddleware, async (c) => {
   // `clips.video_url` is NOT NULL; allow Stream-only payloads where playback URL carries the link.
   const resolvedVideoUrl = (video_url || stream_playback_url || "") as string;
   const resolvedTimestamp = timestamp || new Date().toISOString();
-  const contentFeed = classification?.content_feed ?? 'main';
+  const contentFeed =
+    BYPASS_CONTENT_FEED_BIFURCATION && classification?.content_feed === 'pre_post'
+      ? 'main'
+      : classification?.content_feed ?? 'main';
   const showFields = clipShowFieldsForContentFeed(contentFeed, {
     artist_name: typeof artist_name === 'string' ? artist_name : '',
     venue_name: typeof venue_name === 'string' ? venue_name : '',

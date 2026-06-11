@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { classifyContentFeed } from './content-feed';
+import {
+  BYPASS_CONTENT_FEED_BIFURCATION,
+  classifyContentFeed,
+  effectiveContentFeedForPost,
+} from './content-feed';
 
 describe('classifyContentFeed', () => {
   it('routes ACR + headliner match to main feed', () => {
     const r = classifyContentFeed({
       acrMatch: { artist: 'Taylor Swift', title: 'Anti-Hero' },
       headlinerName: 'Taylor Swift',
-      hasSpeech: false,
     });
     expect(r.content_feed).toBe('main');
     expect(r.headliner_matched).toBe(true);
@@ -16,7 +19,6 @@ describe('classifyContentFeed', () => {
     const r = classifyContentFeed({
       acrMatch: { artist: 'Taylor Swift', title: 'Anti-Hero' },
       headlinerName: null,
-      hasSpeech: false,
     });
     expect(r.content_feed).toBe('main');
     expect(r.headliner_matched).toBe(false);
@@ -27,31 +29,33 @@ describe('classifyContentFeed', () => {
     const r = classifyContentFeed({
       acrMatch: { artist: 'Drake', title: "God's Plan" },
       headlinerName: 'Taylor Swift',
-      hasSpeech: true,
     });
-    expect(r.content_feed).toBe('rejected');
-    if (r.content_feed === 'rejected') {
-      expect(r.reason).toBe('acr_no_headliner_match');
+    if (BYPASS_CONTENT_FEED_BIFURCATION) {
+      expect(r.content_feed).toBe('main');
+      expect(r.headliner_matched).toBe(false);
+    } else {
+      expect(r.content_feed).toBe('rejected');
+      if (r.content_feed === 'rejected') {
+        expect(r.reason).toBe('acr_no_headliner_match');
+      }
     }
   });
 
-  it('routes no ACR + speech to pre_post', () => {
+  it('routes no ACR to main for manual performance entry', () => {
     const r = classifyContentFeed({
       acrMatch: null,
       headlinerName: 'Taylor Swift',
-      hasSpeech: true,
-    });
-    expect(r.content_feed).toBe('pre_post');
-  });
-
-  it('routes no ACR and no speech to main for manual performance entry', () => {
-    const r = classifyContentFeed({
-      acrMatch: null,
-      headlinerName: 'Taylor Swift',
-      hasSpeech: false,
     });
     expect(r.content_feed).toBe('main');
-    expect(r.reason).toBe('no_acr_no_speech');
+    expect(r.reason).toBe('no_acr');
     expect(r.has_speech).toBe(false);
+  });
+
+  it('effectiveContentFeedForPost maps pre_post to main when bypass is on', () => {
+    if (BYPASS_CONTENT_FEED_BIFURCATION) {
+      expect(effectiveContentFeedForPost('pre_post')).toBe('main');
+      expect(effectiveContentFeedForPost('rejected')).toBe('main');
+    }
+    expect(effectiveContentFeedForPost('main')).toBe('main');
   });
 });

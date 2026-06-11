@@ -8,7 +8,10 @@ import {
   sliceHeadForIdentify,
 } from '@/react-app/utils/identifyAudioSample';
 import { ACR_MAX_SAMPLE_BYTES } from '@/shared/identify-music-limits';
-import type { ContentFeedClassification } from '@/shared/content-feed';
+import {
+  BYPASS_CONTENT_FEED_BIFURCATION,
+  type ContentFeedClassification,
+} from '@/shared/content-feed';
 
 export type ClassifyContentFeedResult =
   | ({ ok: true } & ContentFeedClassification & { classification_id?: string })
@@ -91,8 +94,9 @@ export function contentFeedUserMessage(
     if (result.acr_matched && !result.headliner_matched) {
       return {
         tone: 'success',
-        message:
-          'Performance clip — will appear on the main feed. Select the artist that matches the identified song.',
+        message: BYPASS_CONTENT_FEED_BIFURCATION
+          ? 'Performance clip — will appear on the main feed. Add or confirm artist, venue, and song details below.'
+          : 'Performance clip — will appear on the main feed. Select the artist that matches the identified song.',
       };
     }
     if (!result.acr_matched) {

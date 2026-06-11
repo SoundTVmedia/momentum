@@ -1,10 +1,8 @@
 import { classifyContentFeed, type ContentFeedClassification } from '../shared/content-feed';
 import { recognizeMusic, inferIdentifyFilename } from './music-recognition';
-import { detectSpeechInAudio } from './speech-detection';
 
 export type ClassifyClipContentResult = ContentFeedClassification & {
   classification_id?: string;
-  speech_transcript?: string | null;
 };
 
 function newClassificationId(): string {
@@ -32,24 +30,9 @@ export async function classifyClipContentFromAudio(
     }
   }
 
-  let hasSpeech = false;
-  let speechTranscript: string | null = null;
-
-  if (!acrMatch) {
-    const bytes = new Uint8Array(await opts.audio.arrayBuffer());
-    if (env.AI) {
-      const speech = await detectSpeechInAudio(env.AI, bytes);
-      hasSpeech = speech.hasSpeech;
-      speechTranscript = speech.transcript;
-    } else {
-      console.warn('[content-feed] AI binding missing — treating no-ACR clip as no speech');
-    }
-  }
-
   const classified = classifyContentFeed({
     acrMatch,
     headlinerName: opts.headlinerName,
-    hasSpeech,
   });
 
   const classificationId = newClassificationId();
@@ -84,7 +67,6 @@ export async function classifyClipContentFromAudio(
   return {
     ...classified,
     classification_id: classificationId,
-    speech_transcript: speechTranscript,
   };
 }
 

@@ -7,7 +7,6 @@ import {
   inferClassifyFilename,
   loadValidClassification,
 } from './content-feed-classify';
-import { describeSpeechDetectionConfig } from './speech-detection';
 import { describeMusicRecognitionConfig } from './music-recognition';
 
 const MAX_SNIPPET_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
@@ -19,7 +18,6 @@ export async function getContentFeedConfig(c: Context) {
   }
 
   const music = describeMusicRecognitionConfig(c.env);
-  const speech = describeSpeechDetectionConfig(c.env.AI);
 
   return c.json({
     endpoints: {
@@ -28,14 +26,8 @@ export async function getContentFeedConfig(c: Context) {
       friendsPrePost: 'GET /api/clips/friends-prepost (deprecated alias)',
     },
     acrcloud: music.acrcloud,
-    whisper: speech,
-    ready: music.acrcloud.ready && speech.ready,
-    hint:
-      !music.acrcloud.ready && music.hint
-        ? music.hint
-        : !speech.ready
-          ? speech.hint
-          : null,
+    ready: music.acrcloud.ready,
+    hint: music.hint ?? null,
   });
 }
 
