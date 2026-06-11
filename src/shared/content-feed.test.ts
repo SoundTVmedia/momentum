@@ -3,7 +3,7 @@ import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   classifyContentFeed,
   effectiveContentFeedForPost,
-  hasManualShowAssociation,
+  hasManualShowPostDetails,
 } from './content-feed';
 
 describe('classifyContentFeed', () => {
@@ -60,9 +60,34 @@ describe('classifyContentFeed', () => {
     expect(effectiveContentFeedForPost('main')).toBe('main');
   });
 
-  it('hasManualShowAssociation requires both artist and venue', () => {
-    expect(hasManualShowAssociation('Taylor Swift', 'Madison Square Garden')).toBe(true);
-    expect(hasManualShowAssociation('Taylor Swift', '')).toBe(false);
-    expect(hasManualShowAssociation('', 'Madison Square Garden')).toBe(false);
+  it('hasManualShowPostDetails requires venue, event title, and date', () => {
+    expect(
+      hasManualShowPostDetails({
+        venueName: 'Madison Square Garden',
+        eventTitle: 'Taylor Swift at Madison Square Garden',
+        eventDateIso: '2026-06-10T12:00:00.000Z',
+      }),
+    ).toBe(true);
+    expect(
+      hasManualShowPostDetails({
+        venueName: 'Madison Square Garden',
+        artistName: 'Taylor Swift',
+        eventDateIso: '2026-06-10T12:00:00.000Z',
+      }),
+    ).toBe(true);
+    expect(
+      hasManualShowPostDetails({
+        venueName: 'Madison Square Garden',
+        eventTitle: 'Taylor Swift at Madison Square Garden',
+        eventDateIso: null,
+      }),
+    ).toBe(false);
+    expect(
+      hasManualShowPostDetails({
+        venueName: '',
+        eventTitle: 'Taylor Swift at Madison Square Garden',
+        eventDateIso: '2026-06-10T12:00:00.000Z',
+      }),
+    ).toBe(false);
   });
 });

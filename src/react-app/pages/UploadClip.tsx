@@ -55,7 +55,7 @@ import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   classifyContentFeed,
   effectiveContentFeedForPost,
-  hasManualShowAssociation,
+  hasManualShowPostDetails,
   type ContentFeedClassification,
 } from '@/shared/content-feed';
 import {
@@ -76,6 +76,38 @@ import {
   pickGoingShowMarkForCapture,
   showMarkToClipCandidate,
 } from '@/shared/show-marks';
+
+function isoToDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+function dateInputValueToIso(dateStr: string): string | null {
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+  const d = new Date(`${trimmed}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function clipManualShowPostReady(
+  formData: { artist_name: string; venue_name: string },
+  jambaseLink: { eventTitle?: string | null } | null,
+  recordingAtIso: string | null,
+): boolean {
+  return hasManualShowPostDetails({
+    venueName: formData.venue_name,
+    artistName: formData.artist_name,
+    eventTitle: resolveClipEventTitle({
+      event_title: jambaseLink?.eventTitle,
+      artist_name: formData.artist_name,
+      venue_name: formData.venue_name,
+    }),
+    eventDateIso: recordingAtIso,
+  });
+}
 
 export default function UploadClip() {
   const navigate = useNavigate();
@@ -1086,12 +1118,17 @@ export default function UploadClip() {
     };
   }, [showCaptionScreen, user, isPending]);
 
+  useEffect(() => {
+    if (!showCaptionScreen || recordingAtIso) return;
+    setRecordingAtIso(new Date().toISOString());
+  }, [showCaptionScreen, recordingAtIso]);
+
   /**
    * Classify feed lane when the caption screen opens so we can simplify UI for talking clips.
    */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
-    if (hasManualShowAssociation(formData.artist_name, formData.venue_name)) {
+    if (clipManualShowPostReady(formData, jambaseLink, recordingAtIso)) {
       setClassifyStatus('done');
       setClassifyMessage(null);
       return;
@@ -1150,6 +1187,8 @@ export default function UploadClip() {
     formData.video_file,
     formData.artist_name,
     formData.venue_name,
+    jambaseLink,
+    recordingAtIso,
     location.state,
     clearShowAssociationFields,
   ]);
@@ -1506,7 +1545,7 @@ export default function UploadClip() {
     classificationId: string;
     contentFeed: 'main' | 'pre_post';
   }> => {
-    if (hasManualShowAssociation(formData.artist_name, formData.venue_name)) {
+    if (clipManualShowPostReady(formData, jambaseLink, recordingAtIso)) {
       return { classificationId: '', contentFeed: 'main' };
     }
 
@@ -1582,9 +1621,29 @@ export default function UploadClip() {
     formData.video_file,
     formData.artist_name,
     formData.venue_name,
+    jambaseLink,
+    recordingAtIso,
     location.state,
     clearShowAssociationFields,
   ]);
+
+  const handleEventTitleChange = useCallback(
+    (value: string) => {
+      markTagsEdited();
+      setJambaseLink((prev) => ({
+        event: prev?.event ?? null,
+        artist: prev?.artist ?? null,
+        venue: prev?.venue ?? null,
+        eventTitle: value.trim() || null,
+      }));
+    },
+    [markTagsEdited],
+  );
+
+  const handleCaptureDateChange = useCallback((value: string) => {
+    markTagsEdited();
+    setRecordingAtIso(dateInputValueToIso(value));
+  }, [markTagsEdited]);
 
   const buildUploadPayload = useCallback(
     (classificationId: string, contentFeed: 'main' | 'pre_post'): ClipUploadJobPayload => {
@@ -2098,15 +2157,21 @@ export default function UploadClip() {
   // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
     const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
-    const hasShowAssociation = hasManualShowAssociation(formData.artist_name, formData.venue_name);
+    const canPostWithShowDetails = clipManualShowPostReady(formData, jambaseLink, recordingAtIso);
     /** Venue/show fields are independent of ACR artist match (only hidden for friends-only clips). */
     const showVenueAndShowFields =
-      !isPrePostClip && (hasShowAssociation || classifyStatus !== 'loading');
-    const currentDate = new Date().toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+      !isPrePostClip && (canPostWithShowDetails || classifyStatus !== 'loading');
+    const displayEventDate = recordingAtIso
+      ? new Date(recordingAtIso).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : new Date().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
     const captionEventTitle = resolveClipEventTitle({
       event_title: jambaseLink?.eventTitle,
       artist_name: formData.artist_name,
@@ -2303,7 +2368,7 @@ export default function UploadClip() {
                   <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
               )}
-              {classifyStatus === 'loading' && !hasShowAssociation && (
+              {classifyStatus === 'loading' && !canPostWithShowDetails && (
                 <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-lg flex items-center gap-2 text-sky-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                   <span>Checking music match…</span>
@@ -2324,7 +2389,7 @@ export default function UploadClip() {
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                   <p className="text-amber-100 text-sm">{classifyMessage}</p>
                   <p className="text-gray-400 text-xs mt-1">
-                    You can still add artist, venue, and song details below and post to the main feed.
+                    Add venue, event title, and show date below to post without a song match.
                   </p>
                 </div>
               )}
@@ -2596,6 +2661,35 @@ export default function UploadClip() {
                       )}
                     </div>
 
+                    <div>
+                      <label className="block text-gray-400 text-xs mb-1 font-medium">
+                        Event title
+                      </label>
+                      <input
+                        type="text"
+                        value={jambaseLink?.eventTitle ?? captionEventTitle ?? ''}
+                        onChange={(e) => handleEventTitleChange(e.target.value)}
+                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
+                        placeholder="Artist at Venue"
+                        autoComplete="off"
+                      />
+                      <p className="text-gray-500 text-xs mt-1">
+                        Required to post without a song match — e.g. &quot;Taylor Swift at Madison Square Garden&quot;.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-gray-400 text-xs mb-1 font-medium">
+                        Show date
+                      </label>
+                      <input
+                        type="date"
+                        value={isoToDateInputValue(recordingAtIso)}
+                        onChange={(e) => handleCaptureDateChange(e.target.value)}
+                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare text-sm [color-scheme:dark]"
+                      />
+                    </div>
+
                     {/* Location */}
                     <div className="relative">
                       <input
@@ -2632,7 +2726,7 @@ export default function UploadClip() {
                     </div>
                     <div className="flex items-center space-x-2 text-gray-400 text-xs pt-1 border-t border-white/10">
                       <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                      <span>Recorded {currentDate}</span>
+                      <span>Recorded {displayEventDate}</span>
                     </div>
                   </div>
                 )}
@@ -2657,13 +2751,13 @@ export default function UploadClip() {
                 <button
                   type="button"
                   disabled={
-                    (classifyStatus === 'loading' && !hasShowAssociation) ||
+                    (classifyStatus === 'loading' && !canPostWithShowDetails) ||
                     loading
                   }
                   onClick={() => void handleSubmit(null)}
                   className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {classifyStatus === 'loading' && !hasShowAssociation
+                  {classifyStatus === 'loading' && !canPostWithShowDetails
                     ? 'Checking clip…'
                     : isPrePostClip
                       ? 'Share talking moment'

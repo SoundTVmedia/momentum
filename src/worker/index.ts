@@ -90,7 +90,7 @@ import { mainFeedClipFilterSql } from "./content-feed-sql";
 import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   CONTENT_FEED_REJECTION_MESSAGES,
-  hasManualShowAssociation,
+  hasManualShowPostDetails,
 } from "../shared/content-feed";
 import { headlinerMatchesAcrArtist } from "../shared/artist-name-match";
 import { computeShowId } from "../shared/show-id";
@@ -850,7 +850,18 @@ app.post("/api/clips", authMiddleware, async (c) => {
     typeof artist_name === 'string' ? artist_name.trim() : '';
   const postedVenueName =
     typeof venue_name === 'string' ? venue_name.trim() : '';
-  const hasManualShowTags = hasManualShowAssociation(postedArtistName, postedVenueName);
+  const resolvedTimestamp = timestamp || new Date().toISOString();
+  const resolvedEventTitle = resolveClipEventTitle({
+    event_title: typeof bodyEventTitle === 'string' ? bodyEventTitle : null,
+    artist_name: postedArtistName,
+    venue_name: postedVenueName,
+  });
+  const hasManualShowTags = hasManualShowPostDetails({
+    venueName: postedVenueName,
+    eventTitle: resolvedEventTitle,
+    artistName: postedArtistName,
+    eventDateIso: resolvedTimestamp,
+  });
 
   if (!isDraft) {
     classificationId =
@@ -928,7 +939,6 @@ app.post("/api/clips", authMiddleware, async (c) => {
 
   // `clips.video_url` is NOT NULL; allow Stream-only payloads where playback URL carries the link.
   const resolvedVideoUrl = (video_url || stream_playback_url || "") as string;
-  const resolvedTimestamp = timestamp || new Date().toISOString();
   const contentFeed = hasManualShowTags
     ? 'main'
     : BYPASS_CONTENT_FEED_BIFURCATION && classification?.content_feed === 'pre_post'

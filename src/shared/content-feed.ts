@@ -1,4 +1,5 @@
 import { headlinerMatchesAcrArtist } from './artist-name-match';
+import { artistAtVenueTitle } from './event-title';
 
 /** Temporary: skip main vs pre/post split; all clips post to main with manual tags allowed. */
 export const BYPASS_CONTENT_FEED_BIFURCATION = true;
@@ -120,10 +121,34 @@ export function effectiveContentFeedForPost(feed: string | null | undefined): Co
   return feed === 'pre_post' ? 'pre_post' : 'main';
 }
 
-/** User-provided show tags — skip ACR clip-type gate when both are present. */
+/** User-provided show metadata — skip ACR clip-type gate when venue, title, and date are set. */
+export function hasManualShowPostDetails(input: {
+  venueName?: string | null;
+  eventTitle?: string | null;
+  artistName?: string | null;
+  eventDateIso?: string | null;
+}): boolean {
+  const venue = input.venueName?.trim();
+  if (!venue) return false;
+
+  const title = input.eventTitle?.trim() || artistAtVenueTitle(input.artistName, venue);
+  if (!title) return false;
+
+  const date = input.eventDateIso?.trim();
+  if (!date || Number.isNaN(Date.parse(date))) return false;
+
+  return true;
+}
+
+/** @deprecated Use hasManualShowPostDetails */
 export function hasManualShowAssociation(
   artistName: string | null | undefined,
   venueName: string | null | undefined,
 ): boolean {
-  return Boolean(artistName?.trim() && venueName?.trim());
+  return hasManualShowPostDetails({
+    venueName,
+    artistName,
+    eventTitle: artistAtVenueTitle(artistName, venueName),
+    eventDateIso: new Date().toISOString(),
+  });
 }
