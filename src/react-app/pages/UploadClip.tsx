@@ -1111,11 +1111,11 @@ export default function UploadClip() {
   }, [showCaptionScreen, recordingAtIso]);
 
   /**
-   * Classify feed lane when the caption screen opens so we can simplify UI for talking clips.
+   * Classify feed lane when the caption screen opens (background only — never blocks venue/artist UI).
    */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
-    if (clipManualShowPostReady(formData)) {
+    if (BYPASS_CONTENT_FEED_BIFURCATION || clipManualShowPostReady(formData)) {
       setClassifyStatus('done');
       setClassifyMessage(null);
       return;
@@ -2150,9 +2150,9 @@ export default function UploadClip() {
   if (showCaptionScreen) {
     const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
     const canPostWithShowDetails = clipManualShowPostReady(formData);
-    /** Venue/show fields are independent of ACR artist match (only hidden for friends-only clips). */
-    const showVenueAndShowFields =
-      !isPrePostClip && (canPostWithShowDetails || classifyStatus !== 'loading');
+    /** Venue/show fields always visible on main-feed clips — filled in parallel with song ID. */
+    const showVenueAndShowFields = !isPrePostClip;
+    const songIdentifyPending = auddStatus === 'loading';
     const displayEventDate = recordingAtIso
       ? new Date(recordingAtIso).toLocaleDateString('en-US', {
           month: 'short',
@@ -2184,10 +2184,10 @@ export default function UploadClip() {
               <p className="text-gray-300 text-sm sm:text-lg">
                 {isPrePostClip
                   ? 'Add a short description and post. This clip goes to your friends-only pre/post feed — we will not link it to an artist or venue.'
-                  : classifyStatus === 'loading'
-                    ? 'Checking your clip…'
+                  : songIdentifyPending
+                    ? 'Identifying song in the background — venue and artist fill in from your location. Share once both are set.'
                     : 'Add details and post. After you share, upload continues in the background so you can record your next clip right away.'}
-                {!isPrePostClip && classifyStatus !== 'loading'
+                {!isPrePostClip && !songIdentifyPending
                   ? uploadSource === 'library'
                     ? ' We read date and location from your video file when available to find a matching show.'
                     : ' Venue and location are filled from GPS and JamBase when we find a match.'
@@ -2367,7 +2367,9 @@ export default function UploadClip() {
                   <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
               )}
-              {classifyStatus === 'loading' && !canPostWithShowDetails && (
+              {!BYPASS_CONTENT_FEED_BIFURCATION &&
+                classifyStatus === 'loading' &&
+                !canPostWithShowDetails && (
                 <div className="p-3 bg-sky-500/10 border border-sky-500/30 rounded-lg flex items-center gap-2 text-sky-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                   <span>Checking music match…</span>
@@ -2749,15 +2751,12 @@ export default function UploadClip() {
               <div className="space-y-3 pt-4">
                 <button
                   type="button"
-                  disabled={
-                    (classifyStatus === 'loading' && !canPostWithShowDetails) ||
-                    loading
-                  }
+                  disabled={loading || !canPostWithShowDetails}
                   onClick={() => void handleSubmit(null)}
                   className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {classifyStatus === 'loading' && !canPostWithShowDetails
-                    ? 'Checking clip…'
+                  {!canPostWithShowDetails
+                    ? 'Add artist & venue to share'
                     : isPrePostClip
                       ? 'Share talking moment'
                       : 'Share your moment'}
