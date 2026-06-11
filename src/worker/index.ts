@@ -851,14 +851,14 @@ app.post("/api/clips", authMiddleware, async (c) => {
   const postedVenueName =
     typeof venue_name === 'string' ? venue_name.trim() : '';
   const resolvedTimestamp = timestamp || new Date().toISOString();
-  const resolvedEventTitle = resolveClipEventTitle({
+  const manualShowEventTitle = resolveClipEventTitle({
     event_title: typeof bodyEventTitle === 'string' ? bodyEventTitle : null,
     artist_name: postedArtistName,
     venue_name: postedVenueName,
   });
   const hasManualShowTags = hasManualShowPostDetails({
     venueName: postedVenueName,
-    eventTitle: resolvedEventTitle,
+    eventTitle: manualShowEventTitle,
     artistName: postedArtistName,
     eventDateIso: resolvedTimestamp,
   });
