@@ -3,6 +3,7 @@ import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   classifyContentFeed,
   effectiveContentFeedForPost,
+  hasManualShowArtistVenue,
   hasManualShowPostDetails,
 } from './content-feed';
 
@@ -58,6 +59,12 @@ describe('classifyContentFeed', () => {
       expect(effectiveContentFeedForPost('rejected')).toBe('main');
     }
     expect(effectiveContentFeedForPost('main')).toBe('main');
+  });
+
+  it('hasManualShowArtistVenue requires artist and venue', () => {
+    expect(hasManualShowArtistVenue('Taylor Swift', 'Madison Square Garden')).toBe(true);
+    expect(hasManualShowArtistVenue('Taylor Swift', '')).toBe(false);
+    expect(hasManualShowArtistVenue('', 'Madison Square Garden')).toBe(false);
   });
 
   it('hasManualShowPostDetails requires venue, event title, and date', () => {

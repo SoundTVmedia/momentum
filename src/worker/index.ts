@@ -90,7 +90,7 @@ import { mainFeedClipFilterSql } from "./content-feed-sql";
 import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   CONTENT_FEED_REJECTION_MESSAGES,
-  hasManualShowPostDetails,
+  hasManualShowArtistVenue,
 } from "../shared/content-feed";
 import { headlinerMatchesAcrArtist } from "../shared/artist-name-match";
 import { computeShowId } from "../shared/show-id";
@@ -851,17 +851,7 @@ app.post("/api/clips", authMiddleware, async (c) => {
   const postedVenueName =
     typeof venue_name === 'string' ? venue_name.trim() : '';
   const resolvedTimestamp = timestamp || new Date().toISOString();
-  const manualShowEventTitle = resolveClipEventTitle({
-    event_title: typeof bodyEventTitle === 'string' ? bodyEventTitle : null,
-    artist_name: postedArtistName,
-    venue_name: postedVenueName,
-  });
-  const hasManualShowTags = hasManualShowPostDetails({
-    venueName: postedVenueName,
-    eventTitle: manualShowEventTitle,
-    artistName: postedArtistName,
-    eventDateIso: resolvedTimestamp,
-  });
+  const hasManualShowTags = hasManualShowArtistVenue(postedArtistName, postedVenueName);
 
   if (!isDraft) {
     classificationId =

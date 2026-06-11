@@ -55,7 +55,7 @@ import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   classifyContentFeed,
   effectiveContentFeedForPost,
-  hasManualShowPostDetails,
+  hasManualShowArtistVenue,
   type ContentFeedClassification,
 } from '@/shared/content-feed';
 import {
@@ -92,21 +92,8 @@ function dateInputValueToIso(dateStr: string): string | null {
   return d.toISOString();
 }
 
-function clipManualShowPostReady(
-  formData: { artist_name: string; venue_name: string },
-  jambaseLink: { eventTitle?: string | null } | null,
-  recordingAtIso: string | null,
-): boolean {
-  return hasManualShowPostDetails({
-    venueName: formData.venue_name,
-    artistName: formData.artist_name,
-    eventTitle: resolveClipEventTitle({
-      event_title: jambaseLink?.eventTitle,
-      artist_name: formData.artist_name,
-      venue_name: formData.venue_name,
-    }),
-    eventDateIso: recordingAtIso,
-  });
+function clipManualShowPostReady(formData: { artist_name: string; venue_name: string }): boolean {
+  return hasManualShowArtistVenue(formData.artist_name, formData.venue_name);
 }
 
 export default function UploadClip() {
@@ -1128,7 +1115,7 @@ export default function UploadClip() {
    */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
-    if (clipManualShowPostReady(formData, jambaseLink, recordingAtIso)) {
+    if (clipManualShowPostReady(formData)) {
       setClassifyStatus('done');
       setClassifyMessage(null);
       return;
@@ -1187,11 +1174,18 @@ export default function UploadClip() {
     formData.video_file,
     formData.artist_name,
     formData.venue_name,
-    jambaseLink,
-    recordingAtIso,
     location.state,
     clearShowAssociationFields,
   ]);
+
+  /** After 5s with no song match, show manual song entry while identify may still finish. */
+  useEffect(() => {
+    if (!showCaptionScreen || auddStatus !== 'loading') return;
+    const t = window.setTimeout(() => {
+      setAuddStatus((s) => (s === 'loading' ? 'nomatch' : s));
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [showCaptionScreen, auddStatus]);
 
   /** Re-derive main vs rejected when the user picks an artist after ACR identification. */
   useEffect(() => {
@@ -1545,7 +1539,7 @@ export default function UploadClip() {
     classificationId: string;
     contentFeed: 'main' | 'pre_post';
   }> => {
-    if (clipManualShowPostReady(formData, jambaseLink, recordingAtIso)) {
+    if (clipManualShowPostReady(formData)) {
       return { classificationId: '', contentFeed: 'main' };
     }
 
@@ -1621,8 +1615,6 @@ export default function UploadClip() {
     formData.video_file,
     formData.artist_name,
     formData.venue_name,
-    jambaseLink,
-    recordingAtIso,
     location.state,
     clearShowAssociationFields,
   ]);
@@ -2157,7 +2149,7 @@ export default function UploadClip() {
   // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
     const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
-    const canPostWithShowDetails = clipManualShowPostReady(formData, jambaseLink, recordingAtIso);
+    const canPostWithShowDetails = clipManualShowPostReady(formData);
     /** Venue/show fields are independent of ACR artist match (only hidden for friends-only clips). */
     const showVenueAndShowFields =
       !isPrePostClip && (canPostWithShowDetails || classifyStatus !== 'loading');
@@ -2346,6 +2338,13 @@ export default function UploadClip() {
                   </div>
                 </div>
               )}
+              {showVenueAndShowFields && auddStatus === 'nomatch' && (
+                <div className="p-3 bg-momentum-flare/10 border border-momentum-flare/30 rounded-lg">
+                  <p className="text-momentum-flare/90 text-sm font-medium">
+                    No song match yet — enter the song title below (optional).
+                  </p>
+                </div>
+              )}
               {showVenueAndShowFields && auddStatus === 'loading' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg flex items-center gap-2 text-violet-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
@@ -2389,7 +2388,7 @@ export default function UploadClip() {
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                   <p className="text-amber-100 text-sm">{classifyMessage}</p>
                   <p className="text-gray-400 text-xs mt-1">
-                    Add venue, event title, and show date below to post without a song match.
+                    Add artist and venue below to post without a song match.
                   </p>
                 </div>
               )}

@@ -121,6 +121,14 @@ export function effectiveContentFeedForPost(feed: string | null | undefined): Co
   return feed === 'pre_post' ? 'pre_post' : 'main';
 }
 
+/** User-provided artist + venue — skip ACR clip-type gate when both are set. */
+export function hasManualShowArtistVenue(
+  artistName?: string | null,
+  venueName?: string | null,
+): boolean {
+  return Boolean(artistName?.trim() && venueName?.trim());
+}
+
 /** User-provided show metadata — skip ACR clip-type gate when venue, title, and date are set. */
 export function hasManualShowPostDetails(input: {
   venueName?: string | null;
@@ -140,15 +148,10 @@ export function hasManualShowPostDetails(input: {
   return true;
 }
 
-/** @deprecated Use hasManualShowPostDetails */
+/** @deprecated Use hasManualShowArtistVenue */
 export function hasManualShowAssociation(
   artistName: string | null | undefined,
   venueName: string | null | undefined,
 ): boolean {
-  return hasManualShowPostDetails({
-    venueName,
-    artistName,
-    eventTitle: artistAtVenueTitle(artistName, venueName),
-    eventDateIso: new Date().toISOString(),
-  });
+  return hasManualShowArtistVenue(artistName, venueName);
 }
