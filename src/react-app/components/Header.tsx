@@ -15,7 +15,8 @@ import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 import HeaderGradientPill, {
   HEADER_ACTION_BUTTON_CLASS,
 } from '@/react-app/components/HeaderGradientPill'
-import { showAmbassadorNav, showInfluencerNav } from '@/react-app/lib/program-nav'
+import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
+import { showAmbassadorNav, showInfluencerNav, showBecomeNav } from '@/react-app/lib/program-nav'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -96,6 +97,9 @@ export default function Header() {
           </button>
 
           <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
+            {user && showBecomeNav(extendedUser) ? (
+              <BecomeNavDropdown user={extendedUser!} />
+            ) : null}
             {user && (showAmbassadorNav(extendedUser) || showInfluencerNav(extendedUser)) ? (
               <nav
                 className="hidden md:flex items-center gap-2 shrink-0"
