@@ -90,6 +90,44 @@ export function jamBaseEventStartMs(ev: JamBaseEventRecord): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
+export function jamBaseEventVenueName(ev: JamBaseEventRecord): string {
+  const loc = ev.location as Record<string, unknown> | undefined;
+  return typeof loc?.name === 'string' ? loc.name : 'Venue TBA';
+}
+
+export function jamBaseEventVenueCityLine(ev: JamBaseEventRecord): string {
+  const loc = ev.location as Record<string, unknown> | undefined;
+  const addr = loc?.address as Record<string, unknown> | undefined;
+  const city = typeof addr?.addressLocality === 'string' ? addr.addressLocality : '';
+  const region = addr?.addressRegion as Record<string, unknown> | undefined;
+  const st =
+    typeof region?.alternateName === 'string'
+      ? region.alternateName
+      : typeof region?.name === 'string'
+        ? (region.name as string)
+        : '';
+  return [city, st].filter(Boolean).join(', ');
+}
+
+export function formatJamBaseEventDate(iso?: string | null): string {
+  if (!iso) return 'Date TBA';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return 'Date TBA';
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+export function formatJamBaseEventTime(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
 export function isJamBaseEventOnOrAfterToday(ev: JamBaseEventRecord, now = new Date()): boolean {
   const ms = jamBaseEventStartMs(ev);
   if (ms === null) return true;
