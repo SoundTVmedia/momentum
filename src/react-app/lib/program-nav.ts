@@ -14,6 +14,11 @@ export function showInfluencerNav(user: ExtendedMochaUser | null | undefined): b
   return user.profile.role === 'influencer' || isSuperAdminUser(user);
 }
 
+export function showSponsorNav(user: ExtendedMochaUser | null | undefined): boolean {
+  if (!user?.profile) return false;
+  return user.profile.role === 'sponsor' || isSuperAdminUser(user);
+}
+
 export function showBecomeAmbassadorItem(
   user: ExtendedMochaUser | null | undefined,
 ): boolean {

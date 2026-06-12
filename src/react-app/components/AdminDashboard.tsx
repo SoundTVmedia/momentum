@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog } from 'lucide-react';
+import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog, ClipboardList } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNavigate } from 'react-router';
 import LiveSessionManager from './LiveSessionManager';
@@ -8,6 +8,7 @@ import AnalyticsDashboard from './AnalyticsDashboard';
 import ContentModerationPanel from './ContentModerationPanel';
 import VerificationAdminPanel from './VerificationAdminPanel';
 import UserRoleAdminPanel from './UserRoleAdminPanel';
+import ProgramApplicationsAdminPanel from './ProgramApplicationsAdminPanel';
 import SuperadminClipModerationPanel from './SuperadminClipModerationPanel';
 import type { ExtendedMochaUser } from '@/shared/types';
 
@@ -31,7 +32,7 @@ export default function AdminDashboard() {
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [loading, setLoading] = useState(true);
   const isSuperAdmin = extendedUser?.profile?.is_superadmin === 1;
-  const [activeTab, setActiveTab] = useState<'sessions' | 'moderation' | 'analytics' | 'content' | 'verification' | 'roles' | 'clips'>('sessions');
+  const [activeTab, setActiveTab] = useState<'sessions' | 'moderation' | 'analytics' | 'content' | 'verification' | 'applications' | 'roles' | 'clips'>('sessions');
   const [selectedSession, setSelectedSession] = useState<LiveSession | null>(null);
   const [showSessionManager, setShowSessionManager] = useState(false);
 
@@ -231,6 +232,19 @@ export default function AdminDashboard() {
               </button>
             )}
             <button
+              onClick={() => setActiveTab('applications')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'applications'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <ClipboardList className="w-5 h-5" />
+                <span>Applications</span>
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('verification')}
               className={`px-6 py-3 font-semibold transition-colors ${
                 activeTab === 'verification'
@@ -380,6 +394,8 @@ export default function AdminDashboard() {
         {activeTab === 'analytics' && <AnalyticsDashboard />}
 
         {activeTab === 'content' && <ContentModerationPanel />}
+
+        {activeTab === 'applications' && <ProgramApplicationsAdminPanel />}
 
         {activeTab === 'verification' && <VerificationAdminPanel />}
 

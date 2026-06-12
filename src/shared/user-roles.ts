@@ -7,6 +7,7 @@ export const COMMUNITY_ROLES = [
   'venue',
   'ambassador',
   'influencer',
+  'sponsor',
   'premium',
 ] as const satisfies readonly UserRole[];
 
@@ -18,6 +19,7 @@ export const COMMUNITY_ROLE_LABELS: Record<CommunityRole, string> = {
   venue: 'Venue',
   ambassador: 'Ambassador',
   influencer: 'Influencer',
+  sponsor: 'Sponsor',
   premium: 'Premium',
 };
 

@@ -2,7 +2,7 @@ import z from "zod";
 import type { MochaUser } from './mocha-user';
 export type { MochaUser } from './mocha-user';
 
-export const UserRoleSchema = z.enum(['fan', 'artist', 'venue', 'ambassador', 'influencer', 'premium']);
+export const UserRoleSchema = z.enum(['fan', 'artist', 'venue', 'ambassador', 'influencer', 'sponsor', 'premium']);
 export type UserRole = z.infer<typeof UserRoleSchema>;
 
 export const UserProfileSchema = z.object({

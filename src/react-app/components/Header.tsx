@@ -1,4 +1,4 @@
-import { Search, LogOut, Bell, Shield } from 'lucide-react'
+import { Search, LogOut, Bell, Shield, Handshake } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
 import { useLocation, useNavigate } from 'react-router'
@@ -12,11 +12,9 @@ import AdvancedSearchDropdown from './AdvancedSearchDropdown'
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types'
 import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
-import HeaderGradientPill, {
-  HEADER_ACTION_BUTTON_CLASS,
-} from '@/react-app/components/HeaderGradientPill'
+import { HEADER_ACTION_BUTTON_CLASS } from '@/react-app/components/HeaderGradientPill'
 import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
-import { showAmbassadorNav, showInfluencerNav, showBecomeNav } from '@/react-app/lib/program-nav'
+import { showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -97,31 +95,20 @@ export default function Header() {
           </button>
 
           <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
+            <button
+              type="button"
+              onClick={() => navigate(showSponsorNav(extendedUser) ? '/sponsors' : '/partner')}
+              className={`hidden md:inline-flex shrink-0 items-center justify-center gap-1.5 bg-transparent ${
+                pathname === '/partner' || pathname === '/sponsors'
+                  ? 'shadow-[inset_0_0_0_1.5px_theme(colors.momentum.flare)] bg-white/10 text-momentum-flare'
+                  : 'shadow-[inset_0_0_0_1.5px_#fff] hover:bg-white/5'
+              } ${HEADER_ACTION_BUTTON_CLASS}`}
+            >
+              <Handshake className="h-3.5 w-3.5" aria-hidden />
+              <span>{showSponsorNav(extendedUser) ? 'Sponsors' : 'Partner With Us'}</span>
+            </button>
             {user && showBecomeNav(extendedUser) ? (
               <BecomeNavDropdown user={extendedUser!} />
-            ) : null}
-            {user && (showAmbassadorNav(extendedUser) || showInfluencerNav(extendedUser)) ? (
-              <nav
-                className="hidden md:flex items-center gap-2 shrink-0"
-                aria-label="Programs"
-              >
-                {showAmbassadorNav(extendedUser) ? (
-                  <HeaderGradientPill
-                    active={pathname === '/ambassadors'}
-                    onClick={() => navigate('/ambassadors')}
-                  >
-                    Ambassadors
-                  </HeaderGradientPill>
-                ) : null}
-                {showInfluencerNav(extendedUser) ? (
-                  <HeaderGradientPill
-                    active={pathname === '/influencers'}
-                    onClick={() => navigate('/influencers')}
-                  >
-                    Influencers
-                  </HeaderGradientPill>
-                ) : null}
-              </nav>
             ) : null}
             <div
               className={`relative z-[100] hidden lg:block ${hideHeaderSearch ? 'lg:hidden' : ''}`}

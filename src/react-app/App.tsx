@@ -26,6 +26,8 @@ import AmbassadorsPage from "@/react-app/pages/Ambassadors";
 import InfluencersPage from "@/react-app/pages/Influencers";
 import BecomeAmbassadorPage from "@/react-app/pages/BecomeAmbassador";
 import BecomeInfluencerPage from "@/react-app/pages/BecomeInfluencer";
+import BecomeSponsorPage from "@/react-app/pages/BecomeSponsor";
+import SponsorDashboardPage from "@/react-app/pages/SponsorDashboard";
 import AnalyticsPage from "@/react-app/pages/Analytics";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import EventClipsPage from "@/react-app/pages/EventClips";
@@ -72,6 +74,9 @@ export default function App() {
               <Route path="/influencers" element={<InfluencersPage />} />
               <Route path="/become/ambassador" element={<BecomeAmbassadorPage />} />
               <Route path="/become/influencer" element={<BecomeInfluencerPage />} />
+              <Route path="/partner" element={<BecomeSponsorPage />} />
+              <Route path="/become/sponsor" element={<Navigate to="/partner" replace />} />
+              <Route path="/sponsors" element={<SponsorDashboardPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/premium" element={<Navigate to="/" replace />} />
