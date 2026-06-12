@@ -29,6 +29,7 @@ import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
 import { useVerticalSwipeUp } from '@/react-app/hooks/useVerticalSwipeUp';
+import { useClipArtistProfile } from '@/react-app/hooks/useClipArtistProfile';
 import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets';
 import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import type { StreamVideoPlayerHandle, StreamVideoPlayerPlaybackState } from '@/react-app/components/StreamVideoPlayer';
@@ -36,13 +37,13 @@ import CommentSection from './CommentSection';
 import { ClipLikeHeart } from './ClipLikeHeart';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
+import ClipModalBuyMerch from './ClipModalBuyMerch';
 import ClipModalBuyTickets from './ClipModalBuyTickets';
 import ClipModalTicketSheet from './ClipModalTicketSheet';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import {
-  apiArtistPath,
   artistPath,
   eventClipsPath,
   genrePath,
@@ -90,6 +91,11 @@ export default function ClipModal({
   const { show: nearestTicketShow, loading: nearestTicketLoading } = useClipPlaybackTickets(
     clip.artist_name,
   );
+  const {
+    imageUrl: artistImageUrl,
+    websiteUrl: artistWebsiteUrl,
+    loading: artistProfileLoading,
+  } = useClipArtistProfile(clip.artist_name);
   const mobileContainerRef = useRef<HTMLDivElement>(null);
   const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
 
@@ -253,28 +259,13 @@ export default function ClipModal({
       );
     };
 
-    applyMeta(null);
-
-    if (clip.artist_name?.trim()) {
-      void (async () => {
-        try {
-          const res = await fetch(apiArtistPath(clip.artist_name));
-          if (!res.ok) return;
-          const data = (await res.json()) as { artist?: { image_url?: string | null } };
-          const img =
-            typeof data.artist?.image_url === 'string' ? data.artist.image_url.trim() : '';
-          if (img) applyMeta(img);
-        } catch {
-          /* keep clip-thumbnail meta */
-        }
-      })();
-    }
+    applyMeta(artistImageUrl);
 
     return () => {
       cancelled = true;
       restoreMeta?.();
     };
-  }, [clip]);
+  }, [clip, artistImageUrl]);
 
   const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
 
@@ -522,11 +513,15 @@ export default function ClipModal({
           {clip.content_description ? (
             <p className="fb-clip-caption mt-2">{clip.content_description}</p>
           ) : null}
-          <div className="mt-3">
+          <div className="mt-3 flex flex-col gap-2">
             <ClipModalBuyTickets
               show={nearestTicketShow}
               loading={nearestTicketLoading}
               onActivate={openTicketSheet}
+            />
+            <ClipModalBuyMerch
+              websiteUrl={artistWebsiteUrl}
+              loading={artistProfileLoading}
             />
           </div>
         </div>
@@ -857,11 +852,16 @@ export default function ClipModal({
                 <p className="mt-3 text-base text-gray-200">{clip.content_description}</p>
               ) : null}
 
-              <div className="mt-4">
+              <div className="mt-4 flex flex-col gap-2">
                 <ClipModalBuyTickets
                   show={nearestTicketShow}
                   loading={nearestTicketLoading}
                   onActivate={openTicketSheet}
+                  className="w-full"
+                />
+                <ClipModalBuyMerch
+                  websiteUrl={artistWebsiteUrl}
+                  loading={artistProfileLoading}
                   className="w-full"
                 />
               </div>

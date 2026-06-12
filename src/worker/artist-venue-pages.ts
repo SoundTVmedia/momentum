@@ -15,6 +15,12 @@ import {
 } from '../shared/jambase-slug';
 import { fetchJamBaseEventsByVenueName } from './jambase-endpoints';
 import { enrichJamBaseVenueImage } from './discover-jambase-enrich';
+import {
+  artistSocialLinksToJson,
+  jamBaseArtistSocialLinks,
+  mergeArtistSocialLinks,
+  parseArtistSocialLinksJson,
+} from './jambase-artist-links';
 
 export async function resolveArtistNameForClipsQuery(
   db: D1Database,
@@ -137,6 +143,7 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
         artistName: phrase,
         perPage: '20',
         page: '1',
+        expandArtistSameAs: 'true',
       },
       jbQ
     );
@@ -214,6 +221,30 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
       .first()) as Record<string, unknown> | null;
   }
 
+  const jbSocialLinks = jambaseArtist ? jamBaseArtistSocialLinks(jambaseArtist) : {};
+  const mergedSocialLinks = artistSocialLinksToJson(
+    mergeArtistSocialLinks(
+      parseArtistSocialLinksJson(
+        artist && typeof artist.social_links === 'string' ? artist.social_links : null,
+      ),
+      jbSocialLinks,
+    ),
+  );
+  const priorSocialLinks =
+    artist && typeof artist.social_links === 'string' ? artist.social_links : null;
+
+  if (
+    artist &&
+    Number(artist.id) > 0 &&
+    mergedSocialLinks &&
+    mergedSocialLinks !== priorSocialLinks
+  ) {
+    await db
+      .prepare(`UPDATE artists SET social_links = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .bind(mergedSocialLinks, artist.id)
+      .run();
+  }
+
   if (!artist) {
     const nameForDisplay =
       (jambaseArtist && typeof jambaseArtist.name === 'string' && jambaseArtist.name) ||
@@ -221,13 +252,12 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
       'Artist';
     const img =
       jambaseArtist && typeof jambaseArtist.image === 'string' ? jambaseArtist.image : null;
-    const web = jambaseArtist && typeof jambaseArtist.url === 'string' ? jambaseArtist.url : null;
     artist = {
       id: 0,
       name: nameForDisplay,
       bio: null,
       image_url: img,
-      social_links: web ? JSON.stringify({ website: web }) : null,
+      social_links: mergedSocialLinks,
       is_verified: 0,
       created_at: '',
       updated_at: '',
@@ -235,7 +265,7 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
   } else {
     artist = {
       ...artist,
-      social_links: artist.social_links ?? null,
+      social_links: mergedSocialLinks,
       bio: artist.bio ?? null,
       image_url: artist.image_url ?? null,
       is_verified: artist.is_verified ?? 0,
