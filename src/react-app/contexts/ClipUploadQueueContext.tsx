@@ -131,6 +131,8 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
           const blobs = await loadOutboxBlobs(job.id);
           if (blobs?.video) {
             job = { ...job, blobsReady: true };
+          } else if (job.uploadMethod === 'url' && job.videoUrl?.trim()) {
+            job = { ...job, blobsReady: true };
           } else if (job.status === 'queued' || job.status === 'failed') {
             job = {
               ...job,
@@ -161,19 +163,23 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     if (processingRef.current || !hydrated) return;
 
     const pending = jobsRef.current.find(
-      (j) => (j.status === 'queued' || j.status === 'paused') && j.blobsReady,
+      (j) =>
+        (j.status === 'queued' || j.status === 'paused') &&
+        (j.blobsReady || j.uploadMethod === 'url'),
     );
     if (!pending) return;
 
-    const blobs = await resolveOutboxBlobs(pending.id);
-    if (!blobs?.video) {
-      updateJob(pending.id, {
-        status: 'failed',
-        blobsReady: false,
-        error:
-          'Clip video is not on this device anymore. Record and post again if needed.',
-      });
-      return;
+    if (pending.uploadMethod !== 'url') {
+      const blobs = await resolveOutboxBlobs(pending.id);
+      if (!blobs?.video) {
+        updateJob(pending.id, {
+          status: 'failed',
+          blobsReady: false,
+          error:
+            'Clip video is not on this device anymore. Record and post again if needed.',
+        });
+        return;
+      }
     }
 
     processingRef.current = true;
@@ -306,10 +312,10 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
 
       const blob = payload.videoBlob;
       const file = payload.videoFile;
-      if (!blob && !file) return null;
+      const isUrlJob = payload.uploadMethod === 'url' && Boolean(payload.videoUrl?.trim());
+      if (!blob && !file && !isUrlJob) return null;
 
       const job = jobFromPayload(payload, previewObjectUrl);
-      const videoBlob = blob ?? file!;
 
       setJobs((prev) => {
         const next = [...prev, job];
@@ -317,6 +323,14 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         void persist(next);
         return next;
       });
+
+      if (isUrlJob) {
+        updateJob(job.id, { blobsReady: true });
+        void processNext();
+        return job.id;
+      }
+
+      const videoBlob = blob ?? file!;
 
       void (async () => {
         try {
@@ -361,15 +375,18 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const retryJob = useCallback(
     (id: string) => {
       void (async () => {
-        const blobs = await resolveOutboxBlobs(id);
-        if (!blobs?.video) {
-          updateJob(id, {
-            status: 'failed',
-            blobsReady: false,
-            error:
-              'Clip video is not on this device anymore. Record and post again if needed.',
-          });
-          return;
+        const job = jobsRef.current.find((j) => j.id === id);
+        if (job?.uploadMethod !== 'url') {
+          const blobs = await resolveOutboxBlobs(id);
+          if (!blobs?.video) {
+            updateJob(id, {
+              status: 'failed',
+              blobsReady: false,
+              error:
+                'Clip video is not on this device anymore. Record and post again if needed.',
+            });
+            return;
+          }
         }
         updateJob(id, {
           status: 'queued',

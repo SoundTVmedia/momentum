@@ -20,6 +20,7 @@ import {
 } from './blob-store';
 import { deleteOutboxJob } from './idb';
 import { withUploadBackoff } from './upload-retry';
+import { runUrlOutboxJob } from './url-upload';
 import type { UploadInitResponse } from '@/shared/upload';
 
 async function resolveThumbnailFile(
@@ -39,6 +40,16 @@ export async function runOutboxJob(
   onPatch: (patch: Partial<UploadOutboxJob>) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  if (job.uploadMethod === 'url') {
+    if (uploadJobNeedsClassification(job)) {
+      throw new Error(
+        'Add artist and venue for this clip, or upload a video file for auto-tagging.',
+      );
+    }
+    await runUrlOutboxJob(job, onPatch, signal);
+    return;
+  }
+
   const blobs = await resolveOutboxBlobs(job.id);
   if (!blobs?.video) {
     throw new Error(

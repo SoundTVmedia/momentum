@@ -43,10 +43,10 @@ import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/ty
 import { resolveClipEventTitle } from '@/shared/event-title';
 
 import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
-import { clipShowFieldsForContentFeed, isPrePostContentFeed } from '@/shared/pre-post-clip';
-import ClipUploadStatusBanner from '@/react-app/components/ClipUploadStatusBanner';
+import { isPrePostContentFeed } from '@/shared/pre-post-clip';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
+import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import {
   classifyContentFeedForClip,
   contentFeedUserMessage,
@@ -54,7 +54,6 @@ import {
 import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   classifyContentFeed,
-  effectiveContentFeedForPost,
   hasManualShowArtistVenue,
   type ContentFeedClassification,
 } from '@/shared/content-feed';
@@ -106,8 +105,6 @@ export default function UploadClip() {
   const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight } = useClipUploadQueue();
   const isMobile = useIsMobileViewport();
   const { goingMarks, hydrated: showMarksHydrated } = useShowMarks();
-  const [loading, setLoading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({ video: 0, thumbnail: 0 });
   const [error, setError] = useState<string | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -1499,126 +1496,6 @@ export default function UploadClip() {
     }
   };
 
-  const uploadFile = async (file: File, type: 'video' | 'thumbnail'): Promise<any> => {
-    const formDataToSend = new FormData();
-    formDataToSend.append('file', file);
-    formDataToSend.append('type', type);
-
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      body: formDataToSend,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload ${type}`);
-    }
-
-    const data = await response.json();
-    return data;
-  };
-
-  const uploadVideoFromUrl = async (videoUrl: string): Promise<any> => {
-    const response = await fetch('/api/stream/upload-from-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        video_url: videoUrl,
-        name: formData.artist_name || 'Concert Clip'
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to upload video from URL');
-    }
-
-    const data = await response.json();
-    return data;
-  };
-
-  const resolveClassificationForPost = useCallback(async (): Promise<{
-    classificationId: string;
-    contentFeed: 'main' | 'pre_post';
-  }> => {
-    if (clipManualShowPostReady(formData)) {
-      return { classificationId: '', contentFeed: 'main' };
-    }
-
-    if (
-      storedClassificationId &&
-      classifyResult &&
-      (BYPASS_CONTENT_FEED_BIFURCATION ||
-        (classifyResult.content_feed !== 'rejected' &&
-          (classifyResult.content_feed === 'main' || classifyResult.content_feed === 'pre_post')))
-    ) {
-      return {
-        classificationId: storedClassificationId,
-        contentFeed: effectiveContentFeedForPost(classifyResult.content_feed),
-      };
-    }
-
-    const source = formData.video_blob ?? formData.video_file;
-    if (!source || !(source instanceof Blob)) {
-      throw new Error('No video available for content classification.');
-    }
-
-    const nav = location.state as { captureAudioBlob?: unknown } | null;
-    const captureAudio =
-      nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null;
-
-    setClassifyStatus('loading');
-    setClassifyMessage(null);
-    setClassifyResult(null);
-    setStoredClassificationId(null);
-
-    const out = await classifyContentFeedForClip({
-      video: source,
-      captureAudio,
-      headlinerName: formData.artist_name?.trim() || null,
-    });
-
-    if (!out.ok) {
-      setClassifyStatus('error');
-      setClassifyMessage(out.error);
-      throw new Error(out.error);
-    }
-
-    setClassifyResult(out);
-    setStoredClassificationId(out.classification_id ?? null);
-    const ui = contentFeedUserMessage(out);
-    setClassifyMessage(ui?.message ?? null);
-
-    if (out.content_feed === 'rejected' && !BYPASS_CONTENT_FEED_BIFURCATION) {
-      setClassifyStatus('done');
-      throw new Error(out.message);
-    }
-
-    if (out.content_feed === 'pre_post' && !BYPASS_CONTENT_FEED_BIFURCATION) {
-      clearShowAssociationFields();
-    }
-
-    setClassifyStatus('done');
-    if (!out.classification_id) {
-      throw new Error('Classification did not return an id. Try again.');
-    }
-    const contentFeed = effectiveContentFeedForPost(out.content_feed);
-    if (contentFeed !== 'main' && contentFeed !== 'pre_post') {
-      throw new Error('Invalid content feed classification.');
-    }
-    return {
-      classificationId: out.classification_id,
-      contentFeed,
-    };
-  }, [
-    storedClassificationId,
-    classifyResult,
-    formData.video_blob,
-    formData.video_file,
-    formData.artist_name,
-    formData.venue_name,
-    location.state,
-    clearShowAssociationFields,
-  ]);
-
   const handleEventTitleChange = useCallback(
     (value: string) => {
       markTagsEdited();
@@ -1747,254 +1624,133 @@ export default function UploadClip() {
       .finally(() => setReRecordGesturePending(false));
   }, [isMobile]);
 
+  const applyPostShareSideEffects = useCallback(
+    (
+      manual: boolean,
+      classificationPending: boolean,
+      contentFeed: 'main' | 'pre_post',
+    ) => {
+      if (
+        !formData.venue_name?.trim() ||
+        (!manual && classificationPending) ||
+        (!manual && contentFeed !== 'main')
+      ) {
+        return;
+      }
+      const posted = captureShowCandidateFromPostedClip({
+        artist_name: formData.artist_name,
+        venue_name: formData.venue_name,
+        location: formData.location,
+        jambaseLink,
+      });
+      if (
+        posted &&
+        captureGeo &&
+        Number.isFinite(captureGeo.latitude) &&
+        Number.isFinite(captureGeo.longitude)
+      ) {
+        markCaptureShowSessionPosted(posted, captureGeo.latitude, captureGeo.longitude);
+      }
+      if (jambaseLink?.event?.trim()) {
+        const markInput = jamBaseEventToShowMarkInput(
+          {
+            identifier: jambaseLink.event,
+            name: jambaseLink.eventTitle ?? formData.venue_name,
+            startDate: recordingAtIso ?? new Date().toISOString(),
+            performer: formData.artist_name
+              ? [{ name: formData.artist_name, identifier: jambaseLink.artist, 'x-isHeadliner': true }]
+              : [],
+            location: {
+              name: formData.venue_name,
+              identifier: jambaseLink.venue,
+              address: { addressLocality: formData.location?.split(',')[0]?.trim() },
+            },
+          },
+          'attended',
+        );
+        if (markInput) {
+          void fetch('/api/users/me/show-marks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(markInput),
+          }).then(() => {
+            window.dispatchEvent(new CustomEvent('show-marks-changed'));
+          });
+        }
+      }
+    },
+    [
+      formData.artist_name,
+      formData.venue_name,
+      formData.location,
+      jambaseLink,
+      captureGeo,
+      recordingAtIso,
+    ],
+  );
+
+  const finishAfterQueuedShare = useCallback(() => {
+    const wasCaptionScreen = showCaptionScreen;
+    skipNavVideoHydrationRef.current = true;
+    resetForNextCapture();
+    if (wasCaptionScreen && isMobile) {
+      setShowQuickCapture(true);
+      openCaptureFromShareGesture();
+    } else {
+      setShowQuickCapture(false);
+      if (wasCaptionScreen) {
+        navigate({ pathname: '/upload', search: '' }, { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [isMobile, navigate, openCaptureFromShareGesture, resetForNextCapture, showCaptionScreen]);
+
   const handleSubmit = async (e: React.FormEvent | null) => {
     if (e) e.preventDefault();
-    
+
     if (uploadMethod === 'file' && !formData.video_file && !formData.video_blob) {
       setError('Please select a video file');
       return;
     }
-    
+
     if (uploadMethod === 'url' && !formData.video_url) {
       setError('Video URL is required');
       return;
     }
 
-    if (showCaptionScreen && uploadMethod === 'file') {
-      const manual = clipManualShowPostReady(formData);
-      let classificationId = '';
-      let contentFeed: 'main' | 'pre_post' = 'main';
-      let classificationPending = false;
-
-      if (manual) {
-        classificationId = '';
-        contentFeed = 'main';
-      } else if (
-        storedClassificationId &&
-        classifyResult &&
-        (BYPASS_CONTENT_FEED_BIFURCATION ||
-          (classifyResult.content_feed !== 'rejected' &&
-            (classifyResult.content_feed === 'main' ||
-              classifyResult.content_feed === 'pre_post')))
-      ) {
-        classificationId = storedClassificationId;
-        contentFeed = effectiveContentFeedForPost(classifyResult.content_feed);
-      } else {
-        // Offline-first: queue now; classify when the worker runs (or on reconnect).
-        classificationPending = true;
-      }
-
-      const jobId = enqueueClipUpload(
-        {
-          ...buildUploadPayload(classificationId, contentFeed),
-          classificationPending,
-        },
-        videoBlobUrl,
-      );
-      if (!jobId) {
-        setError('Too many clips are uploading. Wait for one to finish, then try again.');
-        return;
-      }
-      if (
-        formData.venue_name?.trim() &&
-        (manual || (!classificationPending && contentFeed === 'main'))
-      ) {
-        const posted = captureShowCandidateFromPostedClip({
-          artist_name: formData.artist_name,
-          venue_name: formData.venue_name,
-          location: formData.location,
-          jambaseLink,
-        });
-        if (
-          posted &&
-          captureGeo &&
-          Number.isFinite(captureGeo.latitude) &&
-          Number.isFinite(captureGeo.longitude)
-        ) {
-          markCaptureShowSessionPosted(posted, captureGeo.latitude, captureGeo.longitude);
-        }
-        if (jambaseLink?.event?.trim()) {
-          const markInput = jamBaseEventToShowMarkInput(
-            {
-              identifier: jambaseLink.event,
-              name: jambaseLink.eventTitle ?? formData.venue_name,
-              startDate: recordingAtIso ?? new Date().toISOString(),
-              performer: formData.artist_name
-                ? [{ name: formData.artist_name, identifier: jambaseLink.artist, 'x-isHeadliner': true }]
-                : [],
-              location: {
-                name: formData.venue_name,
-                identifier: jambaseLink.venue,
-                address: { addressLocality: formData.location?.split(',')[0]?.trim() },
-              },
-            },
-            'attended',
-          );
-          if (markInput) {
-            void fetch('/api/users/me/show-marks', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify(markInput),
-            }).then(() => {
-              window.dispatchEvent(new CustomEvent('show-marks-changed'));
-            });
-          }
-        }
-      }
-      skipNavVideoHydrationRef.current = true;
-      setShowCaptionScreen(false);
-      resetForNextCapture();
-      if (isMobile) {
-        setShowQuickCapture(true);
-        openCaptureFromShareGesture();
-      } else {
-        setShowQuickCapture(false);
-        navigate({ pathname: '/upload', search: '' }, { replace: true });
-      }
+    const classification = resolveEnqueueClassification({
+      uploadMethod,
+      form: formData,
+      storedClassificationId,
+      classifyResult,
+    });
+    if (!classification.ok) {
+      setError(classification.error);
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      let resolved: { classificationId: string; contentFeed: 'main' | 'pre_post' };
-      try {
-        resolved = await resolveClassificationForPost();
-      } catch (e) {
-        throw e;
-      }
-
-      let videoData: any = null;
-      let thumbnailUrl = formData.thumbnail_url;
-      let thumbnailFile = formData.thumbnail_file;
-
-      // Upload video - prioritize Cloudflare Stream for better quality
-      if (uploadMethod === 'file' && (formData.video_file || formData.video_blob)) {
-        setUploadProgress(prev => ({ ...prev, video: 10 }));
-        
-        // Convert blob to file if needed
-        let fileToUpload = formData.video_file;
-        if (!fileToUpload && formData.video_blob) {
-          fileToUpload = new File([formData.video_blob], `recording-${Date.now()}.webm`, { type: 'video/webm' });
-        }
-
-        if (fileToUpload && !thumbnailFile) {
-          thumbnailFile = await generateVideoThumbnailJpeg(fileToUpload);
-          if (thumbnailFile) {
-            setFormData((prev) => ({ ...prev, thumbnail_file: thumbnailFile }));
-          }
-        }
-        
-        if (fileToUpload) {
-          videoData = await uploadFile(fileToUpload, 'video');
-        }
-        setUploadProgress(prev => ({ ...prev, video: 100 }));
-      } else if (uploadMethod === 'url' && formData.video_url) {
-        setUploadProgress(prev => ({ ...prev, video: 10 }));
-        videoData = await uploadVideoFromUrl(formData.video_url);
-        setUploadProgress(prev => ({ ...prev, video: 100 }));
-      }
-
-      // Upload thumbnail if provided or generated from first frame
-      if (thumbnailFile) {
-        setUploadProgress(prev => ({ ...prev, thumbnail: 10 }));
-        const thumbData = await uploadFile(thumbnailFile, 'thumbnail');
-        thumbnailUrl = thumbData.url;
-        setUploadProgress(prev => ({ ...prev, thumbnail: 100 }));
-      }
-
-      const showFields = clipShowFieldsForContentFeed(resolved.contentFeed, {
-        artist_name: formData.artist_name,
-        venue_name: formData.venue_name,
-        location: formData.location,
-        song_title: formData.song_title,
-        genre_name: formData.genre_name,
-        hashtagsInput: formData.hashtags,
-        jambaseLink,
-        eventTitleFallback:
-          resolveClipEventTitle({
-            artist_name: formData.artist_name,
-            venue_name: formData.venue_name,
-          }) ?? null,
-      });
-
-      // Prepare clip data based on upload type (Stream or R2)
-      const clipData: any = {
-        ...(resolved.classificationId ? { classification_id: resolved.classificationId } : {}),
-        artist_name: showFields.artist_name,
-        venue_name: showFields.venue_name,
-        location: showFields.location,
-        content_description: formData.content_description || null,
-        hashtags: showFields.hashtags,
-        song_title: showFields.song_title,
-        genre_name: showFields.genre_name,
-        status: 'published',
-        timestamp: recordingAtIso || undefined,
-        jambase_event_id: showFields.jambase_event_id ?? undefined,
-        jambase_artist_id: showFields.jambase_artist_id ?? undefined,
-        jambase_venue_id: showFields.jambase_venue_id ?? undefined,
-        event_title: showFields.event_title ?? undefined,
-        geolocation_latitude: captureGeo?.latitude,
-        geolocation_longitude: captureGeo?.longitude,
-        // Include video metadata if available (orientation and resolution)
-        recording_orientation: videoMetadata.recording_orientation || null,
-        video_resolution_w: videoMetadata.video_resolution_w || null,
-        video_resolution_h: videoMetadata.video_resolution_h || null,
-      };
-
-      // Use Stream data if available, otherwise use direct URL
-      if (videoData?.type === 'stream') {
-        clipData.stream_video_id = videoData.streamVideoId;
-        clipData.stream_playback_url = videoData.playbackUrl;
-        clipData.stream_thumbnail_url = thumbnailUrl || videoData.thumbnailUrl;
-        clipData.video_status = videoData.status;
-        clipData.video_duration = videoData.duration;
-        clipData.video_url =
-          videoData.mp4PlaybackUrl || videoData.playbackUrl;
-        clipData.thumbnail_url = thumbnailUrl || videoData.thumbnailUrl;
-      } else {
-        clipData.video_url = videoData?.url || formData.video_url;
-        clipData.thumbnail_url = thumbnailUrl || null;
-      }
-
-      const response = await fetch('/api/clips', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clipData),
-      });
-
-      if (!response.ok) {
-        let msg = 'Failed to create clip';
-        try {
-          const errBody = (await response.json()) as { error?: string; message?: string };
-          if (typeof errBody?.error === 'string') msg = errBody.error;
-          else if (typeof errBody?.message === 'string') msg = errBody.message;
-        } catch {
-          /* non-JSON body */
-        }
-        throw new Error(msg);
-      }
-
-      await response.json();
-
-      // Clean up blob URL if it exists
-      if (videoBlobUrl) {
-        URL.revokeObjectURL(videoBlobUrl);
-        setVideoBlobUrl(null);
-      }
-
-      setShowCaptionScreen(false);
-      setShowQuickCapture(false);
-
-      navigate('/', { replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload clip');
-    } finally {
-      setLoading(false);
-      setUploadProgress({ video: 0, thumbnail: 0 });
+    const manual = clipManualShowPostReady(formData);
+    const jobId = enqueueClipUpload(
+      {
+        ...buildUploadPayload(classification.classificationId, classification.contentFeed),
+        classificationPending: classification.classificationPending,
+      },
+      uploadMethod === 'file' ? videoBlobUrl : null,
+    );
+    if (!jobId) {
+      setError('Too many clips are uploading. Wait for one to finish, then try again.');
+      return;
     }
+
+    applyPostShareSideEffects(
+      manual,
+      classification.classificationPending,
+      classification.contentFeed,
+    );
+    setError(null);
+    finishAfterQueuedShare();
   };
 
   /** Leave upload (e.g. mobile caption screen) and return to the feed; drops in-progress media. */
@@ -2078,7 +1834,6 @@ export default function UploadClip() {
   if (quickCaptureAwaitUserTap && wantQuickCaptureUrl && !showCaptionScreen && isMobile) {
     return (
       <div className="min-h-screen text-white flex flex-col items-center justify-center px-6 text-center">
-        <ClipUploadStatusBanner />
         <MapPin className="w-14 h-14 text-momentum-flare mb-4 shrink-0" aria-hidden />
         <h1 className="text-xl font-bold text-white mb-2">Location and camera</h1>
         <p className="text-gray-400 text-sm max-w-sm mb-8 leading-relaxed">
@@ -2134,7 +1889,6 @@ export default function UploadClip() {
   if (showQuickCapture && isMobile) {
     return (
       <div className="min-h-screen text-white">
-        <ClipUploadStatusBanner />
         <QuickRecordButton
           isOpen={true}
           primedMediaStream={reRecordPrimedStream}
@@ -2194,7 +1948,6 @@ export default function UploadClip() {
 
     return (
       <div className="min-h-screen text-white">
-        <ClipUploadStatusBanner />
         <Header />
 
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-fade-in">
@@ -2773,7 +2526,7 @@ export default function UploadClip() {
               <div className="space-y-3 pt-4">
                 <button
                   type="button"
-                  disabled={loading || !canPostWithShowDetails}
+                  disabled={clipUploadsInFlight >= 5 || !canPostWithShowDetails}
                   onClick={() => void handleSubmit(null)}
                   className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35 disabled:opacity-50 disabled:hover:scale-100"
                 >
@@ -2797,7 +2550,6 @@ export default function UploadClip() {
   // FULL UPLOAD FORM - Original interface
   return (
     <div className="min-h-screen text-white">
-      <ClipUploadStatusBanner />
       <Header />
       
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -2896,17 +2648,6 @@ export default function UploadClip() {
                   </span>
                 </button>
               </div>
-              {uploadProgress.video > 0 && uploadProgress.video < 100 && (
-                <div className="mt-2">
-                  <div className="w-full bg-white/10 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember h-2 rounded-full transition-all"
-                      style={{ width: `${uploadProgress.video}%` }}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-400 mt-1">Uploading video... {uploadProgress.video}%</p>
-                </div>
-              )}
             </div>
           ) : (
             <div>
@@ -2953,17 +2694,6 @@ export default function UploadClip() {
                   <span className="text-sm text-gray-400">JPG, PNG, WebP (max 10MB)</span>
                 </button>
               </div>
-              {uploadProgress.thumbnail > 0 && uploadProgress.thumbnail < 100 && (
-                <div className="mt-2">
-                  <div className="w-full bg-white/10 rounded-full h-2">
-                    <div
-                      className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember h-2 rounded-full transition-all"
-                      style={{ width: `${uploadProgress.thumbnail}%` }}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-400 mt-1">Uploading thumbnail... {uploadProgress.thumbnail}%</p>
-                </div>
-              )}
             </div>
           ) : (
             <div>
@@ -3166,23 +2896,15 @@ export default function UploadClip() {
               type="button"
               onClick={() => navigate(-1)}
               className="flex-1 px-6 py-4 bg-black/30 border border-momentum-ember/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
-              disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={clipUploadsInFlight >= 5}
               className="flex-1 px-6 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
             >
-              {loading ? (
-                <span className="flex items-center justify-center space-x-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Uploading Your Moment...</span>
-                </span>
-              ) : (
-                'Share It'
-              )}
+              Share It
             </button>
           </div>
         </form>

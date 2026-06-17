@@ -36,6 +36,7 @@ import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
 import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
+import ClipUploadStatusBanner from "@/react-app/components/ClipUploadStatusBanner";
 import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
 import { useEffect } from "react";
@@ -56,6 +57,7 @@ export default function App() {
       <AuthProvider>
         <MobileChromeProvider>
         <ClipUploadQueueProvider>
+        <ClipUploadStatusBanner />
         <NotificationsProvider>
         <Router>
           <Routes>
