@@ -10,17 +10,33 @@ import {
 } from 'react';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import {
+  clearCachedOutboxBlobs,
+  formatUploadError,
+  isRetryableUploadError,
+  persistOutboxThumbnail,
+  persistOutboxVideo,
+  resolveOutboxBlobs,
+} from '@/react-app/lib/upload-outbox/blob-store';
+import {
   deleteOutboxJob,
+  loadOutboxBlobs,
   loadOutboxMeta,
-  saveOutboxBlobs,
   saveOutboxMeta,
 } from '@/react-app/lib/upload-outbox/idb';
 import { jobFromPayload, runOutboxJob } from '@/react-app/lib/upload-outbox/runner';
 import type { PersistedOutboxMeta, UploadOutboxJob } from '@/react-app/lib/upload-outbox/types';
+import { saveClipToDeviceGallery } from '@/react-app/lib/upload-outbox/gallery-save';
+import {
+  acquireUploadWakeLock,
+  bindUploadWakeLockVisibility,
+  releaseUploadWakeLock,
+} from '@/react-app/lib/upload-outbox/upload-wake-lock';
 import { scheduleNativeBackgroundUpload } from '@/react-app/lib/native-bridge';
+import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 
 const MAX_QUEUE_SIZE = 5;
 const DONE_TTL_MS = 8000;
+const PAUSED_RETRY_INTERVAL_MS = 45_000;
 
 export type ClipUploadQueueJob = UploadOutboxJob;
 
@@ -48,6 +64,7 @@ function toPersisted(job: UploadOutboxJob): PersistedOutboxMeta {
 function reviveJob(meta: PersistedOutboxMeta): UploadOutboxJob {
   return {
     ...meta,
+    blobsReady: meta.blobsReady ?? false,
     videoFile: null,
     videoBlob: null,
     thumbnailFile: null,
@@ -97,13 +114,36 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       try {
         const meta = await loadOutboxMeta();
         if (cancelled) return;
-        const revived = meta.map((m) => {
-          const job = reviveJob(m);
-          if (job.status === 'uploading' || job.status === 'completing') {
-            return { ...job, status: 'queued' as const };
+
+        const revived: UploadOutboxJob[] = [];
+        for (const m of meta) {
+          let job = reviveJob(m);
+          if (
+            job.status === 'uploading' ||
+            job.status === 'completing' ||
+            job.status === 'classifying' ||
+            job.status === 'processing' ||
+            job.status === 'paused'
+          ) {
+            job = { ...job, status: 'queued' };
           }
-          return job;
-        });
+
+          const blobs = await loadOutboxBlobs(job.id);
+          if (blobs?.video) {
+            job = { ...job, blobsReady: true };
+          } else if (job.status === 'queued' || job.status === 'failed') {
+            job = {
+              ...job,
+              blobsReady: false,
+              status: 'failed',
+              error:
+                'Clip video is not on this device anymore. Record and post again if needed.',
+            };
+          }
+
+          revived.push(job);
+        }
+
         setJobs(revived);
         jobsRef.current = revived;
       } catch (err) {
@@ -120,12 +160,27 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const processNext = useCallback(async () => {
     if (processingRef.current || !hydrated) return;
 
-    const pending = jobsRef.current.find((j) => j.status === 'queued');
+    const pending = jobsRef.current.find(
+      (j) => (j.status === 'queued' || j.status === 'paused') && j.blobsReady,
+    );
     if (!pending) return;
+
+    const blobs = await resolveOutboxBlobs(pending.id);
+    if (!blobs?.video) {
+      updateJob(pending.id, {
+        status: 'failed',
+        blobsReady: false,
+        error:
+          'Clip video is not on this device anymore. Record and post again if needed.',
+      });
+      return;
+    }
 
     processingRef.current = true;
     const controller = new AbortController();
     abortRef.current = controller;
+
+    await acquireUploadWakeLock();
 
     updateJob(pending.id, {
       status: 'uploading',
@@ -142,11 +197,13 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       updateJob(pending.id, { status: 'published', progress: 100 });
       removeJobLater(pending.id);
     } catch (err) {
+      const message = formatUploadError(err);
       updateJob(pending.id, {
-        status: 'failed',
-        error: err instanceof Error ? err.message : 'Upload failed',
+        status: isRetryableUploadError(message) ? 'paused' : 'failed',
+        error: message,
       });
     } finally {
+      await releaseUploadWakeLock();
       processingRef.current = false;
       abortRef.current = null;
       queueMicrotask(() => {
@@ -160,7 +217,83 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     queueMicrotask(() => {
       void processNext();
     });
-  }, [hydrated, jobs.length, processNext]);
+  }, [hydrated, processNext]);
+
+  const resumeRetryableJobs = useCallback(
+    (preserveProgress = true) => {
+      const retryable = jobsRef.current.filter(
+        (j) =>
+          j.blobsReady &&
+          (j.status === 'paused' ||
+            (j.status === 'failed' && isRetryableUploadError(j.error))),
+      );
+      if (retryable.length === 0) return;
+
+      setJobs((prev) => {
+        const next = prev.map((j) => {
+          const shouldRetry =
+            j.blobsReady &&
+            (j.status === 'paused' ||
+              (j.status === 'failed' && isRetryableUploadError(j.error)));
+          if (!shouldRetry) return j;
+          return {
+            ...j,
+            status: 'queued' as const,
+            error: null,
+            progress: preserveProgress ? j.progress : 0,
+          };
+        });
+        jobsRef.current = next;
+        void persist(next);
+        return next;
+      });
+
+      queueMicrotask(() => {
+        void processNext();
+      });
+    },
+    [persist, processNext],
+  );
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const onOnline = () => resumeRetryableJobs(true);
+
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [hydrated, resumeRetryableJobs]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const interval = window.setInterval(() => {
+      const hasPaused = jobsRef.current.some(
+        (j) =>
+          j.blobsReady &&
+          (j.status === 'paused' ||
+            (j.status === 'failed' && isRetryableUploadError(j.error))),
+      );
+      if (!hasPaused || processingRef.current) return;
+      resumeRetryableJobs(true);
+    }, PAUSED_RETRY_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [hydrated, resumeRetryableJobs]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const onPageShow = () => {
+      queueMicrotask(() => {
+        void processNext();
+      });
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, [hydrated, processNext]);
+
+  useEffect(() => bindUploadWakeLockVisibility(), []);
 
   const enqueue = useCallback(
     (payload: ClipUploadJobPayload, previewObjectUrl?: string | null): string | null => {
@@ -178,11 +311,6 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       const job = jobFromPayload(payload, previewObjectUrl);
       const videoBlob = blob ?? file!;
 
-      void saveOutboxBlobs(job.id, {
-        video: videoBlob instanceof File ? videoBlob : videoBlob,
-        thumbnail: payload.thumbnailFile ?? null,
-      });
-
       setJobs((prev) => {
         const next = [...prev, job];
         jobsRef.current = next;
@@ -190,26 +318,69 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      queueMicrotask(() => {
-        scheduleNativeBackgroundUpload(job.id);
-        void processNext();
-      });
+      void (async () => {
+        try {
+          await persistOutboxVideo(
+            job.id,
+            videoBlob instanceof File ? videoBlob : videoBlob,
+            payload.thumbnailFile ?? null,
+          );
+          const gallery = await saveClipToDeviceGallery(
+            videoBlob instanceof File ? videoBlob : videoBlob,
+            job.fileName,
+          );
+          updateJob(job.id, { blobsReady: true, savedToDevice: gallery.saved });
+          scheduleNativeBackgroundUpload(job.id, gallery.nativeCachePath);
+          void processNext();
+
+          let thumb = payload.thumbnailFile ?? null;
+          if (!thumb) {
+            thumb = await generateVideoThumbnailJpeg(videoBlob, {
+              maxWidth: 640,
+              quality: 0.82,
+            });
+          }
+          if (thumb) {
+            await persistOutboxThumbnail(job.id, thumb);
+          }
+        } catch (err) {
+          console.error('ClipUploadQueue persist:', err);
+          updateJob(job.id, {
+            status: 'failed',
+            blobsReady: false,
+            error: 'Could not save clip on this device. Try again.',
+          });
+        }
+      })();
 
       return job.id;
     },
-    [persist, processNext],
+    [persist, processNext, updateJob],
   );
 
   const retryJob = useCallback(
     (id: string) => {
-      updateJob(id, {
-        status: 'queued',
-        error: null,
-        progress: 0,
-      });
-      queueMicrotask(() => {
-        void processNext();
-      });
+      void (async () => {
+        const blobs = await resolveOutboxBlobs(id);
+        if (!blobs?.video) {
+          updateJob(id, {
+            status: 'failed',
+            blobsReady: false,
+            error:
+              'Clip video is not on this device anymore. Record and post again if needed.',
+          });
+          return;
+        }
+        updateJob(id, {
+          status: 'queued',
+          blobsReady: true,
+          error: null,
+          progress: jobsRef.current.find((j) => j.id === id)?.progress ?? 0,
+        });
+        queueMicrotask(() => {
+          void processNext();
+        });
+      })();
     },
     [processNext, updateJob],
   );
@@ -217,6 +388,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const dismissJob = useCallback(
     async (id: string) => {
       abortRef.current?.abort();
+      clearCachedOutboxBlobs(id);
       await deleteOutboxJob(id);
       setJobs((prev) => {
         const next = prev.filter((j) => j.id !== id);
@@ -233,9 +405,11 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       jobs.filter(
         (j) =>
           j.status === 'queued' ||
+          j.status === 'classifying' ||
           j.status === 'uploading' ||
           j.status === 'completing' ||
-          j.status === 'processing',
+          j.status === 'processing' ||
+          j.status === 'paused',
       ).length,
     [jobs],
   );

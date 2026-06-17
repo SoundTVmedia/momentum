@@ -72,6 +72,7 @@ import {
   postUploadComplete,
   postUploadInit,
   postUploadPartConfirm,
+  postUploadSessionThumbnail,
   putUploadPart,
 } from "./upload-endpoints";
 import {
@@ -703,6 +704,12 @@ app.post(
   authMiddleware,
   rateLimiter(RateLimits.UPLOAD),
   postUploadComplete,
+);
+app.post(
+  "/api/uploads/:sessionId/thumbnail",
+  authMiddleware,
+  rateLimiter(RateLimits.UPLOAD),
+  postUploadSessionThumbnail,
 );
 app.get("/api/uploads/:sessionId/status", authMiddleware, getUploadStatus);
 

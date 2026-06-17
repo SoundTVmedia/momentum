@@ -22,6 +22,8 @@ export type ClipUploadJobPayload = {
   classificationId: string;
   /** Lane from classify-content; pre_post clips must not carry show associations. */
   contentFeed?: 'main' | 'pre_post';
+  /** When true, classify-content runs in the upload worker (Share works offline). */
+  classificationPending?: boolean;
   captureAudioBlob?: Blob | null;
   form: ClipUploadFormFields;
   jambaseLink: {

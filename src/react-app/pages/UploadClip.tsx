@@ -1761,23 +1761,44 @@ export default function UploadClip() {
     }
 
     if (showCaptionScreen && uploadMethod === 'file') {
-      let resolved: { classificationId: string; contentFeed: 'main' | 'pre_post' };
-      try {
-        resolved = await resolveClassificationForPost();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Content classification failed');
-        return;
+      const manual = clipManualShowPostReady(formData);
+      let classificationId = '';
+      let contentFeed: 'main' | 'pre_post' = 'main';
+      let classificationPending = false;
+
+      if (manual) {
+        classificationId = '';
+        contentFeed = 'main';
+      } else if (
+        storedClassificationId &&
+        classifyResult &&
+        (BYPASS_CONTENT_FEED_BIFURCATION ||
+          (classifyResult.content_feed !== 'rejected' &&
+            (classifyResult.content_feed === 'main' ||
+              classifyResult.content_feed === 'pre_post')))
+      ) {
+        classificationId = storedClassificationId;
+        contentFeed = effectiveContentFeedForPost(classifyResult.content_feed);
+      } else {
+        // Offline-first: queue now; classify when the worker runs (or on reconnect).
+        classificationPending = true;
       }
 
       const jobId = enqueueClipUpload(
-        buildUploadPayload(resolved.classificationId, resolved.contentFeed),
+        {
+          ...buildUploadPayload(classificationId, contentFeed),
+          classificationPending,
+        },
         videoBlobUrl,
       );
       if (!jobId) {
         setError('Too many clips are uploading. Wait for one to finish, then try again.');
         return;
       }
-      if (resolved.contentFeed === 'main' && formData.venue_name?.trim()) {
+      if (
+        formData.venue_name?.trim() &&
+        (manual || (!classificationPending && contentFeed === 'main'))
+      ) {
         const posted = captureShowCandidateFromPostedClip({
           artist_name: formData.artist_name,
           venue_name: formData.venue_name,

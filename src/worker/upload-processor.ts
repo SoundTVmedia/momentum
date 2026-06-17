@@ -47,8 +47,10 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
       [clip.artist_name, clip.venue_name].filter(Boolean).join(' @ ') || 'Concert Clip';
     const videoDetails = await streamService.uploadFromUrl(sourceUrl, { name: label });
 
-    const thumbnailUrl = clip.thumbnail_url || videoDetails.thumbnail;
+    const thumbnailUrl = clip.thumbnail_url?.trim() || videoDetails.thumbnail;
     const videoUrl = videoDetails.mp4Url || videoDetails.playbackUrl;
+    // Keep client JPEG on both fields — Stream-generated thumbs can lag behind publish.
+    const posterUrl = clip.thumbnail_url?.trim() || thumbnailUrl;
 
     await env.DB
       .prepare(
@@ -69,9 +71,9 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
       .bind(
         videoDetails.uid,
         videoDetails.playbackUrl,
-        thumbnailUrl,
+        posterUrl,
         videoUrl,
-        thumbnailUrl,
+        posterUrl,
         videoDetails.status,
         videoDetails.duration,
         clipId,

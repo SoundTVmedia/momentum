@@ -2,6 +2,7 @@ export {
   STREAM_DELIVERY_ORIGIN,
   type ClipPlaybackFields,
   extractStreamVideoId,
+  isPlaceholderVideoUrl,
   resolveClipPosterUrl,
   streamThumbnailUrl,
   streamVideoIdFromClip,
@@ -9,6 +10,7 @@ export {
 
 import {
   type ClipPlaybackFields,
+  isPlaceholderVideoUrl,
   resolveClipPosterUrl,
   STREAM_DELIVERY_ORIGIN,
   streamVideoIdFromClip,
@@ -38,7 +40,7 @@ export function resolveFeedPreviewVideoSrc(clip: ClipPlaybackFields): string | n
   }
 
   const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
-  if (!fallback) return null;
+  if (!fallback || isPlaceholderVideoUrl(fallback)) return null;
   if (isHlsPlaybackUrl(fallback)) return null;
   return fallback;
 }
@@ -66,7 +68,7 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
 
   const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
   return {
-    src: fallback,
+    src: isPlaceholderVideoUrl(fallback) ? '' : fallback,
     poster,
     isHls: isHlsPlaybackUrl(fallback),
     streamVideoId: null,

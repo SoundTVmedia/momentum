@@ -42,6 +42,10 @@ describe('clip-playback', () => {
     );
   });
 
+  it('ignores placeholder upload video URLs', () => {
+    expect(resolveFeedPreviewVideoSrc({ video_url: 'pending:upload' })).toBeNull();
+  });
+
   it('uses HLS for modal when stream id present', () => {
     const modal = resolveModalPlaybackSource({ stream_video_id: UID, video_url: '/api/files/x.mp4' });
     expect(modal.isHls).toBe(true);

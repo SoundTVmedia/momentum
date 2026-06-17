@@ -28,6 +28,8 @@ export interface ClipFeedPreviewMediaProps extends ClipPlaybackFields {
   mediaHovered?: boolean;
   /** Stable key for limiting concurrent mobile feed decoders (e.g. clip id). */
   previewInstanceKey?: string;
+  /** Static poster only — skip video prefetch/autoplay (uploading clips). */
+  posterOnly?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export default function ClipFeedPreviewMedia({
   className = '',
   mediaHovered: mediaHoveredProp,
   previewInstanceKey = '',
+  posterOnly = false,
 }: ClipFeedPreviewMediaProps) {
   const clipFields: ClipPlaybackFields = {
     stream_video_id: stream_video_id ?? undefined,
@@ -73,7 +76,7 @@ export default function ClipFeedPreviewMedia({
 
   const posterSrc = resolveClipPosterUrl(clipFields, posterUrl || thumbFallback);
   const displayPoster = posterBroken ? thumbFallback : posterSrc;
-  const previewVideoSrc = resolveFeedPreviewVideoSrc(clipFields);
+  const previewVideoSrc = posterOnly ? null : resolveFeedPreviewVideoSrc(clipFields);
 
   useEffect(() => {
     setPosterBroken(false);
@@ -240,7 +243,8 @@ export default function ClipFeedPreviewMedia({
         className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
           thumbHidden ? 'opacity-0' : 'opacity-100'
         }`}
-        loading="lazy"
+        loading={posterOnly ? 'eager' : 'lazy'}
+        fetchPriority={posterOnly ? 'high' : 'auto'}
         decoding="async"
         onError={() => {
           if (!posterBroken) setPosterBroken(true);

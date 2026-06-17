@@ -410,7 +410,7 @@ export async function getUploadStatus(c: Context<{ Bindings: Env }>) {
   }
 
   const clip = await c.env.DB
-    .prepare('SELECT upload_status, is_draft, status FROM clips WHERE id = ?')
+    .prepare('SELECT upload_status, is_draft, status, thumbnail_url FROM clips WHERE id = ?')
     .bind(session.clip_id)
     .first();
 
@@ -427,7 +427,68 @@ export async function getUploadStatus(c: Context<{ Bindings: Env }>) {
     totalParts,
     progress,
     clipPublished: Number(clip?.is_draft) === 0 && String(clip?.status) === 'published',
+    thumbnailUrl:
+      typeof clip?.thumbnail_url === 'string' ? clip.thumbnail_url : null,
+    completedPartNumbers: completed.map((p) => p.partNumber),
   };
 
   return c.json(response);
+}
+
+/**
+ * POST /api/uploads/:sessionId/thumbnail
+ * Attach a client-generated JPEG thumbnail to the draft clip (upload early for fast grid display).
+ */
+export async function postUploadSessionThumbnail(c: Context<{ Bindings: Env }>) {
+  const mochaUser = c.get('user');
+  if (!mochaUser) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const sessionId = c.req.param('sessionId') ?? '';
+  if (!sessionId) {
+    return c.json({ error: 'Missing session id' }, 400);
+  }
+
+  const body = (await c.req.json()) as { thumbnailUrl?: string; thumbnailKey?: string };
+  const thumbnailUrl = typeof body.thumbnailUrl === 'string' ? body.thumbnailUrl.trim() : '';
+  const thumbnailKey = typeof body.thumbnailKey === 'string' ? body.thumbnailKey.trim() : '';
+
+  if (!thumbnailUrl) {
+    return c.json({ error: 'thumbnailUrl is required' }, 400);
+  }
+
+  const uid = mochaUserIdKey(mochaUser);
+  const session = await loadSessionForUser(c.env.DB, sessionId, uid);
+  if (!session) {
+    return c.json({ error: 'Upload session not found' }, 404);
+  }
+
+  await c.env.DB
+    .prepare(
+      `UPDATE upload_sessions
+       SET thumbnail_key = COALESCE(?, thumbnail_key),
+           thumbnail_url = ?,
+           updated_at = datetime('now')
+       WHERE id = ?`,
+    )
+    .bind(thumbnailKey || null, thumbnailUrl, sessionId)
+    .run();
+
+  await c.env.DB
+    .prepare(
+      `UPDATE clips
+       SET thumbnail_url = ?,
+           stream_thumbnail_url = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+    )
+    .bind(thumbnailUrl, thumbnailUrl, session.clip_id)
+    .run();
+
+  return c.json({
+    success: true,
+    clipId: session.clip_id,
+    thumbnailUrl,
+  });
 }

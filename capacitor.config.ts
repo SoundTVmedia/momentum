@@ -7,6 +7,15 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
   },
+  ios: {
+    contentInset: 'automatic',
+    infoPlist: {
+      NSPhotoLibraryAddUsageDescription:
+        'Momentum saves your concert clips to Photos so you keep a copy on your device.',
+      NSPhotoLibraryUsageDescription:
+        'Momentum may access your photo library when you choose clips to upload.',
+    },
+  },
   plugins: {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],

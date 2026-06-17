@@ -39,14 +39,22 @@ export function streamThumbnailUrl(
   return q ? `${base}?${q}` : base;
 }
 
+/** Clip rows still uploading use a sentinel instead of a real playback URL. */
+export function isPlaceholderVideoUrl(url: string | null | undefined): boolean {
+  const u = typeof url === 'string' ? url.trim().toLowerCase() : '';
+  if (!u) return true;
+  return u.startsWith('pending:') || u.startsWith('upload://');
+}
+
 export function resolveClipPosterUrl(clip: ClipPlaybackFields, fallback = ''): string {
-  const streamId = streamVideoIdFromClip(clip);
-  if (typeof clip.stream_thumbnail_url === 'string' && clip.stream_thumbnail_url.trim()) {
-    return clip.stream_thumbnail_url.trim();
-  }
+  // Prefer our static R2 JPEG (fast, available immediately after upload).
   if (typeof clip.thumbnail_url === 'string' && clip.thumbnail_url.trim()) {
     return clip.thumbnail_url.trim();
   }
+  if (typeof clip.stream_thumbnail_url === 'string' && clip.stream_thumbnail_url.trim()) {
+    return clip.stream_thumbnail_url.trim();
+  }
+  const streamId = streamVideoIdFromClip(clip);
   if (streamId) {
     return streamThumbnailUrl(streamId, { height: 720 });
   }

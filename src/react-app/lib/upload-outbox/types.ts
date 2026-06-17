@@ -3,9 +3,11 @@ import type { ClipUploadStatus, UploadSessionStatus } from '@/shared/upload';
 
 export type OutboxJobStatus =
   | 'queued'
+  | 'classifying'
   | 'uploading'
   | 'completing'
   | 'processing'
+  | 'paused'
   | 'published'
   | 'failed';
 
@@ -32,6 +34,10 @@ export type UploadOutboxJob = ClipUploadJobPayload & {
   fileSize: number;
   contentType: string;
   previewObjectUrl: string | null;
+  /** False until video blob is persisted locally (IndexedDB). */
+  blobsReady: boolean;
+  /** Best-effort gallery / share / device cache */
+  savedToDevice?: boolean;
 };
 
 export type PersistedOutboxMeta = Omit<UploadOutboxJob, 'videoFile' | 'videoBlob' | 'thumbnailFile' | 'captureAudioBlob'>;

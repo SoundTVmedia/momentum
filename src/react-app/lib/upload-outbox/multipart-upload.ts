@@ -2,6 +2,7 @@ import { UPLOAD_PART_SIZE_BYTES } from '@/shared/upload';
 import { clipShowFieldsForContentFeed } from '@/shared/pre-post-clip';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
+import { withUploadBackoff } from './upload-retry';
 
 /** Map outbox payload → POST /api/uploads/init body (clip metadata + file info). */
 export function buildUploadInitBody(
@@ -67,17 +68,26 @@ async function uploadPartWorker(
   chunk: Blob,
   signal?: AbortSignal,
 ): Promise<{ etag: string }> {
-  const res = await fetch(`/api/uploads/${sessionId}/parts/${partNumber}`, {
-    method: 'PUT',
-    body: chunk,
-    signal,
-    credentials: 'include',
-  });
-  if (!res.ok) {
-    throw new Error(`Part ${partNumber} upload failed`);
-  }
-  const data = (await res.json()) as { etag?: string };
-  return { etag: data.etag ?? '' };
+  return withUploadBackoff(
+    async () => {
+      let res: Response;
+      try {
+        res = await fetch(`/api/uploads/${sessionId}/parts/${partNumber}`, {
+          method: 'PUT',
+          body: chunk,
+          credentials: 'include',
+        });
+      } catch {
+        throw new TypeError('Network error during part upload');
+      }
+      if (!res.ok) {
+        throw new Error(`Part ${partNumber} upload failed`);
+      }
+      const data = (await res.json()) as { etag?: string };
+      return { etag: data.etag ?? '' };
+    },
+    { signal },
+  );
 }
 
 async function uploadPartDirect(
@@ -87,19 +97,46 @@ async function uploadPartDirect(
   chunk: Blob,
   signal?: AbortSignal,
 ): Promise<{ etag: string }> {
-  const res = await fetch(url, { method: 'PUT', body: chunk, signal });
-  if (!res.ok) {
-    throw new Error(`Direct part ${partNumber} upload failed`);
-  }
-  const etag = res.headers.get('etag')?.replace(/^"|"$/g, '') ?? '';
-  await fetch(`/api/uploads/${sessionId}/parts/${partNumber}/confirm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ etag }),
-    signal,
-  });
-  return { etag };
+  return withUploadBackoff(
+    async () => {
+      const res = await fetch(url, { method: 'PUT', body: chunk });
+      if (!res.ok) {
+        throw new Error(`Direct part ${partNumber} upload failed`);
+      }
+      const etag = res.headers.get('etag')?.replace(/^"|"$/g, '') ?? '';
+      const confirmRes = await fetch(`/api/uploads/${sessionId}/parts/${partNumber}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ etag }),
+      });
+      if (!confirmRes.ok) {
+        throw new Error(`Direct part ${partNumber} confirm failed`);
+      }
+      return { etag };
+    },
+    { signal },
+  );
+}
+
+async function fetchUploadSessionStatus(sessionId: string, signal?: AbortSignal) {
+  return withUploadBackoff(
+    async () => {
+      let res: Response;
+      try {
+        res = await fetch(`/api/uploads/${sessionId}/status`, { credentials: 'include' });
+      } catch {
+        throw new TypeError('Network error checking upload status');
+      }
+      if (!res.ok) throw new Error('Failed to check upload status');
+      return res.json() as Promise<{
+        completedPartNumbers?: number[];
+        completedParts?: number;
+        totalParts?: number;
+      }>;
+    },
+    { signal },
+  );
 }
 
 export async function uploadFileMultipart(options: {
@@ -112,9 +149,29 @@ export async function uploadFileMultipart(options: {
 }): Promise<void> {
   const { sessionId, file, uploadMode, partUrls, onProgress, signal } = options;
   const { totalParts, partSize } = computePartPlan(file.size);
-  let uploadedBytes = 0;
 
+  let doneParts = new Set<number>();
+  try {
+    const status = await fetchUploadSessionStatus(sessionId, signal);
+    const fromServer = status.completedPartNumbers ?? [];
+    doneParts = new Set(fromServer);
+    if (doneParts.size > 0) {
+      const base = Math.round((doneParts.size / totalParts) * 100);
+      onProgress?.(base);
+    }
+  } catch {
+    /* first upload — no status yet */
+  }
+
+  let uploadedBytes = 0;
   for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+    if (doneParts.has(partNumber)) {
+      const start = (partNumber - 1) * partSize;
+      const end = Math.min(start + partSize, file.size);
+      uploadedBytes += end - start;
+      continue;
+    }
+
     if (signal?.aborted) throw new Error('Upload cancelled');
     const start = (partNumber - 1) * partSize;
     const end = Math.min(start + partSize, file.size);
@@ -141,33 +198,62 @@ export async function uploadThumbnail(file: File): Promise<{ url: string; key: s
   return { url: data.url ?? '', key: data.key ?? '' };
 }
 
+/** Upload JPEG frame and attach to draft clip immediately (before video chunks). */
+export async function attachThumbnailToSession(
+  sessionId: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<{ url: string; key: string }> {
+  const thumb = await uploadThumbnail(file);
+  const res = await fetch(`/api/uploads/${sessionId}/thumbnail`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    signal,
+    body: JSON.stringify({
+      thumbnailUrl: thumb.url,
+      thumbnailKey: thumb.key,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error('Failed to attach thumbnail to clip');
+  }
+  return thumb;
+}
+
 export async function completeUploadSession(
   sessionId: string,
   idempotencyKey: string,
   thumb?: { url: string; key: string } | null,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch(`/api/uploads/${sessionId}/complete`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey,
+  await withUploadBackoff(
+    async () => {
+      const res = await fetch(`/api/uploads/${sessionId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          thumbnailUrl: thumb?.url,
+          thumbnailKey: thumb?.key,
+        }),
+      });
+      if (!res.ok) {
+        let msg = 'Failed to complete upload';
+        try {
+          const body = (await res.json()) as { error?: string };
+          if (body.error) msg = body.error;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg);
+      }
     },
-    credentials: 'include',
-    body: JSON.stringify({
-      thumbnailUrl: thumb?.url,
-      thumbnailKey: thumb?.key,
-    }),
-  });
-  if (!res.ok) {
-    let msg = 'Failed to complete upload';
-    try {
-      const body = (await res.json()) as { error?: string };
-      if (body.error) msg = body.error;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg);
-  }
+    { signal },
+  );
 }
 
 export async function pollUploadUntilPublished(
@@ -178,13 +264,18 @@ export async function pollUploadUntilPublished(
   const maxAttempts = 120;
   for (let i = 0; i < maxAttempts; i++) {
     if (signal?.aborted) throw new Error('Upload cancelled');
-    const res = await fetch(`/api/uploads/${sessionId}/status`, { credentials: 'include', signal });
-    if (!res.ok) throw new Error('Failed to check upload status');
-    const data = (await res.json()) as {
-      progress?: number;
-      clipPublished?: boolean;
-      uploadStatus?: string;
-    };
+    const data = await withUploadBackoff(
+      async () => {
+        const res = await fetch(`/api/uploads/${sessionId}/status`, { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to check upload status');
+        return res.json() as Promise<{
+          progress?: number;
+          clipPublished?: boolean;
+          uploadStatus?: string;
+        }>;
+      },
+      { signal },
+    );
     const base = data.progress ?? 100;
     onProgress?.(Math.min(100, Math.round(85 + base * 0.15)));
     if (data.clipPublished || data.uploadStatus === 'ready') return;

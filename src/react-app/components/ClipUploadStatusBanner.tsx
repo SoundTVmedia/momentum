@@ -1,4 +1,4 @@
-import { Loader2, Check, AlertCircle, X } from 'lucide-react';
+import { Loader2, Check, AlertCircle, X, Wifi } from 'lucide-react';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 
 /** Shows background clip upload progress (used on `/upload`). */
@@ -8,9 +8,11 @@ export default function ClipUploadStatusBanner() {
   const visible = jobs.filter(
     (j) =>
       j.status === 'queued' ||
+      j.status === 'classifying' ||
       j.status === 'uploading' ||
       j.status === 'completing' ||
       j.status === 'processing' ||
+      j.status === 'paused' ||
       j.status === 'failed' ||
       j.status === 'published',
   );
@@ -36,6 +38,40 @@ export default function ClipUploadStatusBanner() {
                 <span className="flex-1 min-w-0 truncate">
                   <span className="font-medium">{label}</span> posted
                 </span>
+              </div>
+            );
+          }
+
+          if (job.status === 'paused') {
+            const pct = job.progress;
+            return (
+              <div
+                key={job.id}
+                className="rounded-xl border border-amber-500/40 bg-amber-950/90 px-4 py-3 text-sm text-amber-100 shadow-lg backdrop-blur-md"
+              >
+                <div className="flex items-start gap-3 mb-2">
+                  <Wifi className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" aria-hidden />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{label}</p>
+                    <p className="text-amber-200/90 text-xs mt-0.5">
+                      {job.error ??
+                        'Slow connection — your clip is saved on this device. Upload will continue in the background.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => retryJob(job.id)}
+                    className="shrink-0 text-xs font-semibold text-amber-950 bg-amber-400/90 hover:bg-amber-400 px-2.5 py-1 rounded-lg"
+                  >
+                    Retry now
+                  </button>
+                </div>
+                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 transition-all duration-300"
+                    style={{ width: `${Math.max(pct, 12)}%` }}
+                  />
+                </div>
               </div>
             );
           }
@@ -72,13 +108,17 @@ export default function ClipUploadStatusBanner() {
 
           const pct = job.progress;
           const statusText =
-            job.status === 'queued'
-              ? 'Waiting to upload…'
-              : job.status === 'uploading'
-                ? 'Uploading video…'
-                : job.status === 'completing'
-                  ? 'Finishing upload…'
-                  : 'Processing…';
+            job.status === 'queued' && !job.blobsReady
+              ? 'Saving clip on device…'
+              : job.status === 'queued'
+                ? 'Waiting to upload…'
+                : job.status === 'classifying'
+                  ? 'Checking clip…'
+                  : job.status === 'uploading'
+                    ? 'Uploading video…'
+                    : job.status === 'completing'
+                      ? 'Finishing upload…'
+                      : 'Processing…';
 
           return (
             <div

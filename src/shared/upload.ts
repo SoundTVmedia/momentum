@@ -49,6 +49,8 @@ export type UploadStatusResponse = {
   totalParts: number;
   progress: number;
   clipPublished: boolean;
+  thumbnailUrl?: string | null;
+  completedPartNumbers?: number[];
   error?: string | null;
 };
 
