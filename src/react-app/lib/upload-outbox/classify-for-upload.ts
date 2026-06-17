@@ -11,7 +11,26 @@ export type ResolvedUploadClassification = {
   contentFeed: 'main' | 'pre_post';
 };
 
+const CLASSIFY_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new TypeError(message)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        window.clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 export function uploadJobNeedsClassification(job: UploadOutboxJob): boolean {
+  if (BYPASS_CONTENT_FEED_BIFURCATION) return false;
   if (job.classificationPending) return true;
   if (hasManualShowArtistVenue(job.form.artist_name, job.form.venue_name)) return false;
   return !job.classificationId?.trim();
@@ -34,12 +53,19 @@ export async function resolveClassificationForUploadJob(
 
   let out: Awaited<ReturnType<typeof classifyContentFeedForClip>>;
   try {
-    out = await classifyContentFeedForClip({
-      video,
-      captureAudio: job.captureAudioBlob ?? null,
-      headlinerName: job.form.artist_name?.trim() || null,
-    });
-  } catch {
+    out = await withTimeout(
+      classifyContentFeedForClip({
+        video,
+        captureAudio: job.captureAudioBlob ?? null,
+        headlinerName: job.form.artist_name?.trim() || null,
+      }),
+      CLASSIFY_TIMEOUT_MS,
+      'Classification timed out',
+    );
+  } catch (err) {
+    if (err instanceof TypeError) {
+      throw err;
+    }
     throw new TypeError('Network error during content classification');
   }
 

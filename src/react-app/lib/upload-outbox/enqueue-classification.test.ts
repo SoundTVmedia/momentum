@@ -17,7 +17,7 @@ describe('resolveEnqueueClassification', () => {
     });
   });
 
-  it('queues file upload offline-first when not classified', () => {
+  it('skips pending classify when content-feed bypass is enabled', () => {
     const result = resolveEnqueueClassification({
       uploadMethod: 'file',
       form: { artist_name: '', venue_name: '', location: '' },
@@ -28,7 +28,7 @@ describe('resolveEnqueueClassification', () => {
       ok: true,
       classificationId: '',
       contentFeed: 'main',
-      classificationPending: true,
+      classificationPending: false,
     });
   });
 

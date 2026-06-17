@@ -892,7 +892,7 @@ app.post("/api/clips", authMiddleware, async (c) => {
   if (!isDraft) {
     classificationId =
       typeof classification_id === 'string' ? classification_id.trim() : '';
-    if (!classificationId && !hasManualShowTags) {
+    if (!classificationId && !hasManualShowTags && !BYPASS_CONTENT_FEED_BIFURCATION) {
       return c.json(
         {
           error:

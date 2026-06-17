@@ -234,6 +234,18 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       abortForStallRef.current = true;
       controller.abort();
     }, 5_000);
+    const progressHeartbeat = window.setInterval(() => {
+      const current = jobsRef.current.find((j) => j.id === pending.id);
+      if (!current) return;
+      if (
+        current.status === 'uploading' ||
+        current.status === 'classifying' ||
+        current.status === 'completing' ||
+        current.status === 'processing'
+      ) {
+        lastActivityAt = Date.now();
+      }
+    }, 15_000);
 
     try {
       await runOutboxJob(
@@ -284,6 +296,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       window.clearInterval(stallTimer);
+      window.clearInterval(progressHeartbeat);
       await releaseUploadWakeLock();
       processingRef.current = false;
       processingStartedAtRef.current = null;

@@ -92,7 +92,7 @@ export async function resolveClipCreateFields(
   let classification: ResolvedClipInsert['classification'] = null;
   let classificationId = typeof classification_id === 'string' ? classification_id.trim() : '';
 
-  if (!classificationId && !hasManualShowTags) {
+  if (!classificationId && !hasManualShowTags && !BYPASS_CONTENT_FEED_BIFURCATION) {
     return {
       ok: false,
       status: 422,

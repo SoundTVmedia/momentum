@@ -78,7 +78,7 @@ export async function runOutboxJob(
     });
   }
 
-  onPatch({ status: 'uploading', progress: Math.max(job.progress, 2) });
+  onPatch({ status: 'uploading', progress: Math.max(job.progress, 5) });
 
   let sessionId = job.sessionId;
   let clipId = job.clipId;
@@ -126,6 +126,7 @@ export async function runOutboxJob(
       partUrls,
       totalParts: init.totalParts,
       partSize: init.partSize,
+      progress: Math.max(job.progress, 8),
     });
   }
 

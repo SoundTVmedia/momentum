@@ -39,6 +39,15 @@ export function resolveEnqueueClassification(
     };
   }
 
+  if (BYPASS_CONTENT_FEED_BIFURCATION && uploadMethod === 'file') {
+    return {
+      ok: true,
+      classificationId: '',
+      contentFeed: 'main',
+      classificationPending: false,
+    };
+  }
+
   if (
     storedClassificationId &&
     classifyResult &&
