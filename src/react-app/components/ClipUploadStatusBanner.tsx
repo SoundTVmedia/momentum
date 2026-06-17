@@ -1,6 +1,7 @@
 import { Loader2, Check, AlertCircle, X } from 'lucide-react';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { isRetryableUploadError } from '@/react-app/lib/upload-outbox/blob-store';
+import { isRecoverableSaveError } from '@/react-app/lib/upload-outbox/clip-blob-registry';
 import { isNetworkAvailable } from '@/react-app/lib/upload-outbox/network-utils';
 
 /** Shows background clip upload progress app-wide. */
@@ -72,7 +73,8 @@ export default function ClipUploadStatusBanner() {
           }
 
           if (job.status === 'failed') {
-            const autoRetrying = isRetryableUploadError(job.error);
+            const autoRetrying =
+              isRetryableUploadError(job.error) || isRecoverableSaveError(job.error);
             if (autoRetrying) {
               const pct = job.progress;
               return (

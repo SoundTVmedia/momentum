@@ -18,6 +18,7 @@ import {
   persistOutboxThumbnail,
   resolveOutboxBlobs,
 } from './blob-store';
+import { releaseClipBlob } from './clip-blob-registry';
 import { deleteOutboxJob } from './idb';
 import { withUploadBackoff } from './upload-retry';
 import { uploadFetch } from './upload-fetch';
@@ -162,6 +163,7 @@ export async function runOutboxJob(
 
   onPatch({ status: 'published', progress: 100 });
   clearCachedOutboxBlobs(job.id);
+  releaseClipBlob(job.id);
   await deleteOutboxJob(job.id);
 }
 

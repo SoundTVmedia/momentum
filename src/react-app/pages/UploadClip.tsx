@@ -1764,7 +1764,11 @@ export default function UploadClip() {
       uploadMethod === 'file' ? videoBlobUrl : null,
     );
     if (!jobId) {
-      setError('Too many clips are uploading. Wait for one to finish, then try again.');
+      setError(
+        formData.video_blob || formData.video_file
+          ? 'Could not queue this clip. Try recording again.'
+          : 'Too many clips are uploading. Wait for one to finish, then try again.',
+      );
       return;
     }
 

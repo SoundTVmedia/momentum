@@ -2,6 +2,7 @@ import {
   persistOutboxThumbnail,
   persistOutboxVideo,
 } from '@/react-app/lib/upload-outbox/blob-store';
+import { registerClipBlob } from '@/react-app/lib/upload-outbox/clip-blob-registry';
 import { adoptPendingCaptureForJob } from '@/react-app/lib/upload-outbox/capture-local-save';
 import {
   blobSourceKey,
@@ -23,6 +24,7 @@ export async function persistClipInBackground(opts: {
   try {
     await adoptPendingCaptureForJob(jobId, video);
     await persistOutboxVideo(jobId, video, thumbnailFile ?? null);
+    registerClipBlob(jobId, video);
   } catch (err) {
     console.warn('background-persist video:', err);
     try {

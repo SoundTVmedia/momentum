@@ -1,5 +1,6 @@
 import type { StoredUploadBlobs } from './types';
 import { loadOutboxBlobs, saveOutboxBlobs } from './idb';
+import { getClipBlob } from './clip-blob-registry';
 
 /** Same-tab fallback while IndexedDB write is in flight or for quick retry. */
 const memoryCache = new Map<string, StoredUploadBlobs>();
@@ -10,7 +11,10 @@ export function cacheOutboxBlobs(jobId: string, blobs: StoredUploadBlobs): void 
 
 export function peekCachedOutboxBlobs(jobId: string): StoredUploadBlobs | null {
   const row = memoryCache.get(jobId);
-  return row?.video ? row : null;
+  if (row?.video && row.video.size > 0) return row;
+  const pinned = getClipBlob(jobId);
+  if (pinned) return { video: pinned, thumbnail: row?.thumbnail ?? null };
+  return null;
 }
 
 export function clearCachedOutboxBlobs(jobId: string): void {
@@ -21,14 +25,37 @@ export async function resolveOutboxBlobs(jobId: string): Promise<StoredUploadBlo
   const cached = peekCachedOutboxBlobs(jobId);
   if (cached?.video) return cached;
 
+  const pinned = getClipBlob(jobId);
+  if (pinned) {
+    const blobs: StoredUploadBlobs = { video: pinned, thumbnail: null };
+    cacheOutboxBlobs(jobId, blobs);
+    return blobs;
+  }
+
   try {
     const fromDb = await loadOutboxBlobs(jobId);
-    if (fromDb?.video) {
+    if (fromDb?.video && fromDb.video.size > 0) {
       memoryCache.set(jobId, fromDb);
       return fromDb;
     }
   } catch (err) {
     console.warn('resolveOutboxBlobs IndexedDB (using in-tab cache only):', err);
+  }
+  return null;
+}
+
+export async function waitForOutboxBlobs(
+  jobId: string,
+  opts?: { attempts?: number; delayMs?: number },
+): Promise<StoredUploadBlobs | null> {
+  const attempts = opts?.attempts ?? 10;
+  const delayMs = opts?.delayMs ?? 300;
+  for (let i = 0; i < attempts; i++) {
+    const blobs = await resolveOutboxBlobs(jobId);
+    if (blobs?.video) return blobs;
+    if (i < attempts - 1) {
+      await new Promise((r) => window.setTimeout(r, delayMs));
+    }
   }
   return null;
 }
@@ -39,6 +66,9 @@ export async function persistOutboxVideo(
   video: Blob,
   thumbnail?: Blob | null,
 ): Promise<{ idb: boolean }> {
+  if (!video || video.size <= 0) {
+    return { idb: false };
+  }
   const blobs: StoredUploadBlobs = { video, thumbnail: thumbnail ?? null };
   cacheOutboxBlobs(jobId, blobs);
   try {
@@ -101,6 +131,7 @@ export function isRetryableUploadError(error: string | null): boolean {
     lower.includes('failed to start upload') ||
     lower.includes('timed out') ||
     lower.includes("we'll retry when you're back online") ||
+    lower.includes('upload will start shortly') ||
     lower.includes("we'll keep trying")
   );
 }
