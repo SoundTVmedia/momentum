@@ -8,6 +8,10 @@ interface Env {
   // Object Storage
   R2_BUCKET: R2Bucket;
   R2_THUMBNAILS_BUCKET: R2Bucket;
+  /** R2 S3 API — optional; enables presigned direct multipart uploads. */
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+  R2_BUCKET_NAME?: string;
   
   // Mocha Users Service
   MOCHA_USERS_SERVICE_API_URL: string;

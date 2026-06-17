@@ -268,7 +268,7 @@ export async function getMyClipsFeed(c: Context<{ Bindings: Env }>) {
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
     WHERE clips.is_hidden = 0
-    AND clips.is_draft = 0
+    AND (clips.is_draft = 0 OR clips.upload_status IN ('uploading', 'uploaded', 'processing', 'failed'))
     AND LOWER(TRIM(COALESCE(clips.mocha_user_id, ''))) = ?
   `;
 

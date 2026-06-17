@@ -7,10 +7,12 @@ export default function ClipUploadStatusBanner() {
 
   const visible = jobs.filter(
     (j) =>
-      j.status === 'pending' ||
+      j.status === 'queued' ||
       j.status === 'uploading' ||
-      j.status === 'error' ||
-      j.status === 'done',
+      j.status === 'completing' ||
+      j.status === 'processing' ||
+      j.status === 'failed' ||
+      j.status === 'published',
   );
 
   if (visible.length === 0) return null;
@@ -24,7 +26,7 @@ export default function ClipUploadStatusBanner() {
             job.form.venue_name?.trim() ||
             'Your clip';
 
-          if (job.status === 'done') {
+          if (job.status === 'published') {
             return (
               <div
                 key={job.id}
@@ -38,7 +40,7 @@ export default function ClipUploadStatusBanner() {
             );
           }
 
-          if (job.status === 'error') {
+          if (job.status === 'failed') {
             return (
               <div
                 key={job.id}
@@ -68,21 +70,15 @@ export default function ClipUploadStatusBanner() {
             );
           }
 
-          const pct =
-            job.progress.video < 100
-              ? job.progress.video
-              : job.progress.thumbnail > 0 && job.progress.thumbnail < 100
-                ? job.progress.thumbnail
-                : job.progress.video;
-
+          const pct = job.progress;
           const statusText =
-            job.status === 'pending'
+            job.status === 'queued'
               ? 'Waiting to upload…'
-              : job.progress.video < 100
+              : job.status === 'uploading'
                 ? 'Uploading video…'
-                : job.progress.thumbnail > 0 && job.progress.thumbnail < 100
-                  ? 'Uploading thumbnail…'
-                  : 'Publishing…';
+                : job.status === 'completing'
+                  ? 'Finishing upload…'
+                  : 'Processing…';
 
           return (
             <div
@@ -98,7 +94,7 @@ export default function ClipUploadStatusBanner() {
               <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember transition-all duration-300"
-                  style={{ width: `${Math.max(pct, job.status === 'pending' ? 8 : 12)}%` }}
+                  style={{ width: `${Math.max(pct, job.status === 'queued' ? 8 : 12)}%` }}
                 />
               </div>
             </div>

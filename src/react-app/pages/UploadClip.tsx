@@ -1771,6 +1771,7 @@ export default function UploadClip() {
 
       const jobId = enqueueClipUpload(
         buildUploadPayload(resolved.classificationId, resolved.contentFeed),
+        videoBlobUrl,
       );
       if (!jobId) {
         setError('Too many clips are uploading. Wait for one to finish, then try again.');

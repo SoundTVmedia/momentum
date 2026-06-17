@@ -68,6 +68,13 @@ import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
 import { handleResumableUpload } from "./resumable-upload-endpoints";
 import {
+  getUploadStatus,
+  postUploadComplete,
+  postUploadInit,
+  postUploadPartConfirm,
+  putUploadPart,
+} from "./upload-endpoints";
+import {
   deleteOwnClip,
   deleteOwnClipByBody,
   updateOwnClipByBody,
@@ -677,6 +684,27 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
 
 // Resumable upload endpoint for large files
 app.post("/api/upload/resumable", authMiddleware, handleResumableUpload);
+
+app.post("/api/uploads/init", authMiddleware, rateLimiter(RateLimits.UPLOAD), postUploadInit);
+app.put(
+  "/api/uploads/:sessionId/parts/:partNumber",
+  authMiddleware,
+  rateLimiter(RateLimits.UPLOAD),
+  putUploadPart,
+);
+app.post(
+  "/api/uploads/:sessionId/parts/:partNumber/confirm",
+  authMiddleware,
+  rateLimiter(RateLimits.UPLOAD),
+  postUploadPartConfirm,
+);
+app.post(
+  "/api/uploads/:sessionId/complete",
+  authMiddleware,
+  rateLimiter(RateLimits.UPLOAD),
+  postUploadComplete,
+);
+app.get("/api/uploads/:sessionId/status", authMiddleware, getUploadStatus);
 
 // Upload file to R2 or Cloudflare Stream (with stricter rate limit)
 app.post("/api/upload", authMiddleware, rateLimiter(RateLimits.UPLOAD), async (c) => {

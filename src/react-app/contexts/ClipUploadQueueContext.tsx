@@ -2,139 +2,210 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
+import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import {
-  processClipUpload,
-  type ClipUploadJobPayload,
-  type ClipUploadProgress,
-} from '@/react-app/lib/processClipUpload';
+  deleteOutboxJob,
+  loadOutboxMeta,
+  saveOutboxBlobs,
+  saveOutboxMeta,
+} from '@/react-app/lib/upload-outbox/idb';
+import { jobFromPayload, runOutboxJob } from '@/react-app/lib/upload-outbox/runner';
+import type { PersistedOutboxMeta, UploadOutboxJob } from '@/react-app/lib/upload-outbox/types';
+import { scheduleNativeBackgroundUpload } from '@/react-app/lib/native-bridge';
 
 const MAX_QUEUE_SIZE = 5;
 const DONE_TTL_MS = 8000;
 
-export type ClipUploadQueueJob = ClipUploadJobPayload & {
-  id: string;
-  status: 'pending' | 'uploading' | 'done' | 'error';
-  error: string | null;
-  progress: ClipUploadProgress;
-  createdAt: number;
-};
+export type ClipUploadQueueJob = UploadOutboxJob;
 
 type ClipUploadQueueValue = {
   jobs: ClipUploadQueueJob[];
   activeCount: number;
-  enqueue: (payload: ClipUploadJobPayload) => string | null;
+  enqueue: (payload: ClipUploadJobPayload, previewObjectUrl?: string | null) => string | null;
   retryJob: (id: string) => void;
   dismissJob: (id: string) => void;
 };
 
 const ClipUploadQueueContext = createContext<ClipUploadQueueValue | null>(null);
 
-function newJobId(): string {
-  return `clip_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+function toPersisted(job: UploadOutboxJob): PersistedOutboxMeta {
+  const {
+    videoFile: _vf,
+    videoBlob: _vb,
+    thumbnailFile: _tf,
+    captureAudioBlob: _ca,
+    ...meta
+  } = job;
+  return meta;
+}
+
+function reviveJob(meta: PersistedOutboxMeta): UploadOutboxJob {
+  return {
+    ...meta,
+    videoFile: null,
+    videoBlob: null,
+    thumbnailFile: null,
+    captureAudioBlob: null,
+  };
 }
 
 export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<ClipUploadQueueJob[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
-
   const processingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const updateJob = useCallback((id: string, patch: Partial<ClipUploadQueueJob>) => {
-    setJobs((prev) => {
-      const next = prev.map((j) => (j.id === id ? { ...j, ...patch } : j));
-      jobsRef.current = next;
-      return next;
-    });
+  const persist = useCallback(async (next: ClipUploadQueueJob[]) => {
+    const active = next.filter((j) => j.status !== 'published');
+    await saveOutboxMeta(active.map(toPersisted));
   }, []);
+
+  const updateJob = useCallback(
+    (id: string, patch: Partial<ClipUploadQueueJob>) => {
+      setJobs((prev) => {
+        const next = prev.map((j) => (j.id === id ? { ...j, ...patch } : j));
+        jobsRef.current = next;
+        void persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
 
   const removeJobLater = useCallback((id: string) => {
     window.setTimeout(() => {
       setJobs((prev) => {
         const next = prev.filter((j) => j.id !== id);
         jobsRef.current = next;
+        void persist(next);
         return next;
       });
     }, DONE_TTL_MS);
+  }, [persist]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const meta = await loadOutboxMeta();
+        if (cancelled) return;
+        const revived = meta.map((m) => {
+          const job = reviveJob(m);
+          if (job.status === 'uploading' || job.status === 'completing') {
+            return { ...job, status: 'queued' as const };
+          }
+          return job;
+        });
+        setJobs(revived);
+        jobsRef.current = revived;
+      } catch (err) {
+        console.error('ClipUploadQueue hydrate:', err);
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const processNext = useCallback(async () => {
-    if (processingRef.current) return;
+    if (processingRef.current || !hydrated) return;
 
-    const pending = jobsRef.current.find((j) => j.status === 'pending');
+    const pending = jobsRef.current.find((j) => j.status === 'queued');
     if (!pending) return;
 
     processingRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     updateJob(pending.id, {
       status: 'uploading',
       error: null,
-      progress: { video: 0, thumbnail: 0 },
+      progress: pending.progress || 0,
     });
 
     try {
-      await processClipUpload(pending, (progress) => {
-        updateJob(pending.id, { progress });
-      });
-      updateJob(pending.id, { status: 'done', progress: { video: 100, thumbnail: 100 } });
+      await runOutboxJob(
+        jobsRef.current.find((j) => j.id === pending.id) ?? pending,
+        (patch) => updateJob(pending.id, patch),
+        controller.signal,
+      );
+      updateJob(pending.id, { status: 'published', progress: 100 });
       removeJobLater(pending.id);
     } catch (err) {
       updateJob(pending.id, {
-        status: 'error',
+        status: 'failed',
         error: err instanceof Error ? err.message : 'Upload failed',
       });
     } finally {
       processingRef.current = false;
+      abortRef.current = null;
       queueMicrotask(() => {
         void processNext();
       });
     }
-  }, [removeJobLater, updateJob]);
+  }, [hydrated, removeJobLater, updateJob]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    queueMicrotask(() => {
+      void processNext();
+    });
+  }, [hydrated, jobs.length, processNext]);
 
   const enqueue = useCallback(
-    (payload: ClipUploadJobPayload): string | null => {
+    (payload: ClipUploadJobPayload, previewObjectUrl?: string | null): string | null => {
       const active = jobsRef.current.filter(
-        (j) => j.status === 'pending' || j.status === 'uploading',
+        (j) => j.status !== 'published' && j.status !== 'failed',
       );
       if (active.length >= MAX_QUEUE_SIZE) {
         return null;
       }
 
-      const id = newJobId();
-      const job: ClipUploadQueueJob = {
-        ...payload,
-        id,
-        status: 'pending',
-        error: null,
-        progress: { video: 0, thumbnail: 0 },
-        createdAt: Date.now(),
-      };
+      const blob = payload.videoBlob;
+      const file = payload.videoFile;
+      if (!blob && !file) return null;
+
+      const job = jobFromPayload(payload, previewObjectUrl);
+      const videoBlob = blob ?? file!;
+
+      void saveOutboxBlobs(job.id, {
+        video: videoBlob instanceof File ? videoBlob : videoBlob,
+        thumbnail: payload.thumbnailFile ?? null,
+      });
 
       setJobs((prev) => {
         const next = [...prev, job];
         jobsRef.current = next;
+        void persist(next);
         return next;
       });
 
       queueMicrotask(() => {
+        scheduleNativeBackgroundUpload(job.id);
         void processNext();
       });
 
-      return id;
+      return job.id;
     },
-    [processNext],
+    [persist, processNext],
   );
 
   const retryJob = useCallback(
     (id: string) => {
       updateJob(id, {
-        status: 'pending',
+        status: 'queued',
         error: null,
-        progress: { video: 0, thumbnail: 0 },
+        progress: 0,
       });
       queueMicrotask(() => {
         void processNext();
@@ -143,16 +214,29 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     [processNext, updateJob],
   );
 
-  const dismissJob = useCallback((id: string) => {
-    setJobs((prev) => {
-      const next = prev.filter((j) => j.id !== id);
-      jobsRef.current = next;
-      return next;
-    });
-  }, []);
+  const dismissJob = useCallback(
+    async (id: string) => {
+      abortRef.current?.abort();
+      await deleteOutboxJob(id);
+      setJobs((prev) => {
+        const next = prev.filter((j) => j.id !== id);
+        jobsRef.current = next;
+        void persist(next);
+        return next;
+      });
+    },
+    [persist],
+  );
 
   const activeCount = useMemo(
-    () => jobs.filter((j) => j.status === 'pending' || j.status === 'uploading').length,
+    () =>
+      jobs.filter(
+        (j) =>
+          j.status === 'queued' ||
+          j.status === 'uploading' ||
+          j.status === 'completing' ||
+          j.status === 'processing',
+      ).length,
     [jobs],
   );
 

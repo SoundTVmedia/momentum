@@ -21,7 +21,12 @@ export async function handleScheduled(env: Env): Promise<void> {
     // 1. Live session clip advancement
     await handleLiveSessionAdvancement(env);
 
-    // 2. Performance optimization tasks
+    // 2. Resilient upload processing + stale session cleanup
+    const { processUploadedClips, cleanupStaleUploadSessions } = await import('./upload-processor');
+    await processUploadedClips(env);
+    await cleanupStaleUploadSessions(env);
+
+    // 3. Performance optimization tasks
     await performanceOptimizations(env);
 
     console.log('All scheduled tasks completed successfully');

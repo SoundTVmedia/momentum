@@ -38,11 +38,21 @@ import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
+import { useEffect } from "react";
+import { registerNativePush } from "@/react-app/lib/native-bridge";
+
+function NativeAppBootstrap() {
+  useEffect(() => {
+    void registerNativePush();
+  }, []);
+  return null;
+}
 
 export default function App() {
   return (
     <ErrorBoundary>
       <div className="momentum-ambient" aria-hidden />
+      <NativeAppBootstrap />
       <AuthProvider>
         <MobileChromeProvider>
         <ClipUploadQueueProvider>
