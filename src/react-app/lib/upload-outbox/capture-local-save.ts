@@ -1,6 +1,8 @@
 import {
   cacheOutboxBlobs,
   persistOutboxVideo,
+  peekCachedOutboxBlobs,
+  resolveOutboxBlobs,
 } from '@/react-app/lib/upload-outbox/blob-store';
 import { saveOutboxBlobs } from '@/react-app/lib/upload-outbox/idb';
 import {
@@ -21,7 +23,11 @@ export async function persistClipLocallyOnCapture(
 ): Promise<{ localSaved: boolean; galleryMethod: string }> {
   const blobs = { video, thumbnail: null as Blob | null };
   cacheOutboxBlobs(PENDING_CAPTURE_JOB_ID, blobs);
-  await saveOutboxBlobs(PENDING_CAPTURE_JOB_ID, blobs);
+  try {
+    await saveOutboxBlobs(PENDING_CAPTURE_JOB_ID, blobs);
+  } catch (err) {
+    console.warn('persistClipLocallyOnCapture IndexedDB (using in-tab cache):', err);
+  }
 
   const gallery = await saveClipToDeviceGallery(video, fileName, {
     sourceKey: blobSourceKey(video),
@@ -33,15 +39,16 @@ export async function persistClipLocallyOnCapture(
 
 export { blobSourceKey } from '@/react-app/lib/upload-outbox/gallery-save';
 
-/** Copy pending capture blob into a queue job (if same source). */
+/** Copy pending capture blob into a queue job (memory cache or IndexedDB). */
 export async function adoptPendingCaptureForJob(
   jobId: string,
   video: Blob,
 ): Promise<boolean> {
-  const { loadOutboxBlobs } = await import('@/react-app/lib/upload-outbox/idb');
-  const pending = await loadOutboxBlobs(PENDING_CAPTURE_JOB_ID);
-  if (!pending?.video) return false;
-  if (blobSourceKey(pending.video) !== blobSourceKey(video)) return false;
-  await persistOutboxVideo(jobId, pending.video, pending.thumbnail ?? null);
-  return true;
+  const pending =
+    peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID) ??
+    (await resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID));
+  const videoToSave = pending?.video ?? video;
+  if (!videoToSave || videoToSave.size === 0) return false;
+  await persistOutboxVideo(jobId, videoToSave, pending?.thumbnail ?? null);
+  return Boolean(peekCachedOutboxBlobs(jobId)?.video);
 }

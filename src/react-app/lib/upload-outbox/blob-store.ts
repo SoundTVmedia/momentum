@@ -21,10 +21,14 @@ export async function resolveOutboxBlobs(jobId: string): Promise<StoredUploadBlo
   const cached = peekCachedOutboxBlobs(jobId);
   if (cached?.video) return cached;
 
-  const fromDb = await loadOutboxBlobs(jobId);
-  if (fromDb?.video) {
-    memoryCache.set(jobId, fromDb);
-    return fromDb;
+  try {
+    const fromDb = await loadOutboxBlobs(jobId);
+    if (fromDb?.video) {
+      memoryCache.set(jobId, fromDb);
+      return fromDb;
+    }
+  } catch (err) {
+    console.warn('resolveOutboxBlobs IndexedDB (using in-tab cache only):', err);
   }
   return null;
 }
@@ -34,10 +38,16 @@ export async function persistOutboxVideo(
   jobId: string,
   video: Blob,
   thumbnail?: Blob | null,
-): Promise<void> {
+): Promise<{ idb: boolean }> {
   const blobs: StoredUploadBlobs = { video, thumbnail: thumbnail ?? null };
   cacheOutboxBlobs(jobId, blobs);
-  await saveOutboxBlobs(jobId, blobs);
+  try {
+    await saveOutboxBlobs(jobId, blobs);
+    return { idb: true };
+  } catch (err) {
+    console.warn('persistOutboxVideo IndexedDB (using in-tab cache):', err);
+    return { idb: false };
+  }
 }
 
 export async function persistOutboxThumbnail(jobId: string, thumbnail: Blob): Promise<void> {
@@ -45,7 +55,11 @@ export async function persistOutboxThumbnail(jobId: string, thumbnail: Blob): Pr
   if (!existing?.video) return;
   const next = { video: existing.video, thumbnail };
   cacheOutboxBlobs(jobId, next);
-  await saveOutboxBlobs(jobId, next);
+  try {
+    await saveOutboxBlobs(jobId, next);
+  } catch (err) {
+    console.warn('persistOutboxThumbnail IndexedDB (using in-tab cache):', err);
+  }
 }
 
 export function formatUploadError(err: unknown): string {
