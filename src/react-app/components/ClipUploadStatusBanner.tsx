@@ -1,6 +1,7 @@
 import { Loader2, Check, AlertCircle, X } from 'lucide-react';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { isRetryableUploadError } from '@/react-app/lib/upload-outbox/blob-store';
+import { isNetworkAvailable } from '@/react-app/lib/upload-outbox/network-utils';
 
 /** Shows background clip upload progress app-wide. */
 export default function ClipUploadStatusBanner() {
@@ -121,10 +122,10 @@ export default function ClipUploadStatusBanner() {
 
           const pct = job.progress;
           const statusText =
-            job.status === 'queued' && !job.gallerySaved
-              ? 'Saving to Photos…'
-              : job.status === 'queued' && !job.blobsReady
-                ? 'Saving clip on device…'
+            job.status === 'queued' && !job.blobsReady
+              ? 'Saving clip on this device…'
+              : job.status === 'queued' && !isNetworkAvailable()
+                ? 'Saved on device — waiting for connection…'
                 : job.status === 'queued'
                   ? 'Waiting to upload…'
                   : job.status === 'classifying'

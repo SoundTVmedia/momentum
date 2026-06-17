@@ -3,6 +3,7 @@ import {
   saveVideoToGallery,
   writeVideoToNativeCache,
 } from '@/react-app/lib/native-bridge';
+import { isNetworkAvailable } from '@/react-app/lib/upload-outbox/network-utils';
 
 export type GallerySaveResult = {
   saved: boolean;
@@ -20,8 +21,10 @@ export function blobSourceKey(blob: Blob): string {
 }
 
 /**
- * Save clip to the device photo library (native) or offer share-to-Photos on mobile web.
- * Dedupes by sourceKey so capture + enqueue do not double-save.
+ * Save clip to the device photo library when the platform allows.
+ * - Native Capacitor app: writes to Photos (works offline).
+ * - Mobile web: cannot silently save to Photos — clip stays in IndexedDB.
+ * Never blocks on share sheet when offline.
  */
 export async function saveClipToDeviceGallery(
   video: Blob,
@@ -44,7 +47,9 @@ export async function saveClipToDeviceGallery(
     }
   }
 
-  if (typeof navigator !== 'undefined' && 'share' in navigator) {
+  // Web browsers cannot write to the iOS/Android photo library programmatically.
+  // Skip share when offline — it can hang and block the upload pipeline.
+  if (isNetworkAvailable() && typeof navigator !== 'undefined' && 'share' in navigator) {
     try {
       const type = video.type || 'video/mp4';
       const file = new File([video], fileName, { type });
@@ -69,9 +74,8 @@ export async function saveClipToDeviceGallery(
   return { saved: true, method: 'device_cache' };
 }
 
-/** Save to gallery right after capture (native shell only — no user gesture needed). */
+/** After capture: native → Photos; web → IndexedDB only (via capture-local-save). */
 export async function saveCapturedClipToGallery(video: Blob, fileName: string): Promise<void> {
-  if (!isNativeApp()) return;
   await saveClipToDeviceGallery(video, fileName, {
     sourceKey: blobSourceKey(video),
     skipIfSaved: true,

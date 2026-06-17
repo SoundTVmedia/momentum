@@ -49,8 +49,8 @@ import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import {
   blobSourceKey,
-  saveCapturedClipToGallery,
-} from '@/react-app/lib/upload-outbox/gallery-save';
+  persistClipLocallyOnCapture,
+} from '@/react-app/lib/upload-outbox/capture-local-save';
 import {
   classifyContentFeedForClip,
   contentFeedUserMessage,
@@ -595,7 +595,7 @@ export default function UploadClip() {
   
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
 
-  /** Save to Photos immediately after capture (native app) — before Share / upload. */
+  /** Persist locally + Photos (native) immediately after capture — before Share / upload. */
   useEffect(() => {
     if (!showCaptionScreen || uploadMethod !== 'file') return;
     const source = formData.video_blob ?? formData.video_file;
@@ -606,7 +606,7 @@ export default function UploadClip() {
     const ext = source.type.includes('mp4') ? 'mp4' : 'webm';
     const fileName =
       formData.video_file?.name ?? `momentum-${Date.now()}.${ext}`;
-    void saveCapturedClipToGallery(source, fileName);
+    void persistClipLocallyOnCapture(source, fileName);
   }, [
     showCaptionScreen,
     uploadMethod,

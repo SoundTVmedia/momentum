@@ -76,7 +76,8 @@ export function isRetryableUploadError(error: string | null): boolean {
     lower.includes('offline') ||
     lower.includes('connection lost') ||
     lower.includes('slow connection') ||
-    lower.includes('keep trying') ||
+    lower.includes('waiting for connection') ||
+    lower.includes('connection improves') ||
     lower.includes('network') ||
     lower.includes('part ') ||
     lower.includes('failed to start upload') ||
