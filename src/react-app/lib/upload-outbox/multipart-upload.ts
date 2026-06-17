@@ -3,6 +3,7 @@ import { clipShowFieldsForContentFeed } from '@/shared/pre-post-clip';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { withUploadBackoff } from './upload-retry';
+import { uploadFetch } from './upload-fetch';
 
 /** Map outbox payload → POST /api/uploads/init body (clip metadata + file info). */
 export function buildUploadInitBody(
@@ -72,10 +73,11 @@ async function uploadPartWorker(
     async () => {
       let res: Response;
       try {
-        res = await fetch(`/api/uploads/${sessionId}/parts/${partNumber}`, {
+        res = await uploadFetch(`/api/uploads/${sessionId}/parts/${partNumber}`, {
           method: 'PUT',
           body: chunk,
           credentials: 'include',
+          signal,
         });
       } catch {
         throw new TypeError('Network error during part upload');
@@ -99,16 +101,17 @@ async function uploadPartDirect(
 ): Promise<{ etag: string }> {
   return withUploadBackoff(
     async () => {
-      const res = await fetch(url, { method: 'PUT', body: chunk });
+      const res = await uploadFetch(url, { method: 'PUT', body: chunk, signal });
       if (!res.ok) {
         throw new Error(`Direct part ${partNumber} upload failed`);
       }
       const etag = res.headers.get('etag')?.replace(/^"|"$/g, '') ?? '';
-      const confirmRes = await fetch(`/api/uploads/${sessionId}/parts/${partNumber}/confirm`, {
+      const confirmRes = await uploadFetch(`/api/uploads/${sessionId}/parts/${partNumber}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ etag }),
+        signal,
       });
       if (!confirmRes.ok) {
         throw new Error(`Direct part ${partNumber} confirm failed`);
@@ -124,7 +127,10 @@ async function fetchUploadSessionStatus(sessionId: string, signal?: AbortSignal)
     async () => {
       let res: Response;
       try {
-        res = await fetch(`/api/uploads/${sessionId}/status`, { credentials: 'include' });
+        res = await uploadFetch(`/api/uploads/${sessionId}/status`, {
+          credentials: 'include',
+          signal,
+        });
       } catch {
         throw new TypeError('Network error checking upload status');
       }
@@ -192,7 +198,12 @@ export async function uploadThumbnail(file: File): Promise<{ url: string; key: s
   const formData = new FormData();
   formData.append('file', file);
   formData.append('type', 'thumbnail');
-  const res = await fetch('/api/upload', { method: 'POST', body: formData, credentials: 'include' });
+  const res = await uploadFetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+    timeoutMs: 60_000,
+  });
   if (!res.ok) throw new Error('Thumbnail upload failed');
   const data = (await res.json()) as { url?: string; key?: string };
   return { url: data.url ?? '', key: data.key ?? '' };
@@ -205,7 +216,7 @@ export async function attachThumbnailToSession(
   signal?: AbortSignal,
 ): Promise<{ url: string; key: string }> {
   const thumb = await uploadThumbnail(file);
-  const res = await fetch(`/api/uploads/${sessionId}/thumbnail`, {
+  const res = await uploadFetch(`/api/uploads/${sessionId}/thumbnail`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -214,6 +225,7 @@ export async function attachThumbnailToSession(
       thumbnailUrl: thumb.url,
       thumbnailKey: thumb.key,
     }),
+    timeoutMs: 60_000,
   });
   if (!res.ok) {
     throw new Error('Failed to attach thumbnail to clip');
@@ -229,7 +241,7 @@ export async function completeUploadSession(
 ): Promise<void> {
   await withUploadBackoff(
     async () => {
-      const res = await fetch(`/api/uploads/${sessionId}/complete`, {
+      const res = await uploadFetch(`/api/uploads/${sessionId}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -240,6 +252,7 @@ export async function completeUploadSession(
           thumbnailUrl: thumb?.url,
           thumbnailKey: thumb?.key,
         }),
+        signal,
       });
       if (!res.ok) {
         let msg = 'Failed to complete upload';
@@ -266,7 +279,10 @@ export async function pollUploadUntilPublished(
     if (signal?.aborted) throw new Error('Upload cancelled');
     const data = await withUploadBackoff(
       async () => {
-        const res = await fetch(`/api/uploads/${sessionId}/status`, { credentials: 'include' });
+        const res = await uploadFetch(`/api/uploads/${sessionId}/status`, {
+          credentials: 'include',
+          signal,
+        });
         if (!res.ok) throw new Error('Failed to check upload status');
         return res.json() as Promise<{
           progress?: number;

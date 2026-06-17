@@ -70,7 +70,10 @@ export function formatUploadError(err: unknown): string {
     return "Connection lost. Your clip is saved on this device — we'll retry when you're back online.";
   }
   if (err instanceof Error) {
-    if (/failed to fetch|network|load failed|part \d+ upload failed/i.test(err.message)) {
+    if (err.message === 'Upload cancelled') {
+      return 'Slow connection — your clip is saved on this device. Upload will continue when the connection improves.';
+    }
+    if (/failed to fetch|network|load failed|part \d+ upload failed|timed out/i.test(err.message)) {
       return "Slow connection — your clip is saved on this device. We'll keep trying in the background.";
     }
     return err.message;
@@ -92,10 +95,12 @@ export function isRetryableUploadError(error: string | null): boolean {
     lower.includes('slow connection') ||
     lower.includes('waiting for connection') ||
     lower.includes('connection improves') ||
+    lower.includes('upload cancelled') ||
     lower.includes('network') ||
     lower.includes('part ') ||
     lower.includes('failed to start upload') ||
     lower.includes('timed out') ||
-    lower.includes("we'll retry when you're back online")
+    lower.includes("we'll retry when you're back online") ||
+    lower.includes("we'll keep trying")
   );
 }

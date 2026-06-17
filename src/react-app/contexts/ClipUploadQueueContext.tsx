@@ -14,9 +14,6 @@ import {
   clearCachedOutboxBlobs,
   formatUploadError,
   isRetryableUploadError,
-  peekCachedOutboxBlobs,
-  persistOutboxThumbnail,
-  persistOutboxVideo,
   resolveOutboxBlobs,
 } from '@/react-app/lib/upload-outbox/blob-store';
 import {
@@ -26,22 +23,20 @@ import {
 } from '@/react-app/lib/upload-outbox/idb';
 import { jobFromPayload, runOutboxJob } from '@/react-app/lib/upload-outbox/runner';
 import type { PersistedOutboxMeta, UploadOutboxJob } from '@/react-app/lib/upload-outbox/types';
-import { saveClipToDeviceGallery, blobSourceKey } from '@/react-app/lib/upload-outbox/gallery-save';
-import { adoptPendingCaptureForJob } from '@/react-app/lib/upload-outbox/capture-local-save';
+import { persistClipInBackground } from '@/react-app/lib/upload-outbox/background-persist';
 import { isNetworkAvailable } from '@/react-app/lib/upload-outbox/network-utils';
 import {
   acquireUploadWakeLock,
   bindUploadWakeLockVisibility,
   releaseUploadWakeLock,
 } from '@/react-app/lib/upload-outbox/upload-wake-lock';
-import { scheduleNativeBackgroundUpload } from '@/react-app/lib/native-bridge';
-import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 
 const MAX_QUEUE_SIZE = 5;
 const DONE_TTL_MS = 8000;
 const AUTO_RETRY_BASE_MS = 3_000;
 const AUTO_RETRY_MAX_MS = 60_000;
-const UPLOAD_STALL_MS = 60_000;
+const UPLOAD_STALL_MS = 180_000;
+const PROCESSING_WATCHDOG_MS = 600_000;
 const QUEUE_POLL_MS = 10_000;
 
 export type ClipUploadQueueJob = UploadOutboxJob;
@@ -94,6 +89,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const autoRetryTimersRef = useRef<Map<string, number>>(new Map());
   const processNextRef = useRef<() => void>(() => {});
   const abortForStallRef = useRef(false);
+  const processingStartedAtRef = useRef<number | null>(null);
 
   const clearAutoRetryTimer = useCallback((jobId: string) => {
     const t = autoRetryTimersRef.current.get(jobId);
@@ -219,6 +215,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     }
 
     processingRef.current = true;
+    processingStartedAtRef.current = Date.now();
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -230,10 +227,10 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       progress: pending.progress || 0,
     });
 
-    let lastProgressAt = Date.now();
+    let lastActivityAt = Date.now();
     let lastProgressValue = pending.progress || 0;
     const stallTimer = window.setInterval(() => {
-      if (Date.now() - lastProgressAt < UPLOAD_STALL_MS) return;
+      if (Date.now() - lastActivityAt < UPLOAD_STALL_MS) return;
       abortForStallRef.current = true;
       controller.abort();
     }, 5_000);
@@ -242,9 +239,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       await runOutboxJob(
         jobsRef.current.find((j) => j.id === pending.id) ?? pending,
         (patch) => {
+          lastActivityAt = Date.now();
           if (patch.progress != null && patch.progress > lastProgressValue) {
             lastProgressValue = patch.progress;
-            lastProgressAt = Date.now();
           }
           updateJob(pending.id, patch);
         },
@@ -289,6 +286,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       window.clearInterval(stallTimer);
       await releaseUploadWakeLock();
       processingRef.current = false;
+      processingStartedAtRef.current = null;
       abortRef.current = null;
       queueMicrotask(() => {
         void processNext();
@@ -394,6 +392,43 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => bindUploadWakeLockVisibility(), []);
 
+  /** Recover if a upload handler never finishes (hung fetch, crashed tab, etc.). */
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const interval = window.setInterval(() => {
+      if (!processingRef.current || processingStartedAtRef.current == null) return;
+      if (Date.now() - processingStartedAtRef.current < PROCESSING_WATCHDOG_MS) return;
+
+      console.warn('ClipUploadQueue: processing watchdog — resetting stuck upload');
+      abortForStallRef.current = true;
+      abortRef.current?.abort();
+      processingRef.current = false;
+      processingStartedAtRef.current = null;
+
+      const stuck = jobsRef.current.find(
+        (j) =>
+          j.status === 'uploading' ||
+          j.status === 'classifying' ||
+          j.status === 'completing' ||
+          j.status === 'processing',
+      );
+      if (stuck) {
+        updateJob(stuck.id, {
+          status: 'paused',
+          error:
+            'Slow connection — your clip is saved on this device. Upload will continue when the connection improves.',
+        });
+      }
+
+      queueMicrotask(() => {
+        void processNext();
+      });
+    }, 30_000);
+
+    return () => window.clearInterval(interval);
+  }, [hydrated, processNext, updateJob]);
+
   const enqueue = useCallback(
     (payload: ClipUploadJobPayload, previewObjectUrl?: string | null): string | null => {
       const active = jobsRef.current.filter(
@@ -410,14 +445,13 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
 
       const job = jobFromPayload(payload, previewObjectUrl);
 
-      setJobs((prev) => {
-        const next = [...prev, job];
-        jobsRef.current = next;
-        void persist(next);
-        return next;
-      });
-
       if (isUrlJob) {
+        setJobs((prev) => {
+          const next = [...prev, job];
+          jobsRef.current = next;
+          void persist(next);
+          return next;
+        });
         updateJob(job.id, { blobsReady: true, gallerySaved: true });
         void processNext();
         return job.id;
@@ -425,84 +459,36 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
 
       const videoBlob = blob ?? file!;
 
-      // Sync in-memory cache before any async IDB work (iOS offline can reject IDB).
       cacheOutboxBlobs(job.id, {
         video: videoBlob,
         thumbnail: payload.thumbnailFile ?? null,
       });
 
-      void (async () => {
-        try {
-          await adoptPendingCaptureForJob(job.id, videoBlob);
+      const readyJob: UploadOutboxJob = {
+        ...job,
+        blobsReady: true,
+        status: 'queued',
+        error: null,
+      };
 
-          if (!peekCachedOutboxBlobs(job.id)?.video) {
-            await persistOutboxVideo(job.id, videoBlob, payload.thumbnailFile ?? null);
-          }
+      setJobs((prev) => {
+        const next = [...prev, readyJob];
+        jobsRef.current = next;
+        void persist(next);
+        return next;
+      });
 
-          if (!peekCachedOutboxBlobs(job.id)?.video) {
-            throw new Error('Video data missing after local save');
-          }
+      void processNext();
 
-          updateJob(job.id, {
-            blobsReady: true,
-            status: 'queued',
-            error: null,
-          });
-
-          void (async () => {
-            try {
-              const sourceKey = blobSourceKey(videoBlob);
-              const gallery = await saveClipToDeviceGallery(
-                videoBlob instanceof File ? videoBlob : videoBlob,
-                job.fileName,
-                { sourceKey, skipIfSaved: true },
-              );
-              updateJob(job.id, {
-                gallerySaved: true,
-                savedToDevice: gallery.method === 'native' || gallery.method === 'share',
-              });
-              scheduleNativeBackgroundUpload(job.id, gallery.nativeCachePath);
-            } catch (galleryErr) {
-              console.warn('ClipUploadQueue gallery:', galleryErr);
-            }
-          })();
-
-          void processNext();
-
-          try {
-            let thumb = payload.thumbnailFile ?? null;
-            if (!thumb) {
-              thumb = await generateVideoThumbnailJpeg(videoBlob, {
-                maxWidth: 640,
-                quality: 0.82,
-              });
-            }
-            if (thumb) {
-              await persistOutboxThumbnail(job.id, thumb);
-            }
-          } catch (thumbErr) {
-            console.warn('ClipUploadQueue thumbnail:', thumbErr);
-          }
-        } catch (err) {
-          console.error('ClipUploadQueue persist:', err);
-          if (peekCachedOutboxBlobs(job.id)?.video) {
-            updateJob(job.id, {
-              blobsReady: true,
-              status: 'queued',
-              error: null,
-            });
-            void processNext();
-            return;
-          }
-          updateJob(job.id, {
-            status: 'failed',
-            blobsReady: false,
-            error: isNetworkAvailable()
-              ? 'Could not save clip on this device. Try again.'
-              : "Saved on device — waiting for connection…",
-          });
-        }
-      })();
+      void persistClipInBackground({
+        jobId: job.id,
+        video: videoBlob,
+        fileName: job.fileName,
+        thumbnailFile: payload.thumbnailFile,
+        onGallerySaved: (saved) => {
+          updateJob(job.id, { gallerySaved: true, savedToDevice: saved });
+        },
+      });
 
       return job.id;
     },

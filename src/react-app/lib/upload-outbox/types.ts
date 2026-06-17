@@ -34,7 +34,7 @@ export type UploadOutboxJob = ClipUploadJobPayload & {
   fileSize: number;
   contentType: string;
   previewObjectUrl: string | null;
-  /** False until video blob is persisted locally (IndexedDB). */
+  /** False until video blob is in local cache (memory or IndexedDB). */
   blobsReady: boolean;
   /** False until photo-library save attempt completes (file uploads). */
   gallerySaved?: boolean;

@@ -122,12 +122,10 @@ export default function ClipUploadStatusBanner() {
 
           const pct = job.progress;
           const statusText =
-            job.status === 'queued' && !job.blobsReady
-              ? 'Saving clip on this device…'
-              : job.status === 'queued' && !isNetworkAvailable()
-                ? 'Saved on device — waiting for connection…'
-                : job.status === 'queued'
-                  ? 'Waiting to upload…'
+            job.status === 'queued' && !isNetworkAvailable()
+              ? 'Saved on device — waiting for connection…'
+              : job.status === 'queued'
+                ? 'Waiting to upload…'
                   : job.status === 'classifying'
                     ? 'Checking clip…'
                     : job.status === 'uploading'

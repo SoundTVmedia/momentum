@@ -20,6 +20,7 @@ import {
 } from './blob-store';
 import { deleteOutboxJob } from './idb';
 import { withUploadBackoff } from './upload-retry';
+import { uploadFetch } from './upload-fetch';
 import { runUrlOutboxJob } from './url-upload';
 import type { UploadInitResponse } from '@/shared/upload';
 
@@ -90,11 +91,12 @@ export async function runOutboxJob(
       async () => {
         let initRes: Response;
         try {
-          initRes = await fetch('/api/uploads/init', {
+          initRes = await uploadFetch('/api/uploads/init', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify(buildUploadInitBody(jobForUpload, file)),
+            signal,
           });
         } catch {
           throw new TypeError('Network error starting upload');
@@ -127,21 +129,7 @@ export async function runOutboxJob(
     });
   }
 
-  // Thumbnail is best-effort when offline — video upload can still resume.
-  try {
-    const thumbFile = await resolveThumbnailFile(job, file);
-    if (thumbFile) {
-      onPatch({ progress: Math.max(job.progress, 2) });
-      attachedThumb = await attachThumbnailToSession(sessionId, thumbFile, signal);
-      if (!blobs.thumbnail) {
-        await persistOutboxThumbnail(job.id, thumbFile);
-      }
-      onPatch({ progress: Math.max(job.progress, 8) });
-    }
-  } catch (thumbErr) {
-    console.warn('Thumbnail attach skipped (will retry on complete):', thumbErr);
-  }
-
+  // Video first — thumbnail is best-effort and must not block chunk upload.
   await uploadFileMultipart({
     sessionId,
     file,
@@ -153,15 +141,16 @@ export async function runOutboxJob(
 
   onPatch({ status: 'completing', progress: 88 });
 
-  if (!attachedThumb) {
-    try {
-      const thumbFile = await resolveThumbnailFile(job, file);
-      if (thumbFile) {
-        attachedThumb = await attachThumbnailToSession(sessionId, thumbFile, signal);
+  try {
+    const thumbFile = await resolveThumbnailFile(job, file);
+    if (thumbFile) {
+      attachedThumb = await attachThumbnailToSession(sessionId, thumbFile, signal);
+      if (!blobs.thumbnail) {
+        await persistOutboxThumbnail(job.id, thumbFile);
       }
-    } catch {
-      /* complete may still succeed without thumb */
     }
+  } catch (thumbErr) {
+    console.warn('Thumbnail attach skipped (will retry on complete):', thumbErr);
   }
 
   await completeUploadSession(sessionId, job.idempotencyKey, attachedThumb, signal);
