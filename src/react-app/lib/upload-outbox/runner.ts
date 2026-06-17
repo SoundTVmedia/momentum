@@ -203,6 +203,7 @@ export function jobFromPayload(
     contentType: type,
     previewObjectUrl: previewObjectUrl ?? null,
     blobsReady: false,
+    gallerySaved: payload.uploadMethod === 'url',
     classificationPending: payload.classificationPending ?? false,
   };
 }

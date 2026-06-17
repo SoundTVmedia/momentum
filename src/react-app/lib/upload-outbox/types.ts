@@ -36,8 +36,12 @@ export type UploadOutboxJob = ClipUploadJobPayload & {
   previewObjectUrl: string | null;
   /** False until video blob is persisted locally (IndexedDB). */
   blobsReady: boolean;
+  /** False until photo-library save attempt completes (file uploads). */
+  gallerySaved?: boolean;
   /** Best-effort gallery / share / device cache */
   savedToDevice?: boolean;
+  /** Auto-retry counter for transient upload failures */
+  uploadRetryCount?: number;
 };
 
 export type PersistedOutboxMeta = Omit<UploadOutboxJob, 'videoFile' | 'videoBlob' | 'thumbnailFile' | 'captureAudioBlob'>;

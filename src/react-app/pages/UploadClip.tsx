@@ -48,6 +48,10 @@ import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext'
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import {
+  blobSourceKey,
+  saveCapturedClipToGallery,
+} from '@/react-app/lib/upload-outbox/gallery-save';
+import {
   classifyContentFeedForClip,
   contentFeedUserMessage,
 } from '@/react-app/utils/classifyContentFeed';
@@ -109,6 +113,7 @@ export default function UploadClip() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
+  const galleryCaptureKeyRef = useRef<string | null>(null);
 
   /** Post-capture review (Share your moment) — open immediately when landing with a recorded blob/file. */
   const [showCaptionScreen, setShowCaptionScreen] = useState(() => {
@@ -589,6 +594,25 @@ export default function UploadClip() {
   }, [location.state]);
   
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
+
+  /** Save to Photos immediately after capture (native app) — before Share / upload. */
+  useEffect(() => {
+    if (!showCaptionScreen || uploadMethod !== 'file') return;
+    const source = formData.video_blob ?? formData.video_file;
+    if (!source) return;
+    const key = blobSourceKey(source);
+    if (galleryCaptureKeyRef.current === key) return;
+    galleryCaptureKeyRef.current = key;
+    const ext = source.type.includes('mp4') ? 'mp4' : 'webm';
+    const fileName =
+      formData.video_file?.name ?? `momentum-${Date.now()}.${ext}`;
+    void saveCapturedClipToGallery(source, fileName);
+  }, [
+    showCaptionScreen,
+    uploadMethod,
+    formData.video_blob,
+    formData.video_file,
+  ]);
   
   // Artist autocomplete
   const [artistSearch, setArtistSearch] = useState('');
