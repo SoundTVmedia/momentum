@@ -3,7 +3,7 @@ import { clipShowFieldsForContentFeed } from '@/shared/pre-post-clip';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { withUploadBackoff } from './upload-retry';
-import { uploadFetch } from './upload-fetch';
+import { uploadFetch, PART_UPLOAD_FETCH_TIMEOUT_MS } from './upload-fetch';
 
 /** Map outbox payload → POST /api/uploads/init body (clip metadata + file info). */
 export function buildUploadInitBody(
@@ -78,6 +78,7 @@ async function uploadPartWorker(
           body: chunk,
           credentials: 'include',
           signal,
+          timeoutMs: PART_UPLOAD_FETCH_TIMEOUT_MS,
         });
       } catch {
         throw new TypeError('Network error during part upload');
@@ -101,7 +102,12 @@ async function uploadPartDirect(
 ): Promise<{ etag: string }> {
   return withUploadBackoff(
     async () => {
-      const res = await uploadFetch(url, { method: 'PUT', body: chunk, signal });
+      const res = await uploadFetch(url, {
+        method: 'PUT',
+        body: chunk,
+        signal,
+        timeoutMs: PART_UPLOAD_FETCH_TIMEOUT_MS,
+      });
       if (!res.ok) {
         throw new Error(`Direct part ${partNumber} upload failed`);
       }

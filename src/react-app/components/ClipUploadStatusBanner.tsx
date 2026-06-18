@@ -47,6 +47,10 @@ export default function ClipUploadStatusBanner() {
 
           if (job.status === 'paused') {
             const pct = job.progress;
+            const retryHint =
+              job.uploadRetryCount && job.uploadRetryCount > 1
+                ? `Retry ${job.uploadRetryCount} — still saved on this device.`
+                : 'Connection issue — your clip is saved on this device. Retrying automatically…';
             return (
               <div
                 key={job.id}
@@ -56,10 +60,7 @@ export default function ClipUploadStatusBanner() {
                   <Loader2 className="w-5 h-5 shrink-0 text-amber-400 animate-spin" aria-hidden />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{label}</p>
-                    <p className="text-amber-200/90 text-xs mt-0.5">
-                      Connection issue — your clip is saved on this device. Retrying upload
-                      automatically…
-                    </p>
+                    <p className="text-amber-200/90 text-xs mt-0.5">{retryHint}</p>
                   </div>
                 </div>
                 <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">

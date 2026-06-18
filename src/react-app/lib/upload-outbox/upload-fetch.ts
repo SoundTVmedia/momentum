@@ -1,4 +1,5 @@
 const DEFAULT_UPLOAD_FETCH_TIMEOUT_MS = 120_000;
+export const PART_UPLOAD_FETCH_TIMEOUT_MS = 300_000;
 
 /** Fetch with timeout + optional parent abort (stall / user cancel). */
 export async function uploadFetch(

@@ -41,8 +41,8 @@ import {
 
 const MAX_QUEUE_SIZE = 5;
 const DONE_TTL_MS = 8000;
-const AUTO_RETRY_BASE_MS = 3_000;
-const AUTO_RETRY_MAX_MS = 60_000;
+const AUTO_RETRY_BASE_MS = 5_000;
+const AUTO_RETRY_MAX_MS = 120_000;
 const UPLOAD_STALL_MS = 180_000;
 const PROCESSING_WATCHDOG_MS = 600_000;
 const QUEUE_POLL_MS = 10_000;
@@ -86,6 +86,33 @@ function reviveJob(meta: PersistedOutboxMeta): UploadOutboxJob {
 function jobIsReadyToUpload(job: UploadOutboxJob): boolean {
   if (job.uploadMethod === 'url') return Boolean(job.blobsReady);
   return Boolean(job.blobsReady);
+}
+
+/** FIFO: one clip at a time; paused jobs wait for their retry timer. */
+function nextUploadJob(jobs: UploadOutboxJob[]): UploadOutboxJob | undefined {
+  const sorted = [...jobs].sort((a, b) => a.createdAt - b.createdAt);
+  for (const j of sorted) {
+    if (j.status === 'published') continue;
+    if (j.status === 'failed') {
+      if (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)) {
+        return undefined;
+      }
+      continue;
+    }
+    if (
+      j.status === 'uploading' ||
+      j.status === 'classifying' ||
+      j.status === 'completing' ||
+      j.status === 'processing' ||
+      j.status === 'paused'
+    ) {
+      return undefined;
+    }
+    if (j.status === 'queued' && jobIsReadyToUpload(j)) {
+      return j;
+    }
+  }
+  return undefined;
 }
 
 export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
@@ -220,9 +247,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const processNext = useCallback(async () => {
     if (processingRef.current || !hydrated) return;
 
-    const pending = jobsRef.current.find(
-      (j) => (j.status === 'queued' || j.status === 'paused') && jobIsReadyToUpload(j),
-    );
+    const pending = nextUploadJob(jobsRef.current);
     if (!pending) return;
 
     if (!isNetworkAvailable()) {
@@ -343,9 +368,12 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       processingRef.current = false;
       processingStartedAtRef.current = null;
       abortRef.current = null;
-      queueMicrotask(() => {
-        void processNext();
-      });
+      const jobAfterRun = jobsRef.current.find((j) => j.id === pending.id);
+      if (jobAfterRun?.status !== 'paused') {
+        queueMicrotask(() => {
+          void processNext();
+        });
+      }
     }
   }, [clearAutoRetryTimer, hydrated, removeJobLater, updateJob]);
 
@@ -365,10 +393,8 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       const retryable = jobsRef.current.filter(
         (j) =>
           jobIsReadyToUpload(j) &&
-          (j.status === 'paused' ||
-            j.status === 'queued' ||
-            (j.status === 'failed' &&
-              (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)))),
+          j.status === 'failed' &&
+          (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)),
       );
       if (retryable.length === 0) return;
 
@@ -376,12 +402,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         const next = prev.map((j) => {
           const shouldRetry =
             jobIsReadyToUpload(j) &&
-            (j.status === 'paused' ||
-              j.status === 'queued' ||
-              (j.status === 'failed' &&
-                (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error))));
+            j.status === 'failed' &&
+            (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error));
           if (!shouldRetry) return j;
-          if (j.status === 'queued') return j;
           return {
             ...j,
             status: 'queued' as const,
@@ -420,11 +443,17 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
 
     const interval = window.setInterval(() => {
       if (!isNetworkAvailable()) return;
+
+      for (const j of jobsRef.current) {
+        if (j.status === 'paused' && !autoRetryTimersRef.current.has(j.id)) {
+          updateJob(j.id, { status: 'queued', error: null });
+        }
+      }
+
       const hasWork = jobsRef.current.some(
         (j) =>
           jobIsReadyToUpload(j) &&
           (j.status === 'queued' ||
-            j.status === 'paused' ||
             (j.status === 'failed' &&
               (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)))),
       );
@@ -434,7 +463,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     }, QUEUE_POLL_MS);
 
     return () => window.clearInterval(interval);
-  }, [hydrated, processNext, resumeRetryableJobs]);
+  }, [hydrated, processNext, resumeRetryableJobs, updateJob]);
 
   useEffect(() => {
     if (!hydrated) return;
