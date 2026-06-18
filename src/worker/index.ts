@@ -686,32 +686,32 @@ app.post("/api/users/profile", authMiddleware, async (c) => {
 // Resumable upload endpoint for large files
 app.post("/api/upload/resumable", authMiddleware, handleResumableUpload);
 
-app.post("/api/uploads/init", authMiddleware, rateLimiter(RateLimits.UPLOAD), postUploadInit);
+app.post("/api/uploads/init", authMiddleware, rateLimiter(RateLimits.UPLOAD_MULTIPART), postUploadInit);
 app.put(
   "/api/uploads/:sessionId/parts/:partNumber",
   authMiddleware,
-  rateLimiter(RateLimits.UPLOAD),
+  rateLimiter(RateLimits.UPLOAD_MULTIPART),
   putUploadPart,
 );
 app.post(
   "/api/uploads/:sessionId/parts/:partNumber/confirm",
   authMiddleware,
-  rateLimiter(RateLimits.UPLOAD),
+  rateLimiter(RateLimits.UPLOAD_MULTIPART),
   postUploadPartConfirm,
 );
 app.post(
   "/api/uploads/:sessionId/complete",
   authMiddleware,
-  rateLimiter(RateLimits.UPLOAD),
+  rateLimiter(RateLimits.UPLOAD_MULTIPART),
   postUploadComplete,
 );
 app.post(
   "/api/uploads/:sessionId/thumbnail",
   authMiddleware,
-  rateLimiter(RateLimits.UPLOAD),
+  rateLimiter(RateLimits.UPLOAD_MULTIPART),
   postUploadSessionThumbnail,
 );
-app.get("/api/uploads/:sessionId/status", authMiddleware, getUploadStatus);
+app.get("/api/uploads/:sessionId/status", authMiddleware, rateLimiter(RateLimits.UPLOAD_MULTIPART), getUploadStatus);
 
 // Upload file to R2 or Cloudflare Stream (with stricter rate limit)
 app.post("/api/upload", authMiddleware, rateLimiter(RateLimits.UPLOAD), async (c) => {

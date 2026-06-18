@@ -124,8 +124,14 @@ export const RateLimits = {
   // Auth operations
   AUTH: { windowMs: 15 * 60 * 1000, maxRequests: 10 }, // 10 per 15 minutes
   
-  // Upload operations
-  UPLOAD: { windowMs: 60 * 60 * 1000, maxRequests: 20 }, // 20 per hour
+  // Upload operations (shared bucket — init + all parts + complete for one clip)
+  UPLOAD: { windowMs: 60 * 60 * 1000, maxRequests: 20 }, // legacy single-path cap
+  UPLOAD_MULTIPART: {
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 400,
+    sharedBucket: 'upload-multipart',
+    message: 'Too many upload requests this hour. Please wait and retry.',
+  },
   
   // API calls
   API: { windowMs: 15 * 60 * 1000, maxRequests: 100 }, // 100 per 15 minutes

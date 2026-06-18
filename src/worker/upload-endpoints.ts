@@ -106,7 +106,10 @@ export async function postUploadInit(c: Context<{ Bindings: Env }>) {
 
   await deleteUsedClassification(c.env.DB, resolved.fields.classificationId);
 
-  const uploadMode = r2PresignConfigured(c.env) ? 'direct' : 'worker';
+  // Web uploads must go through the Worker (R2 presigned PUT requires bucket CORS in browsers).
+  const nativeClient = c.req.header('X-Momentum-Upload-Client') === 'native';
+  const uploadMode =
+    nativeClient && r2PresignConfigured(c.env) ? ('direct' as const) : ('worker' as const);
   let partUrls: string[] | undefined;
   if (uploadMode === 'direct') {
     partUrls = await presignMultipartPartUrls(
@@ -186,11 +189,11 @@ export async function putUploadPart(c: Context<{ Bindings: Env }>) {
   const r2Key = String(session.r2_key);
   const uploadId = String(session.multipart_upload_id);
   const multipart = c.env.R2_BUCKET.resumeMultipartUpload(r2Key, uploadId);
-  const body = c.req.raw.body;
-  if (!body) {
+  const bodyBuffer = await c.req.arrayBuffer();
+  if (!bodyBuffer || bodyBuffer.byteLength === 0) {
     return c.json({ error: 'Missing request body' }, 400);
   }
-  const part = await multipart.uploadPart(partNumber, body);
+  const part = await multipart.uploadPart(partNumber, bodyBuffer);
 
   const completed = parseCompletedParts(String(session.completed_parts));
   const etag = etagFromPart(part);

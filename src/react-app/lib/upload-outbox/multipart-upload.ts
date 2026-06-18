@@ -57,6 +57,41 @@ export function blobToUploadFile(blob: Blob, jobId: string): File {
   return new File([blob], `recording-${jobId}.${ext}`, { type });
 }
 
+export function isUploadFinishedOnServer(
+  uploadStatus?: string | null,
+  clipPublished?: boolean,
+): boolean {
+  if (clipPublished) return true;
+  return (
+    uploadStatus === 'ready' ||
+    uploadStatus === 'uploaded' ||
+    uploadStatus === 'processing'
+  );
+}
+
+export class UploadSessionInvalidError extends Error {
+  constructor(message = 'Upload session expired or invalid') {
+    super(message);
+    this.name = 'UploadSessionInvalidError';
+  }
+}
+
+async function readUploadError(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string };
+    return body.error ?? `HTTP ${res.status}`;
+  } catch {
+    return `HTTP ${res.status}`;
+  }
+}
+
+/** Browser uploads always use Worker → R2 (presigned direct PUT needs bucket CORS). */
+export function effectiveUploadMode(
+  _uploadMode: 'direct' | 'worker' | null | undefined,
+): 'direct' | 'worker' {
+  return 'worker';
+}
+
 export function computePartPlan(fileSize: number): { totalParts: number; partSize: number } {
   const partSize = UPLOAD_PART_SIZE_BYTES;
   const totalParts = Math.max(1, Math.ceil(fileSize / partSize));
@@ -84,7 +119,11 @@ async function uploadPartWorker(
         throw new TypeError('Network error during part upload');
       }
       if (!res.ok) {
-        throw new Error(`Part ${partNumber} upload failed`);
+        const detail = await readUploadError(res);
+        if (res.status === 404 || res.status === 409) {
+          throw new UploadSessionInvalidError(detail);
+        }
+        throw new Error(`Part ${partNumber} upload failed: ${detail}`);
       }
       const data = (await res.json()) as { etag?: string };
       return { etag: data.etag ?? '' };
@@ -109,7 +148,7 @@ async function uploadPartDirect(
         timeoutMs: PART_UPLOAD_FETCH_TIMEOUT_MS,
       });
       if (!res.ok) {
-        throw new Error(`Direct part ${partNumber} upload failed`);
+        throw new Error(`Direct part ${partNumber} upload failed: HTTP ${res.status}`);
       }
       const etag = res.headers.get('etag')?.replace(/^"|"$/g, '') ?? '';
       const confirmRes = await uploadFetch(`/api/uploads/${sessionId}/parts/${partNumber}/confirm`, {
@@ -120,7 +159,11 @@ async function uploadPartDirect(
         signal,
       });
       if (!confirmRes.ok) {
-        throw new Error(`Direct part ${partNumber} confirm failed`);
+        const detail = await readUploadError(confirmRes);
+        if (confirmRes.status === 404 || confirmRes.status === 409) {
+          throw new UploadSessionInvalidError(detail);
+        }
+        throw new Error(`Direct part ${partNumber} confirm failed: ${detail}`);
       }
       return { etag };
     },
@@ -160,6 +203,7 @@ export async function uploadFileMultipart(options: {
   signal?: AbortSignal;
 }): Promise<void> {
   const { sessionId, file, uploadMode, partUrls, onProgress, signal } = options;
+  const mode = effectiveUploadMode(uploadMode);
   const { totalParts, partSize } = computePartPlan(file.size);
 
   let doneParts = new Set<number>();
@@ -189,7 +233,7 @@ export async function uploadFileMultipart(options: {
     const end = Math.min(start + partSize, file.size);
     const chunk = file.slice(start, end);
 
-    if (uploadMode === 'direct' && partUrls?.[partNumber - 1]) {
+    if (mode === 'direct' && partUrls?.[partNumber - 1]) {
       await uploadPartDirect(sessionId, partNumber, partUrls[partNumber - 1], chunk, signal);
     } else {
       await uploadPartWorker(sessionId, partNumber, chunk, signal);
@@ -280,7 +324,7 @@ export async function pollUploadUntilPublished(
   onProgress?: (pct: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const maxAttempts = 120;
+  const maxAttempts = 15;
   for (let i = 0; i < maxAttempts; i++) {
     if (signal?.aborted) throw new Error('Upload cancelled');
     const data = await withUploadBackoff(
@@ -289,7 +333,13 @@ export async function pollUploadUntilPublished(
           credentials: 'include',
           signal,
         });
-        if (!res.ok) throw new Error('Failed to check upload status');
+        if (!res.ok) {
+          const detail = await readUploadError(res);
+          if (res.status === 404 || res.status === 409) {
+            throw new UploadSessionInvalidError(detail);
+          }
+          throw new Error(`Failed to check upload status: ${detail}`);
+        }
         return res.json() as Promise<{
           progress?: number;
           clipPublished?: boolean;
@@ -300,9 +350,9 @@ export async function pollUploadUntilPublished(
     );
     const base = data.progress ?? 100;
     onProgress?.(Math.min(100, Math.round(85 + base * 0.15)));
-    if (data.clipPublished || data.uploadStatus === 'ready') return;
+    if (isUploadFinishedOnServer(data.uploadStatus, data.clipPublished)) return;
     if (data.uploadStatus === 'failed') throw new Error('Clip processing failed');
     await new Promise((r) => setTimeout(r, 2000));
   }
-  throw new Error('Timed out waiting for clip to publish');
+  // R2 upload already completed — Stream ingest continues via cron.
 }

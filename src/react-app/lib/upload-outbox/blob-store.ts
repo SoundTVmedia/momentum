@@ -103,7 +103,7 @@ export function formatUploadError(err: unknown): string {
     if (err.message === 'Upload cancelled') {
       return 'Slow connection — your clip is saved on this device. Upload will continue when the connection improves.';
     }
-    if (/failed to fetch|network|load failed|part \d+ upload failed|timed out/i.test(err.message)) {
+    if (/failed to fetch|network|load failed|part \d+ upload failed|timed out|too many upload/i.test(err.message)) {
       return "Slow connection — your clip is saved on this device. We'll keep trying in the background.";
     }
     return err.message;

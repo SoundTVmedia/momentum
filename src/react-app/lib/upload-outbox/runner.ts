@@ -10,8 +10,10 @@ import {
   blobToUploadFile,
   buildUploadInitBody,
   completeUploadSession,
+  effectiveUploadMode,
   pollUploadUntilPublished,
   uploadFileMultipart,
+  UploadSessionInvalidError,
 } from './multipart-upload';
 import {
   clearCachedOutboxBlobs,
@@ -35,6 +37,128 @@ async function resolveThumbnailFile(
     return new File([blobs.thumbnail], 'thumb.jpg', { type: 'image/jpeg' });
   }
   return generateVideoThumbnailJpeg(videoFile, { maxWidth: 640, quality: 0.82 });
+}
+
+async function runFileUploadJob(
+  job: UploadOutboxJob,
+  file: File,
+  blobs: NonNullable<Awaited<ReturnType<typeof resolveOutboxBlobs>>>,
+  onPatch: (patch: Partial<UploadOutboxJob>) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  let jobForUpload = job;
+  let sessionId = job.sessionId;
+  let uploadMode = job.uploadMode;
+  let partUrls = job.partUrls;
+  let attachedThumb: { url: string; key: string } | null = null;
+
+  if (uploadJobNeedsClassification(job)) {
+    onPatch({ status: 'classifying', progress: 1, error: null });
+    const resolved = await resolveClassificationForUploadJob(job, blobs.video);
+    jobForUpload = {
+      ...job,
+      classificationId: resolved.classificationId,
+      contentFeed: resolved.contentFeed,
+      classificationPending: false,
+    };
+    onPatch({
+      classificationId: resolved.classificationId,
+      contentFeed: resolved.contentFeed,
+      classificationPending: false,
+    });
+  }
+
+  onPatch({ status: 'uploading', progress: Math.max(job.progress, 5) });
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (!sessionId) {
+        const init = await withUploadBackoff(
+          async () => {
+            let initRes: Response;
+            try {
+              initRes = await uploadFetch('/api/uploads/init', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(buildUploadInitBody(jobForUpload, file)),
+                signal,
+              });
+            } catch {
+              throw new TypeError('Network error starting upload');
+            }
+            if (!initRes.ok) {
+              let msg = 'Failed to start upload';
+              try {
+                const body = (await initRes.json()) as { error?: string };
+                if (body.error) msg = body.error;
+              } catch {
+                /* ignore */
+              }
+              throw new Error(msg);
+            }
+            return (await initRes.json()) as UploadInitResponse;
+          },
+          { signal },
+        );
+        sessionId = init.sessionId;
+        uploadMode = init.uploadMode;
+        partUrls = init.partUrls ?? null;
+        onPatch({
+          sessionId,
+          clipId: init.clipId,
+          uploadMode: effectiveUploadMode(init.uploadMode),
+          partUrls,
+          totalParts: init.totalParts,
+          partSize: init.partSize,
+          progress: Math.max(job.progress, 8),
+        });
+      }
+
+      await uploadFileMultipart({
+        sessionId: sessionId!,
+        file,
+        uploadMode: effectiveUploadMode(uploadMode),
+        partUrls,
+        signal,
+        onProgress: (pct) => onPatch({ progress: Math.round(8 + pct * 0.77) }),
+      });
+
+      onPatch({ status: 'completing', progress: 88 });
+
+      try {
+        const thumbFile = await resolveThumbnailFile(job, file);
+        if (thumbFile) {
+          attachedThumb = await attachThumbnailToSession(sessionId!, thumbFile, signal);
+          if (!blobs.thumbnail) {
+            await persistOutboxThumbnail(job.id, thumbFile);
+          }
+        }
+      } catch (thumbErr) {
+        console.warn('Thumbnail attach skipped (will retry on complete):', thumbErr);
+      }
+
+      await completeUploadSession(sessionId!, job.idempotencyKey, attachedThumb, signal);
+
+      onPatch({ status: 'processing', progress: 92 });
+      await pollUploadUntilPublished(sessionId!, (pct) => onPatch({ progress: pct }), signal);
+      return;
+    } catch (err) {
+      if (err instanceof UploadSessionInvalidError && attempt === 0) {
+        sessionId = null;
+        uploadMode = null;
+        partUrls = null;
+        onPatch({
+          sessionId: null,
+          clipId: null,
+          uploadMode: null,
+          partUrls: null,
+        });
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 export async function runOutboxJob(
@@ -61,105 +185,7 @@ export async function runOutboxJob(
 
   const file = job.videoFile ?? blobToUploadFile(blobs.video, job.id);
 
-  let jobForUpload = job;
-
-  if (uploadJobNeedsClassification(job)) {
-    onPatch({ status: 'classifying', progress: 1, error: null });
-    const resolved = await resolveClassificationForUploadJob(job, blobs.video);
-    jobForUpload = {
-      ...job,
-      classificationId: resolved.classificationId,
-      contentFeed: resolved.contentFeed,
-      classificationPending: false,
-    };
-    onPatch({
-      classificationId: resolved.classificationId,
-      contentFeed: resolved.contentFeed,
-      classificationPending: false,
-    });
-  }
-
-  onPatch({ status: 'uploading', progress: Math.max(job.progress, 5) });
-
-  let sessionId = job.sessionId;
-  let clipId = job.clipId;
-  let uploadMode = job.uploadMode;
-  let partUrls = job.partUrls;
-  let attachedThumb: { url: string; key: string } | null = null;
-
-  if (!sessionId) {
-    const init = await withUploadBackoff(
-      async () => {
-        let initRes: Response;
-        try {
-          initRes = await uploadFetch('/api/uploads/init', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(buildUploadInitBody(jobForUpload, file)),
-            signal,
-          });
-        } catch {
-          throw new TypeError('Network error starting upload');
-        }
-        if (!initRes.ok) {
-          let msg = 'Failed to start upload';
-          try {
-            const body = (await initRes.json()) as { error?: string };
-            if (body.error) msg = body.error;
-          } catch {
-            /* ignore */
-          }
-          throw new Error(msg);
-        }
-        return (await initRes.json()) as UploadInitResponse;
-      },
-      { signal },
-    );
-    sessionId = init.sessionId;
-    clipId = init.clipId;
-    uploadMode = init.uploadMode;
-    partUrls = init.partUrls ?? null;
-    onPatch({
-      sessionId,
-      clipId,
-      uploadMode,
-      partUrls,
-      totalParts: init.totalParts,
-      partSize: init.partSize,
-      progress: Math.max(job.progress, 8),
-    });
-  }
-
-  // Video first — thumbnail is best-effort and must not block chunk upload.
-  await uploadFileMultipart({
-    sessionId,
-    file,
-    uploadMode: uploadMode ?? 'worker',
-    partUrls,
-    signal,
-    onProgress: (pct) => onPatch({ progress: Math.round(8 + pct * 0.77) }),
-  });
-
-  onPatch({ status: 'completing', progress: 88 });
-
-  try {
-    const thumbFile = await resolveThumbnailFile(job, file);
-    if (thumbFile) {
-      attachedThumb = await attachThumbnailToSession(sessionId, thumbFile, signal);
-      if (!blobs.thumbnail) {
-        await persistOutboxThumbnail(job.id, thumbFile);
-      }
-    }
-  } catch (thumbErr) {
-    console.warn('Thumbnail attach skipped (will retry on complete):', thumbErr);
-  }
-
-  await completeUploadSession(sessionId, job.idempotencyKey, attachedThumb, signal);
-
-  onPatch({ status: 'processing', progress: 92 });
-
-  await pollUploadUntilPublished(sessionId, (pct) => onPatch({ progress: pct }), signal);
+  await runFileUploadJob(job, file, blobs, onPatch, signal);
 
   onPatch({ status: 'published', progress: 100 });
   clearCachedOutboxBlobs(job.id);
