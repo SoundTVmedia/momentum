@@ -46,6 +46,15 @@ describe('clip-playback', () => {
     expect(resolveFeedPreviewVideoSrc({ video_url: 'pending:upload' })).toBeNull();
   });
 
+  it('falls back to r2_raw_key when video_url is still a placeholder', () => {
+    expect(
+      resolveFeedPreviewVideoSrc({
+        video_url: 'pending:upload',
+        r2_raw_key: 'clips/user/video/abc.mp4',
+      }),
+    ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
+  });
+
   it('uses HLS for modal when stream id present', () => {
     const modal = resolveModalPlaybackSource({ stream_video_id: UID, video_url: '/api/files/x.mp4' });
     expect(modal.isHls).toBe(true);

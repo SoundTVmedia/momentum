@@ -7,7 +7,14 @@ export type ClipPlaybackFields = {
   stream_thumbnail_url?: string | null;
   video_url?: string | null;
   thumbnail_url?: string | null;
+  /** Set after multipart upload completes; used when video_url is still a placeholder. */
+  r2_raw_key?: string | null;
 };
+
+/** Same-origin R2 playback path served by the worker. */
+export function r2ClipFilePath(key: string): string {
+  return `/api/files/${encodeURIComponent(key.trim())}`;
+}
 
 /** Extract Stream UID from stored playback or legacy URLs. */
 export function extractStreamVideoId(url: string | null | undefined): string | null {

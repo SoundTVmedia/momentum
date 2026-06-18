@@ -17,6 +17,7 @@ import {
   insertDraftClipForUpload,
   resolveClipCreateFields,
 } from './upload-clip-create';
+import { publishClipWithR2Playback, processClipStreamIngestById } from './upload-processor';
 
 function newSessionId(): string {
   return `upl_${crypto.randomUUID()}`;
@@ -373,17 +374,16 @@ export async function postUploadComplete(c: Context<{ Bindings: Env }>) {
     .bind(idempotencyKey, thumbKey, thumbUrl, sessionId)
     .run();
 
-  await c.env.DB
-    .prepare(
-      `UPDATE clips
-       SET upload_status = 'uploaded',
-           thumbnail_url = COALESCE(?, thumbnail_url),
-           r2_raw_key = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-    )
-    .bind(thumbUrl, r2Key, session.clip_id)
-    .run();
+  await publishClipWithR2Playback(c.env, Number(session.clip_id), r2Key, thumbUrl);
+
+  const execCtx = c.executionCtx;
+  if (execCtx) {
+    execCtx.waitUntil(
+      processClipStreamIngestById(c.env, Number(session.clip_id)).catch((err) => {
+        console.error('postUploadComplete stream ingest:', err);
+      }),
+    );
+  }
 
   return c.json({
     success: true,

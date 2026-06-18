@@ -3,6 +3,7 @@ export {
   type ClipPlaybackFields,
   extractStreamVideoId,
   isPlaceholderVideoUrl,
+  r2ClipFilePath,
   resolveClipPosterUrl,
   streamThumbnailUrl,
   streamVideoIdFromClip,
@@ -11,6 +12,7 @@ export {
 import {
   type ClipPlaybackFields,
   isPlaceholderVideoUrl,
+  r2ClipFilePath,
   resolveClipPosterUrl,
   STREAM_DELIVERY_ORIGIN,
   streamVideoIdFromClip,
@@ -40,7 +42,10 @@ export function resolveFeedPreviewVideoSrc(clip: ClipPlaybackFields): string | n
   }
 
   const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
-  if (!fallback || isPlaceholderVideoUrl(fallback)) return null;
+  if (!fallback || isPlaceholderVideoUrl(fallback)) {
+    const r2Key = typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '';
+    return r2Key ? r2ClipFilePath(r2Key) : null;
+  }
   if (isHlsPlaybackUrl(fallback)) return null;
   return fallback;
 }
@@ -67,8 +72,17 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
   }
 
   const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
+  if (isPlaceholderVideoUrl(fallback)) {
+    const r2Key = typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '';
+    return {
+      src: r2Key ? r2ClipFilePath(r2Key) : '',
+      poster,
+      isHls: false,
+      streamVideoId: null,
+    };
+  }
   return {
-    src: isPlaceholderVideoUrl(fallback) ? '' : fallback,
+    src: fallback,
     poster,
     isHls: isHlsPlaybackUrl(fallback),
     streamVideoId: null,
