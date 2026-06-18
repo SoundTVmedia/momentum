@@ -1,6 +1,6 @@
 import { Loader2, Check, AlertCircle, X } from 'lucide-react';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
-import { isRetryableUploadError } from '@/react-app/lib/upload-outbox/blob-store';
+import { isRetryableUploadError, isBlobWaitPauseError } from '@/react-app/lib/upload-outbox/blob-store';
 import { isRecoverableSaveError } from '@/react-app/lib/upload-outbox/clip-blob-registry';
 import { isNetworkAvailable } from '@/react-app/lib/upload-outbox/network-utils';
 
@@ -47,8 +47,9 @@ export default function ClipUploadStatusBanner() {
 
           if (job.status === 'paused') {
             const pct = job.progress;
-            const retryHint =
-              job.uploadRetryCount && job.uploadRetryCount > 1
+            const retryHint = isBlobWaitPauseError(job.error)
+              ? 'Restoring clip from this device — upload will resume shortly…'
+              : job.uploadRetryCount && job.uploadRetryCount > 1
                 ? `Retry ${job.uploadRetryCount} — still saved on this device.`
                 : 'Connection issue — your clip is saved on this device. Retrying automatically…';
             return (

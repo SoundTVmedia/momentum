@@ -11,9 +11,12 @@ import {
   buildUploadInitBody,
   completeUploadSession,
   effectiveUploadMode,
+  fetchUploadSessionStatus,
   pollUploadUntilPublished,
+  tryFinishSessionWithoutVideo,
   uploadFileMultipart,
   UploadSessionInvalidError,
+  isUploadFinishedOnServer,
 } from './multipart-upload';
 import {
   clearCachedOutboxBlobs,
@@ -178,6 +181,45 @@ export async function runOutboxJob(
 
   const blobs = await resolveOutboxBlobs(job.id);
   if (!blobs?.video) {
+    if (job.sessionId?.trim()) {
+      try {
+        const status = await fetchUploadSessionStatus(job.sessionId, signal);
+        if (isUploadFinishedOnServer(status.uploadStatus, status.clipPublished)) {
+          onPatch({ status: 'processing', progress: 95 });
+        } else {
+          const finished = await tryFinishSessionWithoutVideo(
+            job.sessionId,
+            job.idempotencyKey,
+            job.totalParts,
+            onPatch,
+            signal,
+          );
+          if (!finished) {
+            throw new Error(
+              'Waiting for video on this device — upload will start shortly.',
+            );
+          }
+        }
+        onPatch({ status: 'published', progress: 100 });
+        clearCachedOutboxBlobs(job.id);
+        releaseClipBlob(job.id);
+        await deleteOutboxJob(job.id);
+        return;
+      } catch (err) {
+        if (err instanceof UploadSessionInvalidError) {
+          onPatch({
+            sessionId: null,
+            clipId: null,
+            uploadMode: null,
+            partUrls: null,
+          });
+          throw new Error(
+            'Waiting for video on this device — upload will start shortly.',
+          );
+        }
+        throw err;
+      }
+    }
     throw new Error(
       'Clip video is not on this device anymore. Record and post again if needed.',
     );

@@ -4,6 +4,7 @@ import { resolveClipEventTitle } from '@/shared/event-title';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { withUploadBackoff } from './upload-retry';
 import { uploadFetch, PART_UPLOAD_FETCH_TIMEOUT_MS } from './upload-fetch';
+import type { UploadOutboxJob } from './types';
 
 /** Map outbox payload → POST /api/uploads/init body (clip metadata + file info). */
 export function buildUploadInitBody(
@@ -171,7 +172,20 @@ async function uploadPartDirect(
   );
 }
 
-async function fetchUploadSessionStatus(sessionId: string, signal?: AbortSignal) {
+export type UploadSessionPoll = {
+  completedPartNumbers?: number[];
+  completedParts?: number;
+  totalParts?: number;
+  progress?: number;
+  uploadStatus?: string;
+  clipPublished?: boolean;
+  sessionStatus?: string;
+};
+
+export async function fetchUploadSessionStatus(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<UploadSessionPoll> {
   return withUploadBackoff(
     async () => {
       let res: Response;
@@ -183,15 +197,45 @@ async function fetchUploadSessionStatus(sessionId: string, signal?: AbortSignal)
       } catch {
         throw new TypeError('Network error checking upload status');
       }
-      if (!res.ok) throw new Error('Failed to check upload status');
-      return res.json() as Promise<{
-        completedPartNumbers?: number[];
-        completedParts?: number;
-        totalParts?: number;
-      }>;
+      if (!res.ok) {
+        const detail = await readUploadError(res);
+        if (res.status === 404 || res.status === 409) {
+          throw new UploadSessionInvalidError(detail);
+        }
+        throw new Error(`Failed to check upload status: ${detail}`);
+      }
+      return res.json() as Promise<UploadSessionPoll>;
     },
     { signal },
   );
+}
+
+/** Finish upload when all parts are on the server but local video blob is gone (e.g. refresh). */
+export async function tryFinishSessionWithoutVideo(
+  sessionId: string,
+  idempotencyKey: string,
+  expectedTotalParts: number,
+  onPatch: (patch: Partial<Pick<UploadOutboxJob, 'status' | 'progress'>>) => void,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const status = await fetchUploadSessionStatus(sessionId, signal);
+  if (isUploadFinishedOnServer(status.uploadStatus, status.clipPublished)) {
+    return true;
+  }
+
+  const completed =
+    status.completedPartNumbers ??
+    Array.from({ length: status.completedParts ?? 0 }, (_, i) => i + 1);
+  const totalParts = status.totalParts ?? expectedTotalParts;
+  if (completed.length < totalParts) {
+    return false;
+  }
+
+  onPatch({ status: 'completing', progress: 88 });
+  await completeUploadSession(sessionId, idempotencyKey, null, signal);
+  onPatch({ status: 'processing', progress: 92 });
+  await pollUploadUntilPublished(sessionId, (pct) => onPatch({ progress: pct }), signal);
+  return true;
 }
 
 export async function uploadFileMultipart(options: {

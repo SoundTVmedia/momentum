@@ -111,6 +111,13 @@ export function formatUploadError(err: unknown): string {
   return 'Upload failed';
 }
 
+/** Paused while waiting for IndexedDB / in-tab blob cache after refresh. */
+export function isBlobWaitPauseError(error: string | null | undefined): boolean {
+  if (!error) return false;
+  const lower = error.toLowerCase();
+  return lower.includes('upload will start shortly') || lower.includes('waiting for video');
+}
+
 /** Whether a failed job should auto-retry when the device comes back online. */
 export function isRetryableUploadError(error: string | null): boolean {
   if (!error) return true;
@@ -132,6 +139,7 @@ export function isRetryableUploadError(error: string | null): boolean {
     lower.includes('timed out') ||
     lower.includes("we'll retry when you're back online") ||
     lower.includes('upload will start shortly') ||
+    lower.includes('waiting for video') ||
     lower.includes("we'll keep trying")
   );
 }
