@@ -27,10 +27,11 @@ export async function resolveOutboxBlobs(jobId: string): Promise<StoredUploadBlo
 
   const pinned = getClipBlob(jobId);
   if (pinned) {
+    const mem = memoryCache.get(jobId);
     const blobs: StoredUploadBlobs = {
       video: pinned,
-      thumbnail: row?.thumbnail ?? null,
-      captureAudio: row?.captureAudio ?? null,
+      thumbnail: mem?.thumbnail ?? null,
+      captureAudio: mem?.captureAudio ?? null,
     };
     cacheOutboxBlobs(jobId, blobs);
     return blobs;
