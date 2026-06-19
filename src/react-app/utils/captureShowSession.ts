@@ -37,6 +37,8 @@ export type CaptureShowSession = {
   anchorLon: number;
   /** Incremented each time the user posts a main-feed clip with this venue. */
   postsAtVenue: number;
+  /** How this session was created — used to drop stale "going" rows after unmark. */
+  source?: 'going' | 'resolve';
 };
 
 export type CaptureShowNavState = Record<string, unknown>;
@@ -86,6 +88,16 @@ export function clearCaptureShowSession(): void {
   }
 }
 
+/** Drop sticky venue when the user removes a "going" mark for that event. */
+export function clearCaptureShowSessionForEvent(jambaseEventId: string): void {
+  const id = jambaseEventId.trim();
+  if (!id) return;
+  const session = readRaw();
+  if (session?.candidate.jambase_event_id?.trim() === id) {
+    clearCaptureShowSession();
+  }
+}
+
 export function clipShowCandidateToNavState(c: ClipShowCandidate): CaptureShowNavState {
   const out: CaptureShowNavState = {
     artist_name: c.artist_name ?? '',
@@ -117,7 +129,7 @@ export function saveCaptureShowSession(
   candidate: ClipShowCandidate,
   anchorLat: number,
   anchorLon: number,
-  opts?: { incrementPost?: boolean },
+  opts?: { incrementPost?: boolean; source?: 'going' | 'resolve' },
 ): void {
   if (!hasVenueIdentity(candidate)) return;
   if (!Number.isFinite(anchorLat) || !Number.isFinite(anchorLon)) return;
@@ -144,6 +156,7 @@ export function saveCaptureShowSession(
     anchorLat,
     anchorLon,
     postsAtVenue,
+    source: opts?.source ?? (sameVenue ? prev?.source : undefined),
   });
 }
 

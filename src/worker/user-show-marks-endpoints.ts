@@ -368,7 +368,14 @@ export async function getFriendsGoingShows(c: Context) {
       group.marks.push(mark);
     }
 
-    return c.json({ friends: [...byUser.values()] });
+    const allMarks = [...byUser.values()].flatMap((g) => g.marks);
+    const enriched = await enrichMarksWithJamBaseEvents(c, allMarks);
+    const eventsByEventId: Record<string, Record<string, unknown>> = {};
+    allMarks.forEach((mark, i) => {
+      eventsByEventId[mark.jambase_event_id] = enriched[i] ?? showMarkToJamBaseEvent(mark);
+    });
+
+    return c.json({ friends: [...byUser.values()], eventsByEventId });
   } catch (e) {
     console.error('getFriendsGoingShows', e);
     return c.json({ error: 'Failed to load friends show plans' }, 500);

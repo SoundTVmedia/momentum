@@ -6,11 +6,11 @@ import {
   type UserShowMark,
 } from './show-marks';
 
-/** Auto-apply only when GPS ↔ venue is within this distance (high confidence). */
-export const AUTO_APPLY_MAX_DISTANCE_MILES = 1;
+/** Auto-apply when GPS ↔ venue is within this distance (non–going-mark path). */
+export const AUTO_APPLY_MAX_DISTANCE_MILES = 2;
 
-/** Venues returned for manual picker when auto-apply is skipped. */
-export const NEARBY_VENUE_PICKER_COUNT = 3;
+/** Venues returned for manual picker when multiple matches qualify. */
+export const NEARBY_VENUE_PICKER_COUNT = 5;
 
 export type ClipResolveMatch = 'none' | 'single' | 'ambiguous';
 
@@ -70,19 +70,32 @@ function candidateEventMatchesCapture(
   );
 }
 
-function closestCandidateWithJamBaseEventWithin1Mi(
+/** Closest venues with today's JamBase event within the auto-apply radius. */
+export function nearbyEventVenuesWithinAutoApplyRadius(
+  candidates: ClipShowCandidate[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): ClipShowCandidate[] {
+  const matched: ClipShowCandidate[] = [];
+  for (const candidate of candidates) {
+    if (!canAutoApplyCandidate(candidate)) continue;
+    if (candidateEventMatchesCapture(candidate, captureMs, userLat, userLon)) {
+      matched.push(candidate);
+    }
+  }
+  return matched.slice(0, NEARBY_VENUE_PICKER_COUNT);
+}
+
+function closestCandidateWithJamBaseEventWithinRadius(
   candidates: ClipShowCandidate[],
   captureMs: number,
   userLat?: number,
   userLon?: number,
 ): ClipShowCandidate | null {
-  for (const candidate of candidates) {
-    if (!canAutoApplyCandidate(candidate)) continue;
-    if (candidateEventMatchesCapture(candidate, captureMs, userLat, userLon)) {
-      return candidate;
-    }
-  }
-  return null;
+  return (
+    nearbyEventVenuesWithinAutoApplyRadius(candidates, captureMs, userLat, userLon)[0] ?? null
+  );
 }
 
 /** Going mark on the capture night → clip candidate (no distance limit). */
@@ -108,38 +121,34 @@ export function resolveShowMatchFromCandidates(
   candidates: ClipShowCandidate[];
   nearbyVenues: ClipShowCandidate[];
 } {
-  const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
-  if (enrichedSorted.length === 0) {
-    const goingOnly = resolveGoingMarkClipCandidate(goingMarks, captureMs, userLat, userLon);
-    if (goingOnly) {
-      return { match: 'single', candidates: [goingOnly], nearbyVenues: [] };
-    }
-    return { match: 'none', candidates: [], nearbyVenues: [] };
-  }
-
   const going = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
   if (going) {
     const matched = findCandidateForGoingMark(enrichedSorted, going);
-    if (matched) {
-      return { match: 'single', candidates: [matched], nearbyVenues };
-    }
-    return {
-      match: 'single',
-      candidates: [showMarkToClipCandidate(going)],
-      nearbyVenues,
-    };
+    const candidate = matched ?? showMarkToClipCandidate(going);
+    const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
+    return { match: 'single', candidates: [candidate], nearbyVenues };
   }
 
-  const closestWithEvent = closestCandidateWithJamBaseEventWithin1Mi(
+  const eventMatches = nearbyEventVenuesWithinAutoApplyRadius(
     enrichedSorted,
     captureMs,
     userLat,
     userLon,
   );
-  if (closestWithEvent) {
-    return { match: 'single', candidates: [closestWithEvent], nearbyVenues };
+
+  if (eventMatches.length === 1) {
+    return {
+      match: 'single',
+      candidates: [eventMatches[0]!],
+      nearbyVenues: eventMatches,
+    };
   }
 
+  if (eventMatches.length > 1) {
+    return { match: 'ambiguous', candidates: [], nearbyVenues: eventMatches };
+  }
+
+  const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
   if (nearbyVenues.length > 0) {
     return { match: 'ambiguous', candidates: [], nearbyVenues };
   }
@@ -171,5 +180,49 @@ export function resolveShowAutoApplyCandidate(
   if (goingCandidate) return goingCandidate;
 
   const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
-  return closestCandidateWithJamBaseEventWithin1Mi(pool, captureMs, userLat, userLon);
+  const matches = nearbyEventVenuesWithinAutoApplyRadius(pool, captureMs, userLat, userLon);
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+export type CameraCaptureVenueResolution =
+  | { mode: 'none' }
+  | { mode: 'single'; candidate: ClipShowCandidate }
+  | { mode: 'picker'; venues: ClipShowCandidate[] };
+
+/** Camera HUD: going mark, single auto-fill, or multi-venue picker. */
+export function resolveCameraCaptureVenues(
+  data: {
+    match?: string;
+    candidates?: ClipShowCandidate[];
+    nearbyVenues?: ClipShowCandidate[];
+  },
+  goingMarks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): CameraCaptureVenueResolution {
+  const goingCandidate = resolveGoingMarkClipCandidate(
+    goingMarks,
+    captureMs,
+    userLat,
+    userLon,
+  );
+  if (goingCandidate) {
+    return { mode: 'single', candidate: goingCandidate };
+  }
+
+  if (data.match === 'single' && data.candidates?.[0]) {
+    return { mode: 'single', candidate: data.candidates[0] };
+  }
+
+  const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
+  const matches = nearbyEventVenuesWithinAutoApplyRadius(pool, captureMs, userLat, userLon);
+  if (matches.length === 1) {
+    return { mode: 'single', candidate: matches[0]! };
+  }
+  if (matches.length > 1) {
+    return { mode: 'picker', venues: matches };
+  }
+
+  return { mode: 'none' };
 }

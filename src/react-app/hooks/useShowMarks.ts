@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@getmocha/users-service/react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
+import { clearCaptureShowSessionForEvent } from '@/react-app/utils/captureShowSession';
 import type { ShowMarkStatus, ShowMarkUpsertInput, UserShowMark } from '@/shared/show-marks';
 
 export const SHOW_MARKS_CHANGED_EVENT = 'show-marks-changed';
@@ -94,6 +95,7 @@ export function useShowMarks() {
           { method: 'DELETE' },
         );
         if (!res.ok) return false;
+        clearCaptureShowSessionForEvent(jambaseEventId);
         dispatchShowMarksChanged();
         return true;
       } catch {

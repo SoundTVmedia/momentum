@@ -76,6 +76,7 @@ import {
 import {
   captureShowCandidateFromPostedClip,
   clipShowCandidateToNavState,
+  clearCaptureShowSession,
   loadCaptureShowSession,
   markCaptureShowSessionPosted,
   saveCaptureShowSession,
@@ -444,7 +445,9 @@ export default function UploadClip() {
           lon: capGeo?.longitude,
           uploadsInFlight: clipUploadsInFlight > 0,
         });
-        if (sticky) {
+        if (showMarksHydrated && sticky?.source === 'going') {
+          clearCaptureShowSession();
+        } else if (sticky && sticky.source !== 'going') {
           showData = clipShowCandidateToNavState(sticky.candidate);
         }
       }
@@ -1000,7 +1003,7 @@ export default function UploadClip() {
       Number.isFinite(geo.latitude) &&
       Number.isFinite(geo.longitude)
     ) {
-      saveCaptureShowSession(c, geo.latitude, geo.longitude);
+      saveCaptureShowSession(c, geo.latitude, geo.longitude, { source: 'resolve' });
     }
   }, [captureGeo]);
 
@@ -1153,12 +1156,16 @@ export default function UploadClip() {
         );
         if (goingCandidate) {
           applyClipCandidate(goingCandidate);
-          saveCaptureShowSession(goingCandidate, geo.latitude, geo.longitude);
+          saveCaptureShowSession(goingCandidate, geo.latitude, geo.longitude, { source: 'going' });
           return;
+        }
+
+        if (stickySession?.source === 'going') {
+          clearCaptureShowSession();
         }
       }
 
-      if (stickySession && resolveForAutoTagQuick) {
+      if (stickySession && stickySession.source !== 'going' && resolveForAutoTagQuick) {
         applyClipCandidate(stickySession.candidate);
         return;
       }
@@ -1194,13 +1201,14 @@ export default function UploadClip() {
         };
         if (cancelled) return;
 
-        const pickerVenues = (data.nearbyVenues ?? []).slice(0, 3);
+        const pickerVenues = (data.nearbyVenues ?? []).slice(0, 5);
         setNearbyVenueChoices(pickerVenues);
 
+        const captureMs = Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now();
         const goingOverride = resolveShowAutoApplyCandidate(
           data,
           goingMarks,
-          Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now(),
+          captureMs,
           geo.latitude,
           geo.longitude,
         );
@@ -1209,7 +1217,7 @@ export default function UploadClip() {
           const autoApply = goingOverride ?? (data.match === 'single' ? data.candidates?.[0] : null);
           if (autoApply) {
             applyClipCandidate(autoApply);
-            saveCaptureShowSession(autoApply, geo.latitude, geo.longitude);
+            saveCaptureShowSession(autoApply, geo.latitude, geo.longitude, { source: 'resolve' });
             setResolveNotice(null);
           } else if (data.match === 'ambiguous' && pickerVenues.length > 0) {
             setResolveNotice(

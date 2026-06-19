@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
   CAPTURE_SHOW_POST_EVENT_HOURS,
   clearCaptureShowSession,
+  clearCaptureShowSessionForEvent,
   loadCaptureShowSession,
   markCaptureShowSessionPosted,
   saveCaptureShowSession,
@@ -87,5 +88,11 @@ describe('captureShowSession', () => {
     expect(parsed.expiresAtMs).toBe(
       showStart + CAPTURE_SHOW_POST_EVENT_HOURS * 60 * 60 * 1000,
     );
+  });
+
+  it('clears session when a going mark is removed for that event', () => {
+    saveCaptureShowSession(candidate(), 40.73, -73.99, { source: 'going' });
+    clearCaptureShowSessionForEvent('jambase:ev1');
+    expect(loadCaptureShowSession({ lat: 40.73, lon: -73.99 })).toBeNull();
   });
 });

@@ -16,12 +16,16 @@ import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { pickAudioRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clipShowCandidateToNavState,
+  clearCaptureShowSession,
   loadCaptureShowSession,
   saveCaptureShowSession,
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
-import { resolveShowAutoApplyCandidate, resolveGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
+import {
+  resolveCameraCaptureVenues,
+  resolveGoingMarkClipCandidate,
+} from '@/shared/clip-resolve-show-match';
 import {
   applyCameraZoom,
   buildCameraZoomPresets,
@@ -175,7 +179,7 @@ export default function QuickRecordButton({
 
   /** JamBase resolve-show preview on camera (before record). */
   const [captureResolvePreview, setCaptureResolvePreview] = useState<{
-    status: 'idle' | 'loading' | 'ready' | 'ambiguous' | 'none' | 'error';
+    status: 'idle' | 'loading' | 'ready' | 'ambiguous' | 'picker' | 'none' | 'error';
     eventTitle: string | null;
     venueName: string | null;
     artistName: string | null;
@@ -187,6 +191,34 @@ export default function QuickRecordButton({
     artistName: null,
     locationLine: null,
   });
+  const [captureVenuePickerChoices, setCaptureVenuePickerChoices] = useState<ClipShowCandidate[]>(
+    [],
+  );
+  const [captureVenuePickerSelectedKey, setCaptureVenuePickerSelectedKey] = useState('');
+
+  const captureVenueOptionKey = (venue: ClipShowCandidate) =>
+    venue.jambase_venue_id ?? venue.venue_name ?? 'venue';
+
+  const handleCaptureVenuePick = useCallback((venue: ClipShowCandidate) => {
+    const crd = coordsForNearbyVenuesRef.current;
+    if (!crd || !Number.isFinite(crd.lat) || !Number.isFinite(crd.lon)) return;
+    saveCaptureShowSession(venue, crd.lat, crd.lon, { source: 'resolve' });
+    captureResolveCandidateRef.current = venue;
+    setCaptureVenuePickerSelectedKey(captureVenueOptionKey(venue));
+    setCaptureVenuePickerChoices([]);
+    const eventTitle = resolveClipEventTitle({
+      event_title: venue.event_title,
+      artist_name: venue.artist_name,
+      venue_name: venue.venue_name,
+    });
+    setCaptureResolvePreview({
+      status: 'ready',
+      eventTitle,
+      venueName: venue.venue_name?.trim() ?? null,
+      artistName: venue.artist_name?.trim() ?? null,
+      locationLine: venue.location?.trim() ?? null,
+    });
+  }, []);
 
   useEffect(() => {
     coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
@@ -241,6 +273,7 @@ export default function QuickRecordButton({
     if (!showModal) {
       setCoordsForNearbyVenues(null);
       captureResolveCandidateRef.current = null;
+      setCaptureVenuePickerChoices([]);
       setCaptureResolvePreview({
         status: 'idle',
         eventTitle: null,
@@ -257,6 +290,7 @@ export default function QuickRecordButton({
     const c = coordsForNearbyVenues;
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) {
       captureResolveCandidateRef.current = null;
+      setCaptureVenuePickerChoices([]);
       setCaptureResolvePreview({
         status: 'idle',
         eventTitle: null,
@@ -270,7 +304,7 @@ export default function QuickRecordButton({
     const ac = new AbortController();
     let cancelled = false;
 
-    const applySessionCandidate = (cand: ClipShowCandidate) => {
+    const applySessionCandidate = (cand: ClipShowCandidate, opts?: { picker?: boolean }) => {
       captureResolveCandidateRef.current = cand;
       const eventTitle = resolveClipEventTitle({
         event_title: cand.event_title,
@@ -278,7 +312,7 @@ export default function QuickRecordButton({
         venue_name: cand.venue_name,
       });
       setCaptureResolvePreview({
-        status: 'ready',
+        status: opts?.picker ? 'picker' : 'ready',
         eventTitle,
         venueName: cand.venue_name?.trim() ?? null,
         artistName: cand.artist_name?.trim() ?? null,
@@ -300,19 +334,26 @@ export default function QuickRecordButton({
         c.lon,
       );
       if (goingCandidate) {
-        saveCaptureShowSession(goingCandidate, c.lat, c.lon);
+        saveCaptureShowSession(goingCandidate, c.lat, c.lon, { source: 'going' });
+        setCaptureVenuePickerChoices([]);
         applySessionCandidate(goingCandidate);
         return;
       }
+
+      if (sticky?.source === 'going') {
+        clearCaptureShowSession();
+      }
     }
 
-    if (sticky?.candidate.venue_name?.trim()) {
+    if (sticky?.source !== 'going' && sticky?.candidate.venue_name?.trim()) {
+      setCaptureVenuePickerChoices([]);
       applySessionCandidate(sticky.candidate);
       return;
     }
 
     void (async () => {
       captureResolveCandidateRef.current = null;
+      setCaptureVenuePickerChoices([]);
       setCaptureResolvePreview({
         status: 'loading',
         eventTitle: null,
@@ -350,50 +391,45 @@ export default function QuickRecordButton({
           nearbyVenues?: ClipShowCandidate[];
         };
         if (cancelled) return;
-        const goingOverride = resolveShowAutoApplyCandidate(
+
+        const captureMs = Date.now();
+        const resolution = resolveCameraCaptureVenues(
           data,
           goingMarks,
-          Date.now(),
+          captureMs,
           c.lat,
           c.lon,
         );
-        const cand =
-          data.match === 'single'
-            ? data.candidates?.[0]
-            : goingOverride ?? data.nearbyVenues?.[0] ?? data.candidates?.[0];
-        const previewOnly = !goingOverride && data.match !== 'single';
-        if (cand?.venue_name?.trim()) {
-          saveCaptureShowSession(cand, c.lat, c.lon);
-          if (!previewOnly) {
-            applySessionCandidate(cand);
-          } else {
-            captureResolveCandidateRef.current = cand;
-            const eventTitle = resolveClipEventTitle({
-              event_title: cand.event_title,
-              artist_name: cand.artist_name,
-              venue_name: cand.venue_name,
-            });
-            setCaptureResolvePreview({
-              status: 'ambiguous',
-              eventTitle,
-              venueName: cand.venue_name.trim(),
-              artistName: cand.artist_name?.trim() ?? null,
-              locationLine: cand.location?.trim() ?? null,
-            });
-          }
-        } else {
-          captureResolveCandidateRef.current = null;
-          setCaptureResolvePreview({
-            status: 'none',
-            eventTitle: null,
-            venueName: null,
-            artistName: null,
-            locationLine: null,
-          });
+
+        if (resolution.mode === 'single') {
+          saveCaptureShowSession(resolution.candidate, c.lat, c.lon, { source: 'resolve' });
+          setCaptureVenuePickerChoices([]);
+          applySessionCandidate(resolution.candidate);
+          return;
         }
+
+        if (resolution.mode === 'picker') {
+          const first = resolution.venues[0]!;
+          captureResolveCandidateRef.current = first;
+          setCaptureVenuePickerChoices(resolution.venues);
+          setCaptureVenuePickerSelectedKey(captureVenueOptionKey(first));
+          applySessionCandidate(first, { picker: true });
+          return;
+        }
+
+        captureResolveCandidateRef.current = null;
+        setCaptureVenuePickerChoices([]);
+        setCaptureResolvePreview({
+          status: 'none',
+          eventTitle: null,
+          venueName: null,
+          artistName: null,
+          locationLine: null,
+        });
       } catch (e) {
         if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return;
         captureResolveCandidateRef.current = null;
+        setCaptureVenuePickerChoices([]);
         setCaptureResolvePreview({
           status: 'error',
           eventTitle: null,
@@ -1765,7 +1801,8 @@ export default function QuickRecordButton({
                         </p>
                       )}
                       {(captureResolvePreview.status === 'ready' ||
-                        captureResolvePreview.status === 'ambiguous') && (
+                        captureResolvePreview.status === 'ambiguous' ||
+                        captureResolvePreview.status === 'picker') && (
                         <>
                           {captureResolvePreview.eventTitle ? (
                             <p className="text-white text-sm font-bold leading-snug line-clamp-2">
@@ -1805,10 +1842,48 @@ export default function QuickRecordButton({
                               {captureResolvePreview.locationLine}
                             </p>
                           ) : null}
-                          {captureResolvePreview.status === 'ambiguous' ? (
-                            <p className="text-gray-400 text-[10px] leading-snug pt-1">
-                              Confirm after you record — a bit far for auto-fill.
-                            </p>
+                          {captureResolvePreview.status === 'picker' &&
+                          captureVenuePickerChoices.length > 1 ? (
+                            <div className="pt-2 space-y-1.5">
+                              <label
+                                htmlFor="capture-venue-picker"
+                                className="text-[10px] font-medium text-gray-300"
+                              >
+                                Several shows tonight nearby — pick your venue
+                              </label>
+                              <select
+                                id="capture-venue-picker"
+                                className="w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white"
+                                value={captureVenuePickerSelectedKey}
+                                onChange={(e) => {
+                                  const picked = captureVenuePickerChoices.find(
+                                    (v) => captureVenueOptionKey(v) === e.target.value,
+                                  );
+                                  if (picked) handleCaptureVenuePick(picked);
+                                }}
+                              >
+                                {captureVenuePickerChoices.map((venue) => {
+                                  const key = captureVenueOptionKey(venue);
+                                  const distLabel =
+                                    venue.distance_miles != null &&
+                                    Number.isFinite(venue.distance_miles)
+                                      ? ` (${venue.distance_miles.toFixed(1)} mi)`
+                                      : '';
+                                  const label = [
+                                    venue.venue_name ?? 'Venue',
+                                    venue.artist_name,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ');
+                                  return (
+                                    <option key={key} value={key}>
+                                      {label}
+                                      {distLabel}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
                           ) : null}
                         </>
                       )}
