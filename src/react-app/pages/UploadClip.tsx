@@ -208,7 +208,7 @@ export default function UploadClip() {
     country: string | null;
   } | null>(null);
   const [resolveNotice, setResolveNotice] = useState<string | null>(null);
-  /** Top nearby venues when auto-apply is skipped (wrong day or >1 mi). */
+  /** Top nearby venues when auto-apply is skipped (wrong day or >2 mi). */
   const [nearbyVenueChoices, setNearbyVenueChoices] = useState<ClipShowCandidate[]>([]);
 
   /** ACRCloud song ID on the post-capture screen (short audio snippet from the clip). */

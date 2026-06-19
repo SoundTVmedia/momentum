@@ -1,4 +1,5 @@
 import type { ClipShowCandidate } from '@/shared/types';
+import { AUTO_APPLY_MAX_DISTANCE_MILES } from '@/shared/clip-resolve-show-match';
 
 function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3959;
@@ -25,8 +26,8 @@ export const CAPTURE_SHOW_POST_EVENT_HOURS = 10;
 /** GPS slack after the user has posted at least once from this venue. */
 const CONFIRMED_MAX_DISTANCE_MILES = 2.5;
 
-/** GPS slack after resolve/pick but before first post. */
-const MATCHED_MAX_DISTANCE_MILES = 1.5;
+/** GPS slack after resolve/pick but before first post (matches JamBase auto-apply radius). */
+const MATCHED_MAX_DISTANCE_MILES = AUTO_APPLY_MAX_DISTANCE_MILES;
 
 export type CaptureShowSession = {
   candidate: ClipShowCandidate;

@@ -137,10 +137,6 @@ export function resolveShowMatchFromCandidates(
     return { match: 'ambiguous', candidates: [], nearbyVenues: eventMatches };
   }
 
-  const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
-  if (nearbyVenues.length > 0) {
-    return { match: 'ambiguous', candidates: [], nearbyVenues };
-  }
   return { match: 'none', candidates: [], nearbyVenues: [] };
 }
 

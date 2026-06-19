@@ -48,7 +48,7 @@ describe('canAutoApplyCandidate', () => {
     ).toBe(true);
   });
 
-  it('allows auto-apply within one mile', () => {
+  it('allows auto-apply within two miles', () => {
     expect(
       canAutoApplyCandidate(
         baseCandidate({
@@ -59,7 +59,7 @@ describe('canAutoApplyCandidate', () => {
     ).toBe(true);
   });
 
-  it('rejects auto-apply beyond one mile', () => {
+  it('rejects auto-apply beyond two miles', () => {
     expect(
       canAutoApplyCandidate(
         baseCandidate({
