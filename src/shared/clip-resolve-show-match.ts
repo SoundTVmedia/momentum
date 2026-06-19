@@ -87,17 +87,6 @@ export function nearbyEventVenuesWithinAutoApplyRadius(
   return matched.slice(0, NEARBY_VENUE_PICKER_COUNT);
 }
 
-function closestCandidateWithJamBaseEventWithinRadius(
-  candidates: ClipShowCandidate[],
-  captureMs: number,
-  userLat?: number,
-  userLon?: number,
-): ClipShowCandidate | null {
-  return (
-    nearbyEventVenuesWithinAutoApplyRadius(candidates, captureMs, userLat, userLon)[0] ?? null
-  );
-}
-
 /** Going mark on the capture night → clip candidate (no distance limit). */
 export function resolveGoingMarkClipCandidate(
   goingMarks: UserShowMark[],
