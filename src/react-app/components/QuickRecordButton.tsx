@@ -45,7 +45,11 @@ const HAPTIC_WARNING_TIME = 50;
  * Live ID: one complete mic recording per segment (not MediaRecorder timeslices — those are
  * often invalid WebM fragments and ACR returns 2004).
  */
-const LIVE_AUDD_SEGMENT_MS = 8_000;
+const LIVE_AUDD_SEGMENT_MS = 5_000;
+/** Hide the on-camera "Now playing" HUD if nothing matched by then. */
+const LIVE_AUDD_NO_MATCH_HIDE_MS = 10_000;
+/** After stop, wait briefly for the in-flight segment identify before caption screen. */
+const LIVE_AUDD_STOP_WAIT_MS = 4_000;
 /** ACRCloud often rejects tiny/incomplete WebM (2004); align with worker MIN_WEBM_BYTES. */
 const MIN_LIVE_AUDD_CHUNK_BYTES = 4096;
 
@@ -138,7 +142,9 @@ export default function QuickRecordButton({
   /** Stabilized song/artist shown under venue on camera and used as caption prefill fallback. */
   const [liveSongMatch, setLiveSongMatch] = useState<{ artist: string; title: string } | null>(null);
   const [liveSongListening, setLiveSongListening] = useState(false);
+  const [showNowPlayingSection, setShowNowPlayingSection] = useState(false);
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
+  const liveSongHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -251,6 +257,8 @@ export default function QuickRecordButton({
         artistName: null,
         locationLine: null,
       });
+      clearLiveSongHideTimer();
+      setShowNowPlayingSection(false);
     }
   }, [showModal]);
 
@@ -1033,6 +1041,8 @@ export default function QuickRecordButton({
     setHasPermission(false);
     setCameraReady(false);
     setLiveSongListening(false);
+    clearLiveSongHideTimer();
+    setShowNowPlayingSection(false);
     liveAuddStoppedRef.current = true;
   };
 
@@ -1052,10 +1062,11 @@ export default function QuickRecordButton({
       chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
   };
 
-  const resetLiveSongIdentification = () => {
-    liveStabilizerRef.current.reset();
-    setLiveSongMatch(null);
-    lastLiveSongMatchRef.current = null;
+  const clearLiveSongHideTimer = () => {
+    if (liveSongHideTimerRef.current != null) {
+      clearTimeout(liveSongHideTimerRef.current);
+      liveSongHideTimerRef.current = null;
+    }
   };
 
   const clearLiveAuddSegmentTimer = () => {
@@ -1063,6 +1074,60 @@ export default function QuickRecordButton({
       clearTimeout(liveAuddSegmentTimerRef.current);
       liveAuddSegmentTimerRef.current = null;
     }
+  };
+
+  const resetLiveSongIdentification = () => {
+    liveStabilizerRef.current.reset();
+    setLiveSongMatch(null);
+    lastLiveSongMatchRef.current = null;
+    clearLiveSongHideTimer();
+    setShowNowPlayingSection(false);
+  };
+
+  const scheduleLiveSongHideTimer = () => {
+    clearLiveSongHideTimer();
+    liveSongHideTimerRef.current = setTimeout(() => {
+      liveSongHideTimerRef.current = null;
+      if (lastLiveSongMatchRef.current) return;
+      setShowNowPlayingSection(false);
+      setLiveSongListening(false);
+      stopLiveAuddRecorder();
+    }, LIVE_AUDD_NO_MATCH_HIDE_MS);
+  };
+
+  const waitForLiveAuddInFlight = async (maxMs: number): Promise<void> => {
+    const deadline = Date.now() + maxMs;
+    while (liveAuddInFlightRef.current && Date.now() < deadline) {
+      await new Promise((r) => window.setTimeout(r, 80));
+    }
+  };
+
+  const finalizeCurrentLiveAuddSegment = async (): Promise<void> => {
+    liveAuddStoppedRef.current = true;
+    clearLiveAuddSegmentTimer();
+    clearLiveSongHideTimer();
+
+    const rec = liveAuddRecorderRef.current;
+    if (rec && (rec.state === 'recording' || rec.state === 'paused')) {
+      if (typeof rec.requestData === 'function') {
+        try {
+          rec.requestData();
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        rec.stop();
+      } catch {
+        /* ignore */
+      }
+      if (liveAuddRecorderRef.current === rec) {
+        liveAuddRecorderRef.current = null;
+      }
+      await waitForLiveAuddInFlight(LIVE_AUDD_STOP_WAIT_MS);
+    }
+
+    setLiveSongListening(false);
   };
 
   const stopLiveAuddRecorder = () => {
@@ -1106,6 +1171,8 @@ export default function QuickRecordButton({
 
   const applyLiveSongDisplayed = (displayed: { artist: string; title: string } | null) => {
     if (!displayed || (!displayed.artist && !displayed.title)) return;
+    clearLiveSongHideTimer();
+    setShowNowPlayingSection(true);
     setLiveSongMatch(displayed);
     lastLiveSongMatchRef.current = displayed;
   };
@@ -1215,7 +1282,9 @@ export default function QuickRecordButton({
     try {
       liveAuddStoppedRef.current = false;
       beginLiveAuddSegment(stream, audioMime);
+      setShowNowPlayingSection(true);
       setLiveSongListening(true);
+      scheduleLiveSongHideTimer();
       return true;
     } catch (e) {
       console.warn('QuickRecordButton: live song pipeline failed', e);
@@ -1371,48 +1440,50 @@ export default function QuickRecordButton({
       return;
     }
 
-    stopLiveAuddRecorder();
+    void (async () => {
+      await finalizeCurrentLiveAuddSegment();
 
-    clearAuddParallelCapTimer();
+      clearAuddParallelCapTimer();
 
-    const ar = auddParallelAudioRecorderRef.current;
+      const ar = auddParallelAudioRecorderRef.current;
 
-    const finalizeMainRecorder = () => {
-      if (mr.state === 'recording' || mr.state === 'paused') {
-        if (mr.state === 'recording' && typeof mr.requestData === 'function') {
+      const finalizeMainRecorder = () => {
+        if (mr.state === 'recording' || mr.state === 'paused') {
+          if (mr.state === 'recording' && typeof mr.requestData === 'function') {
+            try {
+              mr.requestData();
+            } catch {
+              /* ignore */
+            }
+          }
+          mr.stop();
+        }
+        isRecordingRef.current = false;
+        setIsRecording(false);
+
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+
+      if (ar && (ar.state === 'recording' || ar.state === 'paused')) {
+        ar.onstop = () => {
+          finalizeParallelAuddRecorderOnly(ar);
+          finalizeMainRecorder();
+        };
+        if (typeof ar.requestData === 'function') {
           try {
-            mr.requestData();
+            ar.requestData();
           } catch {
             /* ignore */
           }
         }
-        mr.stop();
-      }
-      isRecordingRef.current = false;
-      setIsRecording(false);
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-
-    if (ar && (ar.state === 'recording' || ar.state === 'paused')) {
-      ar.onstop = () => {
-        finalizeParallelAuddRecorderOnly(ar);
+        ar.stop();
+      } else {
         finalizeMainRecorder();
-      };
-      if (typeof ar.requestData === 'function') {
-        try {
-          ar.requestData();
-        } catch {
-          /* ignore */
-        }
       }
-      ar.stop();
-    } else {
-      finalizeMainRecorder();
-    }
+    })();
   };
 
   const handleRecordingComplete = async (blob: Blob) => {
@@ -1447,6 +1518,18 @@ export default function QuickRecordButton({
 
       const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
+
+      if (!lastLiveSongMatchRef.current && captureAudioBlob) {
+        if (captureAudioBlob.size >= MIN_LIVE_AUDD_CHUNK_BYTES) {
+          try {
+            const r = await identifyMusicWithAudD(captureAudioBlob);
+            const { displayed } = liveStabilizerRef.current.observe(r);
+            applyLiveSongDisplayed(displayed);
+          } catch (e) {
+            console.warn('QuickRecordButton: post-capture song identify failed', e);
+          }
+        }
+      }
 
       releaseAllCaptureResources();
 
@@ -1515,6 +1598,7 @@ export default function QuickRecordButton({
       recordingSecondsRef.current = 0;
       setLiveSongMatch(null);
       setLiveSongListening(false);
+      setShowNowPlayingSection(false);
       lastLiveSongMatchRef.current = null;
     } catch (e) {
       console.error('QuickRecordButton: recording complete failed', e);
@@ -1693,7 +1777,9 @@ export default function QuickRecordButton({
                     Waiting for location permission — allow it when the browser asks so we can match venues.
                   </p>
                 )}
-                {(coordsForNearbyVenues || liveSongListening || isRecording || liveSongMatch) && (
+                {(coordsForNearbyVenues ||
+                  (showNowPlayingSection &&
+                    (liveSongListening || isRecording || liveSongMatch))) && (
                   <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
                     <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
                     <div className="min-w-0 flex-1 text-left space-y-1">
@@ -1771,7 +1857,8 @@ export default function QuickRecordButton({
                         </p>
                       ) : null}
 
-                      {(liveSongListening || isRecording || liveSongMatch) && (
+                      {showNowPlayingSection &&
+                        (liveSongListening || isRecording || liveSongMatch) && (
                         <div
                           className={
                             coordsForNearbyVenues
@@ -1805,11 +1892,15 @@ export default function QuickRecordButton({
                         </div>
                       )}
 
-                      {(coordsForNearbyVenues || liveSongMatch) && !isRecording && !liveSongListening ? (
+                      {(coordsForNearbyVenues || (showNowPlayingSection && liveSongMatch)) &&
+                        !isRecording &&
+                        !liveSongListening ? (
                         <p className="text-gray-500 text-[10px] leading-snug pt-1">
                           Saved with this clip — edit on the next screen.
                         </p>
-                      ) : coordsForNearbyVenues && (isRecording || liveSongListening) ? (
+                      ) : coordsForNearbyVenues &&
+                        showNowPlayingSection &&
+                        (isRecording || liveSongListening) ? (
                         <p className="text-gray-500 text-[10px] leading-snug pt-1">
                           Venue and song prefilled on the next screen when we can match them.
                         </p>
