@@ -27,8 +27,59 @@ import { releaseClipBlob } from './clip-blob-registry';
 import { deleteOutboxJob } from './idb';
 import { withUploadBackoff } from './upload-retry';
 import { uploadFetch } from './upload-fetch';
+import {
+  resolveSongIdentifyForUploadJob,
+  uploadJobNeedsSongIdentify,
+} from './identify-for-upload';
 import { runUrlOutboxJob } from './url-upload';
 import type { UploadInitResponse } from '@/shared/upload';
+
+function applyFormPatch(
+  job: UploadOutboxJob,
+  patch: Partial<UploadOutboxJob['form']>,
+): UploadOutboxJob {
+  if (!patch || Object.keys(patch).length === 0) return job;
+  return { ...job, form: { ...job.form, ...patch } };
+}
+
+async function enrichJobWithAcrIfNeeded(
+  job: UploadOutboxJob,
+  video: Blob,
+  onPatch: (patch: Partial<UploadOutboxJob>) => void,
+): Promise<UploadOutboxJob> {
+  let current = job;
+
+  if (uploadJobNeedsClassification(job)) {
+    onPatch({ status: 'classifying', progress: 1, error: null });
+    const resolved = await resolveClassificationForUploadJob(job, video);
+    current = applyFormPatch(
+      {
+        ...job,
+        classificationId: resolved.classificationId,
+        contentFeed: resolved.contentFeed,
+        classificationPending: false,
+      },
+      resolved.formPatch ?? {},
+    );
+    onPatch({
+      classificationId: resolved.classificationId,
+      contentFeed: resolved.contentFeed,
+      classificationPending: false,
+      ...(Object.keys(resolved.formPatch ?? {}).length > 0 ? { form: current.form } : {}),
+    });
+  }
+
+  if (uploadJobNeedsSongIdentify(current)) {
+    onPatch({ status: 'classifying', progress: Math.max(current.progress, 2), error: null });
+    const formPatch = await resolveSongIdentifyForUploadJob(current, video);
+    current = applyFormPatch(current, formPatch);
+    if (Object.keys(formPatch).length > 0) {
+      onPatch({ form: current.form });
+    }
+  }
+
+  return current;
+}
 
 async function resolveThumbnailFile(
   job: UploadOutboxJob,
@@ -55,23 +106,9 @@ async function runFileUploadJob(
   let partUrls = job.partUrls;
   let attachedThumb: { url: string; key: string } | null = null;
 
-  if (uploadJobNeedsClassification(job)) {
-    onPatch({ status: 'classifying', progress: 1, error: null });
-    const resolved = await resolveClassificationForUploadJob(job, blobs.video);
-    jobForUpload = {
-      ...job,
-      classificationId: resolved.classificationId,
-      contentFeed: resolved.contentFeed,
-      classificationPending: false,
-    };
-    onPatch({
-      classificationId: resolved.classificationId,
-      contentFeed: resolved.contentFeed,
-      classificationPending: false,
-    });
-  }
+  jobForUpload = await enrichJobWithAcrIfNeeded(job, blobs.video, onPatch);
 
-  onPatch({ status: 'uploading', progress: Math.max(job.progress, 5) });
+  onPatch({ status: 'uploading', progress: Math.max(jobForUpload.progress, 5) });
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

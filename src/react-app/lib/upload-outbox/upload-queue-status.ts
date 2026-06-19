@@ -25,7 +25,7 @@ export function uploadJobStatusText(job: UploadOutboxJob): string {
     return 'Saved on device — waiting for connection…';
   }
   if (job.status === 'queued') return 'Waiting in queue…';
-  if (job.status === 'classifying') return 'Checking clip…';
+  if (job.status === 'classifying') return 'Identifying song…';
   if (job.status === 'uploading') return 'Uploading video…';
   if (job.status === 'completing') return 'Finishing upload…';
   if (job.status === 'processing') return 'Processing…';
