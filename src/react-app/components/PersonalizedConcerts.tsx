@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
+import {
+  nearbyShowsApiUrl,
+  readDeviceCoordsForNearbyShows,
+} from '@/react-app/lib/nearby-shows-url';
 import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
 import { Calendar, MapPin, Loader2, Heart } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
@@ -197,10 +201,18 @@ export default function PersonalizedConcerts({
             message: typeof data.message === 'string' ? data.message : undefined,
           });
         } else {
-          const response = await fetch(`/api/shows/nearby?limit=${nearbyFetchLimit}`, {
-            credentials: 'include',
-            signal: AbortSignal.timeout(22_000),
-          });
+          const device = await readDeviceCoordsForNearbyShows();
+          const response = await fetch(
+            nearbyShowsApiUrl({
+              limit: nearbyFetchLimit,
+              latitude: device?.latitude,
+              longitude: device?.longitude,
+            }),
+            {
+              credentials: 'include',
+              signal: AbortSignal.timeout(22_000),
+            },
+          );
           const data = (await response.json()) as ConcertsApi & {
             jambaseNotice?: string | null;
           };
@@ -285,6 +297,8 @@ export default function PersonalizedConcerts({
     typeof payload?.location?.label === 'string' && payload.location.label.trim()
       ? payload.location.label.trim()
       : null;
+  const nearbyAreaLabel =
+    payload?.location?.source === 'device' ? 'your current location' : locationLabel;
 
   const loadMoreNearby = useCallback(() => {
     if (resolvedMode !== 'nearby' || loadingMore || loading) return;
@@ -310,8 +324,8 @@ export default function PersonalizedConcerts({
       ? payload?.source === 'jambase'
         ? `Upcoming shows from JamBase for your favorite artists.${attendedHint}`
         : `Upcoming concerts from artists you love.${attendedHint}`
-      : locationLabel
-        ? `Upcoming shows at venues near ${locationLabel}`
+      : nearbyAreaLabel
+        ? `Upcoming shows at venues near ${nearbyAreaLabel}`
         : 'Upcoming shows at venues near you from JamBase';
 
   const sectionHeader = (

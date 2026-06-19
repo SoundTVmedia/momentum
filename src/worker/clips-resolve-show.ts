@@ -46,7 +46,7 @@ const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
 const MAX_VENUES_TO_SCAN = 8;
 
 /** Max parallel venue event lookups per resolve. */
-const MAX_VENUES_TO_ENRICH = 3;
+const MAX_VENUES_TO_ENRICH = 5;
 
 /** Hard wall clock for the whole resolve handler (must stay under browser/proxy limits). */
 const RESOLVE_SHOW_WALL_MS = 22_000;
@@ -54,10 +54,10 @@ const RESOLVE_SHOW_WALL_MS = 22_000;
 /** Stop enrichment after this wall time so the client always gets JSON back. */
 const RESOLVE_SHOW_BUDGET_MS = 12_000;
 
-/** Tighter JamBase timeouts for clip GPS resolve (avoid Worker request kill). */
-const RESOLVE_JAMBASE_FETCH: JamBaseFetchOptions = {
-  fetchBudgetMs: 6_000,
-  fetchTimeoutMs: 4_500,
+/** Tighter JamBase timeouts for per-venue enrichment (geo uses defaults). */
+const RESOLVE_JAMBASE_ENRICH_FETCH: JamBaseFetchOptions = {
+  fetchBudgetMs: 8_000,
+  fetchTimeoutMs: 6_000,
 };
 
 /** Only enrich venue-only rows within auto-apply distance (+ small GPS slack). */
@@ -319,10 +319,9 @@ async function fetchVenueEventsForCapture(
   const win = new Date(captureMs);
   win.setUTCDate(win.getUTCDate() - 1);
   const eventDateFrom = win.toISOString().split('T')[0];
+  const todayUtc = new Date().toISOString().split('T')[0];
 
-  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-    apiKey,
-    '/events',
+  const paramSets: Record<string, string>[] = [
     {
       venueId,
       eventDateFrom,
@@ -330,11 +329,27 @@ async function fetchVenueEventsForCapture(
       page: '1',
       expandPastEvents: 'true',
     },
-    jbQ,
-    undefined,
-    fetchOpts,
-  );
-  return data?.events ?? [];
+    {
+      venueId,
+      eventDateFrom: todayUtc,
+      perPage: '50',
+      page: '1',
+    },
+  ];
+
+  for (const params of paramSets) {
+    const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      apiKey,
+      '/events',
+      params,
+      jbQ,
+      undefined,
+      fetchOpts,
+    );
+    const raw = data?.events ?? [];
+    if (raw.length > 0) return raw;
+  }
+  return [];
 }
 
 function mergeEventIntoVenueCandidate(
@@ -709,7 +724,6 @@ async function postResolveShowForClipInner(c: Context) {
       venueParams,
       jbQ,
       venuesDiag,
-      RESOLVE_JAMBASE_FETCH,
     ),
     jamBaseFetch<{ events?: Record<string, unknown>[] }>(
       key,
@@ -717,7 +731,6 @@ async function postResolveShowForClipInner(c: Context) {
       eventParams,
       jbQ,
       eventsDiag,
-      RESOLVE_JAMBASE_FETCH,
     ),
   ]);
 
@@ -791,7 +804,7 @@ async function postResolveShowForClipInner(c: Context) {
               resolveAnchorMs,
               lat,
               lon,
-              RESOLVE_JAMBASE_FETCH,
+              RESOLVE_JAMBASE_ENRICH_FETCH,
             ),
           ),
         );
@@ -830,9 +843,11 @@ async function postResolveShowForClipInner(c: Context) {
     } else if (enrichedSorted.length === 0) {
       notice =
         'No JamBase shows tonight at venues near you (closed or inactive venues are skipped). Search for your venue manually.';
+    } else if (nearbyVenues.length > 0) {
+      notice = 'Pick the venue you are at from tonight\u2019s shows nearby.';
     } else {
       notice =
-        'Shows tonight are farther than 2 miles from your location. Search for your venue manually.';
+        'No shows tonight within 15 miles. Search for your venue manually or pick from JamBase below.';
     }
   }
 

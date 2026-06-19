@@ -2,7 +2,7 @@ import type { Context } from 'hono';
 import type { MochaUser } from '@/shared/mocha-user';
 import { mochaUserIdKey } from './mocha-user-id';
 
-export type DiscoverLocationSource = 'profile' | 'ip' | 'default';
+export type DiscoverLocationSource = 'profile' | 'ip' | 'default' | 'device';
 
 export type DiscoverLocation = {
   latitude: number;
@@ -34,12 +34,19 @@ function parseCoord(value: unknown): number | null {
 
 /**
  * Logged-in users: `user_profiles.home_latitude` / `home_longitude`.
+ * Query `latitude` / `longitude`: device GPS from the client (preferred for "near you").
  * Logged-out: Cloudflare `cf.latitude` / `cf.longitude` from the client IP.
  */
 export async function resolveDiscoverLocation(
   c: Context<{ Bindings: Env }>,
   mochaUser?: MochaUser | null,
 ): Promise<DiscoverLocation> {
+  const qLat = parseCoord(c.req.query('latitude'));
+  const qLon = parseCoord(c.req.query('longitude'));
+  if (qLat != null && qLon != null) {
+    return { latitude: qLat, longitude: qLon, source: 'device' };
+  }
+
   if (mochaUser) {
     const profile = await c.env.DB.prepare(
       `SELECT home_latitude, home_longitude, home_location

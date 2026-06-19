@@ -4,6 +4,7 @@ import {
   type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
+import { haversineMiles } from './search-geo';
 import {
   jamBaseVenueJamBaseImage,
   jamBaseVenueOfficialWebsite,
@@ -497,6 +498,45 @@ export async function enrichJamBaseVenueImage(
   return resolveJamBaseVenueImageWithFallback(db, key, jbQ, venue);
 }
 
+function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {
+  const loc = ev.location as Record<string, unknown> | undefined;
+  if (!loc) return null;
+  const geo = loc.geo as Record<string, unknown> | undefined;
+  if (geo) {
+    const lat = Number(geo.latitude ?? geo.lat);
+    const lon = Number(geo.longitude ?? geo.lon ?? geo.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+  }
+  const addr = loc.address as Record<string, unknown> | undefined;
+  const ag = addr?.geo as Record<string, unknown> | undefined;
+  if (ag) {
+    const lat = Number(ag.latitude ?? ag.lat);
+    const lon = Number(ag.longitude ?? ag.lon ?? ag.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+  }
+  const lat = Number(loc.latitude ?? loc.lat);
+  const lon = Number(loc.longitude ?? loc.lon ?? loc.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+  return null;
+}
+
+function sortJamBaseEventsByDistanceFrom(
+  events: Record<string, unknown>[],
+  latitude: number,
+  longitude: number,
+): Record<string, unknown>[] {
+  return [...events].sort((a, b) => {
+    const ca = jamBaseEventCoords(a);
+    const cb = jamBaseEventCoords(b);
+    const da = ca ? haversineMiles(latitude, longitude, ca.lat, ca.lon) : Number.POSITIVE_INFINITY;
+    const db = cb ? haversineMiles(latitude, longitude, cb.lat, cb.lon) : Number.POSITIVE_INFINITY;
+    if (da !== db) return da - db;
+    const sa = typeof a.startDate === 'string' ? a.startDate : '';
+    const sb = typeof b.startDate === 'string' ? b.startDate : '';
+    return sa.localeCompare(sb);
+  });
+}
+
 export async function fetchNearbyJamBaseEvents(
   apiKey: string | undefined,
   jbQ: JamBaseQuotaContext | undefined,
@@ -525,5 +565,6 @@ export async function fetchNearbyJamBaseEvents(
     diag,
   );
 
-  return data?.events ?? [];
+  const raw = data?.events ?? [];
+  return sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
 }

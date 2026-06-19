@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import Header from '@/react-app/components/Header';
+import { nearbyShowsApiUrl, readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 
 type NearbyShowsApi = {
@@ -20,9 +21,15 @@ export default function BrowseNearbyShowsPage() {
     void (async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/shows/nearby?limit=40', {
-          credentials: 'include',
-        });
+        const device = await readDeviceCoordsForNearbyShows();
+        const response = await fetch(
+          nearbyShowsApiUrl({
+            limit: 40,
+            latitude: device?.latitude,
+            longitude: device?.longitude,
+          }),
+          { credentials: 'include' },
+        );
         setPayload((await response.json()) as NearbyShowsApi);
       } catch {
         setPayload({ personalized: false, events: [] });
@@ -37,6 +44,8 @@ export default function BrowseNearbyShowsPage() {
     typeof payload?.location?.label === 'string' && payload.location.label.trim()
       ? payload.location.label.trim()
       : null;
+  const nearbyAreaLabel =
+    payload?.location?.source === 'device' ? 'your current location' : locationLabel;
 
   return (
     <div className="min-h-screen text-white">
@@ -57,8 +66,8 @@ export default function BrowseNearbyShowsPage() {
             Shows at Venues Near You
           </h1>
           <p className="mt-2 text-gray-400">
-            {locationLabel
-              ? `Upcoming JamBase listings near ${locationLabel}`
+            {nearbyAreaLabel
+              ? `Upcoming JamBase listings near ${nearbyAreaLabel}`
               : 'Upcoming shows at venues near you'}
           </p>
         </div>

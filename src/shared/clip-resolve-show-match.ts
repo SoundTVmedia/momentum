@@ -9,6 +9,9 @@ import {
 /** Auto-apply when GPS ↔ venue is within this distance (non–going-mark path). */
 export const AUTO_APPLY_MAX_DISTANCE_MILES = 2;
 
+/** Manual picker can surface same-day shows within this radius when auto-apply misses. */
+export const NEARBY_PICKER_MAX_DISTANCE_MILES = 15;
+
 /** Venues returned for manual picker when multiple matches qualify. */
 export const NEARBY_VENUE_PICKER_COUNT = 5;
 
@@ -90,9 +93,26 @@ export function nearbyEventVenuesWithinAutoApplyRadius(
   userLat?: number,
   userLon?: number,
 ): ClipShowCandidate[] {
+  return sameDayEventVenuesWithinRadius(
+    candidates,
+    captureMs,
+    AUTO_APPLY_MAX_DISTANCE_MILES,
+    userLat,
+    userLon,
+  ).slice(0, NEARBY_VENUE_PICKER_COUNT);
+}
+
+/** Same-day show venues within `maxMiles` for manual picker (wider than auto-apply). */
+export function sameDayEventVenuesWithinRadius(
+  candidates: ClipShowCandidate[],
+  captureMs: number,
+  maxMiles: number,
+  userLat?: number,
+  userLon?: number,
+): ClipShowCandidate[] {
   const matched: ClipShowCandidate[] = [];
   for (const candidate of candidates) {
-    if (!canAutoApplyCandidate(candidate)) continue;
+    if (!candidateWithinRadius(candidate, maxMiles)) continue;
     if (candidateEventMatchesCapture(candidate, captureMs, userLat, userLon)) {
       matched.push(candidate);
     }
@@ -101,7 +121,15 @@ export function nearbyEventVenuesWithinAutoApplyRadius(
     (a, b) =>
       candidateDistanceSortKey(a.distance_miles) - candidateDistanceSortKey(b.distance_miles),
   );
-  return matched.slice(0, NEARBY_VENUE_PICKER_COUNT);
+  return matched;
+}
+
+function candidateWithinRadius(candidate: ClipShowCandidate, maxMiles: number): boolean {
+  const dist = candidate.distance_miles;
+  if (dist == null || !Number.isFinite(dist)) {
+    return Boolean(candidate.geo_proximity_trusted);
+  }
+  return dist <= maxMiles;
 }
 
 /** Going mark on the capture night → clip candidate (no distance limit). */
@@ -163,16 +191,28 @@ export function resolveShowMatchFromCandidates(
     userLon,
   );
 
+  const pickerMatches = sameDayEventVenuesWithinRadius(
+    enrichedSorted,
+    captureMs,
+    NEARBY_PICKER_MAX_DISTANCE_MILES,
+    userLat,
+    userLon,
+  ).slice(0, NEARBY_VENUE_PICKER_COUNT);
+
   if (eventMatches.length === 1) {
     return {
       match: 'single',
       candidates: [eventMatches[0]!],
-      nearbyVenues: eventMatches,
+      nearbyVenues: pickerMatches.length > 0 ? pickerMatches : eventMatches,
     };
   }
 
   if (eventMatches.length > 1) {
     return { match: 'ambiguous', candidates: [], nearbyVenues: eventMatches };
+  }
+
+  if (pickerMatches.length > 0) {
+    return { match: 'none', candidates: [], nearbyVenues: pickerMatches };
   }
 
   return { match: 'none', candidates: [], nearbyVenues: [] };
@@ -243,8 +283,18 @@ export function resolveCameraCaptureVenues(
   if (matches.length === 1) {
     return { mode: 'single', candidate: matches[0]! };
   }
-  if (matches.length > 1) {
-    return { mode: 'picker', venues: matches };
+  const pickerMatches = sameDayEventVenuesWithinRadius(
+    pool,
+    captureMs,
+    NEARBY_PICKER_MAX_DISTANCE_MILES,
+    userLat,
+    userLon,
+  ).slice(0, NEARBY_VENUE_PICKER_COUNT);
+  if (pickerMatches.length > 1) {
+    return { mode: 'picker', venues: pickerMatches };
+  }
+  if (pickerMatches.length === 1) {
+    return { mode: 'single', candidate: pickerMatches[0]! };
   }
 
   return { mode: 'none' };

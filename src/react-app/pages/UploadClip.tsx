@@ -1226,8 +1226,10 @@ export default function UploadClip() {
             );
           } else if (data.match === 'none') {
             setResolveNotice(
-              data.notice ??
-                'No nearby JamBase venue matched your location. You can enter venue and artist manually.',
+              pickerVenues.length > 0
+                ? (data.notice ?? 'Pick the venue you are at from tonight\u2019s shows nearby.')
+                : (data.notice ??
+                    'No nearby JamBase venue matched your location. You can enter venue and artist manually.'),
             );
           }
         };

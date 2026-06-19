@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
   canAutoApplyCandidate,
+  NEARBY_PICKER_MAX_DISTANCE_MILES,
   resolveCameraCaptureVenues,
   resolveShowFromGoingMark,
   resolveShowMatchFromCandidates,
@@ -148,11 +149,29 @@ describe('resolveShowMatchFromCandidates', () => {
     expect(result.candidates[0]?.jambase_event_id).toBe('jambase:ev-going');
   });
 
-  it('returns none when event is beyond two miles and no going mark on capture night', () => {
+  it('returns none with picker venues when event is beyond auto-apply but within picker radius', () => {
     const far = baseCandidate({
       jambase_event_id: 'jambase:ev-tonight',
       startDate: '2026-06-09T20:00:00',
       distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 1,
+    });
+    const result = resolveShowMatchFromCandidates(
+      [far],
+      [],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result.match).toBe('none');
+    expect(result.candidates).toEqual([]);
+    expect(result.nearbyVenues).toHaveLength(1);
+  });
+
+  it('returns none when event is beyond picker radius and no going mark on capture night', () => {
+    const far = baseCandidate({
+      jambase_event_id: 'jambase:ev-tonight',
+      startDate: '2026-06-09T20:00:00',
+      distance_miles: NEARBY_PICKER_MAX_DISTANCE_MILES + 1,
     });
     const result = resolveShowMatchFromCandidates(
       [far],

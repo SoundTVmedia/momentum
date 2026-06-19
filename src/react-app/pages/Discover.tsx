@@ -17,6 +17,7 @@ import DiscoverVenueCarousel, {
 import DiscoverTrendingMusicSection from '@/react-app/components/DiscoverTrendingMusicSection';
 import DiscoverSearchGeoBanner from '@/react-app/components/DiscoverSearchGeoBanner';
 import { apiFetch } from '@/react-app/lib/apiFetch';
+import { nearbyShowsApiUrl, readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import {
   peekCachedAdvancedSearch,
@@ -283,9 +284,17 @@ export default function DiscoverPage() {
   const fetchDiscoverFeed = async () => {
     setLoading(true);
     try {
+      const device = await readDeviceCoordsForNearbyShows();
       const [feedRes, nearbyRes] = await Promise.all([
         apiFetch('/api/discover/feed', { credentials: 'include' }),
-        apiFetch('/api/shows/nearby?limit=20', { credentials: 'include' }),
+        apiFetch(
+          nearbyShowsApiUrl({
+            limit: 20,
+            latitude: device?.latitude,
+            longitude: device?.longitude,
+          }),
+          { credentials: 'include' },
+        ),
       ]);
 
       let feed: DiscoverFeed | null = null;
