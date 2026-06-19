@@ -137,8 +137,7 @@ export default function QuickRecordButton({
   /** Set true for whole record tap so preview→record effect cleanup does not stop the live mic pipeline. */
   const isRecordingRef = useRef(false);
   const liveStabilizerRef = useRef(new LiveSongStabilizer());
-  /** Stabilized song/artist shown under venue on camera and used as caption prefill fallback. */
-  const [liveSongMatch, setLiveSongMatch] = useState<{ artist: string; title: string } | null>(null);
+  /** Stabilized song/artist used as caption prefill fallback (not shown on camera). */
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1061,7 +1060,6 @@ export default function QuickRecordButton({
 
   const resetLiveSongIdentification = () => {
     liveStabilizerRef.current.reset();
-    setLiveSongMatch(null);
     lastLiveSongMatchRef.current = null;
   };
 
@@ -1136,7 +1134,6 @@ export default function QuickRecordButton({
 
   const applyLiveSongDisplayed = (displayed: { artist: string; title: string } | null) => {
     if (!displayed || (!displayed.artist && !displayed.title)) return;
-    setLiveSongMatch(displayed);
     lastLiveSongMatchRef.current = displayed;
   };
 
@@ -1261,7 +1258,6 @@ export default function QuickRecordButton({
     return () => {
       if (!isRecordingRef.current) {
         stopLiveAuddRecorder();
-        setLiveSongListening(false);
       }
     };
   }, [showModal, hasPermission, cameraReady, isRecording, previewStream, audioEnabled]);
@@ -1555,7 +1551,6 @@ export default function QuickRecordButton({
       setPreviewStream(null);
       setCameraOpenRequested(false);
       recordingSecondsRef.current = 0;
-      setLiveSongMatch(null);
       lastLiveSongMatchRef.current = null;
     } catch (e) {
       console.error('QuickRecordButton: recording complete failed', e);
