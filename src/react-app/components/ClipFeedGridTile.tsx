@@ -9,15 +9,9 @@ import { artistPath, venuePath } from '@/shared/app-paths';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
   type ClipPlaybackFields,
-  isPlaceholderVideoUrl,
+  feedTileUsesStaticPoster,
   prefetchCarouselNeighborClips,
 } from '@/shared/clip-playback';
-
-function clipPosterOnly(clip: ClipWithUser): boolean {
-  const uploadStatus = (clip as ClipWithUser & { upload_status?: string }).upload_status;
-  if (uploadStatus && uploadStatus !== 'ready') return true;
-  return isPlaceholderVideoUrl(clip.video_url);
-}
 
 export type ClipFeedGridTileProps = {
   clip: ClipWithUser;
@@ -33,7 +27,7 @@ export default function ClipFeedGridTile({
 }: ClipFeedGridTileProps) {
   const navigate = useNavigate();
   const [mediaHovered, setMediaHovered] = useState(false);
-  const posterOnly = clipPosterOnly(clip);
+  const posterOnly = feedTileUsesStaticPoster(clip);
 
   return (
     <div className="glass-clip-card group flex h-full w-full flex-col p-0">
@@ -54,6 +48,7 @@ export default function ClipFeedGridTile({
           stream_thumbnail_url={clip.stream_thumbnail_url}
           video_url={clip.video_url}
           thumbnail_url={clip.thumbnail_url}
+          r2_raw_key={(clip as ClipWithUser & { r2_raw_key?: string | null }).r2_raw_key}
           mediaHovered={posterOnly ? false : mediaHovered}
           posterOnly={posterOnly}
           previewInstanceKey={String(clipNumericId(clip) ?? clip.video_url ?? '')}

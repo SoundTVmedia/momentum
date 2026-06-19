@@ -2,6 +2,7 @@ export {
   STREAM_DELIVERY_ORIGIN,
   type ClipPlaybackFields,
   extractStreamVideoId,
+  feedTileUsesStaticPoster,
   isPlaceholderVideoUrl,
   r2ClipFilePath,
   resolveClipPosterUrl,

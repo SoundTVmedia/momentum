@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import { normalizeClipApiRows } from './clip-row-normalize';
 
 /**
  * Get user profile stats including lifetime metrics
@@ -81,7 +82,7 @@ export async function getUserFavoriteArtistsWithClips(c: Context) {
 
       artistsWithClips.push({
         artist,
-        clips: clips.results || []
+        clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
       });
     }
 

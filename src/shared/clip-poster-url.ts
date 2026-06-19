@@ -53,17 +53,31 @@ export function isPlaceholderVideoUrl(url: string | null | undefined): boolean {
   return u.startsWith('pending:') || u.startsWith('upload://');
 }
 
+function isUsablePosterImageUrl(url: string | null | undefined): boolean {
+  const u = typeof url === 'string' ? url.trim() : '';
+  if (!u) return false;
+  const lower = u.toLowerCase();
+  if (isPlaceholderVideoUrl(u)) return false;
+  if (lower.includes('.m3u8') || lower.includes('/manifest/video.m3u8')) return false;
+  return true;
+}
+
 export function resolveClipPosterUrl(clip: ClipPlaybackFields, fallback = ''): string {
   // Prefer our static R2 JPEG (fast, available immediately after upload).
-  if (typeof clip.thumbnail_url === 'string' && clip.thumbnail_url.trim()) {
-    return clip.thumbnail_url.trim();
+  if (isUsablePosterImageUrl(clip.thumbnail_url)) {
+    return clip.thumbnail_url!.trim();
   }
-  if (typeof clip.stream_thumbnail_url === 'string' && clip.stream_thumbnail_url.trim()) {
-    return clip.stream_thumbnail_url.trim();
+  if (isUsablePosterImageUrl(clip.stream_thumbnail_url)) {
+    return clip.stream_thumbnail_url!.trim();
   }
   const streamId = streamVideoIdFromClip(clip);
   if (streamId) {
     return streamThumbnailUrl(streamId, { height: 720 });
   }
   return fallback;
+}
+
+/** Feed grid tiles use a static poster; full playback opens in the modal. */
+export function feedTileUsesStaticPoster(_clip: ClipPlaybackFields): boolean {
+  return true;
 }

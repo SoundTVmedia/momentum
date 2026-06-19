@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractStreamVideoId,
+  feedTileUsesStaticPoster,
   isHlsPlaybackUrl,
+  resolveClipPosterUrl,
   resolveFeedPreviewVideoSrc,
   resolveModalPlaybackSource,
   streamMp4Url,
@@ -60,5 +62,27 @@ describe('clip-playback', () => {
     expect(modal.isHls).toBe(true);
     expect(modal.streamVideoId).toBe(UID);
     expect(streamVideoIdFromClip({ stream_video_id: UID })).toBe(UID);
+  });
+
+  it('prefers uploaded JPEG poster over stream fields', () => {
+    expect(
+      resolveClipPosterUrl({
+        thumbnail_url: '/api/files/clips/user/thumb.jpg',
+        stream_video_id: UID,
+      }),
+    ).toBe('/api/files/clips/user/thumb.jpg');
+  });
+
+  it('skips HLS stream_thumbnail_url and uses Stream still frame', () => {
+    expect(
+      resolveClipPosterUrl({
+        stream_thumbnail_url: `https://videodelivery.net/${UID}/manifest/video.m3u8`,
+        stream_video_id: UID,
+      }),
+    ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?height=720`);
+  });
+
+  it('feed tiles always use static poster mode', () => {
+    expect(feedTileUsesStaticPoster({ video_url: '/api/files/x.mp4' })).toBe(true);
   });
 });
