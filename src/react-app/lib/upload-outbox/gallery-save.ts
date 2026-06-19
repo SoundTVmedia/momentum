@@ -3,7 +3,6 @@ import {
   saveVideoToGallery,
   writeVideoToNativeCache,
 } from '@/react-app/lib/native-bridge';
-import { isNetworkAvailable } from '@/react-app/lib/upload-outbox/network-utils';
 
 export type GallerySaveResult = {
   saved: boolean;
@@ -23,8 +22,7 @@ export function blobSourceKey(blob: Blob): string {
 /**
  * Save clip to the device photo library when the platform allows.
  * - Native Capacitor app: writes to Photos (works offline).
- * - Mobile web: cannot silently save to Photos — clip stays in IndexedDB.
- * Never blocks on share sheet when offline.
+ * - Mobile web: IndexedDB only — never opens the system share sheet.
  */
 export async function saveClipToDeviceGallery(
   video: Blob,
@@ -47,29 +45,7 @@ export async function saveClipToDeviceGallery(
     }
   }
 
-  // Web browsers cannot write to the iOS/Android photo library programmatically.
-  // Skip share when offline — it can hang and block the upload pipeline.
-  if (isNetworkAvailable() && typeof navigator !== 'undefined' && 'share' in navigator) {
-    try {
-      const type = video.type || 'video/mp4';
-      const file = new File([video], fileName, { type });
-      const canShare =
-        typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
-      if (canShare) {
-        await navigator.share({
-          files: [file],
-          title: 'Momentum clip',
-        });
-        savedGalleryKeys.add(sourceKey);
-        return { saved: true, method: 'share' };
-      }
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        console.warn('saveClipToDeviceGallery share:', err);
-      }
-    }
-  }
-
+  // Web: clips stay in IndexedDB — do not open the system share / save sheet.
   savedGalleryKeys.add(sourceKey);
   return { saved: true, method: 'device_cache' };
 }

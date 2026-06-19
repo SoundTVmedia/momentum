@@ -2125,6 +2125,8 @@ export default function UploadClip() {
             const sp = new URLSearchParams(location.search);
             if (sp.get('quickCapture') === 'true') {
               navigate({ pathname: '/upload', search: '' }, { replace: true, state: location.state });
+            } else {
+              navigate('/', { replace: true });
             }
           }}
         />
