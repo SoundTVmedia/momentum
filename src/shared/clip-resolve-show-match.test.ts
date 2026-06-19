@@ -46,6 +46,19 @@ describe('canAutoApplyCandidate', () => {
     expect(canAutoApplyCandidate(baseCandidate({ distance_miles: 1.8 }))).toBe(true);
   });
 
+  it('allows JamBase geo venues without computed distance when proximity is trusted', () => {
+    expect(
+      canAutoApplyCandidate(
+        baseCandidate({
+          jambase_event_id: 'jambase:ev',
+          startDate: '2026-06-09T20:00:00',
+          distance_miles: null,
+          geo_proximity_trusted: true,
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('rejects when farther than auto-apply threshold', () => {
     expect(
       canAutoApplyCandidate(

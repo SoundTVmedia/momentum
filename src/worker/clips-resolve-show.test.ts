@@ -25,6 +25,18 @@ describe('canAutoApplyCandidate', () => {
     expect(canAutoApplyCandidate(baseCandidate())).toBe(true);
   });
 
+  it('allows JamBase geo venues without computed distance when proximity is trusted', () => {
+    expect(
+      canAutoApplyCandidate(
+        baseCandidate({
+          jambase_event_id: 'jambase:ev',
+          distance_miles: null,
+          geo_proximity_trusted: true,
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('rejects when farther than auto-apply threshold', () => {
     expect(
       canAutoApplyCandidate(

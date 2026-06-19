@@ -11,6 +11,7 @@ import type { ClipShowCandidate } from '../shared/types';
 import { artistAtVenueTitle, jamBaseEventTitle } from '../shared/event-title';
 import {
   jamBaseEventMatchesCapture,
+  jamBaseEventStartMs,
   jamBaseVenueTimezone,
   JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS,
 } from '../shared/jambase-event-day';
@@ -289,40 +290,80 @@ function jamBaseGeoEventDateFromUtc(anchorMs: number): string {
   return tentative < todayUtc ? todayUtc : tentative;
 }
 
-/** Include past rows when the window starts before today (requires plan support). */
-function jamBaseVenueEventsQueryParams(
-  venueId: string,
-  captureMs: number,
-): Record<string, string> {
-  const win = new Date(captureMs);
-  win.setUTCDate(win.getUTCDate() - 1);
-  const eventDateFrom = win.toISOString().split('T')[0];
-  return {
-    venueId,
-    eventDateFrom,
-    perPage: '50',
-    page: '1',
-    expandPastEvents: 'true',
-  };
-}
-
 function pickClosestEventToCapture(
   events: Record<string, unknown>[],
   captureMs: number,
+  userLat: number,
+  userLon: number,
 ): Record<string, unknown> | null {
   if (events.length === 0) return null;
   let bestEv = events[0]!;
   let bestScore = Number.POSITIVE_INFINITY;
   for (const ev of events) {
-    const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
-    const t = Date.parse(sd);
-    const score = Number.isFinite(t) ? Math.abs(t - captureMs) : Number.POSITIVE_INFINITY;
+    const startMs = jamBaseEventStartMs(ev, userLat, userLon);
+    const score =
+      startMs != null && Number.isFinite(startMs)
+        ? Math.abs(startMs - captureMs)
+        : Number.POSITIVE_INFINITY;
     if (score < bestScore) {
       bestScore = score;
       bestEv = ev;
     }
   }
   return bestEv;
+}
+
+async function fetchVenueEventsForCapture(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  venueId: string,
+  captureMs: number,
+): Promise<Record<string, unknown>[]> {
+  const win = new Date(captureMs);
+  win.setUTCDate(win.getUTCDate() - 1);
+  const eventDateFrom = win.toISOString().split('T')[0];
+  const todayUtc = new Date().toISOString().split('T')[0];
+
+  const paramSets: Record<string, string>[] = [
+    {
+      venueId,
+      eventDateFrom,
+      perPage: '50',
+      page: '1',
+      expandPastEvents: 'true',
+    },
+    {
+      venueId,
+      eventDateFrom: todayUtc,
+      perPage: '50',
+      page: '1',
+      expandPastEvents: 'true',
+    },
+    {
+      venueId,
+      eventDateFrom: todayUtc,
+      perPage: '50',
+      page: '1',
+    },
+    {
+      venueId,
+      eventDateFrom,
+      perPage: '50',
+      page: '1',
+    },
+  ];
+
+  for (const params of paramSets) {
+    const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      apiKey,
+      '/events',
+      params,
+      jbQ,
+    );
+    const raw = data?.events ?? [];
+    if (raw.length > 0) return raw;
+  }
+  return [];
 }
 
 function mergeEventIntoVenueCandidate(
@@ -370,13 +411,7 @@ async function enrichWithSameDayShowAtVenue(
 
   if (!venueId) return null;
 
-  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-    apiKey,
-    '/events',
-    jamBaseVenueEventsQueryParams(venueId, captureMs),
-    jbQ
-  );
-  const raw = data?.events ?? [];
+  const raw = await fetchVenueEventsForCapture(apiKey, jbQ, venueId, captureMs);
   if (raw.length === 0) return null;
 
   const sameDay: Record<string, unknown>[] = [];
@@ -387,7 +422,7 @@ async function enrichWithSameDayShowAtVenue(
   }
 
   if (sameDay.length > 0) {
-    const bestEv = pickClosestEventToCapture(sameDay, captureMs);
+    const bestEv = pickClosestEventToCapture(sameDay, captureMs, userLat, userLon);
     if (bestEv) return mergeEventIntoVenueCandidate(base, bestEv, userLat, userLon);
   }
 
@@ -442,6 +477,7 @@ function candidateFromJamBaseVenue(
     event_title: null,
     startDate: '',
     distance_miles: distanceMiles,
+    geo_proximity_trusted: Boolean(opts?.trustJamBaseGeoList),
   };
 }
 
@@ -676,25 +712,27 @@ export async function postResolveShowForClip(c: Context) {
 
   let enrichedSorted: ClipShowCandidate[] = [];
   if (toScan.length > 0) {
-    const enrichedResults = await Promise.allSettled(
-      toScan.map(async (base) => {
-        if (base.jambase_event_id) return base;
-        return enrichWithSameDayShowAtVenue(key, jbQ, base, resolveAnchorMs, lat, lon);
-      }),
-    );
-    enrichedSorted = sortCandidatesByDistance(
-      enrichedResults
-        .filter(
-          (r): r is PromiseFulfilledResult<ClipShowCandidate | null> => r.status === 'fulfilled',
-        )
-        .map((r) => r.value)
-        .filter((r): r is ClipShowCandidate => r != null),
-    );
-    for (const r of enrichedResults) {
-      if (r.status === 'rejected') {
-        console.error('resolve-show venue show enrichment failed:', r.reason);
+    const enriched: ClipShowCandidate[] = [];
+    for (const base of toScan) {
+      if (base.jambase_event_id) {
+        enriched.push(base);
+        continue;
+      }
+      try {
+        const row = await enrichWithSameDayShowAtVenue(
+          key,
+          jbQ,
+          base,
+          resolveAnchorMs,
+          lat,
+          lon,
+        );
+        if (row) enriched.push(row);
+      } catch (e) {
+        console.error('resolve-show venue show enrichment failed:', e);
       }
     }
+    enrichedSorted = sortCandidatesByDistance(enriched);
   }
 
   const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);

@@ -138,6 +138,8 @@ export interface ClipShowCandidate {
   distance_miles: number | null;
   /** IANA timezone from JamBase venue when an event is attached (same-day checks). */
   venue_timezone?: string | null;
+  /** From JamBase geo `/venues` when distance could not be computed from coords. */
+  geo_proximity_trusted?: boolean;
 }
 
 export interface ClipShowResolveResponse {

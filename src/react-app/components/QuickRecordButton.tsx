@@ -184,12 +184,14 @@ export default function QuickRecordButton({
     venueName: string | null;
     artistName: string | null;
     locationLine: string | null;
+    notice: string | null;
   }>({
     status: 'idle',
     eventTitle: null,
     venueName: null,
     artistName: null,
     locationLine: null,
+    notice: null,
   });
   const [captureVenuePickerChoices, setCaptureVenuePickerChoices] = useState<ClipShowCandidate[]>(
     [],
@@ -217,6 +219,7 @@ export default function QuickRecordButton({
       venueName: venue.venue_name?.trim() ?? null,
       artistName: venue.artist_name?.trim() ?? null,
       locationLine: venue.location?.trim() ?? null,
+      notice: null,
     });
   }, []);
 
@@ -280,6 +283,7 @@ export default function QuickRecordButton({
         venueName: null,
         artistName: null,
         locationLine: null,
+        notice: null,
       });
     }
   }, [showModal]);
@@ -297,6 +301,7 @@ export default function QuickRecordButton({
         venueName: null,
         artistName: null,
         locationLine: null,
+        notice: null,
       });
       return;
     }
@@ -317,6 +322,7 @@ export default function QuickRecordButton({
         venueName: cand.venue_name?.trim() ?? null,
         artistName: cand.artist_name?.trim() ?? null,
         locationLine: cand.location?.trim() ?? null,
+        notice: null,
       });
     };
 
@@ -360,6 +366,7 @@ export default function QuickRecordButton({
         venueName: null,
         artistName: null,
         locationLine: null,
+        notice: null,
       });
       try {
         const res = await fetch('/api/clips/resolve-show', {
@@ -382,6 +389,7 @@ export default function QuickRecordButton({
             venueName: null,
             artistName: null,
             locationLine: null,
+            notice: null,
           });
           return;
         }
@@ -389,6 +397,7 @@ export default function QuickRecordButton({
           match?: string;
           candidates?: ClipShowCandidate[];
           nearbyVenues?: ClipShowCandidate[];
+          notice?: string;
         };
         if (cancelled) return;
 
@@ -425,6 +434,7 @@ export default function QuickRecordButton({
           venueName: null,
           artistName: null,
           locationLine: null,
+          notice: data.notice?.trim() || null,
         });
       } catch (e) {
         if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return;
@@ -436,6 +446,7 @@ export default function QuickRecordButton({
           venueName: null,
           artistName: null,
           locationLine: null,
+          notice: null,
         });
       }
     })();
@@ -1889,7 +1900,8 @@ export default function QuickRecordButton({
                       )}
                       {captureResolvePreview.status === 'none' && (
                         <p className="text-gray-300 text-[11px] leading-snug">
-                          Location saved. No JamBase show matched here yet — you can add venue after you record.
+                          {captureResolvePreview.notice ??
+                            'Location saved. No JamBase show matched here yet — you can add venue after you record.'}
                         </p>
                       )}
                       {captureResolvePreview.status === 'error' && (

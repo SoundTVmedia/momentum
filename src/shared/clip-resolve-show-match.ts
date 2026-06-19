@@ -20,9 +20,11 @@ export function canAutoApplyCandidate(candidate: ClipShowCandidate): boolean {
     Boolean(candidate.jambase_venue_id?.trim()) || Boolean(candidate.venue_name?.trim());
   if (!hasVenue) return false;
   const dist = candidate.distance_miles;
-  if (dist == null || !Number.isFinite(dist) || dist > AUTO_APPLY_MAX_DISTANCE_MILES) {
-    return false;
+  if (dist == null || !Number.isFinite(dist)) {
+    // JamBase geo `/venues` rows are already proximity-filtered even when coords are missing.
+    return Boolean(candidate.geo_proximity_trusted);
   }
+  if (dist > AUTO_APPLY_MAX_DISTANCE_MILES) return false;
   return true;
 }
 
