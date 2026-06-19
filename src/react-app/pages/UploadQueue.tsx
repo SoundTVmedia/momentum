@@ -10,7 +10,11 @@ import { sortUploadJobsForDisplay } from '@/react-app/lib/upload-outbox/upload-q
 export default function UploadQueuePage() {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
-  const { jobs, retryJob, dismissJob } = useClipUploadQueue();
+  const { jobs, restartJob } = useClipUploadQueue();
+
+  useEffect(() => {
+    document.title = 'Upload Queue';
+  }, []);
 
   useEffect(() => {
     if (!isPending && !user) {
@@ -54,7 +58,7 @@ export default function UploadQueuePage() {
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Uploads</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Upload Queue</h1>
           <p className="text-gray-400 text-sm sm:text-base">
             Clips you shared keep uploading here in the background. You can keep recording while they
             finish.
@@ -72,12 +76,7 @@ export default function UploadQueuePage() {
         ) : (
           <div className="space-y-3">
             {visibleJobs.map((job) => (
-              <UploadQueueJobCard
-                key={job.id}
-                job={job}
-                onRetry={retryJob}
-                onDismiss={dismissJob}
-              />
+              <UploadQueueJobCard key={job.id} job={job} onRestart={restartJob} />
             ))}
           </div>
         )}

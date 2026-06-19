@@ -12,7 +12,6 @@ import { useAuth } from '@getmocha/users-service/react';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import {
   cacheOutboxBlobs,
-  clearCachedOutboxBlobs,
   formatUploadError,
   isBlobWaitPauseError,
   isRetryableUploadError,
@@ -63,8 +62,7 @@ type ClipUploadQueueValue = {
   jobs: ClipUploadQueueJob[];
   activeCount: number;
   enqueue: (payload: ClipUploadJobPayload, previewObjectUrl?: string | null) => string | null;
-  retryJob: (id: string) => void;
-  dismissJob: (id: string) => void;
+  restartJob: (id: string) => void;
 };
 
 const ClipUploadQueueContext = createContext<ClipUploadQueueValue | null>(null);
@@ -127,8 +125,7 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
     job.status === 'uploading' ||
     job.status === 'completing' ||
     job.status === 'classifying' ||
-    job.status === 'processing' ||
-    job.status === 'paused'
+    job.status === 'processing'
   ) {
     job = { ...job, status: 'queued' };
   }
@@ -187,6 +184,13 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
     };
   }
 
+  if (
+    job.status === 'failed' &&
+    (isRetryableUploadError(job.error) || isRecoverableSaveError(job.error))
+  ) {
+    return { ...job, status: 'queued', error: null };
+  }
+
   return {
     ...job,
     blobsReady: false,
@@ -201,9 +205,6 @@ function nextUploadJob(jobs: UploadOutboxJob[]): UploadOutboxJob | undefined {
   for (const j of sorted) {
     if (j.status === 'published') continue;
     if (j.status === 'failed') {
-      if (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)) {
-        return undefined;
-      }
       continue;
     }
     if (
@@ -476,34 +477,6 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     void processNext();
   };
 
-  useEffect(() => {
-    if (!hydrated) return;
-
-    for (const j of jobsRef.current) {
-      if (
-        j.status === 'paused' &&
-        isBlobWaitPauseError(j.error) &&
-        !autoRetryTimersRef.current.has(j.id)
-      ) {
-        scheduleAutoRetry(
-          j.id,
-          5_000,
-          {
-            autoRetryTimers: autoRetryTimersRef,
-            jobs: jobsRef,
-            processNext: processNextRef,
-          },
-          clearAutoRetryTimer,
-          updateJob,
-        );
-      }
-    }
-
-    queueMicrotask(() => {
-      void processNext();
-    });
-  }, [clearAutoRetryTimer, hydrated, processNext, updateJob]);
-
   const resumeRetryableJobs = useCallback(
     (preserveProgress = true) => {
       const retryable = jobsRef.current.filter(
@@ -539,6 +512,53 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     },
     [persist, processNext],
   );
+
+  const reattemptPausedBlobJobs = useCallback(async () => {
+    let changed = false;
+    for (const j of jobsRef.current) {
+      if (j.status !== 'paused' || !isBlobWaitPauseError(j.error)) continue;
+      const blobs = await resolveOutboxBlobs(j.id);
+      if (!blobs?.video) continue;
+      registerClipBlob(j.id, blobs.video);
+      updateJob(j.id, { blobsReady: true, status: 'queued', error: null });
+      changed = true;
+    }
+    if (changed) {
+      queueMicrotask(() => {
+        void processNext();
+      });
+    }
+  }, [processNext, updateJob]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+
+    for (const j of jobsRef.current) {
+      if (
+        j.status === 'paused' &&
+        isBlobWaitPauseError(j.error) &&
+        !autoRetryTimersRef.current.has(j.id)
+      ) {
+        scheduleAutoRetry(
+          j.id,
+          5_000,
+          {
+            autoRetryTimers: autoRetryTimersRef,
+            jobs: jobsRef,
+            processNext: processNextRef,
+          },
+          clearAutoRetryTimer,
+          updateJob,
+        );
+      }
+    }
+
+    void reattemptPausedBlobJobs();
+    resumeRetryableJobs(true);
+    queueMicrotask(() => {
+      void processNext();
+    });
+  }, [clearAutoRetryTimer, hydrated, processNext, reattemptPausedBlobJobs, resumeRetryableJobs, updateJob]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -586,13 +606,15 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     if (!hydrated) return;
 
     const onPageShow = () => {
+      void reattemptPausedBlobJobs();
+      resumeRetryableJobs(true);
       queueMicrotask(() => {
         void processNext();
       });
     };
     window.addEventListener('pageshow', onPageShow);
     return () => window.removeEventListener('pageshow', onPageShow);
-  }, [hydrated, processNext]);
+  }, [hydrated, processNext, reattemptPausedBlobJobs, resumeRetryableJobs]);
 
   useEffect(() => bindUploadWakeLockVisibility(), []);
 
@@ -727,12 +749,35 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     [persist, processNext, updateJob],
   );
 
-  const retryJob = useCallback(
+  const restartJob = useCallback(
     (id: string) => {
       void (async () => {
+        clearAutoRetryTimer(id);
         const job = jobsRef.current.find((j) => j.id === id);
-        if (job?.uploadMethod !== 'url') {
-          const blobs = await resolveOutboxBlobs(id);
+        if (!job) return;
+
+        const activeOnJob =
+          job.status === 'uploading' ||
+          job.status === 'classifying' ||
+          job.status === 'completing' ||
+          job.status === 'processing';
+        if (processingRef.current && activeOnJob) {
+          abortForStallRef.current = false;
+          abortRef.current?.abort();
+          processingRef.current = false;
+          processingStartedAtRef.current = null;
+        }
+
+        if (job.uploadMethod !== 'url') {
+          let blobs = await resolveOutboxBlobs(id);
+          if (!blobs?.video) {
+            const pending = await resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+            if (pending?.video) {
+              registerClipBlob(id, pending.video);
+              cacheOutboxBlobs(id, pending);
+              blobs = pending;
+            }
+          }
           if (!blobs?.video) {
             updateJob(id, {
               status: 'failed',
@@ -742,36 +787,26 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
             });
             return;
           }
+          registerClipBlob(id, blobs.video);
         }
+
         updateJob(id, {
           status: 'queued',
           blobsReady: true,
           error: null,
-          progress: jobsRef.current.find((j) => j.id === id)?.progress ?? 0,
+          progress: 0,
+          uploadRetryCount: 0,
+          sessionId: null,
+          clipId: null,
+          uploadMode: null,
+          partUrls: null,
         });
         queueMicrotask(() => {
           void processNext();
         });
       })();
     },
-    [processNext, updateJob],
-  );
-
-  const dismissJob = useCallback(
-    async (id: string) => {
-      clearAutoRetryTimer(id);
-      abortRef.current?.abort();
-      clearCachedOutboxBlobs(id);
-      releaseClipBlob(id);
-      await deleteOutboxJob(id);
-      setJobs((prev) => {
-        const next = prev.filter((j) => j.id !== id);
-        jobsRef.current = next;
-        void persist(next);
-        return next;
-      });
-    },
-    [clearAutoRetryTimer, persist],
+    [clearAutoRetryTimer, processNext, updateJob],
   );
 
   const activeCount = useMemo(
@@ -793,10 +828,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       jobs,
       activeCount,
       enqueue,
-      retryJob,
-      dismissJob,
+      restartJob,
     }),
-    [jobs, activeCount, enqueue, retryJob, dismissJob],
+    [jobs, activeCount, enqueue, restartJob],
   );
 
   return <ClipUploadQueueContext.Provider value={value}>{children}</ClipUploadQueueContext.Provider>;
@@ -809,8 +843,7 @@ export function useClipUploadQueue(): ClipUploadQueueValue {
       jobs: [],
       activeCount: 0,
       enqueue: () => null,
-      retryJob: () => {},
-      dismissJob: () => {},
+      restartJob: () => {},
     };
   }
   return ctx;

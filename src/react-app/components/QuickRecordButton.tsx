@@ -308,6 +308,7 @@ export default function QuickRecordButton({
 
     const ac = new AbortController();
     let cancelled = false;
+    const resolveTimeoutId = setTimeout(() => ac.abort(), 25_000);
 
     const applySessionCandidate = (cand: ClipShowCandidate, opts?: { picker?: boolean }) => {
       captureResolveCandidateRef.current = cand;
@@ -437,7 +438,21 @@ export default function QuickRecordButton({
           notice: data.notice?.trim() || null,
         });
       } catch (e) {
-        if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return;
+        if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) {
+          if (!cancelled) {
+            captureResolveCandidateRef.current = null;
+            setCaptureVenuePickerChoices([]);
+            setCaptureResolvePreview({
+              status: 'error',
+              eventTitle: null,
+              venueName: null,
+              artistName: null,
+              locationLine: null,
+              notice: 'Venue lookup timed out. Try again or add the venue after you record.',
+            });
+          }
+          return;
+        }
         captureResolveCandidateRef.current = null;
         setCaptureVenuePickerChoices([]);
         setCaptureResolvePreview({
@@ -448,11 +463,14 @@ export default function QuickRecordButton({
           locationLine: null,
           notice: null,
         });
+      } finally {
+        clearTimeout(resolveTimeoutId);
       }
     })();
 
     return () => {
       cancelled = true;
+      clearTimeout(resolveTimeoutId);
       ac.abort();
     };
   }, [

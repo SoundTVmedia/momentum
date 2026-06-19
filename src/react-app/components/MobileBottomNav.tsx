@@ -55,7 +55,7 @@ export default function MobileBottomNav() {
     { icon: Home, label: 'Home', path: '/', onClick: () => navigate('/') },
     {
       icon: CloudUpload,
-      label: 'Uploads',
+      label: 'Upload Queue',
       path: '/upload-queue',
       onClick: () => (user ? navigate('/upload-queue') : navigate('/auth')),
       uploadQueue: true,

@@ -40,8 +40,17 @@ const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 25;
 /** Never match tighter than this when comparing GPS ↔ venue coords (profile can be 1–5 mi). */
 const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
 
-/** Max closest venues to scan for a same-day JamBase show (expandPastEvents per venue). */
-const MAX_VENUES_TO_SCAN = 20;
+/** Max closest venues to consider before per-venue event enrichment. */
+const MAX_VENUES_TO_SCAN = 12;
+
+/** Max venue event lookups per resolve (keeps Workers under subrequest / wall-time limits). */
+const MAX_VENUES_TO_ENRICH = 6;
+
+/** Stop enrichment after this wall time so the client always gets JSON back. */
+const RESOLVE_SHOW_BUDGET_MS = 20_000;
+
+/** Only enrich venue-only rows within auto-apply distance (+ small GPS slack). */
+const ENRICH_MAX_DISTANCE_MILES = AUTO_APPLY_MAX_DISTANCE_MILES + 0.5;
 
 /** Include in-progress / recently started shows on venue-scoped event lookups. */
 export const IN_SHOW_EXPAND_PAST_HOURS = JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS;
@@ -167,29 +176,36 @@ async function nominatimReverse(
 } | null> {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&format=json`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Feedback/1.0 (https://github.com/)',
-        Accept: 'application/json',
-      },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { address?: Record<string, string> };
-    const address = data.address || {};
-    const city =
-      address.city ||
-      address.town ||
-      address.village ||
-      address.hamlet ||
-      address.suburb ||
-      address.neighbourhood ||
-      address.municipality ||
-      address.county ||
-      null;
-    const state = address.state || null;
-    const country_code = address.country_code ? address.country_code.toUpperCase() : null;
-    const postcode = address.postcode ? address.postcode.trim() : null;
-    return { city, state, country_code, postcode };
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 3500);
+    try {
+      const res = await fetch(url, {
+        signal: ac.signal,
+        headers: {
+          'User-Agent': 'Feedback/1.0 (https://github.com/)',
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { address?: Record<string, string> };
+      const address = data.address || {};
+      const city =
+        address.city ||
+        address.town ||
+        address.village ||
+        address.hamlet ||
+        address.suburb ||
+        address.neighbourhood ||
+        address.municipality ||
+        address.county ||
+        null;
+      const state = address.state || null;
+      const country_code = address.country_code ? address.country_code.toUpperCase() : null;
+      const postcode = address.postcode ? address.postcode.trim() : null;
+      return { city, state, country_code, postcode };
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (e) {
     console.error('Nominatim reverse failed:', e);
     return null;
@@ -313,6 +329,15 @@ function pickClosestEventToCapture(
   return bestEv;
 }
 
+function shouldEnrichVenueForCapture(base: ClipShowCandidate): boolean {
+  if (base.jambase_event_id) return false;
+  const dist = base.distance_miles;
+  if (dist == null || !Number.isFinite(dist)) {
+    return Boolean(base.geo_proximity_trusted);
+  }
+  return dist <= ENRICH_MAX_DISTANCE_MILES;
+}
+
 async function fetchVenueEventsForCapture(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,
@@ -335,19 +360,6 @@ async function fetchVenueEventsForCapture(
     {
       venueId,
       eventDateFrom: todayUtc,
-      perPage: '50',
-      page: '1',
-      expandPastEvents: 'true',
-    },
-    {
-      venueId,
-      eventDateFrom: todayUtc,
-      perPage: '50',
-      page: '1',
-    },
-    {
-      venueId,
-      eventDateFrom,
       perPage: '50',
       page: '1',
     },
@@ -522,6 +534,24 @@ function jamBaseFetchFailureNotice(
  * venues with tonight's shows for manual pick.
  */
 export async function postResolveShowForClip(c: Context) {
+  try {
+    return await postResolveShowForClipInner(c);
+  } catch (e) {
+    console.error('resolve-show unhandled:', e);
+    return c.json(
+      {
+        match: 'none' as const,
+        candidates: [] as ClipShowCandidate[],
+        nearbyVenues: [] as ClipShowCandidate[],
+        notice:
+          'Venue lookup timed out or failed before finishing. Try again in a moment or add the venue manually after recording.',
+      },
+      503,
+    );
+  }
+}
+
+async function postResolveShowForClipInner(c: Context) {
   const mochaUser = c.get('user');
   if (!mochaUser) {
     return c.json({ error: 'Unauthorized' }, 401);
@@ -568,10 +598,12 @@ export async function postResolveShowForClip(c: Context) {
   let city = typeof body.city === 'string' ? body.city.trim() : '';
 
   let postcode: string | null = null;
-  const rev = await nominatimReverse(lat, lon);
-  if (rev) {
-    if (!city && rev.city) city = rev.city;
-    if (rev.postcode) postcode = rev.postcode;
+  if (!city) {
+    const rev = await nominatimReverse(lat, lon);
+    if (rev) {
+      if (rev.city) city = rev.city;
+      if (rev.postcode) postcode = rev.postcode;
+    }
   }
 
   const profile = (await c.env.DB.prepare(
@@ -710,32 +742,74 @@ export async function postResolveShowForClip(c: Context) {
   const working = dedupeKeepClosestPerVenue([...fromVenues, ...fromEvents]);
   const toScan = working.slice(0, MAX_VENUES_TO_SCAN);
 
+  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
+  const resolveStarted = Date.now();
+
   let enrichedSorted: ClipShowCandidate[] = [];
   if (toScan.length > 0) {
     const enriched: ClipShowCandidate[] = [];
     for (const base of toScan) {
-      if (base.jambase_event_id) {
-        enriched.push(base);
-        continue;
-      }
-      try {
-        const row = await enrichWithSameDayShowAtVenue(
-          key,
-          jbQ,
-          base,
-          resolveAnchorMs,
-          lat,
-          lon,
-        );
-        if (row) enriched.push(row);
-      } catch (e) {
-        console.error('resolve-show venue show enrichment failed:', e);
+      if (base.jambase_event_id) enriched.push(base);
+    }
+
+    let matchReady = false;
+    if (enriched.length > 0) {
+      const sorted = sortCandidatesByDistance(enriched);
+      const interim = resolveShowMatchFromCandidates(
+        sorted,
+        goingMarks,
+        resolveAnchorMs,
+        lat,
+        lon,
+      );
+      if (interim.match === 'single' || interim.match === 'ambiguous') {
+        enrichedSorted = sorted;
+        matchReady = true;
       }
     }
-    enrichedSorted = sortCandidatesByDistance(enriched);
+
+    if (!matchReady) {
+      const needsEnrich = toScan
+        .filter((base) => shouldEnrichVenueForCapture(base))
+        .slice(0, MAX_VENUES_TO_ENRICH);
+
+      for (const base of needsEnrich) {
+        if (Date.now() - resolveStarted > RESOLVE_SHOW_BUDGET_MS) break;
+        try {
+          const row = await enrichWithSameDayShowAtVenue(
+            key,
+            jbQ,
+            base,
+            resolveAnchorMs,
+            lat,
+            lon,
+          );
+          if (!row) continue;
+          enriched.push(row);
+          const sorted = sortCandidatesByDistance(enriched);
+          const interim = resolveShowMatchFromCandidates(
+            sorted,
+            goingMarks,
+            resolveAnchorMs,
+            lat,
+            lon,
+          );
+          if (interim.match === 'single' || interim.match === 'ambiguous') {
+            enrichedSorted = sorted;
+            matchReady = true;
+            break;
+          }
+        } catch (e) {
+          console.error('resolve-show venue show enrichment failed:', e);
+        }
+      }
+
+      if (!matchReady) {
+        enrichedSorted = sortCandidatesByDistance(enriched);
+      }
+    }
   }
 
-  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
   const { match, candidates, nearbyVenues } = resolveShowMatchFromCandidates(
     enrichedSorted,
     goingMarks,

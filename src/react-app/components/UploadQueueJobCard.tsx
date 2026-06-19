@@ -1,7 +1,7 @@
-import { AlertCircle, Check, Loader2, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, Check, Loader2, RotateCcw } from 'lucide-react';
 import type { ClipUploadQueueJob } from '@/react-app/contexts/ClipUploadQueueContext';
 import {
-  uploadJobCanRetry,
+  uploadJobCanRestart,
   uploadJobLabel,
   uploadJobShowProgress,
   uploadJobStatusText,
@@ -9,8 +9,7 @@ import {
 
 type UploadQueueJobCardProps = {
   job: ClipUploadQueueJob;
-  onRetry: (id: string) => void;
-  onDismiss: (id: string) => void;
+  onRestart: (id: string) => void;
 };
 
 function UploadProgressRing({
@@ -87,13 +86,13 @@ function UploadProgressRing({
   );
 }
 
-export default function UploadQueueJobCard({ job, onRetry, onDismiss }: UploadQueueJobCardProps) {
+export default function UploadQueueJobCard({ job, onRestart }: UploadQueueJobCardProps) {
   const label = uploadJobLabel(job);
   const statusText = uploadJobStatusText(job);
   const showProgress = uploadJobShowProgress(job);
-  const canRetry = uploadJobCanRetry(job);
+  const canRestart = uploadJobCanRestart(job);
   const isPublished = job.status === 'published';
-  const isFailed = job.status === 'failed' && !canRetry;
+  const isFailed = job.status === 'failed';
   const isPaused = job.status === 'paused';
 
   const ringTone = isPublished
@@ -147,28 +146,16 @@ export default function UploadQueueJobCard({ job, onRetry, onDismiss }: UploadQu
             <p className="mt-2 text-[11px] text-gray-500 tabular-nums">{ringProgress}%</p>
           )}
 
-          {(canRetry || isFailed) && (
-            <div className="mt-3 flex gap-2">
-              {canRetry && (
-                <button
-                  type="button"
-                  onClick={() => onRetry(job.id)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                  Retry
-                </button>
-              )}
-              {isFailed && (
-                <button
-                  type="button"
-                  onClick={() => onDismiss(job.id)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-white/10"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                  Dismiss
-                </button>
-              )}
+          {canRestart && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => onRestart(job.id)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                Restart
+              </button>
             </div>
           )}
         </div>

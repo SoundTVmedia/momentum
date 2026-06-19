@@ -47,12 +47,8 @@ export function uploadJobShowProgress(job: UploadOutboxJob): boolean {
   return uploadJobIsActive(job) || job.status === 'failed';
 }
 
-export function uploadJobCanRetry(job: UploadOutboxJob): boolean {
-  return (
-    job.status === 'failed' &&
-    !isRetryableUploadError(job.error) &&
-    !isRecoverableSaveError(job.error)
-  );
+export function uploadJobCanRestart(job: UploadOutboxJob): boolean {
+  return job.status === 'failed' || job.status === 'paused';
 }
 
 /** Oldest first — matches FIFO upload order (active clip is next at the top). */
