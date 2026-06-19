@@ -55,6 +55,24 @@ export async function loadAttendedArtistNames(
   return out;
 }
 
+export async function loadGoingShowMarksForUser(
+  db: D1Database,
+  mochaUserId: string,
+): Promise<UserShowMark[]> {
+  const rows = await db
+    .prepare(
+      `SELECT * FROM user_show_marks
+       WHERE mocha_user_id = ? AND status = 'going'
+       ORDER BY
+         CASE WHEN start_date IS NULL OR start_date = '' THEN 1 ELSE 0 END,
+         start_date ASC`,
+    )
+    .bind(mochaUserId)
+    .all();
+
+  return ((rows.results ?? []) as Record<string, unknown>[]).map(rowToMark);
+}
+
 export async function loadGoingEventIds(db: D1Database, mochaUserId: string): Promise<Set<string>> {
   const rows = await db
     .prepare(
@@ -72,7 +90,7 @@ export async function loadGoingEventIds(db: D1Database, mochaUserId: string): Pr
   return ids;
 }
 
-function rowToMark(row: Record<string, unknown>): UserShowMark {
+export function rowToMark(row: Record<string, unknown>): UserShowMark {
   return {
     id: Number(row.id),
     status: row.status as ShowMarkStatus,

@@ -59,6 +59,8 @@ function isUsablePosterImageUrl(url: string | null | undefined): boolean {
   const lower = u.toLowerCase();
   if (isPlaceholderVideoUrl(u)) return false;
   if (lower.includes('.m3u8') || lower.includes('/manifest/video.m3u8')) return false;
+  if (/\.(mp4|webm|mov|m4v|mkv|avi)(\?|#|$)/i.test(lower)) return false;
+  if (lower.includes('/downloads/default.mp4')) return false;
   return true;
 }
 

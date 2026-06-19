@@ -18,16 +18,19 @@ export type ClipFeedGridTileProps = {
   onOpenClip: (clip: ClipWithUser) => void;
   /** When set, hover prefetches adjacent carousel clips (feed MP4 + modal source). */
   neighborClips?: { next?: ClipPlaybackFields | null; prev?: ClipPlaybackFields | null };
+  /** Dashboard / profile grids — static JPEG poster only (no hover or scroll video). */
+  forceStaticPoster?: boolean;
 };
 
 export default function ClipFeedGridTile({
   clip,
   onOpenClip,
   neighborClips,
+  forceStaticPoster = false,
 }: ClipFeedGridTileProps) {
   const navigate = useNavigate();
   const [mediaHovered, setMediaHovered] = useState(false);
-  const posterOnly = feedTileUsesStaticPoster(clip);
+  const posterOnly = forceStaticPoster || feedTileUsesStaticPoster(clip);
 
   return (
     <div className="glass-clip-card group flex h-full w-full flex-col p-0">

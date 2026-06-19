@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
   canAutoApplyCandidate,
-} from './clips-resolve-show';
+} from '../shared/clip-resolve-show-match';
 import type { ClipShowCandidate } from '../shared/types';
 
 function baseCandidate(overrides: Partial<ClipShowCandidate> = {}): ClipShowCandidate {

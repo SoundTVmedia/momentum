@@ -87,6 +87,7 @@ import {
   pickGoingShowMarkForCapture,
   showMarkToClipCandidate,
 } from '@/shared/show-marks';
+import { resolveShowAutoApplyCandidate } from '@/shared/clip-resolve-show-match';
 
 function isoToDateInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -1198,10 +1199,19 @@ export default function UploadClip() {
         const pickerVenues = (data.nearbyVenues ?? []).slice(0, 3);
         setNearbyVenueChoices(pickerVenues);
 
+        const goingOverride = resolveShowAutoApplyCandidate(
+          data,
+          goingMarks,
+          Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now(),
+          geo.latitude,
+          geo.longitude,
+        );
+
         const applyClosest = () => {
-          if (data.match === 'single' && data.candidates?.[0]) {
-            applyClipCandidate(data.candidates[0]);
-            saveCaptureShowSession(data.candidates[0], geo.latitude, geo.longitude);
+          const autoApply = goingOverride ?? (data.match === 'single' ? data.candidates?.[0] : null);
+          if (autoApply) {
+            applyClipCandidate(autoApply);
+            saveCaptureShowSession(autoApply, geo.latitude, geo.longitude);
             setResolveNotice(null);
           } else if (data.match === 'ambiguous' && pickerVenues.length > 0) {
             setResolveNotice(

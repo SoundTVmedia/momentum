@@ -174,6 +174,7 @@ export default function DashboardClipsGrid({
               <div className="relative h-full w-full">
                 <ClipFeedGridTile
                   clip={clipWithUser}
+                  forceStaticPoster
                   onOpenClip={(c) => setSelectedClip(c as unknown as DashboardGridClip)}
                   neighborClips={{
                     prev: index > 0 ? clips[index - 1] : undefined,

@@ -82,6 +82,15 @@ describe('clip-playback', () => {
     ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?height=720`);
   });
 
+  it('does not use progressive video URLs as poster images', () => {
+    expect(
+      resolveClipPosterUrl({
+        thumbnail_url: '/api/files/clips/user/video.mp4',
+        stream_video_id: UID,
+      }),
+    ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?height=720`);
+  });
+
   it('feed tiles always use static poster mode', () => {
     expect(feedTileUsesStaticPoster({ video_url: '/api/files/x.mp4' })).toBe(true);
   });

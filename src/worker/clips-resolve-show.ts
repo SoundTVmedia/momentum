@@ -10,6 +10,18 @@ import { headlinerFromEvent } from './jambase-map';
 import type { ClipShowCandidate } from '../shared/types';
 import { artistAtVenueTitle, jamBaseEventTitle } from '../shared/event-title';
 import { jamBaseEventMatchesCapture } from '../shared/jambase-event-day';
+import {
+  AUTO_APPLY_MAX_DISTANCE_MILES,
+  NEARBY_VENUE_PICKER_COUNT,
+  resolveShowMatchFromCandidates,
+} from '../shared/clip-resolve-show-match';
+import { loadGoingShowMarksForUser } from './user-show-marks-endpoints';
+
+export {
+  AUTO_APPLY_MAX_DISTANCE_MILES,
+  NEARBY_VENUE_PICKER_COUNT,
+  canAutoApplyCandidate,
+} from '../shared/clip-resolve-show-match';
 
 /** Extra miles beyond profile radius so GPS jitter does not drop the venue you are standing in front of. */
 const GPS_DISTANCE_SLACK_MILES = 1.25;
@@ -22,12 +34,6 @@ const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 25;
 
 /** Never match tighter than this when comparing GPS ↔ venue coords (profile can be 1–5 mi). */
 const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
-
-/** Auto-apply only when GPS ↔ venue is within this distance (high confidence). */
-export const AUTO_APPLY_MAX_DISTANCE_MILES = 1;
-
-/** Venues returned for manual picker when auto-apply is skipped. */
-export const NEARBY_VENUE_PICKER_COUNT = 3;
 
 /** Max closest venues to scan for a same-day JamBase show (expandPastEvents per venue). */
 const MAX_VENUES_TO_SCAN = 20;
@@ -216,39 +222,6 @@ function dedupeKeepClosestPerVenue(cands: ClipShowCandidate[]): ClipShowCandidat
     }
   }
   return sortCandidatesByDistance([...map.values()]);
-}
-
-/** True when we may auto-fill venue (and show when present) without the nearby picker. */
-export function canAutoApplyCandidate(candidate: ClipShowCandidate): boolean {
-  const hasVenue =
-    Boolean(candidate.jambase_venue_id?.trim()) || Boolean(candidate.venue_name?.trim());
-  if (!hasVenue) return false;
-  const dist = candidate.distance_miles;
-  if (dist == null || !Number.isFinite(dist) || dist > AUTO_APPLY_MAX_DISTANCE_MILES) {
-    return false;
-  }
-  return true;
-}
-
-function resolveMatchFromEnrichedVenues(
-  enrichedSorted: ClipShowCandidate[],
-): {
-  match: ClipResolveMatch;
-  candidates: ClipShowCandidate[];
-  nearbyVenues: ClipShowCandidate[];
-} {
-  const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
-  if (enrichedSorted.length === 0) {
-    return { match: 'none', candidates: [], nearbyVenues: [] };
-  }
-  const top = enrichedSorted[0]!;
-  if (canAutoApplyCandidate(top)) {
-    return { match: 'single', candidates: [top], nearbyVenues };
-  }
-  if (nearbyVenues.length > 0) {
-    return { match: 'ambiguous', candidates: [], nearbyVenues };
-  }
-  return { match: 'none', candidates: [], nearbyVenues: [] };
 }
 
 function venueIdentifierFromEvent(ev: Record<string, unknown>): string | null {
@@ -533,8 +506,9 @@ function jamBaseFetchFailureNotice(
  * **Venues with shows only** — geo `/venues` for physical proximity, then `/events?venueId=…&expandPastEvents`
  * to keep venues that have a JamBase show on the capture **UTC calendar day** (includes in-progress shows
  * within {@link IN_SHOW_EXPAND_PAST_HOURS}h). Closed venues with no listings are skipped.
- * Auto-applies only when ≤ {@link AUTO_APPLY_MAX_DISTANCE_MILES} mi; otherwise returns top
- * {@link NEARBY_VENUE_PICKER_COUNT} venues with tonight's shows for manual pick.
+ * Auto-applies when ≤ {@link AUTO_APPLY_MAX_DISTANCE_MILES} mi, or when a same-date "going"
+ * show mark matches a nearby candidate; otherwise returns top {@link NEARBY_VENUE_PICKER_COUNT}
+ * venues with tonight's shows for manual pick.
  */
 export async function postResolveShowForClip(c: Context) {
   const mochaUser = c.get('user');
@@ -742,7 +716,14 @@ export async function postResolveShowForClip(c: Context) {
     }
   }
 
-  const { match, candidates, nearbyVenues } = resolveMatchFromEnrichedVenues(enrichedSorted);
+  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
+  const { match, candidates, nearbyVenues } = resolveShowMatchFromCandidates(
+    enrichedSorted,
+    goingMarks,
+    resolveAnchorMs,
+    lat,
+    lon,
+  );
 
   let notice: string | null = null;
   if (match === 'ambiguous') {

@@ -25,6 +25,7 @@ import {
   pickGoingShowMarkForCapture,
   showMarkToClipCandidate,
 } from '@/shared/show-marks';
+import { resolveShowAutoApplyCandidate } from '@/shared/clip-resolve-show-match';
 import {
   applyCameraZoom,
   buildCameraZoomPresets,
@@ -348,11 +349,18 @@ export default function QuickRecordButton({
           nearbyVenues?: ClipShowCandidate[];
         };
         if (cancelled) return;
+        const goingOverride = resolveShowAutoApplyCandidate(
+          data,
+          goingMarks,
+          Date.now(),
+          c.lat,
+          c.lon,
+        );
         const cand =
           data.match === 'single'
             ? data.candidates?.[0]
-            : data.nearbyVenues?.[0] ?? data.candidates?.[0];
-        const previewOnly = data.match !== 'single';
+            : goingOverride ?? data.nearbyVenues?.[0] ?? data.candidates?.[0];
+        const previewOnly = data.match !== 'single' && !goingOverride;
         if (cand?.venue_name?.trim()) {
           saveCaptureShowSession(cand, c.lat, c.lon);
           if (!previewOnly) {
