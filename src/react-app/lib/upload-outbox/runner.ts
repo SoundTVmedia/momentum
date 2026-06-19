@@ -45,6 +45,7 @@ function applyFormPatch(
 async function enrichJobWithAcrIfNeeded(
   job: UploadOutboxJob,
   video: Blob,
+  captureAudio: Blob | null | undefined,
   onPatch: (patch: Partial<UploadOutboxJob>) => void,
 ): Promise<UploadOutboxJob> {
   let current = job;
@@ -71,11 +72,12 @@ async function enrichJobWithAcrIfNeeded(
 
   if (uploadJobNeedsSongIdentify(current)) {
     onPatch({ status: 'classifying', progress: Math.max(current.progress, 2), error: null });
-    const formPatch = await resolveSongIdentifyForUploadJob(current, video);
+    const formPatch = await resolveSongIdentifyForUploadJob(current, video, captureAudio);
     current = applyFormPatch(current, formPatch);
-    if (Object.keys(formPatch).length > 0) {
-      onPatch({ form: current.form });
-    }
+    onPatch({
+      songIdentifyPending: false,
+      ...(Object.keys(formPatch).length > 0 ? { form: current.form } : {}),
+    });
   }
 
   return current;
@@ -106,7 +108,12 @@ async function runFileUploadJob(
   let partUrls = job.partUrls;
   let attachedThumb: { url: string; key: string } | null = null;
 
-  jobForUpload = await enrichJobWithAcrIfNeeded(job, blobs.video, onPatch);
+  jobForUpload = await enrichJobWithAcrIfNeeded(
+    job,
+    blobs.video,
+    blobs.captureAudio ?? job.captureAudioBlob,
+    onPatch,
+  );
 
   onPatch({ status: 'uploading', progress: Math.max(jobForUpload.progress, 5) });
 
@@ -302,6 +309,7 @@ export function jobFromPayload(
     blobsReady: false,
     gallerySaved: payload.uploadMethod === 'url',
     classificationPending: payload.classificationPending ?? false,
+    songIdentifyPending: payload.songIdentifyPending,
   };
 }
 

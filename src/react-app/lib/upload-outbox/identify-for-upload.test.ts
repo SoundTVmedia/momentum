@@ -63,6 +63,10 @@ describe('uploadJobNeedsSongIdentify', () => {
     ).toBe(false);
   });
 
+  it('skips when song identify was already attempted in the queue', () => {
+    expect(uploadJobNeedsSongIdentify(baseJob({ songIdentifyPending: false }))).toBe(false);
+  });
+
   it('skips pre/post clips', () => {
     expect(uploadJobNeedsSongIdentify(baseJob({ contentFeed: 'pre_post' }))).toBe(false);
   });

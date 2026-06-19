@@ -22,6 +22,8 @@ export type ClipUploadJobPayload = {
   contentFeed?: 'main' | 'pre_post';
   /** When true, classify-content runs in the upload worker (Share works offline). */
   classificationPending?: boolean;
+  /** When true, run ACR song ID when upload starts (caption had no song match). */
+  songIdentifyPending?: boolean;
   captureAudioBlob?: Blob | null;
   form: ClipUploadFormFields;
   jambaseLink: {

@@ -14,6 +14,8 @@ export type OutboxJobStatus =
 export type StoredUploadBlobs = {
   video: Blob;
   thumbnail?: Blob | null;
+  /** Parallel mic recording from capture — improves queue-time ACR after refresh. */
+  captureAudio?: Blob | null;
 };
 
 export type UploadOutboxJob = ClipUploadJobPayload & {

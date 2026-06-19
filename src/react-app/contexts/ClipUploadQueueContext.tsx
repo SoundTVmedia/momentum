@@ -140,6 +140,7 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
       ...job,
       blobsReady: true,
       gallerySaved: true,
+      captureAudioBlob: blobs.captureAudio ?? job.captureAudioBlob ?? null,
       status: job.status === 'failed' ? 'queued' : job.status,
       error: null,
     };
@@ -153,7 +154,7 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
   if (pending?.video) {
     registerClipBlob(job.id, pending.video);
     cacheOutboxBlobs(job.id, pending);
-    void persistOutboxVideo(job.id, pending.video, pending.thumbnail ?? null);
+    void persistOutboxVideo(job.id, pending.video, pending.thumbnail ?? null, pending.captureAudio ?? null);
     return { ...job, blobsReady: true, status: 'queued', error: null };
   }
 
@@ -680,6 +681,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       cacheOutboxBlobs(job.id, {
         video: videoBlob,
         thumbnail: payload.thumbnailFile ?? null,
+        captureAudio: payload.captureAudioBlob ?? null,
       });
 
       const readyJob: UploadOutboxJob = {
@@ -698,7 +700,12 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
 
       void (async () => {
         try {
-          await persistOutboxVideo(job.id, videoBlob, payload.thumbnailFile ?? null);
+          await persistOutboxVideo(
+            job.id,
+            videoBlob,
+            payload.thumbnailFile ?? null,
+            payload.captureAudioBlob ?? null,
+          );
         } catch (err) {
           console.warn('ClipUploadQueue persistOutboxVideo:', err);
         }

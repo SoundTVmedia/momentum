@@ -28,7 +28,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 export function uploadJobNeedsSongIdentify(job: UploadOutboxJob): boolean {
   if (job.uploadMethod !== 'file') return false;
   if (isPrePostContentFeed(job.contentFeed)) return false;
-  return !job.form.song_title?.trim();
+  if (job.form.song_title?.trim()) return false;
+  // Default: run ACR at upload time when caption left no song title.
+  return job.songIdentifyPending !== false;
 }
 
 export function formPatchFromAcrMatch(
@@ -67,12 +69,15 @@ export function formPatchFromClassification(
 export async function resolveSongIdentifyForUploadJob(
   job: UploadOutboxJob,
   video: Blob,
+  captureAudio?: Blob | null,
 ): Promise<Partial<ClipUploadFormFields>> {
   if (!uploadJobNeedsSongIdentify(job)) return {};
 
   try {
     const result = await withTimeout(
-      identifyMusicForClip(video, { audio: job.captureAudioBlob ?? null }),
+      identifyMusicForClip(video, {
+        audio: captureAudio ?? job.captureAudioBlob ?? null,
+      }),
       SONG_IDENTIFY_TIMEOUT_MS,
       'Song identification timed out',
     );

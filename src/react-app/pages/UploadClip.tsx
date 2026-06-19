@@ -1937,10 +1937,15 @@ export default function UploadClip() {
     }
 
     const manual = clipManualShowPostReady(formData);
+    const queueMainFeedClip = !isPrePostContentFeed(classification.contentFeed);
     const jobId = enqueueClipUpload(
       {
         ...buildUploadPayload(classification.classificationId, classification.contentFeed),
         classificationPending: classification.classificationPending,
+        songIdentifyPending:
+          uploadMethod === 'file' &&
+          queueMainFeedClip &&
+          !formData.song_title?.trim(),
       },
       uploadMethod === 'file' ? videoBlobUrl : null,
     );

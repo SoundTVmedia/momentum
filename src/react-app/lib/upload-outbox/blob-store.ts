@@ -13,7 +13,7 @@ export function peekCachedOutboxBlobs(jobId: string): StoredUploadBlobs | null {
   const row = memoryCache.get(jobId);
   if (row?.video && row.video.size > 0) return row;
   const pinned = getClipBlob(jobId);
-  if (pinned) return { video: pinned, thumbnail: row?.thumbnail ?? null };
+  if (pinned) return { video: pinned, thumbnail: row?.thumbnail ?? null, captureAudio: row?.captureAudio ?? null };
   return null;
 }
 
@@ -27,7 +27,11 @@ export async function resolveOutboxBlobs(jobId: string): Promise<StoredUploadBlo
 
   const pinned = getClipBlob(jobId);
   if (pinned) {
-    const blobs: StoredUploadBlobs = { video: pinned, thumbnail: null };
+    const blobs: StoredUploadBlobs = {
+      video: pinned,
+      thumbnail: row?.thumbnail ?? null,
+      captureAudio: row?.captureAudio ?? null,
+    };
     cacheOutboxBlobs(jobId, blobs);
     return blobs;
   }
@@ -60,16 +64,22 @@ export async function waitForOutboxBlobs(
   return null;
 }
 
-/** Persist video immediately; thumbnail can be added later. */
+/** Persist video immediately; thumbnail and capture mic audio can be added later. */
 export async function persistOutboxVideo(
   jobId: string,
   video: Blob,
   thumbnail?: Blob | null,
+  captureAudio?: Blob | null,
 ): Promise<{ idb: boolean }> {
   if (!video || video.size <= 0) {
     return { idb: false };
   }
-  const blobs: StoredUploadBlobs = { video, thumbnail: thumbnail ?? null };
+  const existing = peekCachedOutboxBlobs(jobId);
+  const blobs: StoredUploadBlobs = {
+    video,
+    thumbnail: thumbnail ?? existing?.thumbnail ?? null,
+    captureAudio: captureAudio ?? existing?.captureAudio ?? null,
+  };
   cacheOutboxBlobs(jobId, blobs);
   try {
     await saveOutboxBlobs(jobId, blobs);
