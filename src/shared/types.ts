@@ -136,6 +136,8 @@ export interface ClipShowCandidate {
   event_title: string | null;
   startDate: string;
   distance_miles: number | null;
+  /** IANA timezone from JamBase venue when an event is attached (same-day checks). */
+  venue_timezone?: string | null;
 }
 
 export interface ClipShowResolveResponse {

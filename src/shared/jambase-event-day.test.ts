@@ -4,6 +4,7 @@ import {
   jamBaseEventLocalYmd,
   jamBaseEventMatchesCapture,
   jamBaseEventOnCaptureDay,
+  jamBaseEventStartMs,
 } from './jambase-event-day';
 
 describe('jamBaseEventLocalYmd', () => {
@@ -44,6 +45,20 @@ describe('jamBaseEventOnCaptureDay', () => {
   it('rejects a show on a different venue-local day', () => {
     const captureMs = Date.parse('2026-06-10T15:00:00.000Z'); // June 10 in NYC
     expect(jamBaseEventOnCaptureDay(event, captureMs)).toBe(false);
+  });
+});
+
+describe('jamBaseEventStartMs', () => {
+  it('interprets startDate as venue-local wall time, not UTC', () => {
+    const event = {
+      startDate: '2026-06-09T20:00:00',
+      location: {
+        name: 'Brooklyn Steel',
+        address: { 'x-timezone': 'America/New_York' },
+      },
+    };
+    // 8pm Eastern on June 9, 2026 (EDT = UTC-4)
+    expect(jamBaseEventStartMs(event)).toBe(Date.parse('2026-06-10T00:00:00.000Z'));
   });
 });
 

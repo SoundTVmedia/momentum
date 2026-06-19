@@ -53,6 +53,11 @@ function candidateHasJamBaseEventData(candidate: ClipShowCandidate): boolean {
   return Boolean(candidate.jambase_event_id?.trim());
 }
 
+function candidateDistanceSortKey(d: number | null | undefined): number {
+  if (d == null || !Number.isFinite(d)) return Number.POSITIVE_INFINITY;
+  return d;
+}
+
 function candidateEventMatchesCapture(
   candidate: ClipShowCandidate,
   captureMs: number,
@@ -62,8 +67,14 @@ function candidateEventMatchesCapture(
   if (!candidateHasJamBaseEventData(candidate)) return false;
   const startDate = candidate.startDate?.trim();
   if (!startDate) return true;
+  const tz = candidate.venue_timezone?.trim();
   return jamBaseEventMatchesCapture(
-    { startDate, location: { name: candidate.venue_name ?? '' } },
+    {
+      startDate,
+      location: tz
+        ? { name: candidate.venue_name ?? '', address: { 'x-timezone': tz } }
+        : { name: candidate.venue_name ?? '' },
+    },
     captureMs,
     userLat,
     userLon,
@@ -84,6 +95,10 @@ export function nearbyEventVenuesWithinAutoApplyRadius(
       matched.push(candidate);
     }
   }
+  matched.sort(
+    (a, b) =>
+      candidateDistanceSortKey(a.distance_miles) - candidateDistanceSortKey(b.distance_miles),
+  );
   return matched.slice(0, NEARBY_VENUE_PICKER_COUNT);
 }
 

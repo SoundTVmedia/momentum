@@ -151,6 +151,25 @@ describe('resolveShowMatchFromCandidates', () => {
     expect(result.candidates).toEqual([]);
     expect(result.nearbyVenues).toEqual([]);
   });
+
+  it('matches same-day event when venue timezone is preserved on the candidate', () => {
+    const captureMs = Date.parse('2026-06-10T03:30:00.000Z');
+    const result = resolveShowMatchFromCandidates(
+      [
+        baseCandidate({
+          jambase_event_id: 'jambase:ev',
+          startDate: '2026-06-09T20:00:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.5,
+        }),
+      ],
+      [],
+      captureMs,
+      undefined,
+      undefined,
+    );
+    expect(result.match).toBe('single');
+  });
 });
 
 describe('resolveCameraCaptureVenues', () => {

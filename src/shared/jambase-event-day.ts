@@ -90,23 +90,88 @@ function eventWallClockHour(startDate: string): number {
   return m ? parseInt(m[1], 10) : 20;
 }
 
+function parseLocalPartsInTimeZone(
+  ms: number,
+  timeZone: string,
+): { y: number; mo: number; d: number; h: number; mi: number; s: number } {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = dtf.formatToParts(new Date(ms));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0';
+  return {
+    y: parseInt(get('year'), 10),
+    mo: parseInt(get('month'), 10),
+    d: parseInt(get('day'), 10),
+    h: parseInt(get('hour'), 10) % 24,
+    mi: parseInt(get('minute'), 10),
+    s: parseInt(get('second'), 10),
+  };
+}
+
+/** UTC epoch for JamBase `startDate` interpreted as venue-local wall time. */
+export function jamBaseEventStartMs(
+  ev: Record<string, unknown>,
+  userLat?: number,
+  userLon?: number,
+): number | null {
+  const sd = typeof ev.startDate === 'string' ? ev.startDate.trim() : '';
+  const m = sd.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+
+  const desired = {
+    y: parseInt(m[1], 10),
+    mo: parseInt(m[2], 10),
+    d: parseInt(m[3], 10),
+    h: parseInt(m[4], 10),
+    mi: parseInt(m[5], 10),
+    s: m[6] ? parseInt(m[6], 10) : 0,
+  };
+  const tz = jamBaseVenueTimezone(ev, userLat, userLon);
+  let utcMs = Date.UTC(desired.y, desired.mo - 1, desired.d, desired.h, desired.mi, desired.s);
+  for (let i = 0; i < 4; i++) {
+    const actual = parseLocalPartsInTimeZone(utcMs, tz);
+    const desiredMs = Date.UTC(
+      desired.y,
+      desired.mo - 1,
+      desired.d,
+      desired.h,
+      desired.mi,
+      desired.s,
+    );
+    const actualMs = Date.UTC(actual.y, actual.mo - 1, actual.d, actual.h, actual.mi, actual.s);
+    utcMs += desiredMs - actualMs;
+  }
+  return utcMs;
+}
+
 /** Hours from event `startDate` to capture (positive = after doors). */
 export function jamBaseEventHoursFromStart(
   ev: Record<string, unknown>,
   captureMs: number,
+  userLat?: number,
+  userLon?: number,
 ): number | null {
-  const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
-  const t = Date.parse(sd);
-  if (!Number.isFinite(t)) return null;
-  return (captureMs - t) / (3600 * 1000);
+  const startMs = jamBaseEventStartMs(ev, userLat, userLon);
+  if (startMs == null || !Number.isFinite(startMs)) return null;
+  return (captureMs - startMs) / (3600 * 1000);
 }
 
 /** True when capture falls during the in-progress show window after start time. */
 export function jamBaseEventOngoingAtCapture(
   ev: Record<string, unknown>,
   captureMs: number,
+  userLat?: number,
+  userLon?: number,
 ): boolean {
-  const hours = jamBaseEventHoursFromStart(ev, captureMs);
+  const hours = jamBaseEventHoursFromStart(ev, captureMs, userLat, userLon);
   if (hours == null) return false;
   return hours >= -1 && hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START;
 }
@@ -150,7 +215,7 @@ export function jamBaseEventMatchesCapture(
   userLon?: number,
 ): boolean {
   if (jamBaseEventSameShowNight(ev, captureMs, userLat, userLon)) return true;
-  return jamBaseEventOngoingAtCapture(ev, captureMs);
+  return jamBaseEventOngoingAtCapture(ev, captureMs, userLat, userLon);
 }
 
 /** True when capture instant is on the same venue-local calendar day as the event. */
