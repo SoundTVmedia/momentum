@@ -84,3 +84,36 @@ export async function deleteOutboxJob(jobId: string): Promise<void> {
     tx.onerror = () => reject(tx.error ?? new Error('deleteOutboxJob failed'));
   });
 }
+
+export async function loadMetaRecord<T>(key: string): Promise<T | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('meta', 'readonly');
+    const req = tx.objectStore('meta').get(key);
+    req.onsuccess = () => {
+      const row = req.result as { key: string; value: T } | undefined;
+      resolve(row?.value ?? null);
+    };
+    req.onerror = () => reject(req.error ?? new Error('loadMetaRecord failed'));
+  });
+}
+
+export async function saveMetaRecord<T>(key: string, value: T): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('meta', 'readwrite');
+    tx.objectStore('meta').put({ key, value });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('saveMetaRecord failed'));
+  });
+}
+
+export async function deleteMetaRecord(key: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('meta', 'readwrite');
+    tx.objectStore('meta').delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('deleteMetaRecord failed'));
+  });
+}

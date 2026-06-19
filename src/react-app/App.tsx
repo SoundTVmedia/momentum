@@ -10,6 +10,7 @@ import ResetPasswordPage from "@/react-app/pages/ResetPassword";
 import OnboardingPage from "@/react-app/pages/Onboarding";
 import DashboardPage from "@/react-app/pages/Dashboard";
 import UploadClipPage from "@/react-app/pages/UploadClip";
+import UploadQueuePage from "@/react-app/pages/UploadQueue";
 import SavedClipsPage from "@/react-app/pages/SavedClips";
 import LikedClipsPage from "@/react-app/pages/LikedClips";
 import ArtistPage from "@/react-app/pages/ArtistPage";
@@ -36,7 +37,7 @@ import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
 import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
-import ClipUploadStatusBanner from "@/react-app/components/ClipUploadStatusBanner";
+import PendingCaptureRouteRecovery from "@/react-app/components/PendingCaptureRouteRecovery";
 import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
 import { useEffect } from "react";
@@ -57,9 +58,9 @@ export default function App() {
       <AuthProvider>
         <MobileChromeProvider>
         <ClipUploadQueueProvider>
-        <ClipUploadStatusBanner />
         <NotificationsProvider>
         <Router>
+          <PendingCaptureRouteRecovery />
           <Routes>
             <Route element={<AppRouteChrome />}>
               <Route path="/" element={<HomePage />} />
@@ -71,6 +72,7 @@ export default function App() {
               <Route path="/onboarding" element={<OnboardingPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/upload" element={<UploadClipPage />} />
+              <Route path="/upload-queue" element={<UploadQueuePage />} />
               <Route path="/saved" element={<SavedClipsPage />} />
               <Route path="/liked" element={<LikedClipsPage />} />
               <Route path="/artists/:artistName" element={<ArtistPage />} />

@@ -1,8 +1,9 @@
 import { useEffect, useId, useState } from 'react';
-import { Home, Search, Bell, Video, LogIn } from 'lucide-react';
+import { Home, CloudUpload, Bell, Video, LogIn } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useUnreadNotificationCount } from '@/react-app/contexts/NotificationsContext';
+import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import NotificationAlertBadge from '@/react-app/components/NotificationAlertBadge';
 import NotificationPanel from '@/react-app/components/NotificationPanel';
 import { hasUnreadNotifications } from '@/react-app/lib/notification-badge';
@@ -29,6 +30,7 @@ export default function MobileBottomNav() {
   const extendedUser = user as ExtendedMochaUser | null;
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
   const unreadCount = useUnreadNotificationCount();
+  const { jobs: uploadJobs } = useClipUploadQueue();
   const quickCapture = useQuickCaptureLauncher();
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -38,9 +40,27 @@ export default function MobileBottomNav() {
     setShowNotifications(false);
   }, [location.pathname]);
 
+  const uploadQueueCount = uploadJobs.filter(
+    (job) =>
+      job.status === 'queued' ||
+      job.status === 'classifying' ||
+      job.status === 'uploading' ||
+      job.status === 'completing' ||
+      job.status === 'processing' ||
+      job.status === 'paused' ||
+      job.status === 'failed',
+  ).length;
+
   const navItems = [
     { icon: Home, label: 'Home', path: '/', onClick: () => navigate('/') },
-    { icon: Search, label: 'Discover', path: '/discover', onClick: () => navigate('/discover?focus=1') },
+    {
+      icon: CloudUpload,
+      label: 'Uploads',
+      path: '/upload-queue',
+      onClick: () => (user ? navigate('/upload-queue') : navigate('/auth')),
+      uploadQueue: true,
+      uploadQueueCount,
+    },
     { icon: Video, label: 'Capture Moment', path: '/capture', onClick: quickCapture.openQuickCapture, special: true },
     {
       icon: Bell,
@@ -179,10 +199,13 @@ export default function MobileBottomNav() {
 
             const Icon = item.icon!;
             const unread = item.alerts ? unreadCount : 0;
+            const queueCount = item.uploadQueue ? item.uploadQueueCount ?? 0 : 0;
             const alertsLabel =
               item.alerts && hasUnreadNotifications(unread)
                 ? `${item.label}, ${unread} unread`
-                : item.label;
+                : item.uploadQueue && queueCount > 0
+                  ? `${item.label}, ${queueCount} uploading`
+                  : item.label;
             return (
               <button
                 key={item.label}
@@ -198,10 +221,19 @@ export default function MobileBottomNav() {
                 <div className="relative">
                   <Icon
                     className={`w-6 h-6 transition-all ${
-                      active ? 'scale-110' : hasUnreadNotifications(unread) ? 'animate-pulse' : ''
+                      active
+                        ? 'scale-110'
+                        : hasUnreadNotifications(unread) || queueCount > 0
+                          ? 'animate-pulse'
+                          : ''
                     }`}
                   />
                   {item.alerts ? <NotificationAlertBadge variant="nav" /> : null}
+                  {item.uploadQueue && queueCount > 0 ? (
+                    <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-momentum-flare text-[10px] font-bold text-white flex items-center justify-center">
+                      {queueCount > 9 ? '9+' : queueCount}
+                    </span>
+                  ) : null}
                 </div>
                 {active && (
                   <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5 momentum-grad-interactive rounded-full" />

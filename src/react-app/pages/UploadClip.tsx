@@ -49,8 +49,16 @@ import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import {
   blobSourceKey,
+  clearPendingCapture,
+  loadPendingCapture,
   persistClipLocallyOnCapture,
 } from '@/react-app/lib/upload-outbox/capture-local-save';
+import {
+  captionDraftMatchesVideo,
+  clearCaptionDraft,
+  loadCaptionDraft,
+  saveCaptionDraft,
+} from '@/react-app/lib/upload-outbox/caption-draft';
 import {
   classifyContentFeedForClip,
   contentFeedUserMessage,
@@ -106,7 +114,8 @@ export default function UploadClip() {
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
   const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
-  const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight } = useClipUploadQueue();
+  const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight, jobs: clipUploadJobs } =
+    useClipUploadQueue();
   const isMobile = useIsMobileViewport();
   const { goingMarks, hydrated: showMarksHydrated } = useShowMarks();
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +123,13 @@ export default function UploadClip() {
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const galleryCaptureKeyRef = useRef<string | null>(null);
+  const pendingRecoveryAttemptedRef = useRef(false);
+
+  const clearLocalCaptureDraft = useCallback(() => {
+    galleryCaptureKeyRef.current = null;
+    void clearPendingCapture();
+    void clearCaptionDraft();
+  }, []);
 
   /** Post-capture review (Share your moment) — open immediately when landing with a recorded blob/file. */
   const [showCaptionScreen, setShowCaptionScreen] = useState(() => {
@@ -261,6 +277,9 @@ export default function UploadClip() {
     genre_name: '',
     hashtags: '',
   });
+
+  const [artistSearch, setArtistSearch] = useState('');
+  const [venueSearch, setVenueSearch] = useState('');
 
   // Video metadata from QuickRecord
   const [videoMetadata, setVideoMetadata] = useState<{
@@ -613,20 +632,181 @@ export default function UploadClip() {
     formData.video_blob,
     formData.video_file,
   ]);
-  
+
+  /** Restore pre-Share clip + caption draft after a full page refresh (no router state). */
+  useEffect(() => {
+    if (!user || isPending || pendingRecoveryAttemptedRef.current) return;
+    if (skipNavVideoHydrationRef.current) return;
+    const nav = location.state as { videoBlob?: unknown; videoFile?: unknown } | null | undefined;
+    if (nav?.videoBlob || nav?.videoFile) return;
+
+    const hasActiveUpload = clipUploadJobs.some(
+      (j) =>
+        j.status === 'queued' ||
+        j.status === 'classifying' ||
+        j.status === 'uploading' ||
+        j.status === 'completing' ||
+        j.status === 'processing' ||
+        j.status === 'paused',
+    );
+    if (hasActiveUpload) return;
+
+    pendingRecoveryAttemptedRef.current = true;
+
+    let cancelled = false;
+    void (async () => {
+      const pending = await loadPendingCapture();
+      if (cancelled || !pending?.video) return;
+
+      const sourceKey = blobSourceKey(pending.video);
+      const draft = await loadCaptionDraft();
+      const matchingDraft = captionDraftMatchesVideo(draft, sourceKey) ? draft : null;
+
+      if (cancelled) return;
+
+      galleryCaptureKeyRef.current = sourceKey;
+      setUploadMethod(matchingDraft?.uploadMethod ?? 'file');
+      setUploadSource(matchingDraft?.uploadSource ?? 'capture');
+      setFormData((prev) => ({
+        ...prev,
+        video_blob: pending.video,
+        video_file: null,
+        thumbnail_file: pending.thumbnail
+          ? new File([pending.thumbnail], 'thumb.jpg', { type: 'image/jpeg' })
+          : null,
+        video_url: matchingDraft?.form.video_url ?? '',
+        thumbnail_url: matchingDraft?.form.thumbnail_url ?? '',
+        artist_name: matchingDraft?.form.artist_name ?? '',
+        venue_name: matchingDraft?.form.venue_name ?? '',
+        location: matchingDraft?.form.location ?? '',
+        content_description: matchingDraft?.form.content_description ?? '',
+        song_title: matchingDraft?.form.song_title ?? '',
+        genre_name: matchingDraft?.form.genre_name ?? '',
+        hashtags: matchingDraft?.form.hashtags ?? '',
+      }));
+      setJambaseLink(
+        matchingDraft?.jambaseLink
+          ? {
+              event: matchingDraft.jambaseLink.event,
+              artist: matchingDraft.jambaseLink.artist,
+              venue: matchingDraft.jambaseLink.venue,
+              eventTitle: matchingDraft.jambaseLink.eventTitle ?? null,
+            }
+          : null,
+      );
+      setRecordingAtIso(matchingDraft?.recordingAtIso ?? null);
+      setCaptureGeo(matchingDraft?.captureGeo ?? null);
+      setVideoMetadata(matchingDraft?.videoMetadata ?? {});
+      setArtistSearch(matchingDraft?.artistSearch ?? '');
+      setVenueSearch(matchingDraft?.venueSearch ?? '');
+      setStoredClassificationId(matchingDraft?.storedClassificationId ?? null);
+      setClassifyResult(matchingDraft?.classifyResult ?? null);
+      if (matchingDraft?.classifyResult || matchingDraft?.storedClassificationId) {
+        setClassifyStatus('done');
+      }
+
+      if (matchingDraft?.captureGeo) {
+        const sticky = loadCaptureShowSession({
+          lat: matchingDraft.captureGeo.latitude,
+          lon: matchingDraft.captureGeo.longitude,
+          uploadsInFlight: clipUploadsInFlight > 0,
+        });
+        if (sticky && !matchingDraft.jambaseLink) {
+          const showData = clipShowCandidateToNavState(sticky.candidate);
+          setFormData((prev) => ({
+            ...prev,
+            artist_name: prev.artist_name?.trim()
+              ? prev.artist_name
+              : (showData.artist_name as string) || '',
+            venue_name: prev.venue_name?.trim()
+              ? prev.venue_name
+              : (showData.venue_name as string) || '',
+            location: prev.location?.trim() ? prev.location : (showData.location as string) || '',
+          }));
+        }
+      }
+
+      const blobUrl = URL.createObjectURL(pending.video);
+      setVideoBlobUrl(blobUrl);
+      setShowCaptionScreen(true);
+      setShowQuickCapture(false);
+      setResolveNotice(
+        'We restored your clip from this device. Finish tagging and tap Share when you are ready.',
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user,
+    isPending,
+    location.state,
+    clipUploadJobs,
+    clipUploadsInFlight,
+  ]);
+
   // Artist autocomplete
-  const [artistSearch, setArtistSearch] = useState('');
   const [artistSuggestions, setArtistSuggestions] = useState<JamBaseArtist[]>([]);
   const [showArtistSuggestions, setShowArtistSuggestions] = useState(false);
   const [artistSearchPending, setArtistSearchPending] = useState(false);
   const debouncedArtistSearch = useDebounce(artistSearch, 300);
   
   // Venue autocomplete
-  const [venueSearch, setVenueSearch] = useState('');
   const [venueSuggestions, setVenueSuggestions] = useState<JamBaseVenue[]>([]);
   const [showVenueSuggestions, setShowVenueSuggestions] = useState(false);
   const [venueSearchPending, setVenueSearchPending] = useState(false);
   const debouncedVenueSearch = useDebounce(venueSearch, 300);
+
+  /** Persist caption progress while the user is still on the post-capture screen. */
+  useEffect(() => {
+    if (!showCaptionScreen) return;
+    const source = formData.video_blob ?? formData.video_file;
+    if (!source) return;
+
+    const timer = window.setTimeout(() => {
+      void saveCaptionDraft({
+        savedAtMs: Date.now(),
+        blobSourceKey: blobSourceKey(source),
+        uploadMethod,
+        uploadSource,
+        form: {
+          video_url: formData.video_url,
+          thumbnail_url: formData.thumbnail_url,
+          artist_name: formData.artist_name,
+          venue_name: formData.venue_name,
+          location: formData.location,
+          content_description: formData.content_description,
+          song_title: formData.song_title,
+          genre_name: formData.genre_name,
+          hashtags: formData.hashtags,
+        },
+        jambaseLink,
+        recordingAtIso,
+        captureGeo,
+        videoMetadata,
+        artistSearch,
+        venueSearch,
+        storedClassificationId,
+        classifyResult,
+      });
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    showCaptionScreen,
+    uploadMethod,
+    uploadSource,
+    formData,
+    jambaseLink,
+    recordingAtIso,
+    captureGeo,
+    videoMetadata,
+    artistSearch,
+    venueSearch,
+    storedClassificationId,
+    classifyResult,
+  ]);
 
   const releaseVenueAutocompleteLock = useCallback(() => {
     markTagsEdited();
@@ -1626,7 +1806,8 @@ export default function UploadClip() {
     setUploadSource('capture');
     setLibraryFileMeta(null);
     setLibraryMetaReady(false);
-  }, [videoBlobUrl]);
+    void clearLocalCaptureDraft();
+  }, [clearLocalCaptureDraft, videoBlobUrl]);
 
   /** Prime geo + camera in the same tap as Share (iOS Safari). Desktop uses file upload only. */
   const openCaptureFromShareGesture = useCallback(() => {
@@ -1810,6 +1991,7 @@ export default function UploadClip() {
     auddAttemptedForSourceKeyRef.current = null;
     setAuddStatus('idle');
     setAuddMessage(null);
+    void clearLocalCaptureDraft();
     navigate('/', { replace: true });
   };
 

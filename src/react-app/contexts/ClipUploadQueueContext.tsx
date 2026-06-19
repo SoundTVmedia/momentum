@@ -26,7 +26,7 @@ import {
   registerClipBlob,
   releaseClipBlob,
 } from '@/react-app/lib/upload-outbox/clip-blob-registry';
-import { PENDING_CAPTURE_JOB_ID } from '@/react-app/lib/upload-outbox/capture-local-save';
+import { PENDING_CAPTURE_JOB_ID, clearPendingCapture } from '@/react-app/lib/upload-outbox/capture-local-save';
 import {
   deleteOutboxJob,
   loadOutboxMeta,
@@ -41,6 +41,10 @@ import {
   bindUploadWakeLockVisibility,
   releaseUploadWakeLock,
 } from '@/react-app/lib/upload-outbox/upload-wake-lock';
+import {
+  clipUploadNotificationLabel,
+  notifyClipUploadSuccess,
+} from '@/react-app/lib/upload-outbox/upload-success-notification';
 
 const MAX_QUEUE_SIZE = 5;
 const DONE_TTL_MS = 8000;
@@ -228,6 +232,13 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const processNextRef = useRef<() => void>(() => {});
   const abortForStallRef = useRef(false);
   const processingStartedAtRef = useRef<number | null>(null);
+  const notifiedPublishedRef = useRef<Set<string>>(new Set());
+
+  const notifyPublishedIfNeeded = useCallback((job: ClipUploadQueueJob) => {
+    if (notifiedPublishedRef.current.has(job.id)) return;
+    notifiedPublishedRef.current.add(job.id);
+    void notifyClipUploadSuccess(clipUploadNotificationLabel(job.form));
+  }, []);
 
   const clearAutoRetryTimer = useCallback((jobId: string) => {
     const t = autoRetryTimersRef.current.get(jobId);
@@ -276,13 +287,17 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         const meta = await loadOutboxMeta();
         if (cancelled) return;
 
-        const revived: UploadOutboxJob[] = [];
+        const revivedJobs: UploadOutboxJob[] = [];
         for (const m of meta) {
-          revived.push(await hydrateJobFromStorage(m));
+          const job = await hydrateJobFromStorage(m);
+          if (job.status === 'published') {
+            notifiedPublishedRef.current.add(job.id);
+          }
+          revivedJobs.push(job);
         }
 
-        setJobs(revived);
-        jobsRef.current = revived;
+        setJobs(revivedJobs);
+        jobsRef.current = revivedJobs;
       } catch (err) {
         console.error('ClipUploadQueue hydrate:', err);
       } finally {
@@ -385,6 +400,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
             }
             if (patch.status === 'published') {
               updateJob(pending.id, { ...patch, blobsReady: true });
+              notifyPublishedIfNeeded({ ...pending, ...patch, blobsReady: true });
               return;
             }
             updateJob(pending.id, patch);
@@ -392,6 +408,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
           controller.signal,
         );
         updateJob(pending.id, { status: 'published', progress: 100 });
+        notifyPublishedIfNeeded(
+          jobsRef.current.find((j) => j.id === pending.id) ?? { ...pending, status: 'published', progress: 100 },
+        );
         clearAutoRetryTimer(pending.id);
         releaseClipBlob(pending.id);
         removeJobLater(pending.id);
@@ -445,7 +464,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     } finally {
       processingRef.current = false;
     }
-  }, [clearAutoRetryTimer, hydrated, removeJobLater, updateJob]);
+  }, [clearAutoRetryTimer, hydrated, notifyPublishedIfNeeded, removeJobLater, updateJob]);
 
   processNextRef.current = () => {
     void processNext();
@@ -678,6 +697,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           console.warn('ClipUploadQueue persistOutboxVideo:', err);
         }
+        await clearPendingCapture();
         void processNext();
         void persistClipInBackground({
           jobId: job.id,

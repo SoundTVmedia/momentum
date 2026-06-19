@@ -1,10 +1,12 @@
 import {
   cacheOutboxBlobs,
+  clearCachedOutboxBlobs,
   persistOutboxVideo,
   peekCachedOutboxBlobs,
   resolveOutboxBlobs,
 } from '@/react-app/lib/upload-outbox/blob-store';
-import { saveOutboxBlobs } from '@/react-app/lib/upload-outbox/idb';
+import { deleteOutboxJob, saveOutboxBlobs } from '@/react-app/lib/upload-outbox/idb';
+import type { StoredUploadBlobs } from '@/react-app/lib/upload-outbox/types';
 import {
   blobSourceKey,
   saveClipToDeviceGallery,
@@ -38,6 +40,20 @@ export async function persistClipLocallyOnCapture(
 }
 
 export { blobSourceKey } from '@/react-app/lib/upload-outbox/gallery-save';
+
+export async function loadPendingCapture(): Promise<StoredUploadBlobs | null> {
+  return resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+}
+
+/** Remove the pre-Share capture blob after Share or explicit discard. */
+export async function clearPendingCapture(): Promise<void> {
+  clearCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+  try {
+    await deleteOutboxJob(PENDING_CAPTURE_JOB_ID);
+  } catch (err) {
+    console.warn('clearPendingCapture:', err);
+  }
+}
 
 /** Copy pending capture blob into a queue job (memory cache or IndexedDB). */
 export async function adoptPendingCaptureForJob(
