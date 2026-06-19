@@ -2,6 +2,7 @@ import type { ClipShowCandidate } from './types';
 import { jamBaseEventMatchesCapture } from './jambase-event-day';
 import {
   pickGoingShowMarkForCapture,
+  showMarkToClipCandidate,
   type UserShowMark,
 } from './show-marks';
 
@@ -69,18 +70,30 @@ function candidateEventMatchesCapture(
   );
 }
 
-function closestCandidateWithJamBaseEvent(
+function closestCandidateWithJamBaseEventWithin1Mi(
   candidates: ClipShowCandidate[],
   captureMs: number,
   userLat?: number,
   userLon?: number,
 ): ClipShowCandidate | null {
   for (const candidate of candidates) {
+    if (!canAutoApplyCandidate(candidate)) continue;
     if (candidateEventMatchesCapture(candidate, captureMs, userLat, userLon)) {
       return candidate;
     }
   }
   return null;
+}
+
+/** Going mark on the capture night → clip candidate (no distance limit). */
+export function resolveGoingMarkClipCandidate(
+  goingMarks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): ClipShowCandidate | null {
+  const going = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
+  return going ? showMarkToClipCandidate(going) : null;
 }
 
 /** One row per venue (or per event if venue id missing), keeping the closest hit. */
@@ -97,6 +110,10 @@ export function resolveShowMatchFromCandidates(
 } {
   const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
   if (enrichedSorted.length === 0) {
+    const goingOnly = resolveGoingMarkClipCandidate(goingMarks, captureMs, userLat, userLon);
+    if (goingOnly) {
+      return { match: 'single', candidates: [goingOnly], nearbyVenues: [] };
+    }
     return { match: 'none', candidates: [], nearbyVenues: [] };
   }
 
@@ -106,9 +123,14 @@ export function resolveShowMatchFromCandidates(
     if (matched) {
       return { match: 'single', candidates: [matched], nearbyVenues };
     }
+    return {
+      match: 'single',
+      candidates: [showMarkToClipCandidate(going)],
+      nearbyVenues,
+    };
   }
 
-  const closestWithEvent = closestCandidateWithJamBaseEvent(
+  const closestWithEvent = closestCandidateWithJamBaseEventWithin1Mi(
     enrichedSorted,
     captureMs,
     userLat,
@@ -118,18 +140,13 @@ export function resolveShowMatchFromCandidates(
     return { match: 'single', candidates: [closestWithEvent], nearbyVenues };
   }
 
-  const top = enrichedSorted[0]!;
-  if (canAutoApplyCandidate(top)) {
-    return { match: 'single', candidates: [top], nearbyVenues };
-  }
-
   if (nearbyVenues.length > 0) {
     return { match: 'ambiguous', candidates: [], nearbyVenues };
   }
   return { match: 'none', candidates: [], nearbyVenues: [] };
 }
 
-/** Client-side upgrade when resolve-show returned ambiguous but a going mark matches a picker row. */
+/** Client-side auto-apply when resolve-show returned ambiguous or going marks hydrated late. */
 export function resolveShowAutoApplyCandidate(
   data: {
     match?: string;
@@ -145,12 +162,14 @@ export function resolveShowAutoApplyCandidate(
     return data.candidates[0];
   }
 
-  const going = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
-  if (going) {
-    const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
-    return findCandidateForGoingMark(pool, going);
-  }
+  const goingCandidate = resolveGoingMarkClipCandidate(
+    goingMarks,
+    captureMs,
+    userLat,
+    userLon,
+  );
+  if (goingCandidate) return goingCandidate;
 
   const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
-  return closestCandidateWithJamBaseEvent(pool, captureMs, userLat, userLon);
+  return closestCandidateWithJamBaseEventWithin1Mi(pool, captureMs, userLat, userLon);
 }

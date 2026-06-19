@@ -21,11 +21,7 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
-import {
-  pickGoingShowMarkForCapture,
-  showMarkToClipCandidate,
-} from '@/shared/show-marks';
-import { resolveShowAutoApplyCandidate } from '@/shared/clip-resolve-show-match';
+import { resolveShowAutoApplyCandidate, resolveGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
 import {
   applyCameraZoom,
   buildCameraZoomPresets,
@@ -295,19 +291,24 @@ export default function QuickRecordButton({
       lon: c.lon,
       uploadsInFlight: clipUploadsInFlight > 0,
     });
+
+    if (showMarksHydrated) {
+      const goingCandidate = resolveGoingMarkClipCandidate(
+        goingMarks,
+        Date.now(),
+        c.lat,
+        c.lon,
+      );
+      if (goingCandidate) {
+        saveCaptureShowSession(goingCandidate, c.lat, c.lon);
+        applySessionCandidate(goingCandidate);
+        return;
+      }
+    }
+
     if (sticky?.candidate.venue_name?.trim()) {
       applySessionCandidate(sticky.candidate);
       return;
-    }
-
-    if (showMarksHydrated) {
-      const going = pickGoingShowMarkForCapture(goingMarks, Date.now(), c.lat, c.lon);
-      if (going?.venue_name?.trim()) {
-        const cand = showMarkToClipCandidate(going);
-        saveCaptureShowSession(cand, c.lat, c.lon);
-        applySessionCandidate(cand);
-        return;
-      }
     }
 
     void (async () => {
@@ -360,7 +361,7 @@ export default function QuickRecordButton({
           data.match === 'single'
             ? data.candidates?.[0]
             : goingOverride ?? data.nearbyVenues?.[0] ?? data.candidates?.[0];
-        const previewOnly = data.match !== 'single' && !goingOverride;
+        const previewOnly = !goingOverride && data.match !== 'single';
         if (cand?.venue_name?.trim()) {
           saveCaptureShowSession(cand, c.lat, c.lon);
           if (!previewOnly) {
@@ -1517,8 +1518,23 @@ export default function QuickRecordButton({
               uploadsInFlight: clipUploadsInFlight > 0,
             })
           : null;
+      const goingCandidate =
+        geo &&
+        Number.isFinite(geo.latitude) &&
+        Number.isFinite(geo.longitude) &&
+        showMarksHydrated
+          ? resolveGoingMarkClipCandidate(
+              goingMarks,
+              Date.parse(at) || Date.now(),
+              geo.latitude,
+              geo.longitude,
+            )
+          : null;
       const prefetchShow =
-        captureResolveCandidateRef.current ?? sticky?.candidate ?? null;
+        goingCandidate ??
+        captureResolveCandidateRef.current ??
+        sticky?.candidate ??
+        null;
       navigate(
         { pathname: '/upload', search: '' },
         {

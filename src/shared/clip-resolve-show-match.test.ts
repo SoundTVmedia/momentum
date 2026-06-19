@@ -62,7 +62,13 @@ describe('resolveShowMatchFromCandidates', () => {
 
   it('auto-applies within one mile without a going mark', () => {
     const result = resolveShowMatchFromCandidates(
-      [baseCandidate({ distance_miles: 0.4 })],
+      [
+        baseCandidate({
+          jambase_event_id: 'jambase:ev',
+          startDate: '2026-06-09T20:00:00',
+          distance_miles: 0.4,
+        }),
+      ],
       [],
       captureMs,
       40.73,
@@ -89,7 +95,36 @@ describe('resolveShowMatchFromCandidates', () => {
     expect(result.candidates[0]?.jambase_event_id).toBe('jambase:ev-going');
   });
 
-  it('auto-applies closest venue with event data when no going mark matches capture night', () => {
+  it('auto-applies closest venue with event data within one mile when no going mark on capture night', () => {
+    const near = baseCandidate({
+      jambase_event_id: 'jambase:ev-tonight',
+      startDate: '2026-06-09T20:00:00',
+      distance_miles: 0.6,
+    });
+    const result = resolveShowMatchFromCandidates(
+      [near],
+      [goingMark({ jambase_event_id: 'jambase:other-night', start_date: '2026-06-10T20:00:00' })],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result.match).toBe('single');
+    expect(result.candidates[0]?.jambase_event_id).toBe('jambase:ev-tonight');
+  });
+
+  it('auto-applies going mark data when no nearby JamBase row matches', () => {
+    const result = resolveShowMatchFromCandidates(
+      [],
+      [goingMark()],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result.match).toBe('single');
+    expect(result.candidates[0]?.jambase_event_id).toBe('jambase:ev-going');
+  });
+
+  it('stays ambiguous when event is beyond one mile and no going mark on capture night', () => {
     const far = baseCandidate({
       jambase_event_id: 'jambase:ev-tonight',
       startDate: '2026-06-09T20:00:00',
@@ -102,15 +137,15 @@ describe('resolveShowMatchFromCandidates', () => {
       40.73,
       -73.99,
     );
-    expect(result.match).toBe('single');
-    expect(result.candidates[0]?.jambase_event_id).toBe('jambase:ev-tonight');
+    expect(result.match).toBe('ambiguous');
+    expect(result.candidates).toEqual([]);
   });
 
-  it('stays ambiguous when no going mark and no event matches capture window', () => {
+  it('stays ambiguous when no going mark and event is on a different night', () => {
     const far = baseCandidate({
       jambase_event_id: 'jambase:other',
       startDate: '2026-06-10T20:00:00',
-      distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 2,
+      distance_miles: 0.4,
     });
     const result = resolveShowMatchFromCandidates(
       [far],

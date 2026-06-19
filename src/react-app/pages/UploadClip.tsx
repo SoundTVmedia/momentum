@@ -84,10 +84,8 @@ import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import {
   jamBaseEventToShowMarkInput,
-  pickGoingShowMarkForCapture,
-  showMarkToClipCandidate,
 } from '@/shared/show-marks';
-import { resolveShowAutoApplyCandidate } from '@/shared/clip-resolve-show-match';
+import { resolveShowAutoApplyCandidate, resolveGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
 
 function isoToDateInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -429,25 +427,25 @@ export default function UploadClip() {
       const capGeo = location.state?.captureGeo as
         | { latitude?: number; longitude?: number }
         | undefined;
-      const sticky = loadCaptureShowSession({
-        lat: capGeo?.latitude,
-        lon: capGeo?.longitude,
-        uploadsInFlight: clipUploadsInFlight > 0,
-      });
-      if (sticky) {
-        showData = clipShowCandidateToNavState(sticky.candidate);
-      } else if (showMarksHydrated) {
-        const capGeo = location.state?.captureGeo as
-          | { latitude?: number; longitude?: number }
-          | undefined;
-        const going = pickGoingShowMarkForCapture(
+      if (showMarksHydrated) {
+        const goingCandidate = resolveGoingMarkClipCandidate(
           goingMarks,
           Date.now(),
           capGeo?.latitude,
           capGeo?.longitude,
         );
-        if (going) {
-          showData = clipShowCandidateToNavState(showMarkToClipCandidate(going));
+        if (goingCandidate) {
+          showData = clipShowCandidateToNavState(goingCandidate);
+        }
+      }
+      if (!showData) {
+        const sticky = loadCaptureShowSession({
+          lat: capGeo?.latitude,
+          lon: capGeo?.longitude,
+          uploadsInFlight: clipUploadsInFlight > 0,
+        });
+        if (sticky) {
+          showData = clipShowCandidateToNavState(sticky.candidate);
         }
       }
     }
@@ -1144,25 +1142,25 @@ export default function UploadClip() {
         lon: geo.longitude,
         uploadsInFlight: clipUploadsInFlight > 0,
       });
-      if (stickySession && resolveForAutoTagQuick) {
-        applyClipCandidate(stickySession.candidate);
-        return;
-      }
 
       if (showMarksHydrated && resolveForAutoTagQuick) {
         const atMs = Date.parse(at);
-        const going = pickGoingShowMarkForCapture(
+        const goingCandidate = resolveGoingMarkClipCandidate(
           goingMarks,
           Number.isFinite(atMs) ? atMs : Date.now(),
           geo.latitude,
           geo.longitude,
         );
-        if (going) {
-          const cand = showMarkToClipCandidate(going);
-          applyClipCandidate(cand);
-          saveCaptureShowSession(cand, geo.latitude, geo.longitude);
+        if (goingCandidate) {
+          applyClipCandidate(goingCandidate);
+          saveCaptureShowSession(goingCandidate, geo.latitude, geo.longitude);
           return;
         }
+      }
+
+      if (stickySession && resolveForAutoTagQuick) {
+        applyClipCandidate(stickySession.candidate);
+        return;
       }
 
       try {
