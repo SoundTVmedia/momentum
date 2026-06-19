@@ -1,17 +1,14 @@
-export function clipUploadNotificationLabel(input: {
-  artist_name?: string;
-  venue_name?: string;
-}): string {
-  return input.artist_name?.trim() || input.venue_name?.trim() || 'Your clip';
-}
+import { clipPublishedNotificationContent } from '@/shared/notification-copy';
 
 /** Best-effort local notification when a background upload finishes. */
-export async function notifyClipUploadSuccess(label: string): Promise<void> {
+export async function notifyClipUploadSuccess(
+  displayName: string | null | undefined,
+): Promise<void> {
   if (typeof window === 'undefined') return;
   if (!('Notification' in window)) return;
 
-  const title = 'Clip posted';
-  const body = `${label} is live on Feedback.`;
+  const title = 'Feedback';
+  const body = clipPublishedNotificationContent(displayName);
 
   if (Notification.permission === 'default') {
     try {

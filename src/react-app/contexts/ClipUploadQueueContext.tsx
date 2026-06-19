@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useAuth } from '@getmocha/users-service/react';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import {
   cacheOutboxBlobs,
@@ -41,10 +42,9 @@ import {
   bindUploadWakeLockVisibility,
   releaseUploadWakeLock,
 } from '@/react-app/lib/upload-outbox/upload-wake-lock';
-import {
-  clipUploadNotificationLabel,
-  notifyClipUploadSuccess,
-} from '@/react-app/lib/upload-outbox/upload-success-notification';
+import { notifyClipUploadSuccess } from '@/react-app/lib/upload-outbox/upload-success-notification';
+import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName';
+import type { ExtendedMochaUser } from '@/shared/types';
 
 const MAX_QUEUE_SIZE = 5;
 const DONE_TTL_MS = 8000;
@@ -222,6 +222,8 @@ function nextUploadJob(jobs: UploadOutboxJob[]): UploadOutboxJob | undefined {
 }
 
 export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const welcomeName = resolveWelcomeName(user as ExtendedMochaUser | null);
   const [jobs, setJobs] = useState<ClipUploadQueueJob[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const jobsRef = useRef(jobs);
@@ -234,11 +236,14 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const processingStartedAtRef = useRef<number | null>(null);
   const notifiedPublishedRef = useRef<Set<string>>(new Set());
 
-  const notifyPublishedIfNeeded = useCallback((job: ClipUploadQueueJob) => {
-    if (notifiedPublishedRef.current.has(job.id)) return;
-    notifiedPublishedRef.current.add(job.id);
-    void notifyClipUploadSuccess(clipUploadNotificationLabel(job.form));
-  }, []);
+  const notifyPublishedIfNeeded = useCallback(
+    (job: ClipUploadQueueJob) => {
+      if (notifiedPublishedRef.current.has(job.id)) return;
+      notifiedPublishedRef.current.add(job.id);
+      void notifyClipUploadSuccess(welcomeName);
+    },
+    [welcomeName],
+  );
 
   const clearAutoRetryTimer = useCallback((jobId: string) => {
     const t = autoRetryTimersRef.current.get(jobId);

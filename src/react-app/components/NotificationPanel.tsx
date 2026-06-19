@@ -3,7 +3,11 @@ import { useState } from 'react';
 import type { Notification } from '@/react-app/hooks/useNotifications';
 import { useNotificationsContext } from '@/react-app/contexts/NotificationsContext';
 import { useNavigate } from 'react-router';
+import { useAuth } from '@getmocha/users-service/react';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName';
+import { clipPublishedNotificationContent } from '@/shared/notification-copy';
+import type { ExtendedMochaUser } from '@/shared/types';
 
 interface NotificationPanelProps {
   onClose: () => void;
@@ -16,6 +20,8 @@ export default function NotificationPanel({
   variant = 'dropdown',
 }: NotificationPanelProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const welcomeName = resolveWelcomeName(user as ExtendedMochaUser | null);
   const {
     unreadNotifications,
     readNotifications,
@@ -48,6 +54,7 @@ export default function NotificationPanel({
       case 'achievement':
         return { icon: <Award className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-rose/20 text-momentum-rose', ringColor: 'ring-momentum-rose/30' };
       case 'clip':
+      case 'clip_published':
         return { icon: <Video className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
       case 'live':
         return { icon: <Radio className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-red-500/20 text-red-400', ringColor: 'ring-red-500/30' };
@@ -72,6 +79,12 @@ export default function NotificationPanel({
 
     const diffDays = Math.floor(diffHours / 24);
     return `${diffDays}d ago`;
+  };
+
+  const clipPublishedSubhead = (notification: Notification): string => {
+    const content = notification.content.trim();
+    if (content.includes('Your feedback clip is live')) return content;
+    return clipPublishedNotificationContent(welcomeName);
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -189,6 +202,7 @@ export default function NotificationPanel({
             {displayedNotifications.map((notification) => {
               const iconData = getIcon(notification.type);
               const unread = isNotificationUnread(notification.is_read);
+              const isClipPublished = notification.type === 'clip_published';
               return (
                 <button
                   key={notification.id}
@@ -200,15 +214,26 @@ export default function NotificationPanel({
                 >
                   <div className="flex items-start space-x-3">
                     <div className="relative flex-shrink-0">
-                      <UserAvatar
-                        imageUrl={notification.user_avatar}
-                        displayName={notification.user_display_name}
-                        seed={notification.related_user_id ?? notification.mocha_user_id}
-                        alt={notification.user_display_name || 'User'}
-                        sizeClass="w-10 h-10 sm:w-12 sm:h-12"
-                        letterClassName="text-sm sm:text-base font-semibold"
-                        className="border-2 border-white/10 group-hover:border-momentum-ember/40 transition-colors"
-                      />
+                      {isClipPublished ? (
+                        <div
+                          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-r from-momentum-ember to-momentum-flare flex items-center justify-center border-2 border-white/10 group-hover:border-momentum-ember/40 transition-colors"
+                          aria-hidden
+                        >
+                          <span className="text-white text-[10px] sm:text-xs font-bold tracking-tight">
+                            Fb
+                          </span>
+                        </div>
+                      ) : (
+                        <UserAvatar
+                          imageUrl={notification.user_avatar}
+                          displayName={notification.user_display_name}
+                          seed={notification.related_user_id ?? notification.mocha_user_id}
+                          alt={notification.user_display_name || 'User'}
+                          sizeClass="w-10 h-10 sm:w-12 sm:h-12"
+                          letterClassName="text-sm sm:text-base font-semibold"
+                          className="border-2 border-white/10 group-hover:border-momentum-ember/40 transition-colors"
+                        />
+                      )}
                       <div
                         className={`absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 ${iconData.color} rounded-full flex items-center justify-center ring-2 ${iconData.ringColor} ring-offset-1 ring-offset-black`}
                       >
@@ -217,12 +242,23 @@ export default function NotificationPanel({
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm sm:text-base leading-snug">
-                        <span className="font-semibold">
-                          {notification.user_display_name || 'Someone'}
-                        </span>{' '}
-                        <span className="text-gray-300">{notification.content}</span>
-                      </p>
+                      {isClipPublished ? (
+                        <div>
+                          <p className="text-white text-sm sm:text-base font-semibold leading-snug">
+                            Feedback
+                          </p>
+                          <p className="text-gray-400 text-xs sm:text-sm mt-0.5 leading-snug">
+                            {clipPublishedSubhead(notification)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-white text-sm sm:text-base leading-snug">
+                          <span className="font-semibold">
+                            {notification.user_display_name || 'Someone'}
+                          </span>{' '}
+                          <span className="text-gray-300">{notification.content}</span>
+                        </p>
+                      )}
                       <p className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
                         <span>{formatTimestamp(notification.created_at)}</span>
                         {unread && (

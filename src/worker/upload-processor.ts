@@ -1,4 +1,5 @@
 import { r2ClipFilePath } from '../shared/clip-poster-url';
+import { clipPublishedNotificationContent } from '../shared/notification-copy';
 import { createStreamService } from './stream-service';
 import { notifyUser } from './notification-utils';
 import { createRealtimeService } from './realtime-service';
@@ -62,19 +63,18 @@ export async function publishClipWithR2Playback(
       console.error('publishClipWithR2Playback awardPoints:', err);
     }
 
-    const artist = typeof prior.artist_name === 'string' ? prior.artist_name.trim() : '';
-    const venue = typeof prior.venue_name === 'string' ? prior.venue_name.trim() : '';
-    const content =
-      artist && venue
-        ? `Your clip from ${artist} at ${venue} is live!`
-        : artist
-          ? `Your clip from ${artist} is live!`
-          : 'Your clip is live!';
+    const profile = await env.DB.prepare(
+      'SELECT display_name FROM user_profiles WHERE mocha_user_id = ?',
+    )
+      .bind(prior.mocha_user_id)
+      .first();
+    const displayName =
+      typeof profile?.display_name === 'string' ? profile.display_name : null;
 
     try {
       await notifyUser(env, prior.mocha_user_id, {
         type: 'clip_published',
-        content,
+        content: clipPublishedNotificationContent(displayName),
         related_clip_id: clipId,
       });
     } catch (err) {
