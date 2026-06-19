@@ -55,6 +55,7 @@ export function uploadJobCanRetry(job: UploadOutboxJob): boolean {
   );
 }
 
+/** Oldest first — matches FIFO upload order (active clip is next at the top). */
 export function sortUploadJobsForDisplay(jobs: UploadOutboxJob[]): UploadOutboxJob[] {
-  return [...jobs].sort((a, b) => b.createdAt - a.createdAt);
+  return [...jobs].sort((a, b) => a.createdAt - b.createdAt);
 }

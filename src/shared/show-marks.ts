@@ -328,8 +328,9 @@ export function pickGoingShowMarkForCapture(
     }
   }
 
-  const pool = matching.length > 0 ? matching : going;
-  pool.sort((a, b) => {
+  if (matching.length === 0) return null;
+
+  matching.sort((a, b) => {
     const ta = Date.parse(a.start_date ?? '');
     const tb = Date.parse(b.start_date ?? '');
     if (!Number.isFinite(ta) && !Number.isFinite(tb)) return 0;
@@ -337,5 +338,5 @@ export function pickGoingShowMarkForCapture(
     if (!Number.isFinite(tb)) return -1;
     return Math.abs(ta - captureMs) - Math.abs(tb - captureMs);
   });
-  return pool[0] ?? null;
+  return matching[0] ?? null;
 }

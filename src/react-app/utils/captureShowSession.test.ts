@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
-  CAPTURE_SHOW_SESSION_TTL_MS,
+  CAPTURE_SHOW_POST_EVENT_HOURS,
   clearCaptureShowSession,
   loadCaptureShowSession,
   markCaptureShowSessionPosted,
@@ -8,17 +8,20 @@ import {
 } from './captureShowSession';
 import type { ClipShowCandidate } from '@/shared/types';
 
-const candidate = (): ClipShowCandidate => ({
-  jambase_event_id: 'jambase:ev1',
-  jambase_artist_id: 'jambase:ar1',
-  jambase_venue_id: 'jambase:vn1',
-  artist_name: 'Headliner',
-  venue_name: 'Brooklyn Steel',
-  location: 'Brooklyn, NY',
-  event_title: 'Headliner at Brooklyn Steel',
-  startDate: '2026-06-09T20:00:00',
-  distance_miles: 0.3,
-});
+const candidate = (): ClipShowCandidate => {
+  const start = new Date(Date.now() + 4 * 60 * 60 * 1000);
+  return {
+    jambase_event_id: 'jambase:ev1',
+    jambase_artist_id: 'jambase:ar1',
+    jambase_venue_id: 'jambase:vn1',
+    artist_name: 'Headliner',
+    venue_name: 'Brooklyn Steel',
+    location: 'Brooklyn, NY',
+    event_title: 'Headliner at Brooklyn Steel',
+    startDate: start.toISOString(),
+    distance_miles: 0.3,
+  };
+};
 
 function installSessionStorageMock(): void {
   const store = new Map<string, string>();
@@ -65,13 +68,24 @@ describe('captureShowSession', () => {
     expect(loaded?.postsAtVenue).toBe(1);
   });
 
-  it('expires after TTL', () => {
+  it('expires after show window', () => {
     saveCaptureShowSession(candidate(), 40.73, -73.99);
     const raw = sessionStorage.getItem('momentum.captureShowSession.v1');
     expect(raw).toBeTruthy();
-    const parsed = JSON.parse(raw!) as { savedAtMs: number };
-    parsed.savedAtMs = Date.now() - CAPTURE_SHOW_SESSION_TTL_MS - 1000;
+    const parsed = JSON.parse(raw!) as { expiresAtMs: number };
+    parsed.expiresAtMs = Date.now() - 1000;
     sessionStorage.setItem('momentum.captureShowSession.v1', JSON.stringify(parsed));
     expect(loadCaptureShowSession({ lat: 40.73, lon: -73.99 })).toBeNull();
+  });
+
+  it('expires at show start plus post-show hours', () => {
+    const cand = candidate();
+    saveCaptureShowSession(cand, 40.73, -73.99);
+    const raw = sessionStorage.getItem('momentum.captureShowSession.v1');
+    const parsed = JSON.parse(raw!) as { expiresAtMs: number };
+    const showStart = Date.parse(cand.startDate!);
+    expect(parsed.expiresAtMs).toBe(
+      showStart + CAPTURE_SHOW_POST_EVENT_HOURS * 60 * 60 * 1000,
+    );
   });
 });

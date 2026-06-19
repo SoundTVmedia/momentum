@@ -354,11 +354,11 @@ export default function QuickRecordButton({
             : data.nearbyVenues?.[0] ?? data.candidates?.[0];
         const previewOnly = data.match !== 'single';
         if (cand?.venue_name?.trim()) {
+          saveCaptureShowSession(cand, c.lat, c.lon);
           if (!previewOnly) {
-            saveCaptureShowSession(cand, c.lat, c.lon);
             applySessionCandidate(cand);
           } else {
-            captureResolveCandidateRef.current = null;
+            captureResolveCandidateRef.current = cand;
             const eventTitle = resolveClipEventTitle({
               event_title: cand.event_title,
               artist_name: cand.artist_name,

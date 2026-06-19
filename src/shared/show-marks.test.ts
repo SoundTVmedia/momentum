@@ -159,4 +159,14 @@ describe('pickGoingShowMarkForCapture', () => {
     );
     expect(picked).toBeNull();
   });
+
+  it('returns null when going marks are on a different night', () => {
+    const picked = pickGoingShowMarkForCapture(
+      [mark({ jambase_event_id: 'future', start_date: '2026-12-01T20:00:00' })],
+      Date.parse('2026-06-09T22:00:00.000Z'),
+      40.73,
+      -73.99,
+    );
+    expect(picked).toBeNull();
+  });
 });

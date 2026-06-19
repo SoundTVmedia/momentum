@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Film, Loader2, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, Check, Loader2, RotateCcw, X } from 'lucide-react';
 import type { ClipUploadQueueJob } from '@/react-app/contexts/ClipUploadQueueContext';
-import { resolveOutboxBlobs } from '@/react-app/lib/upload-outbox/blob-store';
 import {
   uploadJobCanRetry,
   uploadJobLabel,
@@ -15,33 +13,81 @@ type UploadQueueJobCardProps = {
   onDismiss: (id: string) => void;
 };
 
+function UploadProgressRing({
+  progress,
+  tone,
+}: {
+  progress: number;
+  tone: 'active' | 'paused' | 'failed' | 'published';
+}) {
+  const size = 56;
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.max(0, Math.min(100, progress));
+  const offset = circumference - (pct / 100) * circumference;
+
+  const trackClass =
+    tone === 'failed'
+      ? 'stroke-red-500/25'
+      : tone === 'paused'
+        ? 'stroke-amber-500/25'
+        : tone === 'published'
+          ? 'stroke-green-500/25'
+          : 'stroke-white/15';
+
+  const arcClass =
+    tone === 'failed'
+      ? 'stroke-red-400'
+      : tone === 'paused'
+        ? 'stroke-amber-400'
+        : tone === 'published'
+          ? 'stroke-green-400'
+          : 'stroke-momentum-flare';
+
+  return (
+    <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90"
+        aria-hidden
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={stroke}
+          className={trackClass}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          className={`${arcClass} transition-all duration-300`}
+          strokeDasharray={circumference}
+          strokeDashoffset={tone === 'published' ? 0 : offset}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        {tone === 'published' ? (
+          <Check className="h-5 w-5 text-green-400" aria-hidden />
+        ) : tone === 'failed' ? (
+          <AlertCircle className="h-5 w-5 text-red-400" aria-hidden />
+        ) : (
+          <Loader2 className="h-5 w-5 animate-spin text-white" aria-hidden />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function UploadQueueJobCard({ job, onRetry, onDismiss }: UploadQueueJobCardProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(job.previewObjectUrl);
-
-  useEffect(() => {
-    if (job.previewObjectUrl) {
-      setPreviewUrl(job.previewObjectUrl);
-      return;
-    }
-
-    let cancelled = false;
-    let objectUrl: string | null = null;
-
-    void (async () => {
-      const blobs = await resolveOutboxBlobs(job.id);
-      if (cancelled) return;
-      const source = blobs?.thumbnail ?? blobs?.video;
-      if (!source) return;
-      objectUrl = URL.createObjectURL(source);
-      setPreviewUrl(objectUrl);
-    })();
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [job.id, job.previewObjectUrl]);
-
   const label = uploadJobLabel(job);
   const statusText = uploadJobStatusText(job);
   const showProgress = uploadJobShowProgress(job);
@@ -49,6 +95,18 @@ export default function UploadQueueJobCard({ job, onRetry, onDismiss }: UploadQu
   const isPublished = job.status === 'published';
   const isFailed = job.status === 'failed' && !canRetry;
   const isPaused = job.status === 'paused';
+
+  const ringTone = isPublished
+    ? 'published'
+    : isFailed
+      ? 'failed'
+      : isPaused
+        ? 'paused'
+        : 'active';
+
+  const ringProgress = isPublished
+    ? 100
+    : Math.max(job.progress, job.status === 'queued' ? 8 : 12);
 
   return (
     <div
@@ -63,20 +121,7 @@ export default function UploadQueueJobCard({ job, onRetry, onDismiss }: UploadQu
       }`}
     >
       <div className="flex gap-3">
-        <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-white/10">
-          {previewUrl ? (
-            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              <Film className="h-6 w-6 text-gray-500" aria-hidden />
-            </div>
-          )}
-          {!isPublished && !isFailed && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-              <Loader2 className="h-5 w-5 animate-spin text-white" aria-hidden />
-            </div>
-          )}
-        </div>
+        <UploadProgressRing progress={ringProgress} tone={ringTone} />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
@@ -96,26 +141,10 @@ export default function UploadQueueJobCard({ job, onRetry, onDismiss }: UploadQu
                 {statusText}
               </p>
             </div>
-            {isPublished ? (
-              <Check className="h-5 w-5 shrink-0 text-green-400" aria-hidden />
-            ) : isFailed ? (
-              <AlertCircle className="h-5 w-5 shrink-0 text-red-400" aria-hidden />
-            ) : null}
           </div>
 
-          {showProgress && (
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div
-                className={`h-full transition-all duration-300 ${
-                  isFailed
-                    ? 'bg-red-500/80'
-                    : isPaused
-                      ? 'bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600'
-                      : 'bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember'
-                }`}
-                style={{ width: `${Math.max(job.progress, job.status === 'queued' ? 8 : 12)}%` }}
-              />
-            </div>
+          {showProgress && !isPublished && (
+            <p className="mt-2 text-[11px] text-gray-500 tabular-nums">{ringProgress}%</p>
           )}
 
           {(canRetry || isFailed) && (

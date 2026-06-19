@@ -16,8 +16,11 @@ function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number):
 
 const STORAGE_KEY = 'momentum.captureShowSession.v1';
 
-/** How long a show-night session stays valid (aligns with in-show upload window). */
+/** Fallback when no show start time is known. */
 export const CAPTURE_SHOW_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+/** Sticky venue session stays active this long after the show start time. */
+export const CAPTURE_SHOW_POST_EVENT_HOURS = 10;
 
 /** GPS slack after the user has posted at least once from this venue. */
 const CONFIRMED_MAX_DISTANCE_MILES = 2.5;
@@ -28,6 +31,8 @@ const MATCHED_MAX_DISTANCE_MILES = 1.5;
 export type CaptureShowSession = {
   candidate: ClipShowCandidate;
   savedAtMs: number;
+  /** Session ends at this instant (show start + post-show window, or savedAt + fallback TTL). */
+  expiresAtMs: number;
   anchorLat: number;
   anchorLon: number;
   /** Incremented each time the user posts a main-feed clip with this venue. */
@@ -53,6 +58,9 @@ function readRaw(): CaptureShowSession | null {
       !Number.isFinite(parsed.anchorLon)
     ) {
       return null;
+    }
+    if (!Number.isFinite(parsed.expiresAtMs)) {
+      parsed.expiresAtMs = captureShowSessionExpiresAtMs(parsed.candidate, parsed.savedAtMs);
     }
     return parsed;
   } catch {
@@ -91,6 +99,20 @@ export function clipShowCandidateToNavState(c: ClipShowCandidate): CaptureShowNa
   return out;
 }
 
+export function captureShowSessionExpiresAtMs(
+  candidate: ClipShowCandidate,
+  savedAtMs: number = Date.now(),
+): number {
+  const sd = candidate.startDate?.trim();
+  if (sd) {
+    const startMs = Date.parse(sd);
+    if (Number.isFinite(startMs)) {
+      return startMs + CAPTURE_SHOW_POST_EVENT_HOURS * 60 * 60 * 1000;
+    }
+  }
+  return savedAtMs + CAPTURE_SHOW_SESSION_TTL_MS;
+}
+
 export function saveCaptureShowSession(
   candidate: ClipShowCandidate,
   anchorLat: number,
@@ -118,6 +140,7 @@ export function saveCaptureShowSession(
   writeRaw({
     candidate,
     savedAtMs: Date.now(),
+    expiresAtMs: captureShowSessionExpiresAtMs(candidate),
     anchorLat,
     anchorLon,
     postsAtVenue,
@@ -145,10 +168,14 @@ export function loadCaptureShowSession(
   const session = readRaw();
   if (!session) return null;
 
-  const ttl = opts?.uploadsInFlight
-    ? CAPTURE_SHOW_SESSION_TTL_MS + 2 * 60 * 60 * 1000
-    : CAPTURE_SHOW_SESSION_TTL_MS;
-  if (Date.now() - session.savedAtMs > ttl) {
+  let expiresAt = session.expiresAtMs;
+  if (!Number.isFinite(expiresAt)) {
+    expiresAt = captureShowSessionExpiresAtMs(session.candidate, session.savedAtMs);
+  }
+  if (opts?.uploadsInFlight) {
+    expiresAt = Math.max(expiresAt, Date.now() + 2 * 60 * 60 * 1000);
+  }
+  if (Date.now() > expiresAt) {
     clearCaptureShowSession();
     return null;
   }
