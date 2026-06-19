@@ -16,8 +16,11 @@ import {
   jamBaseVenueTimezone,
   JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS,
 } from '../shared/jambase-event-day';
+import { fetchNearbyJamBaseEvents } from './discover-jambase-enrich';
+import { clipCandidateFromJamBaseEvent } from '../shared/jambase-events';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
+  NEARBY_PICKER_MAX_DISTANCE_MILES,
   NEARBY_VENUE_PICKER_COUNT,
   resolveShowFromGoingMark,
   resolveShowMatchFromCandidates,
@@ -717,7 +720,8 @@ async function postResolveShowForClipInner(c: Context) {
 
   const venuesDiag: JamBaseFetchDiag = {};
   const eventsDiag: JamBaseFetchDiag = {};
-  const [geoVenuesPayload, geoEventsPayload] = await Promise.all([
+  const nearbyEventsRadius = Math.max(venueSearchMiles, 50);
+  const [geoVenuesPayload, geoEventsPayload, nearbyEventsRaw] = await Promise.all([
     jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
       key,
       '/venues',
@@ -732,6 +736,7 @@ async function postResolveShowForClipInner(c: Context) {
       jbQ,
       eventsDiag,
     ),
+    fetchNearbyJamBaseEvents(key, jbQ, lat, lon, nearbyEventsRadius, 40, eventsDiag),
   ]);
 
   const venuesFetchFailed = geoVenuesPayload == null;
@@ -764,6 +769,26 @@ async function postResolveShowForClipInner(c: Context) {
       matchRadiusMiles,
       resolveAnchorMs,
     );
+    if (cnd) fromEvents.push(cnd);
+  }
+
+  for (const ev of nearbyEventsRaw) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const cnd =
+      clipCandidateFromJamBaseEvent(
+        ev as Record<string, unknown>,
+        lat,
+        lon,
+        resolveAnchorMs,
+        NEARBY_PICKER_MAX_DISTANCE_MILES,
+      ) ??
+      candidateFromJamBaseEvent(
+        ev as Record<string, unknown>,
+        lat,
+        lon,
+        matchRadiusMiles,
+        resolveAnchorMs,
+      );
     if (cnd) fromEvents.push(cnd);
   }
 

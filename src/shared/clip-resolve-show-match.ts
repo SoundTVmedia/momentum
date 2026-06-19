@@ -278,7 +278,24 @@ export function resolveCameraCaptureVenues(
     return { mode: 'single', candidate: data.candidates[0] };
   }
 
-  const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
+  const serverPick = dedupeClipCandidatesByVenue([
+    ...(data.candidates ?? []),
+    ...(data.nearbyVenues ?? []),
+  ]);
+  if (data.match === 'ambiguous' && serverPick.length > 0) {
+    if (serverPick.length > 1) {
+      return { mode: 'picker', venues: serverPick.slice(0, NEARBY_VENUE_PICKER_COUNT) };
+    }
+    return { mode: 'single', candidate: serverPick[0]! };
+  }
+  if (serverPick.length === 1) {
+    return { mode: 'single', candidate: serverPick[0]! };
+  }
+  if (serverPick.length > 1) {
+    return { mode: 'picker', venues: serverPick.slice(0, NEARBY_VENUE_PICKER_COUNT) };
+  }
+
+  const pool = serverPick;
   const matches = nearbyEventVenuesWithinAutoApplyRadius(pool, captureMs, userLat, userLon);
   if (matches.length === 1) {
     return { mode: 'single', candidate: matches[0]! };
@@ -298,4 +315,37 @@ export function resolveCameraCaptureVenues(
   }
 
   return { mode: 'none' };
+}
+
+function candidateVenueDedupeKey(row: ClipShowCandidate): string | null {
+  const vid = row.jambase_venue_id?.trim();
+  if (vid) return `v:${vid}`;
+  const eid = row.jambase_event_id?.trim();
+  if (eid) return `e:${eid}`;
+  const name = row.venue_name?.trim();
+  return name ? `n:${name.toLowerCase()}` : null;
+}
+
+/** One row per venue (or event), keeping the closest hit. */
+export function dedupeClipCandidatesByVenue(candidates: ClipShowCandidate[]): ClipShowCandidate[] {
+  const map = new Map<string, ClipShowCandidate>();
+  for (const row of candidates) {
+    const key = candidateVenueDedupeKey(row);
+    if (!key) continue;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, row);
+      continue;
+    }
+    if (
+      candidateDistanceSortKey(row.distance_miles) <
+      candidateDistanceSortKey(prev.distance_miles)
+    ) {
+      map.set(key, row);
+    }
+  }
+  return [...map.values()].sort(
+    (a, b) =>
+      candidateDistanceSortKey(a.distance_miles) - candidateDistanceSortKey(b.distance_miles),
+  );
 }

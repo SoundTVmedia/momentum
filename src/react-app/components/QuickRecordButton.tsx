@@ -23,9 +23,14 @@ import {
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import {
+  dedupeClipCandidatesByVenue,
+  NEARBY_PICKER_MAX_DISTANCE_MILES,
   resolveCameraCaptureVenues,
   resolveGoingMarkClipCandidate,
+  resolveShowMatchFromCandidates,
 } from '@/shared/clip-resolve-show-match';
+import { clipCandidateFromJamBaseEvent } from '@/shared/jambase-events';
+import { nearbyShowsApiUrl } from '@/react-app/lib/nearby-shows-url';
 import {
   applyCameraZoom,
   buildCameraZoomPresets,
@@ -370,17 +375,13 @@ export default function QuickRecordButton({
         notice: null,
       });
       try {
-        const res = await fetch('/api/clips/resolve-show', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          signal: ac.signal,
-          body: JSON.stringify({
-            latitude: c.lat,
-            longitude: c.lon,
-            at: new Date().toISOString(),
-          }),
-        });
+        const res = await fetch(
+          nearbyShowsApiUrl({ limit: 40, latitude: c.lat, longitude: c.lon }),
+          {
+            credentials: 'include',
+            signal: ac.signal,
+          },
+        );
         if (cancelled) return;
         if (!res.ok) {
           captureResolveCandidateRef.current = null;
@@ -394,18 +395,40 @@ export default function QuickRecordButton({
           });
           return;
         }
-        const data = (await res.json()) as {
-          match?: string;
-          candidates?: ClipShowCandidate[];
-          nearbyVenues?: ClipShowCandidate[];
-          notice?: string;
+        const nearbyData = (await res.json()) as {
+          events?: Record<string, unknown>[];
+          jambaseNotice?: string | null;
         };
         if (cancelled) return;
 
         const captureMs = Date.now();
+        const fromEvents: ClipShowCandidate[] = [];
+        for (const ev of nearbyData.events ?? []) {
+          if (typeof ev !== 'object' || ev === null) continue;
+          const cnd = clipCandidateFromJamBaseEvent(
+            ev,
+            c.lat,
+            c.lon,
+            captureMs,
+            NEARBY_PICKER_MAX_DISTANCE_MILES,
+          );
+          if (cnd) fromEvents.push(cnd);
+        }
+        const deduped = dedupeClipCandidatesByVenue(fromEvents);
+        const matchResult = resolveShowMatchFromCandidates(
+          deduped,
+          [],
+          captureMs,
+          c.lat,
+          c.lon,
+        );
         const resolution = resolveCameraCaptureVenues(
-          data,
-          goingMarks,
+          {
+            match: matchResult.match,
+            candidates: matchResult.candidates,
+            nearbyVenues: matchResult.nearbyVenues,
+          },
+          [],
           captureMs,
           c.lat,
           c.lon,
@@ -435,7 +458,11 @@ export default function QuickRecordButton({
           venueName: null,
           artistName: null,
           locationLine: null,
-          notice: data.notice?.trim() || null,
+          notice:
+            nearbyData.jambaseNotice?.trim() ||
+            (deduped.length === 0
+              ? 'No JamBase show tonight within 15 miles. You can add venue after you record.'
+              : null),
         });
       } catch (e) {
         if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) {

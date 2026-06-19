@@ -1,6 +1,10 @@
 /** JamBase event JSON (subset used for ticketing + distance). */
 export type JamBaseEventRecord = Record<string, unknown>;
 
+import type { ClipShowCandidate } from './types';
+import { jamBaseEventMatchesCapture, jamBaseVenueTimezone } from './jambase-event-day';
+import { jamBaseEventTitle, artistAtVenueTitle } from './event-title';
+
 const JAMBASE_EVENT_IMAGE_FALLBACK =
   'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop';
 
@@ -156,6 +160,52 @@ export function jamBaseEventTicketUrl(ev: JamBaseEventRecord): string | null {
   }
   const page = typeof ev.url === 'string' ? ev.url : null;
   return page && page.length > 0 ? page : null;
+}
+
+/** Map a JamBase geo `/events` row to a clip resolve candidate (same-day capture only). */
+export function clipCandidateFromJamBaseEvent(
+  ev: JamBaseEventRecord,
+  userLat: number,
+  userLon: number,
+  captureMs: number,
+  maxDistanceMiles?: number,
+): ClipShowCandidate | null {
+  if (!jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) return null;
+
+  const eventId = typeof ev.identifier === 'string' ? ev.identifier : null;
+  if (!eventId) return null;
+
+  const head = jamBaseEventHeadliner(ev);
+  const artistName = typeof head?.name === 'string' ? head.name : null;
+  const artistId = typeof head?.identifier === 'string' ? head.identifier : null;
+  const loc = ev.location as Record<string, unknown> | undefined;
+  const venueName = typeof loc?.name === 'string' ? loc.name : null;
+  const venueId = typeof loc?.identifier === 'string' ? loc.identifier : null;
+  const locationLine = jamBaseEventVenueCityLine(ev) || null;
+  const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
+  const eventTitle = jamBaseEventTitle(ev) ?? artistAtVenueTitle(artistName, venueName);
+
+  const coords = jamBaseEventVenueCoords(ev);
+  let distanceMiles: number | null = null;
+  if (coords) {
+    distanceMiles = haversineMiles(userLat, userLon, coords.lat, coords.lon);
+    if (maxDistanceMiles != null && distanceMiles > maxDistanceMiles) return null;
+  }
+
+  if (!venueName && !venueId) return null;
+
+  return {
+    jambase_event_id: eventId,
+    jambase_artist_id: artistId,
+    jambase_venue_id: venueId,
+    artist_name: artistName,
+    venue_name: venueName,
+    location: locationLine,
+    event_title: eventTitle,
+    startDate,
+    distance_miles: distanceMiles,
+    venue_timezone: jamBaseVenueTimezone(ev, userLat, userLon),
+  };
 }
 
 export type JamBaseShowPick = {
