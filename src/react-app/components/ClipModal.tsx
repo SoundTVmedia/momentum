@@ -20,6 +20,8 @@ import {
   Radio,
   Pencil,
   Eye,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -61,6 +63,8 @@ import { clipShareUrl } from '@/shared/clip-share';
 import { buildClipShareMeta } from '@/shared/clip-share-meta';
 import { applyClipShareMetaToDocument } from '@/react-app/lib/applyClipShareMetaToDocument';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import { downloadClipVideo } from '@/react-app/lib/downloadClipVideo';
+import { resolveClipDownloadUrl } from '@/shared/clip-playback';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export type ClipModalFeedNavigation = {
@@ -115,6 +119,7 @@ export default function ClipModal({
   const [linkCopied, setLinkCopied] = useState(false);
   const [mobileCommentsOpen, setMobileCommentsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
   const [viewsCount, setViewsCount] = useState(() =>
     Number.isFinite(clip.views_count) ? clip.views_count : 0,
@@ -133,6 +138,7 @@ export default function ClipModal({
   );
 
   const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
+  const canDownloadClip = isOwnClip && Boolean(resolveClipDownloadUrl(clip));
 
   const navIndex =
     feedNavigation && feedNavigation.clips.length > 0
@@ -241,6 +247,7 @@ export default function ClipModal({
     setLinkCopied(false);
     setMobileCommentsOpen(false);
     setEditOpen(false);
+    setIsDownloading(false);
     setTicketSheetOpen(false);
     setPlayback({ isPlaying: true, isMuted: false });
   }, [clip.id]);
@@ -307,6 +314,23 @@ export default function ClipModal({
     </button>
   ) : null;
 
+  const downloadClipButton = canDownloadClip ? (
+    <button
+      type="button"
+      onClick={() => void handleDownload()}
+      disabled={isDownloading}
+      className={glassIconBtn}
+      aria-label={isDownloading ? 'Downloading clip' : 'Download clip'}
+      title={isDownloading ? 'Downloading…' : 'Download clip'}
+    >
+      {isDownloading ? (
+        <Loader2 className="h-5 w-5 animate-spin" />
+      ) : (
+        <Download className="h-5 w-5" />
+      )}
+    </button>
+  ) : null;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -349,6 +373,18 @@ export default function ClipModal({
 
   const handleSave = async () => {
     await toggleSave(clip.id);
+  };
+
+  const handleDownload = async () => {
+    if (!canDownloadClip || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      await downloadClipVideo(clip, clipNumericId(clip) ?? clip.id);
+    } catch (err) {
+      console.error('Failed to download clip:', err);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const getClipUrl = () => clipShareUrl(clip.id);
@@ -437,6 +473,7 @@ export default function ClipModal({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {editClipButton}
+            {downloadClipButton}
             <button
               type="button"
               onClick={togglePlayback}
@@ -899,6 +936,22 @@ export default function ClipModal({
                 </div>
 
                 <div className="flex items-center space-x-2">
+                  {canDownloadClip ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDownload()}
+                      disabled={isDownloading}
+                      className="p-2 text-gray-400 transition-all tap-feedback hover:text-momentum-flare disabled:opacity-60"
+                      title={isDownloading ? 'Downloading…' : 'Download clip'}
+                      aria-label={isDownloading ? 'Downloading clip' : 'Download clip'}
+                    >
+                      {isDownloading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Download className="h-5 w-5" />
+                      )}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={handleSave}

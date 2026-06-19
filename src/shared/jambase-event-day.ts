@@ -3,6 +3,12 @@
  * Compare calendar days using `location.address['x-timezone']`, not UTC parsing.
  */
 
+/** Include captures up to this many hours after `startDate` while the show is still in progress. */
+export const JAMBASE_EVENT_ONGOING_HOURS_AFTER_START = 10;
+
+/** Look back this many hours before capture when resolving in-show listings at a venue. */
+export const JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS = 10;
+
 export function jamBaseEventLocalYmd(startDate: string): string | null {
   const m = startDate.trim().match(/^(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : null;
@@ -84,11 +90,28 @@ function eventWallClockHour(startDate: string): number {
   return m ? parseInt(m[1], 10) : 20;
 }
 
-/**
- * True when capture instant is on the same venue-local calendar day as the event,
- * including late-night shows that cross midnight (e.g. 8pm show, 1am capture).
- */
-export function jamBaseEventMatchesCapture(
+/** Hours from event `startDate` to capture (positive = after doors). */
+export function jamBaseEventHoursFromStart(
+  ev: Record<string, unknown>,
+  captureMs: number,
+): number | null {
+  const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
+  const t = Date.parse(sd);
+  if (!Number.isFinite(t)) return null;
+  return (captureMs - t) / (3600 * 1000);
+}
+
+/** True when capture falls during the in-progress show window after start time. */
+export function jamBaseEventOngoingAtCapture(
+  ev: Record<string, unknown>,
+  captureMs: number,
+): boolean {
+  const hours = jamBaseEventHoursFromStart(ev, captureMs);
+  if (hours == null) return false;
+  return hours >= -1 && hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START;
+}
+
+function jamBaseEventSameShowNight(
   ev: Record<string, unknown>,
   captureMs: number,
   userLat?: number,
@@ -113,6 +136,21 @@ export function jamBaseEventMatchesCapture(
   if (dayDiff === -1 && eventHour <= 6 && captureHour >= 20) return true;
 
   return false;
+}
+
+/**
+ * True when capture instant is on the same venue-local calendar day as the event,
+ * including late-night shows that cross midnight (e.g. 8pm show, 1am capture),
+ * or while the show is still in progress after start time.
+ */
+export function jamBaseEventMatchesCapture(
+  ev: Record<string, unknown>,
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (jamBaseEventSameShowNight(ev, captureMs, userLat, userLon)) return true;
+  return jamBaseEventOngoingAtCapture(ev, captureMs);
 }
 
 /** True when capture instant is on the same venue-local calendar day as the event. */

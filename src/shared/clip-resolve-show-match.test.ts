@@ -75,6 +75,7 @@ describe('resolveShowMatchFromCandidates', () => {
   it('auto-applies beyond one mile when a same-date going mark matches', () => {
     const far = baseCandidate({
       jambase_event_id: 'jambase:ev-going',
+      startDate: '2026-06-09T20:00:00',
       distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 2,
     });
     const result = resolveShowMatchFromCandidates(
@@ -88,14 +89,32 @@ describe('resolveShowMatchFromCandidates', () => {
     expect(result.candidates[0]?.jambase_event_id).toBe('jambase:ev-going');
   });
 
-  it('stays ambiguous beyond one mile without a matching going mark', () => {
+  it('auto-applies closest venue with event data when no going mark matches capture night', () => {
     const far = baseCandidate({
-      jambase_event_id: 'jambase:other',
+      jambase_event_id: 'jambase:ev-tonight',
+      startDate: '2026-06-09T20:00:00',
       distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 2,
     });
     const result = resolveShowMatchFromCandidates(
       [far],
       [goingMark({ jambase_event_id: 'jambase:other-night', start_date: '2026-06-10T20:00:00' })],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result.match).toBe('single');
+    expect(result.candidates[0]?.jambase_event_id).toBe('jambase:ev-tonight');
+  });
+
+  it('stays ambiguous when no going mark and no event matches capture window', () => {
+    const far = baseCandidate({
+      jambase_event_id: 'jambase:other',
+      startDate: '2026-06-10T20:00:00',
+      distance_miles: AUTO_APPLY_MAX_DISTANCE_MILES + 2,
+    });
+    const result = resolveShowMatchFromCandidates(
+      [far],
+      [],
       captureMs,
       40.73,
       -73.99,

@@ -1,4 +1,5 @@
 import type { ClipShowCandidate } from './types';
+import { jamBaseEventMatchesCapture } from './jambase-event-day';
 import {
   pickGoingShowMarkForCapture,
   type UserShowMark,
@@ -47,6 +48,41 @@ function findCandidateForGoingMark(
   return null;
 }
 
+function candidateHasJamBaseEventData(candidate: ClipShowCandidate): boolean {
+  return Boolean(candidate.jambase_event_id?.trim());
+}
+
+function candidateEventMatchesCapture(
+  candidate: ClipShowCandidate,
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (!candidateHasJamBaseEventData(candidate)) return false;
+  const startDate = candidate.startDate?.trim();
+  if (!startDate) return true;
+  return jamBaseEventMatchesCapture(
+    { startDate, location: { name: candidate.venue_name ?? '' } },
+    captureMs,
+    userLat,
+    userLon,
+  );
+}
+
+function closestCandidateWithJamBaseEvent(
+  candidates: ClipShowCandidate[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): ClipShowCandidate | null {
+  for (const candidate of candidates) {
+    if (candidateEventMatchesCapture(candidate, captureMs, userLat, userLon)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 /** One row per venue (or per event if venue id missing), keeping the closest hit. */
 export function resolveShowMatchFromCandidates(
   enrichedSorted: ClipShowCandidate[],
@@ -64,17 +100,27 @@ export function resolveShowMatchFromCandidates(
     return { match: 'none', candidates: [], nearbyVenues: [] };
   }
 
-  const top = enrichedSorted[0]!;
-  if (canAutoApplyCandidate(top)) {
-    return { match: 'single', candidates: [top], nearbyVenues };
-  }
-
   const going = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
   if (going) {
     const matched = findCandidateForGoingMark(enrichedSorted, going);
     if (matched) {
       return { match: 'single', candidates: [matched], nearbyVenues };
     }
+  }
+
+  const closestWithEvent = closestCandidateWithJamBaseEvent(
+    enrichedSorted,
+    captureMs,
+    userLat,
+    userLon,
+  );
+  if (closestWithEvent) {
+    return { match: 'single', candidates: [closestWithEvent], nearbyVenues };
+  }
+
+  const top = enrichedSorted[0]!;
+  if (canAutoApplyCandidate(top)) {
+    return { match: 'single', candidates: [top], nearbyVenues };
   }
 
   if (nearbyVenues.length > 0) {
@@ -100,8 +146,11 @@ export function resolveShowAutoApplyCandidate(
   }
 
   const going = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
-  if (!going) return null;
+  if (going) {
+    const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
+    return findCandidateForGoingMark(pool, going);
+  }
 
   const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
-  return findCandidateForGoingMark(pool, going);
+  return closestCandidateWithJamBaseEvent(pool, captureMs, userLat, userLon);
 }

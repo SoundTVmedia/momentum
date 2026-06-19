@@ -9,7 +9,7 @@ import {
 import { headlinerFromEvent } from './jambase-map';
 import type { ClipShowCandidate } from '../shared/types';
 import { artistAtVenueTitle, jamBaseEventTitle } from '../shared/event-title';
-import { jamBaseEventMatchesCapture } from '../shared/jambase-event-day';
+import { jamBaseEventMatchesCapture, jamBaseEventHoursFromStart, JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS, JAMBASE_EVENT_ONGOING_HOURS_AFTER_START } from '../shared/jambase-event-day';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
   NEARBY_VENUE_PICKER_COUNT,
@@ -39,7 +39,7 @@ const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
 const MAX_VENUES_TO_SCAN = 20;
 
 /** Include in-progress / recently started shows on venue-scoped event lookups. */
-export const IN_SHOW_EXPAND_PAST_HOURS = 8;
+export const IN_SHOW_EXPAND_PAST_HOURS = JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS;
 
 type CandidateGeoTrust = { trustJamBaseGeoList?: boolean };
 
@@ -309,10 +309,7 @@ function jamBaseVenueEventsQueryParams(
 }
 
 function eventHoursFromCapture(ev: Record<string, unknown>, captureMs: number): number | null {
-  const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
-  const t = Date.parse(sd);
-  if (!Number.isFinite(t)) return null;
-  return (captureMs - t) / (3600 * 1000);
+  return jamBaseEventHoursFromStart(ev, captureMs);
 }
 
 function pickClosestEventToCapture(
@@ -402,7 +399,12 @@ async function enrichWithSameDayShowAtVenue(
     if (typeof ev !== 'object' || ev === null) continue;
     const hours = eventHoursFromCapture(ev as Record<string, unknown>, captureMs);
     if (hours == null) continue;
-    if (hours >= -IN_SHOW_EXPAND_PAST_HOURS && hours <= 6) inShowWindow.push(ev as Record<string, unknown>);
+    if (
+      hours >= -JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS &&
+      hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START
+    ) {
+      inShowWindow.push(ev as Record<string, unknown>);
+    }
   }
 
   if (inShowWindow.length > 0) {
@@ -410,13 +412,7 @@ async function enrichWithSameDayShowAtVenue(
     if (bestEv) return mergeEventIntoVenueCandidate(base, bestEv);
   }
 
-  const bestEv = pickClosestEventToCapture(
-    raw.filter((ev): ev is Record<string, unknown> => typeof ev === 'object' && ev !== null),
-    captureMs,
-  );
-  if (bestEv) return mergeEventIntoVenueCandidate(base, bestEv);
-
-  return { ...base };
+  return null;
 }
 
 function venueNameFromJamBaseVenue(venue: Record<string, unknown>): string | null {
@@ -728,7 +724,7 @@ export async function postResolveShowForClip(c: Context) {
   let notice: string | null = null;
   if (match === 'ambiguous') {
     notice =
-      'Several venues with shows tonight are nearby — pick the one you are at. We only auto-fill within one mile.';
+      'Several venues with shows tonight are nearby — pick the one you are at.';
   } else if (match === 'none') {
     if (venuesFetchFailed) {
       notice = jamBaseFetchFailureNotice(venuesDiag.failure, venuesDiag.httpStatus);
@@ -740,7 +736,7 @@ export async function postResolveShowForClip(c: Context) {
         'No JamBase shows tonight at venues near you (closed or inactive venues are skipped). Search for your venue manually.';
     } else {
       notice =
-        'Several venues with shows tonight are nearby — pick the one you are at. We only auto-fill within one mile.';
+        'Several venues with shows tonight are nearby — pick the one you are at.';
     }
   }
 

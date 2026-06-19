@@ -124,6 +124,46 @@ export function prefetchCarouselNeighborClips(
   }
 }
 
+function slugForDownloadFilename(part: string): string {
+  return (
+    part
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || ''
+  );
+}
+
+/** Progressive MP4 (or same-origin file path) suitable for saving a clip locally. */
+export function resolveClipDownloadUrl(clip: ClipPlaybackFields): string | null {
+  const streamId = streamVideoIdFromClip(clip);
+  if (streamId) return streamMp4Url(streamId);
+
+  const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
+  if (!isPlaceholderVideoUrl(fallback) && !isHlsPlaybackUrl(fallback)) {
+    return fallback;
+  }
+
+  const r2Key = typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '';
+  return r2Key ? r2ClipFilePath(r2Key) : null;
+}
+
+export function resolveClipDownloadFilename(
+  clip: ClipPlaybackFields & {
+    artist_name?: string | null;
+    venue_name?: string | null;
+    id?: number | string | null;
+  },
+  clipId?: number | string | null,
+): string {
+  const parts = [clip.artist_name, clip.venue_name]
+    .map((v) => (typeof v === 'string' ? slugForDownloadFilename(v) : ''))
+    .filter(Boolean);
+  const idPart = clipId ?? clip.id;
+  const base = parts.length > 0 ? parts.join('-') : idPart != null ? `clip-${idPart}` : 'clip';
+  return `${base}.mp4`;
+}
+
 /** Warm the network cache for the next/prev clip in a modal feed (best-effort). */
 export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
   const { src, isHls } = resolveModalPlaybackSource(clip);

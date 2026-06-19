@@ -4,6 +4,8 @@ import {
   feedTileUsesStaticPoster,
   isHlsPlaybackUrl,
   resolveClipPosterUrl,
+  resolveClipDownloadFilename,
+  resolveClipDownloadUrl,
   resolveFeedPreviewVideoSrc,
   resolveModalPlaybackSource,
   streamMp4Url,
@@ -93,5 +95,18 @@ describe('clip-playback', () => {
 
   it('feed tiles always use static poster mode', () => {
     expect(feedTileUsesStaticPoster({ video_url: '/api/files/x.mp4' })).toBe(true);
+  });
+
+  it('resolves stream MP4 for clip download', () => {
+    expect(resolveClipDownloadUrl({ stream_video_id: UID })).toBe(streamMp4Url(UID));
+  });
+
+  it('builds a readable download filename from artist and venue', () => {
+    expect(
+      resolveClipDownloadFilename(
+        { artist_name: 'Phish', venue_name: 'Madison Square Garden' },
+        42,
+      ),
+    ).toBe('phish-madison-square-garden.mp4');
   });
 });
