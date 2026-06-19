@@ -139,6 +139,10 @@ export type JamBaseFetchDiag = {
 export type JamBaseFetchOptions = {
   /** Skip Cloudflare subrequest cache (use for health probes after key rotation). */
   bypassEdgeCache?: boolean;
+  /** Override per-call wall budget (default {@link JAMBASE_FETCH_BUDGET_MS}). */
+  fetchBudgetMs?: number;
+  /** Override per-fetch timeout (default {@link JAMBASE_FETCH_TIMEOUT_MS}). */
+  fetchTimeoutMs?: number;
 };
 
 /** Strip quotes / accidental `Bearer ` prefix from dashboard or .dev.vars pastes. */
@@ -205,6 +209,8 @@ export async function jamBaseFetch<T extends JamBaseJson>(
   if (existing) return existing;
 
   const bypassEdgeCache = options?.bypassEdgeCache === true;
+  const fetchBudgetMs = options?.fetchBudgetMs ?? JAMBASE_FETCH_BUDGET_MS;
+  const fetchTimeoutMs = options?.fetchTimeoutMs ?? JAMBASE_FETCH_TIMEOUT_MS;
 
   const promise = (async (): Promise<T | null> => {
     const startedAt = Date.now();
@@ -213,7 +219,7 @@ export async function jamBaseFetch<T extends JamBaseJson>(
       let attempt = 0;
       while (true) {
         const elapsed = Date.now() - startedAt;
-        if (elapsed >= JAMBASE_FETCH_BUDGET_MS) {
+        if (elapsed >= fetchBudgetMs) {
           console.warn('[JamBase] fetch budget exceeded', path, { elapsedMs: elapsed });
           if (diag) diag.failure = 'timeout';
           return null;
@@ -224,14 +230,14 @@ export async function jamBaseFetch<T extends JamBaseJson>(
           return null;
         }
         try {
-          const remaining = JAMBASE_FETCH_BUDGET_MS - elapsed;
+          const remaining = fetchBudgetMs - elapsed;
           const fetchInit: RequestInit = {
             headers: {
               Authorization: `Bearer ${key}`,
               Accept: 'application/json',
               'User-Agent': JAMBASE_USER_AGENT,
             },
-            signal: AbortSignal.timeout(Math.min(JAMBASE_FETCH_TIMEOUT_MS, remaining)),
+            signal: AbortSignal.timeout(Math.min(fetchTimeoutMs, remaining)),
           };
           // Do NOT use cacheEverything: JamBase auth is in Authorization, but CF subrequest
           // cache keys are URL-only — stale 401/400 responses survive key rotation.

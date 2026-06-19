@@ -4,6 +4,7 @@ import {
   jamBaseQuotaFromEnv,
   jamBaseQuotaPrecheck,
   type JamBaseFetchDiag,
+  type JamBaseFetchOptions,
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { headlinerFromEvent } from './jambase-map';
@@ -42,13 +43,22 @@ const VENUE_JAMBASE_SEARCH_BUFFER_MILES = 25;
 const VENUE_MATCH_RADIUS_FLOOR_MILES = 35;
 
 /** Max closest venues to consider before per-venue event enrichment. */
-const MAX_VENUES_TO_SCAN = 12;
+const MAX_VENUES_TO_SCAN = 8;
 
-/** Max venue event lookups per resolve (keeps Workers under subrequest / wall-time limits). */
-const MAX_VENUES_TO_ENRICH = 6;
+/** Max parallel venue event lookups per resolve. */
+const MAX_VENUES_TO_ENRICH = 3;
+
+/** Hard wall clock for the whole resolve handler (must stay under browser/proxy limits). */
+const RESOLVE_SHOW_WALL_MS = 22_000;
 
 /** Stop enrichment after this wall time so the client always gets JSON back. */
-const RESOLVE_SHOW_BUDGET_MS = 20_000;
+const RESOLVE_SHOW_BUDGET_MS = 12_000;
+
+/** Tighter JamBase timeouts for clip GPS resolve (avoid Worker request kill). */
+const RESOLVE_JAMBASE_FETCH: JamBaseFetchOptions = {
+  fetchBudgetMs: 6_000,
+  fetchTimeoutMs: 4_500,
+};
 
 /** Only enrich venue-only rows within auto-apply distance (+ small GPS slack). */
 const ENRICH_MAX_DISTANCE_MILES = AUTO_APPLY_MAX_DISTANCE_MILES + 0.5;
@@ -69,27 +79,34 @@ async function recordResolveTelemetry(
   candidateCount: number,
   geoCityId: string | null,
   source: string,
-  notice: string | null
+  notice: string | null,
 ): Promise<void> {
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO clip_show_resolve_telemetry
+  const write = async () => {
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO clip_show_resolve_telemetry
        (mocha_user_id, match, radius_miles, raw_event_count, candidate_count, geo_city_id, source, notice)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        mochaUserId,
-        match,
-        radiusMiles,
-        rawEventCount,
-        candidateCount,
-        geoCityId,
-        source,
-        notice
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run();
-  } catch (e) {
-    console.error('clip_show_resolve_telemetry insert failed:', e);
+        .bind(
+          mochaUserId,
+          match,
+          radiusMiles,
+          rawEventCount,
+          candidateCount,
+          geoCityId,
+          source,
+          notice,
+        )
+        .run();
+    } catch (e) {
+      console.error('clip_show_resolve_telemetry insert failed:', e);
+    }
+  };
+  try {
+    c.executionCtx.waitUntil(write());
+  } catch {
+    await write();
   }
 }
 
@@ -164,53 +181,6 @@ function venueCityStateLine(ev: Record<string, unknown>): string | null {
 function venueNameFromEvent(ev: Record<string, unknown>): string | null {
   const loc = ev.location as Record<string, unknown> | undefined;
   return typeof loc?.name === 'string' ? loc.name : null;
-}
-
-async function nominatimReverse(
-  lat: number,
-  lon: number
-): Promise<{
-  city: string | null;
-  state: string | null;
-  country_code: string | null;
-  postcode: string | null;
-} | null> {
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&format=json`;
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 3500);
-    try {
-      const res = await fetch(url, {
-        signal: ac.signal,
-        headers: {
-          'User-Agent': 'Feedback/1.0 (https://github.com/)',
-          Accept: 'application/json',
-        },
-      });
-      if (!res.ok) return null;
-      const data = (await res.json()) as { address?: Record<string, string> };
-      const address = data.address || {};
-      const city =
-        address.city ||
-        address.town ||
-        address.village ||
-        address.hamlet ||
-        address.suburb ||
-        address.neighbourhood ||
-        address.municipality ||
-        address.county ||
-        null;
-      const state = address.state || null;
-      const country_code = address.country_code ? address.country_code.toUpperCase() : null;
-      const postcode = address.postcode ? address.postcode.trim() : null;
-      return { city, state, country_code, postcode };
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch (e) {
-    console.error('Nominatim reverse failed:', e);
-    return null;
-  }
 }
 
 function distanceSortKey(d: number | null): number {
@@ -344,13 +314,15 @@ async function fetchVenueEventsForCapture(
   jbQ: JamBaseQuotaContext | undefined,
   venueId: string,
   captureMs: number,
+  fetchOpts?: JamBaseFetchOptions,
 ): Promise<Record<string, unknown>[]> {
   const win = new Date(captureMs);
   win.setUTCDate(win.getUTCDate() - 1);
   const eventDateFrom = win.toISOString().split('T')[0];
-  const todayUtc = new Date().toISOString().split('T')[0];
 
-  const paramSets: Record<string, string>[] = [
+  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+    apiKey,
+    '/events',
     {
       venueId,
       eventDateFrom,
@@ -358,25 +330,11 @@ async function fetchVenueEventsForCapture(
       page: '1',
       expandPastEvents: 'true',
     },
-    {
-      venueId,
-      eventDateFrom: todayUtc,
-      perPage: '50',
-      page: '1',
-    },
-  ];
-
-  for (const params of paramSets) {
-    const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-      apiKey,
-      '/events',
-      params,
-      jbQ,
-    );
-    const raw = data?.events ?? [];
-    if (raw.length > 0) return raw;
-  }
-  return [];
+    jbQ,
+    undefined,
+    fetchOpts,
+  );
+  return data?.events ?? [];
 }
 
 function mergeEventIntoVenueCandidate(
@@ -419,12 +377,13 @@ async function enrichWithSameDayShowAtVenue(
   captureMs: number,
   userLat: number,
   userLon: number,
+  fetchOpts?: JamBaseFetchOptions,
 ): Promise<ClipShowCandidate | null> {
   const venueId = base.jambase_venue_id?.trim();
 
   if (!venueId) return null;
 
-  const raw = await fetchVenueEventsForCapture(apiKey, jbQ, venueId, captureMs);
+  const raw = await fetchVenueEventsForCapture(apiKey, jbQ, venueId, captureMs, fetchOpts);
   if (raw.length === 0) return null;
 
   const sameDay: Record<string, unknown>[] = [];
@@ -534,21 +493,33 @@ function jamBaseFetchFailureNotice(
  * show mark matches a nearby candidate; otherwise returns top {@link NEARBY_VENUE_PICKER_COUNT}
  * venues with tonight's shows for manual pick.
  */
+function resolveShowTimeoutResponse(c: Context): Response {
+  return c.json(
+    {
+      match: 'none' as const,
+      candidates: [] as ClipShowCandidate[],
+      nearbyVenues: [] as ClipShowCandidate[],
+      notice:
+        'Venue lookup timed out before finishing. Try again in a moment or add the venue manually after recording.',
+    },
+    503,
+  );
+}
+
 export async function postResolveShowForClip(c: Context) {
   try {
-    return await postResolveShowForClipInner(c);
+    return await Promise.race([
+      postResolveShowForClipInner(c),
+      new Promise<Response>((resolve) => {
+        setTimeout(() => {
+          console.warn('[resolve-show] wall clock exceeded', { ms: RESOLVE_SHOW_WALL_MS });
+          resolve(resolveShowTimeoutResponse(c));
+        }, RESOLVE_SHOW_WALL_MS);
+      }),
+    ]);
   } catch (e) {
     console.error('resolve-show unhandled:', e);
-    return c.json(
-      {
-        match: 'none' as const,
-        candidates: [] as ClipShowCandidate[],
-        nearbyVenues: [] as ClipShowCandidate[],
-        notice:
-          'Venue lookup timed out or failed before finishing. Try again in a moment or add the venue manually after recording.',
-      },
-      503,
-    );
+    return resolveShowTimeoutResponse(c);
   }
 }
 
@@ -644,16 +615,8 @@ async function postResolveShowForClipInner(c: Context) {
     });
   }
 
-  let city = typeof body.city === 'string' ? body.city.trim() : '';
-
-  let postcode: string | null = null;
-  if (!city) {
-    const rev = await nominatimReverse(lat, lon);
-    if (rev) {
-      if (rev.city) city = rev.city;
-      if (rev.postcode) postcode = rev.postcode;
-    }
-  }
+  const city = typeof body.city === 'string' ? body.city.trim() : '';
+  const postcode: string | null = null;
 
   const profile = (await c.env.DB.prepare(
     `SELECT location_radius_miles FROM user_profiles WHERE mocha_user_id = ?`
@@ -746,6 +709,7 @@ async function postResolveShowForClipInner(c: Context) {
       venueParams,
       jbQ,
       venuesDiag,
+      RESOLVE_JAMBASE_FETCH,
     ),
     jamBaseFetch<{ events?: Record<string, unknown>[] }>(
       key,
@@ -753,6 +717,7 @@ async function postResolveShowForClipInner(c: Context) {
       eventParams,
       jbQ,
       eventsDiag,
+      RESOLVE_JAMBASE_FETCH,
     ),
   ]);
 
@@ -801,61 +766,46 @@ async function postResolveShowForClipInner(c: Context) {
       if (base.jambase_event_id) enriched.push(base);
     }
 
-    let matchReady = false;
-    if (enriched.length > 0) {
-      const sorted = sortCandidatesByDistance(enriched);
-      const interim = resolveShowMatchFromCandidates(
-        sorted,
-        goingMarks,
-        resolveAnchorMs,
-        lat,
-        lon,
-      );
-      if (interim.match === 'single' || interim.match === 'ambiguous') {
-        enrichedSorted = sorted;
-        matchReady = true;
-      }
-    }
-
-    if (!matchReady) {
+    const sorted = sortCandidatesByDistance(enriched);
+    const interim = resolveShowMatchFromCandidates(
+      sorted,
+      goingMarks,
+      resolveAnchorMs,
+      lat,
+      lon,
+    );
+    if (interim.match === 'single' || interim.match === 'ambiguous') {
+      enrichedSorted = sorted;
+    } else if (Date.now() - resolveStarted <= RESOLVE_SHOW_BUDGET_MS) {
       const needsEnrich = toScan
         .filter((base) => shouldEnrichVenueForCapture(base))
         .slice(0, MAX_VENUES_TO_ENRICH);
 
-      for (const base of needsEnrich) {
-        if (Date.now() - resolveStarted > RESOLVE_SHOW_BUDGET_MS) break;
-        try {
-          const row = await enrichWithSameDayShowAtVenue(
-            key,
-            jbQ,
-            base,
-            resolveAnchorMs,
-            lat,
-            lon,
-          );
-          if (!row) continue;
-          enriched.push(row);
-          const sorted = sortCandidatesByDistance(enriched);
-          const interim = resolveShowMatchFromCandidates(
-            sorted,
-            goingMarks,
-            resolveAnchorMs,
-            lat,
-            lon,
-          );
-          if (interim.match === 'single' || interim.match === 'ambiguous') {
-            enrichedSorted = sorted;
-            matchReady = true;
-            break;
+      if (needsEnrich.length > 0) {
+        const results = await Promise.allSettled(
+          needsEnrich.map((base) =>
+            enrichWithSameDayShowAtVenue(
+              key,
+              jbQ,
+              base,
+              resolveAnchorMs,
+              lat,
+              lon,
+              RESOLVE_JAMBASE_FETCH,
+            ),
+          ),
+        );
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value) {
+            enriched.push(result.value);
+          } else if (result.status === 'rejected') {
+            console.error('resolve-show venue show enrichment failed:', result.reason);
           }
-        } catch (e) {
-          console.error('resolve-show venue show enrichment failed:', e);
         }
       }
-
-      if (!matchReady) {
-        enrichedSorted = sortCandidatesByDistance(enriched);
-      }
+      enrichedSorted = sortCandidatesByDistance(enriched);
+    } else {
+      enrichedSorted = sorted;
     }
   }
 
