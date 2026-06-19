@@ -321,9 +321,15 @@ export function pickGoingShowMarkForCapture(
 
   const matching: UserShowMark[] = [];
   for (const mark of going) {
-    if (!mark.start_date?.trim()) continue;
-    const ev = { startDate: mark.start_date, location: { name: mark.venue_name ?? '' } };
-    if (jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) {
+    const sd = mark.start_date?.trim();
+    if (sd) {
+      const ev = { startDate: sd, location: { name: mark.venue_name ?? '' } };
+      if (jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) {
+        matching.push(mark);
+      }
+      continue;
+    }
+    if (isUpcomingShowMark(mark, captureMs)) {
       matching.push(mark);
     }
   }

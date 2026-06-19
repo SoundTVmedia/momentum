@@ -3,6 +3,7 @@ import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
   canAutoApplyCandidate,
   resolveCameraCaptureVenues,
+  resolveShowFromGoingMark,
   resolveShowMatchFromCandidates,
 } from './clip-resolve-show-match';
 import type { ClipShowCandidate } from './types';
@@ -182,6 +183,18 @@ describe('resolveShowMatchFromCandidates', () => {
       undefined,
     );
     expect(result.match).toBe('single');
+  });
+
+  it('returns single from going mark without JamBase candidates', () => {
+    const captureMs = Date.parse('2026-06-09T22:00:00.000Z');
+    const result = resolveShowFromGoingMark(
+      [goingMark()],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result?.match).toBe('single');
+    expect(result?.candidates[0]?.jambase_event_id).toBe('jambase:ev-going');
   });
 });
 

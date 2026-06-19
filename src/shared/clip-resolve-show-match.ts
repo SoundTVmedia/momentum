@@ -115,6 +115,27 @@ export function resolveGoingMarkClipCandidate(
   return going ? showMarkToClipCandidate(going) : null;
 }
 
+/** Server fast-path: same-date going mark → single auto-fill (no JamBase required). */
+export function resolveShowFromGoingMark(
+  goingMarks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): {
+  match: 'single';
+  candidates: ClipShowCandidate[];
+  nearbyVenues: ClipShowCandidate[];
+} | null {
+  const candidate = resolveGoingMarkClipCandidate(
+    goingMarks,
+    captureMs,
+    userLat,
+    userLon,
+  );
+  if (!candidate) return null;
+  return { match: 'single', candidates: [candidate], nearbyVenues: [] };
+}
+
 /** One row per venue (or per event if venue id missing), keeping the closest hit. */
 export function resolveShowMatchFromCandidates(
   enrichedSorted: ClipShowCandidate[],

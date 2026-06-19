@@ -18,6 +18,7 @@ import {
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
   NEARBY_VENUE_PICKER_COUNT,
+  resolveShowFromGoingMark,
   resolveShowMatchFromCandidates,
 } from '../shared/clip-resolve-show-match';
 import { loadGoingShowMarksForUser } from './user-show-marks-endpoints';
@@ -595,6 +596,54 @@ async function postResolveShowForClipInner(c: Context) {
     return c.json({ error: 'latitude and longitude are required' }, 400);
   }
 
+  const resolveAnchorMs = hasAt ? atMs : Date.now();
+  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
+  const goingResolve = resolveShowFromGoingMark(
+    goingMarks,
+    resolveAnchorMs,
+    lat,
+    lon,
+  );
+  if (goingResolve) {
+    await recordResolveTelemetry(
+      c,
+      mochaUser.id,
+      'single',
+      50,
+      0,
+      1,
+      null,
+      'going_mark',
+      null,
+    );
+    c.header('Cache-Control', 'private, max-age=60');
+    return c.json({
+      ...goingResolve,
+      notice: null,
+      meta: {
+        radiusMiles: 50,
+        matchRadiusMiles: VENUE_MATCH_RADIUS_FLOOR_MILES,
+        city: typeof body.city === 'string' ? body.city.trim() : '',
+        postcode: null,
+        geoCityId: null,
+        geoCityIds: [] as string[],
+        postcodeFromNominatim: false,
+        eventsGeoSearch: false,
+        venuesGeoSearch: false,
+        rawVenueCount: 0,
+        rawEventCount: 0,
+        matchedEventCandidateCount: 0,
+        eventDateFrom: jamBaseGeoEventDateFromUtc(resolveAnchorMs),
+        matchSource: 'going_mark',
+        lat,
+        lon,
+        jamBaseVenuesFetchFailed: false,
+        jamBaseVenuesFetchFailure: null,
+        jamBaseVenuesFetchHttpStatus: null,
+      },
+    });
+  }
+
   let city = typeof body.city === 'string' ? body.city.trim() : '';
 
   let postcode: string | null = null;
@@ -658,7 +707,6 @@ async function postResolveShowForClipInner(c: Context) {
 
   const userCityLower = city ? city.toLowerCase() : null;
 
-  const resolveAnchorMs = hasAt ? atMs : Date.now();
   const eventDateFrom = jamBaseGeoEventDateFromUtc(resolveAnchorMs);
 
   const venueSearchMiles = Math.max(
@@ -679,14 +727,34 @@ async function postResolveShowForClipInner(c: Context) {
     geoRadiusUnits: 'mi',
   };
 
+  const eventParams: Record<string, string> = {
+    eventDateFrom,
+    perPage: '40',
+    page: '1',
+    geoLatitude: String(lat),
+    geoLongitude: String(lon),
+    geoRadiusAmount: String(venueRadius),
+    geoRadiusUnits: 'mi',
+  };
+
   const venuesDiag: JamBaseFetchDiag = {};
-  const geoVenuesPayload = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-    key,
-    '/venues',
-    venueParams,
-    jbQ,
-    venuesDiag,
-  );
+  const eventsDiag: JamBaseFetchDiag = {};
+  const [geoVenuesPayload, geoEventsPayload] = await Promise.all([
+    jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+      key,
+      '/venues',
+      venueParams,
+      jbQ,
+      venuesDiag,
+    ),
+    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      key,
+      '/events',
+      eventParams,
+      jbQ,
+      eventsDiag,
+    ),
+  ]);
 
   const venuesFetchFailed = geoVenuesPayload == null;
   const rawVenues = geoVenuesPayload?.venues ?? [];
@@ -708,24 +776,6 @@ async function postResolveShowForClipInner(c: Context) {
     if (cnd) fromVenues.push(cnd);
   }
 
-  const eventParams: Record<string, string> = {
-    eventDateFrom,
-    perPage: '40',
-    page: '1',
-    geoLatitude: String(lat),
-    geoLongitude: String(lon),
-    geoRadiusAmount: String(venueRadius),
-    geoRadiusUnits: 'mi',
-  };
-  const eventsDiag: JamBaseFetchDiag = {};
-  const geoEventsPayload = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-    key,
-    '/events',
-    eventParams,
-    jbQ,
-    eventsDiag,
-  );
-
   const fromEvents: ClipShowCandidate[] = [];
   for (const ev of geoEventsPayload?.events ?? []) {
     if (typeof ev !== 'object' || ev === null) continue;
@@ -742,7 +792,6 @@ async function postResolveShowForClipInner(c: Context) {
   const working = dedupeKeepClosestPerVenue([...fromVenues, ...fromEvents]);
   const toScan = working.slice(0, MAX_VENUES_TO_SCAN);
 
-  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
   const resolveStarted = Date.now();
 
   let enrichedSorted: ClipShowCandidate[] = [];
