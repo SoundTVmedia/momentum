@@ -4,10 +4,21 @@ import {
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { haversineMiles } from './search-geo';
-import { jamBaseEventCameraCaptureDay, jamBaseEventFeedVisible, jamBaseEventUpcomingOrInProgress, jamBaseEventDateFromCaptureLocal, jamBaseVenueExpandPastEventDateCandidates } from '../shared/jambase-event-day';
+import {
+  jamBaseEventCameraCaptureDay,
+  jamBaseEventFeedVisible,
+  jamBaseEventAfterToday,
+  jamBaseEventDateFromCaptureLocal,
+  jamBaseGeoEventDateFromForUpcomingFeed,
+  jamBaseVenueExpandPastEventDateCandidates,
+} from '../shared/jambase-event-day';
 
 /** Closest venues to enrich with in-progress listings (expandPastEvents). */
 const NEARBY_VENUE_IN_SHOW_ENRICH = 8;
+
+/** In-isolate cache for geo nearby/tonight listings (cuts repeat JamBase work on home feed). */
+const SCOPED_NEAR_CACHE_MS = 5 * 60 * 1000;
+const scopedNearCache = new Map<string, { expires: number; events: Record<string, unknown>[] }>();
 
 /** Camera capture: enrich more nearby venues with expandPastEvents. */
 const CAMERA_VENUE_IN_SHOW_ENRICH = 15;
@@ -676,13 +687,30 @@ async function fetchNearbyJamBaseEventsScoped(
   if (!key) return [];
 
   const radius = Math.min(100, Math.max(10, radiusMiles));
+  const eventDateFrom =
+    scope === 'tonight'
+      ? jamBaseEventDateFromCaptureLocal(captureMs, latitude, longitude)
+      : jamBaseGeoEventDateFromForUpcomingFeed(captureMs, latitude, longitude);
+
+  const cacheKey = [
+    scope,
+    latitude.toFixed(2),
+    longitude.toFixed(2),
+    radius,
+    limit,
+    eventDateFrom,
+  ].join(':');
+  const cached = scopedNearCache.get(cacheKey);
+  if (cached && Date.now() < cached.expires) {
+    return cached.events;
+  }
 
   const visible =
     scope === 'tonight'
       ? (ev: Record<string, unknown>) =>
           jamBaseEventFeedVisible(ev, captureMs, latitude, longitude)
       : (ev: Record<string, unknown>) =>
-          jamBaseEventUpcomingOrInProgress(ev, captureMs, latitude, longitude);
+          jamBaseEventAfterToday(ev, captureMs, latitude, longitude);
 
   const [geoData, inShowEvents] = await Promise.all([
     jamBaseFetch<{ events?: Record<string, unknown>[] }>(
@@ -693,22 +721,24 @@ async function fetchNearbyJamBaseEventsScoped(
         geoLongitude: String(longitude),
         geoRadiusAmount: String(radius),
         geoRadiusUnits: 'mi',
-        eventDateFrom: jamBaseEventDateFromCaptureLocal(captureMs, latitude, longitude),
+        eventDateFrom,
         perPage: String(Math.min(40, Math.max(1, limit))),
         page: '1',
       },
       jbQ,
       diag,
     ),
-    fetchInShowEventsAtNearbyVenues(
-      key,
-      jbQ,
-      latitude,
-      longitude,
-      radius,
-      captureMs,
-      visible,
-    ),
+    scope === 'tonight'
+      ? fetchInShowEventsAtNearbyVenues(
+          key,
+          jbQ,
+          latitude,
+          longitude,
+          radius,
+          captureMs,
+          visible,
+        )
+      : Promise.resolve([] as Record<string, unknown>[]),
   ]);
 
   const merged = new Map<string, Record<string, unknown>>();
@@ -728,7 +758,9 @@ async function fetchNearbyJamBaseEventsScoped(
   }
 
   const raw = [...merged.values()];
-  return sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
+  const events = sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
+  scopedNearCache.set(cacheKey, { expires: Date.now() + SCOPED_NEAR_CACHE_MS, events });
+  return events;
 }
 
 function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {

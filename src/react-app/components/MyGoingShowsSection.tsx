@@ -61,9 +61,19 @@ export default function MyGoingShowsSection({
   }, [isPending, load]);
 
   useEffect(() => {
-    const refresh = () => void load();
+    let debounceId: ReturnType<typeof setTimeout> | null = null;
+    const refresh = () => {
+      if (debounceId != null) clearTimeout(debounceId);
+      debounceId = setTimeout(() => {
+        debounceId = null;
+        void load();
+      }, 400);
+    };
     window.addEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
+    return () => {
+      if (debounceId != null) clearTimeout(debounceId);
+      window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
+    };
   }, [load]);
 
   const title = useMemo(

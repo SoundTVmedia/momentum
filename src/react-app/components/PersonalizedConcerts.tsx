@@ -4,7 +4,6 @@ import {
   nearbyShowsApiUrl,
   readDeviceCoordsForNearbyShows,
 } from '@/react-app/lib/nearby-shows-url';
-import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
 import { Calendar, MapPin, Loader2, Heart } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -39,6 +38,9 @@ export type PersonalizedConcertsProps = {
   carouselMaxEvents?: number;
   viewAllHref?: string;
   viewAllLabel?: string;
+  /** Override default section title (e.g. home feed "Upcoming Shows"). */
+  sectionTitleOverride?: string;
+  sectionSubtitleOverride?: string;
 };
 
 interface D1Concert {
@@ -150,6 +152,8 @@ export default function PersonalizedConcerts({
   carouselMaxEvents = 12,
   viewAllHref,
   viewAllLabel = 'View all shows',
+  sectionTitleOverride,
+  sectionSubtitleOverride,
 }: PersonalizedConcertsProps) {
   const { user, isPending: authPending } = useAuth();
   const carouselBleed =
@@ -286,10 +290,8 @@ export default function PersonalizedConcerts({
       })();
     };
     window.addEventListener('favorite-artists-changed', refresh);
-    window.addEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
     return () => {
       window.removeEventListener('favorite-artists-changed', refresh);
-      window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
     };
   }, [isLoggedIn, resolvedMode]);
 
@@ -308,11 +310,12 @@ export default function PersonalizedConcerts({
   }, [resolvedMode, loadingMore, loading, payload?.events?.length, nearbyFetchLimit]);
 
   const sectionTitle =
-    resolvedMode === 'favorite-artists'
+    sectionTitleOverride ??
+    (resolvedMode === 'favorite-artists'
       ? 'Shows from Your Favorite Artists'
       : headingVariant === 'page'
         ? 'Shows Near You'
-        : 'Shows at Venues Near You';
+        : 'Shows at Venues Near You');
 
   const attendedHint =
     (payload?.recommendation_sources?.attended_artists ?? 0) > 0
@@ -320,13 +323,18 @@ export default function PersonalizedConcerts({
       : '';
 
   const sectionSubtitle =
-    resolvedMode === 'favorite-artists'
+    sectionSubtitleOverride ??
+    (resolvedMode === 'favorite-artists'
       ? payload?.source === 'jambase'
         ? `Upcoming shows from JamBase for your favorite artists.${attendedHint}`
         : `Upcoming concerts from artists you love.${attendedHint}`
       : nearbyAreaLabel
-        ? `Upcoming shows at venues near ${nearbyAreaLabel}`
-        : 'Upcoming shows at venues near you from JamBase';
+        ? sectionTitleOverride === 'Upcoming Shows'
+          ? `Shows after today near ${nearbyAreaLabel}`
+          : `Upcoming shows at venues near ${nearbyAreaLabel}`
+        : sectionTitleOverride === 'Upcoming Shows'
+          ? 'Shows after today at venues near you'
+          : 'Upcoming shows at venues near you from JamBase');
 
   const sectionHeader = (
     <SectionHeading title={sectionTitle} subtitle={sectionSubtitle} size="section" />

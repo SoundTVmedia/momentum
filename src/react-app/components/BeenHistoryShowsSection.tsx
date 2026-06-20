@@ -4,7 +4,6 @@ import { useAuth } from '@getmocha/users-service/react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
-import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
 
 type RecommendedPayload = {
   events?: Record<string, unknown>[];
@@ -45,12 +44,6 @@ export default function BeenHistoryShowsSection() {
     if (isPending) return;
     void load();
   }, [isPending, load]);
-
-  useEffect(() => {
-    const refresh = () => void load();
-    window.addEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
-  }, [load]);
 
   if (!user || isPending) return null;
 

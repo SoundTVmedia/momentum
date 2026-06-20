@@ -150,6 +150,14 @@ export const RateLimits = {
   // Search operations
   SEARCH: { windowMs: 60 * 1000, maxRequests: 30 }, // 30 per minute
   
+  /** GET only — POST/DELETE are user actions and must not fail due to read bursts. */
+  SHOW_MARKS: {
+    windowMs: 60 * 1000,
+    maxRequests: 120,
+    sharedBucket: 'show-marks',
+    message: 'Too many show mark requests — wait a moment and try again.',
+  },
+
   // General requests
   GENERAL: { windowMs: 60 * 1000, maxRequests: 60 }, // 60 per minute
 

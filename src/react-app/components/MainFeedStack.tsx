@@ -10,7 +10,6 @@ import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
 import TonightShowsSection from '@/react-app/components/TonightShowsSection'
 import GoingShowsFeedSection from '@/react-app/components/GoingShowsFeedSection'
 import MyGoingShowsSection from '@/react-app/components/MyGoingShowsSection'
-import BeenHistoryShowsSection from '@/react-app/components/BeenHistoryShowsSection'
 import SectionHeading from '@/react-app/components/SectionHeading'
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths'
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
@@ -34,6 +33,25 @@ export default function MainFeedStack({
   const containerClass = isHome
     ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-7'
     : 'max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
+
+  const fromTheSceneBlock = (
+    <div className={isHome && user ? HOME_FEED_SECTION_CLASS : ''}>
+      <div className="mb-5 md:mb-5">
+        <FeedSectionHeader feedType={feedType} />
+        <div className="mt-3 md:mt-4">
+          <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
+        </div>
+      </div>
+
+      <ConcertFeed
+        feedType={feedType}
+        hideSectionHeader
+        edgeBleed={isHome}
+        edgeBleedScope="page"
+        suppressBottomPadding={isHome}
+      />
+    </div>
+  )
 
   return (
     <div className={containerClass}>
@@ -69,24 +87,9 @@ export default function MainFeedStack({
         />
       ) : null}
 
-      {isHome ? <TonightShowsSection /> : null}
+      {fromTheSceneBlock}
 
-      <div className={isHome && user ? HOME_FEED_SECTION_CLASS : ''}>
-        <div className="mb-5 md:mb-5">
-          <FeedSectionHeader feedType={feedType} />
-          <div className="mt-3 md:mt-4">
-            <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
-          </div>
-        </div>
-
-        <ConcertFeed
-          feedType={feedType}
-          hideSectionHeader
-          edgeBleed={isHome}
-          edgeBleedScope="page"
-          suppressBottomPadding={isHome}
-        />
-      </div>
+      {isHome && user ? <TonightShowsSection /> : null}
 
       {isHome ? (
         <PersonalizedConcerts
@@ -94,14 +97,16 @@ export default function MainFeedStack({
           mode="nearby"
           viewAllHref={BROWSE_NEARBY_SHOWS_PATH}
           viewAllLabel="View all shows"
+          sectionTitleOverride="Upcoming Shows"
+          sectionSubtitleOverride={
+            user ? undefined : 'Upcoming shows at venues near you from JamBase'
+          }
         />
       ) : null}
 
       {isHome && user ? <MyGoingShowsSection variant="home" /> : null}
 
-      {isHome && user ? <BeenHistoryShowsSection /> : null}
-
-      {user ? <GoingShowsFeedSection /> : null}
+      {isHome && user ? <GoingShowsFeedSection /> : null}
     </div>
   )
 }

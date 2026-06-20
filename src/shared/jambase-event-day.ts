@@ -403,3 +403,56 @@ export function jamBaseEventOnCaptureDay(
 ): boolean {
   return jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon);
 }
+
+/** Next calendar day after `ymd` in `timeZone` (YYYY-MM-DD). */
+export function nextCalendarDayYmdInTimeZone(ymd: string, timeZone: string): string | null {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const anchor = Date.parse(`${ymd}T12:00:00Z`);
+  if (!Number.isFinite(anchor)) return null;
+  for (let hours = 25; hours <= 30; hours += 1) {
+    const candidate = ymdInTimeZone(anchor + hours * 3600_000, timeZone);
+    if (candidate > ymd) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Earliest `eventDateFrom` for upcoming/nearby feeds (excludes today's listings).
+ * Never before JamBase's UTC floor.
+ */
+export function jamBaseGeoEventDateFromForUpcomingFeed(
+  captureMs: number,
+  userLat: number,
+  userLon: number,
+): string {
+  const tz = inferTimezoneFromCoords(userLat, userLon) ?? 'UTC';
+  const todayYmd = ymdInTimeZone(captureMs, tz);
+  const tomorrowYmd = nextCalendarDayYmdInTimeZone(todayYmd, tz) ?? todayYmd;
+  const utcFloor = jamBaseGeoEventDateFromUtc(captureMs);
+  return tomorrowYmd > utcFloor ? tomorrowYmd : utcFloor;
+}
+
+/**
+ * Upcoming/nearby carousels (not Tonight): venue-local start date strictly after today.
+ * Keeps same-day listings in the Tonight section only.
+ */
+export function jamBaseEventAfterToday(
+  ev: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
+  const eventYmd = jamBaseEventLocalYmd(sd);
+  if (!eventYmd) {
+    const startMs = jamBaseEventStartMs(ev, userLat, userLon);
+    return startMs != null && startMs > nowMs;
+  }
+  const tz = jamBaseVenueTimezone(ev, userLat, userLon);
+  const todayYmd = ymdInTimeZone(nowMs, tz);
+  if (eventYmd <= todayYmd) return false;
+  const startMs = jamBaseEventStartMs(ev, userLat, userLon);
+  if (startMs != null && startMs <= nowMs) return false;
+  return true;
+}

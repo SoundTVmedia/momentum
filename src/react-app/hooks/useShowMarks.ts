@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from '@getmocha/users-service/react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { clearCaptureShowSessionForEvent } from '@/react-app/utils/captureShowSession';
@@ -6,45 +6,127 @@ import type { ShowMarkStatus, ShowMarkUpsertInput, UserShowMark } from '@/shared
 
 export const SHOW_MARKS_CHANGED_EVENT = 'show-marks-changed';
 
+type ShowMarksSnapshot = {
+  marks: UserShowMark[];
+  hydrated: boolean;
+  loading: boolean;
+  userId: string | null;
+};
+
+let snapshot: ShowMarksSnapshot = {
+  marks: [],
+  hydrated: false,
+  loading: false,
+  userId: null,
+};
+
+let fetchPromise: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+
+function emit() {
+  for (const listener of listeners) {
+    listener();
+  }
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot(): ShowMarksSnapshot {
+  return snapshot;
+}
+
+function setSnapshot(next: ShowMarksSnapshot): void {
+  snapshot = next;
+  emit();
+}
+
+function mergeMarkIntoStore(mark: UserShowMark): void {
+  const marks = [...snapshot.marks];
+  const idx = marks.findIndex((m) => m.jambase_event_id === mark.jambase_event_id);
+  if (idx >= 0) marks[idx] = mark;
+  else marks.push(mark);
+  setSnapshot({ ...snapshot, marks });
+}
+
+function removeMarkFromStore(jambaseEventId: string): void {
+  setSnapshot({
+    ...snapshot,
+    marks: snapshot.marks.filter((m) => m.jambase_event_id !== jambaseEventId),
+  });
+}
+
 function dispatchShowMarksChanged(): void {
   window.dispatchEvent(new CustomEvent(SHOW_MARKS_CHANGED_EVENT));
 }
 
-export function useShowMarks() {
-  const { user } = useAuth();
-  const [marks, setMarks] = useState<UserShowMark[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-  const [loading, setLoading] = useState(false);
+async function fetchMarksShared(userId: string, force = false): Promise<void> {
+  if (!force && fetchPromise) {
+    await fetchPromise;
+    return;
+  }
 
-  const refresh = useCallback(async () => {
-    if (!user) {
-      setMarks([]);
-      setHydrated(true);
-      return;
-    }
-    setLoading(true);
+  if (snapshot.userId !== userId) {
+    setSnapshot({ marks: [], hydrated: false, loading: false, userId });
+  }
+
+  setSnapshot({ ...snapshot, loading: true, userId });
+
+  fetchPromise = (async () => {
     try {
       const res = await apiFetch('/api/users/me/show-marks', { cache: 'no-store' });
       if (!res.ok) return;
       const data = (await res.json()) as { marks?: UserShowMark[] };
-      setMarks(Array.isArray(data.marks) ? data.marks : []);
+      setSnapshot({
+        marks: Array.isArray(data.marks) ? data.marks : [],
+        hydrated: true,
+        loading: false,
+        userId,
+      });
     } catch {
       /* ignore */
     } finally {
-      setLoading(false);
-      setHydrated(true);
+      setSnapshot({ ...snapshot, loading: false, hydrated: true, userId });
+      fetchPromise = null;
     }
+  })();
+
+  await fetchPromise;
+}
+
+export function useShowMarks() {
+  const { user } = useAuth();
+  const store = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setSnapshot({
+        marks: [],
+        hydrated: true,
+        loading: false,
+        userId: null,
+      });
+      return;
+    }
+    if (store.userId === user.id && store.hydrated) return;
+    void fetchMarksShared(user.id);
+  }, [user?.id, store.hydrated, store.userId]);
+
+  // Marks are updated optimistically on POST/DELETE — no refetch on change events.
+
+  const marks = user?.id && store.userId === user.id ? store.marks : [];
+  const hydrated = !user?.id || (store.userId === user.id && store.hydrated);
+  const loading = Boolean(user?.id && store.userId === user.id && store.loading);
+
+  const refresh = useCallback(async () => {
+    if (!user?.id) {
+      setSnapshot({ marks: [], hydrated: true, loading: false, userId: null });
+      return;
+    }
+    await fetchMarksShared(user.id, true);
   }, [user?.id]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    const onChange = () => void refresh();
-    window.addEventListener(SHOW_MARKS_CHANGED_EVENT, onChange);
-    return () => window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, onChange);
-  }, [refresh]);
 
   const marksByEventId = useMemo(() => {
     const map = new Map<string, UserShowMark>();
@@ -76,18 +158,17 @@ export function useShowMarks() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(input),
         });
+        const data = (await res.json()) as { mark?: UserShowMark; error?: string };
         if (!res.ok) {
-          let message = 'Could not save show mark';
-          try {
-            const data = (await res.json()) as { error?: string };
-            if (typeof data.error === 'string' && data.error.trim()) {
-              message = data.error.trim();
-            }
-          } catch {
-            /* ignore */
-          }
+          const message =
+            typeof data.error === 'string' && data.error.trim()
+              ? data.error.trim()
+              : 'Could not save show mark';
           alert(message);
           return false;
+        }
+        if (data.mark) {
+          mergeMarkIntoStore(data.mark);
         }
         dispatchShowMarksChanged();
         return true;
@@ -108,6 +189,7 @@ export function useShowMarks() {
         );
         if (!res.ok) return false;
         clearCaptureShowSessionForEvent(jambaseEventId);
+        removeMarkFromStore(jambaseEventId);
         dispatchShowMarksChanged();
         return true;
       } catch {

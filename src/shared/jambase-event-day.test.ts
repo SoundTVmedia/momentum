@@ -8,6 +8,9 @@ import {
   jamBaseEventFeedVisible,
   jamBaseEventInProgress,
   jamBaseEventUpcomingOrInProgress,
+  jamBaseEventAfterToday,
+  jamBaseGeoEventDateFromForUpcomingFeed,
+  nextCalendarDayYmdInTimeZone,
   jamBaseEventSameCalendarDay,
   jamBaseEventStartMs,
 } from './jambase-event-day';
@@ -223,6 +226,48 @@ describe('jamBaseEventUpcomingOrInProgress', () => {
     };
     const nowMs = Date.parse('2026-06-21T00:00:00.000Z'); // 8pm Eastern June 20
     expect(jamBaseEventUpcomingOrInProgress(morningShow, nowMs)).toBe(false);
+  });
+});
+
+describe('jamBaseEventAfterToday', () => {
+  const tonightShow = {
+    startDate: '2026-06-20T19:30:00',
+    location: {
+      name: 'Neighborhood Venue',
+      address: { 'x-timezone': 'America/New_York' },
+    },
+  };
+  const tomorrowShow = {
+    startDate: '2026-06-21T19:30:00',
+    location: tonightShow.location,
+  };
+
+  it('excludes same-day show (Tonight section owns those)', () => {
+    const nowMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
+    expect(jamBaseEventAfterToday(tonightShow, nowMs)).toBe(false);
+  });
+
+  it('includes tomorrow show', () => {
+    const nowMs = Date.parse('2026-06-20T20:00:00.000Z');
+    expect(jamBaseEventAfterToday(tomorrowShow, nowMs)).toBe(true);
+  });
+
+  it('excludes in-progress show tonight', () => {
+    const nowMs = Date.parse('2026-06-21T00:00:00.000Z'); // 8pm Eastern June 20
+    expect(jamBaseEventAfterToday(tonightShow, nowMs)).toBe(false);
+  });
+});
+
+describe('jamBaseGeoEventDateFromForUpcomingFeed', () => {
+  it('returns tomorrow in user timezone', () => {
+    const captureMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
+    expect(jamBaseGeoEventDateFromForUpcomingFeed(captureMs, 40.7, -74.0)).toBe('2026-06-21');
+  });
+});
+
+describe('nextCalendarDayYmdInTimeZone', () => {
+  it('steps to next day', () => {
+    expect(nextCalendarDayYmdInTimeZone('2026-06-20', 'America/New_York')).toBe('2026-06-21');
   });
 });
 

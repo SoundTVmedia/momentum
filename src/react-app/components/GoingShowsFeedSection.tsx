@@ -8,7 +8,6 @@ import HorizontalClipCarousel, {
 import SectionHeading from '@/react-app/components/SectionHeading';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
-import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
 import { jamBaseEventTicketUrl } from '@/shared/jambase-events';
 import { isUpcomingShowMark, showMarkToJamBaseEvent, type UserShowMark } from '@/shared/show-marks';
 
@@ -148,12 +147,6 @@ export default function GoingShowsFeedSection() {
     void load();
   }, [isPending, load]);
 
-  useEffect(() => {
-    const refresh = () => void load();
-    window.addEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, refresh);
-  }, [load]);
-
   const friendCards = useMemo(() => {
     const cards: { key: string; friend: FriendGoingGroup; mark: UserShowMark }[] = [];
     for (const friend of friends) {
@@ -188,7 +181,7 @@ export default function GoingShowsFeedSection() {
       {friendCards.length > 0 ? (
         <section>
           <SectionHeading
-            title="Friends' plans"
+            title="Friends Plans"
             subtitle="Shows people you follow marked as Going"
             size="section"
           />

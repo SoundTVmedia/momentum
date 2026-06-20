@@ -121,8 +121,17 @@ export { RealtimeDurableObject } from "./realtime-durable-object";
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Global rate limiting for general API endpoints
-app.use('/api/*', rateLimiter(RateLimits.GENERAL));
+const showMarksRateLimit = rateLimiter(RateLimits.SHOW_MARKS);
+
+// Global rate limiting for general API endpoints (show-marks use a dedicated bucket below)
+app.use('/api/*', async (c, next) => {
+  const path = c.req.path;
+  if (path === '/api/users/me/show-marks' || path.startsWith('/api/users/me/show-marks/')) {
+    await next();
+    return;
+  }
+  return rateLimiter(RateLimits.GENERAL)(c, next);
+});
 
 // JamBase-backed routes: shared hourly bucket per user/IP (protects upstream quota)
 app.use('/api/jambase/*', rateLimiter(RateLimits.JAMBASE_PROXY_HOURLY));
@@ -3337,7 +3346,7 @@ app.post("/api/clips/:id/rate", authMiddleware, rating.rateClip);
 app.get("/api/clips/:id/rating", authMiddleware, rating.getUserClipRating);
 
 // Favorite Artists & Clips Endpoints
-app.get("/api/users/me/show-marks", authMiddleware, showMarks.getMyShowMarks);
+app.get("/api/users/me/show-marks", authMiddleware, showMarksRateLimit, showMarks.getMyShowMarks);
 app.post("/api/users/me/show-marks", authMiddleware, showMarks.upsertMyShowMark);
 app.delete("/api/users/me/show-marks/:jambaseEventId", authMiddleware, showMarks.deleteMyShowMark);
 

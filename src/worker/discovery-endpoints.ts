@@ -831,7 +831,7 @@ export async function getNearbyShows(c: Context) {
         : null);
   }
 
-  cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+  cacheJsonProxy(c, { browserMaxAge: 180, cdnMaxAge: 1800, staleWhileRevalidate: 3600 });
 
   return c.json({
     events,
@@ -879,7 +879,7 @@ export async function getTonightShows(c: Context) {
         : null);
   }
 
-  cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+  cacheJsonProxy(c, { browserMaxAge: 90, cdnMaxAge: 300, staleWhileRevalidate: 600 });
 
   return c.json({
     events,
