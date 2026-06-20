@@ -1904,6 +1904,7 @@ app.get("/api/search/advanced", optionalAuthMiddleware, discovery.advancedSearch
 app.get("/api/discover/trending", discovery.getTrendingContent);
 app.get("/api/discover/feed", optionalAuthMiddleware, discovery.getDiscoverFeed);
 app.get("/api/shows/nearby", optionalAuthMiddleware, discovery.getNearbyShows);
+app.get("/api/shows/tonight", optionalAuthMiddleware, discovery.getTonightShows);
 
 // JamBase API Integration Endpoints
 app.get("/api/jambase/status", jambase.getJamBaseStatus);

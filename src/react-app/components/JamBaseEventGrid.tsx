@@ -15,6 +15,7 @@ import {
   jamBaseEventCardImageUrl,
   jamBaseEventHeadliner,
 } from '@/shared/jambase-events';
+import { jamBaseEventHasStarted } from '@/shared/jambase-event-day';
 
 export interface JamBaseEventGridProps {
   maxEvents?: number;
@@ -36,6 +37,8 @@ export interface JamBaseEventGridProps {
   preloadedEvents?: Record<string, unknown>[];
   /** Fired when the carousel reaches the last event (scroll or chevron). */
   onReachEnd?: () => void;
+  /** Label in-progress shows (started but still within the Going window). */
+  showInProgressBadge?: boolean;
 }
 
 function primaryTicketUrl(ev: Record<string, unknown>): string | null {
@@ -105,10 +108,12 @@ function JamBaseEventCard({
   event,
   onArtist,
   onVenue,
+  showInProgressBadge = false,
 }: {
   event: Record<string, unknown>;
   onArtist: (name: string) => void;
   onVenue: (name: string) => void;
+  showInProgressBadge?: boolean;
 }) {
   const title = typeof event.name === 'string' ? event.name : 'Show';
   const start = typeof event.startDate === 'string' ? event.startDate : '';
@@ -117,6 +122,7 @@ function JamBaseEventCard({
   const head = headlinerName(event);
   const vn = venueLabel(event);
   const vLine = venueCityLine(event);
+  const inProgress = showInProgressBadge && jamBaseEventHasStarted(event);
 
   return (
     <div
@@ -135,7 +141,12 @@ function JamBaseEventCard({
               alt=""
               className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
             />
-            <div className="pointer-events-none absolute top-3 left-3">
+            <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-1.5">
+              {inProgress ? (
+                <span className="px-2 py-1 bg-momentum-flare/90 rounded-full text-xs text-white font-semibold uppercase tracking-wide">
+                  In progress
+                </span>
+              ) : null}
               <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
                 {headlinerGenre(event)}
               </span>
@@ -148,7 +159,12 @@ function JamBaseEventCard({
               alt={title}
               className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
             />
-            <div className="absolute top-3 left-3">
+            <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+              {inProgress ? (
+                <span className="px-2 py-1 bg-momentum-flare/90 rounded-full text-xs text-white font-semibold uppercase tracking-wide">
+                  In progress
+                </span>
+              ) : null}
               <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
                 {headlinerGenre(event)}
               </span>
@@ -219,6 +235,7 @@ export default function JamBaseEventGrid({
   venueName,
   preloadedEvents,
   onReachEnd,
+  showInProgressBadge = false,
 }: JamBaseEventGridProps) {
   const navigate = useNavigate();
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
@@ -304,6 +321,7 @@ export default function JamBaseEventGrid({
       event={event}
       onArtist={(name) => navigate(artistPath(name))}
       onVenue={(name) => navigate(venuePath(name))}
+      showInProgressBadge={showInProgressBadge}
     />
   );
 

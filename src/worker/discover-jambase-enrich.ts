@@ -4,7 +4,7 @@ import {
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { haversineMiles } from './search-geo';
-import { jamBaseEventCameraCaptureDay, jamBaseEventFeedVisible, jamBaseEventDateFromCaptureLocal, jamBaseVenueExpandPastEventDateCandidates } from '../shared/jambase-event-day';
+import { jamBaseEventCameraCaptureDay, jamBaseEventFeedVisible, jamBaseEventUpcomingOrInProgress, jamBaseEventDateFromCaptureLocal, jamBaseVenueExpandPastEventDateCandidates } from '../shared/jambase-event-day';
 
 /** Closest venues to enrich with in-progress listings (expandPastEvents). */
 const NEARBY_VENUE_IN_SHOW_ENRICH = 8;
@@ -644,6 +644,7 @@ async function fetchInShowEventsAtNearbyVenues(
   longitude: number,
   radiusMiles: number,
   captureMs: number,
+  matchesCapture: (ev: Record<string, unknown>) => boolean,
 ): Promise<Record<string, unknown>[]> {
   const { events } = await fetchExpandPastEventsAtNearbyVenues(
     apiKey,
@@ -653,9 +654,81 @@ async function fetchInShowEventsAtNearbyVenues(
     radiusMiles,
     captureMs,
     NEARBY_VENUE_IN_SHOW_ENRICH,
-    (ev) => jamBaseEventFeedVisible(ev, captureMs, latitude, longitude),
+    matchesCapture,
   );
   return events;
+}
+
+type NearbyJamBaseEventsScope = 'tonight' | 'upcoming';
+
+async function fetchNearbyJamBaseEventsScoped(
+  apiKey: string | undefined,
+  jbQ: JamBaseQuotaContext | undefined,
+  latitude: number,
+  longitude: number,
+  radiusMiles: number,
+  limit: number,
+  diag: JamBaseFetchDiag | undefined,
+  captureMs: number,
+  scope: NearbyJamBaseEventsScope,
+): Promise<Record<string, unknown>[]> {
+  const key = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!key) return [];
+
+  const radius = Math.min(100, Math.max(10, radiusMiles));
+
+  const visible =
+    scope === 'tonight'
+      ? (ev: Record<string, unknown>) =>
+          jamBaseEventFeedVisible(ev, captureMs, latitude, longitude)
+      : (ev: Record<string, unknown>) =>
+          jamBaseEventUpcomingOrInProgress(ev, captureMs, latitude, longitude);
+
+  const [geoData, inShowEvents] = await Promise.all([
+    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      key,
+      '/events',
+      {
+        geoLatitude: String(latitude),
+        geoLongitude: String(longitude),
+        geoRadiusAmount: String(radius),
+        geoRadiusUnits: 'mi',
+        eventDateFrom: jamBaseEventDateFromCaptureLocal(captureMs, latitude, longitude),
+        perPage: String(Math.min(40, Math.max(1, limit))),
+        page: '1',
+      },
+      jbQ,
+      diag,
+    ),
+    fetchInShowEventsAtNearbyVenues(
+      key,
+      jbQ,
+      latitude,
+      longitude,
+      radius,
+      captureMs,
+      visible,
+    ),
+  ]);
+
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const ev of geoData?.events ?? []) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    if (!visible(ev)) continue;
+    const id = jamBaseEventId(ev);
+    const mapKey = id ?? JSON.stringify(ev);
+    if (!merged.has(mapKey)) merged.set(mapKey, ev);
+  }
+  for (const ev of inShowEvents) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    if (!visible(ev)) continue;
+    const id = jamBaseEventId(ev);
+    const mapKey = id ?? JSON.stringify(ev);
+    if (!merged.has(mapKey)) merged.set(mapKey, ev);
+  }
+
+  const raw = [...merged.values()];
+  return sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
 }
 
 function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {
@@ -697,6 +770,29 @@ function sortJamBaseEventsByDistanceFrom(
   });
 }
 
+export async function fetchTonightJamBaseEvents(
+  apiKey: string | undefined,
+  jbQ: JamBaseQuotaContext | undefined,
+  latitude: number,
+  longitude: number,
+  radiusMiles = 50,
+  limit = 20,
+  diag?: JamBaseFetchDiag,
+  captureMs: number = Date.now(),
+): Promise<Record<string, unknown>[]> {
+  return fetchNearbyJamBaseEventsScoped(
+    apiKey,
+    jbQ,
+    latitude,
+    longitude,
+    radiusMiles,
+    limit,
+    diag,
+    captureMs,
+    'tonight',
+  );
+}
+
 export async function fetchNearbyJamBaseEvents(
   apiKey: string | undefined,
   jbQ: JamBaseQuotaContext | undefined,
@@ -707,51 +803,17 @@ export async function fetchNearbyJamBaseEvents(
   diag?: JamBaseFetchDiag,
   captureMs: number = Date.now(),
 ): Promise<Record<string, unknown>[]> {
-  const key = typeof apiKey === 'string' ? apiKey.trim() : '';
-  if (!key) return [];
-
-  const radius = Math.min(100, Math.max(10, radiusMiles));
-
-  const [geoData, inShowEvents] = await Promise.all([
-    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-      key,
-      '/events',
-      {
-        geoLatitude: String(latitude),
-        geoLongitude: String(longitude),
-        geoRadiusAmount: String(radius),
-        geoRadiusUnits: 'mi',
-        eventDateFrom: jamBaseEventDateFromCaptureLocal(captureMs, latitude, longitude),
-        perPage: String(Math.min(40, Math.max(1, limit))),
-        page: '1',
-      },
-      jbQ,
-      diag,
-    ),
-    fetchInShowEventsAtNearbyVenues(key, jbQ, latitude, longitude, radius, captureMs),
-  ]);
-
-  const visible = (ev: Record<string, unknown>) =>
-    jamBaseEventFeedVisible(ev, captureMs, latitude, longitude);
-
-  const merged = new Map<string, Record<string, unknown>>();
-  for (const ev of geoData?.events ?? []) {
-    if (typeof ev !== 'object' || ev === null) continue;
-    if (!visible(ev)) continue;
-    const id = jamBaseEventId(ev);
-    const mapKey = id ?? JSON.stringify(ev);
-    if (!merged.has(mapKey)) merged.set(mapKey, ev);
-  }
-  for (const ev of inShowEvents) {
-    if (typeof ev !== 'object' || ev === null) continue;
-    if (!visible(ev)) continue;
-    const id = jamBaseEventId(ev);
-    const mapKey = id ?? JSON.stringify(ev);
-    if (!merged.has(mapKey)) merged.set(mapKey, ev);
-  }
-
-  const raw = [...merged.values()];
-  return sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
+  return fetchNearbyJamBaseEventsScoped(
+    apiKey,
+    jbQ,
+    latitude,
+    longitude,
+    radiusMiles,
+    limit,
+    diag,
+    captureMs,
+    'upcoming',
+  );
 }
 
 /**

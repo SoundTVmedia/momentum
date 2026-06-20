@@ -287,6 +287,17 @@ export function jamBaseEventCameraCaptureDay(
   return hours <= JAMBASE_CAMERA_EVENT_MAX_HOURS_AFTER_START;
 }
 
+/** True when doors time has passed (show may be in progress). */
+export function jamBaseEventHasStarted(
+  ev: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  const hours = jamBaseEventHoursFromStart(ev, nowMs, userLat, userLon);
+  return hours != null && hours >= 0;
+}
+
 /**
  * Nearby/event-list feeds: same venue-local calendar day, including shows that already
  * started today up to {@link JAMBASE_EVENT_ONGOING_HOURS_AFTER_START}h after start.

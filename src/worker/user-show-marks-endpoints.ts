@@ -2,7 +2,7 @@ import type { Context } from 'hono';
 import { mochaUserIdKey, normalizeArtistDisplayName } from './favorite-artists-sync';
 import { isUserFollowTargetId } from './follow-endpoints';
 import {
-  isUpcomingShowMarkStartDate,
+  isUpcomingJamBaseEvent,
   mergeJamBaseEventWithShowMark,
   showMarkToJamBaseEvent,
   type ShowMarkStatus,
@@ -250,7 +250,22 @@ export async function upsertMyShowMark(c: Context) {
     return c.json({ error: 'status and jambase_event_id are required' }, 400);
   }
 
-  const upcoming = isUpcomingShowMarkStartDate(input.start_date);
+  const upcoming = isUpcomingJamBaseEvent(
+    showMarkToJamBaseEvent({
+      id: 0,
+      status: input.status,
+      jambase_event_id: input.jambase_event_id,
+      jambase_venue_id: input.jambase_venue_id ?? null,
+      jambase_artist_id: input.jambase_artist_id ?? null,
+      event_title: input.event_title ?? null,
+      artist_name: input.artist_name ?? null,
+      venue_name: input.venue_name ?? null,
+      venue_location: input.venue_location ?? null,
+      start_date: input.start_date ?? null,
+      created_at: '',
+      updated_at: '',
+    }),
+  );
   if (input.status === 'going' && !upcoming) {
     return c.json(
       { error: 'Going is only for upcoming shows. Mark past shows as Went instead.' },

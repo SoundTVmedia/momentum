@@ -20,6 +20,7 @@ import {
   enrichSearchVenuesWithJamBase,
   enrichTrendingArtistsWithJamBase,
   fetchNearbyJamBaseEvents,
+  fetchTonightJamBaseEvents,
   fetchJamBaseVenuesByCity,
   jamBaseVenueToSearchRow,
   mapJamBaseArtistsToSearchRows,
@@ -827,6 +828,54 @@ export async function getNearbyShows(c: Context) {
       jamBaseUpstreamFailureNotice(apiKey, jbDiag) ??
       (jamBaseApiKeyConfigured(apiKey)
         ? 'No upcoming JamBase shows were returned for this location. Try a larger radius or check again later.'
+        : null);
+  }
+
+  cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
+
+  return c.json({
+    events,
+    location,
+    personalized: true,
+    source: 'jambase' as const,
+    jambaseNotice,
+  });
+}
+
+/** Tonight's shows near the user (venue-local calendar day, including in-progress up to 4h). */
+export async function getTonightShows(c: Context) {
+  const mochaUser = c.get('user') as MochaUser | undefined;
+  const limit = Math.min(parseInt(c.req.query('limit') || '12', 10), 40);
+  const radiusMiles = Math.min(
+    100,
+    Math.max(10, parseInt(c.req.query('radius_miles') || '50', 10)),
+  );
+
+  const location = await resolveDiscoverLocation(c, mochaUser ?? null);
+  const jbQ = jamBaseQuotaFromEnv(c.env);
+  const apiKey = c.env.JAMBASE_API_KEY;
+
+  let jambaseNotice: string | null = null;
+  if (!jamBaseApiKeyConfigured(apiKey)) {
+    jambaseNotice = jamBaseMissingKeyNotice();
+  }
+
+  const jbDiag: JamBaseFetchDiag = {};
+  const events = await fetchTonightJamBaseEvents(
+    apiKey,
+    jbQ,
+    location.latitude,
+    location.longitude,
+    radiusMiles,
+    limit,
+    jbDiag,
+  );
+
+  if (!jambaseNotice && events.length === 0) {
+    jambaseNotice =
+      jamBaseUpstreamFailureNotice(apiKey, jbDiag) ??
+      (jamBaseApiKeyConfigured(apiKey)
+        ? 'No JamBase shows tonight near this location. Check again closer to showtime.'
         : null);
   }
 

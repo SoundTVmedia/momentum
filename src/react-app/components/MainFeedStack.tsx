@@ -7,6 +7,7 @@ import type { FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
+import TonightShowsSection from '@/react-app/components/TonightShowsSection'
 import GoingShowsFeedSection from '@/react-app/components/GoingShowsFeedSection'
 import MyGoingShowsSection from '@/react-app/components/MyGoingShowsSection'
 import BeenHistoryShowsSection from '@/react-app/components/BeenHistoryShowsSection'
@@ -67,6 +68,8 @@ export default function MainFeedStack({
           edgeBleedScope="page"
         />
       ) : null}
+
+      {isHome ? <TonightShowsSection /> : null}
 
       <div className={isHome && user ? HOME_FEED_SECTION_CLASS : ''}>
         <div className="mb-5 md:mb-5">
