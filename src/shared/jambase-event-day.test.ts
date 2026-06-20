@@ -78,7 +78,7 @@ describe('jamBaseEventMatchesCapture without x-timezone', () => {
     expect(jamBaseEventMatchesCapture(eventNoTz, captureMs, 40.73, -73.99)).toBe(true);
   });
 
-  it('matches capture several hours after start while the show is ongoing', () => {
+  it('matches capture up to four hours after start while the show is ongoing', () => {
     const event = {
       startDate: '2026-06-09T20:00:00',
       location: {
@@ -86,8 +86,8 @@ describe('jamBaseEventMatchesCapture without x-timezone', () => {
         address: { 'x-timezone': 'America/New_York' },
       },
     };
-    // 4:30am Eastern on June 10 (~8.5h after an 8pm start)
-    const captureMs = Date.parse('2026-06-10T08:30:00.000Z');
+    // 11pm Eastern on June 9 (~3h after an 8pm start)
+    const captureMs = Date.parse('2026-06-10T03:00:00.000Z');
     expect(jamBaseEventMatchesCapture(event, captureMs)).toBe(true);
   });
 

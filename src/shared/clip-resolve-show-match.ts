@@ -15,6 +15,9 @@ export const NEARBY_PICKER_MAX_DISTANCE_MILES = 15;
 /** Venues returned for manual picker when multiple matches qualify. */
 export const NEARBY_VENUE_PICKER_COUNT = 5;
 
+/** Camera capture screen: closest venues with tonight's JamBase event in the dropdown. */
+export const CAMERA_VENUE_PICKER_COUNT = 3;
+
 export type ClipResolveMatch = 'none' | 'single' | 'ambiguous';
 
 /** True when we may auto-fill venue (and show when present) without the nearby picker. */
@@ -122,6 +125,30 @@ export function sameDayEventVenuesWithinRadius(
       candidateDistanceSortKey(a.distance_miles) - candidateDistanceSortKey(b.distance_miles),
   );
   return matched;
+}
+
+/**
+ * Closest venues with JamBase event data for the capture date (includes in-progress shows
+ * within {@link JAMBASE_EVENT_ONGOING_HOURS_AFTER_START}h after start). No distance cap.
+ */
+export function closestVenuesWithEventsOnCaptureDay(
+  candidates: ClipShowCandidate[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+  limit = CAMERA_VENUE_PICKER_COUNT,
+): ClipShowCandidate[] {
+  const matched: ClipShowCandidate[] = [];
+  for (const candidate of dedupeClipCandidatesByVenue(candidates)) {
+    if (!candidateHasJamBaseEventData(candidate)) continue;
+    if (!candidateEventMatchesCapture(candidate, captureMs, userLat, userLon)) continue;
+    matched.push(candidate);
+  }
+  matched.sort(
+    (a, b) =>
+      candidateDistanceSortKey(a.distance_miles) - candidateDistanceSortKey(b.distance_miles),
+  );
+  return matched.slice(0, limit);
 }
 
 function candidateWithinRadius(candidate: ClipShowCandidate, maxMiles: number): boolean {
@@ -263,7 +290,39 @@ export type CameraCaptureVenueResolution =
   | { mode: 'single'; candidate: ClipShowCandidate }
   | { mode: 'picker'; venues: ClipShowCandidate[] };
 
-/** Camera HUD: going mark, single auto-fill, or multi-venue picker. */
+/**
+ * Camera HUD: going mark auto-fill, otherwise dropdown of the closest venues with
+ * tonight's JamBase event (up to {@link CAMERA_VENUE_PICKER_COUNT}).
+ */
+export function resolveCameraVenuePicker(
+  candidates: ClipShowCandidate[],
+  goingMarks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): CameraCaptureVenueResolution {
+  const goingCandidate = resolveGoingMarkClipCandidate(
+    goingMarks,
+    captureMs,
+    userLat,
+    userLon,
+  );
+  if (goingCandidate) {
+    return { mode: 'single', candidate: goingCandidate };
+  }
+
+  const venues = closestVenuesWithEventsOnCaptureDay(
+    candidates,
+    captureMs,
+    userLat,
+    userLon,
+    CAMERA_VENUE_PICKER_COUNT,
+  );
+  if (venues.length === 0) return { mode: 'none' };
+  return { mode: 'picker', venues };
+}
+
+/** @deprecated Use {@link resolveCameraVenuePicker} for the camera capture screen. */
 export function resolveCameraCaptureVenues(
   data: {
     match?: string;

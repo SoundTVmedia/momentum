@@ -25,10 +25,8 @@ import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import {
   clipCandidatesFromResolveResponse,
   dedupeClipCandidatesByVenue,
-  NEARBY_PICKER_MAX_DISTANCE_MILES,
-  resolveCameraCaptureVenues,
+  resolveCameraVenuePicker,
   resolveGoingMarkClipCandidate,
-  resolveShowMatchFromCandidates,
 } from '@/shared/clip-resolve-show-match';
 import { clipCandidatesFromJamBaseEvents } from '@/shared/jambase-events';
 import { nearbyShowsApiUrl } from '@/react-app/lib/nearby-shows-url';
@@ -363,8 +361,11 @@ export default function QuickRecordButton({
       sticky?.candidate.jambase_event_id?.trim() &&
       sticky?.candidate.venue_name?.trim()
     ) {
-      setCaptureVenuePickerChoices([]);
-      applySessionCandidate(sticky.candidate);
+      const stickyPicker = [sticky.candidate];
+      captureResolveCandidateRef.current = sticky.candidate;
+      setCaptureVenuePickerChoices(stickyPicker);
+      setCaptureVenuePickerSelectedKey(captureVenueOptionKey(sticky.candidate));
+      applySessionCandidate(sticky.candidate, { picker: true });
       return;
     }
 
@@ -416,7 +417,6 @@ export default function QuickRecordButton({
               c.lat,
               c.lon,
               captureMs,
-              NEARBY_PICKER_MAX_DISTANCE_MILES,
             ),
           );
         }
@@ -453,27 +453,16 @@ export default function QuickRecordButton({
         }
 
         const deduped = dedupeClipCandidatesByVenue(mergedCandidates);
-        const matchResult = resolveShowMatchFromCandidates(
+        const resolution = resolveCameraVenuePicker(
           deduped,
-          [],
-          captureMs,
-          c.lat,
-          c.lon,
-        );
-        const resolution = resolveCameraCaptureVenues(
-          {
-            match: matchResult.match,
-            candidates: matchResult.candidates,
-            nearbyVenues: matchResult.nearbyVenues,
-          },
-          [],
+          goingMarks,
           captureMs,
           c.lat,
           c.lon,
         );
 
         if (resolution.mode === 'single') {
-          saveCaptureShowSession(resolution.candidate, c.lat, c.lon, { source: 'resolve' });
+          saveCaptureShowSession(resolution.candidate, c.lat, c.lon, { source: 'going' });
           setCaptureVenuePickerChoices([]);
           applySessionCandidate(resolution.candidate);
           return;
@@ -484,6 +473,7 @@ export default function QuickRecordButton({
           captureResolveCandidateRef.current = first;
           setCaptureVenuePickerChoices(resolution.venues);
           setCaptureVenuePickerSelectedKey(captureVenueOptionKey(first));
+          saveCaptureShowSession(first, c.lat, c.lon, { source: 'resolve' });
           applySessionCandidate(first, { picker: true });
           return;
         }
@@ -499,7 +489,7 @@ export default function QuickRecordButton({
           notice:
             jambaseNotice ||
             (deduped.length === 0
-              ? 'No JamBase show tonight within 15 miles. You can add venue after you record.'
+              ? 'No JamBase shows tonight near you. You can add venue after you record.'
               : null),
         });
       } catch (e) {
@@ -1937,13 +1927,15 @@ export default function QuickRecordButton({
                             </p>
                           ) : null}
                           {captureResolvePreview.status === 'picker' &&
-                          captureVenuePickerChoices.length > 1 ? (
+                          captureVenuePickerChoices.length > 0 ? (
                             <div className="pt-2 space-y-1.5">
                               <label
                                 htmlFor="capture-venue-picker"
                                 className="text-[10px] font-medium text-gray-300"
                               >
-                                Several shows tonight nearby — pick your venue
+                                {captureVenuePickerChoices.length > 1
+                                  ? 'Shows tonight nearby — pick your venue'
+                                  : 'Show tonight at nearest venue'}
                               </label>
                               <select
                                 id="capture-venue-picker"

@@ -4,7 +4,7 @@
  */
 
 /** Include captures up to this many hours after `startDate` while the show is still in progress. */
-export const JAMBASE_EVENT_ONGOING_HOURS_AFTER_START = 10;
+export const JAMBASE_EVENT_ONGOING_HOURS_AFTER_START = 4;
 
 /** Look back this many hours before capture when resolving in-show listings at a venue. */
 export const JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS = 10;

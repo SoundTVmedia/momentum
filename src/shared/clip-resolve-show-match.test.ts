@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
+  CAMERA_VENUE_PICKER_COUNT,
   canAutoApplyCandidate,
+  closestVenuesWithEventsOnCaptureDay,
   NEARBY_PICKER_MAX_DISTANCE_MILES,
-  resolveCameraCaptureVenues,
+  resolveCameraVenuePicker,
   resolveShowFromGoingMark,
   resolveShowMatchFromCandidates,
 } from './clip-resolve-show-match';
@@ -217,29 +219,44 @@ describe('resolveShowMatchFromCandidates', () => {
   });
 });
 
-describe('resolveCameraCaptureVenues', () => {
+describe('resolveCameraVenuePicker', () => {
   const captureMs = Date.parse('2026-06-09T22:00:00.000Z');
 
-  it('returns picker mode for multiple qualifying venues', () => {
-    const resolution = resolveCameraCaptureVenues(
-      {
-        match: 'ambiguous',
-        nearbyVenues: [
-          baseCandidate({
-            jambase_event_id: 'a',
-            jambase_venue_id: 'v1',
-            startDate: '2026-06-09T20:00:00',
-            distance_miles: 0.5,
-          }),
-          baseCandidate({
-            jambase_event_id: 'b',
-            jambase_venue_id: 'v2',
-            venue_name: 'Two',
-            startDate: '2026-06-09T20:00:00',
-            distance_miles: 1.1,
-          }),
-        ],
-      },
+  it('returns up to three closest venues with event data for tonight', () => {
+    const resolution = resolveCameraVenuePicker(
+      [
+        baseCandidate({
+          jambase_event_id: 'a',
+          jambase_venue_id: 'v1',
+          startDate: '2026-06-09T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.6,
+        }),
+        baseCandidate({
+          jambase_event_id: 'b',
+          jambase_venue_id: 'v2',
+          venue_name: 'Venue Two',
+          startDate: '2026-06-09T20:00:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 1.2,
+        }),
+        baseCandidate({
+          jambase_event_id: 'c',
+          jambase_venue_id: 'v3',
+          venue_name: 'Venue Three',
+          startDate: '2026-06-09T21:00:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 2.5,
+        }),
+        baseCandidate({
+          jambase_event_id: 'd',
+          jambase_venue_id: 'v4',
+          venue_name: 'Venue Four',
+          startDate: '2026-06-09T21:00:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 4,
+        }),
+      ],
       [],
       captureMs,
       40.73,
@@ -247,7 +264,49 @@ describe('resolveCameraCaptureVenues', () => {
     );
     expect(resolution.mode).toBe('picker');
     if (resolution.mode === 'picker') {
-      expect(resolution.venues).toHaveLength(2);
+      expect(resolution.venues).toHaveLength(CAMERA_VENUE_PICKER_COUNT);
+      expect(resolution.venues[0]?.distance_miles).toBe(0.6);
     }
+  });
+
+  it('returns picker with one venue when only one qualifies', () => {
+    const resolution = resolveCameraVenuePicker(
+      [
+        baseCandidate({
+          jambase_event_id: 'a',
+          startDate: '2026-06-09T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.6,
+        }),
+      ],
+      [],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(resolution.mode).toBe('picker');
+    if (resolution.mode === 'picker') {
+      expect(resolution.venues).toHaveLength(1);
+    }
+  });
+});
+
+describe('closestVenuesWithEventsOnCaptureDay', () => {
+  it('includes in-progress show within four hours of start', () => {
+    const captureMs = Date.parse('2026-06-10T00:30:00.000Z'); // 8:30pm Eastern
+    const venues = closestVenuesWithEventsOnCaptureDay(
+      [
+        baseCandidate({
+          jambase_event_id: 'ev',
+          startDate: '2026-06-09T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.6,
+        }),
+      ],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(venues).toHaveLength(1);
   });
 });
