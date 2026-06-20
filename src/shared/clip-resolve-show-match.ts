@@ -5,7 +5,6 @@ import {
   jamBaseEventMatchesCapture,
   jamBaseEventOngoingAtCapture,
   jamBaseEventCameraCaptureDay,
-  jamBaseEventSameCalendarDay,
   ymdInTimeZone,
 } from './jambase-event-day';
 import {
