@@ -2,7 +2,6 @@ import type { Context } from 'hono';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import {
   jamBaseFetch,
-  jamBaseEventDateFromToday,
   jamBaseQuotaFromEnv,
   type JamBaseQuotaContext,
 } from './jambase-client';
@@ -13,6 +12,10 @@ import {
   slugifyEntityName,
   titleCaseWords,
 } from '../shared/jambase-slug';
+import {
+  jamBaseEventUpcomingOrInProgress,
+  jamBaseVenueEventLookbackDateFrom,
+} from '../shared/jambase-event-day';
 import { fetchJamBaseEventsByVenueName } from './jambase-endpoints';
 import { enrichJamBaseVenueImage } from './discover-jambase-enrich';
 import {
@@ -306,13 +309,20 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
       '/events',
       {
         artistId: jbId,
-        eventDateFrom: jamBaseEventDateFromToday(),
+        eventDateFrom: jamBaseVenueEventLookbackDateFrom(),
+        expandPastEvents: 'true',
         perPage: '50',
         page: '1',
       },
       jbQ
     );
-    const events = eventsRes?.events ?? [];
+    const nowMs = Date.now();
+    const events = (eventsRes?.events ?? []).filter(
+      (ev): ev is Record<string, unknown> =>
+        typeof ev === 'object' &&
+        ev !== null &&
+        jamBaseEventUpcomingOrInProgress(ev as Record<string, unknown>, nowMs),
+    );
     if (events.length) {
       const aid = Number(artist.id);
       tourDates = events.map((ev, i) => jamBaseEventToTourDateRow(ev, aid, i));
@@ -652,15 +662,20 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
       '/events',
       {
         venueId: vId,
-        eventDateFrom: jamBaseEventDateFromToday(),
+        eventDateFrom: jamBaseVenueEventLookbackDateFrom(),
+        expandPastEvents: 'true',
         perPage: '50',
         page: '1',
       },
       jbQ,
     );
+    const nowMs = Date.now();
     const eventsRaw = eventsRes?.events ?? [];
     const eventsFiltered = eventsRaw.filter(
-      (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
+      (e): e is Record<string, unknown> =>
+        typeof e === 'object' &&
+        e !== null &&
+        jamBaseEventUpcomingOrInProgress(e as Record<string, unknown>, nowMs),
     );
     if (eventsFiltered.length) {
       upcomingJamBaseEvents = eventsFiltered;

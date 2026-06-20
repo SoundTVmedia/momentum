@@ -16,6 +16,10 @@ import {
   searchPhraseFromSlug,
   slugifyEntityName,
 } from '../shared/jambase-slug';
+import {
+  jamBaseEventUpcomingOrInProgress,
+  jamBaseVenueEventLookbackDateFrom,
+} from '../shared/jambase-event-day';
 
 /**
  * JamBase Data API v3 — proxy endpoints for the SPA.
@@ -601,7 +605,8 @@ export async function fetchJamBaseEventsByArtistName(
     '/events',
     {
       artistId: id,
-      eventDateFrom: jamBaseEventDateFromToday(),
+      eventDateFrom: jamBaseVenueEventLookbackDateFrom(),
+      expandPastEvents: 'true',
       perPage,
       page,
     },
@@ -610,8 +615,14 @@ export async function fetchJamBaseEventsByArtistName(
   );
   if (diag) mergeJamBaseFetchDiag(diag, evCall);
 
+  const nowMs = Date.now();
   const rawEvents = ev?.events ?? [];
-  const events = rawEvents.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
+  const events = rawEvents.filter(
+    (e): e is Record<string, unknown> =>
+      typeof e === 'object' &&
+      e !== null &&
+      jamBaseEventUpcomingOrInProgress(e as Record<string, unknown>, nowMs),
+  );
 
   return {
     events,
@@ -682,7 +693,8 @@ export async function fetchJamBaseEventsByVenueName(
     '/events',
     {
       venueId: id,
-      eventDateFrom: jamBaseEventDateFromToday(),
+      eventDateFrom: jamBaseVenueEventLookbackDateFrom(),
+      expandPastEvents: 'true',
       perPage,
       page,
     },
@@ -691,8 +703,14 @@ export async function fetchJamBaseEventsByVenueName(
   );
   if (diag) mergeJamBaseFetchDiag(diag, evCall);
 
+  const nowMs = Date.now();
   const rawEvents = ev?.events ?? [];
-  const events = rawEvents.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
+  const events = rawEvents.filter(
+    (e): e is Record<string, unknown> =>
+      typeof e === 'object' &&
+      e !== null &&
+      jamBaseEventUpcomingOrInProgress(e as Record<string, unknown>, nowMs),
+  );
 
   return {
     events,

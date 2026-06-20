@@ -307,6 +307,22 @@ export function jamBaseEventFeedVisible(
 }
 
 /**
+ * Event lists and Going marks: future shows plus today's shows still within
+ * {@link JAMBASE_EVENT_ONGOING_HOURS_AFTER_START}h of start (via {@link jamBaseEventFeedVisible}).
+ */
+export function jamBaseEventUpcomingOrInProgress(
+  ev: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (jamBaseEventFeedVisible(ev, nowMs, userLat, userLon)) return true;
+  const startMs = jamBaseEventStartMs(ev, userLat, userLon);
+  if (startMs == null) return true;
+  return startMs > nowMs;
+}
+
+/**
  * True when capture instant is on the same venue-local calendar day as the event,
  * including late-night shows that cross midnight (e.g. 8pm show, 1am capture),
  * or while the show is still in progress after start time.

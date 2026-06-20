@@ -114,6 +114,26 @@ describe('allowedShowMarkStatusForEvent', () => {
   it('defaults missing startDate to Going', () => {
     expect(allowedShowMarkStatusForEvent({}, now)).toBe('going');
   });
+
+  it('allows Going on a show that started within four hours', () => {
+    const inProgress = {
+      startDate: '2026-06-10T19:30:00',
+      location: { address: { 'x-timezone': 'America/New_York' } },
+    };
+    expect(
+      allowedShowMarkStatusForEvent(inProgress, new Date('2026-06-11T01:00:00.000Z')),
+    ).toBe('going');
+  });
+
+  it('allows Went on a show that started more than four hours ago today', () => {
+    const ended = {
+      startDate: '2026-06-10T09:00:00',
+      location: { address: { 'x-timezone': 'America/New_York' } },
+    };
+    expect(
+      allowedShowMarkStatusForEvent(ended, new Date('2026-06-11T01:00:00.000Z')),
+    ).toBe('attended');
+  });
 });
 
 describe('isUpcomingJamBaseEvent / isPastJamBaseEvent', () => {

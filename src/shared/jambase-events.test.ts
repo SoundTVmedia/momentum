@@ -64,4 +64,16 @@ describe('isJamBaseEventOnOrAfterToday', () => {
       ),
     ).toBe(false);
   });
+
+  it('includes in-progress show within four hours of start', () => {
+    expect(
+      isJamBaseEventOnOrAfterToday(
+        {
+          startDate: '2026-06-10T19:30:00',
+          location: { address: { 'x-timezone': 'America/New_York' } },
+        },
+        new Date('2026-06-11T01:00:00.000Z'),
+      ),
+    ).toBe(true);
+  });
 });

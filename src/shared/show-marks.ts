@@ -1,5 +1,9 @@
 import type { ClipShowCandidate } from './types';
-import { jamBaseEventMatchesCapture, jamBaseEventSameCalendarDay } from './jambase-event-day';
+import {
+  jamBaseEventMatchesCapture,
+  jamBaseEventSameCalendarDay,
+  jamBaseEventUpcomingOrInProgress,
+} from './jambase-event-day';
 import { isJamBaseEventOnOrAfterToday } from './jambase-events';
 import { computeShowId } from './show-id';
 
@@ -286,13 +290,7 @@ export function isUpcomingShowMarkStartDate(
 /** True for going marks tonight or in the future (includes in-progress shows). */
 export function isUpcomingShowMark(mark: UserShowMark, nowMs: number = Date.now()): boolean {
   if (mark.status !== 'going') return false;
-  const sd = mark.start_date?.trim();
-  if (!sd) return true;
-  const ev = { startDate: sd, location: { name: mark.venue_name ?? '' } };
-  if (jamBaseEventMatchesCapture(ev, nowMs)) return true;
-  const eventMs = Date.parse(sd);
-  if (!Number.isFinite(eventMs)) return true;
-  return eventMs >= nowMs - 12 * 60 * 60 * 1000;
+  return jamBaseEventUpcomingOrInProgress(showMarkToJamBaseEvent(mark), nowMs);
 }
 
 export function showMarkToClipCandidate(mark: UserShowMark): ClipShowCandidate {

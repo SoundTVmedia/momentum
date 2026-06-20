@@ -2,7 +2,11 @@
 export type JamBaseEventRecord = Record<string, unknown>;
 
 import type { ClipShowCandidate } from './types';
-import { jamBaseEventMatchesCapture, jamBaseVenueTimezone } from './jambase-event-day';
+import {
+  jamBaseEventMatchesCapture,
+  jamBaseEventUpcomingOrInProgress,
+  jamBaseVenueTimezone,
+} from './jambase-event-day';
 import { jamBaseEventTitle, artistAtVenueTitle } from './event-title';
 
 const JAMBASE_EVENT_IMAGE_FALLBACK =
@@ -133,16 +137,7 @@ export function formatJamBaseEventTime(iso?: string | null): string {
 }
 
 export function isJamBaseEventOnOrAfterToday(ev: JamBaseEventRecord, now = new Date()): boolean {
-  const ms = jamBaseEventStartMs(ev);
-  if (ms === null) return true;
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const eventDay = new Date(ms);
-  const eventDayStart = new Date(
-    eventDay.getFullYear(),
-    eventDay.getMonth(),
-    eventDay.getDate(),
-  ).getTime();
-  return eventDayStart >= todayStart;
+  return jamBaseEventUpcomingOrInProgress(ev, now.getTime());
 }
 
 /** Primary ticketing URL from JamBase offers, else event page URL. */
