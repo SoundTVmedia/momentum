@@ -24,6 +24,7 @@ function mark(overrides: Partial<UserShowMark>): UserShowMark {
     artist_name: 'Artist',
     venue_name: 'Venue',
     venue_location: 'NYC',
+    venue_timezone: null,
     start_date: '2026-06-09T20:00:00',
     created_at: '',
     updated_at: '',

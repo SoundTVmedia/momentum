@@ -76,7 +76,19 @@ export function useShowMarks() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(input),
         });
-        if (!res.ok) return false;
+        if (!res.ok) {
+          let message = 'Could not save show mark';
+          try {
+            const data = (await res.json()) as { error?: string };
+            if (typeof data.error === 'string' && data.error.trim()) {
+              message = data.error.trim();
+            }
+          } catch {
+            /* ignore */
+          }
+          alert(message);
+          return false;
+        }
         dispatchShowMarksChanged();
         return true;
       } catch {

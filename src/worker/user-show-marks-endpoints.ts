@@ -10,6 +10,12 @@ import {
   type UserShowMark,
 } from '../shared/show-marks';
 import {
+  jamBaseEventHoursFromStart,
+  jamBaseEventInProgress,
+  jamBaseEventUpcomingOrInProgress,
+  JAMBASE_EVENT_ONGOING_HOURS_AFTER_START,
+} from '../shared/jambase-event-day';
+import {
   jamBaseApiKeyConfigured,
   jamBaseQuotaFromEnv,
   normalizeJamBaseApiKey,
@@ -103,6 +109,7 @@ export function rowToMark(row: Record<string, unknown>): UserShowMark {
     artist_name: typeof row.artist_name === 'string' ? row.artist_name : null,
     venue_name: typeof row.venue_name === 'string' ? row.venue_name : null,
     venue_location: typeof row.venue_location === 'string' ? row.venue_location : null,
+    venue_timezone: typeof row.venue_timezone === 'string' ? row.venue_timezone : null,
     start_date: typeof row.start_date === 'string' ? row.start_date : null,
     created_at: String(row.created_at ?? ''),
     updated_at: String(row.updated_at ?? ''),
@@ -130,8 +137,39 @@ function parseUpsertBody(body: Record<string, unknown>): ShowMarkUpsertInput | n
     artist_name: str('artist_name'),
     venue_name: str('venue_name'),
     venue_location: str('venue_location'),
+    venue_timezone: str('venue_timezone'),
     start_date: str('start_date'),
   };
+}
+
+function tempMarkFromInput(input: ShowMarkUpsertInput): UserShowMark {
+  return {
+    id: 0,
+    status: input.status,
+    jambase_event_id: input.jambase_event_id,
+    jambase_venue_id: input.jambase_venue_id ?? null,
+    jambase_artist_id: input.jambase_artist_id ?? null,
+    event_title: input.event_title ?? null,
+    artist_name: input.artist_name ?? null,
+    venue_name: input.venue_name ?? null,
+    venue_location: input.venue_location ?? null,
+    venue_timezone: input.venue_timezone ?? null,
+    start_date: input.start_date ?? null,
+    created_at: '',
+    updated_at: '',
+  };
+}
+
+function goingMarkAllowed(input: ShowMarkUpsertInput): boolean {
+  const ev = showMarkToJamBaseEvent(tempMarkFromInput(input));
+  if (jamBaseEventUpcomingOrInProgress(ev)) return true;
+  if (jamBaseEventInProgress(ev)) return true;
+  const hours = jamBaseEventHoursFromStart(ev, Date.now());
+  return (
+    hours != null &&
+    hours >= 0 &&
+    hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START
+  );
 }
 
 async function enrichMarkWithJamBaseEvent(
@@ -250,23 +288,8 @@ export async function upsertMyShowMark(c: Context) {
     return c.json({ error: 'status and jambase_event_id are required' }, 400);
   }
 
-  const upcoming = isUpcomingJamBaseEvent(
-    showMarkToJamBaseEvent({
-      id: 0,
-      status: input.status,
-      jambase_event_id: input.jambase_event_id,
-      jambase_venue_id: input.jambase_venue_id ?? null,
-      jambase_artist_id: input.jambase_artist_id ?? null,
-      event_title: input.event_title ?? null,
-      artist_name: input.artist_name ?? null,
-      venue_name: input.venue_name ?? null,
-      venue_location: input.venue_location ?? null,
-      start_date: input.start_date ?? null,
-      created_at: '',
-      updated_at: '',
-    }),
-  );
-  if (input.status === 'going' && !upcoming) {
+  const upcoming = isUpcomingJamBaseEvent(showMarkToJamBaseEvent(tempMarkFromInput(input)));
+  if (input.status === 'going' && !goingMarkAllowed(input)) {
     return c.json(
       { error: 'Going is only for upcoming shows. Mark past shows as Went instead.' },
       400,
@@ -285,8 +308,8 @@ export async function upsertMyShowMark(c: Context) {
     await c.env.DB.prepare(
       `INSERT INTO user_show_marks (
          mocha_user_id, status, jambase_event_id, jambase_venue_id, jambase_artist_id,
-         event_title, artist_name, venue_name, venue_location, start_date, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         event_title, artist_name, venue_name, venue_location, venue_timezone, start_date, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(mocha_user_id, jambase_event_id) DO UPDATE SET
          status = excluded.status,
          jambase_venue_id = COALESCE(excluded.jambase_venue_id, user_show_marks.jambase_venue_id),
@@ -295,6 +318,7 @@ export async function upsertMyShowMark(c: Context) {
          artist_name = COALESCE(excluded.artist_name, user_show_marks.artist_name),
          venue_name = COALESCE(excluded.venue_name, user_show_marks.venue_name),
          venue_location = COALESCE(excluded.venue_location, user_show_marks.venue_location),
+         venue_timezone = COALESCE(excluded.venue_timezone, user_show_marks.venue_timezone),
          start_date = COALESCE(excluded.start_date, user_show_marks.start_date),
          updated_at = datetime('now')`,
     )
@@ -308,6 +332,7 @@ export async function upsertMyShowMark(c: Context) {
         input.artist_name ?? null,
         input.venue_name ?? null,
         input.venue_location ?? null,
+        input.venue_timezone ?? null,
         input.start_date ?? null,
       )
       .run();

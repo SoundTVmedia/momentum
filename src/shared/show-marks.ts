@@ -1,6 +1,5 @@
 import type { ClipShowCandidate } from './types';
 import {
-  jamBaseEventMatchesCapture,
   jamBaseEventSameCalendarDay,
   jamBaseEventUpcomingOrInProgress,
   jamBaseEventInProgress,
@@ -20,6 +19,7 @@ export type UserShowMark = {
   artist_name: string | null;
   venue_name: string | null;
   venue_location: string | null;
+  venue_timezone: string | null;
   start_date: string | null;
   created_at: string;
   updated_at: string;
@@ -41,6 +41,7 @@ export type ShowMarkUpsertInput = {
   artist_name?: string | null;
   venue_name?: string | null;
   venue_location?: string | null;
+  venue_timezone?: string | null;
   start_date?: string | null;
 };
 
@@ -142,6 +143,12 @@ export function jamBaseEventToShowMarkInput(
         ? (region.name as string)
         : '';
   const venueLocation = [city, st].filter(Boolean).join(', ') || null;
+  const venueTimezone =
+    typeof addr?.['x-timezone'] === 'string' && addr['x-timezone'].trim()
+      ? addr['x-timezone'].trim()
+      : typeof addr?.xTimezone === 'string' && addr.xTimezone.trim()
+        ? addr.xTimezone.trim()
+        : null;
 
   const eventTitle = typeof ev.name === 'string' ? ev.name.trim() : null;
   const startDate = typeof ev.startDate === 'string' ? ev.startDate : null;
@@ -155,6 +162,7 @@ export function jamBaseEventToShowMarkInput(
     artist_name: artistName,
     venue_name: venueName,
     venue_location: venueLocation,
+    venue_timezone: venueTimezone,
     start_date: startDate,
   };
 }
@@ -176,6 +184,7 @@ export function showMarkToJamBaseEvent(mark: UserShowMark): Record<string, unkno
   const regionPart = mark.venue_location?.includes(',')
     ? mark.venue_location.split(',')[1]?.trim()
     : null;
+  const venueTimezone = mark.venue_timezone?.trim() || null;
 
   return {
     identifier: mark.jambase_event_id,
@@ -189,8 +198,9 @@ export function showMarkToJamBaseEvent(mark: UserShowMark): Record<string, unkno
       name: mark.venue_name ?? undefined,
       identifier: mark.jambase_venue_id ?? undefined,
       address:
-        locality || regionPart
+        venueTimezone || locality || regionPart
           ? {
+              ...(venueTimezone ? { 'x-timezone': venueTimezone } : {}),
               addressLocality: locality ?? undefined,
               addressRegion: regionPart ? { alternateName: regionPart } : undefined,
             }
@@ -316,6 +326,7 @@ export function showMarkToClipCandidate(mark: UserShowMark): ClipShowCandidate {
     location: mark.venue_location,
     event_title: mark.event_title,
     startDate: mark.start_date ?? '',
+    venue_timezone: mark.venue_timezone,
     distance_miles: null,
   };
 }
@@ -334,11 +345,8 @@ export function pickGoingShowMarkForCapture(
   for (const mark of going) {
     const sd = mark.start_date?.trim();
     if (sd) {
-      const ev = { startDate: sd, location: { name: mark.venue_name ?? '' } };
-      if (
-        jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon) ||
-        jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)
-      ) {
+      const ev = showMarkToJamBaseEvent(mark);
+      if (jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)) {
         matching.push(mark);
       }
       continue;

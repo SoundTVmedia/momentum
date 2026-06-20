@@ -39,6 +39,7 @@ function goingMark(overrides: Partial<UserShowMark> = {}): UserShowMark {
     artist_name: 'Artist',
     venue_name: 'Test Venue',
     venue_location: 'Austin, TX',
+    venue_timezone: null,
     start_date: '2026-06-09T20:00:00',
     created_at: '',
     updated_at: '',
@@ -188,7 +189,7 @@ describe('resolveShowMatchFromCandidates', () => {
     expect(result.nearbyVenues).toEqual([]);
   });
 
-  it('falls back to last eligible going mark when venue cannot be matched', () => {
+  it('does not fall back to future going marks when venue cannot be matched', () => {
     const far = baseCandidate({
       jambase_event_id: 'jambase:ev-tonight',
       startDate: '2026-06-09T20:00:00',
@@ -206,8 +207,8 @@ describe('resolveShowMatchFromCandidates', () => {
       40.73,
       -73.99,
     );
-    expect(result.match).toBe('single');
-    expect(result.candidates[0]?.jambase_event_id).toBe('jambase:future-going');
+    expect(result.match).toBe('none');
+    expect(result.candidates).toHaveLength(0);
   });
 
   it('matches same-day event when venue timezone is preserved on the candidate', () => {
@@ -266,7 +267,7 @@ describe('resolveCameraGoingAutoFill', () => {
     expect(result?.candidate.jambase_event_id).toBe('im-there');
   });
 
-  it('uses closest going mark when none are in progress', () => {
+  it('uses same-day going mark when none are in progress', () => {
     const captureMs = Date.parse('2026-06-09T22:00:00.000Z');
     const result = resolveCameraGoingAutoFill(
       [goingMark()],
@@ -275,6 +276,17 @@ describe('resolveCameraGoingAutoFill', () => {
       -73.99,
     );
     expect(result?.matchSource).toBe('going');
+  });
+
+  it('does not auto-fill future going marks', () => {
+    const captureMs = Date.parse('2026-06-09T22:00:00.000Z');
+    const result = resolveCameraGoingAutoFill(
+      [goingMark({ start_date: '2026-06-20T20:00:00' })],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result).toBeNull();
   });
 });
 

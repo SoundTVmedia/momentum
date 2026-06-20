@@ -22,7 +22,7 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
-import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, resolveLastGoingMarkClipCandidate, isCameraGoingAutoFillSource } from '@/shared/clip-resolve-show-match';
+import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, isCameraGoingAutoFillSource } from '@/shared/clip-resolve-show-match';
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
   applyCameraZoom,
@@ -367,7 +367,7 @@ export default function QuickRecordButton({
     applyGoingCaptureCandidate,
   ]);
 
-  /** When GPS is unavailable, fall back to the last Going mark. */
+  /** When GPS is unavailable, fall back to same-day Going / I'm there marks only. */
   useEffect(() => {
     if (!showModal || !showMarksHydrated || !captureLaunchGeoResolved) return;
     if (coordsForNearbyVenues) return;
@@ -376,13 +376,7 @@ export default function QuickRecordButton({
     const autoFill = resolveCameraGoingAutoFill(goingMarks, Date.now());
     if (autoFill) {
       applyGoingCaptureCandidate(autoFill.candidate);
-      return;
     }
-
-    const fallback = resolveLastGoingMarkClipCandidate(goingMarks, Date.now());
-    if (!fallback) return;
-
-    applyGoingCaptureCandidate(fallback);
   }, [
     showModal,
     showMarksHydrated,
@@ -503,7 +497,7 @@ export default function QuickRecordButton({
             expandPastEventMatchedCount?: number;
             geoEventRawCount?: number;
             geoEventMatchedCount?: number;
-            matchSource?: 'im_there' | 'going' | 'going_closest' | 'going_fallback' | 'jambase';
+            matchSource?: 'im_there' | 'going' | 'going_fallback' | 'jambase';
           };
         };
         if (cancelled || captureGoingAppliedRef.current) return;
@@ -561,15 +555,6 @@ export default function QuickRecordButton({
         captureResolveCandidateRef.current = null;
         setCaptureVenuePickerChoices([]);
 
-        const lastGoingFallback = resolveLastGoingMarkClipCandidate(
-          goingMarksRef.current,
-          captureMs,
-        );
-        if (lastGoingFallback) {
-          applyGoingCaptureCandidate(lastGoingFallback, c.lat, c.lon);
-          return;
-        }
-
         setCaptureResolvePreview({
           status: 'none',
           eventTitle: null,
@@ -586,14 +571,6 @@ export default function QuickRecordButton({
             captureVenueFetchStartedRef.current = false;
             captureResolveCandidateRef.current = null;
             setCaptureVenuePickerChoices([]);
-            const lastGoingFallback = resolveLastGoingMarkClipCandidate(
-              goingMarksRef.current,
-              Date.now(),
-            );
-            if (lastGoingFallback) {
-              applyGoingCaptureCandidate(lastGoingFallback, c.lat, c.lon);
-              return;
-            }
             setCaptureResolvePreview({
               status: 'error',
               eventTitle: null,
@@ -608,14 +585,6 @@ export default function QuickRecordButton({
         captureVenueFetchStartedRef.current = false;
         captureResolveCandidateRef.current = null;
         setCaptureVenuePickerChoices([]);
-        const lastGoingFallback = resolveLastGoingMarkClipCandidate(
-          goingMarksRef.current,
-          Date.now(),
-        );
-        if (lastGoingFallback) {
-          applyGoingCaptureCandidate(lastGoingFallback, c.lat, c.lon);
-          return;
-        }
         setCaptureResolvePreview({
           status: 'error',
           eventTitle: null,

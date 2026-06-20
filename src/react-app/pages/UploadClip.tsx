@@ -86,7 +86,7 @@ import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import {
   jamBaseEventToShowMarkInput,
 } from '@/shared/show-marks';
-import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill, resolveLastGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
+import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill } from '@/shared/clip-resolve-show-match';
 
 function isoToDateInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -437,12 +437,6 @@ export default function UploadClip() {
         );
         if (autoFill) {
           showData = clipShowCandidateToNavState(autoFill.candidate);
-        }
-      }
-      if (!showData && showMarksHydrated) {
-        const lastGoing = resolveLastGoingMarkClipCandidate(goingMarks, Date.now());
-        if (lastGoing) {
-          showData = clipShowCandidateToNavState(lastGoing);
         }
       }
       if (!showData) {
@@ -1137,12 +1131,6 @@ export default function UploadClip() {
               const autoFill = resolveCameraGoingAutoFill(goingMarks, Date.now());
               if (autoFill) {
                 applyClipCandidate(autoFill.candidate);
-                setResolveNotice(null);
-                return;
-              }
-              const lastGoing = resolveLastGoingMarkClipCandidate(goingMarks, Date.now());
-              if (lastGoing) {
-                applyClipCandidate(lastGoing);
                 setResolveNotice(null);
                 return;
               }
