@@ -34,6 +34,13 @@ import {
   zoomFromPinchScale,
   type CameraZoomRange,
 } from '@/react-app/utils/cameraZoom';
+import {
+  cameraPreviewHasFrames,
+  cameraPreviewLooksReady,
+  isIosSafari,
+  kickCameraPreviewPlay,
+  prepareCameraPreviewElement,
+} from '@/react-app/utils/cameraPreview';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -147,10 +154,15 @@ export default function QuickRecordButton({
   const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
   const isAndroid = /Android/i.test(ua);
   const isChrome = /Chrome|CriOS/i.test(ua);
+  const strictPreviewFrames = isIOS || isSafari;
+  const previewTapPromptMs = strictPreviewFrames ? 1500 : 3500;
   const [preferredFacingMode, setPreferredFacingMode] = useState<'environment' | 'user'>('environment');
   const [audioEnabled, setAudioEnabled] = useState(true);
   /** Bound to preview <video>; drives loadedmetadata / play without mount-order deadlock */
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
+  const [previewTapToStart, setPreviewTapToStart] = useState(false);
+  const primedMediaStreamRef = useRef(primedMediaStream);
+  primedMediaStreamRef.current = primedMediaStream;
   const [zoomRange, setZoomRange] = useState<CameraZoomRange | null>(null);
   const [zoomPresets, setZoomPresets] = useState<number[]>([]);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -741,10 +753,31 @@ export default function QuickRecordButton({
     setCameraOpenRequested(true);
     setHasPermission(false);
     setCameraReady(false);
-    setPreviewStream(null);
+    setPreviewTapToStart(false);
     setPermissionDenied(false); // Clear previous denial state
     setCameraError(null);
 
+    const primed = primedMediaStreamRef.current;
+    const primedTrack = primed?.getVideoTracks()[0];
+    if (primedTrack && primedTrack.readyState === 'live') {
+      console.log('QuickRecordButton: reusing primed camera stream');
+      streamRef.current = primed;
+      setPreviewStream(primed);
+      setPermissionDenied(false);
+      const hasAudioTrack = primed.getAudioTracks().length > 0;
+      if (!hasAudioTrack) {
+        setAudioEnabled(false);
+      } else {
+        setAudioEnabled(true);
+      }
+      const activeFacing = primedTrack.getSettings?.()?.facingMode;
+      if (activeFacing === 'user' || activeFacing === 'environment') {
+        setPreferredFacingMode(activeFacing);
+      }
+      return primed;
+    }
+
+    setPreviewStream(null);
     try {
       // Detect current orientation
       const currentIsPortrait = window.innerHeight > window.innerWidth;
@@ -934,16 +967,20 @@ export default function QuickRecordButton({
 
     if (!previewStream) {
       video.srcObject = null;
+      setPreviewTapToStart(false);
       return;
     }
 
     let cancelled = false;
     let marked = false;
 
+    const previewReadyOpts = { strictFrames: strictPreviewFrames };
+
     const markReady = () => {
       if (cancelled || marked) return;
+      if (!cameraPreviewLooksReady(video, previewReadyOpts)) return;
       marked = true;
-      void video.play().catch(() => undefined);
+      setPreviewTapToStart(false);
       setHasPermission(true);
       setCameraReady(true);
       try {
@@ -959,82 +996,114 @@ export default function QuickRecordButton({
       }
     };
 
-    const tryMarkFromElement = () => {
+    const tryMarkFromElement = async () => {
       if (cancelled || marked) return;
-      void video.play().catch(() => undefined);
-      const vt = previewStream.getVideoTracks()[0];
-      const streamLive = vt?.readyState === 'live';
-      const hasDims = video.videoWidth > 0 && video.videoHeight > 0;
-      // Safari often stays at HAVE_METADATA with 0×0 until after play(); still allow ready UI + record.
-      if (
-        hasDims ||
-        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||
-        (streamLive && video.readyState >= HTMLMediaElement.HAVE_METADATA)
-      ) {
+      await kickCameraPreviewPlay(video, { waitForMetadata: strictPreviewFrames });
+      if (cameraPreviewLooksReady(video, previewReadyOpts)) {
         markReady();
       }
     };
 
-    // iOS WebKit often will not decode or advance readyState while the <video> is
-    // effectively hidden (e.g. opacity:0). Keep preview opaque; the loading layer covers it.
-    video.muted = true;
-    video.defaultMuted = true;
-    video.playsInline = true;
-    video.setAttribute('playsinline', '');
-    video.setAttribute('webkit-playsinline', '');
-    video.setAttribute('muted', '');
+    prepareCameraPreviewElement(video);
     video.srcObject = previewStream;
+    void kickCameraPreviewPlay(video);
 
-    const onMeta = () => tryMarkFromElement();
-    const onData = () => tryMarkFromElement();
-    const onCanPlay = () => tryMarkFromElement();
-    const onPlaying = () => markReady();
+    const onMeta = () => {
+      void tryMarkFromElement();
+    };
+    const onData = () => {
+      void tryMarkFromElement();
+    };
+    const onCanPlay = () => {
+      void tryMarkFromElement();
+    };
+    const onPlaying = () => {
+      void tryMarkFromElement();
+    };
+    const onResize = () => {
+      if (cameraPreviewHasFrames(video)) markReady();
+    };
 
     video.addEventListener('loadedmetadata', onMeta);
     video.addEventListener('loadeddata', onData);
     video.addEventListener('canplay', onCanPlay);
     video.addEventListener('playing', onPlaying);
+    video.addEventListener('resize', onResize);
 
     const vTrack = previewStream.getVideoTracks()[0];
-    const onTrackUnmute = () => tryMarkFromElement();
+    const onTrackUnmute = () => {
+      void tryMarkFromElement();
+    };
     vTrack?.addEventListener('unmute', onTrackUnmute);
 
-    tryMarkFromElement();
+    void tryMarkFromElement();
 
     let frames = 0;
-    const maxFrames = 180;
+    const maxFrames = 240;
     const poll = () => {
       if (cancelled || marked) return;
       frames += 1;
-      tryMarkFromElement();
+      void tryMarkFromElement();
       if (!marked && frames < maxFrames) {
         requestAnimationFrame(poll);
-      } else if (!marked) {
-        markReady();
       }
     };
     requestAnimationFrame(poll);
 
-    // Permission resolves outside a tap; if events never fire, still unblock capture when the track is live.
-    const fallbackMs = 600;
-    const fallbackId = window.setTimeout(() => {
+    const retryPlayId = window.setInterval(() => {
+      if (cancelled || marked) return;
+      void tryMarkFromElement();
+    }, 400);
+
+    const tapPromptId = window.setTimeout(() => {
       if (cancelled || marked) return;
       const t = previewStream.getVideoTracks()[0];
-      if (t?.readyState === 'live') {
-        markReady();
+      if (t?.readyState === 'live' && !cameraPreviewLooksReady(video, previewReadyOpts)) {
+        setPreviewTapToStart(true);
       }
-    }, fallbackMs);
+    }, previewTapPromptMs);
 
     return () => {
       cancelled = true;
-      window.clearTimeout(fallbackId);
+      window.clearInterval(retryPlayId);
+      window.clearTimeout(tapPromptId);
       vTrack?.removeEventListener('unmute', onTrackUnmute);
       video.removeEventListener('loadedmetadata', onMeta);
       video.removeEventListener('loadeddata', onData);
       video.removeEventListener('canplay', onCanPlay);
       video.removeEventListener('playing', onPlaying);
+      video.removeEventListener('resize', onResize);
     };
-  }, [previewStream]);
+  }, [previewStream, strictPreviewFrames, previewTapPromptMs]);
+
+  const resumePreviewFromTap = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !previewStream) return;
+    setPreviewTapToStart(false);
+    prepareCameraPreviewElement(video);
+    if (video.srcObject !== previewStream) {
+      video.srcObject = previewStream;
+    }
+    await kickCameraPreviewPlay(video, { waitForMetadata: strictPreviewFrames });
+    const previewReadyOpts = { strictFrames: strictPreviewFrames };
+    if (cameraPreviewLooksReady(video, previewReadyOpts)) {
+      setHasPermission(true);
+      setCameraReady(true);
+      setPreviewTapToStart(false);
+      try {
+        const vt = previewStream.getVideoTracks()[0];
+        const settings = vt?.getSettings?.();
+        if (settings?.width && settings?.height) {
+          setVideoResolution({ width: settings.width, height: settings.height });
+        }
+      } catch {
+        /* optional metadata */
+      }
+      return;
+    }
+    setPreviewTapToStart(true);
+    setCameraError('Camera preview did not start. Close other apps using the camera, then tap again.');
+  }, [previewStream, strictPreviewFrames]);
 
   useEffect(() => {
     if (!previewStream || !cameraReady) {
@@ -1824,6 +1893,7 @@ export default function QuickRecordButton({
     setHasPermission(false);
     setCameraReady(false);
     setCameraOpenRequested(false);
+    setPreviewTapToStart(false);
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     clipGeoAtRecordingStartRef.current = null;
@@ -1840,12 +1910,23 @@ export default function QuickRecordButton({
     setShowModal(isOpen);
   }, [isOpen]);
 
+  useLayoutEffect(() => {
+    const video = videoRef.current;
+    if (video && showModal) prepareCameraPreviewElement(video);
+  }, [showModal]);
+
   // Trigger camera when modal opens (skip when parent primed stream, or while waiting for launch-time GPS)
   useEffect(() => {
     if (!autoRequestCamera) return;
     if (deferCameraUntilLaunchGeo && !captureLaunchGeoResolved) {
       return;
     }
+    if (gestureCameraPrimingPending) return;
+    const primedLive =
+      primedMediaStream?.getVideoTracks()[0]?.readyState === 'live';
+    const previewLive =
+      previewStream?.getVideoTracks()[0]?.readyState === 'live';
+    if (primedLive || previewLive) return;
     if (showModal && !permissionDenied && !cameraOpenRequested) {
       console.log('QuickRecordButton: Modal opened, requesting camera permissions...');
       void requestPermissions();
@@ -1858,6 +1939,9 @@ export default function QuickRecordButton({
     deferCameraUntilLaunchGeo,
     captureLaunchGeo,
     captureLaunchGeoResolved,
+    gestureCameraPrimingPending,
+    primedMediaStream,
+    previewStream,
   ]);
 
   // Responsive class names based on orientation
@@ -1890,11 +1974,27 @@ export default function QuickRecordButton({
               autoPlay
               playsInline
               muted
+              disablePictureInPicture
               className="absolute inset-0 z-0 w-full h-full object-cover"
             />
-            {(!hasPermission || !cameraReady) && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
-                <div className="text-center space-y-4 p-6 max-w-sm">
+            {previewTapToStart && previewStream && !cameraReady && (
+              <button
+                type="button"
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center"
+                onClick={() => void resumePreviewFromTap()}
+              >
+                <Film className="w-12 h-12 text-momentum-flare" aria-hidden />
+                <span className="text-white font-semibold">Tap to start camera preview</span>
+                <span className="text-gray-400 text-xs max-w-xs">
+                  {strictPreviewFrames
+                    ? 'Safari sometimes needs an extra tap after you allow camera access.'
+                    : 'Your browser sometimes needs an extra tap after you allow camera access.'}
+                </span>
+              </button>
+            )}
+            {(!hasPermission || !cameraReady) && !previewTapToStart && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                <div className="pointer-events-auto text-center space-y-4 p-6 max-w-sm rounded-2xl bg-black/70 backdrop-blur-sm border border-white/10">
                   <Film className="w-16 h-16 text-gray-400 mx-auto" />
                   {permissionDenied ? (
                     <>

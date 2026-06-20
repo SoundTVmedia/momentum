@@ -1,3 +1,5 @@
+import { warmCameraStreamPreview } from '@/react-app/utils/cameraPreview';
+
 /**
  * Call only from a direct user gesture (click/tap). iOS Safari will not reliably
  * grant camera/mic when getUserMedia runs later from useEffect.
@@ -28,7 +30,9 @@ export async function primeCameraOnUserGesture(): Promise<MediaStream | null> {
 
   for (const video of videoAttempts) {
     try {
-      return await tryOpen(video, true);
+      const stream = await tryOpen(video, true);
+      await warmCameraStreamPreview(stream);
+      return stream;
     } catch (e) {
       const name = e instanceof DOMException ? e.name : e instanceof Error ? e.name : '';
       if (
@@ -38,7 +42,9 @@ export async function primeCameraOnUserGesture(): Promise<MediaStream | null> {
         name === 'AbortError'
       ) {
         try {
-          return await tryOpen(video, false);
+          const stream = await tryOpen(video, false);
+          await warmCameraStreamPreview(stream);
+          return stream;
         } catch {
           /* try next video profile */
         }
