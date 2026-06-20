@@ -506,10 +506,6 @@ function jamBaseEventId(ev: Record<string, unknown>): string | null {
   return typeof ev.identifier === 'string' ? ev.identifier : null;
 }
 
-function jamBaseVenueId(venue: Record<string, unknown>): string | null {
-  return typeof venue.identifier === 'string' ? venue.identifier : null;
-}
-
 function jamBaseGeoRecordCoords(record: Record<string, unknown>): { lat: number; lon: number } | null {
   const fromEventShape = jamBaseEventCoords(record);
   if (fromEventShape) return fromEventShape;
