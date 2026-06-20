@@ -187,6 +187,28 @@ describe('resolveShowMatchFromCandidates', () => {
     expect(result.nearbyVenues).toEqual([]);
   });
 
+  it('falls back to last eligible going mark when venue cannot be matched', () => {
+    const far = baseCandidate({
+      jambase_event_id: 'jambase:ev-tonight',
+      startDate: '2026-06-09T20:00:00',
+      distance_miles: NEARBY_PICKER_MAX_DISTANCE_MILES + 1,
+    });
+    const futureGoing = goingMark({
+      jambase_event_id: 'jambase:future-going',
+      start_date: '2099-12-01T20:00:00',
+      updated_at: '2026-06-10T20:00:00',
+    });
+    const result = resolveShowMatchFromCandidates(
+      [far],
+      [futureGoing],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result.match).toBe('single');
+    expect(result.candidates[0]?.jambase_event_id).toBe('jambase:future-going');
+  });
+
   it('matches same-day event when venue timezone is preserved on the candidate', () => {
     const captureMs = Date.parse('2026-06-10T03:30:00.000Z');
     const result = resolveShowMatchFromCandidates(

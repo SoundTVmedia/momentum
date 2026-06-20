@@ -15,7 +15,7 @@ import {
   jamBaseEventCardImageUrl,
   jamBaseEventHeadliner,
 } from '@/shared/jambase-events';
-import { jamBaseEventHasStarted } from '@/shared/jambase-event-day';
+import { jamBaseEventInProgress } from '@/shared/jambase-event-day';
 
 export interface JamBaseEventGridProps {
   maxEvents?: number;
@@ -122,7 +122,7 @@ function JamBaseEventCard({
   const head = headlinerName(event);
   const vn = venueLabel(event);
   const vLine = venueCityLine(event);
-  const inProgress = showInProgressBadge && jamBaseEventHasStarted(event);
+  const inProgress = showInProgressBadge && jamBaseEventInProgress(event);
 
   return (
     <div

@@ -9,6 +9,7 @@ import {
 } from './jambase-event-day';
 import {
   pickGoingShowMarkForCapture,
+  pickLastEligibleGoingShowMark,
   showMarkToClipCandidate,
   type UserShowMark,
 } from './show-marks';
@@ -209,6 +210,15 @@ export function resolveGoingMarkClipCandidate(
   return going ? showMarkToClipCandidate(going) : null;
 }
 
+/** Last eligible Going mark when GPS or venue match is unavailable. */
+export function resolveLastGoingMarkClipCandidate(
+  goingMarks: UserShowMark[],
+  nowMs: number = Date.now(),
+): ClipShowCandidate | null {
+  const mark = pickLastEligibleGoingShowMark(goingMarks, nowMs);
+  return mark ? showMarkToClipCandidate(mark) : null;
+}
+
 /** Server fast-path: same-date going mark → single auto-fill (no JamBase required). */
 export function resolveShowFromGoingMark(
   goingMarks: UserShowMark[],
@@ -281,6 +291,15 @@ export function resolveShowMatchFromCandidates(
     return { match: 'none', candidates: [], nearbyVenues: pickerMatches };
   }
 
+  const lastGoing = pickLastEligibleGoingShowMark(goingMarks, captureMs);
+  if (lastGoing) {
+    return {
+      match: 'single',
+      candidates: [showMarkToClipCandidate(lastGoing)],
+      nearbyVenues: [],
+    };
+  }
+
   return { match: 'none', candidates: [], nearbyVenues: [] };
 }
 
@@ -321,7 +340,13 @@ export function resolveShowAutoApplyCandidate(
 
   const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
   const matches = nearbyEventVenuesWithinAutoApplyRadius(pool, captureMs, userLat, userLon);
-  return matches.length === 1 ? matches[0]! : null;
+  if (matches.length === 1) return matches[0]!;
+
+  if (data.match === 'none' && pool.length === 0) {
+    return resolveLastGoingMarkClipCandidate(goingMarks, captureMs);
+  }
+
+  return null;
 }
 
 export type CameraCaptureVenueResolution =
@@ -357,7 +382,11 @@ export function resolveCameraVenuePicker(
     userLon,
     CAMERA_VENUE_PICKER_COUNT,
   );
-  if (venues.length === 0) return { mode: 'none' };
+  if (venues.length === 0) {
+    const lastGoing = resolveLastGoingMarkClipCandidate(goingMarks, captureMs);
+    if (lastGoing) return { mode: 'single', candidate: lastGoing };
+    return { mode: 'none' };
+  }
   return { mode: 'picker', venues };
 }
 

@@ -6,6 +6,7 @@ import {
   jamBaseEventOnCaptureDay,
   jamBaseEventCameraCaptureDay,
   jamBaseEventFeedVisible,
+  jamBaseEventInProgress,
   jamBaseEventUpcomingOrInProgress,
   jamBaseEventSameCalendarDay,
   jamBaseEventStartMs,
@@ -164,6 +165,35 @@ describe('jamBaseEventFeedVisible', () => {
     };
     const captureMs = Date.parse('2026-06-21T00:00:00.000Z'); // 8pm Eastern June 20
     expect(jamBaseEventFeedVisible(morningShow, captureMs)).toBe(false);
+  });
+});
+
+describe('jamBaseEventInProgress', () => {
+  const event = {
+    startDate: '2026-06-20T19:30:00',
+    location: {
+      name: 'Neighborhood Venue',
+      address: { 'x-timezone': 'America/New_York' },
+    },
+  };
+
+  it('is true within four hours of start', () => {
+    const nowMs = Date.parse('2026-06-21T00:00:00.000Z'); // 8pm Eastern June 20
+    expect(jamBaseEventInProgress(event, nowMs)).toBe(true);
+  });
+
+  it('is false before doors', () => {
+    const nowMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
+    expect(jamBaseEventInProgress(event, nowMs)).toBe(false);
+  });
+
+  it('is false more than four hours after start', () => {
+    const morningShow = {
+      startDate: '2026-06-20T09:00:00',
+      location: event.location,
+    };
+    const nowMs = Date.parse('2026-06-21T00:00:00.000Z');
+    expect(jamBaseEventInProgress(morningShow, nowMs)).toBe(false);
   });
 });
 

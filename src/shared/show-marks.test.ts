@@ -6,6 +6,8 @@ import {
   isUpcomingShowMark,
   pastShowSummaryToJamBaseEvent,
   pickGoingShowMarkForCapture,
+  pickLastEligibleGoingShowMark,
+  showMarkButtonLabelForEvent,
   showMarkToJamBaseEvent,
   upcomingGoingMarkEvents,
   type UserShowMark,
@@ -134,6 +136,23 @@ describe('allowedShowMarkStatusForEvent', () => {
       allowedShowMarkStatusForEvent(ended, new Date('2026-06-11T01:00:00.000Z')),
     ).toBe('attended');
   });
+
+  it('uses I\'m there label for in-progress shows', () => {
+    const inProgress = {
+      startDate: '2026-06-10T19:30:00',
+      location: { address: { 'x-timezone': 'America/New_York' } },
+    };
+    expect(
+      showMarkButtonLabelForEvent(inProgress, 'going', new Date('2026-06-11T01:00:00.000Z')),
+    ).toBe("I'm there");
+    expect(
+      showMarkButtonLabelForEvent(
+        { startDate: '2026-06-15T20:00:00' },
+        'going',
+        new Date('2026-06-10T12:00:00'),
+      ),
+    ).toBe('Going');
+  });
 });
 
 describe('isUpcomingJamBaseEvent / isPastJamBaseEvent', () => {
@@ -154,6 +173,31 @@ describe('isUpcomingShowMark', () => {
 
   it('excludes attended marks', () => {
     expect(isUpcomingShowMark(mark({ status: 'attended' }))).toBe(false);
+  });
+});
+
+describe('pickLastEligibleGoingShowMark', () => {
+  it('returns the most recently updated eligible going mark', () => {
+    const older = mark({
+      jambase_event_id: 'older',
+      start_date: '2099-06-09T20:00:00',
+      updated_at: '2026-06-01T12:00:00',
+    });
+    const newer = mark({
+      jambase_event_id: 'newer',
+      start_date: '2099-06-10T20:00:00',
+      updated_at: '2026-06-10T18:00:00',
+    });
+    expect(pickLastEligibleGoingShowMark([older, newer])).toEqual(newer);
+  });
+
+  it('excludes past attended-only marks', () => {
+    const past = mark({
+      jambase_event_id: 'past',
+      start_date: '2020-01-01T20:00:00',
+      updated_at: '2026-06-10T20:00:00',
+    });
+    expect(pickLastEligibleGoingShowMark([past], Date.parse('2026-06-10T12:00:00'))).toBeNull();
   });
 });
 

@@ -6,6 +6,7 @@ import {
   closestVenuesWithEventsOnCaptureDay,
   dedupeClipCandidatesByVenue,
   resolveGoingMarkClipCandidate,
+  resolveLastGoingMarkClipCandidate,
 } from '../shared/clip-resolve-show-match';
 import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import { jamBaseQuotaFromEnv } from './jambase-client';
@@ -95,6 +96,26 @@ export async function postCameraVenuesForClip(c: Context) {
     venues.length === 0 && rawEvents.length > 0
       ? `JamBase returned ${rawEvents.length} event(s) but none matched today (${stats.captureLocalYmd}).`
       : null;
+
+  if (venues.length === 0) {
+    const lastGoing = resolveLastGoingMarkClipCandidate(goingMarks, captureMs);
+    if (lastGoing) {
+      return c.json({
+        venues: [lastGoing],
+        notice: null,
+        meta: {
+          matchSource: 'going_fallback' as const,
+          rawEventCount: rawEvents.length,
+          mappedCandidateCount: deduped.length,
+          venueMatchCount: 0,
+          lat,
+          lon,
+          captureMs,
+          ...stats,
+        },
+      });
+    }
+  }
 
   return c.json({
     venues,

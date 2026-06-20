@@ -3,6 +3,7 @@ import {
   jamBaseEventMatchesCapture,
   jamBaseEventSameCalendarDay,
   jamBaseEventUpcomingOrInProgress,
+  jamBaseEventInProgress,
 } from './jambase-event-day';
 import { isJamBaseEventOnOrAfterToday } from './jambase-events';
 import { computeShowId } from './show-id';
@@ -278,6 +279,18 @@ export function allowedShowMarkStatusForEvent(
   return null;
 }
 
+/** Button copy: "I'm there" for in-progress shows, otherwise Going / Went. */
+export function showMarkButtonLabelForEvent(
+  ev: Record<string, unknown>,
+  status: ShowMarkStatus,
+  now: Date = new Date(),
+): string {
+  if (status === 'going') {
+    return jamBaseEventInProgress(ev, now.getTime()) ? "I'm there" : 'Going';
+  }
+  return 'Went';
+}
+
 export function isUpcomingShowMarkStartDate(
   startDate: string | null | undefined,
   now: Date = new Date(),
@@ -346,4 +359,28 @@ export function pickGoingShowMarkForCapture(
     return Math.abs(ta - captureMs) - Math.abs(tb - captureMs);
   });
   return matching[0] ?? null;
+}
+
+/** Most recently marked eligible Going show (when venue/GPS matching fails). */
+export function pickLastEligibleGoingShowMark(
+  marks: UserShowMark[],
+  nowMs: number = Date.now(),
+): UserShowMark | null {
+  const eligible = marks.filter(
+    (m) => m.status === 'going' && isUpcomingShowMark(m, nowMs),
+  );
+  if (eligible.length === 0) return null;
+
+  eligible.sort((a, b) => {
+    const ua = Date.parse(a.updated_at) || Date.parse(a.created_at) || 0;
+    const ub = Date.parse(b.updated_at) || Date.parse(b.created_at) || 0;
+    if (ub !== ua) return ub - ua;
+    const ta = Date.parse(a.start_date ?? '');
+    const tb = Date.parse(b.start_date ?? '');
+    if (!Number.isFinite(ta) && !Number.isFinite(tb)) return 0;
+    if (!Number.isFinite(ta)) return 1;
+    if (!Number.isFinite(tb)) return -1;
+    return Math.abs(ta - nowMs) - Math.abs(tb - nowMs);
+  });
+  return eligible[0] ?? null;
 }

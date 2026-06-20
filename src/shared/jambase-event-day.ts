@@ -66,7 +66,7 @@ export function hourInTimeZone(ms: number, timeZone: string): number {
       hour12: false,
     }).formatToParts(new Date(ms));
     const h = parts.find((p) => p.type === 'hour')?.value;
-    if (h != null) return parseInt(h, 10) % 24;
+    if (h != null) return parseHourPart(h);
   } catch {
     /* fall through */
   }
@@ -142,30 +142,49 @@ function eventWallClockHour(startDate: string): number {
   return m ? parseInt(m[1], 10) : 20;
 }
 
+function parseHourPart(raw: string): number {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return 0;
+  // Safari may emit 24 for midnight when hour12: false.
+  return n === 24 ? 0 : n % 24;
+}
+
 function parseLocalPartsInTimeZone(
   ms: number,
   timeZone: string,
 ): { y: number; mo: number; d: number; h: number; mi: number; s: number } {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  });
-  const parts = dtf.formatToParts(new Date(ms));
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0';
-  return {
-    y: parseInt(get('year'), 10),
-    mo: parseInt(get('month'), 10),
-    d: parseInt(get('day'), 10),
-    h: parseInt(get('hour'), 10) % 24,
-    mi: parseInt(get('minute'), 10),
-    s: parseInt(get('second'), 10),
-  };
+  try {
+    const dtf = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const parts = dtf.formatToParts(new Date(ms));
+    const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0';
+    return {
+      y: parseInt(get('year'), 10),
+      mo: parseInt(get('month'), 10),
+      d: parseInt(get('day'), 10),
+      h: parseHourPart(get('hour')),
+      mi: parseInt(get('minute'), 10),
+      s: parseInt(get('second'), 10),
+    };
+  } catch {
+    const d = new Date(ms);
+    return {
+      y: d.getUTCFullYear(),
+      mo: d.getUTCMonth() + 1,
+      d: d.getUTCDate(),
+      h: d.getUTCHours(),
+      mi: d.getUTCMinutes(),
+      s: d.getUTCSeconds(),
+    };
+  }
 }
 
 /** UTC epoch for JamBase `startDate` interpreted as venue-local wall time. */
@@ -204,6 +223,19 @@ export function jamBaseEventStartMs(
   return utcMs;
 }
 
+/** Fallback when venue timezone conversion fails (Safari / missing x-timezone). */
+function jamBaseEventWallClockHoursFromStart(
+  ev: Record<string, unknown>,
+  captureMs: number,
+): number | null {
+  const sd = typeof ev.startDate === 'string' ? ev.startDate.trim() : '';
+  const m = sd.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const startMs = Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00`);
+  if (!Number.isFinite(startMs)) return null;
+  return (captureMs - startMs) / (3600 * 1000);
+}
+
 /** Hours from event `startDate` to capture (positive = after doors). */
 export function jamBaseEventHoursFromStart(
   ev: Record<string, unknown>,
@@ -212,8 +244,10 @@ export function jamBaseEventHoursFromStart(
   userLon?: number,
 ): number | null {
   const startMs = jamBaseEventStartMs(ev, userLat, userLon);
-  if (startMs == null || !Number.isFinite(startMs)) return null;
-  return (captureMs - startMs) / (3600 * 1000);
+  if (startMs != null && Number.isFinite(startMs)) {
+    return (captureMs - startMs) / (3600 * 1000);
+  }
+  return jamBaseEventWallClockHoursFromStart(ev, captureMs);
 }
 
 /** True when capture falls during the in-progress show window after start time. */
@@ -296,6 +330,18 @@ export function jamBaseEventHasStarted(
 ): boolean {
   const hours = jamBaseEventHoursFromStart(ev, nowMs, userLat, userLon);
   return hours != null && hours >= 0;
+}
+
+/** True when the show has started and is still within the in-progress Going window. */
+export function jamBaseEventInProgress(
+  ev: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  const hours = jamBaseEventHoursFromStart(ev, nowMs, userLat, userLon);
+  if (hours == null) return false;
+  return hours >= 0 && hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START;
 }
 
 /**

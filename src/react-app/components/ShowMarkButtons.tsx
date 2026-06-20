@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import {
   allowedShowMarkStatusForEvent,
   jamBaseEventToShowMarkInput,
+  showMarkButtonLabelForEvent,
   type ShowMarkStatus,
 } from '@/shared/show-marks';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
@@ -14,11 +15,6 @@ type ShowMarkButtonsProps = {
   compact?: boolean;
   /** Past-show cards always use Went instead of inferring from event date. */
   statusOverride?: ShowMarkStatus;
-};
-
-const STATUS_LABEL: Record<ShowMarkStatus, string> = {
-  going: 'Going',
-  attended: 'Went',
 };
 
 export default function ShowMarkButtons({
@@ -35,6 +31,7 @@ export default function ShowMarkButtons({
   const allowedStatus = statusOverride ?? allowedShowMarkStatusForEvent(event);
   const current = eventId ? getMarkForEvent(eventId) : null;
   const active = current?.status === allowedStatus;
+  const buttonLabel = showMarkButtonLabelForEvent(event, allowedStatus ?? 'going');
 
   if (!eventId || !allowedStatus) return null;
 
@@ -42,7 +39,9 @@ export default function ShowMarkButtons({
     if (!user) {
       alert(
         allowedStatus === 'going'
-          ? 'Sign in to mark shows you are going to.'
+          ? buttonLabel === "I'm there"
+            ? 'Sign in to mark that you are at this show.'
+            : 'Sign in to mark shows you are going to.'
           : 'Sign in to mark shows you went to.',
       );
       return;
@@ -101,7 +100,7 @@ export default function ShowMarkButtons({
         ) : active ? (
           <Check className="w-3.5 h-3.5 shrink-0" />
         ) : null}
-        <span>{STATUS_LABEL[allowedStatus]}</span>
+        <span>{buttonLabel}</span>
       </button>
       {showGoingRemove ? (
         <button
