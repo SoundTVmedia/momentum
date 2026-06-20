@@ -4,8 +4,10 @@ import {
   clearCaptureShowSession,
   clearCaptureShowSessionForEvent,
   loadCaptureShowSession,
+  loadStickyCaptureShowSession,
   markCaptureShowSessionPosted,
   saveCaptureShowSession,
+  stickyUploadFormPatch,
 } from './captureShowSession';
 import type { ClipShowCandidate } from '@/shared/types';
 
@@ -94,5 +96,26 @@ describe('captureShowSession', () => {
     saveCaptureShowSession(candidate(), 40.73, -73.99, { source: 'going' });
     clearCaptureShowSessionForEvent('jambase:ev1');
     expect(loadCaptureShowSession({ lat: 40.73, lon: -73.99 })).toBeNull();
+  });
+
+  it('loadStickyCaptureShowSession skips GPS check when offline without coords', () => {
+    saveCaptureShowSession(candidate(), 40.73, -73.99);
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    const loaded = loadStickyCaptureShowSession();
+    expect(loaded?.candidate.venue_name).toBe('Brooklyn Steel');
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+  });
+
+  it('stickyUploadFormPatch fills empty caption fields from sticky session', () => {
+    saveCaptureShowSession(candidate(), 40.73, -73.99);
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    const patch = stickyUploadFormPatch(
+      { artist_name: '', venue_name: '', location: '' },
+      null,
+    );
+    expect(patch?.venue_name).toBe('Brooklyn Steel');
+    expect(patch?.artist_name).toBe('Headliner');
+    expect(patch?.jambaseLink?.venue).toBe('jambase:vn1');
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
   });
 });

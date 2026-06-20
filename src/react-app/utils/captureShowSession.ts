@@ -176,6 +176,83 @@ export type LoadCaptureShowSessionOpts = {
   uploadsInFlight?: boolean;
 };
 
+function isBrowserOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+/**
+ * Sticky venue from a previous shared clip at the same show.
+ * Uses GPS proximity when coords are available; when offline with no GPS fix,
+ * reuses the active session without a distance check.
+ */
+export function loadStickyCaptureShowSession(
+  opts?: LoadCaptureShowSessionOpts,
+): CaptureShowSession | null {
+  const lat = opts?.lat;
+  const lon = opts?.lon;
+  const hasCoords =
+    lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon);
+
+  if (hasCoords) {
+    return loadCaptureShowSession(opts);
+  }
+
+  if (isBrowserOffline()) {
+    return loadCaptureShowSession({ uploadsInFlight: opts?.uploadsInFlight });
+  }
+
+  return null;
+}
+
+export type StickyUploadFormPatch = {
+  artist_name: string;
+  venue_name: string;
+  location: string;
+  jambaseLink: {
+    event: string | null;
+    artist: string | null;
+    venue: string | null;
+    eventTitle: string | null;
+  } | null;
+};
+
+/** Fill empty caption / queue fields from sticky session before Share. */
+export function stickyUploadFormPatch(
+  form: { artist_name: string; venue_name: string; location: string },
+  jambaseLink: StickyUploadFormPatch['jambaseLink'],
+  opts?: LoadCaptureShowSessionOpts,
+): StickyUploadFormPatch | null {
+  if (form.artist_name?.trim() && form.venue_name?.trim()) return null;
+
+  const sticky = loadStickyCaptureShowSession(opts);
+  if (!sticky) return null;
+
+  const c = sticky.candidate;
+  const venue = c.venue_name?.trim() ?? '';
+  if (!venue && !c.jambase_venue_id?.trim()) return null;
+
+  const artist = form.artist_name?.trim() || c.artist_name?.trim() || '';
+  const location = form.location?.trim() || c.location?.trim() || '';
+  const eventTitle =
+    c.event_title?.trim() ||
+    [artist, venue].filter(Boolean).join(' at ') ||
+    null;
+
+  return {
+    artist_name: artist,
+    venue_name: venue,
+    location,
+    jambaseLink: jambaseLink?.venue || jambaseLink?.event
+      ? jambaseLink
+      : {
+          event: c.jambase_event_id ?? null,
+          artist: c.jambase_artist_id ?? null,
+          venue: c.jambase_venue_id ?? null,
+          eventTitle,
+        },
+  };
+}
+
 export function loadCaptureShowSession(
   opts?: LoadCaptureShowSessionOpts,
 ): CaptureShowSession | null {

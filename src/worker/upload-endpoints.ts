@@ -18,6 +18,7 @@ import {
   resolveClipCreateFields,
 } from './upload-clip-create';
 import { publishClipWithR2Playback, processClipStreamIngestById } from './upload-processor';
+import { enrichDraftClipRowIfNeeded } from './clips-enrich-upload-show';
 
 function newSessionId(): string {
   return `upl_${crypto.randomUUID()}`;
@@ -373,6 +374,12 @@ export async function postUploadComplete(c: Context<{ Bindings: Env }>) {
     )
     .bind(idempotencyKey, thumbKey, thumbUrl, sessionId)
     .run();
+
+  try {
+    await enrichDraftClipRowIfNeeded(c.env, Number(session.clip_id), uid);
+  } catch (err) {
+    console.error('postUploadComplete enrich show tags:', err);
+  }
 
   await publishClipWithR2Playback(c.env, Number(session.clip_id), r2Key, thumbUrl);
 

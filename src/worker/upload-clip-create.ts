@@ -14,6 +14,10 @@ import {
 } from '../shared/pre-post-clip';
 import { genreFieldsFromBody, songFieldsFromBody } from './clip-tag-fields';
 import { loadValidClassification } from './content-feed-endpoints';
+import {
+  enrichClipShowTagsFromMetadata,
+  mergeEnrichmentIntoClipFields,
+} from './clips-enrich-upload-show';
 
 export type ClipCreateBody = Record<string, unknown>;
 
@@ -218,44 +222,76 @@ export async function resolveClipCreateFields(
         timestamp: resolvedTimestamp,
       });
 
+  let fields: ResolvedClipInsert = {
+    uid,
+    resolvedArtist: showFields.artist_name,
+    resolvedVenue: showFields.venue_name,
+    resolvedLocation: showFields.location,
+    resolvedSongTitle,
+    resolvedGenreName,
+    resolvedJambaseEventId: showFields.jambase_event_id,
+    resolvedJambaseArtistId: showFields.jambase_artist_id,
+    resolvedJambaseVenueId: showFields.jambase_venue_id,
+    resolvedEventTitle: showFields.event_title,
+    hashtagList: showFields.hashtags,
+    song_slug,
+    genre_slug,
+    showId,
+    contentFeed,
+    classification,
+    classificationId,
+    content_description:
+      typeof content_description === 'string' ? content_description : null,
+    resolvedTimestamp,
+    geolocation_latitude:
+      typeof geolocation_latitude === 'number' ? geolocation_latitude : null,
+    geolocation_longitude:
+      typeof geolocation_longitude === 'number' ? geolocation_longitude : null,
+    geolocation_accuracy_radius:
+      typeof geolocation_accuracy_radius === 'number'
+        ? geolocation_accuracy_radius
+        : null,
+    recording_orientation:
+      typeof recording_orientation === 'string' ? recording_orientation : null,
+    video_resolution_w:
+      typeof video_resolution_w === 'number' ? video_resolution_w : null,
+    video_resolution_h:
+      typeof video_resolution_h === 'number' ? video_resolution_h : null,
+  };
+
+  if (
+    !hasManualShowTags &&
+    fields.geolocation_latitude != null &&
+    fields.geolocation_longitude != null
+  ) {
+    const captureMs = Number.isFinite(Date.parse(resolvedTimestamp))
+      ? Date.parse(resolvedTimestamp)
+      : Date.now();
+    const enrichment = await enrichClipShowTagsFromMetadata(c.env, uid, {
+      lat: fields.geolocation_latitude,
+      lon: fields.geolocation_longitude,
+      captureMs,
+      artistName: fields.resolvedArtist,
+      venueName: fields.resolvedVenue,
+      location: fields.resolvedLocation,
+      contentFeed,
+    });
+    if (enrichment) {
+      fields = mergeEnrichmentIntoClipFields(fields, enrichment);
+      if (!isPrePostContentFeed(contentFeed) && !fields.showId) {
+        fields.showId = computeShowId({
+          jambase_event_id: fields.resolvedJambaseEventId,
+          artist_name: fields.resolvedArtist,
+          venue_name: fields.resolvedVenue,
+          timestamp: resolvedTimestamp,
+        });
+      }
+    }
+  }
+
   return {
     ok: true,
-    fields: {
-      uid,
-      resolvedArtist: showFields.artist_name,
-      resolvedVenue: showFields.venue_name,
-      resolvedLocation: showFields.location,
-      resolvedSongTitle,
-      resolvedGenreName,
-      resolvedJambaseEventId: showFields.jambase_event_id,
-      resolvedJambaseArtistId: showFields.jambase_artist_id,
-      resolvedJambaseVenueId: showFields.jambase_venue_id,
-      resolvedEventTitle: showFields.event_title,
-      hashtagList: showFields.hashtags,
-      song_slug,
-      genre_slug,
-      showId,
-      contentFeed,
-      classification,
-      classificationId,
-      content_description:
-        typeof content_description === 'string' ? content_description : null,
-      resolvedTimestamp,
-      geolocation_latitude:
-        typeof geolocation_latitude === 'number' ? geolocation_latitude : null,
-      geolocation_longitude:
-        typeof geolocation_longitude === 'number' ? geolocation_longitude : null,
-      geolocation_accuracy_radius:
-        typeof geolocation_accuracy_radius === 'number'
-          ? geolocation_accuracy_radius
-          : null,
-      recording_orientation:
-        typeof recording_orientation === 'string' ? recording_orientation : null,
-      video_resolution_w:
-        typeof video_resolution_w === 'number' ? video_resolution_w : null,
-      video_resolution_h:
-        typeof video_resolution_h === 'number' ? video_resolution_h : null,
-    },
+    fields,
   };
 }
 

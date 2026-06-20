@@ -78,8 +78,10 @@ import {
   clipShowCandidateToNavState,
   clearCaptureShowSession,
   loadCaptureShowSession,
+  loadStickyCaptureShowSession,
   markCaptureShowSessionPosted,
   saveCaptureShowSession,
+  stickyUploadFormPatch,
 } from '@/react-app/utils/captureShowSession';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
@@ -708,7 +710,7 @@ export default function UploadClip() {
       }
 
       if (matchingDraft?.captureGeo) {
-        const sticky = loadCaptureShowSession({
+        const sticky = loadStickyCaptureShowSession({
           lat: matchingDraft.captureGeo.latitude,
           lon: matchingDraft.captureGeo.longitude,
           uploadsInFlight: clipUploadsInFlight > 0,
@@ -1135,6 +1137,14 @@ export default function UploadClip() {
                 return;
               }
             }
+            const stickyOffline = loadStickyCaptureShowSession({
+              uploadsInFlight: clipUploadsInFlight > 0,
+            });
+            if (!cancelled && stickyOffline) {
+              applyClipCandidate(stickyOffline.candidate);
+              setResolveNotice(null);
+              return;
+            }
             if (!cancelled) {
               setResolveNotice(
                 fromQuick
@@ -1148,7 +1158,7 @@ export default function UploadClip() {
       }
       if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude) || cancelled) return;
 
-      const stickySession = loadCaptureShowSession({
+      const stickySession = loadStickyCaptureShowSession({
         lat: geo.latitude,
         lon: geo.longitude,
         uploadsInFlight: clipUploadsInFlight > 0,
@@ -1178,7 +1188,8 @@ export default function UploadClip() {
       if (
         stickySession &&
         stickySession.source !== 'going' &&
-        stickySession.candidate.jambase_event_id?.trim() &&
+        (stickySession.candidate.venue_name?.trim() ||
+          stickySession.candidate.jambase_venue_id?.trim()) &&
         resolveForAutoTagQuick
       ) {
         applyClipCandidate(stickySession.candidate);
@@ -1256,6 +1267,16 @@ export default function UploadClip() {
         }
       } catch (e) {
         console.error('resolve-show', e);
+        const stickyFallback = loadStickyCaptureShowSession({
+          lat: geo.latitude,
+          lon: geo.longitude,
+          uploadsInFlight: clipUploadsInFlight > 0,
+        });
+        if (stickyFallback && resolveForAutoTagQuick) {
+          applyClipCandidate(stickyFallback.candidate);
+          setResolveNotice(null);
+          return;
+        }
         setResolveNotice('Auto-tagging is temporarily unavailable. You can still enter details manually.');
       }
     })();
@@ -1752,8 +1773,15 @@ export default function UploadClip() {
   }, [markTagsEdited]);
 
   const buildUploadPayload = useCallback(
-    (classificationId: string, contentFeed: 'main' | 'pre_post'): ClipUploadJobPayload => {
+    (
+      classificationId: string,
+      contentFeed: 'main' | 'pre_post',
+      formOverride?: typeof formData,
+      jambaseOverride?: typeof jambaseLink,
+    ): ClipUploadJobPayload => {
     const nav = location.state as { captureAudioBlob?: unknown } | null;
+    const form = formOverride ?? formData;
+    const link = jambaseOverride ?? jambaseLink;
     return {
       uploadMethod,
       videoFile: formData.video_file,
@@ -1765,15 +1793,15 @@ export default function UploadClip() {
       captureAudioBlob:
         nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null,
       form: {
-        artist_name: formData.artist_name,
-        venue_name: formData.venue_name,
-        location: formData.location,
-        content_description: formData.content_description,
-        song_title: formData.song_title,
-        genre_name: formData.genre_name,
-        hashtags: formData.hashtags,
+        artist_name: form.artist_name,
+        venue_name: form.venue_name,
+        location: form.location,
+        content_description: form.content_description,
+        song_title: form.song_title,
+        genre_name: form.genre_name,
+        hashtags: form.hashtags,
       },
-      jambaseLink,
+      jambaseLink: link,
       recordingAtIso,
       captureGeo,
       videoMetadata,
@@ -1867,19 +1895,30 @@ export default function UploadClip() {
       manual: boolean,
       classificationPending: boolean,
       contentFeed: 'main' | 'pre_post',
+      snapshot?: {
+        artist_name: string;
+        venue_name: string;
+        location: string;
+        jambaseLink: typeof jambaseLink;
+      },
     ) => {
+      const artistName = snapshot?.artist_name ?? formData.artist_name;
+      const venueName = snapshot?.venue_name ?? formData.venue_name;
+      const locationLine = snapshot?.location ?? formData.location;
+      const link = snapshot?.jambaseLink ?? jambaseLink;
+
       if (
-        !formData.venue_name?.trim() ||
+        !venueName?.trim() ||
         (!manual && classificationPending) ||
         (!manual && contentFeed !== 'main')
       ) {
         return;
       }
       const posted = captureShowCandidateFromPostedClip({
-        artist_name: formData.artist_name,
-        venue_name: formData.venue_name,
-        location: formData.location,
-        jambaseLink,
+        artist_name: artistName,
+        venue_name: venueName,
+        location: locationLine,
+        jambaseLink: link,
       });
       if (
         posted &&
@@ -1889,19 +1928,19 @@ export default function UploadClip() {
       ) {
         markCaptureShowSessionPosted(posted, captureGeo.latitude, captureGeo.longitude);
       }
-      if (jambaseLink?.event?.trim()) {
+      if (link?.event?.trim()) {
         const markInput = jamBaseEventToShowMarkInput(
           {
-            identifier: jambaseLink.event,
-            name: jambaseLink.eventTitle ?? formData.venue_name,
+            identifier: link.event,
+            name: link.eventTitle ?? venueName,
             startDate: recordingAtIso ?? new Date().toISOString(),
-            performer: formData.artist_name
-              ? [{ name: formData.artist_name, identifier: jambaseLink.artist, 'x-isHeadliner': true }]
+            performer: artistName
+              ? [{ name: artistName, identifier: link.artist, 'x-isHeadliner': true }]
               : [],
             location: {
-              name: formData.venue_name,
-              identifier: jambaseLink.venue,
-              address: { addressLocality: formData.location?.split(',')[0]?.trim() },
+              name: venueName,
+              identifier: link.venue,
+              address: { addressLocality: locationLine?.split(',')[0]?.trim() },
             },
           },
           'attended',
@@ -1958,9 +1997,28 @@ export default function UploadClip() {
       return;
     }
 
+    const stickyPatch = stickyUploadFormPatch(
+      formData,
+      jambaseLink,
+      {
+        lat: captureGeo?.latitude,
+        lon: captureGeo?.longitude,
+        uploadsInFlight: true,
+      },
+    );
+    const shareForm = stickyPatch
+      ? {
+          ...formData,
+          artist_name: stickyPatch.artist_name,
+          venue_name: stickyPatch.venue_name,
+          location: stickyPatch.location || formData.location,
+        }
+      : formData;
+    const shareJambaseLink = stickyPatch?.jambaseLink ?? jambaseLink;
+
     const classification = resolveEnqueueClassification({
       uploadMethod,
-      form: formData,
+      form: shareForm,
       storedClassificationId,
       classifyResult,
     });
@@ -1969,16 +2027,21 @@ export default function UploadClip() {
       return;
     }
 
-    const manual = clipManualShowPostReady(formData);
+    const manualAfterSticky = clipManualShowPostReady(shareForm);
     const queueMainFeedClip = !isPrePostContentFeed(classification.contentFeed);
     const jobId = enqueueClipUpload(
       {
-        ...buildUploadPayload(classification.classificationId, classification.contentFeed),
+        ...buildUploadPayload(
+          classification.classificationId,
+          classification.contentFeed,
+          shareForm,
+          shareJambaseLink,
+        ),
         classificationPending: classification.classificationPending,
         songIdentifyPending:
           uploadMethod === 'file' &&
           queueMainFeedClip &&
-          !formData.song_title?.trim(),
+          !shareForm.song_title?.trim(),
       },
       uploadMethod === 'file' ? videoBlobUrl : null,
     );
@@ -1992,9 +2055,17 @@ export default function UploadClip() {
     }
 
     applyPostShareSideEffects(
-      manual,
+      manualAfterSticky,
       classification.classificationPending,
       classification.contentFeed,
+      stickyPatch
+        ? {
+            artist_name: shareForm.artist_name,
+            venue_name: shareForm.venue_name,
+            location: shareForm.location,
+            jambaseLink: shareJambaseLink,
+          }
+        : undefined,
     );
     setError(null);
     finishAfterQueuedShare();

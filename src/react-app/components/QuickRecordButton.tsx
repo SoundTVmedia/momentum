@@ -17,7 +17,7 @@ import { pickAudioRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clipShowCandidateToNavState,
   clearCaptureShowSession,
-  loadCaptureShowSession,
+  loadStickyCaptureShowSession,
   saveCaptureShowSession,
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
@@ -348,7 +348,7 @@ export default function QuickRecordButton({
       return;
     }
 
-    const sticky = loadCaptureShowSession({
+    const sticky = loadStickyCaptureShowSession({
       lat: c.lat,
       lon: c.lon,
       uploadsInFlight: clipUploadsInFlight > 0,
@@ -367,7 +367,7 @@ export default function QuickRecordButton({
     applyGoingCaptureCandidate,
   ]);
 
-  /** When GPS is unavailable, fall back to same-day Going / I'm there marks only. */
+  /** When GPS is unavailable, fall back to same-day Going / I'm there marks or sticky venue. */
   useEffect(() => {
     if (!showModal || !showMarksHydrated || !captureLaunchGeoResolved) return;
     if (coordsForNearbyVenues) return;
@@ -376,6 +376,14 @@ export default function QuickRecordButton({
     const autoFill = resolveCameraGoingAutoFill(goingMarks, Date.now());
     if (autoFill) {
       applyGoingCaptureCandidate(autoFill.candidate);
+      return;
+    }
+
+    const sticky = loadStickyCaptureShowSession({
+      uploadsInFlight: clipUploadsInFlight > 0,
+    });
+    if (sticky) {
+      applyGoingCaptureCandidate(sticky.candidate);
     }
   }, [
     showModal,
@@ -522,7 +530,7 @@ export default function QuickRecordButton({
             return;
           }
 
-          const stickySession = loadCaptureShowSession({
+          const stickySession = loadStickyCaptureShowSession({
             lat: c.lat,
             lon: c.lon,
             uploadsInFlight: clipUploadsInFlight > 0,
@@ -1727,15 +1735,11 @@ export default function QuickRecordButton({
       );
 
       const sticky =
-        geo &&
-        Number.isFinite(geo.latitude) &&
-        Number.isFinite(geo.longitude)
-          ? loadCaptureShowSession({
-              lat: geo.latitude,
-              lon: geo.longitude,
-              uploadsInFlight: clipUploadsInFlight > 0,
-            })
-          : null;
+        loadStickyCaptureShowSession({
+          lat: geo?.latitude,
+          lon: geo?.longitude,
+          uploadsInFlight: clipUploadsInFlight > 0,
+        });
       const goingCandidate =
         geo &&
         Number.isFinite(geo.latitude) &&
