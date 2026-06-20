@@ -22,14 +22,8 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
-import {
-  clipCandidatesFromResolveResponse,
-  dedupeClipCandidatesByVenue,
-  resolveCameraVenuePicker,
-  resolveGoingMarkClipCandidate,
-} from '@/shared/clip-resolve-show-match';
-import { clipCandidatesFromJamBaseEvents } from '@/shared/jambase-events';
-import { nearbyShowsApiUrl } from '@/react-app/lib/nearby-shows-url';
+import { resolveGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
+import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
   applyCameraZoom,
   buildCameraZoomPresets,
@@ -382,64 +376,19 @@ export default function QuickRecordButton({
       });
       try {
         const captureMs = Date.now();
-        const at = new Date(captureMs).toISOString();
-        const [nearbySettled, resolveSettled] = await Promise.allSettled([
-          fetch(nearbyShowsApiUrl({ limit: 40, latitude: c.lat, longitude: c.lon }), {
-            credentials: 'include',
-            signal: ac.signal,
+        const res = await fetch('/api/clips/camera-venues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          signal: ac.signal,
+          body: JSON.stringify({
+            latitude: c.lat,
+            longitude: c.lon,
+            at: new Date(captureMs).toISOString(),
           }),
-          fetch('/api/clips/resolve-show', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            signal: ac.signal,
-            body: JSON.stringify({
-              latitude: c.lat,
-              longitude: c.lon,
-              at,
-            }),
-          }),
-        ]);
+        });
         if (cancelled) return;
-
-        let jambaseNotice: string | null = null;
-        const mergedCandidates: ClipShowCandidate[] = [];
-
-        if (nearbySettled.status === 'fulfilled' && nearbySettled.value.ok) {
-          const nearbyData = (await nearbySettled.value.json()) as {
-            events?: Record<string, unknown>[];
-            jambaseNotice?: string | null;
-          };
-          jambaseNotice = nearbyData.jambaseNotice?.trim() || null;
-          mergedCandidates.push(
-            ...clipCandidatesFromJamBaseEvents(
-              nearbyData.events ?? [],
-              c.lat,
-              c.lon,
-              captureMs,
-            ),
-          );
-        }
-
-        if (resolveSettled.status === 'fulfilled' && resolveSettled.value.ok) {
-          const resolveData = (await resolveSettled.value.json()) as {
-            candidates?: ClipShowCandidate[];
-            nearbyVenues?: ClipShowCandidate[];
-            notice?: string | null;
-          };
-          if (!jambaseNotice && resolveData.notice?.trim()) {
-            jambaseNotice = resolveData.notice.trim();
-          }
-          mergedCandidates.push(...clipCandidatesFromResolveResponse(resolveData));
-        } else if (
-          nearbySettled.status === 'rejected' &&
-          resolveSettled.status === 'rejected'
-        ) {
-          throw nearbySettled.reason;
-        } else if (
-          (nearbySettled.status === 'fulfilled' && !nearbySettled.value.ok) &&
-          (resolveSettled.status === 'fulfilled' && !resolveSettled.value.ok)
-        ) {
+        if (!res.ok) {
           captureResolveCandidateRef.current = null;
           setCaptureResolvePreview({
             status: 'error',
@@ -447,31 +396,40 @@ export default function QuickRecordButton({
             venueName: null,
             artistName: null,
             locationLine: null,
-            notice: null,
+            notice:
+              res.status === 401
+                ? 'Sign in again to match venues near you.'
+                : res.status === 404
+                  ? 'Venue matching is not available yet — deploy the latest worker, or add the venue after you record.'
+                  : `Venue lookup failed (${res.status}). Try again or add the venue after you record.`,
           });
           return;
         }
+        const data = (await res.json()) as {
+          venues?: ClipShowCandidate[];
+          notice?: string | null;
+          meta?: { rawEventCount?: number; mappedCandidateCount?: number };
+        };
+        if (cancelled) return;
 
-        const deduped = dedupeClipCandidatesByVenue(mergedCandidates);
-        const resolution = resolveCameraVenuePicker(
-          deduped,
+        const goingCandidate = resolveGoingMarkClipCandidate(
           goingMarks,
           captureMs,
           c.lat,
           c.lon,
         );
-
-        if (resolution.mode === 'single') {
-          saveCaptureShowSession(resolution.candidate, c.lat, c.lon, { source: 'going' });
+        if (goingCandidate) {
+          saveCaptureShowSession(goingCandidate, c.lat, c.lon, { source: 'going' });
           setCaptureVenuePickerChoices([]);
-          applySessionCandidate(resolution.candidate);
+          applySessionCandidate(goingCandidate);
           return;
         }
 
-        if (resolution.mode === 'picker') {
-          const first = resolution.venues[0]!;
+        const serverVenues = data.venues ?? [];
+        if (serverVenues.length > 0) {
+          const first = serverVenues[0]!;
           captureResolveCandidateRef.current = first;
-          setCaptureVenuePickerChoices(resolution.venues);
+          setCaptureVenuePickerChoices(serverVenues);
           setCaptureVenuePickerSelectedKey(captureVenueOptionKey(first));
           saveCaptureShowSession(first, c.lat, c.lon, { source: 'resolve' });
           applySessionCandidate(first, { picker: true });
@@ -487,9 +445,9 @@ export default function QuickRecordButton({
           artistName: null,
           locationLine: null,
           notice:
-            jambaseNotice ||
-            (deduped.length === 0
-              ? 'No JamBase shows tonight near you. You can add venue after you record.'
+            data.notice?.trim() ||
+            (serverVenues.length === 0
+              ? `No JamBase shows tonight near you (${data.meta?.rawEventCount ?? 0} events scanned). You can add venue after you record.`
               : null),
         });
       } catch (e) {
@@ -539,29 +497,53 @@ export default function QuickRecordButton({
     goingMarks,
   ]);
 
-  // Apply GPS from the same user gesture as camera launch (parent primed); no getCurrentPosition here.
+  /** Device GPS for venue matching — launch-time fix first, then best-effort fallback. */
   useEffect(() => {
-    if (captureLaunchGeo === undefined) return;
-    if (!showModal || !captureLaunchGeoResolved) return;
+    if (!showModal) return;
+
+    const applyCoords = (lat: number, lon: number, accuracy?: number) => {
+      lastGeoRef.current = {
+        latitude: lat,
+        longitude: lon,
+        accuracy,
+        city: null,
+        state: null,
+        country: null,
+      };
+      setCoordsForNearbyVenues({ lat, lon });
+    };
+
     if (
       captureLaunchGeo != null &&
       Number.isFinite(captureLaunchGeo.latitude) &&
       Number.isFinite(captureLaunchGeo.longitude)
     ) {
-      lastGeoRef.current = {
-        latitude: captureLaunchGeo.latitude,
-        longitude: captureLaunchGeo.longitude,
-        accuracy: captureLaunchGeo.accuracy,
-        city: null,
-        state: null,
-        country: null,
-      };
-      setCoordsForNearbyVenues({
-        lat: captureLaunchGeo.latitude,
-        lon: captureLaunchGeo.longitude,
-      });
+      applyCoords(
+        captureLaunchGeo.latitude,
+        captureLaunchGeo.longitude,
+        captureLaunchGeo.accuracy,
+      );
+      return;
     }
-  }, [showModal, captureLaunchGeo, captureLaunchGeoResolved]);
+
+    const launchGeoPending =
+      captureLaunchGeo !== undefined && !captureLaunchGeoResolved;
+    if (launchGeoPending || coordsForNearbyVenues) return;
+
+    let cancelled = false;
+    void readDeviceCoordsForNearbyShows().then((g) => {
+      if (cancelled || !g) return;
+      applyCoords(g.latitude, g.longitude);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showModal,
+    captureLaunchGeo,
+    captureLaunchGeoResolved,
+    coordsForNearbyVenues,
+  ]);
 
   useEffect(() => {
     liveStabilizerRef.current.setPriors(liveSongPriors);

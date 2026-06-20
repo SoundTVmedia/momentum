@@ -51,8 +51,10 @@
   },
   "scripts": {
     "build": "tsc -b && vite build",
+    "build:worker": "ENABLE_CLOUDFLARE_VITE=1 npm run build",
+    "deploy": "ENABLE_CLOUDFLARE_VITE=1 npm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
-    "check": "tsc && vite build && wrangler deploy --dry-run",
+    "check": "ENABLE_CLOUDFLARE_VITE=1 tsc && vite build && wrangler deploy --dry-run",
     "dev": "node scripts/dev.mjs",
     "dev:worker": "vite",
     "db:migrate:local": "wrangler d1 migrations apply momentum-db --local",

@@ -1,5 +1,11 @@
 import type { ClipShowCandidate } from './types';
-import { jamBaseEventMatchesCapture } from './jambase-event-day';
+import {
+  inferTimezoneFromCoords,
+  jamBaseEventLocalYmd,
+  jamBaseEventMatchesCapture,
+  jamBaseEventOngoingAtCapture,
+  ymdInTimeZone,
+} from './jambase-event-day';
 import {
   pickGoingShowMarkForCapture,
   showMarkToClipCandidate,
@@ -76,17 +82,21 @@ function candidateEventMatchesCapture(
   const startDate = candidate.startDate?.trim();
   if (!startDate) return true;
   const tz = candidate.venue_timezone?.trim();
-  return jamBaseEventMatchesCapture(
-    {
-      startDate,
-      location: tz
-        ? { name: candidate.venue_name ?? '', address: { 'x-timezone': tz } }
-        : { name: candidate.venue_name ?? '' },
-    },
-    captureMs,
-    userLat,
-    userLon,
-  );
+  const ev = {
+    startDate,
+    location: tz
+      ? { name: candidate.venue_name ?? '', address: { 'x-timezone': tz } }
+      : { name: candidate.venue_name ?? '' },
+  };
+  if (jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) return true;
+  if (jamBaseEventOngoingAtCapture(ev, captureMs, userLat, userLon)) return true;
+  const eventYmd = jamBaseEventLocalYmd(startDate);
+  if (!eventYmd) return false;
+  const captureTz =
+    tz ||
+    (userLat != null && userLon != null ? inferTimezoneFromCoords(userLat, userLon) : null) ||
+    'UTC';
+  return eventYmd === ymdInTimeZone(captureMs, captureTz);
 }
 
 /** Closest venues with today's JamBase event within the auto-apply radius. */

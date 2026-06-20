@@ -644,12 +644,12 @@ export async function fetchNearbyJamBaseEvents(
   radiusMiles = 50,
   limit = 20,
   diag?: JamBaseFetchDiag,
+  captureMs: number = Date.now(),
 ): Promise<Record<string, unknown>[]> {
   const key = typeof apiKey === 'string' ? apiKey.trim() : '';
   if (!key) return [];
 
   const radius = Math.min(100, Math.max(10, radiusMiles));
-  const captureMs = Date.now();
 
   const [geoData, inShowEvents] = await Promise.all([
     jamBaseFetch<{ events?: Record<string, unknown>[] }>(

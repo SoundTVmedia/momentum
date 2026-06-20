@@ -60,8 +60,6 @@ export default function MainFeedStack({
         </div>
       )}
 
-      {user ? <GoingShowsFeedSection /> : null}
-
       {user ? (
         <FavoriteArtistFeedPanel
           variant="feed"
@@ -99,6 +97,8 @@ export default function MainFeedStack({
       {isHome && user ? <MyGoingShowsSection variant="home" /> : null}
 
       {isHome && user ? <BeenHistoryShowsSection /> : null}
+
+      {user ? <GoingShowsFeedSection /> : null}
     </div>
   )
 }

@@ -84,6 +84,7 @@ import {
   getRelatedClipsForShare,
 } from "./clip-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
+import { postCameraVenuesForClip } from "./clips-camera-venues";
 import * as showMarks from "./user-show-marks-endpoints";
 import {
   getClipIdentifyMusicConfig,
@@ -795,6 +796,7 @@ app.get("/api/files/:key{.+}", serveR2ClipFile);
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);
+app.post("/api/clips/camera-venues", authMiddleware, rateLimiter(RateLimits.API), postCameraVenuesForClip);
 app.get(
   "/api/clips/identify-music/config",
   authMiddleware,

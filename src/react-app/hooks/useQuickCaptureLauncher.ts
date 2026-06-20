@@ -64,7 +64,6 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     void geoPromise
       .then((g) => {
         setCaptureLaunchGeo(g);
-        setCaptureLaunchGeoResolved(true);
         return primeCameraOnUserGesture();
       })
       .then((stream) => {
@@ -76,6 +75,7 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
         setPrimedMediaStream(null);
       })
       .finally(() => {
+        setCaptureLaunchGeoResolved(true);
         setGesturePrimePending(false);
       });
   }, [isPending, isMobile, navigate, user]);

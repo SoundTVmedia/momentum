@@ -162,39 +162,13 @@ export function jamBaseEventTicketUrl(ev: JamBaseEventRecord): string | null {
   return page && page.length > 0 ? page : null;
 }
 
-/** Map JamBase events → same-day clip candidates (deduped by venue). */
-export function clipCandidatesFromJamBaseEvents(
-  events: JamBaseEventRecord[],
-  userLat: number,
-  userLon: number,
-  captureMs: number,
-  maxDistanceMiles?: number,
-): ClipShowCandidate[] {
-  const out: ClipShowCandidate[] = [];
-  for (const ev of events) {
-    if (typeof ev !== 'object' || ev === null) continue;
-    const cnd = clipCandidateFromJamBaseEvent(
-      ev,
-      userLat,
-      userLon,
-      captureMs,
-      maxDistanceMiles,
-    );
-    if (cnd) out.push(cnd);
-  }
-  return out;
-}
-
-/** Map a JamBase geo `/events` row to a clip resolve candidate (same-day capture only). */
-export function clipCandidateFromJamBaseEvent(
+/** Map a JamBase geo `/events` row to a clip candidate (no capture-day filter). */
+export function clipCandidateFromJamBaseEventLoose(
   ev: JamBaseEventRecord,
   userLat: number,
   userLon: number,
-  captureMs: number,
   maxDistanceMiles?: number,
 ): ClipShowCandidate | null {
-  if (!jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) return null;
-
   const eventId = typeof ev.identifier === 'string' ? ev.identifier : null;
   if (!eventId) return null;
 
@@ -229,6 +203,38 @@ export function clipCandidateFromJamBaseEvent(
     distance_miles: distanceMiles,
     venue_timezone: jamBaseVenueTimezone(ev, userLat, userLon),
   };
+}
+
+/** Map JamBase events → clip candidates; set `loose` for camera (date filter applied later). */
+export function clipCandidatesFromJamBaseEvents(
+  events: JamBaseEventRecord[],
+  userLat: number,
+  userLon: number,
+  captureMs: number,
+  maxDistanceMiles?: number,
+  opts?: { loose?: boolean },
+): ClipShowCandidate[] {
+  const out: ClipShowCandidate[] = [];
+  for (const ev of events) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const cnd = opts?.loose
+      ? clipCandidateFromJamBaseEventLoose(ev, userLat, userLon, maxDistanceMiles)
+      : clipCandidateFromJamBaseEvent(ev, userLat, userLon, captureMs, maxDistanceMiles);
+    if (cnd) out.push(cnd);
+  }
+  return out;
+}
+
+/** Map a JamBase geo `/events` row to a clip resolve candidate (same-day capture only). */
+export function clipCandidateFromJamBaseEvent(
+  ev: JamBaseEventRecord,
+  userLat: number,
+  userLon: number,
+  captureMs: number,
+  maxDistanceMiles?: number,
+): ClipShowCandidate | null {
+  if (!jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) return null;
+  return clipCandidateFromJamBaseEventLoose(ev, userLat, userLon, maxDistanceMiles);
 }
 
 export type JamBaseShowPick = {
