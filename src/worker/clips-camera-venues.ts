@@ -74,9 +74,7 @@ export async function postCameraVenuesForClip(c: Context) {
   const debugNotice =
     venues.length === 0 && rawEvents.length > 0
       ? `JamBase returned ${rawEvents.length} event(s) but none matched today (${stats.captureLocalYmd}).`
-      : venues.length === 0 && stats.expandPastEventRawCount > 0 && stats.expandPastEventMatchedCount === 0
-        ? `Found ${stats.expandPastEventRawCount} in-progress listing(s) at ${stats.expandPastVenueCount} venue(s), but none matched today's date.`
-        : null;
+      : null;
 
   return c.json({
     venues,

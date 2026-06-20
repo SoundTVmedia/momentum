@@ -288,6 +288,25 @@ export function jamBaseEventCameraCaptureDay(
 }
 
 /**
+ * Nearby/event-list feeds: same venue-local calendar day, including shows that already
+ * started today up to {@link JAMBASE_EVENT_ONGOING_HOURS_AFTER_START}h after start.
+ */
+export function jamBaseEventFeedVisible(
+  ev: Record<string, unknown>,
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)) {
+    const hours = jamBaseEventHoursFromStart(ev, captureMs, userLat, userLon);
+    if (hours == null) return true;
+    if (hours < 0) return true;
+    return hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START;
+  }
+  return jamBaseEventOngoingAtCapture(ev, captureMs, userLat, userLon);
+}
+
+/**
  * True when capture instant is on the same venue-local calendar day as the event,
  * including late-night shows that cross midnight (e.g. 8pm show, 1am capture),
  * or while the show is still in progress after start time.

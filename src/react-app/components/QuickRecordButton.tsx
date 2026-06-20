@@ -272,6 +272,7 @@ export default function QuickRecordButton({
   // Reset capture coords when modal closes
   useEffect(() => {
     if (!showModal) {
+      captureVenueFetchStartedRef.current = false;
       setCoordsForNearbyVenues(null);
       captureResolveCandidateRef.current = null;
       setCaptureVenuePickerChoices([]);
@@ -286,7 +287,58 @@ export default function QuickRecordButton({
     }
   }, [showModal]);
 
-  /** Prefetch nearest JamBase show for camera HUD (same endpoint as upload caption resolve). */
+  const captureVenueFetchStartedRef = useRef(false);
+
+  /** Going mark overrides venue picker when marks hydrate. */
+  useEffect(() => {
+    if (!showModal || !showMarksHydrated) return;
+    const c = coordsForNearbyVenues;
+    if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) return;
+
+    const goingCandidate = resolveGoingMarkClipCandidate(
+      goingMarks,
+      Date.now(),
+      c.lat,
+      c.lon,
+    );
+    if (goingCandidate) {
+      saveCaptureShowSession(goingCandidate, c.lat, c.lon, { source: 'going' });
+      captureResolveCandidateRef.current = goingCandidate;
+      setCaptureVenuePickerChoices([]);
+      const eventTitle = resolveClipEventTitle({
+        event_title: goingCandidate.event_title,
+        artist_name: goingCandidate.artist_name,
+        venue_name: goingCandidate.venue_name,
+      });
+      setCaptureResolvePreview({
+        status: 'ready',
+        eventTitle,
+        venueName: goingCandidate.venue_name?.trim() ?? null,
+        artistName: goingCandidate.artist_name?.trim() ?? null,
+        locationLine: goingCandidate.location?.trim() ?? null,
+        notice: null,
+      });
+      return;
+    }
+
+    const sticky = loadCaptureShowSession({
+      lat: c.lat,
+      lon: c.lon,
+      uploadsInFlight: clipUploadsInFlight > 0,
+    });
+    if (sticky?.source === 'going') {
+      clearCaptureShowSession();
+    }
+  }, [
+    showModal,
+    showMarksHydrated,
+    goingMarks,
+    coordsForNearbyVenues?.lat,
+    coordsForNearbyVenues?.lon,
+    clipUploadsInFlight,
+  ]);
+
+  /** Prefetch nearest JamBase show for camera HUD — once per modal open. */
   useEffect(() => {
     if (!showModal || !user || isPending) return;
     const c = coordsForNearbyVenues;
@@ -325,46 +377,10 @@ export default function QuickRecordButton({
       });
     };
 
-    const sticky = loadCaptureShowSession({
-      lat: c.lat,
-      lon: c.lon,
-      uploadsInFlight: clipUploadsInFlight > 0,
-    });
-
-    if (showMarksHydrated) {
-      const goingCandidate = resolveGoingMarkClipCandidate(
-        goingMarks,
-        Date.now(),
-        c.lat,
-        c.lon,
-      );
-      if (goingCandidate) {
-        saveCaptureShowSession(goingCandidate, c.lat, c.lon, { source: 'going' });
-        setCaptureVenuePickerChoices([]);
-        applySessionCandidate(goingCandidate);
-        return;
-      }
-
-      if (sticky?.source === 'going') {
-        clearCaptureShowSession();
-      }
-    }
-
-    if (
-      sticky?.source !== 'going' &&
-      sticky?.candidate.jambase_event_id?.trim() &&
-      sticky?.candidate.venue_name?.trim() &&
-      clipCandidateMatchesCameraCaptureDay(sticky.candidate, Date.now(), c.lat, c.lon)
-    ) {
-      const stickyPicker = [sticky.candidate];
-      captureResolveCandidateRef.current = sticky.candidate;
-      setCaptureVenuePickerChoices(stickyPicker);
-      setCaptureVenuePickerSelectedKey(captureVenueOptionKey(sticky.candidate));
-      applySessionCandidate(sticky.candidate, { picker: true });
-      return;
-    }
+    if (captureVenueFetchStartedRef.current) return;
 
     void (async () => {
+      captureVenueFetchStartedRef.current = true;
       captureResolveCandidateRef.current = null;
       setCaptureVenuePickerChoices([]);
       setCaptureResolvePreview({
@@ -390,6 +406,7 @@ export default function QuickRecordButton({
         });
         if (cancelled) return;
         if (!res.ok) {
+          captureVenueFetchStartedRef.current = false;
           captureResolveCandidateRef.current = null;
           setCaptureResolvePreview({
             status: 'error',
@@ -423,45 +440,40 @@ export default function QuickRecordButton({
         };
         if (cancelled) return;
 
-        const goingCandidate = resolveGoingMarkClipCandidate(
-          goingMarks,
-          captureMs,
-          c.lat,
-          c.lon,
-        );
-        if (goingCandidate) {
-          saveCaptureShowSession(goingCandidate, c.lat, c.lon, { source: 'going' });
-          setCaptureVenuePickerChoices([]);
-          applySessionCandidate(goingCandidate);
-          return;
-        }
-
         const serverVenues = data.venues ?? [];
         if (serverVenues.length > 0) {
-          const first = serverVenues[0]!;
-          captureResolveCandidateRef.current = first;
+          const stickySession = loadCaptureShowSession({
+            lat: c.lat,
+            lon: c.lon,
+            uploadsInFlight: clipUploadsInFlight > 0,
+          });
+          let selected = serverVenues[0]!;
+          if (
+            stickySession?.source !== 'going' &&
+            stickySession?.candidate &&
+            clipCandidateMatchesCameraCaptureDay(
+              stickySession.candidate,
+              captureMs,
+              c.lat,
+              c.lon,
+            )
+          ) {
+            const stickyKey = captureVenueOptionKey(stickySession.candidate);
+            const matched = serverVenues.find(
+              (v) => captureVenueOptionKey(v) === stickyKey,
+            );
+            if (matched) selected = matched;
+          }
+          captureResolveCandidateRef.current = selected;
           setCaptureVenuePickerChoices(serverVenues);
-          setCaptureVenuePickerSelectedKey(captureVenueOptionKey(first));
-          saveCaptureShowSession(first, c.lat, c.lon, { source: 'resolve' });
-          applySessionCandidate(first, { picker: true });
+          setCaptureVenuePickerSelectedKey(captureVenueOptionKey(selected));
+          applySessionCandidate(selected, { picker: true });
           return;
         }
 
+        captureVenueFetchStartedRef.current = false;
         captureResolveCandidateRef.current = null;
         setCaptureVenuePickerChoices([]);
-        const meta = data.meta;
-        const debugParts: string[] = [];
-        if (meta?.captureLocalYmd) debugParts.push(`today=${meta.captureLocalYmd}`);
-        if (meta?.geoEventRawCount != null) {
-          debugParts.push(`geo ${meta.geoEventMatchedCount ?? 0}/${meta.geoEventRawCount}`);
-        }
-        if (meta?.expandPastVenueCount != null) {
-          debugParts.push(
-            `expandPast ${meta.expandPastEventMatchedCount ?? 0}/${meta.expandPastEventRawCount ?? 0} at ${meta.expandPastVenueCount} venues`,
-          );
-        }
-        const debugSuffix =
-          debugParts.length > 0 ? ` [${debugParts.join('; ')}]` : '';
         setCaptureResolvePreview({
           status: 'none',
           eventTitle: null,
@@ -470,13 +482,12 @@ export default function QuickRecordButton({
           locationLine: null,
           notice:
             data.notice?.trim() ||
-            (serverVenues.length === 0
-              ? `No JamBase shows today near you (${meta?.rawEventCount ?? 0} events scanned${debugSuffix}). You can add venue after you record.`
-              : null),
+            'No JamBase shows today near you. You can add venue after you record.',
         });
       } catch (e) {
         if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) {
           if (!cancelled) {
+            captureVenueFetchStartedRef.current = false;
             captureResolveCandidateRef.current = null;
             setCaptureVenuePickerChoices([]);
             setCaptureResolvePreview({
@@ -490,6 +501,7 @@ export default function QuickRecordButton({
           }
           return;
         }
+        captureVenueFetchStartedRef.current = false;
         captureResolveCandidateRef.current = null;
         setCaptureVenuePickerChoices([]);
         setCaptureResolvePreview({
@@ -517,8 +529,6 @@ export default function QuickRecordButton({
     coordsForNearbyVenues?.lat,
     coordsForNearbyVenues?.lon,
     clipUploadsInFlight,
-    showMarksHydrated,
-    goingMarks,
   ]);
 
   /** Device GPS for venue matching — launch-time fix first, then best-effort fallback. */

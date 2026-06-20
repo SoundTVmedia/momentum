@@ -1,11 +1,10 @@
 import {
   jamBaseFetch,
-  jamBaseEventDateFromToday,
   type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { haversineMiles } from './search-geo';
-import { jamBaseEventMatchesCapture, jamBaseEventCameraCaptureDay, jamBaseEventDateFromCaptureLocal, jamBaseVenueExpandPastEventDateCandidates } from '../shared/jambase-event-day';
+import { jamBaseEventCameraCaptureDay, jamBaseEventFeedVisible, jamBaseEventDateFromCaptureLocal, jamBaseVenueExpandPastEventDateCandidates } from '../shared/jambase-event-day';
 
 /** Closest venues to enrich with in-progress listings (expandPastEvents). */
 const NEARBY_VENUE_IN_SHOW_ENRICH = 8;
@@ -654,7 +653,7 @@ async function fetchInShowEventsAtNearbyVenues(
     radiusMiles,
     captureMs,
     NEARBY_VENUE_IN_SHOW_ENRICH,
-    (ev) => jamBaseEventMatchesCapture(ev, captureMs, latitude, longitude),
+    (ev) => jamBaseEventFeedVisible(ev, captureMs, latitude, longitude),
   );
   return events;
 }
@@ -722,7 +721,7 @@ export async function fetchNearbyJamBaseEvents(
         geoLongitude: String(longitude),
         geoRadiusAmount: String(radius),
         geoRadiusUnits: 'mi',
-        eventDateFrom: jamBaseEventDateFromToday(),
+        eventDateFrom: jamBaseEventDateFromCaptureLocal(captureMs, latitude, longitude),
         perPage: String(Math.min(40, Math.max(1, limit))),
         page: '1',
       },
@@ -732,16 +731,20 @@ export async function fetchNearbyJamBaseEvents(
     fetchInShowEventsAtNearbyVenues(key, jbQ, latitude, longitude, radius, captureMs),
   ]);
 
+  const visible = (ev: Record<string, unknown>) =>
+    jamBaseEventFeedVisible(ev, captureMs, latitude, longitude);
+
   const merged = new Map<string, Record<string, unknown>>();
   for (const ev of geoData?.events ?? []) {
     if (typeof ev !== 'object' || ev === null) continue;
+    if (!visible(ev)) continue;
     const id = jamBaseEventId(ev);
     const mapKey = id ?? JSON.stringify(ev);
     if (!merged.has(mapKey)) merged.set(mapKey, ev);
   }
   for (const ev of inShowEvents) {
     if (typeof ev !== 'object' || ev === null) continue;
-    if (!jamBaseEventMatchesCapture(ev, captureMs, latitude, longitude)) continue;
+    if (!visible(ev)) continue;
     const id = jamBaseEventId(ev);
     const mapKey = id ?? JSON.stringify(ev);
     if (!merged.has(mapKey)) merged.set(mapKey, ev);
