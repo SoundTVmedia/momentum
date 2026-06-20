@@ -292,8 +292,8 @@ describe('resolveCameraVenuePicker', () => {
 });
 
 describe('closestVenuesWithEventsOnCaptureDay', () => {
-  it('includes in-progress show within four hours of start', () => {
-    const captureMs = Date.parse('2026-06-10T00:30:00.000Z'); // 8:30pm Eastern
+  it('includes in-progress show on the same venue-local calendar day', () => {
+    const captureMs = Date.parse('2026-06-10T00:30:00.000Z'); // 8:30pm Eastern on June 9
     const venues = closestVenuesWithEventsOnCaptureDay(
       [
         baseCandidate({
@@ -308,5 +308,31 @@ describe('closestVenuesWithEventsOnCaptureDay', () => {
       -73.99,
     );
     expect(venues).toHaveLength(1);
+  });
+
+  it('excludes yesterday show on a different calendar day', () => {
+    const captureMs = Date.parse('2026-06-20T18:00:00.000Z'); // 2pm Eastern on June 20
+    const venues = closestVenuesWithEventsOnCaptureDay(
+      [
+        baseCandidate({
+          jambase_event_id: 'ev-yesterday',
+          startDate: '2026-06-19T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.6,
+        }),
+        baseCandidate({
+          jambase_event_id: 'ev-today',
+          jambase_venue_id: 'venue-2',
+          startDate: '2026-06-20T20:00:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 1.2,
+        }),
+      ],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(venues).toHaveLength(1);
+    expect(venues[0]?.jambase_event_id).toBe('ev-today');
   });
 });

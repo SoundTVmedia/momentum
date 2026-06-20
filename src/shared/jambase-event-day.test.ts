@@ -4,6 +4,7 @@ import {
   jamBaseEventLocalYmd,
   jamBaseEventMatchesCapture,
   jamBaseEventOnCaptureDay,
+  jamBaseEventSameCalendarDay,
   jamBaseEventStartMs,
 } from './jambase-event-day';
 
@@ -114,6 +115,27 @@ describe('jamBaseEventMatchesCapture without x-timezone', () => {
     };
     // 2pm Eastern on June 10 (~18h after start)
     const captureMs = Date.parse('2026-06-10T18:00:00.000Z');
+    expect(jamBaseEventMatchesCapture(event, captureMs)).toBe(false);
+  });
+});
+
+describe('jamBaseEventSameCalendarDay', () => {
+  const event = {
+    startDate: '2026-06-19T19:30:00',
+    location: {
+      name: 'Neighborhood Venue',
+      address: { 'x-timezone': 'America/New_York' },
+    },
+  };
+
+  it('matches capture on the same venue-local date', () => {
+    const captureMs = Date.parse('2026-06-20T01:30:00.000Z'); // 9:30pm Eastern June 19
+    expect(jamBaseEventSameCalendarDay(event, captureMs)).toBe(true);
+  });
+
+  it('rejects capture on the next venue-local date', () => {
+    const captureMs = Date.parse('2026-06-20T18:00:00.000Z'); // 2pm Eastern June 20
+    expect(jamBaseEventSameCalendarDay(event, captureMs)).toBe(false);
     expect(jamBaseEventMatchesCapture(event, captureMs)).toBe(false);
   });
 });

@@ -212,6 +212,21 @@ function jamBaseEventSameShowNight(
   return false;
 }
 
+/** True when the event `startDate` calendar day equals the capture calendar day (venue-local). */
+export function jamBaseEventSameCalendarDay(
+  ev: Record<string, unknown>,
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  const sd = typeof ev.startDate === 'string' ? ev.startDate : '';
+  const eventYmd = jamBaseEventLocalYmd(sd);
+  if (!eventYmd) return false;
+  const tz = jamBaseVenueTimezone(ev, userLat, userLon);
+  const captureYmd = ymdInTimeZone(captureMs, tz);
+  return eventYmd === captureYmd;
+}
+
 /**
  * True when capture instant is on the same venue-local calendar day as the event,
  * including late-night shows that cross midnight (e.g. 8pm show, 1am capture),

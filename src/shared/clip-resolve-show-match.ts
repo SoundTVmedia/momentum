@@ -4,6 +4,7 @@ import {
   jamBaseEventLocalYmd,
   jamBaseEventMatchesCapture,
   jamBaseEventOngoingAtCapture,
+  jamBaseEventSameCalendarDay,
   ymdInTimeZone,
 } from './jambase-event-day';
 import {
@@ -99,6 +100,26 @@ function candidateEventMatchesCapture(
   return eventYmd === ymdInTimeZone(captureMs, captureTz);
 }
 
+/** Camera picker: venue-local calendar day only (excludes yesterday's in-progress shows). */
+function candidateEventOnCaptureCalendarDay(
+  candidate: ClipShowCandidate,
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (!candidateHasJamBaseEventData(candidate)) return false;
+  const startDate = candidate.startDate?.trim();
+  if (!startDate) return false;
+  const tz = candidate.venue_timezone?.trim();
+  const ev = {
+    startDate,
+    location: tz
+      ? { name: candidate.venue_name ?? '', address: { 'x-timezone': tz } }
+      : { name: candidate.venue_name ?? '' },
+  };
+  return jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon);
+}
+
 /** Closest venues with today's JamBase event within the auto-apply radius. */
 export function nearbyEventVenuesWithinAutoApplyRadius(
   candidates: ClipShowCandidate[],
@@ -138,8 +159,8 @@ export function sameDayEventVenuesWithinRadius(
 }
 
 /**
- * Closest venues with JamBase event data for the capture date (includes in-progress shows
- * within {@link JAMBASE_EVENT_ONGOING_HOURS_AFTER_START}h after start). No distance cap.
+ * Closest venues with JamBase event data for the capture calendar day (venue-local).
+ * Excludes yesterday's shows even if still within the in-progress window.
  */
 export function closestVenuesWithEventsOnCaptureDay(
   candidates: ClipShowCandidate[],
@@ -149,16 +170,15 @@ export function closestVenuesWithEventsOnCaptureDay(
   limit = CAMERA_VENUE_PICKER_COUNT,
 ): ClipShowCandidate[] {
   const matched: ClipShowCandidate[] = [];
-  for (const candidate of dedupeClipCandidatesByVenue(candidates)) {
-    if (!candidateHasJamBaseEventData(candidate)) continue;
-    if (!candidateEventMatchesCapture(candidate, captureMs, userLat, userLon)) continue;
+  for (const candidate of candidates) {
+    if (!candidateEventOnCaptureCalendarDay(candidate, captureMs, userLat, userLon)) continue;
     matched.push(candidate);
   }
   matched.sort(
     (a, b) =>
       candidateDistanceSortKey(a.distance_miles) - candidateDistanceSortKey(b.distance_miles),
   );
-  return matched.slice(0, limit);
+  return dedupeClipCandidatesByVenue(matched).slice(0, limit);
 }
 
 function candidateWithinRadius(candidate: ClipShowCandidate, maxMiles: number): boolean {
