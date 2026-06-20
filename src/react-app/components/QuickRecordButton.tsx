@@ -37,7 +37,6 @@ import {
 import {
   cameraPreviewHasFrames,
   cameraPreviewLooksReady,
-  isIosSafari,
   kickCameraPreviewPlay,
   prepareCameraPreviewElement,
 } from '@/react-app/utils/cameraPreview';
