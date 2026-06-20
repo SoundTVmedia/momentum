@@ -2281,12 +2281,14 @@ export default function UploadClip() {
                 {isPrePostClip
                   ? 'Add a short description and post. This clip goes to your friends-only pre/post feed — we will not link it to an artist or venue.'
                   : songIdentifyPending
-                    ? 'Identifying song in the background — venue and artist fill in from your location. Share once both are set.'
+                    ? 'Identifying song in the background — you can share now; venue and artist may fill in during upload.'
                     : 'Add details and post. After you share, upload continues in the background so you can record your next clip right away.'}
                 {!isPrePostClip && !songIdentifyPending
                   ? uploadSource === 'library'
                     ? ' We read date and location from your video file when available to find a matching show.'
-                    : ' Venue and location are filled from GPS and JamBase when we find a match.'
+                    : canPostWithShowDetails
+                      ? ' Venue and location are filled from GPS and JamBase when we find a match.'
+                      : ' Venue and artist can fill in automatically during upload from your location and show data.'
                   : null}
               </p>
             </div>
@@ -2486,7 +2488,7 @@ export default function UploadClip() {
                 <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                   <p className="text-amber-100 text-sm">{classifyMessage}</p>
                   <p className="text-gray-400 text-xs mt-1">
-                    Add artist and venue below to post without a song match.
+                    You can still share — we may fill artist and venue during upload.
                   </p>
                 </div>
               )}
@@ -2847,16 +2849,18 @@ export default function UploadClip() {
               <div className="space-y-3 pt-4">
                 <button
                   type="button"
-                  disabled={clipUploadsInFlight >= 5 || !canPostWithShowDetails}
+                  disabled={clipUploadsInFlight >= 5}
                   onClick={() => void handleSubmit(null)}
                   className="w-full px-6 py-4 md:px-[1.65rem] md:py-[1.1rem] momentum-grad-interactive rounded-xl font-bold text-white text-lg md:text-[1.2375rem] hover:scale-[1.02] md:hover:scale-[1.12] transition-transform active:scale-[0.98] shadow-lg shadow-momentum-ember/35 disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  {!canPostWithShowDetails
-                    ? 'Add artist & venue to share'
-                    : isPrePostClip
-                      ? 'Share talking moment'
-                      : 'Share your moment'}
+                  {isPrePostClip ? 'Share talking moment' : 'Share your moment'}
                 </button>
+                {!canPostWithShowDetails && !isPrePostClip ? (
+                  <p className="text-center text-xs text-gray-400">
+                    Artist and venue are optional — we will try to match them from your recording
+                    location while this clip uploads.
+                  </p>
+                ) : null}
                 <p className="text-center text-xs text-gray-500">
                   Your clip uploads in the background — you can record again immediately.
                 </p>

@@ -4,6 +4,7 @@ import { createStreamService } from './stream-service';
 import { notifyUser } from './notification-utils';
 import { createRealtimeService } from './realtime-service';
 import * as gamification from './gamification-endpoints';
+import { enrichDraftClipRowIfNeeded } from './clips-enrich-upload-show';
 
 type UploadedClipRow = {
   id: number;
@@ -121,6 +122,29 @@ async function repairStuckR2Clips(env: Env): Promise<void> {
 
 async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<void> {
   const clipId = clip.id;
+  const uid = clip.mocha_user_id?.trim();
+  if (uid) {
+    try {
+      await enrichDraftClipRowIfNeeded(env, clipId, uid);
+      const tagRow = await env.DB.prepare(
+        'SELECT artist_name, venue_name FROM clips WHERE id = ?',
+      )
+        .bind(clipId)
+        .first<{ artist_name?: string | null; venue_name?: string | null }>();
+      if (tagRow) {
+        clip = {
+          ...clip,
+          artist_name:
+            typeof tagRow.artist_name === 'string' ? tagRow.artist_name : clip.artist_name,
+          venue_name:
+            typeof tagRow.venue_name === 'string' ? tagRow.venue_name : clip.venue_name,
+        };
+      }
+    } catch (err) {
+      console.error(`processOneUploadedClip enrich clip ${clipId}:`, err);
+    }
+  }
+
   const r2Key = clip.r2_raw_key?.trim();
   if (!r2Key) {
     await env.DB
