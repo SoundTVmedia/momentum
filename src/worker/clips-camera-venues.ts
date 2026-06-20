@@ -7,7 +7,7 @@ import {
   dedupeClipCandidatesByVenue,
   resolveGoingMarkClipCandidate,
 } from '../shared/clip-resolve-show-match';
-import { fetchNearbyJamBaseEvents } from './discover-jambase-enrich';
+import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 
 /**
@@ -48,7 +48,15 @@ export async function postCameraVenuesForClip(c: Context) {
   }
 
   const jbQ = jamBaseQuotaFromEnv(c.env);
-  const rawEvents = await fetchNearbyJamBaseEvents(key, jbQ, lat, lon, 50, 50, undefined, captureMs);
+  const rawEvents = await fetchCameraVenueJamBaseEvents(
+    key,
+    jbQ,
+    lat,
+    lon,
+    captureMs,
+    50,
+    50,
+  );
   const mapped = clipCandidatesFromJamBaseEvents(rawEvents, lat, lon, captureMs, undefined, {
     loose: true,
   });

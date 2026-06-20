@@ -4,6 +4,7 @@ import {
   jamBaseEventLocalYmd,
   jamBaseEventMatchesCapture,
   jamBaseEventOngoingAtCapture,
+  jamBaseEventCameraCaptureDay,
   jamBaseEventSameCalendarDay,
   ymdInTimeZone,
 } from './jambase-event-day';
@@ -117,7 +118,7 @@ function candidateEventOnCaptureCalendarDay(
       ? { name: candidate.venue_name ?? '', address: { 'x-timezone': tz } }
       : { name: candidate.venue_name ?? '' },
   };
-  return jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon);
+  return jamBaseEventCameraCaptureDay(ev, captureMs, userLat, userLon);
 }
 
 /** Closest venues with today's JamBase event within the auto-apply radius. */

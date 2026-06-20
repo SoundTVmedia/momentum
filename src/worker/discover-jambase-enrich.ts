@@ -5,10 +5,13 @@ import {
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { haversineMiles } from './search-geo';
-import { jamBaseEventMatchesCapture, jamBaseVenueEventLookbackDateFrom } from '../shared/jambase-event-day';
+import { jamBaseEventMatchesCapture, jamBaseEventCameraCaptureDay, jamBaseGeoEventDateFromUtc, jamBaseVenueEventDateFromForExpandPast } from '../shared/jambase-event-day';
 
 /** Closest venues to enrich with in-progress listings (expandPastEvents). */
 const NEARBY_VENUE_IN_SHOW_ENRICH = 8;
+
+/** Camera capture: enrich more nearby venues with expandPastEvents. */
+const CAMERA_VENUE_IN_SHOW_ENRICH = 15;
 import {
   jamBaseVenueJamBaseImage,
   jamBaseVenueOfficialWebsite,
@@ -536,13 +539,15 @@ function sortJamBaseVenuesByDistanceFrom(
   });
 }
 
-async function fetchInShowEventsAtNearbyVenues(
+async function fetchExpandPastEventsAtNearbyVenues(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,
   latitude: number,
   longitude: number,
   radiusMiles: number,
   captureMs: number,
+  maxVenues: number,
+  matchesCapture: (ev: Record<string, unknown>) => boolean,
 ): Promise<Record<string, unknown>[]> {
   const venuesData = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
     apiKey,
@@ -558,9 +563,9 @@ async function fetchInShowEventsAtNearbyVenues(
     jbQ,
   );
   const venues = sortJamBaseVenuesByDistanceFrom(venuesData?.venues ?? [], latitude, longitude)
-    .slice(0, NEARBY_VENUE_IN_SHOW_ENRICH);
+    .slice(0, maxVenues);
 
-  const eventDateFrom = jamBaseVenueEventLookbackDateFrom(captureMs);
+  const eventDateFrom = jamBaseVenueEventDateFromForExpandPast(captureMs, latitude, longitude);
   const results = await Promise.allSettled(
     venues.map(async (venue) => {
       const venueId = jamBaseVenueId(venue);
@@ -587,14 +592,36 @@ async function fetchInShowEventsAtNearbyVenues(
     if (result.status !== 'fulfilled') continue;
     for (const ev of result.value) {
       if (typeof ev !== 'object' || ev === null) continue;
-      const id = jamBaseEventId(ev as Record<string, unknown>);
-      const key = id ?? JSON.stringify(ev);
+      const row = ev as Record<string, unknown>;
+      if (!matchesCapture(row)) continue;
+      const id = jamBaseEventId(row);
+      const key = id ?? JSON.stringify(row);
       if (seen.has(key)) continue;
       seen.add(key);
-      merged.push(ev as Record<string, unknown>);
+      merged.push(row);
     }
   }
   return merged;
+}
+
+async function fetchInShowEventsAtNearbyVenues(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  latitude: number,
+  longitude: number,
+  radiusMiles: number,
+  captureMs: number,
+): Promise<Record<string, unknown>[]> {
+  return fetchExpandPastEventsAtNearbyVenues(
+    apiKey,
+    jbQ,
+    latitude,
+    longitude,
+    radiusMiles,
+    captureMs,
+    NEARBY_VENUE_IN_SHOW_ENRICH,
+    (ev) => jamBaseEventMatchesCapture(ev, captureMs, latitude, longitude),
+  );
 }
 
 function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {
@@ -680,6 +707,74 @@ export async function fetchNearbyJamBaseEvents(
   for (const ev of inShowEvents) {
     if (typeof ev !== 'object' || ev === null) continue;
     if (!jamBaseEventMatchesCapture(ev, captureMs, latitude, longitude)) continue;
+    const id = jamBaseEventId(ev);
+    const mapKey = id ?? JSON.stringify(ev);
+    if (!merged.has(mapKey)) merged.set(mapKey, ev);
+  }
+
+  const raw = [...merged.values()];
+  return sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
+}
+
+/**
+ * Camera venue picker: geo upcoming events + expandPastEvents at the closest venues,
+ * filtered to the capture calendar day (in-progress shows up to 10h after start).
+ */
+export async function fetchCameraVenueJamBaseEvents(
+  apiKey: string | undefined,
+  jbQ: JamBaseQuotaContext | undefined,
+  latitude: number,
+  longitude: number,
+  captureMs: number,
+  radiusMiles = 50,
+  limit = 50,
+  diag?: JamBaseFetchDiag,
+): Promise<Record<string, unknown>[]> {
+  const key = typeof apiKey === 'string' ? apiKey.trim() : '';
+  if (!key) return [];
+
+  const radius = Math.min(100, Math.max(10, radiusMiles));
+  const matchesCameraDay = (ev: Record<string, unknown>) =>
+    jamBaseEventCameraCaptureDay(ev, captureMs, latitude, longitude);
+
+  const [geoData, inShowEvents] = await Promise.all([
+    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      key,
+      '/events',
+      {
+        geoLatitude: String(latitude),
+        geoLongitude: String(longitude),
+        geoRadiusAmount: String(radius),
+        geoRadiusUnits: 'mi',
+        eventDateFrom: jamBaseGeoEventDateFromUtc(captureMs),
+        perPage: String(Math.min(40, Math.max(1, limit))),
+        page: '1',
+      },
+      jbQ,
+      diag,
+    ),
+    fetchExpandPastEventsAtNearbyVenues(
+      key,
+      jbQ,
+      latitude,
+      longitude,
+      radius,
+      captureMs,
+      CAMERA_VENUE_IN_SHOW_ENRICH,
+      matchesCameraDay,
+    ),
+  ]);
+
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const ev of geoData?.events ?? []) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    if (!matchesCameraDay(ev)) continue;
+    const id = jamBaseEventId(ev);
+    const mapKey = id ?? JSON.stringify(ev);
+    if (!merged.has(mapKey)) merged.set(mapKey, ev);
+  }
+  for (const ev of inShowEvents) {
+    if (typeof ev !== 'object' || ev === null) continue;
     const id = jamBaseEventId(ev);
     const mapKey = id ?? JSON.stringify(ev);
     if (!merged.has(mapKey)) merged.set(mapKey, ev);

@@ -335,4 +335,22 @@ describe('closestVenuesWithEventsOnCaptureDay', () => {
     expect(venues).toHaveLength(1);
     expect(venues[0]?.jambase_event_id).toBe('ev-today');
   });
+
+  it('includes in-progress show started earlier today within ten hours', () => {
+    const captureMs = Date.parse('2026-06-21T02:00:00.000Z'); // 10pm Eastern June 20
+    const venues = closestVenuesWithEventsOnCaptureDay(
+      [
+        baseCandidate({
+          jambase_event_id: 'ev-tonight',
+          startDate: '2026-06-20T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.6,
+        }),
+      ],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(venues).toHaveLength(1);
+  });
 });

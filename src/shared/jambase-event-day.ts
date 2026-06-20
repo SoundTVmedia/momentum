@@ -6,6 +6,9 @@
 /** Include captures up to this many hours after `startDate` while the show is still in progress. */
 export const JAMBASE_EVENT_ONGOING_HOURS_AFTER_START = 4;
 
+/** Camera capture: max hours after start to still match an in-progress show on the current date. */
+export const JAMBASE_CAMERA_EVENT_MAX_HOURS_AFTER_START = 10;
+
 /** Look back this many hours before capture when resolving in-show listings at a venue. */
 export const JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS = 10;
 
@@ -85,6 +88,35 @@ export function jamBaseVenueEventLookbackDateFrom(captureMs: number = Date.now()
   win.setUTCDate(win.getUTCDate() - 1);
   const tentative = ymdUtc(win.getTime());
   return tentative < todayUtc ? todayUtc : tentative;
+}
+
+/**
+ * Earliest allowed `eventDateFrom` for JamBase geo `/events` (HTTP 400 if before UTC today).
+ * May look back one UTC day when capture is shortly after UTC midnight.
+ */
+export function jamBaseGeoEventDateFromUtc(anchorMs: number = Date.now()): string {
+  return jamBaseVenueEventLookbackDateFrom(anchorMs);
+}
+
+/** Venue-local calendar day for the capture instant (for eventDateFrom when coords are known). */
+export function jamBaseEventDateFromCaptureLocal(
+  captureMs: number,
+  userLat: number,
+  userLon: number,
+): string {
+  const tz = inferTimezoneFromCoords(userLat, userLon) ?? 'UTC';
+  return ymdInTimeZone(captureMs, tz);
+}
+
+/** Safe `eventDateFrom` for venue expandPastEvents: never before JamBase geo UTC floor. */
+export function jamBaseVenueEventDateFromForExpandPast(
+  captureMs: number,
+  userLat: number,
+  userLon: number,
+): string {
+  const local = jamBaseEventDateFromCaptureLocal(captureMs, userLat, userLon);
+  const utcFloor = jamBaseGeoEventDateFromUtc(captureMs);
+  return local >= utcFloor ? local : utcFloor;
 }
 
 function daysBetweenYmd(eventYmd: string, captureYmd: string): number {
@@ -225,6 +257,23 @@ export function jamBaseEventSameCalendarDay(
   const tz = jamBaseVenueTimezone(ev, userLat, userLon);
   const captureYmd = ymdInTimeZone(captureMs, tz);
   return eventYmd === captureYmd;
+}
+
+/**
+ * Camera venue picker: same venue-local calendar day, including shows that already started
+ * today (via expandPastEvents) up to {@link JAMBASE_CAMERA_EVENT_MAX_HOURS_AFTER_START}h after start.
+ */
+export function jamBaseEventCameraCaptureDay(
+  ev: Record<string, unknown>,
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (!jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)) return false;
+  const hours = jamBaseEventHoursFromStart(ev, captureMs, userLat, userLon);
+  if (hours == null) return true;
+  if (hours < 0) return true;
+  return hours <= JAMBASE_CAMERA_EVENT_MAX_HOURS_AFTER_START;
 }
 
 /**

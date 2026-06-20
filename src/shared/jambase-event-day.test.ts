@@ -4,6 +4,7 @@ import {
   jamBaseEventLocalYmd,
   jamBaseEventMatchesCapture,
   jamBaseEventOnCaptureDay,
+  jamBaseEventCameraCaptureDay,
   jamBaseEventSameCalendarDay,
   jamBaseEventStartMs,
 } from './jambase-event-day';
@@ -137,5 +138,43 @@ describe('jamBaseEventSameCalendarDay', () => {
     const captureMs = Date.parse('2026-06-20T18:00:00.000Z'); // 2pm Eastern June 20
     expect(jamBaseEventSameCalendarDay(event, captureMs)).toBe(false);
     expect(jamBaseEventMatchesCapture(event, captureMs)).toBe(false);
+  });
+});
+
+describe('jamBaseEventCameraCaptureDay', () => {
+  const event = {
+    startDate: '2026-06-20T19:30:00',
+    location: {
+      name: 'Neighborhood Venue',
+      address: { 'x-timezone': 'America/New_York' },
+    },
+  };
+
+  it('includes in-progress show within ten hours of start on the same date', () => {
+    const captureMs = Date.parse('2026-06-21T02:00:00.000Z'); // 10pm Eastern June 20
+    expect(jamBaseEventCameraCaptureDay(event, captureMs)).toBe(true);
+  });
+
+  it('includes upcoming show later today', () => {
+    const captureMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
+    expect(jamBaseEventCameraCaptureDay(event, captureMs)).toBe(true);
+  });
+
+  it('rejects show that started more than ten hours ago on the same date', () => {
+    const morningShow = {
+      startDate: '2026-06-20T09:00:00',
+      location: event.location,
+    };
+    const captureMs = Date.parse('2026-06-21T00:00:00.000Z'); // 8pm Eastern June 20 (~11h after 9am start)
+    expect(jamBaseEventCameraCaptureDay(morningShow, captureMs)).toBe(false);
+  });
+
+  it('rejects yesterday show even if within ten hours of start', () => {
+    const yesterday = {
+      startDate: '2026-06-19T19:30:00',
+      location: event.location,
+    };
+    const captureMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
+    expect(jamBaseEventCameraCaptureDay(yesterday, captureMs)).toBe(false);
   });
 });
