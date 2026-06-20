@@ -4,6 +4,8 @@ import {
   isPastJamBaseEvent,
   isUpcomingJamBaseEvent,
   isUpcomingShowMark,
+  partitionShowMarksForLists,
+  showMarkShouldPromoteGoingToAttended,
   pastShowSummaryToJamBaseEvent,
   pickGoingShowMarkForCapture,
   pickLastEligibleGoingShowMark,
@@ -243,5 +245,57 @@ describe('pickGoingShowMarkForCapture', () => {
       -73.99,
     );
     expect(picked?.jambase_event_id).toBe('tonight');
+  });
+});
+
+describe('showMarkShouldPromoteGoingToAttended', () => {
+  const event = {
+    startDate: '2026-06-20T19:30:00',
+    location: {
+      name: 'Neighborhood Venue',
+      address: { 'x-timezone': 'America/New_York' },
+    },
+  };
+
+  it('promotes going marks after doors time', () => {
+    const nowMs = Date.parse('2026-06-21T00:00:00.000Z'); // 8pm Eastern June 20
+    expect(
+      showMarkShouldPromoteGoingToAttended(
+        mark({ start_date: event.startDate, venue_timezone: 'America/New_York' }),
+        nowMs,
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps future going marks on the Going list', () => {
+    const nowMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
+    expect(
+      showMarkShouldPromoteGoingToAttended(
+        mark({ start_date: event.startDate, venue_timezone: 'America/New_York' }),
+        nowMs,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('partitionShowMarksForLists', () => {
+  it('moves started going marks into attended', () => {
+    const started = mark({
+      jambase_event_id: 'started',
+      start_date: '2026-06-20T19:30:00',
+      venue_timezone: 'America/New_York',
+    });
+    const future = mark({
+      jambase_event_id: 'future',
+      start_date: '2026-06-25T19:30:00',
+      venue_timezone: 'America/New_York',
+    });
+    const went = mark({ jambase_event_id: 'went', status: 'attended' });
+    const nowMs = Date.parse('2026-06-21T00:00:00.000Z');
+
+    const { going, attended } = partitionShowMarksForLists([started, future, went], nowMs);
+    expect(going.map((m) => m.jambase_event_id)).toEqual(['future']);
+    expect(attended.map((m) => m.jambase_event_id)).toEqual(['started', 'went']);
+    expect(attended[0]?.status).toBe('attended');
   });
 });

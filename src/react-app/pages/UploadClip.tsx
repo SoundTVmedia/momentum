@@ -119,7 +119,7 @@ export default function UploadClip() {
   const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight, jobs: clipUploadJobs } =
     useClipUploadQueue();
   const isMobile = useIsMobileViewport();
-  const { goingMarks, hydrated: showMarksHydrated } = useShowMarks();
+  const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const [error, setError] = useState<string | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -432,7 +432,7 @@ export default function UploadClip() {
         | undefined;
       if (showMarksHydrated) {
         const autoFill = resolveCameraGoingAutoFill(
-          goingMarks,
+          captureMarks,
           Date.now(),
           capGeo?.latitude,
           capGeo?.longitude,
@@ -1130,7 +1130,7 @@ export default function UploadClip() {
             setCaptureGeo(geo);
           } else {
             if (!cancelled && showMarksHydrated) {
-              const autoFill = resolveCameraGoingAutoFill(goingMarks, Date.now());
+              const autoFill = resolveCameraGoingAutoFill(captureMarks, Date.now());
               if (autoFill) {
                 applyClipCandidate(autoFill.candidate);
                 setResolveNotice(null);
@@ -1167,7 +1167,7 @@ export default function UploadClip() {
       if (showMarksHydrated && resolveForAutoTagQuick) {
         const atMs = Date.parse(at);
         const autoFill = resolveCameraGoingAutoFill(
-          goingMarks,
+          captureMarks,
           Number.isFinite(atMs) ? atMs : Date.now(),
           geo.latitude,
           geo.longitude,
@@ -1233,7 +1233,7 @@ export default function UploadClip() {
         const captureMs = Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now();
         const goingOverride = resolveShowAutoApplyCandidate(
           data,
-          goingMarks,
+          captureMarks,
           captureMs,
           geo.latitude,
           geo.longitude,
@@ -1302,7 +1302,7 @@ export default function UploadClip() {
     libraryFileMeta,
     clipUploadsInFlight,
     showMarksHydrated,
-    goingMarks,
+    captureMarks,
   ]);
 
   const clearShowAssociationFields = useCallback(() => {

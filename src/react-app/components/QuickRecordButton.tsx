@@ -92,7 +92,7 @@ export default function QuickRecordButton({
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
   const { activeCount: clipUploadsInFlight } = useClipUploadQueue();
-  const { goingMarks, hydrated: showMarksHydrated } = useShowMarks();
+  const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const lastGeoRef = useRef<{
     latitude: number;
     longitude: number;
@@ -290,12 +290,12 @@ export default function QuickRecordButton({
 
   const captureVenueFetchStartedRef = useRef(false);
   const captureGoingAppliedRef = useRef(false);
-  const goingMarksRef = useRef(goingMarks);
+  const captureMarksRef = useRef(captureMarks);
   const showMarksHydratedRef = useRef(showMarksHydrated);
 
   useEffect(() => {
-    goingMarksRef.current = goingMarks;
-  }, [goingMarks]);
+    captureMarksRef.current = captureMarks;
+  }, [captureMarks]);
 
   useEffect(() => {
     showMarksHydratedRef.current = showMarksHydrated;
@@ -338,7 +338,7 @@ export default function QuickRecordButton({
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) return;
 
     const autoFill = resolveCameraGoingAutoFill(
-      goingMarks,
+      captureMarks,
       Date.now(),
       c.lat,
       c.lon,
@@ -360,7 +360,7 @@ export default function QuickRecordButton({
   }, [
     showModal,
     showMarksHydrated,
-    goingMarks,
+    captureMarks,
     coordsForNearbyVenues?.lat,
     coordsForNearbyVenues?.lon,
     clipUploadsInFlight,
@@ -373,7 +373,7 @@ export default function QuickRecordButton({
     if (coordsForNearbyVenues) return;
     if (captureGoingAppliedRef.current || captureVenueFetchStartedRef.current) return;
 
-    const autoFill = resolveCameraGoingAutoFill(goingMarks, Date.now());
+    const autoFill = resolveCameraGoingAutoFill(captureMarks, Date.now());
     if (autoFill) {
       applyGoingCaptureCandidate(autoFill.candidate);
       return;
@@ -390,7 +390,7 @@ export default function QuickRecordButton({
     showMarksHydrated,
     captureLaunchGeoResolved,
     coordsForNearbyVenues,
-    goingMarks,
+    captureMarks,
     applyGoingCaptureCandidate,
   ]);
 
@@ -437,7 +437,7 @@ export default function QuickRecordButton({
 
     if (showMarksHydratedRef.current) {
       const autoFill = resolveCameraGoingAutoFill(
-        goingMarksRef.current,
+        captureMarksRef.current,
         Date.now(),
         c.lat,
         c.lon,
@@ -512,7 +512,7 @@ export default function QuickRecordButton({
 
         const autoFillAfterFetch = showMarksHydratedRef.current
           ? resolveCameraGoingAutoFill(
-              goingMarksRef.current,
+              captureMarksRef.current,
               captureMs,
               c.lat,
               c.lon,
@@ -1746,13 +1746,13 @@ export default function QuickRecordButton({
         Number.isFinite(geo.longitude) &&
         showMarksHydrated
           ? resolveCameraGoingAutoFill(
-              goingMarks,
+              captureMarks,
               Date.parse(at) || Date.now(),
               geo.latitude,
               geo.longitude,
             )?.candidate ?? null
           : showMarksHydrated
-            ? resolveCameraGoingAutoFill(goingMarks, Date.parse(at) || Date.now())?.candidate ??
+            ? resolveCameraGoingAutoFill(captureMarks, Date.parse(at) || Date.now())?.candidate ??
               null
             : null;
       const prefetchShow =

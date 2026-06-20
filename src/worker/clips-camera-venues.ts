@@ -9,7 +9,7 @@ import {
 } from '../shared/clip-resolve-show-match';
 import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import { jamBaseQuotaFromEnv } from './jambase-client';
-import { loadGoingShowMarksForUser } from './user-show-marks-endpoints';
+import { loadCaptureShowMarksForUser } from './user-show-marks-endpoints';
 
 /**
  * POST /api/clips/camera-venues
@@ -39,7 +39,7 @@ export async function postCameraVenuesForClip(c: Context) {
     return c.json({ error: 'latitude and longitude are required' }, 400);
   }
 
-  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
+  const goingMarks = await loadCaptureShowMarksForUser(c.env.DB, mochaUser.id);
   const goingAutoFill = resolveCameraGoingAutoFill(goingMarks, captureMs, lat, lon);
   if (goingAutoFill) {
     c.header('Cache-Control', 'private, max-age=30');

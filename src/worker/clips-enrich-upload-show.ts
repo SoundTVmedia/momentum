@@ -16,7 +16,7 @@ import { JAMBASE_CAMERA_EVENT_MAX_HOURS_AFTER_START } from '../shared/jambase-ev
 import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { haversineMiles } from './search-geo';
-import { loadGoingShowMarksForUser } from './user-show-marks-endpoints';
+import { loadCaptureShowMarksForUser } from './user-show-marks-endpoints';
 
 /** Same slack as sticky client session after a post at the venue. */
 const RECENT_CLIP_MAX_DISTANCE_MILES = 2.5;
@@ -201,7 +201,7 @@ export async function enrichClipShowTagsFromMetadata(
   const { lat, lon, captureMs } = input;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
-  const goingMarks = await loadGoingShowMarksForUser(env.DB, mochaUserId);
+  const goingMarks = await loadCaptureShowMarksForUser(env.DB, mochaUserId);
 
   const goingAuto = resolveCameraGoingAutoFill(goingMarks, captureMs, lat, lon);
   if (goingAuto?.candidate.venue_name?.trim() || goingAuto?.candidate.jambase_venue_id) {

@@ -3,6 +3,7 @@ import {
   jamBaseEventSameCalendarDay,
   jamBaseEventUpcomingOrInProgress,
   jamBaseEventInProgress,
+  jamBaseEventHasStarted,
 } from './jambase-event-day';
 import { isJamBaseEventOnOrAfterToday } from './jambase-events';
 import { computeShowId } from './show-id';
@@ -316,6 +317,49 @@ export function isUpcomingShowMark(mark: UserShowMark, nowMs: number = Date.now(
   return jamBaseEventUpcomingOrInProgress(showMarkToJamBaseEvent(mark), nowMs);
 }
 
+/** Going marks whose doors time has passed — belong on the Went list. */
+export function showMarkShouldPromoteGoingToAttended(
+  mark: UserShowMark,
+  nowMs: number = Date.now(),
+): boolean {
+  if (mark.status !== 'going') return false;
+  return jamBaseEventHasStarted(showMarkToJamBaseEvent(mark), nowMs);
+}
+
+/** List buckets after auto-promotion (Going = not started yet; Went = attended + started shows). */
+export function partitionShowMarksForLists(
+  marks: UserShowMark[],
+  nowMs: number = Date.now(),
+): { going: UserShowMark[]; attended: UserShowMark[] } {
+  const going: UserShowMark[] = [];
+  const attended: UserShowMark[] = [];
+  for (const mark of marks) {
+    if (showMarkShouldPromoteGoingToAttended(mark, nowMs)) {
+      attended.push({ ...mark, status: 'attended' });
+    } else if (mark.status === 'going') {
+      going.push(mark);
+    } else if (mark.status === 'attended') {
+      attended.push(mark);
+    }
+  }
+  return { going, attended };
+}
+
+/** Marks eligible for capture auto-fill (future Going + in-progress Going or Went). */
+export function isActiveShowMarkForCapture(
+  mark: UserShowMark,
+  nowMs: number = Date.now(),
+): boolean {
+  const ev = showMarkToJamBaseEvent(mark);
+  if (mark.status === 'going') {
+    return jamBaseEventUpcomingOrInProgress(ev, nowMs);
+  }
+  if (mark.status === 'attended') {
+    return jamBaseEventInProgress(ev, nowMs);
+  }
+  return false;
+}
+
 export function showMarkToClipCandidate(mark: UserShowMark): ClipShowCandidate {
   return {
     jambase_event_id: mark.jambase_event_id,
@@ -393,18 +437,17 @@ export function pickLastEligibleGoingShowMark(
   return eligible[0] ?? null;
 }
 
-/** Going mark on a show that is in progress (user marked "I'm there"). */
+/** In-progress show mark (Going or auto-promoted Went) for "I'm there" capture. */
 export function pickInProgressGoingShowMark(
   marks: UserShowMark[],
   nowMs: number = Date.now(),
   userLat?: number,
   userLon?: number,
 ): UserShowMark | null {
-  const imThere = marks.filter(
-    (m) =>
-      m.status === 'going' &&
-      jamBaseEventInProgress(showMarkToJamBaseEvent(m), nowMs, userLat, userLon),
-  );
+  const imThere = marks.filter((m) => {
+    if (m.status !== 'going' && m.status !== 'attended') return false;
+    return jamBaseEventInProgress(showMarkToJamBaseEvent(m), nowMs, userLat, userLon);
+  });
   if (imThere.length === 0) return null;
 
   imThere.sort((a, b) => {

@@ -2,14 +2,17 @@ import type { Context } from 'hono';
 import { mochaUserIdKey, normalizeArtistDisplayName } from './favorite-artists-sync';
 import { isUserFollowTargetId } from './follow-endpoints';
 import {
+  isActiveShowMarkForCapture,
   isUpcomingJamBaseEvent,
   mergeJamBaseEventWithShowMark,
+  showMarkShouldPromoteGoingToAttended,
   showMarkToJamBaseEvent,
   type ShowMarkStatus,
   type ShowMarkUpsertInput,
   type UserShowMark,
 } from '../shared/show-marks';
 import {
+  jamBaseEventHasStarted,
   jamBaseEventHoursFromStart,
   jamBaseEventInProgress,
   jamBaseEventUpcomingOrInProgress,
@@ -77,6 +80,54 @@ export async function loadGoingShowMarksForUser(
     .all();
 
   return ((rows.results ?? []) as Record<string, unknown>[]).map(rowToMark);
+}
+
+/** Persist Going → Went for shows whose doors time has passed. */
+export async function promoteStartedGoingMarksForUser(
+  db: D1Database,
+  mochaUserId: string,
+  nowMs: number = Date.now(),
+): Promise<void> {
+  const rows = await db
+    .prepare(
+      `SELECT * FROM user_show_marks WHERE mocha_user_id = ? AND status = 'going'`,
+    )
+    .bind(mochaUserId)
+    .all();
+
+  for (const row of rows.results ?? []) {
+    const mark = rowToMark(row as Record<string, unknown>);
+    if (!showMarkShouldPromoteGoingToAttended(mark, nowMs)) continue;
+    await db
+      .prepare(
+        `UPDATE user_show_marks
+         SET status = 'attended', updated_at = datetime('now')
+         WHERE mocha_user_id = ? AND jambase_event_id = ?`,
+      )
+      .bind(mochaUserId, mark.jambase_event_id)
+      .run();
+  }
+}
+
+/** Going marks still eligible for capture / venue matching (includes in-progress Went). */
+export async function loadCaptureShowMarksForUser(
+  db: D1Database,
+  mochaUserId: string,
+  nowMs: number = Date.now(),
+): Promise<UserShowMark[]> {
+  await promoteStartedGoingMarksForUser(db, mochaUserId, nowMs);
+
+  const rows = await db
+    .prepare(
+      `SELECT * FROM user_show_marks
+       WHERE mocha_user_id = ? AND status IN ('going', 'attended')`,
+    )
+    .bind(mochaUserId)
+    .all();
+
+  return ((rows.results ?? []) as Record<string, unknown>[])
+    .map(rowToMark)
+    .filter((mark) => isActiveShowMarkForCapture(mark, nowMs));
 }
 
 export async function loadGoingEventIds(db: D1Database, mochaUserId: string): Promise<Set<string>> {
@@ -235,6 +286,8 @@ export async function getMyShowMarks(c: Context) {
   const validStatus = statusFilter === 'going' || statusFilter === 'attended';
 
   try {
+    await promoteStartedGoingMarksForUser(c.env.DB, uid);
+
     const rows = validStatus
       ? await c.env.DB.prepare(
           `SELECT * FROM user_show_marks
@@ -289,13 +342,18 @@ export async function upsertMyShowMark(c: Context) {
   }
 
   const upcoming = isUpcomingJamBaseEvent(showMarkToJamBaseEvent(tempMarkFromInput(input)));
+  const markEvent = showMarkToJamBaseEvent(tempMarkFromInput(input));
   if (input.status === 'going' && !goingMarkAllowed(input)) {
     return c.json(
       { error: 'Going is only for upcoming shows. Mark past shows as Went instead.' },
       400,
     );
   }
-  if (input.status === 'attended' && upcoming) {
+  if (
+    input.status === 'attended' &&
+    upcoming &&
+    !jamBaseEventHasStarted(markEvent)
+  ) {
     return c.json(
       { error: 'Went is only for past shows. Mark upcoming shows as Going instead.' },
       400,
@@ -393,6 +451,7 @@ export async function getFriendsGoingShows(c: Context) {
       if (!friendId || !isUserFollowTargetId(friendId)) continue;
 
       const mark = rowToMark(row);
+      if (showMarkShouldPromoteGoingToAttended(mark)) continue;
       let group = byUser.get(friendId);
       if (!group) {
         group = {

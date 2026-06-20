@@ -26,7 +26,7 @@ import {
   resolveShowFromGoingMark,
   resolveShowMatchFromCandidates,
 } from '../shared/clip-resolve-show-match';
-import { loadGoingShowMarksForUser } from './user-show-marks-endpoints';
+import { loadCaptureShowMarksForUser } from './user-show-marks-endpoints';
 
 export {
   AUTO_APPLY_MAX_DISTANCE_MILES,
@@ -585,7 +585,7 @@ async function postResolveShowForClipInner(c: Context) {
   }
 
   const resolveAnchorMs = hasAt ? atMs : Date.now();
-  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
+  const goingMarks = await loadCaptureShowMarksForUser(c.env.DB, mochaUser.id);
   const goingResolve = resolveShowFromGoingMark(
     goingMarks,
     resolveAnchorMs,

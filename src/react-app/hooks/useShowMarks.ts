@@ -3,6 +3,11 @@ import { useAuth } from '@getmocha/users-service/react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { clearCaptureShowSessionForEvent } from '@/react-app/utils/captureShowSession';
 import type { ShowMarkStatus, ShowMarkUpsertInput, UserShowMark } from '@/shared/show-marks';
+import {
+  partitionShowMarksForLists,
+  isActiveShowMarkForCapture,
+  showMarkShouldPromoteGoingToAttended,
+} from '@/shared/show-marks';
 
 export const SHOW_MARKS_CHANGED_EVENT = 'show-marks-changed';
 
@@ -128,21 +133,29 @@ export function useShowMarks() {
     await fetchMarksShared(user.id, true);
   }, [user?.id]);
 
-  const marksByEventId = useMemo(() => {
-    const map = new Map<string, UserShowMark>();
-    for (const m of marks) {
-      map.set(m.jambase_event_id, m);
-    }
-    return map;
-  }, [marks]);
-
-  const goingMarks = useMemo(
-    () => marks.filter((m) => m.status === 'going'),
+  const marksWithEffectiveStatus = useMemo(
+    () =>
+      marks.map((m) =>
+        showMarkShouldPromoteGoingToAttended(m) ? { ...m, status: 'attended' as const } : m,
+      ),
     [marks],
   );
 
-  const attendedMarks = useMemo(
-    () => marks.filter((m) => m.status === 'attended'),
+  const marksByEventId = useMemo(() => {
+    const map = new Map<string, UserShowMark>();
+    for (const m of marksWithEffectiveStatus) {
+      map.set(m.jambase_event_id, m);
+    }
+    return map;
+  }, [marksWithEffectiveStatus]);
+
+  const listBuckets = useMemo(() => partitionShowMarksForLists(marks), [marks]);
+
+  const goingMarks = listBuckets.going;
+  const attendedMarks = listBuckets.attended;
+
+  const captureMarks = useMemo(
+    () => marks.filter((m) => isActiveShowMarkForCapture(m)),
     [marks],
   );
 
@@ -224,6 +237,7 @@ export function useShowMarks() {
     marks,
     goingMarks,
     attendedMarks,
+    captureMarks,
     marksByEventId,
     hydrated,
     loading,
