@@ -108,15 +108,26 @@ export function jamBaseEventDateFromCaptureLocal(
   return ymdInTimeZone(captureMs, tz);
 }
 
-/** Safe `eventDateFrom` for venue expandPastEvents: never before JamBase geo UTC floor. */
+/** Safe `eventDateFrom` for venue expandPastEvents: prefer venue-local capture day. */
 export function jamBaseVenueEventDateFromForExpandPast(
   captureMs: number,
   userLat: number,
   userLon: number,
 ): string {
-  const local = jamBaseEventDateFromCaptureLocal(captureMs, userLat, userLon);
-  const utcFloor = jamBaseGeoEventDateFromUtc(captureMs);
-  return local >= utcFloor ? local : utcFloor;
+  return jamBaseEventDateFromCaptureLocal(captureMs, userLat, userLon);
+}
+
+/** Date strings to try for venue-scoped expandPastEvents (local day first). */
+export function jamBaseVenueExpandPastEventDateCandidates(
+  captureMs: number,
+  userLat: number,
+  userLon: number,
+): string[] {
+  const tz = inferTimezoneFromCoords(userLat, userLon) ?? 'UTC';
+  const local = ymdInTimeZone(captureMs, tz);
+  const localPrev = ymdInTimeZone(captureMs - 86400000, tz);
+  const utc = jamBaseGeoEventDateFromUtc(captureMs);
+  return [...new Set([local, localPrev, utc])].sort();
 }
 
 function daysBetweenYmd(eventYmd: string, captureYmd: string): number {

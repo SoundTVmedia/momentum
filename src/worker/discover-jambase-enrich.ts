@@ -5,7 +5,7 @@ import {
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { haversineMiles } from './search-geo';
-import { jamBaseEventMatchesCapture, jamBaseEventCameraCaptureDay, jamBaseGeoEventDateFromUtc, jamBaseVenueEventDateFromForExpandPast } from '../shared/jambase-event-day';
+import { jamBaseEventMatchesCapture, jamBaseEventCameraCaptureDay, jamBaseEventDateFromCaptureLocal, jamBaseVenueExpandPastEventDateCandidates } from '../shared/jambase-event-day';
 
 /** Closest venues to enrich with in-progress listings (expandPastEvents). */
 const NEARBY_VENUE_IN_SHOW_ENRICH = 8;
@@ -539,6 +539,44 @@ function sortJamBaseVenuesByDistanceFrom(
   });
 }
 
+async function fetchVenueExpandPastEvents(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  venueId: string,
+  captureMs: number,
+  latitude: number,
+  longitude: number,
+): Promise<Record<string, unknown>[]> {
+  const dateCandidates = jamBaseVenueExpandPastEventDateCandidates(
+    captureMs,
+    latitude,
+    longitude,
+  );
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const eventDateFrom of dateCandidates) {
+    const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      apiKey,
+      '/events',
+      {
+        venueId,
+        eventDateFrom,
+        perPage: '25',
+        page: '1',
+        expandPastEvents: 'true',
+      },
+      jbQ,
+    );
+    for (const ev of data?.events ?? []) {
+      if (typeof ev !== 'object' || ev === null) continue;
+      const row = ev as Record<string, unknown>;
+      const id = jamBaseEventId(row);
+      const key = id ?? JSON.stringify(row);
+      if (!merged.has(key)) merged.set(key, row);
+    }
+  }
+  return [...merged.values()];
+}
+
 async function fetchExpandPastEventsAtNearbyVenues(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,
@@ -548,7 +586,7 @@ async function fetchExpandPastEventsAtNearbyVenues(
   captureMs: number,
   maxVenues: number,
   matchesCapture: (ev: Record<string, unknown>) => boolean,
-): Promise<Record<string, unknown>[]> {
+): Promise<{ events: Record<string, unknown>[]; venuesScanned: number; rawBeforeFilterCount: number }> {
   const venuesData = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
     apiKey,
     '/venues',
@@ -565,33 +603,29 @@ async function fetchExpandPastEventsAtNearbyVenues(
   const venues = sortJamBaseVenuesByDistanceFrom(venuesData?.venues ?? [], latitude, longitude)
     .slice(0, maxVenues);
 
-  const eventDateFrom = jamBaseVenueEventDateFromForExpandPast(captureMs, latitude, longitude);
   const results = await Promise.allSettled(
     venues.map(async (venue) => {
       const venueId = jamBaseVenueId(venue);
       if (!venueId) return [] as Record<string, unknown>[];
-      const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      return fetchVenueExpandPastEvents(
         apiKey,
-        '/events',
-        {
-          venueId,
-          eventDateFrom,
-          perPage: '25',
-          page: '1',
-          expandPastEvents: 'true',
-        },
         jbQ,
+        venueId,
+        captureMs,
+        latitude,
+        longitude,
       );
-      return data?.events ?? [];
     }),
   );
 
   const merged: Record<string, unknown>[] = [];
   const seen = new Set<string>();
+  let rawBeforeFilterCount = 0;
   for (const result of results) {
     if (result.status !== 'fulfilled') continue;
     for (const ev of result.value) {
       if (typeof ev !== 'object' || ev === null) continue;
+      rawBeforeFilterCount += 1;
       const row = ev as Record<string, unknown>;
       if (!matchesCapture(row)) continue;
       const id = jamBaseEventId(row);
@@ -601,7 +635,7 @@ async function fetchExpandPastEventsAtNearbyVenues(
       merged.push(row);
     }
   }
-  return merged;
+  return { events: merged, venuesScanned: venues.length, rawBeforeFilterCount };
 }
 
 async function fetchInShowEventsAtNearbyVenues(
@@ -612,7 +646,7 @@ async function fetchInShowEventsAtNearbyVenues(
   radiusMiles: number,
   captureMs: number,
 ): Promise<Record<string, unknown>[]> {
-  return fetchExpandPastEventsAtNearbyVenues(
+  const { events } = await fetchExpandPastEventsAtNearbyVenues(
     apiKey,
     jbQ,
     latitude,
@@ -622,6 +656,7 @@ async function fetchInShowEventsAtNearbyVenues(
     NEARBY_VENUE_IN_SHOW_ENRICH,
     (ev) => jamBaseEventMatchesCapture(ev, captureMs, latitude, longitude),
   );
+  return events;
 }
 
 function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {
@@ -720,6 +755,16 @@ export async function fetchNearbyJamBaseEvents(
  * Camera venue picker: geo upcoming events + expandPastEvents at the closest venues,
  * filtered to the capture calendar day (in-progress shows up to 10h after start).
  */
+export type CameraJamBaseFetchStats = {
+  geoEventRawCount: number;
+  geoEventMatchedCount: number;
+  expandPastVenueCount: number;
+  expandPastEventRawCount: number;
+  expandPastEventMatchedCount: number;
+  captureLocalYmd: string;
+  eventDateFromTried: string[];
+};
+
 export async function fetchCameraVenueJamBaseEvents(
   apiKey: string | undefined,
   jbQ: JamBaseQuotaContext | undefined,
@@ -729,15 +774,29 @@ export async function fetchCameraVenueJamBaseEvents(
   radiusMiles = 50,
   limit = 50,
   diag?: JamBaseFetchDiag,
-): Promise<Record<string, unknown>[]> {
+): Promise<{ events: Record<string, unknown>[]; stats: CameraJamBaseFetchStats }> {
   const key = typeof apiKey === 'string' ? apiKey.trim() : '';
-  if (!key) return [];
+  const emptyStats: CameraJamBaseFetchStats = {
+    geoEventRawCount: 0,
+    geoEventMatchedCount: 0,
+    expandPastVenueCount: 0,
+    expandPastEventRawCount: 0,
+    expandPastEventMatchedCount: 0,
+    captureLocalYmd: jamBaseEventDateFromCaptureLocal(captureMs, latitude, longitude),
+    eventDateFromTried: jamBaseVenueExpandPastEventDateCandidates(
+      captureMs,
+      latitude,
+      longitude,
+    ),
+  };
+  if (!key) return { events: [], stats: emptyStats };
 
   const radius = Math.min(100, Math.max(10, radiusMiles));
   const matchesCameraDay = (ev: Record<string, unknown>) =>
     jamBaseEventCameraCaptureDay(ev, captureMs, latitude, longitude);
 
-  const [geoData, inShowEvents] = await Promise.all([
+  const geoDateFrom = jamBaseEventDateFromCaptureLocal(captureMs, latitude, longitude);
+  const [geoData, expandPast] = await Promise.all([
     jamBaseFetch<{ events?: Record<string, unknown>[] }>(
       key,
       '/events',
@@ -746,7 +805,7 @@ export async function fetchCameraVenueJamBaseEvents(
         geoLongitude: String(longitude),
         geoRadiusAmount: String(radius),
         geoRadiusUnits: 'mi',
-        eventDateFrom: jamBaseGeoEventDateFromUtc(captureMs),
+        eventDateFrom: geoDateFrom,
         perPage: String(Math.min(40, Math.max(1, limit))),
         page: '1',
       },
@@ -765,21 +824,41 @@ export async function fetchCameraVenueJamBaseEvents(
     ),
   ]);
 
+  const geoRaw = geoData?.events ?? [];
+  let geoMatchedCount = 0;
   const merged = new Map<string, Record<string, unknown>>();
-  for (const ev of geoData?.events ?? []) {
+  for (const ev of geoRaw) {
     if (typeof ev !== 'object' || ev === null) continue;
     if (!matchesCameraDay(ev)) continue;
+    geoMatchedCount += 1;
     const id = jamBaseEventId(ev);
     const mapKey = id ?? JSON.stringify(ev);
     if (!merged.has(mapKey)) merged.set(mapKey, ev);
   }
-  for (const ev of inShowEvents) {
+
+  for (const ev of expandPast.events) {
     if (typeof ev !== 'object' || ev === null) continue;
     const id = jamBaseEventId(ev);
     const mapKey = id ?? JSON.stringify(ev);
     if (!merged.has(mapKey)) merged.set(mapKey, ev);
   }
 
-  const raw = [...merged.values()];
-  return sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
+  const raw = sortJamBaseEventsByDistanceFrom(
+    [...merged.values()],
+    latitude,
+    longitude,
+  ).slice(0, limit);
+
+  return {
+    events: raw,
+    stats: {
+      geoEventRawCount: geoRaw.length,
+      geoEventMatchedCount: geoMatchedCount,
+      expandPastVenueCount: expandPast.venuesScanned,
+      expandPastEventRawCount: expandPast.rawBeforeFilterCount,
+      expandPastEventMatchedCount: expandPast.events.length,
+      captureLocalYmd: emptyStats.captureLocalYmd,
+      eventDateFromTried: emptyStats.eventDateFromTried,
+    },
+  };
 }

@@ -101,7 +101,7 @@ function candidateEventMatchesCapture(
 }
 
 /** Camera picker: venue-local calendar day only (excludes yesterday's in-progress shows). */
-function candidateEventOnCaptureCalendarDay(
+export function clipCandidateMatchesCameraCaptureDay(
   candidate: ClipShowCandidate,
   captureMs: number,
   userLat?: number,
@@ -118,6 +118,15 @@ function candidateEventOnCaptureCalendarDay(
       : { name: candidate.venue_name ?? '' },
   };
   return jamBaseEventCameraCaptureDay(ev, captureMs, userLat, userLon);
+}
+
+function candidateEventOnCaptureCalendarDay(
+  candidate: ClipShowCandidate,
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  return clipCandidateMatchesCameraCaptureDay(candidate, captureMs, userLat, userLon);
 }
 
 /** Closest venues with today's JamBase event within the auto-apply radius. */

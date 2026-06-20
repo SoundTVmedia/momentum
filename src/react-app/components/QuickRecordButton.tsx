@@ -22,7 +22,7 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
-import { resolveGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
+import { clipCandidateMatchesCameraCaptureDay, resolveGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
   applyCameraZoom,
@@ -353,7 +353,8 @@ export default function QuickRecordButton({
     if (
       sticky?.source !== 'going' &&
       sticky?.candidate.jambase_event_id?.trim() &&
-      sticky?.candidate.venue_name?.trim()
+      sticky?.candidate.venue_name?.trim() &&
+      clipCandidateMatchesCameraCaptureDay(sticky.candidate, Date.now(), c.lat, c.lon)
     ) {
       const stickyPicker = [sticky.candidate];
       captureResolveCandidateRef.current = sticky.candidate;
@@ -408,7 +409,17 @@ export default function QuickRecordButton({
         const data = (await res.json()) as {
           venues?: ClipShowCandidate[];
           notice?: string | null;
-          meta?: { rawEventCount?: number; mappedCandidateCount?: number };
+          meta?: {
+            rawEventCount?: number;
+            mappedCandidateCount?: number;
+            venueMatchCount?: number;
+            captureLocalYmd?: string;
+            expandPastVenueCount?: number;
+            expandPastEventRawCount?: number;
+            expandPastEventMatchedCount?: number;
+            geoEventRawCount?: number;
+            geoEventMatchedCount?: number;
+          };
         };
         if (cancelled) return;
 
@@ -438,6 +449,19 @@ export default function QuickRecordButton({
 
         captureResolveCandidateRef.current = null;
         setCaptureVenuePickerChoices([]);
+        const meta = data.meta;
+        const debugParts: string[] = [];
+        if (meta?.captureLocalYmd) debugParts.push(`today=${meta.captureLocalYmd}`);
+        if (meta?.geoEventRawCount != null) {
+          debugParts.push(`geo ${meta.geoEventMatchedCount ?? 0}/${meta.geoEventRawCount}`);
+        }
+        if (meta?.expandPastVenueCount != null) {
+          debugParts.push(
+            `expandPast ${meta.expandPastEventMatchedCount ?? 0}/${meta.expandPastEventRawCount ?? 0} at ${meta.expandPastVenueCount} venues`,
+          );
+        }
+        const debugSuffix =
+          debugParts.length > 0 ? ` [${debugParts.join('; ')}]` : '';
         setCaptureResolvePreview({
           status: 'none',
           eventTitle: null,
@@ -447,7 +471,7 @@ export default function QuickRecordButton({
           notice:
             data.notice?.trim() ||
             (serverVenues.length === 0
-              ? `No JamBase shows tonight near you (${data.meta?.rawEventCount ?? 0} events scanned). You can add venue after you record.`
+              ? `No JamBase shows today near you (${meta?.rawEventCount ?? 0} events scanned${debugSuffix}). You can add venue after you record.`
               : null),
         });
       } catch (e) {
@@ -474,7 +498,7 @@ export default function QuickRecordButton({
           venueName: null,
           artistName: null,
           locationLine: null,
-          notice: null,
+          notice: 'Venue lookup failed. Try again or add the venue after you record.',
         });
       } finally {
         clearTimeout(resolveTimeoutId);
@@ -1855,10 +1879,18 @@ export default function QuickRecordButton({
                     Waiting for location permission — allow it when the browser asks so we can match venues.
                   </p>
                 )}
-                {coordsForNearbyVenues && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
-                    <div className="min-w-0 flex-1 text-left space-y-1">
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
+                  <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
+                  <div className="min-w-0 flex-1 text-left space-y-1">
+                    {!coordsForNearbyVenues ? (
+                      <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
+                        {captureLaunchGeoResolved
+                          ? 'Location unavailable — allow GPS to match venues near you.'
+                          : 'Getting your location to match nearby venues…'}
+                      </p>
+                    ) : (
+                      <>
                       {(captureResolvePreview.status === 'idle' ||
                         captureResolvePreview.status === 'loading') && (
                         <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
@@ -1963,7 +1995,8 @@ export default function QuickRecordButton({
                       )}
                       {captureResolvePreview.status === 'error' && (
                         <p className="text-gray-300 text-[11px] leading-snug">
-                          Couldn&apos;t preview venue; we&apos;ll try again after you record.
+                          {captureResolvePreview.notice ??
+                            'Couldn\u2019t preview venue; we\u2019ll try again after you record.'}
                         </p>
                       )}
                       {!isRecording ? (
@@ -1971,9 +2004,10 @@ export default function QuickRecordButton({
                           Saved with this clip — edit on the next screen.
                         </p>
                       ) : null}
-                    </div>
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             )}
 

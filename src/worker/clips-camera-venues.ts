@@ -48,7 +48,7 @@ export async function postCameraVenuesForClip(c: Context) {
   }
 
   const jbQ = jamBaseQuotaFromEnv(c.env);
-  const rawEvents = await fetchCameraVenueJamBaseEvents(
+  const { events: rawEvents, stats } = await fetchCameraVenueJamBaseEvents(
     key,
     jbQ,
     lat,
@@ -71,20 +71,30 @@ export async function postCameraVenuesForClip(c: Context) {
 
   c.header('Cache-Control', 'private, max-age=30');
 
+  const debugNotice =
+    venues.length === 0 && rawEvents.length > 0
+      ? `JamBase returned ${rawEvents.length} event(s) but none matched today (${stats.captureLocalYmd}).`
+      : venues.length === 0 && stats.expandPastEventRawCount > 0 && stats.expandPastEventMatchedCount === 0
+        ? `Found ${stats.expandPastEventRawCount} in-progress listing(s) at ${stats.expandPastVenueCount} venue(s), but none matched today's date.`
+        : null;
+
   return c.json({
     venues,
     notice:
       venues.length === 0
-        ? rawEvents.length === 0
-          ? 'No JamBase events returned near this location.'
-          : 'No JamBase shows tonight at nearby venues.'
+        ? debugNotice ||
+          (rawEvents.length === 0
+            ? 'No JamBase events returned near this location.'
+            : 'No JamBase shows today at nearby venues.')
         : null,
     meta: {
       rawEventCount: rawEvents.length,
       mappedCandidateCount: deduped.length,
+      venueMatchCount: venues.length,
       lat,
       lon,
       captureMs,
+      ...stats,
     },
   });
 }
