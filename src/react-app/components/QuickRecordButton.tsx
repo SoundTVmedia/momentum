@@ -22,7 +22,7 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
-import { clipCandidateMatchesCameraCaptureDay, resolveGoingMarkClipCandidate, resolveLastGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
+import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, resolveLastGoingMarkClipCandidate, isCameraGoingAutoFillSource } from '@/shared/clip-resolve-show-match';
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
   applyCameraZoom,
@@ -337,14 +337,14 @@ export default function QuickRecordButton({
     const c = coordsForNearbyVenues;
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) return;
 
-    const goingCandidate = resolveGoingMarkClipCandidate(
+    const autoFill = resolveCameraGoingAutoFill(
       goingMarks,
       Date.now(),
       c.lat,
       c.lon,
     );
-    if (goingCandidate) {
-      applyGoingCaptureCandidate(goingCandidate, c.lat, c.lon);
+    if (autoFill) {
+      applyGoingCaptureCandidate(autoFill.candidate, c.lat, c.lon);
       return;
     }
 
@@ -372,6 +372,12 @@ export default function QuickRecordButton({
     if (!showModal || !showMarksHydrated || !captureLaunchGeoResolved) return;
     if (coordsForNearbyVenues) return;
     if (captureGoingAppliedRef.current || captureVenueFetchStartedRef.current) return;
+
+    const autoFill = resolveCameraGoingAutoFill(goingMarks, Date.now());
+    if (autoFill) {
+      applyGoingCaptureCandidate(autoFill.candidate);
+      return;
+    }
 
     const fallback = resolveLastGoingMarkClipCandidate(goingMarks, Date.now());
     if (!fallback) return;
@@ -428,14 +434,14 @@ export default function QuickRecordButton({
     if (captureVenueFetchStartedRef.current || captureGoingAppliedRef.current) return;
 
     if (showMarksHydratedRef.current) {
-      const goingNow = resolveGoingMarkClipCandidate(
+      const autoFill = resolveCameraGoingAutoFill(
         goingMarksRef.current,
         Date.now(),
         c.lat,
         c.lon,
       );
-      if (goingNow) {
-        applyGoingCaptureCandidate(goingNow, c.lat, c.lon);
+      if (autoFill) {
+        applyGoingCaptureCandidate(autoFill.candidate, c.lat, c.lon);
         return;
       }
     }
@@ -497,30 +503,27 @@ export default function QuickRecordButton({
             expandPastEventMatchedCount?: number;
             geoEventRawCount?: number;
             geoEventMatchedCount?: number;
-            matchSource?: 'going' | 'jambase';
+            matchSource?: 'im_there' | 'going' | 'going_closest' | 'going_fallback' | 'jambase';
           };
         };
         if (cancelled || captureGoingAppliedRef.current) return;
 
-        const goingAfterFetch = showMarksHydratedRef.current
-          ? resolveGoingMarkClipCandidate(
+        const autoFillAfterFetch = showMarksHydratedRef.current
+          ? resolveCameraGoingAutoFill(
               goingMarksRef.current,
               captureMs,
               c.lat,
               c.lon,
             )
           : null;
-        if (goingAfterFetch) {
-          applyGoingCaptureCandidate(goingAfterFetch, c.lat, c.lon);
+        if (autoFillAfterFetch) {
+          applyGoingCaptureCandidate(autoFillAfterFetch.candidate, c.lat, c.lon);
           return;
         }
 
         const serverVenues = data.venues ?? [];
         if (serverVenues.length > 0) {
-          if (
-            data.meta?.matchSource === 'going' ||
-            data.meta?.matchSource === 'going_fallback'
-          ) {
+          if (isCameraGoingAutoFillSource(data.meta?.matchSource)) {
             applyGoingCaptureCandidate(serverVenues[0]!, c.lat, c.lon);
             return;
           }
@@ -1769,13 +1772,16 @@ export default function QuickRecordButton({
         Number.isFinite(geo.latitude) &&
         Number.isFinite(geo.longitude) &&
         showMarksHydrated
-          ? resolveGoingMarkClipCandidate(
+          ? resolveCameraGoingAutoFill(
               goingMarks,
               Date.parse(at) || Date.now(),
               geo.latitude,
               geo.longitude,
-            )
-          : null;
+            )?.candidate ?? null
+          : showMarksHydrated
+            ? resolveCameraGoingAutoFill(goingMarks, Date.parse(at) || Date.now())?.candidate ??
+              null
+            : null;
       const prefetchShow =
         goingCandidate ??
         captureResolveCandidateRef.current ??

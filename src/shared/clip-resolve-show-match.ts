@@ -9,6 +9,8 @@ import {
 } from './jambase-event-day';
 import {
   pickGoingShowMarkForCapture,
+  pickInProgressGoingShowMark,
+  pickClosestGoingShowMark,
   pickLastEligibleGoingShowMark,
   showMarkToClipCandidate,
   type UserShowMark,
@@ -210,6 +212,51 @@ export function resolveGoingMarkClipCandidate(
   return going ? showMarkToClipCandidate(going) : null;
 }
 
+export type CameraVenueMatchSource =
+  | 'im_there'
+  | 'going'
+  | 'going_closest'
+  | 'going_fallback'
+  | 'jambase';
+
+export function isCameraGoingAutoFillSource(
+  source: CameraVenueMatchSource | string | undefined,
+): boolean {
+  return (
+    source === 'im_there' ||
+    source === 'going' ||
+    source === 'going_closest' ||
+    source === 'going_fallback'
+  );
+}
+
+/**
+ * Camera auto-fill priority: in-progress "I'm there" mark → closest Going mark → null (JamBase picker).
+ */
+export function resolveCameraGoingAutoFill(
+  goingMarks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): { candidate: ClipShowCandidate; matchSource: CameraVenueMatchSource } | null {
+  const imThere = pickInProgressGoingShowMark(goingMarks, captureMs, userLat, userLon);
+  if (imThere) {
+    return {
+      candidate: showMarkToClipCandidate(imThere),
+      matchSource: 'im_there',
+    };
+  }
+
+  const closest = pickClosestGoingShowMark(goingMarks, captureMs, userLat, userLon);
+  if (!closest) return null;
+
+  const sameNight = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
+  return {
+    candidate: showMarkToClipCandidate(closest),
+    matchSource: sameNight?.jambase_event_id === closest.jambase_event_id ? 'going' : 'going_closest',
+  };
+}
+
 /** Last eligible Going mark when GPS or venue match is unavailable. */
 export function resolveLastGoingMarkClipCandidate(
   goingMarks: UserShowMark[],
@@ -219,7 +266,7 @@ export function resolveLastGoingMarkClipCandidate(
   return mark ? showMarkToClipCandidate(mark) : null;
 }
 
-/** Server fast-path: same-date going mark → single auto-fill (no JamBase required). */
+/** Server fast-path: going / I'm there mark → single auto-fill (no JamBase required). */
 export function resolveShowFromGoingMark(
   goingMarks: UserShowMark[],
   captureMs: number,
@@ -229,15 +276,16 @@ export function resolveShowFromGoingMark(
   match: 'single';
   candidates: ClipShowCandidate[];
   nearbyVenues: ClipShowCandidate[];
+  matchSource?: CameraVenueMatchSource;
 } | null {
-  const candidate = resolveGoingMarkClipCandidate(
-    goingMarks,
-    captureMs,
-    userLat,
-    userLon,
-  );
-  if (!candidate) return null;
-  return { match: 'single', candidates: [candidate], nearbyVenues: [] };
+  const autoFill = resolveCameraGoingAutoFill(goingMarks, captureMs, userLat, userLon);
+  if (!autoFill) return null;
+  return {
+    match: 'single',
+    candidates: [autoFill.candidate],
+    nearbyVenues: [],
+    matchSource: autoFill.matchSource,
+  };
 }
 
 /** One row per venue (or per event if venue id missing), keeping the closest hit. */
@@ -252,10 +300,26 @@ export function resolveShowMatchFromCandidates(
   candidates: ClipShowCandidate[];
   nearbyVenues: ClipShowCandidate[];
 } {
-  const going = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
-  if (going) {
-    const matched = findCandidateForGoingMark(enrichedSorted, going);
-    const candidate = matched ?? showMarkToClipCandidate(going);
+  const autoFill = resolveCameraGoingAutoFill(
+    goingMarks,
+    captureMs,
+    userLat,
+    userLon,
+  );
+  if (autoFill) {
+    const goingId = autoFill.candidate.jambase_event_id;
+    const goingMark = goingMarks.find((m) => m.jambase_event_id === goingId);
+    let candidate = autoFill.candidate;
+    if (goingMark) {
+      const matched = findCandidateForGoingMark(enrichedSorted, goingMark);
+      if (matched) {
+        const sameEvent =
+          matched.jambase_event_id?.trim() === autoFill.candidate.jambase_event_id?.trim();
+        if (autoFill.matchSource !== 'going_closest' || sameEvent) {
+          candidate = matched;
+        }
+      }
+    }
     const nearbyVenues = enrichedSorted.slice(0, NEARBY_VENUE_PICKER_COUNT);
     return { match: 'single', candidates: [candidate], nearbyVenues };
   }
@@ -330,13 +394,13 @@ export function resolveShowAutoApplyCandidate(
     return data.candidates[0];
   }
 
-  const goingCandidate = resolveGoingMarkClipCandidate(
+  const autoFill = resolveCameraGoingAutoFill(
     goingMarks,
     captureMs,
     userLat,
     userLon,
   );
-  if (goingCandidate) return goingCandidate;
+  if (autoFill) return autoFill.candidate;
 
   const pool = [...(data.candidates ?? []), ...(data.nearbyVenues ?? [])];
   const matches = nearbyEventVenuesWithinAutoApplyRadius(pool, captureMs, userLat, userLon);
@@ -365,14 +429,14 @@ export function resolveCameraVenuePicker(
   userLat?: number,
   userLon?: number,
 ): CameraCaptureVenueResolution {
-  const goingCandidate = resolveGoingMarkClipCandidate(
+  const autoFill = resolveCameraGoingAutoFill(
     goingMarks,
     captureMs,
     userLat,
     userLon,
   );
-  if (goingCandidate) {
-    return { mode: 'single', candidate: goingCandidate };
+  if (autoFill) {
+    return { mode: 'single', candidate: autoFill.candidate };
   }
 
   const venues = closestVenuesWithEventsOnCaptureDay(
@@ -402,14 +466,14 @@ export function resolveCameraCaptureVenues(
   userLat?: number,
   userLon?: number,
 ): CameraCaptureVenueResolution {
-  const goingCandidate = resolveGoingMarkClipCandidate(
+  const autoFill = resolveCameraGoingAutoFill(
     goingMarks,
     captureMs,
     userLat,
     userLon,
   );
-  if (goingCandidate) {
-    return { mode: 'single', candidate: goingCandidate };
+  if (autoFill) {
+    return { mode: 'single', candidate: autoFill.candidate };
   }
 
   if (data.match === 'single' && data.candidates?.[0]) {

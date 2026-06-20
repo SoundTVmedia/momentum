@@ -86,7 +86,7 @@ import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import {
   jamBaseEventToShowMarkInput,
 } from '@/shared/show-marks';
-import { resolveShowAutoApplyCandidate, resolveGoingMarkClipCandidate, resolveLastGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
+import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill, resolveLastGoingMarkClipCandidate } from '@/shared/clip-resolve-show-match';
 
 function isoToDateInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -429,14 +429,14 @@ export default function UploadClip() {
         | { latitude?: number; longitude?: number }
         | undefined;
       if (showMarksHydrated) {
-        const goingCandidate = resolveGoingMarkClipCandidate(
+        const autoFill = resolveCameraGoingAutoFill(
           goingMarks,
           Date.now(),
           capGeo?.latitude,
           capGeo?.longitude,
         );
-        if (goingCandidate) {
-          showData = clipShowCandidateToNavState(goingCandidate);
+        if (autoFill) {
+          showData = clipShowCandidateToNavState(autoFill.candidate);
         }
       }
       if (!showData && showMarksHydrated) {
@@ -1134,6 +1134,12 @@ export default function UploadClip() {
             setCaptureGeo(geo);
           } else {
             if (!cancelled && showMarksHydrated) {
+              const autoFill = resolveCameraGoingAutoFill(goingMarks, Date.now());
+              if (autoFill) {
+                applyClipCandidate(autoFill.candidate);
+                setResolveNotice(null);
+                return;
+              }
               const lastGoing = resolveLastGoingMarkClipCandidate(goingMarks, Date.now());
               if (lastGoing) {
                 applyClipCandidate(lastGoing);
@@ -1162,15 +1168,17 @@ export default function UploadClip() {
 
       if (showMarksHydrated && resolveForAutoTagQuick) {
         const atMs = Date.parse(at);
-        const goingCandidate = resolveGoingMarkClipCandidate(
+        const autoFill = resolveCameraGoingAutoFill(
           goingMarks,
           Number.isFinite(atMs) ? atMs : Date.now(),
           geo.latitude,
           geo.longitude,
         );
-        if (goingCandidate) {
-          applyClipCandidate(goingCandidate);
-          saveCaptureShowSession(goingCandidate, geo.latitude, geo.longitude, { source: 'going' });
+        if (autoFill) {
+          applyClipCandidate(autoFill.candidate);
+          saveCaptureShowSession(autoFill.candidate, geo.latitude, geo.longitude, {
+            source: 'going',
+          });
           return;
         }
 

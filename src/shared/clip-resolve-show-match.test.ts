@@ -8,6 +8,7 @@ import {
   resolveCameraVenuePicker,
   resolveShowFromGoingMark,
   resolveShowMatchFromCandidates,
+  resolveCameraGoingAutoFill,
 } from './clip-resolve-show-match';
 import type { ClipShowCandidate } from './types';
 import type { UserShowMark } from './show-marks';
@@ -238,6 +239,42 @@ describe('resolveShowMatchFromCandidates', () => {
     );
     expect(result?.match).toBe('single');
     expect(result?.candidates[0]?.jambase_event_id).toBe('jambase:ev-going');
+  });
+});
+
+describe('resolveCameraGoingAutoFill', () => {
+  it('prefers in-progress mark (I\'m there) over other going marks', () => {
+    const captureMs = Date.parse('2026-06-21T00:00:00.000Z');
+    const inProgress = goingMark({
+      jambase_event_id: 'im-there',
+      start_date: '2026-06-20T19:30:00',
+      venue_location: 'Brooklyn, NY',
+      updated_at: '2026-06-20T23:00:00',
+    });
+    const laterTonight = goingMark({
+      jambase_event_id: 'later',
+      start_date: '2026-06-20T21:00:00',
+      updated_at: '2026-06-20T18:00:00',
+    });
+    const result = resolveCameraGoingAutoFill(
+      [laterTonight, inProgress],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result?.matchSource).toBe('im_there');
+    expect(result?.candidate.jambase_event_id).toBe('im-there');
+  });
+
+  it('uses closest going mark when none are in progress', () => {
+    const captureMs = Date.parse('2026-06-09T22:00:00.000Z');
+    const result = resolveCameraGoingAutoFill(
+      [goingMark()],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(result?.matchSource).toBe('going');
   });
 });
 

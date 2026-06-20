@@ -622,7 +622,7 @@ async function postResolveShowForClipInner(c: Context) {
         rawEventCount: 0,
         matchedEventCandidateCount: 0,
         eventDateFrom: jamBaseGeoEventDateFromUtc(resolveAnchorMs),
-        matchSource: 'going_mark',
+        matchSource: goingResolve.matchSource ?? 'going_mark',
         lat,
         lon,
         jamBaseVenuesFetchFailed: false,

@@ -5,7 +5,7 @@ import {
   CAMERA_VENUE_PICKER_COUNT,
   closestVenuesWithEventsOnCaptureDay,
   dedupeClipCandidatesByVenue,
-  resolveGoingMarkClipCandidate,
+  resolveCameraGoingAutoFill,
   resolveLastGoingMarkClipCandidate,
 } from '../shared/clip-resolve-show-match';
 import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
@@ -41,14 +41,14 @@ export async function postCameraVenuesForClip(c: Context) {
   }
 
   const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
-  const goingCandidate = resolveGoingMarkClipCandidate(goingMarks, captureMs, lat, lon);
-  if (goingCandidate) {
+  const goingAutoFill = resolveCameraGoingAutoFill(goingMarks, captureMs, lat, lon);
+  if (goingAutoFill) {
     c.header('Cache-Control', 'private, max-age=30');
     return c.json({
-      venues: [goingCandidate],
+      venues: [goingAutoFill.candidate],
       notice: null,
       meta: {
-        matchSource: 'going' as const,
+        matchSource: goingAutoFill.matchSource,
         rawEventCount: 0,
         mappedCandidateCount: 1,
         venueMatchCount: 1,
@@ -141,10 +141,10 @@ export async function postCameraVenuesForClip(c: Context) {
 
 /** Client-side going mark fast path (same as resolve-show). */
 export function goingMarkCameraVenue(
-  goingMarks: Parameters<typeof resolveGoingMarkClipCandidate>[0],
+  goingMarks: Parameters<typeof resolveCameraGoingAutoFill>[0],
   captureMs: number,
   lat: number,
   lon: number,
-): ClipShowCandidate | null {
-  return resolveGoingMarkClipCandidate(goingMarks, captureMs, lat, lon);
+) {
+  return resolveCameraGoingAutoFill(goingMarks, captureMs, lat, lon)?.candidate ?? null;
 }

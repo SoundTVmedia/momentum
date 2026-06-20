@@ -384,3 +384,53 @@ export function pickLastEligibleGoingShowMark(
   });
   return eligible[0] ?? null;
 }
+
+/** Going mark on a show that is in progress (user marked "I'm there"). */
+export function pickInProgressGoingShowMark(
+  marks: UserShowMark[],
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): UserShowMark | null {
+  const imThere = marks.filter(
+    (m) =>
+      m.status === 'going' &&
+      jamBaseEventInProgress(showMarkToJamBaseEvent(m), nowMs, userLat, userLon),
+  );
+  if (imThere.length === 0) return null;
+
+  imThere.sort((a, b) => {
+    const ua = Date.parse(a.updated_at) || Date.parse(a.created_at) || 0;
+    const ub = Date.parse(b.updated_at) || Date.parse(b.created_at) || 0;
+    return ub - ua;
+  });
+  return imThere[0] ?? null;
+}
+
+/**
+ * Closest eligible Going mark for capture: same show night first, then nearest start time.
+ */
+export function pickClosestGoingShowMark(
+  marks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): UserShowMark | null {
+  const sameNight = pickGoingShowMarkForCapture(marks, captureMs, userLat, userLon);
+  if (sameNight) return sameNight;
+
+  const eligible = marks.filter(
+    (m) => m.status === 'going' && isUpcomingShowMark(m, captureMs),
+  );
+  if (eligible.length === 0) return null;
+
+  eligible.sort((a, b) => {
+    const ta = Date.parse(a.start_date ?? '');
+    const tb = Date.parse(b.start_date ?? '');
+    if (!Number.isFinite(ta) && !Number.isFinite(tb)) return 0;
+    if (!Number.isFinite(ta)) return 1;
+    if (!Number.isFinite(tb)) return -1;
+    return Math.abs(ta - captureMs) - Math.abs(tb - captureMs);
+  });
+  return eligible[0] ?? null;
+}
