@@ -9,6 +9,7 @@ import {
 } from '../shared/clip-resolve-show-match';
 import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import { jamBaseQuotaFromEnv } from './jambase-client';
+import { loadGoingShowMarksForUser } from './user-show-marks-endpoints';
 
 /**
  * POST /api/clips/camera-venues
@@ -36,6 +37,25 @@ export async function postCameraVenuesForClip(c: Context) {
 
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return c.json({ error: 'latitude and longitude are required' }, 400);
+  }
+
+  const goingMarks = await loadGoingShowMarksForUser(c.env.DB, mochaUser.id);
+  const goingCandidate = resolveGoingMarkClipCandidate(goingMarks, captureMs, lat, lon);
+  if (goingCandidate) {
+    c.header('Cache-Control', 'private, max-age=30');
+    return c.json({
+      venues: [goingCandidate],
+      notice: null,
+      meta: {
+        matchSource: 'going' as const,
+        rawEventCount: 0,
+        mappedCandidateCount: 1,
+        venueMatchCount: 1,
+        lat,
+        lon,
+        captureMs,
+      },
+    });
   }
 
   const key = c.env.JAMBASE_API_KEY;
@@ -86,6 +106,7 @@ export async function postCameraVenuesForClip(c: Context) {
             : 'No JamBase shows today at nearby venues.')
         : null,
     meta: {
+      matchSource: 'jambase' as const,
       rawEventCount: rawEvents.length,
       mappedCandidateCount: deduped.length,
       venueMatchCount: venues.length,

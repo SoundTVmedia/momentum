@@ -169,4 +169,14 @@ describe('pickGoingShowMarkForCapture', () => {
     );
     expect(picked).toBeNull();
   });
+
+  it('matches a going mark on the same venue-local calendar day', () => {
+    const picked = pickGoingShowMarkForCapture(
+      [mark({ jambase_event_id: 'tonight', start_date: '2026-06-20T19:30:00' })],
+      Date.parse('2026-06-20T20:00:00.000Z'), // 4pm Eastern June 20
+      40.73,
+      -73.99,
+    );
+    expect(picked?.jambase_event_id).toBe('tonight');
+  });
 });

@@ -273,6 +273,7 @@ export default function QuickRecordButton({
   useEffect(() => {
     if (!showModal) {
       captureVenueFetchStartedRef.current = false;
+      captureGoingAppliedRef.current = false;
       setCoordsForNearbyVenues(null);
       captureResolveCandidateRef.current = null;
       setCaptureVenuePickerChoices([]);
@@ -288,6 +289,40 @@ export default function QuickRecordButton({
   }, [showModal]);
 
   const captureVenueFetchStartedRef = useRef(false);
+  const captureGoingAppliedRef = useRef(false);
+  const goingMarksRef = useRef(goingMarks);
+  const showMarksHydratedRef = useRef(showMarksHydrated);
+
+  useEffect(() => {
+    goingMarksRef.current = goingMarks;
+  }, [goingMarks]);
+
+  useEffect(() => {
+    showMarksHydratedRef.current = showMarksHydrated;
+  }, [showMarksHydrated]);
+
+  const applyGoingCaptureCandidate = useCallback(
+    (candidate: ClipShowCandidate, lat: number, lon: number) => {
+      captureGoingAppliedRef.current = true;
+      saveCaptureShowSession(candidate, lat, lon, { source: 'going' });
+      captureResolveCandidateRef.current = candidate;
+      setCaptureVenuePickerChoices([]);
+      const eventTitle = resolveClipEventTitle({
+        event_title: candidate.event_title,
+        artist_name: candidate.artist_name,
+        venue_name: candidate.venue_name,
+      });
+      setCaptureResolvePreview({
+        status: 'ready',
+        eventTitle,
+        venueName: candidate.venue_name?.trim() ?? null,
+        artistName: candidate.artist_name?.trim() ?? null,
+        locationLine: candidate.location?.trim() ?? null,
+        notice: null,
+      });
+    },
+    [],
+  );
 
   /** Going mark overrides venue picker when marks hydrate. */
   useEffect(() => {
@@ -302,22 +337,7 @@ export default function QuickRecordButton({
       c.lon,
     );
     if (goingCandidate) {
-      saveCaptureShowSession(goingCandidate, c.lat, c.lon, { source: 'going' });
-      captureResolveCandidateRef.current = goingCandidate;
-      setCaptureVenuePickerChoices([]);
-      const eventTitle = resolveClipEventTitle({
-        event_title: goingCandidate.event_title,
-        artist_name: goingCandidate.artist_name,
-        venue_name: goingCandidate.venue_name,
-      });
-      setCaptureResolvePreview({
-        status: 'ready',
-        eventTitle,
-        venueName: goingCandidate.venue_name?.trim() ?? null,
-        artistName: goingCandidate.artist_name?.trim() ?? null,
-        locationLine: goingCandidate.location?.trim() ?? null,
-        notice: null,
-      });
+      applyGoingCaptureCandidate(goingCandidate, c.lat, c.lon);
       return;
     }
 
@@ -328,6 +348,7 @@ export default function QuickRecordButton({
     });
     if (sticky?.source === 'going') {
       clearCaptureShowSession();
+      captureGoingAppliedRef.current = false;
     }
   }, [
     showModal,
@@ -336,6 +357,7 @@ export default function QuickRecordButton({
     coordsForNearbyVenues?.lat,
     coordsForNearbyVenues?.lon,
     clipUploadsInFlight,
+    applyGoingCaptureCandidate,
   ]);
 
   /** Prefetch nearest JamBase show for camera HUD — once per modal open. */
@@ -377,7 +399,20 @@ export default function QuickRecordButton({
       });
     };
 
-    if (captureVenueFetchStartedRef.current) return;
+    if (captureVenueFetchStartedRef.current || captureGoingAppliedRef.current) return;
+
+    if (showMarksHydratedRef.current) {
+      const goingNow = resolveGoingMarkClipCandidate(
+        goingMarksRef.current,
+        Date.now(),
+        c.lat,
+        c.lon,
+      );
+      if (goingNow) {
+        applyGoingCaptureCandidate(goingNow, c.lat, c.lon);
+        return;
+      }
+    }
 
     void (async () => {
       captureVenueFetchStartedRef.current = true;
@@ -436,12 +471,31 @@ export default function QuickRecordButton({
             expandPastEventMatchedCount?: number;
             geoEventRawCount?: number;
             geoEventMatchedCount?: number;
+            matchSource?: 'going' | 'jambase';
           };
         };
-        if (cancelled) return;
+        if (cancelled || captureGoingAppliedRef.current) return;
+
+        const goingAfterFetch = showMarksHydratedRef.current
+          ? resolveGoingMarkClipCandidate(
+              goingMarksRef.current,
+              captureMs,
+              c.lat,
+              c.lon,
+            )
+          : null;
+        if (goingAfterFetch) {
+          applyGoingCaptureCandidate(goingAfterFetch, c.lat, c.lon);
+          return;
+        }
 
         const serverVenues = data.venues ?? [];
         if (serverVenues.length > 0) {
+          if (data.meta?.matchSource === 'going') {
+            applyGoingCaptureCandidate(serverVenues[0]!, c.lat, c.lon);
+            return;
+          }
+
           const stickySession = loadCaptureShowSession({
             lat: c.lat,
             lon: c.lon,
@@ -529,6 +583,7 @@ export default function QuickRecordButton({
     coordsForNearbyVenues?.lat,
     coordsForNearbyVenues?.lon,
     clipUploadsInFlight,
+    applyGoingCaptureCandidate,
   ]);
 
   /** Device GPS for venue matching — launch-time fix first, then best-effort fallback. */

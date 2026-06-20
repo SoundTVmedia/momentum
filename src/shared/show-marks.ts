@@ -1,5 +1,5 @@
 import type { ClipShowCandidate } from './types';
-import { jamBaseEventMatchesCapture } from './jambase-event-day';
+import { jamBaseEventMatchesCapture, jamBaseEventSameCalendarDay } from './jambase-event-day';
 import { isJamBaseEventOnOrAfterToday } from './jambase-events';
 import { computeShowId } from './show-id';
 
@@ -324,7 +324,10 @@ export function pickGoingShowMarkForCapture(
     const sd = mark.start_date?.trim();
     if (sd) {
       const ev = { startDate: sd, location: { name: mark.venue_name ?? '' } };
-      if (jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) {
+      if (
+        jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon) ||
+        jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)
+      ) {
         matching.push(mark);
       }
       continue;
