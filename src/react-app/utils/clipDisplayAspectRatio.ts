@@ -33,3 +33,23 @@ export function clipDisplayAspectRatio(clip: ClipAspectInput): string | undefine
 export function clipModalFallbackAspectRatio(clip: ClipAspectInput): string {
   return clipIsLandscape(clip) ? '16 / 9' : '9 / 16';
 }
+
+function parseAspectRatio(ratio: string): number | null {
+  const m = ratio.match(/^([\d.]+)\s*\/\s*([\d.]+)$/);
+  if (!m) return null;
+  const w = Number.parseFloat(m[1]!);
+  const h = Number.parseFloat(m[2]!);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || h <= 0) return null;
+  return w / h;
+}
+
+/** Modal layout: width-first for landscape / 16:9, height-first for portrait. */
+export function clipModalPrefersFullWidth(clip: ClipAspectInput): boolean {
+  if (clipIsLandscape(clip)) return true;
+  const ratio = clipDisplayAspectRatio(clip);
+  if (ratio) {
+    const parsed = parseAspectRatio(ratio);
+    if (parsed != null) return parsed >= 1;
+  }
+  return false;
+}
