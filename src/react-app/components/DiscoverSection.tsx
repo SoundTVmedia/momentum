@@ -7,6 +7,8 @@ import type { ExtendedMochaUser } from '@/shared/types'
 import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
 import { artistPath, venuePath } from '@/shared/app-paths'
 import EventTicketActions from '@/react-app/components/EventTicketActions'
+import ClipPosterImage from '@/react-app/components/ClipPosterImage'
+import { DEFAULT_CLIP_POSTER_FALLBACK } from '@/shared/clip-playback'
 
 const welcomeGradient =
   'bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent'
@@ -160,7 +162,10 @@ export default function DiscoverSection() {
             {filteredShows.map((show, index) => {
               const priorityLabel = getPriorityLabel(show)
               const priorityColor = getPriorityColor(show)
-              const imageUrl = show.artist_image || show.clip?.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop'
+              const clipPoster = show.clip ?? null
+              const imageUrl =
+                show.artist_image ||
+                (clipPoster ? null : DEFAULT_CLIP_POSTER_FALLBACK)
 
               return (
                 <div
@@ -169,11 +174,19 @@ export default function DiscoverSection() {
                   className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 hover:scale-105 transition-all duration-300 cursor-pointer"
                 >
                   <div className="relative">
-                    <img
-                      src={imageUrl}
-                      alt={show.artist_name || 'Concert'}
-                      className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
+                    {clipPoster && !show.artist_image ? (
+                      <ClipPosterImage
+                        clip={clipPoster}
+                        alt={show.artist_name || 'Concert'}
+                        className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                    ) : (
+                      <img
+                        src={imageUrl ?? DEFAULT_CLIP_POSTER_FALLBACK}
+                        alt={show.artist_name || 'Concert'}
+                        className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                    )}
                     {/* Priority badge — trending uses fire icon only */}
                     {show.type === 'trending' ? (
                       <div className="absolute top-3 left-3" title="Trending">

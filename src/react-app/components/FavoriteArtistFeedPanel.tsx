@@ -270,7 +270,7 @@ export default function FavoriteArtistFeedPanel({
             : 'mb-8 rounded-2xl border border-momentum-rose/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0 flex-1">
             <SectionHeading
               title="Your Favorites"
@@ -282,7 +282,7 @@ export default function FavoriteArtistFeedPanel({
             <button
               type="button"
               onClick={toggleAddArtists}
-              className="shrink-0 inline-flex items-center gap-2 rounded-full border border-momentum-rose/50 bg-momentum-rose/15 px-3 py-2 text-momentum-flare/80 hover:bg-momentum-rose/25 hover:border-momentum-rose/60 transition-colors"
+              className="shrink-0 inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-3 py-2 text-white hover:bg-white/15 hover:border-white transition-colors"
               title={showAddArtists ? 'Close manage artists' : 'Add favorite artists'}
               aria-expanded={showAddArtists}
               aria-label={
@@ -291,17 +291,17 @@ export default function FavoriteArtistFeedPanel({
             >
               {showAddArtists ? (
                 <>
-                  <span className="text-xs sm:text-sm font-medium text-momentum-flare/90">
+                  <span className="text-xs sm:text-sm font-medium text-white">
                     Close
                   </span>
-                  <X className="w-5 h-5 shrink-0" aria-hidden />
+                  <X className="w-5 h-5 shrink-0 text-white" aria-hidden />
                 </>
               ) : (
                 <>
-                  <span className="text-xs sm:text-sm font-medium text-momentum-flare/90 whitespace-nowrap">
+                  <span className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">
                     Click to Add Artists
                   </span>
-                  <Plus className="w-5 h-5 shrink-0" aria-hidden />
+                  <Plus className="w-5 h-5 shrink-0 text-white" aria-hidden />
                 </>
               )}
             </button>

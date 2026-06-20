@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   type ClipPlaybackFields,
+  DEFAULT_CLIP_POSTER_FALLBACK,
   prefetchFeedPreviewMp4,
-  resolveClipPosterUrl,
   resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
+import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
 import {
   clearFeedPreviewPlayback,
   releaseFeedPreviewPlay,
@@ -45,7 +46,7 @@ export default function ClipFeedPreviewMedia({
   playbackUrl,
   fallbackUrl,
   posterUrl,
-  thumbFallback = 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1200&fit=crop',
+  thumbFallback = DEFAULT_CLIP_POSTER_FALLBACK,
   className = '',
   mediaHovered: mediaHoveredProp,
   previewInstanceKey = '',
@@ -72,15 +73,10 @@ export default function ClipFeedPreviewMedia({
     () => typeof window !== 'undefined' && window.matchMedia(NARROW_FEED_MQ).matches,
   );
   const [thumbHidden, setThumbHidden] = useState(false);
-  const [posterBroken, setPosterBroken] = useState(false);
 
-  const posterSrc = resolveClipPosterUrl(clipFields, posterUrl || thumbFallback);
-  const displayPoster = posterBroken ? thumbFallback : posterSrc;
+  const { src: displayPoster, onError: onPosterError, onLoad: onPosterLoad, crossOrigin } =
+    useClipPosterSrc(clipFields, posterUrl || thumbFallback);
   const previewVideoSrc = posterOnly ? null : resolveFeedPreviewVideoSrc(clipFields);
-
-  useEffect(() => {
-    setPosterBroken(false);
-  }, [posterSrc]);
 
   const hoverFromParent = mediaHoveredProp !== undefined;
   const hovering = hoverFromParent ? mediaHoveredProp : internalHovering;
@@ -240,15 +236,15 @@ export default function ClipFeedPreviewMedia({
         key={displayPoster}
         src={displayPoster}
         alt=""
+        crossOrigin={crossOrigin}
         className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
           thumbHidden ? 'opacity-0' : 'opacity-100'
         }`}
         loading={posterOnly ? 'eager' : 'lazy'}
         fetchPriority={posterOnly ? 'high' : 'auto'}
         decoding="async"
-        onError={() => {
-          if (!posterBroken) setPosterBroken(true);
-        }}
+        onError={onPosterError}
+        onLoad={onPosterLoad}
       />
     </div>
   );

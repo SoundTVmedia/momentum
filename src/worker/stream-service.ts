@@ -217,7 +217,7 @@ export class StreamService {
     const hls = rawData.playback?.hls || this.getPlaybackUrl(rawData.uid);
     return {
       uid: rawData.uid,
-      thumbnail: rawData.thumbnail || this.getThumbnailUrl(rawData.uid),
+      thumbnail: rawData.thumbnail || this.getThumbnailUrl(rawData.uid, { time: '1s', height: 720 }),
       playbackUrl: hls,
       hlsUrl: hls,
       mp4Url: this.getMp4Url(rawData.uid),

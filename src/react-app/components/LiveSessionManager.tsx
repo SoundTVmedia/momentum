@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Plus, Trash2, GripVertical, Search, Loader2 } from 'lucide-react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 interface LiveSession {
   id: number;
@@ -259,8 +260,8 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                         className="p-3 hover:bg-white/5 flex items-center justify-between border-b border-white/5 last:border-0"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          <img
-                            src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop'}
+                          <ClipPosterImage
+                            clip={clip}
                             alt="Clip"
                             className="w-12 h-12 rounded object-cover flex-shrink-0"
                           />
@@ -301,8 +302,8 @@ export default function LiveSessionManager({ session, onClose }: Props) {
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           <GripVertical className="w-5 h-5 text-gray-500 flex-shrink-0" />
                           <span className="text-momentum-flare font-bold flex-shrink-0">#{index + 1}</span>
-                          <img
-                            src={item.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=40&h=40&fit=crop'}
+                          <ClipPosterImage
+                            clip={{ thumbnail_url: item.thumbnail_url }}
                             alt="Clip"
                             className="w-10 h-10 rounded object-cover flex-shrink-0"
                           />

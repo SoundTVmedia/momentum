@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { Loader2, Search, Trash2, Video } from 'lucide-react';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 type ModerationClip = {
   id: number;
   artist_name: string | null;
   venue_name: string | null;
   thumbnail_url: string | null;
+  stream_video_id?: string | null;
+  stream_playback_url?: string | null;
+  stream_thumbnail_url?: string | null;
+  video_url?: string | null;
   mocha_user_id: string;
   user_display_name: string | null;
   created_at: string;
@@ -126,11 +131,8 @@ export default function SuperadminClipModerationPanel() {
               key={clip.id}
               className="glass-panel border border-white/10 rounded-xl p-6 flex flex-col sm:flex-row gap-4"
             >
-              <img
-                src={
-                  clip.thumbnail_url ||
-                  'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop'
-                }
+              <ClipPosterImage
+                clip={clip}
                 alt=""
                 className="w-full sm:w-40 h-28 rounded-lg object-cover flex-shrink-0"
               />

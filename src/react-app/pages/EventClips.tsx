@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Calendar, MapPin, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiEventClipsPath, artistPath, venuePath } from '@/shared/app-paths';
@@ -173,11 +174,8 @@ export default function EventClipsPage() {
                 className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group text-left"
               >
                 <div className="relative aspect-video">
-                  <img
-                    src={
-                      clip.thumbnail_url ||
-                      'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'
-                    }
+                  <ClipPosterImage
+                    clip={clip}
                     alt="Concert moment"
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                   />

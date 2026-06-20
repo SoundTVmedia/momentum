@@ -5,6 +5,7 @@ import { Bookmark, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import { PAGE_BLOCK_CLASS } from '@/react-app/lib/homeFeedLayout';
 import ClipModal from '@/react-app/components/ClipModal';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
@@ -124,8 +125,8 @@ export default function SavedClips() {
                   <div 
                     className="relative mb-4 rounded-lg overflow-hidden group-hover:scale-[1.02] transition-transform"
                   >
-                    <img 
-                      src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'}
+                    <ClipPosterImage
+                      clip={clip}
                       alt="Concert moment"
                       className="w-full h-48 object-cover"
                     />

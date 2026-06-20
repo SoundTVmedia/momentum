@@ -184,7 +184,9 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
       [clip.artist_name, clip.venue_name].filter(Boolean).join(' @ ') || 'Concert Clip';
     const videoDetails = await streamService.uploadFromUrl(sourceUrl, { name: label });
 
-    const thumbnailUrl = clip.thumbnail_url?.trim() || videoDetails.thumbnail;
+    const thumbnailUrl =
+      clip.thumbnail_url?.trim() ||
+      streamService.getThumbnailUrl(videoDetails.uid, { time: '1s', height: 720 });
     const videoUrl = videoDetails.mp4Url || videoDetails.playbackUrl;
     const posterUrl = clip.thumbnail_url?.trim() || thumbnailUrl;
 

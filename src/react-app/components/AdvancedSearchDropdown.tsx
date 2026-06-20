@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, venuePath } from '@/shared/app-paths';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import {
   advancedSearchHasHits,
   jamBaseEventTicket,
@@ -96,11 +97,8 @@ function SearchDropdownPanel({
                   }}
                   className="w-full p-3 hover:bg-white/5 transition-colors text-left flex gap-3"
                 >
-                  <img
-                    src={
-                      clip.thumbnail_url ||
-                      'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=80&h=80&fit=crop'
-                    }
+                  <ClipPosterImage
+                    clip={clip}
                     alt=""
                     className="w-14 h-14 rounded object-cover flex-shrink-0"
                   />

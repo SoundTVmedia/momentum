@@ -3,6 +3,7 @@ import { TrendingUp, Users, Video, Heart, Eye, BarChart3, Activity, Calendar } f
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 interface PlatformStats {
   totalUsers: number;
@@ -279,8 +280,8 @@ export default function AnalyticsDashboard() {
                 <div className="flex-shrink-0 w-8 h-8 bg-momentum-rose/20 rounded-full flex items-center justify-center">
                   <span className="text-momentum-rose font-bold text-sm">#{index + 1}</span>
                 </div>
-                <img
-                  src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop'}
+                <ClipPosterImage
+                  clip={clip}
                   alt="Clip thumbnail"
                   className="w-12 h-12 rounded object-cover"
                 />

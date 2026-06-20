@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Users, Eye, Heart, Video, BarChart3 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 interface UserAnalyticsData {
   followers: number;
@@ -212,8 +213,8 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
                 <div className="flex-shrink-0 w-8 h-8 bg-momentum-ember/20 rounded-full flex items-center justify-center">
                   <span className="text-momentum-flare font-bold text-sm">#{index + 1}</span>
                 </div>
-                <img
-                  src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop'}
+                <ClipPosterImage
+                  clip={clip}
                   alt="Clip thumbnail"
                   className="w-16 h-16 rounded object-cover"
                 />

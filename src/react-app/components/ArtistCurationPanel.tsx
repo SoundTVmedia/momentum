@@ -3,6 +3,7 @@ import { Star, Pin, Eye, Heart, MessageCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 export default function ArtistCurationPanel() {
   const { user } = useAuth();
@@ -111,8 +112,8 @@ export default function ArtistCurationPanel() {
               >
                 <div className="flex items-start space-x-4">
                   {/* Thumbnail */}
-                  <img
-                    src={clip.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=120&h=120&fit=crop'}
+                  <ClipPosterImage
+                    clip={clip}
                     alt="Clip thumbnail"
                     className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
                   />

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ExtendedMochaUser } from '@/shared/types';
 import { artistPath } from '@/shared/app-paths';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 interface ScheduleItem {
   id: number;
@@ -90,8 +91,8 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
             </div>
 
             <div className="flex-shrink-0">
-              <img
-                src={item.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=60&h=60&fit=crop'}
+              <ClipPosterImage
+                clip={{ thumbnail_url: item.thumbnail_url }}
                 alt="Preview"
                 className="w-14 h-14 rounded object-cover group-hover:scale-110 transition-transform"
               />

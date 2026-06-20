@@ -11,6 +11,7 @@ import {
 import { eventClipsPath } from '@/shared/app-paths';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 export interface PastShowSummary {
   event_title: string;
@@ -61,11 +62,8 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
           <HorizontalClipCarouselItem key={show.event_title} mobilePeek="event">
             <article className={`${EVENT_CAROUSEL_CARD_CLASS} glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden`}>
               <div className={`${EVENT_CAROUSEL_IMAGE_CLASS} group`}>
-                <img
-                  src={
-                    show.thumbnail_url ||
-                    'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop'
-                  }
+                <ClipPosterImage
+                  clip={{ thumbnail_url: show.thumbnail_url }}
                   alt={show.event_title}
                   className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />

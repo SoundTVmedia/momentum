@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_CLIP_POSTER_FALLBACK,
   extractStreamVideoId,
   feedTileUsesStaticPoster,
   isHlsPlaybackUrl,
+  resolveClipPosterCandidates,
   resolveClipPosterUrl,
   resolveClipDownloadFilename,
   resolveClipDownloadUrl,
@@ -75,13 +77,30 @@ describe('clip-playback', () => {
     ).toBe('/api/files/clips/user/thumb.jpg');
   });
 
-  it('skips HLS stream_thumbnail_url and uses Stream still frame', () => {
+  it('skips HLS stream_thumbnail_url and uses Stream still frame at 1s', () => {
     expect(
       resolveClipPosterUrl({
         stream_thumbnail_url: `https://videodelivery.net/${UID}/manifest/video.m3u8`,
         stream_video_id: UID,
       }),
-    ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?height=720`);
+    ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=1s&height=720`);
+  });
+
+  it('lists poster candidates: upload JPEG, stream times, legacy stream thumb, fallback', () => {
+    expect(
+      resolveClipPosterCandidates({
+        thumbnail_url: '/api/files/clips/user/thumb.jpg',
+        stream_video_id: UID,
+      }),
+    ).toEqual([
+      '/api/files/clips/user/thumb.jpg',
+      `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=1s&height=720`,
+      `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=3s&height=720`,
+      `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=5s&height=720`,
+      `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=8s&height=720`,
+      `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=12s&height=720`,
+      DEFAULT_CLIP_POSTER_FALLBACK,
+    ]);
   });
 
   it('does not use progressive video URLs as poster images', () => {
@@ -90,7 +109,7 @@ describe('clip-playback', () => {
         thumbnail_url: '/api/files/clips/user/video.mp4',
         stream_video_id: UID,
       }),
-    ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?height=720`);
+    ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=1s&height=720`);
   });
 
   it('feed tiles always use static poster mode', () => {

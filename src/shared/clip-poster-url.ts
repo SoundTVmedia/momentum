@@ -1,6 +1,13 @@
 /** Cloudflare Stream public delivery hostname (works for all accounts). */
 export const STREAM_DELIVERY_ORIGIN = 'https://videodelivery.net';
 
+/** Last-resort poster when no clip frame is available. */
+export const DEFAULT_CLIP_POSTER_FALLBACK =
+  'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1200&fit=crop';
+
+/** Seek offsets for Stream still frames — avoids all-black t=0 keyframes. */
+export const STREAM_POSTER_SEEK_TIMES = ['1s', '3s', '5s', '8s', '12s'] as const;
+
 export type ClipPlaybackFields = {
   stream_video_id?: string | null;
   stream_playback_url?: string | null;
@@ -64,19 +71,41 @@ function isUsablePosterImageUrl(url: string | null | undefined): boolean {
   return true;
 }
 
-export function resolveClipPosterUrl(clip: ClipPlaybackFields, fallback = ''): string {
-  // Prefer our static R2 JPEG (fast, available immediately after upload).
+/** Ordered poster URLs to try — uploaded JPEG first, then Stream frames at several times. */
+export function resolveClipPosterCandidates(
+  clip: ClipPlaybackFields,
+  fallback: string = DEFAULT_CLIP_POSTER_FALLBACK,
+): string[] {
+  const out: string[] = [];
+  const add = (url: string | null | undefined) => {
+    const u = typeof url === 'string' ? url.trim() : '';
+    if (u && !out.includes(u)) out.push(u);
+  };
+
   if (isUsablePosterImageUrl(clip.thumbnail_url)) {
-    return clip.thumbnail_url!.trim();
+    add(clip.thumbnail_url);
   }
-  if (isUsablePosterImageUrl(clip.stream_thumbnail_url)) {
-    return clip.stream_thumbnail_url!.trim();
-  }
+
   const streamId = streamVideoIdFromClip(clip);
   if (streamId) {
-    return streamThumbnailUrl(streamId, { height: 720 });
+    for (const time of STREAM_POSTER_SEEK_TIMES) {
+      add(streamThumbnailUrl(streamId, { time, height: 720 }));
+    }
   }
-  return fallback;
+
+  if (isUsablePosterImageUrl(clip.stream_thumbnail_url)) {
+    add(clip.stream_thumbnail_url);
+  }
+
+  add(fallback);
+  return out.length ? out : [fallback];
+}
+
+export function resolveClipPosterUrl(
+  clip: ClipPlaybackFields,
+  fallback = DEFAULT_CLIP_POSTER_FALLBACK,
+): string {
+  return resolveClipPosterCandidates(clip, fallback || DEFAULT_CLIP_POSTER_FALLBACK)[0] ?? fallback;
 }
 
 /** Feed grid tiles use a static poster; full playback opens in the modal. */

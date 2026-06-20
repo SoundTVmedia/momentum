@@ -157,6 +157,8 @@ export async function searchClipsForModeration(c: Context) {
   if (!Number.isNaN(numericId)) {
     clips = await c.env.DB.prepare(
       `SELECT clips.id, clips.artist_name, clips.venue_name, clips.thumbnail_url,
+              clips.stream_video_id, clips.stream_playback_url, clips.stream_thumbnail_url,
+              clips.video_url,
               clips.mocha_user_id, clips.created_at, clips.is_hidden,
               user_profiles.display_name AS user_display_name
        FROM clips
@@ -170,6 +172,8 @@ export async function searchClipsForModeration(c: Context) {
     const like = `%${q}%`;
     clips = await c.env.DB.prepare(
       `SELECT clips.id, clips.artist_name, clips.venue_name, clips.thumbnail_url,
+              clips.stream_video_id, clips.stream_playback_url, clips.stream_thumbnail_url,
+              clips.video_url,
               clips.mocha_user_id, clips.created_at, clips.is_hidden,
               user_profiles.display_name AS user_display_name
        FROM clips

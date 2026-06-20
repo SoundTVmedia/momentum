@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Shield, Flag, Trash2, Eye, EyeOff, CheckCircle, AlertTriangle, Loader2, Search } from 'lucide-react';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 
 interface FlaggedClip {
   id: number;
@@ -262,8 +263,11 @@ export default function ContentModerationPanel() {
                 <div className="flex flex-col lg:flex-row gap-6">
                   {/* Clip Preview */}
                   <div className="lg:w-64 flex-shrink-0">
-                    <img
-                      src={flag.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=200&fit=crop'}
+                    <ClipPosterImage
+                      clip={{
+                        thumbnail_url: flag.thumbnail_url,
+                        video_url: flag.video_url,
+                      }}
                       alt="Clip thumbnail"
                       className="w-full h-40 rounded-lg object-cover"
                     />
