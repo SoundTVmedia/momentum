@@ -89,7 +89,7 @@ export default function MainFeedStack({
 
       {fromTheSceneBlock}
 
-      {isHome && user ? <TonightShowsSection /> : null}
+      {isHome ? <TonightShowsSection /> : null}
 
       {isHome ? (
         <PersonalizedConcerts
