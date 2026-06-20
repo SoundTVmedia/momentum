@@ -162,6 +162,29 @@ export function jamBaseEventTicketUrl(ev: JamBaseEventRecord): string | null {
   return page && page.length > 0 ? page : null;
 }
 
+/** Map JamBase events → same-day clip candidates (deduped by venue). */
+export function clipCandidatesFromJamBaseEvents(
+  events: JamBaseEventRecord[],
+  userLat: number,
+  userLon: number,
+  captureMs: number,
+  maxDistanceMiles?: number,
+): ClipShowCandidate[] {
+  const out: ClipShowCandidate[] = [];
+  for (const ev of events) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const cnd = clipCandidateFromJamBaseEvent(
+      ev,
+      userLat,
+      userLon,
+      captureMs,
+      maxDistanceMiles,
+    );
+    if (cnd) out.push(cnd);
+  }
+  return out;
+}
+
 /** Map a JamBase geo `/events` row to a clip resolve candidate (same-day capture only). */
 export function clipCandidateFromJamBaseEvent(
   ev: JamBaseEventRecord,

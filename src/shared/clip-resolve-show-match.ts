@@ -218,6 +218,17 @@ export function resolveShowMatchFromCandidates(
   return { match: 'none', candidates: [], nearbyVenues: [] };
 }
 
+/** Flatten resolve-show JSON into deduped clip candidates. */
+export function clipCandidatesFromResolveResponse(data: {
+  candidates?: ClipShowCandidate[];
+  nearbyVenues?: ClipShowCandidate[];
+}): ClipShowCandidate[] {
+  return dedupeClipCandidatesByVenue([
+    ...(data.candidates ?? []),
+    ...(data.nearbyVenues ?? []),
+  ]);
+}
+
 /** Client-side auto-apply when resolve-show returned ambiguous or going marks hydrated late. */
 export function resolveShowAutoApplyCandidate(
   data: {

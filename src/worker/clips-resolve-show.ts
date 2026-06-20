@@ -13,6 +13,7 @@ import { artistAtVenueTitle, jamBaseEventTitle } from '../shared/event-title';
 import {
   jamBaseEventMatchesCapture,
   jamBaseEventStartMs,
+  jamBaseVenueEventLookbackDateFrom,
   jamBaseVenueTimezone,
   JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS,
 } from '../shared/jambase-event-day';
@@ -319,9 +320,7 @@ async function fetchVenueEventsForCapture(
   captureMs: number,
   fetchOpts?: JamBaseFetchOptions,
 ): Promise<Record<string, unknown>[]> {
-  const win = new Date(captureMs);
-  win.setUTCDate(win.getUTCDate() - 1);
-  const eventDateFrom = win.toISOString().split('T')[0];
+  const eventDateFrom = jamBaseVenueEventLookbackDateFrom(captureMs);
   const todayUtc = new Date().toISOString().split('T')[0];
 
   const paramSets: Record<string, string>[] = [

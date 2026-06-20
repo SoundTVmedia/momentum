@@ -78,6 +78,15 @@ export function ymdUtc(ms: number): string {
   return `${y}-${m}-${day}`;
 }
 
+/** `eventDateFrom` for venue-scoped lookups that include in-progress shows (expandPastEvents). */
+export function jamBaseVenueEventLookbackDateFrom(captureMs: number = Date.now()): string {
+  const todayUtc = ymdUtc(captureMs);
+  const win = new Date(captureMs);
+  win.setUTCDate(win.getUTCDate() - 1);
+  const tentative = ymdUtc(win.getTime());
+  return tentative < todayUtc ? todayUtc : tentative;
+}
+
 function daysBetweenYmd(eventYmd: string, captureYmd: string): number {
   const eventMs = Date.parse(`${eventYmd}T12:00:00Z`);
   const captureMs = Date.parse(`${captureYmd}T12:00:00Z`);

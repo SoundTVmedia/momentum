@@ -5,6 +5,10 @@ import {
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { haversineMiles } from './search-geo';
+import { jamBaseEventMatchesCapture, jamBaseVenueEventLookbackDateFrom } from '../shared/jambase-event-day';
+
+/** Closest venues to enrich with in-progress listings (expandPastEvents). */
+const NEARBY_VENUE_IN_SHOW_ENRICH = 8;
 import {
   jamBaseVenueJamBaseImage,
   jamBaseVenueOfficialWebsite,
@@ -498,6 +502,105 @@ export async function enrichJamBaseVenueImage(
   return resolveJamBaseVenueImageWithFallback(db, key, jbQ, venue);
 }
 
+function jamBaseEventId(ev: Record<string, unknown>): string | null {
+  return typeof ev.identifier === 'string' ? ev.identifier : null;
+}
+
+function jamBaseVenueId(venue: Record<string, unknown>): string | null {
+  return typeof venue.identifier === 'string' ? venue.identifier : null;
+}
+
+function jamBaseGeoRecordCoords(record: Record<string, unknown>): { lat: number; lon: number } | null {
+  const fromEventShape = jamBaseEventCoords(record);
+  if (fromEventShape) return fromEventShape;
+  const addr = record.address as Record<string, unknown> | undefined;
+  const ag = addr?.geo as Record<string, unknown> | undefined;
+  if (ag) {
+    const lat = Number(ag.latitude ?? ag.lat);
+    const lon = Number(ag.longitude ?? ag.lon ?? ag.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+  }
+  const lat = Number(record.latitude ?? record.lat);
+  const lon = Number(record.longitude ?? record.lon ?? record.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+  return null;
+}
+
+function sortJamBaseVenuesByDistanceFrom(
+  venues: Record<string, unknown>[],
+  latitude: number,
+  longitude: number,
+): Record<string, unknown>[] {
+  return [...venues].sort((a, b) => {
+    const ca = jamBaseGeoRecordCoords(a);
+    const cb = jamBaseGeoRecordCoords(b);
+    const da = ca ? haversineMiles(latitude, longitude, ca.lat, ca.lon) : Number.POSITIVE_INFINITY;
+    const db = cb ? haversineMiles(latitude, longitude, cb.lat, cb.lon) : Number.POSITIVE_INFINITY;
+    return da - db;
+  });
+}
+
+async function fetchInShowEventsAtNearbyVenues(
+  apiKey: string,
+  jbQ: JamBaseQuotaContext | undefined,
+  latitude: number,
+  longitude: number,
+  radiusMiles: number,
+  captureMs: number,
+): Promise<Record<string, unknown>[]> {
+  const venuesData = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+    apiKey,
+    '/venues',
+    {
+      geoLatitude: String(latitude),
+      geoLongitude: String(longitude),
+      geoRadiusAmount: String(radiusMiles),
+      geoRadiusUnits: 'mi',
+      perPage: '25',
+      page: '1',
+    },
+    jbQ,
+  );
+  const venues = sortJamBaseVenuesByDistanceFrom(venuesData?.venues ?? [], latitude, longitude)
+    .slice(0, NEARBY_VENUE_IN_SHOW_ENRICH);
+
+  const eventDateFrom = jamBaseVenueEventLookbackDateFrom(captureMs);
+  const results = await Promise.allSettled(
+    venues.map(async (venue) => {
+      const venueId = jamBaseVenueId(venue);
+      if (!venueId) return [] as Record<string, unknown>[];
+      const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+        apiKey,
+        '/events',
+        {
+          venueId,
+          eventDateFrom,
+          perPage: '25',
+          page: '1',
+          expandPastEvents: 'true',
+        },
+        jbQ,
+      );
+      return data?.events ?? [];
+    }),
+  );
+
+  const merged: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    for (const ev of result.value) {
+      if (typeof ev !== 'object' || ev === null) continue;
+      const id = jamBaseEventId(ev as Record<string, unknown>);
+      const key = id ?? JSON.stringify(ev);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(ev as Record<string, unknown>);
+    }
+  }
+  return merged;
+}
+
 function jamBaseEventCoords(ev: Record<string, unknown>): { lat: number; lon: number } | null {
   const loc = ev.location as Record<string, unknown> | undefined;
   if (!loc) return null;
@@ -549,22 +652,43 @@ export async function fetchNearbyJamBaseEvents(
   const key = typeof apiKey === 'string' ? apiKey.trim() : '';
   if (!key) return [];
 
-  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-    key,
-    '/events',
-    {
-      geoLatitude: String(latitude),
-      geoLongitude: String(longitude),
-      geoRadiusAmount: String(Math.min(100, Math.max(10, radiusMiles))),
-      geoRadiusUnits: 'mi',
-      eventDateFrom: jamBaseEventDateFromToday(),
-      perPage: String(Math.min(40, Math.max(1, limit))),
-      page: '1',
-    },
-    jbQ,
-    diag,
-  );
+  const radius = Math.min(100, Math.max(10, radiusMiles));
+  const captureMs = Date.now();
 
-  const raw = data?.events ?? [];
+  const [geoData, inShowEvents] = await Promise.all([
+    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      key,
+      '/events',
+      {
+        geoLatitude: String(latitude),
+        geoLongitude: String(longitude),
+        geoRadiusAmount: String(radius),
+        geoRadiusUnits: 'mi',
+        eventDateFrom: jamBaseEventDateFromToday(),
+        perPage: String(Math.min(40, Math.max(1, limit))),
+        page: '1',
+      },
+      jbQ,
+      diag,
+    ),
+    fetchInShowEventsAtNearbyVenues(key, jbQ, latitude, longitude, radius, captureMs),
+  ]);
+
+  const merged = new Map<string, Record<string, unknown>>();
+  for (const ev of geoData?.events ?? []) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    const id = jamBaseEventId(ev);
+    const mapKey = id ?? JSON.stringify(ev);
+    if (!merged.has(mapKey)) merged.set(mapKey, ev);
+  }
+  for (const ev of inShowEvents) {
+    if (typeof ev !== 'object' || ev === null) continue;
+    if (!jamBaseEventMatchesCapture(ev, captureMs, latitude, longitude)) continue;
+    const id = jamBaseEventId(ev);
+    const mapKey = id ?? JSON.stringify(ev);
+    if (!merged.has(mapKey)) merged.set(mapKey, ev);
+  }
+
+  const raw = [...merged.values()];
   return sortJamBaseEventsByDistanceFrom(raw, latitude, longitude).slice(0, limit);
 }

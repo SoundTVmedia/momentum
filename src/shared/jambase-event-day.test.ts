@@ -91,6 +91,19 @@ describe('jamBaseEventMatchesCapture without x-timezone', () => {
     expect(jamBaseEventMatchesCapture(event, captureMs)).toBe(true);
   });
 
+  it('matches in-progress show that started at 7:30 PM on the same venue-local night', () => {
+    const event = {
+      startDate: '2026-06-19T19:30:00',
+      location: {
+        name: 'Neighborhood Venue',
+        address: { 'x-timezone': 'America/New_York' },
+      },
+    };
+    // 9:30 PM Eastern on June 19, 2026
+    const captureMs = Date.parse('2026-06-20T01:30:00.000Z');
+    expect(jamBaseEventMatchesCapture(event, captureMs)).toBe(true);
+  });
+
   it('rejects capture well after the show window ended', () => {
     const event = {
       startDate: '2026-06-09T20:00:00',

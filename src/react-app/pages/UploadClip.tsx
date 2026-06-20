@@ -1165,7 +1165,12 @@ export default function UploadClip() {
         }
       }
 
-      if (stickySession && stickySession.source !== 'going' && resolveForAutoTagQuick) {
+      if (
+        stickySession &&
+        stickySession.source !== 'going' &&
+        stickySession.candidate.jambase_event_id?.trim() &&
+        resolveForAutoTagQuick
+      ) {
         applyClipCandidate(stickySession.candidate);
         return;
       }
