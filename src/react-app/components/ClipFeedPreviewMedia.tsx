@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   type ClipPlaybackFields,
-  DEFAULT_CLIP_POSTER_FALLBACK,
   prefetchFeedPreviewMp4,
   resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
@@ -24,7 +23,6 @@ export interface ClipFeedPreviewMediaProps extends ClipPlaybackFields {
   fallbackUrl?: string;
   /** @deprecated Use clip thumbnail fields */
   posterUrl?: string | null;
-  thumbFallback?: string;
   className?: string;
   mediaHovered?: boolean;
   /** Stable key for limiting concurrent mobile feed decoders (e.g. clip id). */
@@ -46,7 +44,6 @@ export default function ClipFeedPreviewMedia({
   playbackUrl,
   fallbackUrl,
   posterUrl,
-  thumbFallback = DEFAULT_CLIP_POSTER_FALLBACK,
   className = '',
   mediaHovered: mediaHoveredProp,
   previewInstanceKey = '',
@@ -75,7 +72,7 @@ export default function ClipFeedPreviewMedia({
   const [thumbHidden, setThumbHidden] = useState(false);
 
   const { src: displayPoster, onError: onPosterError, onLoad: onPosterLoad, crossOrigin } =
-    useClipPosterSrc(clipFields, posterUrl || thumbFallback);
+    useClipPosterSrc(clipFields);
   const previewVideoSrc = posterOnly ? null : resolveFeedPreviewVideoSrc(clipFields);
 
   const hoverFromParent = mediaHoveredProp !== undefined;
@@ -232,20 +229,22 @@ export default function ClipFeedPreviewMedia({
           preload={shouldPlay ? 'auto' : 'metadata'}
         />
       ) : null}
-      <img
-        key={displayPoster}
-        src={displayPoster}
-        alt=""
-        crossOrigin={crossOrigin}
-        className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
-          thumbHidden ? 'opacity-0' : 'opacity-100'
-        }`}
-        loading={posterOnly ? 'eager' : 'lazy'}
-        fetchPriority={posterOnly ? 'high' : 'auto'}
-        decoding="async"
-        onError={onPosterError}
-        onLoad={onPosterLoad}
-      />
+      {displayPoster ? (
+        <img
+          key={displayPoster}
+          src={displayPoster}
+          alt=""
+          crossOrigin={crossOrigin}
+          className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
+            thumbHidden ? 'opacity-0' : 'opacity-100'
+          }`}
+          loading={posterOnly ? 'eager' : 'lazy'}
+          fetchPriority={posterOnly ? 'high' : 'auto'}
+          decoding="async"
+          onError={onPosterError}
+          onLoad={onPosterLoad}
+        />
+      ) : null}
     </div>
   );
 }

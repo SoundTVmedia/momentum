@@ -38,7 +38,7 @@ export function resolveClipShareImageUrl(
 
   const streamId = streamVideoIdFromClip(clip);
   if (streamId) {
-    return streamThumbnailUrl(streamId, { height: 720, width: 1280 });
+    return streamThumbnailUrl(streamId, { time: '1s', height: 720, width: 1280 });
   }
   const poster = resolveClipPosterUrl(clip);
   if (poster.trim()) {

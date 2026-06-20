@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_CLIP_POSTER_FALLBACK,
   extractStreamVideoId,
   feedTileUsesStaticPoster,
   isHlsPlaybackUrl,
@@ -86,7 +85,7 @@ describe('clip-playback', () => {
     ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=1s&height=720`);
   });
 
-  it('lists poster candidates: upload JPEG, stream times, legacy stream thumb, fallback', () => {
+  it('lists poster candidates: upload JPEG then stream times only', () => {
     expect(
       resolveClipPosterCandidates({
         thumbnail_url: '/api/files/clips/user/thumb.jpg',
@@ -99,8 +98,11 @@ describe('clip-playback', () => {
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=5s&height=720`,
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=8s&height=720`,
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=12s&height=720`,
-      DEFAULT_CLIP_POSTER_FALLBACK,
     ]);
+  });
+
+  it('returns empty string when no clip poster sources exist', () => {
+    expect(resolveClipPosterUrl({ video_url: 'pending:upload' })).toBe('');
   });
 
   it('does not use progressive video URLs as poster images', () => {

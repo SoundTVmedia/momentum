@@ -1,5 +1,5 @@
 import type { ImgHTMLAttributes } from 'react';
-import { type ClipPlaybackFields, DEFAULT_CLIP_POSTER_FALLBACK } from '@/shared/clip-playback';
+import type { ClipPlaybackFields } from '@/shared/clip-playback';
 import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
 
 export type ClipPosterImageProps = Omit<
@@ -7,17 +7,13 @@ export type ClipPosterImageProps = Omit<
   'src' | 'onError' | 'onLoad' | 'crossOrigin'
 > & {
   clip: ClipPlaybackFields;
-  fallback?: string;
 };
 
-/** Static clip poster with fallbacks across stored JPEGs and Stream frame times. */
-export default function ClipPosterImage({
-  clip,
-  fallback = DEFAULT_CLIP_POSTER_FALLBACK,
-  alt = '',
-  ...rest
-}: ClipPosterImageProps) {
-  const { src, onError, onLoad, crossOrigin } = useClipPosterSrc(clip, fallback);
+/** Static clip poster — always from the clip (stored JPEG, Stream still, or captured frame). */
+export default function ClipPosterImage({ clip, alt = '', ...rest }: ClipPosterImageProps) {
+  const { src, onError, onLoad, crossOrigin } = useClipPosterSrc(clip);
+
+  if (!src) return null;
 
   return (
     <img

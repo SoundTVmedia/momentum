@@ -100,6 +100,114 @@ async function seekVideoAndPaintFrame(video: HTMLVideoElement, t: number): Promi
   });
 }
 
+async function paintBestVideoFrameDataUrl(
+  video: HTMLVideoElement,
+  options?: { seekSeconds?: number; maxWidth?: number; quality?: number },
+): Promise<string | null> {
+  const explicitSeek = options?.seekSeconds;
+  const maxWidth = options?.maxWidth ?? 720;
+  const quality = options?.quality ?? 0.85;
+
+  if (video.readyState < 2) {
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const timer = window.setTimeout(finish, 2000);
+      video.addEventListener(
+        'loadeddata',
+        () => {
+          window.clearTimeout(timer);
+          finish();
+        },
+        { once: true },
+      );
+    });
+  }
+
+  const duration = video.duration;
+  const durationOk = Number.isFinite(duration) && duration > 0;
+  const seekPlan =
+    explicitSeek !== undefined
+      ? [
+          clampSeek(
+            explicitSeek,
+            durationOk ? duration : Math.max(explicitSeek + 0.5, 1),
+          ),
+        ]
+      : candidateSeekTimes(duration);
+
+  const vw0 = video.videoWidth;
+  const vh0 = video.videoHeight;
+  if (!vw0 || !vh0) return null;
+
+  const scale = Math.min(1, maxWidth / vw0);
+  const cw = Math.round(vw0 * scale);
+  const ch = Math.round(vh0 * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+
+  let bestDataUrl: string | null = null;
+
+  for (const t of seekPlan) {
+    try {
+      await seekVideoAndPaintFrame(video, t);
+    } catch {
+      continue;
+    }
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(video, 0, 0, cw, ch);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    if (!dataUrl) continue;
+    bestDataUrl = dataUrl;
+
+    const black = isLikelyBlackFrame(ctx, cw, ch);
+    if (explicitSeek !== undefined || !black) {
+      break;
+    }
+  }
+
+  return bestDataUrl;
+}
+
+/** Capture a JPEG data URL from a remote/same-origin video URL (feed poster fallback). */
+export async function captureVideoFrameDataUrl(
+  videoUrl: string,
+  options?: { maxWidth?: number; quality?: number },
+): Promise<string | null> {
+  const video = document.createElement('video');
+  video.preload = 'auto';
+  video.muted = true;
+  video.playsInline = true;
+  if (
+    videoUrl.includes('videodelivery.net') ||
+    videoUrl.includes('cloudflarestream.com')
+  ) {
+    video.crossOrigin = 'anonymous';
+  }
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      video.onerror = () => reject(new Error('video load error'));
+      video.onloadedmetadata = () => resolve();
+      video.src = videoUrl;
+    });
+    return await paintBestVideoFrameDataUrl(video, options);
+  } catch {
+    return null;
+  }
+}
+
 export async function generateVideoThumbnailJpeg(
   source: File | Blob,
   options?: { seekSeconds?: number; maxWidth?: number; quality?: number }
@@ -121,85 +229,21 @@ export async function generateVideoThumbnailJpeg(
       video.src = url;
     });
 
-    // Extra decode buffer helps Safari / WebM before seeking (reduces black first paint).
-    if (video.readyState < 2) {
-      await new Promise<void>((resolve) => {
-        let settled = false;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          resolve();
-        };
-        const timer = window.setTimeout(finish, 2000);
-        video.addEventListener(
-          'loadeddata',
-          () => {
-            window.clearTimeout(timer);
-            finish();
-          },
-          { once: true }
-        );
-      });
-    }
+    const dataUrl = await paintBestVideoFrameDataUrl(video, {
+      seekSeconds: explicitSeek,
+      maxWidth,
+      quality,
+    });
+    if (!dataUrl) return null;
 
-    const duration = video.duration;
-    const durationOk = Number.isFinite(duration) && duration > 0;
-    const seekPlan =
-      explicitSeek !== undefined
-        ? [
-            clampSeek(
-              explicitSeek,
-              durationOk ? duration : Math.max(explicitSeek + 0.5, 1)
-            ),
-          ]
-        : candidateSeekTimes(duration);
-
-    const vw0 = video.videoWidth;
-    const vh0 = video.videoHeight;
-    if (!vw0 || !vh0) return null;
-
-    const scale = Math.min(1, maxWidth / vw0);
-    const cw = Math.round(vw0 * scale);
-    const ch = Math.round(vh0 * scale);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = cw;
-    canvas.height = ch;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
-
-    let bestBlob: Blob | null = null;
-
-    for (const t of seekPlan) {
-      try {
-        await seekVideoAndPaintFrame(video, t);
-      } catch {
-        continue;
-      }
-
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, cw, ch);
-      ctx.drawImage(video, 0, 0, cw, ch);
-
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob((b) => resolve(b), 'image/jpeg', quality)
-      );
-      if (!blob) continue;
-      bestBlob = blob;
-
-      const black = isLikelyBlackFrame(ctx, cw, ch);
-      if (explicitSeek !== undefined || !black) {
-        break;
-      }
-    }
-
-    if (!bestBlob) return null;
+    const blob = await fetch(dataUrl).then((r) => r.blob());
+    if (!blob) return null;
 
     const name =
       source instanceof File
         ? `${source.name.replace(/\.[^.]+$/, '') || 'clip'}-thumb.jpg`
         : `clip-thumb-${Date.now()}.jpg`;
-    return new File([bestBlob], name, { type: 'image/jpeg' });
+    return new File([blob], name, { type: 'image/jpeg' });
   } catch {
     return null;
   } finally {

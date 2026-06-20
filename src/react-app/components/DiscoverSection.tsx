@@ -8,7 +8,6 @@ import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
 import { artistPath, venuePath } from '@/shared/app-paths'
 import EventTicketActions from '@/react-app/components/EventTicketActions'
 import ClipPosterImage from '@/react-app/components/ClipPosterImage'
-import { DEFAULT_CLIP_POSTER_FALLBACK } from '@/shared/clip-playback'
 
 const welcomeGradient =
   'bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent'
@@ -163,9 +162,7 @@ export default function DiscoverSection() {
               const priorityLabel = getPriorityLabel(show)
               const priorityColor = getPriorityColor(show)
               const clipPoster = show.clip ?? null
-              const imageUrl =
-                show.artist_image ||
-                (clipPoster ? null : DEFAULT_CLIP_POSTER_FALLBACK)
+              const imageUrl = show.artist_image || null
 
               return (
                 <div
@@ -180,12 +177,14 @@ export default function DiscoverSection() {
                         alt={show.artist_name || 'Concert'}
                         className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
                       />
-                    ) : (
+                    ) : imageUrl ? (
                       <img
-                        src={imageUrl ?? DEFAULT_CLIP_POSTER_FALLBACK}
+                        src={imageUrl}
                         alt={show.artist_name || 'Concert'}
                         className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
                       />
+                    ) : (
+                      <div className="w-full h-48 bg-black/60" aria-hidden />
                     )}
                     {/* Priority badge — trending uses fire icon only */}
                     {show.type === 'trending' ? (

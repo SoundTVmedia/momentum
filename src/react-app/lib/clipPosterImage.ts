@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type ClipPlaybackFields,
-  DEFAULT_CLIP_POSTER_FALLBACK,
   resolveClipPosterCandidates,
+  resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
+import { captureVideoFrameDataUrl } from '@/react-app/utils/videoThumbnail';
 
 function sampleMeanLuminance(data: Uint8ClampedArray, width: number, height: number): number {
   const target = 4096;
@@ -52,12 +53,9 @@ export function clipPosterCrossOrigin(src: string): 'anonymous' | undefined {
     : undefined;
 }
 
-export function useClipPosterSrc(
-  clip: ClipPlaybackFields,
-  fallback: string = DEFAULT_CLIP_POSTER_FALLBACK,
-) {
-  const candidates = useMemo(
-    () => resolveClipPosterCandidates(clip, fallback),
+export function useClipPosterSrc(clip: ClipPlaybackFields) {
+  const urlCandidates = useMemo(
+    () => resolveClipPosterCandidates(clip),
     [
       clip.thumbnail_url,
       clip.stream_thumbnail_url,
@@ -65,39 +63,67 @@ export function useClipPosterSrc(
       clip.stream_playback_url,
       clip.video_url,
       clip.r2_raw_key,
-      fallback,
     ],
   );
 
+  const videoSrc = useMemo(() => resolveFeedPreviewVideoSrc(clip), [
+    clip.stream_video_id,
+    clip.stream_playback_url,
+    clip.video_url,
+    clip.r2_raw_key,
+  ]);
+
   const [index, setIndex] = useState(0);
+  const [extractedSrc, setExtractedSrc] = useState<string | null>(null);
+  const extractAttemptedRef = useRef(false);
 
   useEffect(() => {
     setIndex(0);
-  }, [candidates]);
+    setExtractedSrc(null);
+    extractAttemptedRef.current = false;
+  }, [urlCandidates, videoSrc]);
 
-  const src = candidates[Math.min(index, candidates.length - 1)] ?? fallback;
-  const atLastCandidate = index >= candidates.length - 1;
+  const tryExtractFrame = useCallback(async () => {
+    if (extractAttemptedRef.current || !videoSrc) return;
+    extractAttemptedRef.current = true;
+    const dataUrl = await captureVideoFrameDataUrl(videoSrc, { maxWidth: 720, quality: 0.85 });
+    if (dataUrl) setExtractedSrc(dataUrl);
+  }, [videoSrc]);
 
-  const advance = useCallback(() => {
-    setIndex((i) => (i + 1 < candidates.length ? i + 1 : i));
-  }, [candidates.length]);
+  useEffect(() => {
+    if (urlCandidates.length === 0 && videoSrc) {
+      void tryExtractFrame();
+    }
+  }, [urlCandidates.length, videoSrc, tryExtractFrame]);
+
+  const advanceOrExtract = useCallback(() => {
+    if (index + 1 < urlCandidates.length) {
+      setIndex((i) => i + 1);
+      return;
+    }
+    void tryExtractFrame();
+  }, [index, urlCandidates.length, tryExtractFrame]);
+
+  const urlSrc = urlCandidates[index] ?? '';
+  const src = extractedSrc ?? urlSrc;
 
   const onError = useCallback(() => {
-    if (!atLastCandidate) advance();
-  }, [advance, atLastCandidate]);
+    if (extractedSrc) return;
+    advanceOrExtract();
+  }, [advanceOrExtract, extractedSrc]);
 
   const onLoad = useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
-      if (atLastCandidate) return;
-      if (isLikelyBlackPosterImage(event.currentTarget)) advance();
+      if (extractedSrc) return;
+      if (isLikelyBlackPosterImage(event.currentTarget)) advanceOrExtract();
     },
-    [advance, atLastCandidate],
+    [advanceOrExtract, extractedSrc],
   );
 
   return {
     src,
     onError,
     onLoad,
-    crossOrigin: clipPosterCrossOrigin(src),
+    crossOrigin: extractedSrc ? undefined : clipPosterCrossOrigin(src),
   };
 }

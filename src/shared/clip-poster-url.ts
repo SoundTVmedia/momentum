@@ -1,10 +1,6 @@
 /** Cloudflare Stream public delivery hostname (works for all accounts). */
 export const STREAM_DELIVERY_ORIGIN = 'https://videodelivery.net';
 
-/** Last-resort poster when no clip frame is available. */
-export const DEFAULT_CLIP_POSTER_FALLBACK =
-  'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1200&fit=crop';
-
 /** Seek offsets for Stream still frames — avoids all-black t=0 keyframes. */
 export const STREAM_POSTER_SEEK_TIMES = ['1s', '3s', '5s', '8s', '12s'] as const;
 
@@ -72,10 +68,7 @@ function isUsablePosterImageUrl(url: string | null | undefined): boolean {
 }
 
 /** Ordered poster URLs to try — uploaded JPEG first, then Stream frames at several times. */
-export function resolveClipPosterCandidates(
-  clip: ClipPlaybackFields,
-  fallback: string = DEFAULT_CLIP_POSTER_FALLBACK,
-): string[] {
+export function resolveClipPosterCandidates(clip: ClipPlaybackFields): string[] {
   const out: string[] = [];
   const add = (url: string | null | undefined) => {
     const u = typeof url === 'string' ? url.trim() : '';
@@ -97,15 +90,11 @@ export function resolveClipPosterCandidates(
     add(clip.stream_thumbnail_url);
   }
 
-  add(fallback);
-  return out.length ? out : [fallback];
+  return out;
 }
 
-export function resolveClipPosterUrl(
-  clip: ClipPlaybackFields,
-  fallback = DEFAULT_CLIP_POSTER_FALLBACK,
-): string {
-  return resolveClipPosterCandidates(clip, fallback || DEFAULT_CLIP_POSTER_FALLBACK)[0] ?? fallback;
+export function resolveClipPosterUrl(clip: ClipPlaybackFields, fallback = ''): string {
+  return resolveClipPosterCandidates(clip)[0] ?? fallback;
 }
 
 /** Feed grid tiles use a static poster; full playback opens in the modal. */
