@@ -542,7 +542,7 @@ export default function DiscoverPage() {
 
             {results.users.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
-                <DiscoverSectionTitle icon={Users} iconClassName="text-green-400" title="Users" />
+                <DiscoverSectionTitle icon={Users} iconClassName="text-green-400" title="Feedback Users" />
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {results.users.map((u) => (
                     <button

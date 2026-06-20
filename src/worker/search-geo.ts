@@ -292,35 +292,36 @@ export function parseSearchRadiusMiles(raw: string | undefined | null): number |
 export function clipGeoWhereClause(
   anchor: SearchGeoAnchor,
   radiusMiles: number,
+  table = 'clips',
 ): { sql: string; bindings: unknown[] } {
   const hasCoords =
     Number.isFinite(anchor.latitude) &&
     Number.isFinite(anchor.longitude);
 
-  const locationLikes = anchor.locationTokens.map(() => `clips.location LIKE ?`).join(' OR ');
+  const locationLikes = anchor.locationTokens.map(() => `${table}.location LIKE ?`).join(' OR ');
   const locationBindings = anchor.locationTokens.map((t) => `%${t}%`);
 
   if (!hasCoords) {
     return {
-      sql: `(${locationLikes})`,
+      sql: locationLikes ? `(${locationLikes})` : '0',
       bindings: locationBindings,
     };
   }
 
   const haversine = `(3959 * acos(min(1.0, max(-1.0,
-    cos(radians(?)) * cos(radians(clips.geolocation_latitude)) *
-    cos(radians(clips.geolocation_longitude) - radians(?)) +
-    sin(radians(?)) * sin(radians(clips.geolocation_latitude))
+    cos(radians(?)) * cos(radians(${table}.geolocation_latitude)) *
+    cos(radians(${table}.geolocation_longitude) - radians(?)) +
+    sin(radians(?)) * sin(radians(${table}.geolocation_latitude))
   )))) <= ?`;
 
   return {
     sql: `((
-      clips.geolocation_latitude IS NOT NULL
-      AND clips.geolocation_longitude IS NOT NULL
+      ${table}.geolocation_latitude IS NOT NULL
+      AND ${table}.geolocation_longitude IS NOT NULL
       AND ${haversine}
     ) OR (
-      (clips.geolocation_latitude IS NULL OR clips.geolocation_longitude IS NULL)
-      AND (${locationLikes})
+      (${table}.geolocation_latitude IS NULL OR ${table}.geolocation_longitude IS NULL)
+      AND (${locationLikes || '0'})
     ))`,
     bindings: [
       anchor.latitude,

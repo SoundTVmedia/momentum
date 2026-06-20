@@ -36,6 +36,10 @@ import {
   resolveUserSearchRadius,
   type SearchGeoAnchor,
 } from './search-geo';
+import {
+  searchFeedbackUsersByText,
+  searchFeedbackUsersInGeo,
+} from './search-users';
 
 async function fetchJamBaseCompactCatalog(
   apiKey: string,
@@ -93,13 +97,14 @@ async function runGeoScopedAdvancedSearch(
     compact: boolean;
     clipLimit: number;
     venueLimit: number;
+    userLimit: number;
     dateRange: string;
     sortBy: string;
     jbKeyTrimmed: string;
     jbQ: ReturnType<typeof jamBaseQuotaFromEnv>;
   },
 ) {
-  const { geoAnchor, radiusMiles, compact, clipLimit, venueLimit, dateRange, sortBy, jbKeyTrimmed, jbQ } =
+  const { geoAnchor, radiusMiles, compact, clipLimit, venueLimit, userLimit, dateRange, sortBy, jbKeyTrimmed, jbQ } =
     opts;
   const geo = clipGeoWhereClause(geoAnchor, radiusMiles);
 
@@ -221,12 +226,13 @@ async function runGeoScopedAdvancedSearch(
           failed: false,
         });
 
-  const [clips, artists, venues, jbResult] = await Promise.all([
+  const [clips, artists, venues, users, jbResult] = await Promise.all([
     c.env.DB.prepare(clipsQuery).bind(...clipsBindings).all(),
     c.env.DB.prepare(artistsQuery).bind(...geo.bindings).all(),
     venuesQuery
       ? c.env.DB.prepare(venuesQuery).bind(...geo.bindings).all()
       : Promise.resolve({ results: [] as SearchVenueRow[] }),
+    searchFeedbackUsersInGeo(c.env.DB, geoAnchor, radiusMiles, userLimit),
     jbPromise,
   ]);
 
@@ -272,7 +278,7 @@ async function runGeoScopedAdvancedSearch(
     clips: clips.results || [],
     artists: enrichedArtists,
     venues: enrichedVenues,
-    users: [],
+    users,
     jambase: {
       artists: [],
       venues: [],
@@ -329,6 +335,7 @@ export async function advancedSearch(c: Context) {
       compact,
       clipLimit,
       venueLimit,
+      userLimit,
       dateRange,
       sortBy,
       jbKeyTrimmed,
@@ -429,22 +436,7 @@ export async function advancedSearch(c: Context) {
           .bind(like)
           .all()
       : Promise.resolve({ results: [] as SearchVenueRow[] }),
-    c.env.DB.prepare(
-      `SELECT 
-      user_profiles.mocha_user_id,
-      user_profiles.display_name,
-      user_profiles.profile_image_url,
-      COUNT(DISTINCT clips.id) as clip_count
-    FROM user_profiles
-    LEFT JOIN clips ON user_profiles.mocha_user_id = clips.mocha_user_id AND clips.is_hidden = 0
-    WHERE user_profiles.display_name LIKE ?
-    GROUP BY user_profiles.mocha_user_id
-    HAVING clip_count > 0
-    ORDER BY clip_count DESC
-    LIMIT ${userLimit}`,
-    )
-      .bind(like)
-      .all(),
+    searchFeedbackUsersByText(c.env.DB, trimmedQuery, userLimit),
   ]);
 
   const jbPromise =
@@ -535,7 +527,7 @@ export async function advancedSearch(c: Context) {
     clips: clips.results || [],
     artists: searchArtists,
     venues: enrichedVenues,
-    users: users.results || [],
+    users,
     jambase: {
       artists: jambase.artists,
       venues: jambase.venues,

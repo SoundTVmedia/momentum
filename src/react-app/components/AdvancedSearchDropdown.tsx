@@ -1,11 +1,12 @@
 import { useLayoutEffect, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, MapPin, Music, Ticket } from 'lucide-react';
+import { Loader2, MapPin, Music, Ticket, Users } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, venuePath } from '@/shared/app-paths';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
+import UserAvatar from '@/react-app/components/UserAvatar';
 import {
   advancedSearchHasHits,
   jamBaseEventTicket,
@@ -114,6 +115,42 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
+          {results.users.length > 0 && (
+            <div className="border-b border-white/10">
+              <div className="px-3 py-2 text-xs font-semibold text-green-400/90 uppercase tracking-wide flex items-center gap-1">
+                <Users className="w-3.5 h-3.5" /> Feedback Users
+              </div>
+              {results.users.map((u) => (
+                <button
+                  key={u.mocha_user_id}
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate(`/users/${u.mocha_user_id}`);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2 min-w-0"
+                >
+                  <UserAvatar
+                    imageUrl={u.profile_image_url}
+                    displayName={u.display_name}
+                    seed={u.mocha_user_id}
+                    alt={u.display_name || 'User'}
+                    sizeClass="w-8 h-8"
+                    letterClassName="text-xs font-semibold"
+                    className="flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{u.display_name || 'User'}</div>
+                    {u.clip_count > 0 ? (
+                      <div className="text-gray-500 text-xs truncate">
+                        {u.clip_count} clip{u.clip_count !== 1 ? 's' : ''}
+                      </div>
+                    ) : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
           {results.artists.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-rose/90 uppercase tracking-wide flex items-center gap-1">
@@ -158,26 +195,6 @@ function SearchDropdownPanel({
                 >
                   {v.name}
                   {v.location ? <span className="text-gray-500"> · {v.location}</span> : null}
-                </button>
-              ))}
-            </div>
-          )}
-          {results.users.length > 0 && (
-            <div className="border-b border-white/10">
-              <div className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                Fans
-              </div>
-              {results.users.map((u) => (
-                <button
-                  key={u.mocha_user_id}
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    navigate(`/users/${u.mocha_user_id}`);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 truncate"
-                >
-                  {u.display_name || 'User'}
                 </button>
               ))}
             </div>
