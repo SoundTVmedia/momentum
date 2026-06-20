@@ -457,17 +457,35 @@ body {
     border-color: rgba(255, 255, 255, 0.2);
   }
 
-  /* Section & page headings — one rhythm app-wide */
+  /* Section & page headings — white → light blue gradient app-wide */
+  .fb-section-title,
+  .fb-page-section-title,
+  .fb-hero-title {
+    background-image: linear-gradient(
+      125deg,
+      #ffffff 0%,
+      #f0f9ff 22%,
+      #67e8f9 48%,
+      #bae6fd 72%,
+      #ffffff 100%
+    );
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 2px 16px rgba(103, 232, 249, 0.22));
+  }
+
   .fb-section-title {
-    @apply font-headline text-xl sm:text-2xl font-bold tracking-tight momentum-grad-text;
+    @apply font-headline text-xl sm:text-2xl font-bold tracking-tight;
   }
 
   .fb-page-section-title {
-    @apply font-headline text-2xl sm:text-3xl font-bold tracking-tight momentum-grad-text;
+    @apply font-headline text-2xl sm:text-3xl font-bold tracking-tight;
   }
 
   .fb-hero-title {
-    @apply font-headline text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white;
+    @apply font-headline text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight;
   }
 
   .fb-section-subtitle {

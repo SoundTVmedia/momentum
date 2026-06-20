@@ -137,7 +137,7 @@ async function resolveJamBaseShowCandidate(
   lat: number,
   lon: number,
   captureMs: number,
-  goingMarks: Awaited<ReturnType<typeof loadGoingShowMarksForUser>>,
+  goingMarks: Awaited<ReturnType<typeof loadCaptureShowMarksForUser>>,
 ): Promise<ClipShowCandidate | null> {
   const key = env.JAMBASE_API_KEY?.trim();
   if (!key) return null;
