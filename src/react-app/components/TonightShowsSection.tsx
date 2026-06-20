@@ -3,6 +3,8 @@ import { Loader2, Moon } from 'lucide-react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+import { BROWSE_TONIGHT_SHOWS_PATH } from '@/react-app/lib/browse-paths';
+import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
 import {
   readDeviceCoordsForNearbyShows,
   tonightShowsApiUrl,
@@ -120,6 +122,11 @@ export default function TonightShowsSection({
         carouselAriaLabel="Shows tonight near you"
         carouselClassName={HOME_FEED_CAROUSEL_BLEED}
         showInProgressBadge
+      />
+      <CarouselFeedFooter
+        viewAllHref={BROWSE_TONIGHT_SHOWS_PATH}
+        viewAllLabel="View All Shows"
+        showEndMessage={false}
       />
     </section>
   );
