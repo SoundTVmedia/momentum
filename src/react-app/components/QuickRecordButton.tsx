@@ -37,8 +37,10 @@ import {
 import {
   cameraPreviewHasFrames,
   cameraPreviewLooksReady,
+  deviceIsPortraitViewport,
   kickCameraPreviewPlay,
   prepareCameraPreviewElement,
+  readCaptureDimensionsFromPreview,
 } from '@/react-app/utils/cameraPreview';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
@@ -120,7 +122,7 @@ export default function QuickRecordButton({
   const [networkSpeed, setNetworkSpeed] = useState<'fast' | 'slow' | 'offline'>('fast');
   
   // Orientation state
-  const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
+  const [isPortrait, setIsPortrait] = useState(() => deviceIsPortraitViewport());
   const [recordingOrientation, setRecordingOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [videoResolution, setVideoResolution] = useState({ width: 1080, height: 1920 });
   
@@ -257,28 +259,7 @@ export default function QuickRecordButton({
     }
   }, []);
 
-  // Orientation detection and handling
-  useEffect(() => {
-    const handleOrientationChange = () => {
-      const newIsPortrait = window.innerHeight > window.innerWidth;
-      setIsPortrait(newIsPortrait);
-      
-      // If recording is active and orientation changes, show notification
-      if (isRecording && newIsPortrait !== isPortrait) {
-        const currentOrientation = recordingOrientation;
-        console.log(`Recording in ${currentOrientation} mode - orientation change detected`);
-      }
-    };
-
-    // Listen for orientation changes
-    window.addEventListener('resize', handleOrientationChange);
-    window.addEventListener('orientationchange', handleOrientationChange);
-
-    return () => {
-      window.removeEventListener('resize', handleOrientationChange);
-      window.removeEventListener('orientationchange', handleOrientationChange);
-    };
-  }, [isRecording, isPortrait, recordingOrientation]);
+  const orientationRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset capture coords when modal closes
   useEffect(() => {
@@ -779,7 +760,7 @@ export default function QuickRecordButton({
     setPreviewStream(null);
     try {
       // Detect current orientation
-      const currentIsPortrait = window.innerHeight > window.innerWidth;
+      const currentIsPortrait = deviceIsPortraitViewport();
       console.log('QuickRecordButton: Current orientation:', currentIsPortrait ? 'portrait' : 'landscape');
       
       // Try multiple camera constraint sets for broader mobile compatibility.
@@ -931,6 +912,41 @@ export default function QuickRecordButton({
     }
   };
 
+  // Refresh camera constraints when the device rotates (landscape horizontal capture).
+  useEffect(() => {
+    const handleOrientationChange = () => {
+      const newIsPortrait = deviceIsPortraitViewport();
+      setIsPortrait(newIsPortrait);
+
+      if (isRecordingRef.current) return;
+      if (!showModalRef.current) return;
+
+      if (orientationRestartTimerRef.current) {
+        clearTimeout(orientationRestartTimerRef.current);
+      }
+      orientationRestartTimerRef.current = setTimeout(() => {
+        orientationRestartTimerRef.current = null;
+        if (isRecordingRef.current || !showModalRef.current) return;
+        const live = streamRef.current?.getVideoTracks()[0]?.readyState === 'live';
+        if (!live) return;
+        setCameraReady(false);
+        void requestPermissions();
+      }, 350);
+    };
+
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    return () => {
+      if (orientationRestartTimerRef.current) {
+        clearTimeout(orientationRestartTimerRef.current);
+        orientationRestartTimerRef.current = null;
+      }
+      window.removeEventListener('resize', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     if (!showModal) {
       lastAdoptedPrimedRef.current = null;
@@ -984,12 +1000,9 @@ export default function QuickRecordButton({
       setCameraReady(true);
       try {
         const vt = previewStream.getVideoTracks()[0];
-        if (vt?.getSettings) {
-          const settings = vt.getSettings();
-          if (settings.width && settings.height) {
-            setVideoResolution({ width: settings.width, height: settings.height });
-          }
-        }
+        const orientation = deviceIsPortraitViewport() ? 'portrait' : 'landscape';
+        const dims = readCaptureDimensionsFromPreview(video, vt, orientation);
+        setVideoResolution(dims);
       } catch (e) {
         console.warn('QuickRecordButton: preview metadata failed', e);
       }
@@ -1091,10 +1104,8 @@ export default function QuickRecordButton({
       setPreviewTapToStart(false);
       try {
         const vt = previewStream.getVideoTracks()[0];
-        const settings = vt?.getSettings?.();
-        if (settings?.width && settings?.height) {
-          setVideoResolution({ width: settings.width, height: settings.height });
-        }
+        const orientation = deviceIsPortraitViewport() ? 'portrait' : 'landscape';
+        setVideoResolution(readCaptureDimensionsFromPreview(video, vt, orientation));
       } catch {
         /* optional metadata */
       }
@@ -1579,13 +1590,12 @@ export default function QuickRecordButton({
     const currentOrientation = isPortrait ? 'portrait' : 'landscape';
     setRecordingOrientation(currentOrientation);
 
-    // Get actual video resolution
     const videoTrack = stream.getVideoTracks()[0];
-    const settings = videoTrack.getSettings();
-    const capturedResolution = {
-      width: settings.width || videoResolution.width,
-      height: settings.height || videoResolution.height
-    };
+    const capturedResolution = readCaptureDimensionsFromPreview(
+      videoRef.current,
+      videoTrack,
+      currentOrientation,
+    );
     setVideoResolution(capturedResolution);
 
     // Light haptic pulse to confirm recording started
@@ -1944,7 +1954,253 @@ export default function QuickRecordButton({
   ]);
 
   // Responsive class names based on orientation
-  const modalClass = `fixed inset-0 bg-black z-50 flex flex-col transition-all duration-300 ease-in-out`;
+  const landscapeCapture = !isPortrait;
+  const modalClass = landscapeCapture
+    ? 'fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-black'
+    : 'fixed inset-0 bg-black z-50 flex flex-col transition-all duration-300 ease-in-out';
+
+  const captureControls = (
+    <>
+      {hasPermission && cameraReady && !landscapeCapture && (
+        <div className="mx-auto mb-3 w-full max-w-lg px-1">
+          {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
+            <p className="text-center text-momentum-flare/90 text-xs mb-2 flex items-center justify-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+              Waiting for location permission — allow it when the browser asks so we can match venues.
+            </p>
+          )}
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
+            <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
+            <div className="min-w-0 flex-1 text-left space-y-1">
+              {!coordsForNearbyVenues ? (
+                <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
+                  {captureLaunchGeoResolved
+                    ? 'Location unavailable — allow GPS to match venues near you.'
+                    : 'Getting your location to match nearby venues…'}
+                </p>
+              ) : (
+                <>
+                {(captureResolvePreview.status === 'idle' ||
+                  captureResolvePreview.status === 'loading') && (
+                  <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
+                    Matching nearest JamBase show at your location…
+                  </p>
+                )}
+                {(captureResolvePreview.status === 'ready' ||
+                  captureResolvePreview.status === 'ambiguous' ||
+                  captureResolvePreview.status === 'picker') && (
+                  <>
+                    {captureResolvePreview.eventTitle ? (
+                      <p className="text-white text-sm font-bold leading-snug line-clamp-2">
+                        {captureResolvePreview.eventTitle}
+                      </p>
+                    ) : captureResolvePreview.venueName ? (
+                      <p className="text-white text-xs font-semibold leading-snug truncate">
+                        {captureResolvePreview.venueName}
+                      </p>
+                    ) : null}
+                    {captureResolvePreview.venueName &&
+                    captureResolvePreview.eventTitle &&
+                    !captureResolvePreview.eventTitle
+                      .toLowerCase()
+                      .includes(captureResolvePreview.venueName.toLowerCase()) ? (
+                      <p className="text-gray-300 text-[11px] leading-snug truncate">
+                        {captureResolvePreview.venueName}
+                      </p>
+                    ) : null}
+                    {captureResolvePreview.artistName &&
+                    captureResolvePreview.eventTitle &&
+                    !captureResolvePreview.eventTitle
+                      .toLowerCase()
+                      .includes(captureResolvePreview.artistName.toLowerCase()) ? (
+                      <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
+                        <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
+                        <span>{captureResolvePreview.artistName}</span>
+                      </p>
+                    ) : captureResolvePreview.artistName && !captureResolvePreview.eventTitle ? (
+                      <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
+                        <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
+                        <span>{captureResolvePreview.artistName}</span>
+                      </p>
+                    ) : null}
+                    {captureResolvePreview.locationLine ? (
+                      <p className="text-gray-500 text-[10px] leading-snug">
+                        {captureResolvePreview.locationLine}
+                      </p>
+                    ) : null}
+                    {captureResolvePreview.status === 'picker' &&
+                    captureVenuePickerChoices.length > 0 ? (
+                      <div className="pt-2 space-y-1.5">
+                        <label
+                          htmlFor="capture-venue-picker"
+                          className="text-[10px] font-medium text-gray-300"
+                        >
+                          {captureVenuePickerChoices.length > 1
+                            ? 'Shows tonight nearby — pick your venue'
+                            : 'Show tonight at nearest venue'}
+                        </label>
+                        <select
+                          id="capture-venue-picker"
+                          className="w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white"
+                          value={captureVenuePickerSelectedKey}
+                          onChange={(e) => {
+                            const picked = captureVenuePickerChoices.find(
+                              (v) => captureVenueOptionKey(v) === e.target.value,
+                            );
+                            if (picked) handleCaptureVenuePick(picked);
+                          }}
+                        >
+                          {captureVenuePickerChoices.map((venue) => {
+                            const key = captureVenueOptionKey(venue);
+                            const distLabel =
+                              venue.distance_miles != null &&
+                              Number.isFinite(venue.distance_miles)
+                                ? ` (${venue.distance_miles.toFixed(1)} mi)`
+                                : '';
+                            const label = [
+                              venue.venue_name ?? 'Venue',
+                              venue.artist_name,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ');
+                            return (
+                              <option key={key} value={key}>
+                                {label}
+                                {distLabel}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+                {captureResolvePreview.status === 'none' && (
+                  <p className="text-gray-300 text-[11px] leading-snug">
+                    {captureResolvePreview.notice ??
+                      'Location saved. No JamBase show matched here yet — you can add venue after you record.'}
+                  </p>
+                )}
+                {captureResolvePreview.status === 'error' && (
+                  <p className="text-gray-300 text-[11px] leading-snug">
+                    {captureResolvePreview.notice ??
+                      'Couldn\u2019t preview venue; we\u2019ll try again after you record.'}
+                  </p>
+                )}
+                {!isRecording ? (
+                  <p className="text-gray-500 text-[10px] leading-snug pt-1">
+                    Saved with this clip — edit on the next screen.
+                  </p>
+                ) : null}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasPermission && cameraReady && landscapeCapture && captureResolvePreview.eventTitle ? (
+        <p className="pointer-events-none mx-auto mb-2 max-w-xl truncate px-1 text-center text-[11px] font-semibold text-white/90">
+          {captureResolvePreview.eventTitle}
+        </p>
+      ) : null}
+
+      {zoomControlsVisible ? (
+        <div
+          className={`mx-auto flex w-full justify-center px-1 ${
+            landscapeCapture ? 'mb-2' : 'mb-4 max-w-lg'
+          }`}
+        >
+          <CameraZoomControls
+            presets={zoomPresets}
+            value={zoomLevel}
+            onSelect={(z) => void handleZoomSelect(z)}
+          />
+        </div>
+      ) : null}
+
+      <div
+        className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
+          isPortrait ? 'max-w-lg' : 'max-w-2xl'
+        }`}
+      >
+        <div className="flex justify-start gap-2">
+          <button
+            type="button"
+            onClick={closeModal}
+            className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+          >
+            <span className="text-xl">✕</span>
+          </button>
+          <button
+            type="button"
+            onClick={openPhotoLibraryPicker}
+            className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+            title="Photo library"
+            aria-label="Choose video from photo library"
+          >
+            <Images className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="flex justify-center pb-0.5">
+          {!isRecording ? (
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={!cameraReady}
+              className="relative group disabled:opacity-50 shrink-0"
+              title="Start capturing your moment (up to 60 seconds)"
+              style={{ minWidth: '5rem', minHeight: '5rem' }}
+            >
+              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                <Circle className="w-16 h-16 text-red-500 fill-red-500" />
+              </div>
+              {cameraReady && !landscapeCapture && (
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                  <span className="text-white text-xs font-medium">Capture</span>
+                </div>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="relative group shrink-0"
+              title="Stop recording and save your moment"
+              style={{ minWidth: '5rem', minHeight: '5rem' }}
+            >
+              <div className="on-light-surface w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
+                <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
+              </div>
+              {!landscapeCapture && (
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                  <span className="text-white text-xs font-medium">End Moment</span>
+                </div>
+              )}
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-col items-end justify-end">
+          <button
+            type="button"
+            onClick={toggleCameraFacing}
+            disabled={isRecording}
+            className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
+            style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+            title="Flip camera"
+          >
+            <RefreshCw className="w-6 h-6" />
+          </button>
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <>
@@ -1960,9 +2216,13 @@ export default function QuickRecordButton({
       {/* Recording Modal */}
       {showModal && (
         <div className={modalClass}>
-          {/* Camera View */}
+          {/* Camera preview — full viewport in landscape so controls do not shrink the viewfinder. */}
           <div
-            className="flex-1 min-h-0 relative bg-black touch-none"
+            className={
+              landscapeCapture
+                ? 'absolute inset-0 touch-none bg-black'
+                : 'relative min-h-0 flex-1 touch-none bg-black'
+            }
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
@@ -1974,7 +2234,7 @@ export default function QuickRecordButton({
               playsInline
               muted
               disablePictureInPicture
-              className="absolute inset-0 z-0 w-full h-full object-cover"
+              className="absolute inset-0 z-0 h-full w-full object-cover"
             />
             {previewTapToStart && previewStream && !cameraReady && (
               <button
@@ -2023,12 +2283,13 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* REC indicator */}
             {isRecording && (
               <div
                 className="absolute z-10 transition-all duration-300 ease-in-out"
                 style={{
-                  top: isPortrait ? 'max(1rem, env(safe-area-inset-top, 1rem))' : '1rem',
+                  top: landscapeCapture
+                    ? 'max(0.75rem, env(safe-area-inset-top, 0px))'
+                    : 'max(1rem, env(safe-area-inset-top, 1rem))',
                   left: '1rem',
                 }}
               >
@@ -2039,14 +2300,13 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {/* Network Warning - Responsive positioning */}
             {hasPermission && networkSpeed === 'slow' && (
-              <div 
+              <div
                 className="absolute left-4 right-4 z-10 transition-all duration-300 ease-in-out"
                 style={{
-                  bottom: isPortrait 
-                    ? 'max(8rem, calc(env(safe-area-inset-bottom, 1rem) + 7rem))' 
-                    : '8rem'
+                  bottom: landscapeCapture
+                    ? 'max(6.5rem, calc(env(safe-area-inset-bottom, 0px) + 5.5rem))'
+                    : 'max(8rem, calc(env(safe-area-inset-bottom, 1rem) + 7rem))',
                 }}
               >
                 <div className="bg-momentum-ember/15 backdrop-blur-md border border-momentum-ember/40 px-4 py-2 rounded-lg">
@@ -2054,247 +2314,22 @@ export default function QuickRecordButton({
                 </div>
               </div>
             )}
-
           </div>
 
-          {/* Controls - Responsive layout */}
-          <div 
-            className="bg-black/90 backdrop-blur-lg border-t border-white/10 transition-all duration-300 ease-in-out"
+          <div
+            className={
+              landscapeCapture
+                ? 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/75 to-transparent pt-8'
+                : 'border-t border-white/10 bg-black/90 backdrop-blur-lg transition-all duration-300 ease-in-out'
+            }
             style={{
-              paddingTop: '1.5rem',
-              paddingBottom: isPortrait 
-                ? 'max(1.5rem, calc(env(safe-area-inset-bottom, 1rem) + 0.5rem))' 
-                : 'max(1.5rem, calc(env(safe-area-inset-bottom, 1rem) + 0.5rem))',
-              paddingLeft: '1.5rem',
-              paddingRight: '1.5rem'
+              paddingTop: landscapeCapture ? undefined : '1.5rem',
+              paddingBottom: 'max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))',
+              paddingLeft: landscapeCapture ? '1rem' : '1.5rem',
+              paddingRight: landscapeCapture ? '1rem' : '1.5rem',
             }}
           >
-            {hasPermission && cameraReady && (
-              <div className="mx-auto mb-3 w-full max-w-lg px-1">
-                {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
-                  <p className="text-center text-momentum-flare/90 text-xs mb-2 flex items-center justify-center gap-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                    Waiting for location permission — allow it when the browser asks so we can match venues.
-                  </p>
-                )}
-                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
-                  <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
-                  <div className="min-w-0 flex-1 text-left space-y-1">
-                    {!coordsForNearbyVenues ? (
-                      <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
-                        {captureLaunchGeoResolved
-                          ? 'Location unavailable — allow GPS to match venues near you.'
-                          : 'Getting your location to match nearby venues…'}
-                      </p>
-                    ) : (
-                      <>
-                      {(captureResolvePreview.status === 'idle' ||
-                        captureResolvePreview.status === 'loading') && (
-                        <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
-                          Matching nearest JamBase show at your location…
-                        </p>
-                      )}
-                      {(captureResolvePreview.status === 'ready' ||
-                        captureResolvePreview.status === 'ambiguous' ||
-                        captureResolvePreview.status === 'picker') && (
-                        <>
-                          {captureResolvePreview.eventTitle ? (
-                            <p className="text-white text-sm font-bold leading-snug line-clamp-2">
-                              {captureResolvePreview.eventTitle}
-                            </p>
-                          ) : captureResolvePreview.venueName ? (
-                            <p className="text-white text-xs font-semibold leading-snug truncate">
-                              {captureResolvePreview.venueName}
-                            </p>
-                          ) : null}
-                          {captureResolvePreview.venueName &&
-                          captureResolvePreview.eventTitle &&
-                          !captureResolvePreview.eventTitle
-                            .toLowerCase()
-                            .includes(captureResolvePreview.venueName.toLowerCase()) ? (
-                            <p className="text-gray-300 text-[11px] leading-snug truncate">
-                              {captureResolvePreview.venueName}
-                            </p>
-                          ) : null}
-                          {captureResolvePreview.artistName &&
-                          captureResolvePreview.eventTitle &&
-                          !captureResolvePreview.eventTitle
-                            .toLowerCase()
-                            .includes(captureResolvePreview.artistName.toLowerCase()) ? (
-                            <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
-                              <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
-                              <span>{captureResolvePreview.artistName}</span>
-                            </p>
-                          ) : captureResolvePreview.artistName && !captureResolvePreview.eventTitle ? (
-                            <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5">
-                              <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
-                              <span>{captureResolvePreview.artistName}</span>
-                            </p>
-                          ) : null}
-                          {captureResolvePreview.locationLine ? (
-                            <p className="text-gray-500 text-[10px] leading-snug">
-                              {captureResolvePreview.locationLine}
-                            </p>
-                          ) : null}
-                          {captureResolvePreview.status === 'picker' &&
-                          captureVenuePickerChoices.length > 0 ? (
-                            <div className="pt-2 space-y-1.5">
-                              <label
-                                htmlFor="capture-venue-picker"
-                                className="text-[10px] font-medium text-gray-300"
-                              >
-                                {captureVenuePickerChoices.length > 1
-                                  ? 'Shows tonight nearby — pick your venue'
-                                  : 'Show tonight at nearest venue'}
-                              </label>
-                              <select
-                                id="capture-venue-picker"
-                                className="w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white"
-                                value={captureVenuePickerSelectedKey}
-                                onChange={(e) => {
-                                  const picked = captureVenuePickerChoices.find(
-                                    (v) => captureVenueOptionKey(v) === e.target.value,
-                                  );
-                                  if (picked) handleCaptureVenuePick(picked);
-                                }}
-                              >
-                                {captureVenuePickerChoices.map((venue) => {
-                                  const key = captureVenueOptionKey(venue);
-                                  const distLabel =
-                                    venue.distance_miles != null &&
-                                    Number.isFinite(venue.distance_miles)
-                                      ? ` (${venue.distance_miles.toFixed(1)} mi)`
-                                      : '';
-                                  const label = [
-                                    venue.venue_name ?? 'Venue',
-                                    venue.artist_name,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' · ');
-                                  return (
-                                    <option key={key} value={key}>
-                                      {label}
-                                      {distLabel}
-                                    </option>
-                                  );
-                                })}
-                              </select>
-                            </div>
-                          ) : null}
-                        </>
-                      )}
-                      {captureResolvePreview.status === 'none' && (
-                        <p className="text-gray-300 text-[11px] leading-snug">
-                          {captureResolvePreview.notice ??
-                            'Location saved. No JamBase show matched here yet — you can add venue after you record.'}
-                        </p>
-                      )}
-                      {captureResolvePreview.status === 'error' && (
-                        <p className="text-gray-300 text-[11px] leading-snug">
-                          {captureResolvePreview.notice ??
-                            'Couldn\u2019t preview venue; we\u2019ll try again after you record.'}
-                        </p>
-                      )}
-                      {!isRecording ? (
-                        <p className="text-gray-500 text-[10px] leading-snug pt-1">
-                          Saved with this clip — edit on the next screen.
-                        </p>
-                      ) : null}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {zoomControlsVisible ? (
-              <div className="mx-auto mb-4 flex w-full max-w-lg justify-center px-1">
-                <CameraZoomControls
-                  presets={zoomPresets}
-                  value={zoomLevel}
-                  onSelect={(z) => void handleZoomSelect(z)}
-                />
-              </div>
-            ) : null}
-
-            <div
-              className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
-                isPortrait ? 'max-w-lg' : 'max-w-2xl'
-              }`}
-            >
-              <div className="flex justify-start gap-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-                  style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-                >
-                  <span className="text-xl">✕</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={openPhotoLibraryPicker}
-                  className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-                  style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-                  title="Photo library"
-                  aria-label="Choose video from photo library"
-                >
-                  <Images className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="flex justify-center pb-0.5">
-                {!isRecording ? (
-                  <button
-                    type="button"
-                    onClick={startRecording}
-                    disabled={!cameraReady}
-                    className="relative group disabled:opacity-50 shrink-0"
-                    title="Start capturing your moment (up to 60 seconds)"
-                    style={{ minWidth: '5rem', minHeight: '5rem' }}
-                  >
-                    <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
-                      <Circle className="w-16 h-16 text-red-500 fill-red-500" />
-                    </div>
-                    {cameraReady && (
-                      <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                        <span className="text-white text-xs font-medium">Capture</span>
-                      </div>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={stopRecording}
-                    className="relative group shrink-0"
-                    title="Stop recording and save your moment"
-                    style={{ minWidth: '5rem', minHeight: '5rem' }}
-                  >
-                    <div className="on-light-surface w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
-                      <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
-                    </div>
-                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                      <span className="text-white text-xs font-medium">End Moment</span>
-                    </div>
-                  </button>
-                )}
-              </div>
-
-              <div className="flex flex-col items-end justify-end">
-                <button
-                  type="button"
-                  onClick={toggleCameraFacing}
-                  disabled={isRecording}
-                  className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
-                  style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-                  title="Flip camera"
-                >
-                  <RefreshCw className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
+            <div className={landscapeCapture ? 'pointer-events-auto' : undefined}>{captureControls}</div>
           </div>
         </div>
       )}

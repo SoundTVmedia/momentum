@@ -3,6 +3,47 @@ export function cameraPreviewHasFrames(video: HTMLVideoElement): boolean {
   return video.videoWidth > 0 && video.videoHeight > 0;
 }
 
+/** Device viewport is taller than wide (typical phone upright hold). */
+export function deviceIsPortraitViewport(): boolean {
+  if (typeof window === 'undefined') return true;
+  return window.innerHeight > window.innerWidth;
+}
+
+/**
+ * Align stored w/h with portrait vs landscape capture intent.
+ * Camera sensors often report landscape pixel dimensions even when the phone is held upright.
+ */
+export function normalizeCaptureDimensions(
+  orientation: 'portrait' | 'landscape',
+  width: number,
+  height: number,
+): { width: number; height: number } {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return orientation === 'portrait'
+      ? { width: 1080, height: 1920 }
+      : { width: 1920, height: 1080 };
+  }
+  if (orientation === 'portrait' && width > height) {
+    return { width: height, height: width };
+  }
+  if (orientation === 'landscape' && height > width) {
+    return { width: height, height: width };
+  }
+  return { width, height };
+}
+
+/** Best-effort capture dimensions from the live preview element and MediaStream track. */
+export function readCaptureDimensionsFromPreview(
+  video: HTMLVideoElement | null,
+  track: MediaStreamTrack | undefined,
+  orientation: 'portrait' | 'landscape',
+): { width: number; height: number } {
+  const settings = track?.getSettings?.() ?? {};
+  const rawW = settings.width || video?.videoWidth || 0;
+  const rawH = settings.height || video?.videoHeight || 0;
+  return normalizeCaptureDimensions(orientation, rawW, rawH);
+}
+
 export function isIosSafari(): boolean {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
