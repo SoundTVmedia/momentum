@@ -448,7 +448,7 @@ export default function ClipModal({
 
   const mobileVideoOverlay = (
     <>
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-16 pt-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-16 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
         <div className="pointer-events-auto flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <UserAvatar
@@ -517,7 +517,7 @@ export default function ClipModal({
         ) : null}
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-4 pt-20">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/95 via-black/55 to-transparent px-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] pt-20">
         <div className="pointer-events-auto pr-14">
           {eventTitle ? (
             <button
@@ -565,7 +565,7 @@ export default function ClipModal({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute bottom-20 right-2 z-20 flex flex-col items-center gap-4">
+      <div className="pointer-events-none absolute bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-2 z-20 flex flex-col items-center gap-4">
         <button
           type="button"
           onClick={handleLike}
@@ -668,12 +668,14 @@ export default function ClipModal({
             <ClipModalMaximizedVideo
               ref={mobilePlayerRef}
               clip={clip}
-              overlay={mobileVideoOverlay}
               onPlaybackStateChange={setPlayback}
               onViewsCountChange={handleViewsCountChange}
             />
           ) : null}
         </div>
+
+        {/* Pin chrome to the viewport — not the letterboxed video box (16:9 / landscape clips). */}
+        <div className="pointer-events-none absolute inset-0 z-10">{mobileVideoOverlay}</div>
 
         {mobileCommentsOpen ? (
           <div
