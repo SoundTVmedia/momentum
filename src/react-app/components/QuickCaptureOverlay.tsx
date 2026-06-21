@@ -1,6 +1,5 @@
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import type { QuickCaptureLauncherState } from '@/react-app/hooks/useQuickCaptureLauncher';
-import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 
 type QuickCaptureOverlayProps = Pick<
   QuickCaptureLauncherState,
@@ -22,8 +21,7 @@ export default function QuickCaptureOverlay({
   captureLaunchGeoResolved,
   closeQuickCapture,
 }: QuickCaptureOverlayProps) {
-  const isMobile = useIsMobileViewport();
-  if (!showQuickCapture || !isMobile) return null;
+  if (!showQuickCapture) return null;
 
   return (
     <QuickRecordButton
