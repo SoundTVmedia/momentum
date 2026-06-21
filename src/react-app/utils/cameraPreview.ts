@@ -6,6 +6,18 @@ export function cameraPreviewHasFrames(video: HTMLVideoElement): boolean {
 /** Device viewport is taller than wide (typical phone upright hold). */
 export function deviceIsPortraitViewport(): boolean {
   if (typeof window === 'undefined') return true;
+
+  const screenType =
+    typeof screen !== 'undefined' ? screen.orientation?.type : undefined;
+  if (screenType) {
+    return screenType.startsWith('portrait');
+  }
+
+  const vv = window.visualViewport;
+  if (vv && vv.width > 0 && vv.height > 0) {
+    return vv.height > vv.width;
+  }
+
   return window.innerHeight > window.innerWidth;
 }
 

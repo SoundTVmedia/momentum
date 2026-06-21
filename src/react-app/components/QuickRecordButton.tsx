@@ -259,7 +259,7 @@ export default function QuickRecordButton({
     }
   }, []);
 
-  const orientationRestartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const orientationSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset capture coords when modal closes
   useEffect(() => {
@@ -912,38 +912,58 @@ export default function QuickRecordButton({
     }
   };
 
-  // Refresh camera constraints when the device rotates (landscape horizontal capture).
+  // Keep preview visible when the device rotates — never restart getUserMedia.
   useEffect(() => {
-    const handleOrientationChange = () => {
-      const newIsPortrait = deviceIsPortraitViewport();
-      setIsPortrait(newIsPortrait);
+    const applyOrientation = () => {
+      const portrait = deviceIsPortraitViewport();
+      setIsPortrait(portrait);
 
-      if (isRecordingRef.current) return;
       if (!showModalRef.current) return;
+      const video = videoRef.current;
+      const stream = streamRef.current;
+      const track = stream?.getVideoTracks()[0];
+      if (!video || !track || track.readyState !== 'live') return;
 
-      if (orientationRestartTimerRef.current) {
-        clearTimeout(orientationRestartTimerRef.current);
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
       }
-      orientationRestartTimerRef.current = setTimeout(() => {
-        orientationRestartTimerRef.current = null;
-        if (isRecordingRef.current || !showModalRef.current) return;
-        const live = streamRef.current?.getVideoTracks()[0]?.readyState === 'live';
-        if (!live) return;
-        setCameraReady(false);
-        void requestPermissions();
-      }, 350);
+      void kickCameraPreviewPlay(video);
+      if (cameraPreviewHasFrames(video)) {
+        setHasPermission(true);
+        setCameraReady(true);
+        setPreviewTapToStart(false);
+      }
+      setVideoResolution(
+        readCaptureDimensionsFromPreview(video, track, portrait ? 'portrait' : 'landscape'),
+      );
     };
 
-    window.addEventListener('resize', handleOrientationChange);
-    window.addEventListener('orientationchange', handleOrientationChange);
+    const syncOrientation = () => {
+      applyOrientation();
+      requestAnimationFrame(applyOrientation);
+      if (orientationSyncTimerRef.current) {
+        clearTimeout(orientationSyncTimerRef.current);
+      }
+      orientationSyncTimerRef.current = setTimeout(() => {
+        orientationSyncTimerRef.current = null;
+        applyOrientation();
+      }, 300);
+    };
+
+    window.addEventListener('resize', syncOrientation);
+    window.addEventListener('orientationchange', syncOrientation);
+    window.visualViewport?.addEventListener('resize', syncOrientation);
+    screen.orientation?.addEventListener('change', syncOrientation);
 
     return () => {
-      if (orientationRestartTimerRef.current) {
-        clearTimeout(orientationRestartTimerRef.current);
-        orientationRestartTimerRef.current = null;
+      if (orientationSyncTimerRef.current) {
+        clearTimeout(orientationSyncTimerRef.current);
+        orientationSyncTimerRef.current = null;
       }
-      window.removeEventListener('resize', handleOrientationChange);
-      window.removeEventListener('orientationchange', handleOrientationChange);
+      window.removeEventListener('resize', syncOrientation);
+      window.removeEventListener('orientationchange', syncOrientation);
+      window.visualViewport?.removeEventListener('resize', syncOrientation);
+      screen.orientation?.removeEventListener('change', syncOrientation);
     };
   }, []);
 
@@ -1586,9 +1606,10 @@ export default function QuickRecordButton({
 
     const stream = streamRef.current;
 
-    // Capture current orientation when recording starts
-    const currentOrientation = isPortrait ? 'portrait' : 'landscape';
+    // Capture current orientation when recording starts (read live — state may lag rotation).
+    const currentOrientation = deviceIsPortraitViewport() ? 'portrait' : 'landscape';
     setRecordingOrientation(currentOrientation);
+    setIsPortrait(currentOrientation === 'portrait');
 
     const videoTrack = stream.getVideoTracks()[0];
     const capturedResolution = readCaptureDimensionsFromPreview(
@@ -1953,11 +1974,11 @@ export default function QuickRecordButton({
     previewStream,
   ]);
 
-  // Responsive class names based on orientation
+  // Responsive layout — video layer is always full-screen; only chrome styling changes on rotate.
   const landscapeCapture = !isPortrait;
-  const modalClass = landscapeCapture
-    ? 'fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-black'
-    : 'fixed inset-0 bg-black z-50 flex flex-col transition-all duration-300 ease-in-out';
+  const previewTrackLive = previewStream?.getVideoTracks()[0]?.readyState === 'live';
+  const showStartupOverlay =
+    !previewTapToStart && !permissionDenied && !previewTrackLive && (!hasPermission || !cameraReady);
 
   const captureControls = (
     <>
@@ -2215,14 +2236,10 @@ export default function QuickRecordButton({
 
       {/* Recording Modal */}
       {showModal && (
-        <div className={modalClass}>
-          {/* Camera preview — full viewport in landscape so controls do not shrink the viewfinder. */}
+        <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-black">
+          {/* Camera preview — always full viewport; layout must not change on device rotation. */}
           <div
-            className={
-              landscapeCapture
-                ? 'absolute inset-0 touch-none bg-black'
-                : 'relative min-h-0 flex-1 touch-none bg-black'
-            }
+            className="absolute inset-0 z-0 touch-none overflow-hidden bg-black"
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
@@ -2234,7 +2251,7 @@ export default function QuickRecordButton({
               playsInline
               muted
               disablePictureInPicture
-              className="absolute inset-0 z-0 h-full w-full object-cover"
+              className="absolute inset-0 z-0 h-full w-full min-h-full min-w-full object-cover"
             />
             {previewTapToStart && previewStream && !cameraReady && (
               <button
@@ -2251,34 +2268,34 @@ export default function QuickRecordButton({
                 </span>
               </button>
             )}
-            {(!hasPermission || !cameraReady) && !previewTapToStart && (
+            {showStartupOverlay && (
               <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
                 <div className="pointer-events-auto text-center space-y-4 p-6 max-w-sm rounded-2xl bg-black/70 backdrop-blur-sm border border-white/10">
                   <Film className="w-16 h-16 text-gray-400 mx-auto" />
-                  {permissionDenied ? (
-                    <>
-                      <h3 className="text-xl font-bold text-white">Camera blocked</h3>
-                      <p className="text-gray-400 text-sm">
-                        Use your device settings to allow the camera for this site, then tap Capture again. You can also
-                        use the photo library button below to pick a video.
-                      </p>
-                      {cameraError && <p className="text-red-400/90 text-xs mt-2">{cameraError}</p>}
-                    </>
-                  ) : (
-                    <>
-                      <Loader2 className="w-8 h-8 text-momentum-flare animate-spin mx-auto mb-2" />
-                      <p className="text-white text-sm">
-                        {gestureCameraPrimingPending
-                          ? 'Use the camera prompt if it appears…'
-                          : 'Starting camera…'}
-                      </p>
-                      <p className="text-momentum-flare/90 text-xs mt-2 max-w-xs mx-auto">
-                        Location is requested when you tap Capture (with the camera) so we can match JamBase venues to
-                        your clip on the next screen.
-                      </p>
-                      {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
-                    </>
-                  )}
+                  <Loader2 className="w-8 h-8 text-momentum-flare animate-spin mx-auto mb-2" />
+                  <p className="text-white text-sm">
+                    {gestureCameraPrimingPending
+                      ? 'Use the camera prompt if it appears…'
+                      : 'Starting camera…'}
+                  </p>
+                  <p className="text-momentum-flare/90 text-xs mt-2 max-w-xs mx-auto">
+                    Location is requested when you tap Capture (with the camera) so we can match JamBase venues to
+                    your clip on the next screen.
+                  </p>
+                  {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
+                </div>
+              </div>
+            )}
+            {permissionDenied && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                <div className="pointer-events-auto text-center space-y-4 p-6 max-w-sm rounded-2xl bg-black/70 backdrop-blur-sm border border-white/10">
+                  <Film className="w-16 h-16 text-gray-400 mx-auto" />
+                  <h3 className="text-xl font-bold text-white">Camera blocked</h3>
+                  <p className="text-gray-400 text-sm">
+                    Use your device settings to allow the camera for this site, then tap Capture again. You can also
+                    use the photo library button below to pick a video.
+                  </p>
+                  {cameraError && <p className="text-red-400/90 text-xs mt-2">{cameraError}</p>}
                 </div>
               </div>
             )}
@@ -2287,9 +2304,7 @@ export default function QuickRecordButton({
               <div
                 className="absolute z-10 transition-all duration-300 ease-in-out"
                 style={{
-                  top: landscapeCapture
-                    ? 'max(0.75rem, env(safe-area-inset-top, 0px))'
-                    : 'max(1rem, env(safe-area-inset-top, 1rem))',
+                  top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
                   left: '1rem',
                 }}
               >
@@ -2306,7 +2321,7 @@ export default function QuickRecordButton({
                 style={{
                   bottom: landscapeCapture
                     ? 'max(6.5rem, calc(env(safe-area-inset-bottom, 0px) + 5.5rem))'
-                    : 'max(8rem, calc(env(safe-area-inset-bottom, 1rem) + 7rem))',
+                    : 'max(10rem, calc(env(safe-area-inset-bottom, 1rem) + 9rem))',
                 }}
               >
                 <div className="bg-momentum-ember/15 backdrop-blur-md border border-momentum-ember/40 px-4 py-2 rounded-lg">
@@ -2320,7 +2335,7 @@ export default function QuickRecordButton({
             className={
               landscapeCapture
                 ? 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/75 to-transparent pt-8'
-                : 'border-t border-white/10 bg-black/90 backdrop-blur-lg transition-all duration-300 ease-in-out'
+                : 'pointer-events-none absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/90 backdrop-blur-lg'
             }
             style={{
               paddingTop: landscapeCapture ? undefined : '1.5rem',
@@ -2329,7 +2344,7 @@ export default function QuickRecordButton({
               paddingRight: landscapeCapture ? '1rem' : '1.5rem',
             }}
           >
-            <div className={landscapeCapture ? 'pointer-events-auto' : undefined}>{captureControls}</div>
+            <div className="pointer-events-auto">{captureControls}</div>
           </div>
         </div>
       )}
