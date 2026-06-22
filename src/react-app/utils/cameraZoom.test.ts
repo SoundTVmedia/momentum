@@ -8,8 +8,8 @@ import {
 } from './cameraZoom';
 
 describe('buildCaptureZoomPresets', () => {
-  it('includes 0.5 through 3× when supported', () => {
-    expect(buildCaptureZoomPresets({ min: 0.5, max: 3 })).toEqual([0.5, 1, 2, 3]);
+  it('includes 0.5 through 5× when supported', () => {
+    expect(buildCaptureZoomPresets({ min: 0.5, max: 5 })).toEqual([0.5, 1, 2, 3, 5]);
   });
 
   it('omits stops outside hardware range', () => {
@@ -19,7 +19,7 @@ describe('buildCaptureZoomPresets', () => {
 
 describe('buildCameraZoomPresets', () => {
   it('prefers capture presets when enough are in range', () => {
-    expect(buildCameraZoomPresets({ min: 1, max: 5 })).toEqual([1, 2, 3]);
+    expect(buildCameraZoomPresets({ min: 1, max: 5 })).toEqual([1, 2, 3, 5]);
   });
 
   it('includes ultrawide when supported', () => {

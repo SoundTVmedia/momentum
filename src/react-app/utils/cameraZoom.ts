@@ -50,8 +50,8 @@ export function clampCameraZoom(zoom: number, range: CameraZoomRange): number {
   return Math.round(z * 100) / 100;
 }
 
-/** Capture-screen preset stops — ultrawide through 3× tele. */
-export const CAPTURE_ZOOM_PRESET_CANDIDATES = [0.5, 1, 2, 3] as const;
+/** Capture-screen preset stops — ultrawide through 5× tele. */
+export const CAPTURE_ZOOM_PRESET_CANDIDATES = [0.5, 1, 2, 3, 5] as const;
 
 export function buildCaptureZoomPresets(range: CameraZoomRange): number[] {
   const presets = CAPTURE_ZOOM_PRESET_CANDIDATES.filter(
