@@ -10,6 +10,7 @@ import {
   releaseFeedPreviewPlay,
   requestFeedPreviewPlay,
 } from '@/react-app/lib/feedVideoPlaybackLimiter';
+import { tryVideoPlayPreferSound } from '@/react-app/utils/videoAutoplay';
 
 /** True for typical desktop: real hover + mouse/trackpad (not primary touch). */
 const HOVER_FINE_POINTER_MQ = '(hover: hover) and (pointer: fine)';
@@ -70,6 +71,7 @@ export default function ClipFeedPreviewMedia({
     () => typeof window !== 'undefined' && window.matchMedia(NARROW_FEED_MQ).matches,
   );
   const [thumbHidden, setThumbHidden] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const { src: displayPoster, onError: onPosterError, onLoad: onPosterLoad, crossOrigin } =
     useClipPosterSrc(clipFields);
@@ -143,13 +145,14 @@ export default function ClipFeedPreviewMedia({
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !previewVideoSrc || !shouldPlay) return;
-    void v.play().catch(() => {});
+    tryVideoPlayPreferSound(v, { onMutedChange: setIsMuted });
   }, [shouldPlay, previewVideoSrc]);
 
   /** Always restore poster when preview stops — video ref is often null after unmount. */
   useEffect(() => {
     if (!shouldPlay) {
       setThumbHidden(false);
+      setIsMuted(false);
     }
   }, [shouldPlay]);
 
@@ -223,7 +226,8 @@ export default function ClipFeedPreviewMedia({
           className={`clip-feed-preview__video absolute inset-0 z-[1] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
             thumbHidden ? 'opacity-100' : 'opacity-0'
           }`}
-          muted
+          autoPlay
+          muted={isMuted}
           loop
           playsInline
           preload={shouldPlay ? 'auto' : 'metadata'}

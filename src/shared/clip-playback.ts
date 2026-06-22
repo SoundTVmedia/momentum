@@ -33,7 +33,7 @@ export function streamHlsUrl(videoId: string): string {
   return `${STREAM_DELIVERY_ORIGIN}/${videoId}/manifest/video.m3u8`;
 }
 
-/** Progressive MP4 from Stream CDN — best for muted feed previews (all browsers). */
+/** Progressive MP4 from Stream CDN — lightweight feed previews (all browsers). */
 export function streamMp4Url(videoId: string): string {
   return `${STREAM_DELIVERY_ORIGIN}/${videoId}/downloads/default.mp4`;
 }

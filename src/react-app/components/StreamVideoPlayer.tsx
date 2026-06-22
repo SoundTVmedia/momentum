@@ -7,6 +7,7 @@ import {
   resolveModalPlaybackSource,
 } from '@/shared/clip-playback';
 import { recordClipView } from '@/react-app/lib/recordClipView';
+import { tryVideoPlayPreferSound } from '@/react-app/utils/videoAutoplay';
 
 export type StreamVideoPlayerHandle = {
   togglePlay: () => void;
@@ -181,21 +182,9 @@ function StreamVideoPlayer(
     if (!video || !videoSrc) return;
     if (!video.paused) return;
 
-    const attempt = (muted: boolean) => {
-      video.muted = muted;
-      setIsMuted(muted);
-      return video.play();
-    };
-
-    const preferredMuted = resolveAutoplayMuted();
-
-    if (preferredMuted) {
-      void attempt(true).catch(() => {});
-      return;
-    }
-
-    void attempt(false).catch(() => {
-      void attempt(true).catch(() => {});
+    tryVideoPlayPreferSound(video, {
+      preferMuted: resolveAutoplayMuted(),
+      onMutedChange: setIsMuted,
     });
   }, [videoSrc, resolveAutoplayMuted]);
 
