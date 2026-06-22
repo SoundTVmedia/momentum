@@ -25,10 +25,12 @@ import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, isCameraGoingAutoFillSource } from '@/shared/clip-resolve-show-match';
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
-  animateCameraZoom,
-  applyCameraZoom,
+  animateCaptureZoom,
+  applyCaptureZoom,
   buildCaptureZoomPresets,
   clampCameraZoom,
+  decomposeCaptureZoom,
+  expandCaptureZoomRange,
   readCameraZoomRange,
   readCurrentCameraZoom,
   touchPairDistance,
@@ -166,8 +168,10 @@ export default function QuickRecordButton({
   const primedMediaStreamRef = useRef(primedMediaStream);
   primedMediaStreamRef.current = primedMediaStream;
   const [zoomRange, setZoomRange] = useState<CameraZoomRange | null>(null);
+  const [hardwareZoomRange, setHardwareZoomRange] = useState<CameraZoomRange | null>(null);
   const [zoomPresets, setZoomPresets] = useState<number[]>([]);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [digitalZoomScale, setDigitalZoomScale] = useState(1);
   const zoomLevelRef = useRef(1);
   const zoomAnimCancelRef = useRef<(() => void) | null>(null);
   const pinchZoomRef = useRef<{ dist: number; zoom: number } | null>(null);
@@ -1141,23 +1145,29 @@ export default function QuickRecordButton({
   useEffect(() => {
     if (!previewStream || !cameraReady) {
       setZoomRange(null);
+      setHardwareZoomRange(null);
       setZoomPresets([]);
       setZoomLevel(1);
+      setDigitalZoomScale(1);
       zoomLevelRef.current = 1;
       return;
     }
 
     const track = previewStream.getVideoTracks()[0];
-    const range = readCameraZoomRange(track);
+    const hardware = readCameraZoomRange(track);
+    const range = hardware ? expandCaptureZoomRange(hardware) : null;
+    setHardwareZoomRange(hardware);
     setZoomRange(range);
-    if (range) {
+    if (hardware && range) {
       setZoomPresets(buildCaptureZoomPresets(range));
-      const current = readCurrentCameraZoom(track, range);
+      const current = readCurrentCameraZoom(track, hardware);
       setZoomLevel(current);
+      setDigitalZoomScale(1);
       zoomLevelRef.current = current;
     } else {
       setZoomPresets([]);
       setZoomLevel(1);
+      setDigitalZoomScale(1);
       zoomLevelRef.current = 1;
     }
   }, [previewStream, cameraReady]);
@@ -1165,45 +1175,55 @@ export default function QuickRecordButton({
   const applyZoomInstant = useCallback(
     async (next: number) => {
       const track = streamRef.current?.getVideoTracks()[0];
-      if (!track || !zoomRange) return;
+      if (!track || !zoomRange || !hardwareZoomRange) return;
       zoomAnimCancelRef.current?.();
       zoomAnimCancelRef.current = null;
-      const target = clampCameraZoom(next, zoomRange);
-      const ok = await applyCameraZoom(track, target, zoomRange);
-      if (ok) {
-        zoomLevelRef.current = target;
-        setZoomLevel(target);
+      const applied = await applyCaptureZoom(track, next, hardwareZoomRange, zoomRange);
+      if (applied.ok) {
+        zoomLevelRef.current = applied.level;
+        setZoomLevel(applied.level);
+        setDigitalZoomScale(applied.digitalScale);
       }
     },
-    [zoomRange],
+    [zoomRange, hardwareZoomRange],
   );
 
   const handleZoomSelect = useCallback(
     async (next: number) => {
       const track = streamRef.current?.getVideoTracks()[0];
-      if (!track || !zoomRange) return;
+      if (!track || !zoomRange || !hardwareZoomRange) return;
       const target = clampCameraZoom(next, zoomRange);
       const from = zoomLevelRef.current;
 
       zoomAnimCancelRef.current?.();
       zoomAnimCancelRef.current = null;
 
-      const { promise, cancel } = animateCameraZoom(track, from, target, zoomRange, {
-        onStep: (z) => {
-          zoomLevelRef.current = z;
-          setZoomLevel(z);
+      const { promise, cancel } = animateCaptureZoom(
+        track,
+        from,
+        target,
+        hardwareZoomRange,
+        zoomRange,
+        {
+          onStep: (applied) => {
+            zoomLevelRef.current = applied.level;
+            setZoomLevel(applied.level);
+            setDigitalZoomScale(applied.digitalScale);
+          },
         },
-      });
+      );
       zoomAnimCancelRef.current = cancel;
 
       const ok = await promise;
       zoomAnimCancelRef.current = null;
       if (ok) {
-        zoomLevelRef.current = target;
-        setZoomLevel(target);
+        const finalZoom = decomposeCaptureZoom(target, hardwareZoomRange, zoomRange);
+        zoomLevelRef.current = finalZoom.level;
+        setZoomLevel(finalZoom.level);
+        setDigitalZoomScale(finalZoom.digitalScale);
       }
     },
-    [zoomRange],
+    [zoomRange, hardwareZoomRange],
   );
 
   const handlePreviewTouchStart = (e: React.TouchEvent) => {
@@ -2293,6 +2313,14 @@ export default function QuickRecordButton({
               muted
               disablePictureInPicture
               className="absolute inset-0 z-0 h-full w-full min-h-full min-w-full object-cover"
+              style={
+                digitalZoomScale > 1
+                  ? {
+                      transform: `scale(${digitalZoomScale})`,
+                      transformOrigin: 'center center',
+                    }
+                  : undefined
+              }
             />
             {previewTapToStart && previewStream && !cameraReady && (
               <button

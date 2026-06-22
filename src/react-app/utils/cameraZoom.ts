@@ -50,8 +50,21 @@ export function clampCameraZoom(zoom: number, range: CameraZoomRange): number {
   return Math.round(z * 100) / 100;
 }
 
-/** Capture-screen preset stops — ultrawide through 5× tele. */
-export const CAPTURE_ZOOM_PRESET_CANDIDATES = [0.5, 1, 2, 3, 5] as const;
+/** UI zoom cap is 3× the hardware-reported max (digital preview beyond optical). */
+export const CAPTURE_ZOOM_MAX_MULTIPLIER = 3;
+
+/** Capture-screen preset stops — ultrawide through 15× tele (3× prior 5× cap). */
+export const CAPTURE_ZOOM_PRESET_CANDIDATES = [0.5, 1, 2, 3, 5, 10, 15] as const;
+
+/** Extend hardware zoom range for capture UI (optical + digital preview). */
+export function expandCaptureZoomRange(hardware: CameraZoomRange): CameraZoomRange {
+  const extendedMax = hardware.max * CAPTURE_ZOOM_MAX_MULTIPLIER;
+  return {
+    min: hardware.min,
+    max: clampCameraZoom(extendedMax, { min: hardware.min, max: extendedMax }),
+    step: hardware.step,
+  };
+}
 
 export function buildCaptureZoomPresets(range: CameraZoomRange): number[] {
   const presets = CAPTURE_ZOOM_PRESET_CANDIDATES.filter(
@@ -65,7 +78,7 @@ export function buildCameraZoomPresets(range: CameraZoomRange): number[] {
   const fromCapture = buildCaptureZoomPresets(range);
   if (fromCapture.length >= 2) return fromCapture;
 
-  const candidates = [0.5, 1, 2, 3, 5, 10];
+  const candidates = [0.5, 1, 2, 3, 5, 10, 15];
   const inRange = candidates
     .filter((z) => z >= range.min - 0.05 && z <= range.max + 0.05)
     .map((z) => clampCameraZoom(z, range));
@@ -94,6 +107,36 @@ export function readCurrentCameraZoom(
     return clampCameraZoom(settings.zoom, range);
   }
   return clampCameraZoom(1, range);
+}
+
+export type AppliedCaptureZoom = {
+  ok: boolean;
+  level: number;
+  optical: number;
+  digitalScale: number;
+};
+
+export function decomposeCaptureZoom(
+  zoom: number,
+  hardware: CameraZoomRange,
+  extended: CameraZoomRange,
+): { level: number; optical: number; digitalScale: number } {
+  const level = clampCameraZoom(zoom, extended);
+  const optical = clampCameraZoom(Math.min(level, hardware.max), hardware);
+  const digitalScale = optical > 0 ? Math.round((level / optical) * 100) / 100 : 1;
+  return { level, optical, digitalScale };
+}
+
+/** Apply optical zoom via track constraints; digital zoom is preview-only (CSS scale). */
+export async function applyCaptureZoom(
+  track: MediaStreamTrack,
+  zoom: number,
+  hardware: CameraZoomRange,
+  extended: CameraZoomRange,
+): Promise<AppliedCaptureZoom> {
+  const { level, optical, digitalScale } = decomposeCaptureZoom(zoom, hardware, extended);
+  const ok = await applyCameraZoom(track, optical, hardware);
+  return { ok, level: ok ? level : optical, optical, digitalScale: ok ? digitalScale : 1 };
 }
 
 export async function applyCameraZoom(
@@ -168,6 +211,64 @@ export function animateCameraZoom(
           opts?.onStep?.(z);
         }
         if (t >= 1) return ok;
+      }
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    }
+
+    return false;
+  })();
+
+  return { promise, cancel };
+}
+
+/** Smoothly ramp capture zoom (optical + digital preview) between presets. */
+export function animateCaptureZoom(
+  track: MediaStreamTrack,
+  from: number,
+  to: number,
+  hardware: CameraZoomRange,
+  extended: CameraZoomRange,
+  opts?: {
+    durationMs?: number;
+    onStep?: (applied: AppliedCaptureZoom) => void;
+  },
+): AnimateCameraZoomHandle {
+  const duration = opts?.durationMs ?? 300;
+  const target = clampCameraZoom(to, extended);
+  const start = clampCameraZoom(from, extended);
+  let cancelled = false;
+
+  const cancel = () => {
+    cancelled = true;
+  };
+
+  const promise = (async (): Promise<boolean> => {
+    if (Math.abs(target - start) < 0.03) {
+      if (cancelled) return false;
+      const applied = await applyCaptureZoom(track, target, hardware, extended);
+      if (applied.ok && !cancelled) opts?.onStep?.(applied);
+      return applied.ok && !cancelled;
+    }
+
+    const t0 = performance.now();
+    let lastApplied = start;
+
+    while (!cancelled) {
+      const elapsed = performance.now() - t0;
+      const t = Math.min(1, elapsed / duration);
+      const z = clampCameraZoom(start + (target - start) * easeOutCubic(t), extended);
+
+      if (Math.abs(z - lastApplied) >= 0.02 || t >= 1) {
+        const applied = await applyCaptureZoom(track, z, hardware, extended);
+        if (cancelled) return false;
+        if (applied.ok) {
+          lastApplied = z;
+          opts?.onStep?.(applied);
+        }
+        if (t >= 1) return applied.ok;
       }
 
       await new Promise<void>((resolve) => {
