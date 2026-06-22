@@ -10,7 +10,8 @@ export type DesignPaletteId =
   | 'green-option-1'
   | 'green-option-2'
   | 'neon-blue'
-  | 'crimson-pulse';
+  | 'crimson-pulse'
+  | 'neon-tide';
 
 export type DesignPalette = {
   id: DesignPaletteId;
@@ -131,15 +132,37 @@ export const CRIMSON_PULSE: DesignPalette = {
   },
 };
 
+/** Electric cyan → bio-teal → emerald on cool ink (ACTIVE). */
+export const NEON_TIDE: DesignPalette = {
+  id: 'neon-tide',
+  label: 'Neon tide',
+  description:
+    'Neon blue-green circuit — electric cyan into bio-teal, resolving to emerald depth on cool ink.',
+  tailwindGradient:
+    'bg-gradient-to-bl from-[#00e8ff] via-[#00d4aa] to-[#059669]',
+  momentumGrad:
+    'linear-gradient(to bottom left, #00e8ff 0%, #00d4aa 50%, #059669 100%)',
+  tokens: {
+    ember: '#00E8FF',
+    flare: '#00D4AA',
+    rose: '#059669',
+    glacier: '#99F6E4',
+    copper: '#0C4A44',
+    ink: '#030712',
+    smoke: '#0F172A',
+  },
+};
+
 export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
   'orange-version': ORANGE_VERSION,
   'green-option-1': GREEN_OPTION_1,
   'green-option-2': GREEN_OPTION_2,
   'neon-blue': NEON_BLUE,
   'crimson-pulse': CRIMSON_PULSE,
+  'neon-tide': NEON_TIDE,
 };
 
 /** Palette currently wired in tailwind.config.js + index.css */
-export const ACTIVE_PALETTE_ID: DesignPaletteId = 'crimson-pulse';
+export const ACTIVE_PALETTE_ID: DesignPaletteId = 'neon-tide';
 
 export const ACTIVE_PALETTE = DESIGN_PALETTES[ACTIVE_PALETTE_ID];

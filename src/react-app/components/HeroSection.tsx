@@ -31,7 +31,7 @@ export default function HeroSection() {
       <div className="relative z-10 flex flex-col justify-center px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
         <div className="mx-auto w-full max-w-7xl">
           <h1 className="font-headline hero-headline-grad mb-5 text-center text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
-            Where Live Music Lives
+            Where Your Live Music Lives
           </h1>
           <HeroSearchBar />
         </div>

@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-/** Active palette: crimson-pulse — see src/react-app/lib/design-palettes.ts */
+/** Active palette: neon-tide — see src/react-app/lib/design-palettes.ts */
 export default {
   darkMode: ['selector', '[data-theme="dark"]'],
   content: [
@@ -34,7 +34,7 @@ export default {
       backgroundImage: {
         "momentum-flow": "var(--momentum-grad)",
         "momentum-flow-vertical":
-          "linear-gradient(to bottom, rgba(255,68,68,0.1) 0%, rgba(220,38,38,0.08) 45%, rgba(153,27,27,0.12) 100%)",
+          "linear-gradient(to bottom, rgba(0,232,255,0.1) 0%, rgba(0,212,170,0.08) 45%, rgba(5,150,105,0.12) 100%)",
         "glass-shine": "var(--glass-highlight)",
       },
       backgroundSize: {
@@ -43,7 +43,7 @@ export default {
       boxShadow: {
         glass: "var(--glass-shadow)",
         "glass-lg": "var(--glass-shadow-lg)",
-        "glass-glow": "0 0 32px rgba(220, 38, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        "glass-glow": "0 0 32px rgba(0, 212, 170, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
         "glass-chrome": "0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 -1px 0 rgba(0, 0, 0, 0.25)",
       },
       backdropBlur: {
