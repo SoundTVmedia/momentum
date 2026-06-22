@@ -30,6 +30,16 @@ async function loadHlsConstructor(): Promise<typeof Hls> {
   return hlsModulePromise;
 }
 
+/** Preload hls.js on non-Safari browsers (Safari uses native HLS). */
+export function warmHlsPlaybackModule(): void {
+  if (typeof navigator === 'undefined') return;
+  const ua = navigator.userAgent;
+  const ios = /iPad|iPhone|iPod/.test(ua);
+  const safari = /^((?!chrome|android).)*safari/i.test(ua);
+  if (ios || safari) return;
+  void loadHlsConstructor();
+}
+
 interface StreamVideoPlayerProps extends ClipPlaybackFields {
   /** @deprecated Pass clip fields or use playbackUrl with stream_video_id */
   streamVideoId?: string | null;
@@ -105,8 +115,33 @@ function StreamVideoPlayer(
     thumbnail_url,
   };
 
-  const { src: videoSrc, poster: posterSrc, isHls, streamVideoId: streamId } =
-    resolveModalPlaybackSource(clipFields);
+  const resolvedModal = resolveModalPlaybackSource(clipFields);
+  const [playbackSrc, setPlaybackSrc] = useState(resolvedModal.src);
+  const [playbackIsHls, setPlaybackIsHls] = useState(resolvedModal.isHls);
+  const hlsFallbackRef = useRef(resolvedModal.hlsFallbackSrc ?? null);
+  const hlsFallbackUsedRef = useRef(false);
+
+  useEffect(() => {
+    const next = resolveModalPlaybackSource(clipFields);
+    setPlaybackSrc(next.src);
+    setPlaybackIsHls(next.isHls);
+    hlsFallbackRef.current = next.hlsFallbackSrc ?? null;
+    hlsFallbackUsedRef.current = false;
+    setLoadError(false);
+    attachedSrcRef.current = null;
+  }, [
+    stream_video_id,
+    streamVideoId,
+    stream_playback_url,
+    playbackUrl,
+    video_url,
+    fallbackUrl,
+    thumbnail_url,
+  ]);
+
+  const videoSrc = playbackSrc;
+  const isHls = playbackIsHls;
+  const { poster: posterSrc, streamVideoId: streamId } = resolvedModal;
   const displayPoster = poster || posterSrc || undefined;
 
   const bumpView = useCallback(async () => {
@@ -119,6 +154,26 @@ function StreamVideoPlayer(
     if (userMutePreferenceRef.current !== null) return userMutePreferenceRef.current;
     return false;
   }, []);
+
+  const destroyHls = useCallback(() => {
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+  }, []);
+
+  const tryHlsFallback = useCallback(() => {
+    const fallback = hlsFallbackRef.current;
+    if (!fallback || hlsFallbackUsedRef.current) return false;
+    hlsFallbackUsedRef.current = true;
+    attachedSrcRef.current = null;
+    destroyHls();
+    setLoadError(false);
+    setIsLoading(true);
+    setPlaybackSrc(fallback);
+    setPlaybackIsHls(true);
+    return true;
+  }, [destroyHls]);
 
   const tryAutoplay = useCallback(() => {
     if (!autoPlayRef.current) return;
@@ -143,13 +198,6 @@ function StreamVideoPlayer(
       void attempt(true).catch(() => {});
     });
   }, [videoSrc, resolveAutoplayMuted]);
-
-  const destroyHls = useCallback(() => {
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -201,6 +249,7 @@ function StreamVideoPlayer(
               lowLatencyMode: !mobile,
               maxBufferLength: mobile ? 4 : 8,
               maxMaxBufferLength: mobile ? 10 : 16,
+              startFragPrefetch: true,
             });
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, tryAutoplay);
@@ -295,6 +344,7 @@ function StreamVideoPlayer(
     const handleWaiting = () => setIsLoading(true);
     const handleCanPlay = () => setIsLoading(false);
     const handleError = () => {
+      if (tryHlsFallback()) return;
       setLoadError(true);
       setIsLoading(false);
     };
@@ -326,7 +376,7 @@ function StreamVideoPlayer(
       video.removeEventListener('error', handleError);
       video.removeEventListener('ended', handleEnded);
     };
-  }, [videoSrc, loop, clipId, bumpView]);
+  }, [videoSrc, loop, clipId, bumpView, tryHlsFallback]);
 
   useEffect(() => {
     if (!autoPlay) return;

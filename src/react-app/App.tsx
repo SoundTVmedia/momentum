@@ -43,10 +43,12 @@ import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueCon
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
 import { useEffect } from "react";
 import { registerNativePush } from "@/react-app/lib/native-bridge";
+import { warmClipPlaybackAssets } from "@/react-app/lib/warmClipPlaybackAssets";
 
 function NativeAppBootstrap() {
   useEffect(() => {
     void registerNativePush();
+    warmClipPlaybackAssets();
   }, []);
   return null;
 }

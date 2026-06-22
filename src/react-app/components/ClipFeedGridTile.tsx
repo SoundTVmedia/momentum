@@ -11,6 +11,7 @@ import {
   type ClipPlaybackFields,
   feedTileUsesStaticPoster,
   prefetchCarouselNeighborClips,
+  prefetchModalPlayback,
 } from '@/shared/clip-playback';
 
 export type ClipFeedGridTileProps = {
@@ -37,7 +38,9 @@ export default function ClipFeedGridTile({
       <div
         className="glass-clip-media-frame relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-[0.9rem]"
         onClick={() => onOpenClip(clip)}
+        onPointerDown={() => prefetchModalPlayback(clip)}
         onMouseEnter={() => {
+          prefetchModalPlayback(clip);
           if (posterOnly) return;
           setMediaHovered(true);
           if (neighborClips) prefetchCarouselNeighborClips(neighborClips);

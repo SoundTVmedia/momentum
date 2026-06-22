@@ -8,6 +8,7 @@ import {
   resolveClipDownloadFilename,
   resolveClipDownloadUrl,
   resolveFeedPreviewVideoSrc,
+  resolveHlsPrefetchUrls,
   resolveModalPlaybackSource,
   streamMp4Url,
   streamVideoIdFromClip,
@@ -60,11 +61,28 @@ describe('clip-playback', () => {
     ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 
-  it('uses HLS for modal when stream id present', () => {
+  it('uses Stream MP4 first for modal when stream id present', () => {
     const modal = resolveModalPlaybackSource({ stream_video_id: UID, video_url: '/api/files/x.mp4' });
-    expect(modal.isHls).toBe(true);
+    expect(modal.isHls).toBe(false);
+    expect(modal.src).toBe(streamMp4Url(UID));
     expect(modal.streamVideoId).toBe(UID);
+    expect(modal.hlsFallbackSrc).toBe(`https://videodelivery.net/${UID}/manifest/video.m3u8`);
     expect(streamVideoIdFromClip({ stream_video_id: UID })).toBe(UID);
+  });
+
+  it('parses HLS media segment URLs from a manifest', () => {
+    const manifest = `#EXTM3U
+#EXT-X-VERSION:3
+#EXTINF:2.0,
+seg-0.ts
+#EXTINF:2.0,
+seg-1.ts`;
+    expect(
+      resolveHlsPrefetchUrls(manifest, `https://videodelivery.net/${UID}/manifest/video.m3u8`),
+    ).toEqual([
+      `https://videodelivery.net/${UID}/manifest/seg-0.ts`,
+      `https://videodelivery.net/${UID}/manifest/seg-1.ts`,
+    ]);
   });
 
   it('prefers uploaded JPEG poster over stream fields', () => {
