@@ -27,7 +27,10 @@ export default function ClipModalBuyMerch({
       aria-label="Buy merch on the artist website"
     >
       <ShoppingBag className="h-4 w-4 shrink-0 text-momentum-ember" aria-hidden />
-      <span className="min-w-0 flex-1 text-left">Buy merch</span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="md:hidden">Tap to Buy Merch</span>
+        <span className="hidden md:inline">Click to Buy Merch</span>
+      </span>
       <span className="h-4 w-4 shrink-0 md:hidden" aria-hidden />
     </a>
   );

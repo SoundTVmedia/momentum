@@ -552,14 +552,14 @@ export default function ClipModal({
             <p className="fb-clip-caption mt-2">{clip.content_description}</p>
           ) : null}
           <div className="mt-3 flex flex-col gap-2">
+            <ClipModalBuyMerch
+              websiteUrl={artistWebsiteUrl}
+              loading={artistProfileLoading}
+            />
             <ClipModalBuyTickets
               show={nearestTicketShow}
               loading={nearestTicketLoading}
               onActivate={openTicketSheet}
-            />
-            <ClipModalBuyMerch
-              websiteUrl={artistWebsiteUrl}
-              loading={artistProfileLoading}
             />
           </div>
         </div>
@@ -895,15 +895,15 @@ export default function ClipModal({
               ) : null}
 
               <div className="mt-4 flex flex-col gap-2">
+                <ClipModalBuyMerch
+                  websiteUrl={artistWebsiteUrl}
+                  loading={artistProfileLoading}
+                  className="w-full"
+                />
                 <ClipModalBuyTickets
                   show={nearestTicketShow}
                   loading={nearestTicketLoading}
                   onActivate={openTicketSheet}
-                  className="w-full"
-                />
-                <ClipModalBuyMerch
-                  websiteUrl={artistWebsiteUrl}
-                  loading={artistProfileLoading}
                   className="w-full"
                 />
               </div>

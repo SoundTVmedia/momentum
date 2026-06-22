@@ -50,8 +50,21 @@ export function clampCameraZoom(zoom: number, range: CameraZoomRange): number {
   return Math.round(z * 100) / 100;
 }
 
+/** Capture-screen preset stops — ultrawide through 3× tele. */
+export const CAPTURE_ZOOM_PRESET_CANDIDATES = [0.5, 1, 2, 3] as const;
+
+export function buildCaptureZoomPresets(range: CameraZoomRange): number[] {
+  const presets = CAPTURE_ZOOM_PRESET_CANDIDATES.filter(
+    (z) => z >= range.min - 0.05 && z <= range.max + 0.05,
+  ).map((z) => clampCameraZoom(z, range));
+  return [...new Set(presets)].sort((a, b) => a - b);
+}
+
 /** iPhone-style preset stops within the device zoom range. */
 export function buildCameraZoomPresets(range: CameraZoomRange): number[] {
+  const fromCapture = buildCaptureZoomPresets(range);
+  if (fromCapture.length >= 2) return fromCapture;
+
   const candidates = [0.5, 1, 2, 3, 5, 10];
   const inRange = candidates
     .filter((z) => z >= range.min - 0.05 && z <= range.max + 0.05)
@@ -105,6 +118,69 @@ export async function applyCameraZoom(
   }
 }
 
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
+export type AnimateCameraZoomHandle = {
+  promise: Promise<boolean>;
+  cancel: () => void;
+};
+
+/** Smoothly ramp hardware zoom between presets (~300ms ease-out). */
+export function animateCameraZoom(
+  track: MediaStreamTrack,
+  from: number,
+  to: number,
+  range: CameraZoomRange,
+  opts?: { durationMs?: number; onStep?: (zoom: number) => void },
+): AnimateCameraZoomHandle {
+  const duration = opts?.durationMs ?? 300;
+  const target = clampCameraZoom(to, range);
+  const start = clampCameraZoom(from, range);
+  let cancelled = false;
+
+  const cancel = () => {
+    cancelled = true;
+  };
+
+  const promise = (async (): Promise<boolean> => {
+    if (Math.abs(target - start) < 0.03) {
+      if (cancelled) return false;
+      const ok = await applyCameraZoom(track, target, range);
+      if (ok && !cancelled) opts?.onStep?.(target);
+      return ok && !cancelled;
+    }
+
+    const t0 = performance.now();
+    let lastApplied = start;
+
+    while (!cancelled) {
+      const elapsed = performance.now() - t0;
+      const t = Math.min(1, elapsed / duration);
+      const z = clampCameraZoom(start + (target - start) * easeOutCubic(t), range);
+
+      if (Math.abs(z - lastApplied) >= 0.02 || t >= 1) {
+        const ok = await applyCameraZoom(track, z, range);
+        if (cancelled) return false;
+        if (ok) {
+          lastApplied = z;
+          opts?.onStep?.(z);
+        }
+        if (t >= 1) return ok;
+      }
+
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
+    }
+
+    return false;
+  })();
+
+  return { promise, cancel };
+}
+
 /** Label for zoom pill — active selection shows a × suffix like iOS Camera. */
 export function formatCameraZoomLabel(zoom: number, active: boolean): string {
   const nearOne = Math.abs(zoom - 1) < 0.06;
@@ -136,47 +212,4 @@ export function zoomFromPinchScale(
   if (startDistance <= 0 || currentDistance <= 0) return startZoom;
   const ratio = currentDistance / startDistance;
   return clampCameraZoom(startZoom * ratio, range);
-}
-
-/** Capture-screen dial range (UI), independent of device max when within hardware limits. */
-export const CAPTURE_ZOOM_WHEEL_MIN = 0.5;
-export const CAPTURE_ZOOM_WHEEL_MAX = 2.5;
-
-export function clampCaptureWheelZoom(zoom: number): number {
-  const z = Math.min(
-    CAPTURE_ZOOM_WHEEL_MAX,
-    Math.max(CAPTURE_ZOOM_WHEEL_MIN, zoom),
-  );
-  return Math.round(z * 100) / 100;
-}
-
-/** Map zoom [0.5, 2.5] → angle radians [π, 0] along a top semicircle (left = wide, right = tele). */
-export function captureWheelZoomToAngle(zoom: number): number {
-  const t =
-    (clampCaptureWheelZoom(zoom) - CAPTURE_ZOOM_WHEEL_MIN) /
-    (CAPTURE_ZOOM_WHEEL_MAX - CAPTURE_ZOOM_WHEEL_MIN);
-  return Math.PI - t * Math.PI;
-}
-
-export function captureWheelAngleToZoom(angleRad: number): number {
-  const clamped = Math.min(Math.PI, Math.max(0, angleRad));
-  const t = (Math.PI - clamped) / Math.PI;
-  const zoom =
-    CAPTURE_ZOOM_WHEEL_MIN +
-    t * (CAPTURE_ZOOM_WHEEL_MAX - CAPTURE_ZOOM_WHEEL_MIN);
-  return clampCaptureWheelZoom(zoom);
-}
-
-/** Clamp UI wheel zoom to what the camera track supports. */
-export function applyCaptureWheelZoomToDevice(
-  wheelZoom: number,
-  deviceRange: CameraZoomRange,
-): number {
-  return clampCameraZoom(clampCaptureWheelZoom(wheelZoom), deviceRange);
-}
-
-export function formatCaptureWheelZoom(zoom: number): string {
-  const z = clampCaptureWheelZoom(zoom);
-  const text = Number.isInteger(z) ? String(z) : z.toFixed(1).replace(/\.0$/, '');
-  return `${text}×`;
 }

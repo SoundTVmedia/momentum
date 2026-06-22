@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music } from 'lucide-react';
-import CameraZoomWheel from '@/react-app/components/CameraZoomWheel';
+import CameraZoomControls from '@/react-app/components/CameraZoomControls';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
@@ -25,9 +25,10 @@ import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, isCameraGoingAutoFillSource } from '@/shared/clip-resolve-show-match';
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
+  animateCameraZoom,
   applyCameraZoom,
+  buildCaptureZoomPresets,
   clampCameraZoom,
-  clampCaptureWheelZoom,
   readCameraZoomRange,
   readCurrentCameraZoom,
   touchPairDistance,
@@ -165,7 +166,10 @@ export default function QuickRecordButton({
   const primedMediaStreamRef = useRef(primedMediaStream);
   primedMediaStreamRef.current = primedMediaStream;
   const [zoomRange, setZoomRange] = useState<CameraZoomRange | null>(null);
+  const [zoomPresets, setZoomPresets] = useState<number[]>([]);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const zoomLevelRef = useRef(1);
+  const zoomAnimCancelRef = useRef<(() => void) | null>(null);
   const pinchZoomRef = useRef<{ dist: number; zoom: number } | null>(null);
   const lastPinchApplyRef = useRef(0);
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
@@ -1137,7 +1141,9 @@ export default function QuickRecordButton({
   useEffect(() => {
     if (!previewStream || !cameraReady) {
       setZoomRange(null);
+      setZoomPresets([]);
       setZoomLevel(1);
+      zoomLevelRef.current = 1;
       return;
     }
 
@@ -1145,19 +1151,57 @@ export default function QuickRecordButton({
     const range = readCameraZoomRange(track);
     setZoomRange(range);
     if (range) {
-      setZoomLevel(readCurrentCameraZoom(track, range));
+      setZoomPresets(buildCaptureZoomPresets(range));
+      const current = readCurrentCameraZoom(track, range);
+      setZoomLevel(current);
+      zoomLevelRef.current = current;
     } else {
+      setZoomPresets([]);
       setZoomLevel(1);
+      zoomLevelRef.current = 1;
     }
   }, [previewStream, cameraReady]);
+
+  const applyZoomInstant = useCallback(
+    async (next: number) => {
+      const track = streamRef.current?.getVideoTracks()[0];
+      if (!track || !zoomRange) return;
+      zoomAnimCancelRef.current?.();
+      zoomAnimCancelRef.current = null;
+      const target = clampCameraZoom(next, zoomRange);
+      const ok = await applyCameraZoom(track, target, zoomRange);
+      if (ok) {
+        zoomLevelRef.current = target;
+        setZoomLevel(target);
+      }
+    },
+    [zoomRange],
+  );
 
   const handleZoomSelect = useCallback(
     async (next: number) => {
       const track = streamRef.current?.getVideoTracks()[0];
       if (!track || !zoomRange) return;
-      const clamped = clampCameraZoom(next, zoomRange);
-      const ok = await applyCameraZoom(track, clamped, zoomRange);
-      if (ok) setZoomLevel(clamped);
+      const target = clampCameraZoom(next, zoomRange);
+      const from = zoomLevelRef.current;
+
+      zoomAnimCancelRef.current?.();
+      zoomAnimCancelRef.current = null;
+
+      const { promise, cancel } = animateCameraZoom(track, from, target, zoomRange, {
+        onStep: (z) => {
+          zoomLevelRef.current = z;
+          setZoomLevel(z);
+        },
+      });
+      zoomAnimCancelRef.current = cancel;
+
+      const ok = await promise;
+      zoomAnimCancelRef.current = null;
+      if (ok) {
+        zoomLevelRef.current = target;
+        setZoomLevel(target);
+      }
     },
     [zoomRange],
   );
@@ -1174,24 +1218,22 @@ export default function QuickRecordButton({
   const handlePreviewTouchMove = (e: React.TouchEvent) => {
     if (!zoomRange || !pinchZoomRef.current || e.touches.length !== 2) return;
     e.preventDefault();
-    const next = clampCaptureWheelZoom(
-      zoomFromPinchScale(
-        pinchZoomRef.current.zoom,
-        pinchZoomRef.current.dist,
-        touchPairDistance(e.touches),
-        zoomRange,
-      ),
+    const next = zoomFromPinchScale(
+      pinchZoomRef.current.zoom,
+      pinchZoomRef.current.dist,
+      touchPairDistance(e.touches),
+      zoomRange,
     );
     if (Math.abs(next - lastPinchApplyRef.current) < 0.04) return;
     lastPinchApplyRef.current = next;
-    void handleZoomSelect(next);
+    void applyZoomInstant(next);
   };
 
   const handlePreviewTouchEnd = () => {
     pinchZoomRef.current = null;
   };
 
-  const zoomControlsVisible = hasPermission && cameraReady && zoomRange !== null;
+  const zoomControlsVisible = hasPermission && cameraReady && zoomPresets.length >= 2;
 
   const toggleCameraFacing = async () => {
     if (isRecording) return;
@@ -2132,10 +2174,11 @@ export default function QuickRecordButton({
             landscapeCapture ? 'mb-2' : 'mb-4 max-w-lg'
           }`}
         >
-          <CameraZoomWheel
+          <CameraZoomControls
+            presets={zoomPresets}
             value={zoomLevel}
             disabled={isRecording}
-            onChange={(z) => void handleZoomSelect(z)}
+            onSelect={(z) => void handleZoomSelect(z)}
           />
         </div>
       ) : null}

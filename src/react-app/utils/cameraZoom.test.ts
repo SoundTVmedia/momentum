@@ -1,19 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCameraZoomPresets,
-  captureWheelAngleToZoom,
-  captureWheelZoomToAngle,
+  buildCaptureZoomPresets,
   clampCameraZoom,
-  clampCaptureWheelZoom,
   formatCameraZoomLabel,
   zoomFromPinchScale,
-  CAPTURE_ZOOM_WHEEL_MIN,
-  CAPTURE_ZOOM_WHEEL_MAX,
 } from './cameraZoom';
 
+describe('buildCaptureZoomPresets', () => {
+  it('includes 0.5 through 3× when supported', () => {
+    expect(buildCaptureZoomPresets({ min: 0.5, max: 3 })).toEqual([0.5, 1, 2, 3]);
+  });
+
+  it('omits stops outside hardware range', () => {
+    expect(buildCaptureZoomPresets({ min: 1, max: 3 })).toEqual([1, 2, 3]);
+  });
+});
+
 describe('buildCameraZoomPresets', () => {
-  it('includes common stops within range', () => {
-    expect(buildCameraZoomPresets({ min: 1, max: 5 })).toEqual([1, 2, 3, 5]);
+  it('prefers capture presets when enough are in range', () => {
+    expect(buildCameraZoomPresets({ min: 1, max: 5 })).toEqual([1, 2, 3]);
   });
 
   it('includes ultrawide when supported', () => {
@@ -34,6 +40,11 @@ describe('formatCameraZoomLabel', () => {
     expect(formatCameraZoomLabel(1, false)).toBe('1');
     expect(formatCameraZoomLabel(2, true)).toBe('2×');
   });
+
+  it('formats ultrawide', () => {
+    expect(formatCameraZoomLabel(0.5, false)).toBe('0.5');
+    expect(formatCameraZoomLabel(0.5, true)).toBe('0.5×');
+  });
 });
 
 describe('zoomFromPinchScale', () => {
@@ -41,18 +52,5 @@ describe('zoomFromPinchScale', () => {
     const range = { min: 1, max: 5 };
     expect(zoomFromPinchScale(1, 100, 200, range)).toBe(2);
     expect(zoomFromPinchScale(2, 200, 100, range)).toBe(1);
-  });
-});
-
-describe('capture zoom wheel', () => {
-  it('maps endpoints between angle and zoom', () => {
-    expect(captureWheelAngleToZoom(Math.PI)).toBe(CAPTURE_ZOOM_WHEEL_MIN);
-    expect(captureWheelAngleToZoom(0)).toBe(CAPTURE_ZOOM_WHEEL_MAX);
-    expect(captureWheelAngleToZoom(captureWheelZoomToAngle(1))).toBe(1);
-  });
-
-  it('clamps wheel zoom', () => {
-    expect(clampCaptureWheelZoom(0.1)).toBe(CAPTURE_ZOOM_WHEEL_MIN);
-    expect(clampCaptureWheelZoom(9)).toBe(CAPTURE_ZOOM_WHEEL_MAX);
   });
 });
