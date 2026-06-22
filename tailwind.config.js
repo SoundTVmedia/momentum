@@ -1,6 +1,7 @@
 /** @type {import('tailwindcss').Config} */
-/** Active palette: neon-blue — see src/react-app/lib/design-palettes.ts */
+/** Active palette: crimson-pulse — see src/react-app/lib/design-palettes.ts */
 export default {
+  darkMode: ['selector', '[data-theme="dark"]'],
   content: [
     "./index.html",
     "./src/react-app/**/*.{js,ts,jsx,tsx}",
@@ -9,44 +10,40 @@ export default {
     extend: {
       colors: {
         momentum: {
-          /** Neon blue — cyan → electric blue → indigo */
-          ember: "#22D3EE",
-          flare: "#3B82F6",
-          rose: "#6366F1",
-          glacier: "#67E8F9",
-          copper: "#1E3A5F",
-          ink: "#030712",
-          smoke: "#0F172A",
-          teal: "#22D3EE",
-          mint: "#3B82F6",
-          /** Readable text on dark backgrounds */
-          body: "#E8EDF4",
-          secondary: "#C5D0DE",
-          muted: "#A8B8C8",
-          subtle: "#8FA3B8",
+          ember: "var(--momentum-ember)",
+          flare: "var(--momentum-flare)",
+          rose: "var(--momentum-rose)",
+          glacier: "var(--momentum-glacier)",
+          copper: "var(--momentum-copper)",
+          ink: "var(--momentum-ink)",
+          smoke: "var(--momentum-smoke)",
+          teal: "var(--momentum-teal)",
+          mint: "var(--momentum-mint)",
+          body: "var(--text-body)",
+          secondary: "var(--text-secondary)",
+          muted: "var(--text-muted)",
+          subtle: "var(--text-subtle)",
         },
         glass: {
-          border: "rgba(255, 255, 255, 0.12)",
-          "border-strong": "rgba(99, 102, 241, 0.38)",
-          surface: "rgba(255, 255, 255, 0.05)",
-          chrome: "rgba(3, 7, 18, 0.82)",
+          border: "var(--glass-border)",
+          "border-strong": "var(--glass-border-accent)",
+          surface: "var(--glass-bg)",
+          chrome: "var(--glass-chrome-bg)",
         },
       },
       backgroundImage: {
-        "momentum-flow":
-          "linear-gradient(to bottom left, #22d3ee 0%, #3b82f6 50%, #6366f1 100%)",
+        "momentum-flow": "var(--momentum-grad)",
         "momentum-flow-vertical":
-          "linear-gradient(to bottom, rgba(34,211,238,0.1) 0%, rgba(59,130,246,0.08) 45%, rgba(99,102,241,0.12) 100%)",
-        "glass-shine":
-          "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.02) 40%, rgba(99,102,241,0.08) 100%)",
+          "linear-gradient(to bottom, rgba(255,68,68,0.1) 0%, rgba(220,38,38,0.08) 45%, rgba(153,27,27,0.12) 100%)",
+        "glass-shine": "var(--glass-highlight)",
       },
       backgroundSize: {
         "200-auto": "200% auto",
       },
       boxShadow: {
-        glass: "0 4px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
-        "glass-lg": "0 8px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12)",
-        "glass-glow": "0 0 32px rgba(99, 102, 241, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        glass: "var(--glass-shadow)",
+        "glass-lg": "var(--glass-shadow-lg)",
+        "glass-glow": "0 0 32px rgba(220, 38, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
         "glass-chrome": "0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 -1px 0 rgba(0, 0, 0, 0.25)",
       },
       backdropBlur: {

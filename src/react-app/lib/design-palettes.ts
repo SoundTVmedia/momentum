@@ -9,7 +9,8 @@ export type DesignPaletteId =
   | 'orange-version'
   | 'green-option-1'
   | 'green-option-2'
-  | 'neon-blue';
+  | 'neon-blue'
+  | 'crimson-pulse';
 
 export type DesignPalette = {
   id: DesignPaletteId;
@@ -109,14 +110,36 @@ export const NEON_BLUE: DesignPalette = {
   },
 };
 
+/** Scarlet → crimson → wine on rich black (ACTIVE). */
+export const CRIMSON_PULSE: DesignPalette = {
+  id: 'crimson-pulse',
+  label: 'Crimson pulse',
+  description:
+    'Monochromatic red scale — scarlet highlight, crimson primary, wine depth — on rich black with warm white type.',
+  tailwindGradient:
+    'bg-gradient-to-bl from-[#ff4444] via-[#dc2626] to-[#991b1b]',
+  momentumGrad:
+    'linear-gradient(to bottom left, #ff4444 0%, #dc2626 50%, #991b1b 100%)',
+  tokens: {
+    ember: '#FF4444',
+    flare: '#DC2626',
+    rose: '#991B1B',
+    glacier: '#FECACA',
+    copper: '#450A0A',
+    ink: '#0A0A0A',
+    smoke: '#171717',
+  },
+};
+
 export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
   'orange-version': ORANGE_VERSION,
   'green-option-1': GREEN_OPTION_1,
   'green-option-2': GREEN_OPTION_2,
   'neon-blue': NEON_BLUE,
+  'crimson-pulse': CRIMSON_PULSE,
 };
 
 /** Palette currently wired in tailwind.config.js + index.css */
-export const ACTIVE_PALETTE_ID: DesignPaletteId = 'neon-blue';
+export const ACTIVE_PALETTE_ID: DesignPaletteId = 'crimson-pulse';
 
 export const ACTIVE_PALETTE = DESIGN_PALETTES[ACTIVE_PALETTE_ID];

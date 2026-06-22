@@ -25,6 +25,20 @@
     <link rel="shortcut icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <title>FEEDBACK - Where live music lives.</title>
+    <script>
+      (function () {
+        var key = 'momentum-theme';
+        var stored = localStorage.getItem(key);
+        var pref = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+        var resolved =
+          pref === 'system'
+            ? window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark'
+            : pref;
+        document.documentElement.setAttribute('data-theme', resolved);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

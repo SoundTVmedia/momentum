@@ -2,11 +2,11 @@
   <defs>
     <linearGradient id="f-grad" x1="16" y1="6" x2="16" y2="26" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="42%" stop-color="#f0f9ff" />
-      <stop offset="100%" stop-color="#67e8f9" />
+      <stop offset="42%" stop-color="#fff5f5" />
+      <stop offset="100%" stop-color="#fecaca" />
     </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="6" fill="#030712" />
+  <rect width="32" height="32" rx="6" fill="#0a0a0a" />
   <path
     fill="url(#f-grad)"
     d="M8.5 7h15.5v4H13v4.25h9v3.75H13v5.5H8.5V7z"

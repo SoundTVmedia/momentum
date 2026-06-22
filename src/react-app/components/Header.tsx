@@ -14,6 +14,7 @@ import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 import { HEADER_ACTION_BUTTON_CLASS } from '@/react-app/components/HeaderGradientPill'
 import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
+import ThemeToggle from '@/react-app/components/ThemeToggle'
 import { showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
 
 export default function Header() {
@@ -81,7 +82,7 @@ export default function Header() {
   return (
     <>
     {!hideSiteChrome ? (
-    <header className="glass-chrome border-b border-white/10 sticky top-0 z-50">
+    <header className="glass-chrome border-b border-[var(--shell-border)] sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo */}
@@ -95,6 +96,7 @@ export default function Header() {
           </button>
 
           <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => navigate(showSponsorNav(extendedUser) ? '/sponsors' : '/partner')}

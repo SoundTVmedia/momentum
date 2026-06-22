@@ -15,9 +15,9 @@ import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 const SIGN_IN_GRADIENT_STOPS = (
   <>
-    <stop offset="0%" stopColor="var(--momentum-ember, #22d3ee)" />
-    <stop offset="50%" stopColor="var(--momentum-flare, #3b82f6)" />
-    <stop offset="100%" stopColor="var(--momentum-rose, #6366f1)" />
+    <stop offset="0%" stopColor="var(--momentum-ember, #ff4444)" />
+    <stop offset="50%" stopColor="var(--momentum-flare, #dc2626)" />
+    <stop offset="100%" stopColor="var(--momentum-rose, #991b1b)" />
   </>
 );
 
@@ -106,7 +106,7 @@ export default function MobileBottomNav() {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-chrome border-t border-white/10 bottom-nav">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-chrome border-t border-[var(--shell-border)] bottom-nav">
         <div className="grid grid-cols-5 items-center h-16 w-full">
           {navItems.map((item) => {
             const active = isActive(item.path);
