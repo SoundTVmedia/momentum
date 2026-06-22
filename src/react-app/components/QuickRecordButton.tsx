@@ -30,7 +30,7 @@ import {
   buildCaptureZoomPresets,
   clampCameraZoom,
   decomposeCaptureZoom,
-  expandCaptureZoomRange,
+  captureZoomRange,
   readCameraZoomRange,
   readCurrentCameraZoom,
   touchPairDistance,
@@ -1155,15 +1155,27 @@ export default function QuickRecordButton({
 
     const track = previewStream.getVideoTracks()[0];
     const hardware = readCameraZoomRange(track);
-    const range = hardware ? expandCaptureZoomRange(hardware) : null;
+    const range = hardware ? captureZoomRange(hardware) : null;
     setHardwareZoomRange(hardware);
     setZoomRange(range);
     if (hardware && range) {
       setZoomPresets(buildCaptureZoomPresets(range));
-      const current = readCurrentCameraZoom(track, hardware);
-      setZoomLevel(current);
-      setDigitalZoomScale(1);
+      const raw = readCurrentCameraZoom(track, hardware);
+      const current = clampCameraZoom(raw, range);
       zoomLevelRef.current = current;
+      setZoomLevel(current);
+      if (Math.abs(current - raw) > 0.03) {
+        void applyCaptureZoom(track, current, hardware, range).then((applied) => {
+          if (applied.ok) {
+            zoomLevelRef.current = applied.level;
+            setZoomLevel(applied.level);
+            setDigitalZoomScale(applied.digitalScale);
+          }
+        });
+      } else {
+        const decomposed = decomposeCaptureZoom(current, hardware, range);
+        setDigitalZoomScale(decomposed.digitalScale);
+      }
     } else {
       setZoomPresets([]);
       setZoomLevel(1);
@@ -2313,14 +2325,11 @@ export default function QuickRecordButton({
               muted
               disablePictureInPicture
               className="absolute inset-0 z-0 h-full w-full min-h-full min-w-full object-cover"
-              style={
-                digitalZoomScale > 1
-                  ? {
-                      transform: `scale(${digitalZoomScale})`,
-                      transformOrigin: 'center center',
-                    }
-                  : undefined
-              }
+              style={{
+                transform: digitalZoomScale > 1 ? `scale(${digitalZoomScale})` : undefined,
+                transformOrigin: 'center center',
+                transition: 'transform 0.12s ease-out',
+              }}
             />
             {previewTapToStart && previewStream && !cameraReady && (
               <button

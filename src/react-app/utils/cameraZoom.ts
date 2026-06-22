@@ -50,20 +50,24 @@ export function clampCameraZoom(zoom: number, range: CameraZoomRange): number {
   return Math.round(z * 100) / 100;
 }
 
-/** UI zoom cap is 3× the hardware-reported max (digital preview beyond optical). */
-export const CAPTURE_ZOOM_MAX_MULTIPLIER = 3;
+/** Hard cap for in-app capture zoom (handheld concert clips). */
+export const APP_MAX_CAMERA_ZOOM = 3;
 
-/** Capture-screen preset stops — ultrawide through 15× tele (3× prior 5× cap). */
-export const CAPTURE_ZOOM_PRESET_CANDIDATES = [0.5, 1, 2, 3, 5, 10, 15] as const;
+/** Capture-screen preset stops — ultrawide through 3× max. */
+export const CAPTURE_ZOOM_PRESET_CANDIDATES = [0.5, 1, 2, 3] as const;
 
-/** Extend hardware zoom range for capture UI (optical + digital preview). */
-export function expandCaptureZoomRange(hardware: CameraZoomRange): CameraZoomRange {
-  const extendedMax = hardware.max * CAPTURE_ZOOM_MAX_MULTIPLIER;
+/** Capture UI range: hardware min through {@link APP_MAX_CAMERA_ZOOM} (digital preview when optical max is lower). */
+export function captureZoomRange(hardware: CameraZoomRange): CameraZoomRange {
   return {
     min: hardware.min,
-    max: clampCameraZoom(extendedMax, { min: hardware.min, max: extendedMax }),
+    max: Math.max(hardware.min, APP_MAX_CAMERA_ZOOM),
     step: hardware.step,
   };
+}
+
+/** @deprecated Use {@link captureZoomRange} — kept for tests migrating off 15× extended range. */
+export function expandCaptureZoomRange(hardware: CameraZoomRange): CameraZoomRange {
+  return captureZoomRange(hardware);
 }
 
 export function buildCaptureZoomPresets(range: CameraZoomRange): number[] {
@@ -78,7 +82,7 @@ export function buildCameraZoomPresets(range: CameraZoomRange): number[] {
   const fromCapture = buildCaptureZoomPresets(range);
   if (fromCapture.length >= 2) return fromCapture;
 
-  const candidates = [0.5, 1, 2, 3, 5, 10, 15];
+  const candidates = [...CAPTURE_ZOOM_PRESET_CANDIDATES];
   const inRange = candidates
     .filter((z) => z >= range.min - 0.05 && z <= range.max + 0.05)
     .map((z) => clampCameraZoom(z, range));

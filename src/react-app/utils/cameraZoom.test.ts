@@ -1,50 +1,66 @@
 import { describe, expect, it } from 'vitest';
 import {
+  APP_MAX_CAMERA_ZOOM,
   buildCameraZoomPresets,
   buildCaptureZoomPresets,
+  captureZoomRange,
   clampCameraZoom,
   decomposeCaptureZoom,
-  expandCaptureZoomRange,
   formatCameraZoomLabel,
   zoomFromPinchScale,
 } from './cameraZoom';
 
-describe('expandCaptureZoomRange', () => {
-  it('triples hardware max zoom', () => {
-    expect(expandCaptureZoomRange({ min: 1, max: 5 })).toEqual({ min: 1, max: 15 });
+describe('captureZoomRange', () => {
+  it('caps UI max at APP_MAX_CAMERA_ZOOM', () => {
+    expect(captureZoomRange({ min: 1, max: 10 })).toEqual({ min: 1, max: APP_MAX_CAMERA_ZOOM });
+  });
+
+  it('preserves ultrawide min', () => {
+    expect(captureZoomRange({ min: 0.5, max: 5 })).toEqual({ min: 0.5, max: APP_MAX_CAMERA_ZOOM });
   });
 });
 
 describe('decomposeCaptureZoom', () => {
-  it('splits optical and digital zoom', () => {
+  it('uses optical zoom when within hardware max', () => {
     const hardware = { min: 1, max: 5 };
-    const extended = expandCaptureZoomRange(hardware);
-    expect(decomposeCaptureZoom(15, hardware, extended)).toEqual({
-      level: 15,
-      optical: 5,
-      digitalScale: 3,
-    });
-    expect(decomposeCaptureZoom(3, hardware, extended)).toEqual({
+    const capture = captureZoomRange(hardware);
+    expect(decomposeCaptureZoom(3, hardware, capture)).toEqual({
       level: 3,
       optical: 3,
       digitalScale: 1,
     });
   });
+
+  it('uses digital preview when target exceeds optical max', () => {
+    const hardware = { min: 1, max: 2 };
+    const capture = captureZoomRange(hardware);
+    expect(decomposeCaptureZoom(3, hardware, capture)).toEqual({
+      level: 3,
+      optical: 2,
+      digitalScale: 1.5,
+    });
+  });
 });
 
 describe('buildCaptureZoomPresets', () => {
-  it('includes 0.5 through 15× when supported', () => {
-    expect(buildCaptureZoomPresets({ min: 0.5, max: 15 })).toEqual([0.5, 1, 2, 3, 5, 10, 15]);
+  it('includes 0.5 through 3× when supported', () => {
+    expect(buildCaptureZoomPresets({ min: 0.5, max: 3 })).toEqual([0.5, 1, 2, 3]);
   });
 
-  it('omits stops outside hardware range', () => {
+  it('omits stops outside range', () => {
     expect(buildCaptureZoomPresets({ min: 1, max: 3 })).toEqual([1, 2, 3]);
+  });
+
+  it('never includes zoom above 3×', () => {
+    const presets = buildCaptureZoomPresets(captureZoomRange({ min: 0.5, max: 15 }));
+    expect(presets).toEqual([0.5, 1, 2, 3]);
+    expect(Math.max(...presets)).toBeLessThanOrEqual(3);
   });
 });
 
 describe('buildCameraZoomPresets', () => {
   it('prefers capture presets when enough are in range', () => {
-    expect(buildCameraZoomPresets({ min: 1, max: 15 })).toEqual([1, 2, 3, 5, 10, 15]);
+    expect(buildCameraZoomPresets(captureZoomRange({ min: 1, max: 10 }))).toEqual([1, 2, 3]);
   });
 
   it('includes ultrawide when supported', () => {
@@ -56,7 +72,7 @@ describe('clampCameraZoom', () => {
   it('clamps and steps', () => {
     expect(clampCameraZoom(2.3, { min: 1, max: 5, step: 0.5 })).toBe(2.5);
     expect(clampCameraZoom(9, { min: 1, max: 5 })).toBe(5);
-    expect(clampCameraZoom(20, { min: 1, max: 15 })).toBe(15);
+    expect(clampCameraZoom(5, { min: 1, max: 3 })).toBe(3);
   });
 });
 
@@ -74,9 +90,10 @@ describe('formatCameraZoomLabel', () => {
 });
 
 describe('zoomFromPinchScale', () => {
-  it('scales relative to pinch distance', () => {
-    const range = { min: 1, max: 15 };
+  it('scales relative to pinch distance and respects 3× cap', () => {
+    const range = captureZoomRange({ min: 1, max: 10 });
     expect(zoomFromPinchScale(1, 100, 200, range)).toBe(2);
-    expect(zoomFromPinchScale(2, 200, 100, range)).toBe(1);
+    expect(zoomFromPinchScale(2, 100, 200, range)).toBe(3);
+    expect(zoomFromPinchScale(2, 200, 400, range)).toBe(3);
   });
 });
