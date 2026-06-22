@@ -137,3 +137,46 @@ export function zoomFromPinchScale(
   const ratio = currentDistance / startDistance;
   return clampCameraZoom(startZoom * ratio, range);
 }
+
+/** Capture-screen dial range (UI), independent of device max when within hardware limits. */
+export const CAPTURE_ZOOM_WHEEL_MIN = 0.5;
+export const CAPTURE_ZOOM_WHEEL_MAX = 2.5;
+
+export function clampCaptureWheelZoom(zoom: number): number {
+  const z = Math.min(
+    CAPTURE_ZOOM_WHEEL_MAX,
+    Math.max(CAPTURE_ZOOM_WHEEL_MIN, zoom),
+  );
+  return Math.round(z * 100) / 100;
+}
+
+/** Map zoom [0.5, 2.5] → angle radians [π, 0] along a top semicircle (left = wide, right = tele). */
+export function captureWheelZoomToAngle(zoom: number): number {
+  const t =
+    (clampCaptureWheelZoom(zoom) - CAPTURE_ZOOM_WHEEL_MIN) /
+    (CAPTURE_ZOOM_WHEEL_MAX - CAPTURE_ZOOM_WHEEL_MIN);
+  return Math.PI - t * Math.PI;
+}
+
+export function captureWheelAngleToZoom(angleRad: number): number {
+  const clamped = Math.min(Math.PI, Math.max(0, angleRad));
+  const t = (Math.PI - clamped) / Math.PI;
+  const zoom =
+    CAPTURE_ZOOM_WHEEL_MIN +
+    t * (CAPTURE_ZOOM_WHEEL_MAX - CAPTURE_ZOOM_WHEEL_MIN);
+  return clampCaptureWheelZoom(zoom);
+}
+
+/** Clamp UI wheel zoom to what the camera track supports. */
+export function applyCaptureWheelZoomToDevice(
+  wheelZoom: number,
+  deviceRange: CameraZoomRange,
+): number {
+  return clampCameraZoom(clampCaptureWheelZoom(wheelZoom), deviceRange);
+}
+
+export function formatCaptureWheelZoom(zoom: number): string {
+  const z = clampCaptureWheelZoom(zoom);
+  const text = Number.isInteger(z) ? String(z) : z.toFixed(1).replace(/\.0$/, '');
+  return `${text}×`;
+}

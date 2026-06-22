@@ -16,7 +16,7 @@ export default function ClipModalBuyMerch({
   }
 
   const hintClass =
-    'flex w-full items-center justify-center gap-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20 active:scale-[0.98] tap-feedback';
+    'flex w-full items-center justify-start gap-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20 active:scale-[0.98] tap-feedback';
 
   return (
     <a
@@ -27,7 +27,8 @@ export default function ClipModalBuyMerch({
       aria-label="Buy merch on the artist website"
     >
       <ShoppingBag className="h-4 w-4 shrink-0 text-momentum-ember" aria-hidden />
-      <span>Buy merch</span>
+      <span className="min-w-0 flex-1 text-left">Buy merch</span>
+      <span className="h-4 w-4 shrink-0 md:hidden" aria-hidden />
     </a>
   );
 }

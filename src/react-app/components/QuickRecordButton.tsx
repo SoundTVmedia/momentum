@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music } from 'lucide-react';
-import CameraZoomControls from '@/react-app/components/CameraZoomControls';
+import CameraZoomWheel from '@/react-app/components/CameraZoomWheel';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
@@ -26,8 +26,8 @@ import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, isCam
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
   applyCameraZoom,
-  buildCameraZoomPresets,
   clampCameraZoom,
+  clampCaptureWheelZoom,
   readCameraZoomRange,
   readCurrentCameraZoom,
   touchPairDistance,
@@ -165,7 +165,6 @@ export default function QuickRecordButton({
   const primedMediaStreamRef = useRef(primedMediaStream);
   primedMediaStreamRef.current = primedMediaStream;
   const [zoomRange, setZoomRange] = useState<CameraZoomRange | null>(null);
-  const [zoomPresets, setZoomPresets] = useState<number[]>([]);
   const [zoomLevel, setZoomLevel] = useState(1);
   const pinchZoomRef = useRef<{ dist: number; zoom: number } | null>(null);
   const lastPinchApplyRef = useRef(0);
@@ -1138,7 +1137,6 @@ export default function QuickRecordButton({
   useEffect(() => {
     if (!previewStream || !cameraReady) {
       setZoomRange(null);
-      setZoomPresets([]);
       setZoomLevel(1);
       return;
     }
@@ -1147,10 +1145,8 @@ export default function QuickRecordButton({
     const range = readCameraZoomRange(track);
     setZoomRange(range);
     if (range) {
-      setZoomPresets(buildCameraZoomPresets(range));
       setZoomLevel(readCurrentCameraZoom(track, range));
     } else {
-      setZoomPresets([]);
       setZoomLevel(1);
     }
   }, [previewStream, cameraReady]);
@@ -1178,11 +1174,13 @@ export default function QuickRecordButton({
   const handlePreviewTouchMove = (e: React.TouchEvent) => {
     if (!zoomRange || !pinchZoomRef.current || e.touches.length !== 2) return;
     e.preventDefault();
-    const next = zoomFromPinchScale(
-      pinchZoomRef.current.zoom,
-      pinchZoomRef.current.dist,
-      touchPairDistance(e.touches),
-      zoomRange,
+    const next = clampCaptureWheelZoom(
+      zoomFromPinchScale(
+        pinchZoomRef.current.zoom,
+        pinchZoomRef.current.dist,
+        touchPairDistance(e.touches),
+        zoomRange,
+      ),
     );
     if (Math.abs(next - lastPinchApplyRef.current) < 0.04) return;
     lastPinchApplyRef.current = next;
@@ -1193,7 +1191,7 @@ export default function QuickRecordButton({
     pinchZoomRef.current = null;
   };
 
-  const zoomControlsVisible = hasPermission && cameraReady && zoomPresets.length >= 2;
+  const zoomControlsVisible = hasPermission && cameraReady && zoomRange !== null;
 
   const toggleCameraFacing = async () => {
     if (isRecording) return;
@@ -2134,10 +2132,10 @@ export default function QuickRecordButton({
             landscapeCapture ? 'mb-2' : 'mb-4 max-w-lg'
           }`}
         >
-          <CameraZoomControls
-            presets={zoomPresets}
+          <CameraZoomWheel
             value={zoomLevel}
-            onSelect={(z) => void handleZoomSelect(z)}
+            disabled={isRecording}
+            onChange={(z) => void handleZoomSelect(z)}
           />
         </div>
       ) : null}

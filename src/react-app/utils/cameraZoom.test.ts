@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCameraZoomPresets,
+  captureWheelAngleToZoom,
+  captureWheelZoomToAngle,
   clampCameraZoom,
+  clampCaptureWheelZoom,
   formatCameraZoomLabel,
   zoomFromPinchScale,
+  CAPTURE_ZOOM_WHEEL_MIN,
+  CAPTURE_ZOOM_WHEEL_MAX,
 } from './cameraZoom';
 
 describe('buildCameraZoomPresets', () => {
@@ -36,5 +41,18 @@ describe('zoomFromPinchScale', () => {
     const range = { min: 1, max: 5 };
     expect(zoomFromPinchScale(1, 100, 200, range)).toBe(2);
     expect(zoomFromPinchScale(2, 200, 100, range)).toBe(1);
+  });
+});
+
+describe('capture zoom wheel', () => {
+  it('maps endpoints between angle and zoom', () => {
+    expect(captureWheelAngleToZoom(Math.PI)).toBe(CAPTURE_ZOOM_WHEEL_MIN);
+    expect(captureWheelAngleToZoom(0)).toBe(CAPTURE_ZOOM_WHEEL_MAX);
+    expect(captureWheelAngleToZoom(captureWheelZoomToAngle(1))).toBe(1);
+  });
+
+  it('clamps wheel zoom', () => {
+    expect(clampCaptureWheelZoom(0.1)).toBe(CAPTURE_ZOOM_WHEEL_MIN);
+    expect(clampCaptureWheelZoom(9)).toBe(CAPTURE_ZOOM_WHEEL_MAX);
   });
 });

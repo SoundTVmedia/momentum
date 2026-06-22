@@ -19,7 +19,7 @@ export default function ClipModalBuyTickets({
   }
 
   const hintClass =
-    'flex w-full items-center justify-center gap-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20 active:scale-[0.98] tap-feedback';
+    'flex w-full items-center justify-start gap-2 rounded-full bg-white/15 px-3 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-white/20 active:scale-[0.98] tap-feedback';
 
   return (
     <button
@@ -29,8 +29,10 @@ export default function ClipModalBuyTickets({
       aria-label="Swipe up to buy tickets to nearest show"
     >
       <Ticket className="h-4 w-4 shrink-0 text-momentum-flare" aria-hidden />
-      <span className="md:hidden">Swipe up to buy tickets to nearest show</span>
-      <span className="hidden md:inline">Buy tickets to nearest show</span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="md:hidden">Swipe up to buy tickets to nearest show</span>
+        <span className="hidden md:inline">Buy tickets to nearest show</span>
+      </span>
       <ChevronUp className="h-4 w-4 shrink-0 animate-bounce md:hidden" aria-hidden />
     </button>
   );

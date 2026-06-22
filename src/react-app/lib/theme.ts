@@ -1,5 +1,8 @@
 export const THEME_STORAGE_KEY = 'momentum-theme';
 
+/** When true, app always uses dark mode; light/system UI is hidden (see ThemeToggle). */
+export const THEME_LOCKED_DARK = true;
+
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
 
@@ -27,8 +30,6 @@ export function applyResolvedTheme(resolved: ResolvedTheme): void {
 
 /** Runs before React paint — keep in sync with index.html inline script. */
 export function bootstrapThemeFromStorage(): ResolvedTheme {
-  const preference = getStoredThemePreference();
-  const resolved = resolveTheme(preference);
-  applyResolvedTheme(resolved);
-  return resolved;
+  applyResolvedTheme('dark');
+  return 'dark';
 }

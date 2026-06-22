@@ -37,7 +37,6 @@ import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
 import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
-import { ThemeProvider } from "@/react-app/contexts/ThemeContext";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 import PendingCaptureRouteRecovery from "@/react-app/components/PendingCaptureRouteRecovery";
 import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
@@ -55,7 +54,6 @@ function NativeAppBootstrap() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
       <div className="momentum-ambient" aria-hidden />
       <NativeAppBootstrap />
       <AuthProvider>
@@ -111,7 +109,6 @@ export default function App() {
         </ClipUploadQueueProvider>
         </MobileChromeProvider>
     </AuthProvider>
-      </ThemeProvider>
     </ErrorBoundary>
   );
 }

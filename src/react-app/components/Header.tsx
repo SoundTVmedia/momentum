@@ -14,7 +14,6 @@ import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 import { HEADER_ACTION_BUTTON_CLASS } from '@/react-app/components/HeaderGradientPill'
 import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
-import ThemeToggle from '@/react-app/components/ThemeToggle'
 import { showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
 
 export default function Header() {
@@ -96,7 +95,6 @@ export default function Header() {
           </button>
 
           <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
-            <ThemeToggle />
             <button
               type="button"
               onClick={() => navigate(showSponsorNav(extendedUser) ? '/sponsors' : '/partner')}
