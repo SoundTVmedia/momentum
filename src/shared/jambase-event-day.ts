@@ -404,6 +404,47 @@ export function jamBaseEventOnCaptureDay(
   return jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon);
 }
 
+/** True when the capture instant is well before now (typical library upload after the show). */
+export function isPastCaptureAnchor(
+  captureMs: number,
+  nowMs: number = Date.now(),
+  thresholdHours = 6,
+): boolean {
+  if (!Number.isFinite(captureMs)) return false;
+  return captureMs < nowMs - thresholdHours * 3600_000;
+}
+
+/**
+ * Geo `/events` `eventDateFrom` for resolve-show.
+ * Uses capture-local day when possible; never before JamBase's UTC floor.
+ */
+export function jamBaseGeoEventDateFromForResolveShow(
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+  nowMs: number = Date.now(),
+): string {
+  const pastLibraryCapture = isPastCaptureAnchor(captureMs, nowMs);
+
+  if (
+    userLat != null &&
+    userLon != null &&
+    Number.isFinite(userLat) &&
+    Number.isFinite(userLon)
+  ) {
+    const local = jamBaseEventDateFromCaptureLocal(captureMs, userLat, userLon);
+    if (pastLibraryCapture) return local;
+    const utcFloor = jamBaseGeoEventDateFromUtc(nowMs);
+    return local < utcFloor ? utcFloor : local;
+  }
+  const anchorDay = ymdUtc(captureMs);
+  const prev = ymdUtc(captureMs - 86400000);
+  const candidate = prev < anchorDay ? prev : anchorDay;
+  if (pastLibraryCapture) return candidate;
+  const utcFloor = jamBaseGeoEventDateFromUtc(nowMs);
+  return candidate < utcFloor ? utcFloor : candidate;
+}
+
 /** Next calendar day after `ymd` in `timeZone` (YYYY-MM-DD). */
 export function nextCalendarDayYmdInTimeZone(ymd: string, timeZone: string): string | null {
   const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);

@@ -1,25 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { Disc3, Loader2, X } from 'lucide-react';
 import type { ClipWithUser } from '@/shared/types';
 import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
 import type { DashboardGridClip } from '@/react-app/components/DashboardClipsGrid';
+import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import { saveClipMetadataFields } from '@/react-app/lib/applyClipSongRecognition';
+import { hashtagsToInput } from '@/react-app/lib/clipFormFields';
 
 type EditableClip = ClipWithUser | DashboardGridClip;
-
-function hashtagsToInput(hashtags: unknown): string {
-  if (hashtags == null || hashtags === '') return '';
-  if (typeof hashtags === 'string') {
-    try {
-      const p = JSON.parse(hashtags) as unknown;
-      if (Array.isArray(p)) return p.map(String).join(', ');
-    } catch {
-      return hashtags;
-    }
-  }
-  if (Array.isArray(hashtags)) return hashtags.map(String).join(', ');
-  return '';
-}
 
 type ClipEditModalProps = {
   clip: EditableClip;
@@ -49,6 +38,17 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
     setError(null);
   }, [clip]);
 
+  const handleRecognitionSaved = (updated: ClipWithUser) => {
+    setArtistName((updated.artist_name as string) ?? '');
+    setVenueName((updated.venue_name as string) ?? '');
+    setLocation((updated.location as string) ?? '');
+    setDescription((updated.content_description as string) ?? '');
+    setHashtags(hashtagsToInput(updated.hashtags));
+    setSongTitle((updated.song_title as string) ?? '');
+    setGenreName((updated.genre_name as string) ?? '');
+    onSaved(updated);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const clipId = clipNumericId(clip);
@@ -63,7 +63,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
     setSubmitting(true);
     setError(null);
     try {
-      const payload: Record<string, unknown> = {
+      const updated = await saveClipMetadataFields(clip, {
         artist_name: artistName,
         venue_name: venueName,
         location,
@@ -71,28 +71,7 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
         hashtags,
         song_title: songTitle,
         genre_name: genreName,
-      };
-      if (clipId != null) payload.clipId = clipId;
-      if (streamVideoId) payload.streamVideoId = streamVideoId;
-
-      const response = await fetch('/api/clips/update-own', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        cache: 'no-store',
-        body: JSON.stringify(payload),
       });
-      if (!response.ok) {
-        let msg = 'Could not save changes';
-        try {
-          const data = (await response.json()) as { error?: string };
-          if (data.error) msg = data.error;
-        } catch {
-          /* ignore */
-        }
-        throw new Error(msg);
-      }
-      const updated = (await response.json()) as ClipWithUser;
       onSaved(updated);
       onClose();
     } catch (err) {
@@ -175,9 +154,12 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
           </div>
 
           <div>
-            <label htmlFor="edit-song" className="mb-1 block text-sm font-medium text-gray-300">
-              Song <span className="font-normal text-gray-500">(optional)</span>
-            </label>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="edit-song" className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                <Disc3 className="h-4 w-4 text-momentum-flare" aria-hidden />
+                Song <span className="font-normal text-gray-500">(optional)</span>
+              </label>
+            </div>
             <input
               id="edit-song"
               type="text"
@@ -186,6 +168,20 @@ export default function ClipEditModal({ clip, onClose, onSaved }: ClipEditModalP
               className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-flare focus:outline-none"
               placeholder="What song was playing?"
               maxLength={200}
+            />
+            <ClipSongRecognitionControl
+              className="mt-2"
+              clip={clip}
+              currentFields={{
+                artist_name: artistName,
+                song_title: songTitle,
+                content_description: description,
+                venue_name: venueName,
+                location,
+                hashtags,
+                genre_name: genreName,
+              }}
+              onSaved={handleRecognitionSaved}
             />
           </div>
 

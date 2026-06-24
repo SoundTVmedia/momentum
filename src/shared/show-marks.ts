@@ -1,5 +1,6 @@
 import type { ClipShowCandidate } from './types';
 import {
+  jamBaseEventMatchesCapture,
   jamBaseEventSameCalendarDay,
   jamBaseEventUpcomingOrInProgress,
   jamBaseEventInProgress,
@@ -373,6 +374,46 @@ export function showMarkToClipCandidate(mark: UserShowMark): ClipShowCandidate {
     venue_timezone: mark.venue_timezone,
     distance_miles: null,
   };
+}
+
+/**
+ * Library / device upload: match going or attended marks on the recording night
+ * (upload often happens hours or days after the show ended).
+ */
+export function pickShowMarkForLibraryUpload(
+  marks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): UserShowMark | null {
+  const eligible = marks.filter((m) => m.status === 'going' || m.status === 'attended');
+  if (eligible.length === 0) return null;
+
+  const matching: UserShowMark[] = [];
+  for (const mark of eligible) {
+    const sd = mark.start_date?.trim();
+    if (!sd) continue;
+    const ev = showMarkToJamBaseEvent(mark);
+    if (jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) {
+      matching.push(mark);
+      continue;
+    }
+    if (jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)) {
+      matching.push(mark);
+    }
+  }
+
+  if (matching.length === 0) return null;
+
+  matching.sort((a, b) => {
+    const ta = Date.parse(a.start_date ?? '');
+    const tb = Date.parse(b.start_date ?? '');
+    if (!Number.isFinite(ta) && !Number.isFinite(tb)) return 0;
+    if (!Number.isFinite(ta)) return 1;
+    if (!Number.isFinite(tb)) return -1;
+    return Math.abs(ta - captureMs) - Math.abs(tb - captureMs);
+  });
+  return matching[0] ?? null;
 }
 
 /** Prefer a "going" mark that matches the capture instant (same show night). */

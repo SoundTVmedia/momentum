@@ -1,11 +1,18 @@
 import { useState } from 'react';
 import { Loader2, Search, Trash2, Video } from 'lucide-react';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
+import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
+import { metadataFieldsFromClip } from '@/react-app/lib/clipFormFields';
 
 type ModerationClip = {
   id: number;
   artist_name: string | null;
   venue_name: string | null;
+  location?: string | null;
+  content_description?: string | null;
+  song_title?: string | null;
+  genre_name?: string | null;
+  hashtags?: unknown;
   thumbnail_url: string | null;
   stream_video_id?: string | null;
   stream_playback_url?: string | null;
@@ -149,6 +156,9 @@ export default function SuperadminClipModerationPanel() {
                   <p className="text-momentum-rose text-sm">{clip.artist_name}</p>
                 )}
                 {clip.venue_name && <p className="text-gray-400 text-sm">{clip.venue_name}</p>}
+                {clip.song_title?.trim() ? (
+                  <p className="text-violet-200/90 text-sm">Song: {clip.song_title}</p>
+                ) : null}
                 <p className="text-gray-500 text-sm mt-1">
                   By {clip.user_display_name || clip.mocha_user_id}
                 </p>
@@ -156,19 +166,47 @@ export default function SuperadminClipModerationPanel() {
                   {new Date(clip.created_at).toLocaleString()}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void handleDeleteClip(clip)}
-                disabled={deletingId === clip.id}
-                className="self-start px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {deletingId === clip.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-                Delete
-              </button>
+              <div className="flex flex-col gap-2 self-start">
+                <ClipSongRecognitionControl
+                  clip={clip}
+                  currentFields={metadataFieldsFromClip(clip)}
+                  asSuperadmin
+                  onSaved={(updated) => {
+                    setClips((prev) =>
+                      prev.map((c) =>
+                        c.id === updated.id
+                          ? {
+                              ...c,
+                              artist_name: (updated.artist_name as string | null) ?? c.artist_name,
+                              song_title: (updated.song_title as string | null) ?? c.song_title,
+                              content_description:
+                                (updated.content_description as string | null) ??
+                                c.content_description,
+                            }
+                          : c,
+                      ),
+                    );
+                    setSuccess(
+                      updated.song_title?.trim()
+                        ? `Clip #${updated.id}: matched "${updated.song_title}"`
+                        : `Song recognition updated clip #${updated.id}`,
+                    );
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteClip(clip)}
+                  disabled={deletingId === clip.id}
+                  className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {deletingId === clip.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -14,16 +14,19 @@ import {
   jamBaseEventMatchesCapture,
   jamBaseEventStartMs,
   jamBaseVenueEventLookbackDateFrom,
+  jamBaseVenueExpandPastEventDateCandidates,
+  jamBaseGeoEventDateFromForResolveShow,
   jamBaseVenueTimezone,
+  isPastCaptureAnchor,
   JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS,
 } from '../shared/jambase-event-day';
-import { fetchNearbyJamBaseEvents } from './discover-jambase-enrich';
-import { clipCandidateFromJamBaseEvent } from '../shared/jambase-events';
+import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
   NEARBY_PICKER_MAX_DISTANCE_MILES,
   NEARBY_VENUE_PICKER_COUNT,
   resolveShowFromGoingMark,
+  resolveShowFromLibraryMark,
   resolveShowMatchFromCandidates,
 } from '../shared/clip-resolve-show-match';
 import { loadCaptureShowMarksForUser } from './user-show-marks-endpoints';
@@ -318,32 +321,29 @@ async function fetchVenueEventsForCapture(
   jbQ: JamBaseQuotaContext | undefined,
   venueId: string,
   captureMs: number,
+  userLat?: number,
+  userLon?: number,
   fetchOpts?: JamBaseFetchOptions,
 ): Promise<Record<string, unknown>[]> {
-  const eventDateFrom = jamBaseVenueEventLookbackDateFrom(captureMs);
-  const todayUtc = new Date().toISOString().split('T')[0];
+  const dateCandidates =
+    userLat != null &&
+    userLon != null &&
+    Number.isFinite(userLat) &&
+    Number.isFinite(userLon)
+      ? jamBaseVenueExpandPastEventDateCandidates(captureMs, userLat, userLon)
+      : [jamBaseVenueEventLookbackDateFrom(captureMs)];
 
-  const paramSets: Record<string, string>[] = [
-    {
-      venueId,
-      eventDateFrom,
-      perPage: '50',
-      page: '1',
-      expandPastEvents: 'true',
-    },
-    {
-      venueId,
-      eventDateFrom: todayUtc,
-      perPage: '50',
-      page: '1',
-    },
-  ];
-
-  for (const params of paramSets) {
+  for (const eventDateFrom of dateCandidates) {
     const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
       apiKey,
       '/events',
-      params,
+      {
+        venueId,
+        eventDateFrom,
+        perPage: '50',
+        page: '1',
+        expandPastEvents: 'true',
+      },
       jbQ,
       undefined,
       fetchOpts,
@@ -400,7 +400,15 @@ async function enrichWithSameDayShowAtVenue(
 
   if (!venueId) return null;
 
-  const raw = await fetchVenueEventsForCapture(apiKey, jbQ, venueId, captureMs, fetchOpts);
+  const raw = await fetchVenueEventsForCapture(
+    apiKey,
+    jbQ,
+    venueId,
+    captureMs,
+    userLat,
+    userLon,
+    fetchOpts,
+  );
   if (raw.length === 0) return null;
 
   const sameDay: Record<string, unknown>[] = [];
@@ -579,13 +587,64 @@ async function postResolveShowForClipInner(c: Context) {
   const atRaw = typeof body.at === 'string' ? body.at : '';
   const atMs = Date.parse(atRaw);
   const hasAt = Number.isFinite(atMs);
+  const libraryUpload = body.libraryUpload === true || body.library_upload === true;
 
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return c.json({ error: 'latitude and longitude are required' }, 400);
   }
 
   const resolveAnchorMs = hasAt ? atMs : Date.now();
+  const isLibraryResolve =
+    libraryUpload || (hasAt && isPastCaptureAnchor(resolveAnchorMs));
   const goingMarks = await loadCaptureShowMarksForUser(c.env.DB, mochaUser.id);
+
+  const libraryResolve = resolveShowFromLibraryMark(
+    goingMarks,
+    resolveAnchorMs,
+    lat,
+    lon,
+  );
+  if (libraryResolve) {
+    await recordResolveTelemetry(
+      c,
+      mochaUser.id,
+      'single',
+      50,
+      0,
+      1,
+      null,
+      'library_mark',
+      null,
+    );
+    c.header('Cache-Control', 'private, max-age=60');
+    return c.json({
+      ...libraryResolve,
+      notice: null,
+      meta: {
+        radiusMiles: 50,
+        matchRadiusMiles: VENUE_MATCH_RADIUS_FLOOR_MILES,
+        city: typeof body.city === 'string' ? body.city.trim() : '',
+        postcode: null,
+        geoCityId: null,
+        geoCityIds: [] as string[],
+        postcodeFromNominatim: false,
+        eventsGeoSearch: false,
+        venuesGeoSearch: false,
+        rawVenueCount: 0,
+        rawEventCount: 0,
+        matchedEventCandidateCount: 1,
+        eventDateFrom: jamBaseGeoEventDateFromForResolveShow(resolveAnchorMs, lat, lon),
+        matchSource: 'library_mark',
+        libraryUpload: isLibraryResolve,
+        lat,
+        lon,
+        jamBaseVenuesFetchFailed: false,
+        jamBaseVenuesFetchFailure: null,
+        jamBaseVenuesFetchHttpStatus: null,
+      },
+    });
+  }
+
   const goingResolve = resolveShowFromGoingMark(
     goingMarks,
     resolveAnchorMs,
@@ -687,7 +746,9 @@ async function postResolveShowForClipInner(c: Context) {
 
   const userCityLower = city ? city.toLowerCase() : null;
 
-  const eventDateFrom = jamBaseGeoEventDateFromUtc(resolveAnchorMs);
+  const eventDateFrom = isLibraryResolve
+    ? jamBaseGeoEventDateFromForResolveShow(resolveAnchorMs, lat, lon)
+    : jamBaseGeoEventDateFromUtc(resolveAnchorMs);
 
   const venueSearchMiles = Math.max(
     profileRadiusMiles + VENUE_JAMBASE_SEARCH_BUFFER_MILES,
@@ -720,7 +781,8 @@ async function postResolveShowForClipInner(c: Context) {
   const venuesDiag: JamBaseFetchDiag = {};
   const eventsDiag: JamBaseFetchDiag = {};
   const nearbyEventsRadius = Math.max(venueSearchMiles, 50);
-  const [geoVenuesPayload, geoEventsPayload, nearbyEventsRaw] = await Promise.all([
+
+  const [geoVenuesPayload, geoEventsPayload, libraryCaptureEvents] = await Promise.all([
     jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
       key,
       '/venues',
@@ -728,14 +790,27 @@ async function postResolveShowForClipInner(c: Context) {
       jbQ,
       venuesDiag,
     ),
-    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-      key,
-      '/events',
-      eventParams,
-      jbQ,
-      eventsDiag,
-    ),
-    fetchNearbyJamBaseEvents(key, jbQ, lat, lon, nearbyEventsRadius, 40, eventsDiag),
+    isLibraryResolve
+      ? Promise.resolve(null)
+      : jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+          key,
+          '/events',
+          eventParams,
+          jbQ,
+          eventsDiag,
+        ),
+    isLibraryResolve
+      ? fetchCameraVenueJamBaseEvents(
+          key,
+          jbQ,
+          lat,
+          lon,
+          resolveAnchorMs,
+          nearbyEventsRadius,
+          40,
+          eventsDiag,
+        ).then((r) => r.events)
+      : Promise.resolve([] as Record<string, unknown>[]),
   ]);
 
   const venuesFetchFailed = geoVenuesPayload == null;
@@ -771,23 +846,15 @@ async function postResolveShowForClipInner(c: Context) {
     if (cnd) fromEvents.push(cnd);
   }
 
-  for (const ev of nearbyEventsRaw) {
+  for (const ev of libraryCaptureEvents) {
     if (typeof ev !== 'object' || ev === null) continue;
-    const cnd =
-      clipCandidateFromJamBaseEvent(
-        ev as Record<string, unknown>,
-        lat,
-        lon,
-        resolveAnchorMs,
-        NEARBY_PICKER_MAX_DISTANCE_MILES,
-      ) ??
-      candidateFromJamBaseEvent(
-        ev as Record<string, unknown>,
-        lat,
-        lon,
-        matchRadiusMiles,
-        resolveAnchorMs,
-      );
+    const cnd = candidateFromJamBaseEvent(
+      ev as Record<string, unknown>,
+      lat,
+      lon,
+      matchRadiusMiles,
+      resolveAnchorMs,
+    );
     if (cnd) fromEvents.push(cnd);
   }
 
@@ -856,22 +923,28 @@ async function postResolveShowForClipInner(c: Context) {
 
   let notice: string | null = null;
   if (match === 'ambiguous') {
-    notice =
-      'Several venues with shows tonight are nearby — pick the one you are at.';
+    notice = isLibraryResolve
+      ? 'Several venues had shows when this clip was recorded — pick the one you were at.'
+      : 'Several venues with shows tonight are nearby — pick the one you are at.';
   } else if (match === 'none') {
     if (venuesFetchFailed) {
       notice = jamBaseFetchFailureNotice(venuesDiag.failure, venuesDiag.httpStatus);
     } else if (rawVenues.length === 0) {
-      notice =
-        'JamBase has no venues near this location. You can search for a venue manually below.';
+      notice = isLibraryResolve
+        ? 'JamBase has no venues near where this clip was recorded. Search for your venue manually below.'
+        : 'JamBase has no venues near this location. You can search for a venue manually below.';
     } else if (enrichedSorted.length === 0) {
-      notice =
-        'No JamBase shows tonight at venues near you (closed or inactive venues are skipped). Search for your venue manually.';
+      notice = isLibraryResolve
+        ? 'No JamBase show matched the date and location from this video file. Search for your venue manually.'
+        : 'No JamBase shows tonight at venues near you (closed or inactive venues are skipped). Search for your venue manually.';
     } else if (nearbyVenues.length > 0) {
-      notice = 'Pick the venue you are at from tonight\u2019s shows nearby.';
+      notice = isLibraryResolve
+        ? 'Pick the venue from the show when this clip was recorded.'
+        : 'Pick the venue you are at from tonight\u2019s shows nearby.';
     } else {
-      notice =
-        'No shows tonight within 15 miles. Search for your venue manually or pick from JamBase below.';
+      notice = isLibraryResolve
+        ? 'No show matched this clip\u2019s recorded date near this location. Search for your venue manually.'
+        : 'No shows tonight within 15 miles. Search for your venue manually or pick from JamBase below.';
     }
   }
 
@@ -909,6 +982,7 @@ async function postResolveShowForClipInner(c: Context) {
       matchedEventCandidateCount: enrichedSorted.length,
       eventDateFrom,
       matchSource,
+      libraryUpload: isLibraryResolve,
       lat,
       lon,
       jamBaseVenuesFetchFailed: venuesFetchFailed,

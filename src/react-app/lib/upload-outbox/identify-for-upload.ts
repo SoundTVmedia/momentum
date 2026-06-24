@@ -1,8 +1,6 @@
+import { acrMatchToClipFieldPatch } from '@/react-app/lib/acrClipFieldPatch';
 import type { ClipUploadFormFields } from '@/react-app/lib/processClipUpload';
-import {
-  identifyMusicForClip,
-  mergeSongTitleIntoCaption,
-} from '@/react-app/utils/auddIdentify';
+import { identifyMusicForClip } from '@/react-app/utils/auddIdentify';
 import { isPrePostContentFeed } from '@/shared/pre-post-clip';
 import type { ContentFeedClassification } from '@/shared/content-feed';
 import type { UploadOutboxJob } from './types';
@@ -38,20 +36,7 @@ export function formPatchFromAcrMatch(
   match: { artist?: string | null; title?: string | null },
 ): Partial<ClipUploadFormFields> {
   if (job.form.song_title?.trim()) return {};
-
-  const title = match.title?.trim() ?? '';
-  const artist = match.artist?.trim() ?? '';
-  if (!title && !artist) return {};
-
-  const patch: Partial<ClipUploadFormFields> = {};
-  if (title) {
-    patch.song_title = title;
-    patch.content_description = mergeSongTitleIntoCaption(job.form.content_description, title);
-  }
-  if (artist && !job.form.artist_name?.trim()) {
-    patch.artist_name = artist;
-  }
-  return patch;
+  return acrMatchToClipFieldPatch(job.form, match, { overwriteSongTitle: false });
 }
 
 export function formPatchFromClassification(

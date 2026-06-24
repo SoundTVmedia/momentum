@@ -79,6 +79,8 @@ import {
   deleteOwnClip,
   deleteOwnClipByBody,
   updateOwnClipByBody,
+  postIdentifyOwnClipSong,
+  postAdminUpdateClipMetadata,
   getMyClipsFeed,
   postRecordClipView,
   getRelatedClipsForShare,
@@ -1166,6 +1168,13 @@ app.post("/api/clips", authMiddleware, async (c) => {
 app.delete("/api/clips/:clipId", authMiddleware, deleteOwnClip);
 app.post("/api/clips/delete-own", authMiddleware, deleteOwnClipByBody);
 app.post("/api/clips/update-own", authMiddleware, updateOwnClipByBody);
+app.post(
+  "/api/clips/identify-own-song",
+  authMiddleware,
+  rateLimiter(RateLimits.IDENTIFY_MUSIC),
+  postIdentifyOwnClipSong,
+);
+app.post("/api/admin/clips/update-metadata", authMiddleware, postAdminUpdateClipMetadata);
 app.get("/api/me/clips", authMiddleware, getMyClipsFeed);
 
 // Get clips feed (optimized with caching headers)

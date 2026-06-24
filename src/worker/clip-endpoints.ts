@@ -1,4 +1,6 @@
 import type { Context } from 'hono';
+import { ACR_MAX_SAMPLE_BYTES } from '../shared/identify-music-limits';
+import { streamMp4Url } from '../shared/clip-playback';
 import { purgeClipFromDatabase } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { clipsContentFeedColumnReady } from './content-feed-sql';
@@ -11,6 +13,14 @@ import {
 import { computeShowId } from '../shared/show-id';
 import { resolveClipEventTitle } from '../shared/event-title';
 import { createRealtimeService } from './realtime-service';
+import { getStaffProfile, isSuperAdmin } from './admin-auth';
+import { mochaUserIdKey } from './mocha-user-id';
+import {
+  describeMusicRecognitionConfig,
+  inferIdentifyFilename,
+  isMusicRecognitionConfigured,
+  recognizeMusic,
+} from './music-recognition';
 
 /** Resolve clip id from route params (Hono), query string, or URL path (fallback for some dev/proxy setups). */
 function parsePositiveClipIdFromRequest(c: Context<{ Bindings: Env }>): number | null {
@@ -158,6 +168,69 @@ async function fetchClipRowByStreamVideoIdForOwner(
   const id = coerceSqliteId(readClipRowId(row));
   if (id == null) return null;
   return { id, mocha_user_id: String(mid) };
+}
+
+async function fetchClipRowByStreamVideoId(
+  db: D1Database,
+  streamVideoId: string,
+): Promise<{ id: number; mocha_user_id: string } | null> {
+  const sid = String(streamVideoId).trim();
+  if (sid === '') return null;
+
+  const row = await db
+    .prepare(
+      `SELECT rowid AS _rowid, id, mocha_user_id FROM clips
+       WHERE stream_video_id = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+    )
+    .bind(sid)
+    .first<Record<string, unknown>>();
+
+  if (!row) return null;
+  const mid = readClipMochaUserId(row);
+  if (mid == null) return null;
+  const id = coerceSqliteId(readClipRowId(row));
+  if (id == null) return null;
+  return { id, mocha_user_id: String(mid) };
+}
+
+async function resolveClipForSongIdentify(
+  c: Context<{ Bindings: Env }>,
+  body: Record<string, unknown>,
+): Promise<{ id: number; mocha_user_id: string } | Response> {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const ownerKey = normalizeMochaUserIdKey(String(user.id));
+  const owned = await resolveMineClipRowFromBody(c.env.DB, body, ownerKey);
+  if (owned && normalizeMochaUserIdKey(owned.mocha_user_id) === ownerKey) {
+    return owned;
+  }
+
+  const staffProfile = await getStaffProfile(c.env.DB, mochaUserIdKey(user));
+  if (!isSuperAdmin(staffProfile)) {
+    if (!owned) {
+      return c.json({ error: 'Clip not found' }, 404);
+    }
+    return c.json({ error: 'You can only identify songs on clips you uploaded' }, 403);
+  }
+
+  const clipId = parseClipIdFromJson(body.clipId ?? body.clip_id ?? body.id);
+  if (clipId != null) {
+    const clip = await fetchClipRowByNumericId(c.env.DB, clipId);
+    if (clip) return clip;
+  }
+
+  const streamVid = trimOrNull(body.streamVideoId ?? body.stream_video_id);
+  if (streamVid) {
+    const clip = await fetchClipRowByStreamVideoId(c.env.DB, streamVid);
+    if (clip) return clip;
+  }
+
+  return c.json({ error: 'Clip not found' }, 404);
 }
 
 async function fetchClipRowByTextIdForOwner(
@@ -674,4 +747,278 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
   }
 
   return c.json({ clips, scope });
+}
+
+async function readClipVideoSampleForIdentify(
+  env: Env,
+  row: Record<string, unknown>,
+): Promise<{ blob: Blob; filename: string } | null> {
+  const max = ACR_MAX_SAMPLE_BYTES;
+  const streamId =
+    typeof row.stream_video_id === 'string' ? row.stream_video_id.trim() : '';
+  if (streamId) {
+    const url = streamMp4Url(streamId);
+    try {
+      const res = await fetch(url, { headers: { Range: `bytes=0-${max - 1}` } });
+      if (res.ok || res.status === 206) {
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > 0) {
+          return { blob: new Blob([buf]), filename: 'clip.mp4' };
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const r2Key = typeof row.r2_raw_key === 'string' ? row.r2_raw_key.trim() : '';
+  if (r2Key) {
+    try {
+      const obj = await env.R2_BUCKET.get(r2Key, { range: { offset: 0, length: max } });
+      if (obj) {
+        const buf = await obj.arrayBuffer();
+        if (buf.byteLength > 0) {
+          return { blob: new Blob([buf]), filename: 'clip.mp4' };
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const videoUrl = typeof row.video_url === 'string' ? row.video_url.trim() : '';
+  if (videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
+    try {
+      const res = await fetch(videoUrl, { headers: { Range: `bytes=0-${max - 1}` } });
+      if (res.ok || res.status === 206) {
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > 0) {
+          const blob = new Blob([buf]);
+          return { blob, filename: inferIdentifyFilename(blob) };
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return null;
+}
+
+/** POST JSON — owner or superadmin re-runs ACR on an uploaded clip. */
+export async function postIdentifyOwnClipSong(c: Context<{ Bindings: Env }>) {
+  let body: Record<string, unknown>;
+  try {
+    body = (await c.req.json()) as Record<string, unknown>;
+  } catch {
+    return c.json({ error: 'Expected JSON body' }, 400);
+  }
+
+  const resolved = await resolveClipForSongIdentify(c, body);
+  if (resolved instanceof Response) {
+    return resolved;
+  }
+  const existing = resolved;
+
+  const configStatus = describeMusicRecognitionConfig(c.env);
+  if (!isMusicRecognitionConfigured(c.env)) {
+    return c.json({
+      ok: false,
+      skipped: true,
+      message:
+        configStatus.hint ??
+        'Song ID is not configured. Add ACRCLOUD_HOST, ACRCLOUD_ACCESS_KEY, and ACRCLOUD_ACCESS_SECRET on the Worker.',
+      config: configStatus,
+    });
+  }
+
+  const row = await c.env.DB.prepare(
+    `SELECT * FROM clips WHERE id = ? OR CAST(id AS TEXT) = ?`,
+  )
+    .bind(existing.id, String(existing.id))
+    .first<Record<string, unknown>>();
+
+  if (!row) {
+    return c.json({ error: 'Clip not found' }, 404);
+  }
+
+  const sample = await readClipVideoSampleForIdentify(c.env, row);
+  if (!sample) {
+    return c.json(
+      { ok: false, error: 'Could not load video for song recognition on this clip.' },
+      422,
+    );
+  }
+
+  const out = await recognizeMusic(c.env, sample.blob, sample.filename);
+  if (!out.ok) {
+    return c.json({
+      ok: false,
+      error: out.error,
+      provider: out.provider,
+      acrcloudCode: out.acrcloudCode,
+      raw: out.raw,
+      config: configStatus,
+    });
+  }
+  if (!out.match) {
+    return c.json({
+      ok: true,
+      match: null,
+      status: out.status ?? 'no_match',
+      provider: out.provider,
+      acrcloudCode: out.acrcloudCode,
+      skippedReason: out.skippedReason,
+      config: configStatus,
+    });
+  }
+
+  return c.json({
+    ok: true,
+    match: {
+      artist: out.match.artist,
+      title: out.match.title,
+      album: out.match.album,
+      confidence: out.match.confidence,
+      isrc: out.match.isrc,
+    },
+    provider: out.provider,
+    config: configStatus,
+  });
+}
+
+/** POST JSON — superadmin updates clip metadata (song title, artist, caption, etc.). */
+export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>) {
+  const user = c.get('user');
+  if (!user) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const staffProfile = await getStaffProfile(c.env.DB, mochaUserIdKey(user));
+  if (!isSuperAdmin(staffProfile)) {
+    return c.json({ error: 'Superadmin access required' }, 403);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await c.req.json()) as Record<string, unknown>;
+  } catch {
+    return c.json({ error: 'Expected JSON body' }, 400);
+  }
+
+  const clipId = parseClipIdFromJson(body.clipId ?? body.clip_id ?? body.id);
+  const streamVid = trimOrNull(body.streamVideoId ?? body.stream_video_id);
+  if (clipId == null && streamVid == null) {
+    return c.json({ error: 'Provide clipId or streamVideoId' }, 400);
+  }
+
+  let existing =
+    clipId != null ? await fetchClipRowByNumericId(c.env.DB, clipId) : null;
+  if (!existing && streamVid) {
+    existing = await fetchClipRowByStreamVideoId(c.env.DB, streamVid);
+  }
+  if (!existing) {
+    return c.json({ error: 'Clip not found' }, 404);
+  }
+
+  const canonicalId = existing.id;
+
+  const row = await c.env.DB.prepare(
+    `SELECT * FROM clips WHERE id = ? OR CAST(id AS TEXT) = ?`,
+  )
+    .bind(canonicalId, String(canonicalId))
+    .first<Record<string, unknown>>();
+
+  if (!row) {
+    return c.json({ error: 'Clip not found' }, 404);
+  }
+
+  const artist_name = trimOrNull(body.artist_name);
+  const venue_name = trimOrNull(body.venue_name);
+  const location = trimOrNull(body.location);
+  const content_description = trimOrNull(body.content_description);
+  const { song_title, song_slug } = songFieldsFromBody(body);
+  const { genre_name, genre_slug } = genreFieldsFromBody(body);
+  const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
+
+  const resolvedArtist =
+    artist_name ??
+    (typeof row.artist_name === 'string' ? row.artist_name : null);
+  const resolvedVenue =
+    venue_name ??
+    (typeof row.venue_name === 'string' ? row.venue_name : null);
+  const resolvedTimestamp =
+    typeof row.timestamp === 'string' ? row.timestamp : null;
+  const showId = computeShowId({
+    jambase_event_id:
+      typeof row.jambase_event_id === 'string' ? row.jambase_event_id : null,
+    artist_name: resolvedArtist,
+    venue_name: resolvedVenue,
+    timestamp: resolvedTimestamp,
+  });
+  const eventTitle = resolveClipEventTitle({
+    artist_name: resolvedArtist,
+    venue_name: resolvedVenue,
+  });
+
+  await c.env.DB.prepare(
+    `UPDATE clips SET
+      artist_name = ?,
+      venue_name = ?,
+      location = ?,
+      content_description = ?,
+      hashtags = ?,
+      song_title = ?,
+      song_slug = ?,
+      genre_name = ?,
+      genre_slug = ?,
+      show_id = ?,
+      event_title = ?,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?`,
+  )
+    .bind(
+      artist_name,
+      venue_name,
+      location,
+      content_description,
+      hashtagsJson,
+      song_title,
+      song_slug,
+      genre_name,
+      genre_slug,
+      showId,
+      eventTitle,
+      canonicalId,
+    )
+    .run();
+
+  const updatedRow = await c.env.DB.prepare(
+    `SELECT
+      clips.rowid AS _clipRowId,
+      clips.*,
+      user_profiles.display_name as user_display_name,
+      user_profiles.profile_image_url as user_avatar,
+      CASE WHEN live_featured_clips.id IS NOT NULL THEN 1 ELSE 0 END as momentum_live_featured
+    FROM clips
+    LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+    LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
+    WHERE clips.id = ? OR CAST(clips.id AS TEXT) = ?`,
+  )
+    .bind(canonicalId, String(canonicalId))
+    .first();
+
+  if (!updatedRow) {
+    return c.json({ error: 'Clip not found' }, 404);
+  }
+
+  try {
+    const realtime = createRealtimeService(c.env);
+    await realtime.broadcastFeedUpdate(canonicalId);
+  } catch (err) {
+    console.error('postAdminUpdateClipMetadata broadcast:', err);
+  }
+
+  const [normalized] = normalizeClipApiRows([updatedRow as Record<string, unknown>]);
+  return c.json(normalized, 200);
 }

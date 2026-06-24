@@ -9,6 +9,7 @@ import {
   pastShowSummaryToJamBaseEvent,
   pickGoingShowMarkForCapture,
   pickLastEligibleGoingShowMark,
+  pickShowMarkForLibraryUpload,
   showMarkButtonLabelForEvent,
   showMarkToJamBaseEvent,
   upcomingGoingMarkEvents,
@@ -201,6 +202,43 @@ describe('pickLastEligibleGoingShowMark', () => {
       updated_at: '2026-06-10T20:00:00',
     });
     expect(pickLastEligibleGoingShowMark([past], Date.parse('2026-06-10T12:00:00'))).toBeNull();
+  });
+});
+
+describe('pickShowMarkForLibraryUpload', () => {
+  it('matches attended marks on the recording night', () => {
+    const captureMs = Date.parse('2026-06-10T03:30:00.000Z');
+    const picked = pickShowMarkForLibraryUpload(
+      [
+        mark({ jambase_event_id: 'a', status: 'attended', start_date: '2026-06-09T20:00:00' }),
+        mark({ jambase_event_id: 'b', status: 'attended', start_date: '2026-06-01T20:00:00' }),
+      ],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(picked?.jambase_event_id).toBe('a');
+  });
+
+  it('matches going marks on the same venue-local calendar day', () => {
+    const captureMs = Date.parse('2026-06-20T20:00:00.000Z');
+    const picked = pickShowMarkForLibraryUpload(
+      [mark({ jambase_event_id: 'tonight', start_date: '2026-06-20T19:30:00' })],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(picked?.jambase_event_id).toBe('tonight');
+  });
+
+  it('returns null when no marks match the recording date', () => {
+    const picked = pickShowMarkForLibraryUpload(
+      [mark({ jambase_event_id: 'future', start_date: '2026-12-01T20:00:00' })],
+      Date.parse('2026-06-09T22:00:00.000Z'),
+      40.73,
+      -73.99,
+    );
+    expect(picked).toBeNull();
   });
 });
 

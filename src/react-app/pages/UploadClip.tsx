@@ -87,6 +87,8 @@ import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import {
   jamBaseEventToShowMarkInput,
+  pickShowMarkForLibraryUpload,
+  showMarkToClipCandidate,
 } from '@/shared/show-marks';
 import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill } from '@/shared/clip-resolve-show-match';
 
@@ -904,6 +906,35 @@ export default function UploadClip() {
             state: null,
             country: null,
           });
+          void fetch(
+            `/api/maps/reverse-geocode?lat=${meta.latitude}&lng=${meta.longitude}`,
+          )
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data: { results?: { address_components?: { long_name: string; short_name: string; types: string[] }[] }[] } | null) => {
+              if (cancelled || !data?.results?.[0]?.address_components) return;
+              const parts = data.results[0].address_components;
+              const city =
+                parts.find((p) => p.types.includes('locality'))?.long_name ??
+                parts.find((p) => p.types.includes('postal_town'))?.long_name ??
+                null;
+              const state =
+                parts.find((p) => p.types.includes('administrative_area_level_1'))?.short_name ??
+                null;
+              const country =
+                parts.find((p) => p.types.includes('country'))?.short_name ?? null;
+              if (!city && !state) return;
+              setCaptureGeo((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      city: city ?? prev.city,
+                      state: state ?? prev.state,
+                      country: country ?? prev.country,
+                    }
+                  : prev,
+              );
+            })
+            .catch(() => undefined);
         } else {
           setCaptureGeo(null);
         }
@@ -1058,7 +1089,6 @@ export default function UploadClip() {
     if (uploadSource === 'library') {
       if (!libraryMetaReady) return;
       if (autoShowTagAppliedRef.current || userOverrodeAutoTagsRef.current) return;
-      if (!captureGeo?.latitude || !captureGeo?.longitude) return;
     } else {
       if (autoShowTagAppliedRef.current || userOverrodeAutoTagsRef.current) return;
       if (resolveForFile && (jambaseLink?.event || jambaseLink?.venue)) return;
@@ -1075,11 +1105,36 @@ export default function UploadClip() {
     (async () => {
       let geo = captureGeo;
       if (uploadSource === 'library') {
+        const captureMs = Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now();
+        if (
+          showMarksHydrated &&
+          (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude))
+        ) {
+          const markMatch = pickShowMarkForLibraryUpload(captureMarks, captureMs);
+          if (markMatch && !cancelled) {
+            applyClipCandidate(showMarkToClipCandidate(markMatch));
+            setResolveNotice('Matched show from your recording date.');
+            return;
+          }
+        }
         if (
           !geo ||
           !Number.isFinite(geo.latitude) ||
           !Number.isFinite(geo.longitude)
         ) {
+          if (!cancelled) {
+            if (libraryFileMeta?.recordedAtIso) {
+              beginEditingTags();
+              setResolveNotice(
+                'Found when this was recorded, but no GPS in the video file — search for your venue below.',
+              );
+            } else {
+              beginEditingTags();
+              setResolveNotice(
+                'No date or location in this video file — add artist, venue, and song below.',
+              );
+            }
+          }
           return;
         }
       } else if (
@@ -1205,6 +1260,7 @@ export default function UploadClip() {
             latitude: geo.latitude,
             longitude: geo.longitude,
             at,
+            libraryUpload: uploadSource === 'library',
             city: geo.city ?? undefined,
             state: geo.state ?? undefined,
             country: geo.country ?? undefined,

@@ -43,6 +43,9 @@ import ClipModalBuyMerch from './ClipModalBuyMerch';
 import ClipModalBuyTickets from './ClipModalBuyTickets';
 import ClipModalTicketSheet from './ClipModalTicketSheet';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
+import { isSuperAdminUser } from '@/react-app/lib/program-nav';
+import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
+import { metadataFieldsFromClip } from '@/react-app/lib/clipFormFields';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import {
@@ -138,6 +141,7 @@ export default function ClipModal({
   );
 
   const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
+  const isSuperAdmin = isSuperAdminUser(extendedUser);
   const canDownloadClip = isOwnClip && Boolean(resolveClipDownloadUrl(clip));
 
   const navIndex =
@@ -312,6 +316,16 @@ export default function ClipModal({
       <Pencil className="h-4 w-4" />
       Edit clip
     </button>
+  ) : null;
+
+  const superadminSongRecognition = isSuperAdmin && !isOwnClip ? (
+    <ClipSongRecognitionControl
+      clip={clip}
+      currentFields={metadataFieldsFromClip(clip)}
+      asSuperadmin
+      onSaved={handleClipSaved}
+      className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-3"
+    />
   ) : null;
 
   const downloadClipButton = canDownloadClip ? (
@@ -542,6 +556,9 @@ export default function ClipModal({
               <Disc3 className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
               <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
             </button>
+          ) : null}
+          {superadminSongRecognition ? (
+            <div className="mt-3">{superadminSongRecognition}</div>
           ) : null}
           {clip.venue_name ? (
             <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
@@ -805,6 +822,9 @@ export default function ClipModal({
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
               {isOwnClip ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
+              {superadminSongRecognition ? (
+                <div className="mb-3">{superadminSongRecognition}</div>
+              ) : null}
               <div className="mb-3 flex items-center space-x-3">
                 <UserAvatar
                   imageUrl={clip.user_avatar}

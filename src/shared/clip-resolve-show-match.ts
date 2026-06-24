@@ -11,6 +11,7 @@ import {
   pickGoingShowMarkForCapture,
   pickInProgressGoingShowMark,
   pickLastEligibleGoingShowMark,
+  pickShowMarkForLibraryUpload,
   showMarkToClipCandidate,
   type UserShowMark,
 } from './show-marks';
@@ -260,6 +261,28 @@ export function resolveLastGoingMarkClipCandidate(
 ): ClipShowCandidate | null {
   const mark = pickLastEligibleGoingShowMark(goingMarks, nowMs);
   return mark ? showMarkToClipCandidate(mark) : null;
+}
+
+/** Library upload fast-path: going or attended mark on the recording night. */
+export function resolveShowFromLibraryMark(
+  marks: UserShowMark[],
+  captureMs: number,
+  userLat?: number,
+  userLon?: number,
+): {
+  match: 'single';
+  candidates: ClipShowCandidate[];
+  nearbyVenues: ClipShowCandidate[];
+  matchSource?: 'library_mark';
+} | null {
+  const mark = pickShowMarkForLibraryUpload(marks, captureMs, userLat, userLon);
+  if (!mark) return null;
+  return {
+    match: 'single',
+    candidates: [showMarkToClipCandidate(mark)],
+    nearbyVenues: [],
+    matchSource: 'library_mark',
+  };
 }
 
 /** Server fast-path: going / I'm there mark → single auto-fill (no JamBase required). */

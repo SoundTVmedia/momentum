@@ -10,6 +10,8 @@ import {
   jamBaseEventUpcomingOrInProgress,
   jamBaseEventAfterToday,
   jamBaseGeoEventDateFromForUpcomingFeed,
+  jamBaseGeoEventDateFromForResolveShow,
+  isPastCaptureAnchor,
   nextCalendarDayYmdInTimeZone,
   jamBaseEventSameCalendarDay,
   jamBaseEventStartMs,
@@ -262,6 +264,31 @@ describe('jamBaseGeoEventDateFromForUpcomingFeed', () => {
   it('returns tomorrow in user timezone', () => {
     const captureMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
     expect(jamBaseGeoEventDateFromForUpcomingFeed(captureMs, 40.7, -74.0)).toBe('2026-06-21');
+  });
+});
+
+describe('isPastCaptureAnchor', () => {
+  it('treats capture more than six hours ago as past', () => {
+    const nowMs = Date.parse('2026-06-22T12:00:00.000Z');
+    const captureMs = Date.parse('2026-06-21T20:00:00.000Z');
+    expect(isPastCaptureAnchor(captureMs, nowMs)).toBe(true);
+  });
+
+  it('treats recent capture as live', () => {
+    const nowMs = Date.parse('2026-06-22T12:00:00.000Z');
+    const captureMs = Date.parse('2026-06-22T10:00:00.000Z');
+    expect(isPastCaptureAnchor(captureMs, nowMs)).toBe(false);
+  });
+});
+
+describe('jamBaseGeoEventDateFromForResolveShow', () => {
+  it('uses capture-local day for past library uploads', () => {
+    const captureMs = Date.parse('2026-06-20T03:30:00.000Z'); // June 19 evening Eastern
+    const nowMs = Date.parse('2026-06-22T12:00:00.000Z');
+    expect(isPastCaptureAnchor(captureMs, nowMs)).toBe(true);
+    expect(jamBaseGeoEventDateFromForResolveShow(captureMs, 40.73, -73.99, nowMs)).toBe(
+      '2026-06-19',
+    );
   });
 });
 
