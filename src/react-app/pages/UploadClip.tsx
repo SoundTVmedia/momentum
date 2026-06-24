@@ -212,6 +212,8 @@ export default function UploadClip() {
     country: string | null;
   } | null>(null);
   const [resolveNotice, setResolveNotice] = useState<string | null>(null);
+  /** True while resolve-show (or library metadata read) is in flight for the Show panel. */
+  const [showResolveLoading, setShowResolveLoading] = useState(false);
   /** Top nearby venues when auto-apply is skipped (wrong day or >2 mi). */
   const [nearbyVenueChoices, setNearbyVenueChoices] = useState<ClipShowCandidate[]>([]);
 
@@ -888,6 +890,7 @@ export default function UploadClip() {
     let cancelled = false;
     setLibraryMetaReady(false);
     setLibraryFileMeta(null);
+    setShowResolveLoading(false);
 
     void (async () => {
       try {
@@ -958,22 +961,6 @@ export default function UploadClip() {
         } else {
           setIsEditingTags(false);
           autoShowTagAppliedRef.current = false;
-          const parts: string[] = [];
-          if (meta.recordedAtIso) {
-            parts.push(
-              meta.recordedAtSource === 'embedded'
-                ? 'recorded date from video file'
-                : 'date from file timestamp',
-            );
-          }
-          if (meta.locationSource === 'embedded') {
-            parts.push('location from video file');
-          }
-          setResolveNotice(
-            parts.length > 0
-              ? `Using ${parts.join(' and ')} to find a matching show…`
-              : null,
-          );
         }
       } catch (err) {
         console.error('extractVideoFileMetadata', err);
@@ -1102,8 +1089,10 @@ export default function UploadClip() {
       new Date().toISOString();
 
     let cancelled = false;
+    setShowResolveLoading(true);
     (async () => {
-      let geo = captureGeo;
+      try {
+        let geo = captureGeo;
       if (uploadSource === 'library') {
         const captureMs = Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now();
         if (
@@ -1113,7 +1102,7 @@ export default function UploadClip() {
           const markMatch = pickShowMarkForLibraryUpload(captureMarks, captureMs);
           if (markMatch && !cancelled) {
             applyClipCandidate(showMarkToClipCandidate(markMatch));
-            setResolveNotice('Matched show from your recording date.');
+            setResolveNotice(null);
             return;
           }
         }
@@ -1334,6 +1323,9 @@ export default function UploadClip() {
           return;
         }
         setResolveNotice('Auto-tagging is temporarily unavailable. You can still enter details manually.');
+      }
+      } finally {
+        if (!cancelled) setShowResolveLoading(false);
       }
     })();
     return () => {
@@ -1779,6 +1771,7 @@ export default function UploadClip() {
     setLibraryMetaReady(false);
     setJambaseLink(null);
     setResolveNotice(null);
+    setShowResolveLoading(false);
     setAuddStatus('idle');
     setAuddMessage(null);
     userOverrodeAutoTagsRef.current = false;
@@ -2322,6 +2315,11 @@ export default function UploadClip() {
       artist_name: formData.artist_name,
       venue_name: formData.venue_name,
     });
+    const libraryMetaReading = uploadSource === 'library' && !libraryMetaReady;
+    const isShowMatching = showResolveLoading || libraryMetaReading;
+    const showMatchFilled = Boolean(
+      captionEventTitle?.trim() || formData.venue_name?.trim(),
+    );
 
     return (
       <div className="min-h-screen text-white">
@@ -2439,7 +2437,7 @@ export default function UploadClip() {
                   <p className="text-red-400">{error}</p>
                 </div>
               )}
-              {showVenueAndShowFields && resolveNotice && (
+              {showVenueAndShowFields && resolveNotice && !isShowMatching && (
                 <div className="p-3 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
                   <p className="text-momentum-glacier/90 text-sm">{resolveNotice}</p>
                 </div>
@@ -2554,46 +2552,67 @@ export default function UploadClip() {
                 <div className="text-xs font-semibold uppercase tracking-wide text-momentum-flare/90">
                   Show
                 </div>
-                {uploadSource === 'library' ? (
-                  <p className="text-sm text-gray-400">
-                    {libraryMetaReady
-                      ? libraryFileMeta?.locationSource === 'embedded'
-                        ? 'Matching show from GPS embedded in your video…'
-                        : libraryFileMeta?.recordedAtIso
-                          ? 'Using the video file date to find a show — add venue manually if needed.'
-                          : 'Add artist and venue below, or pick from JamBase search results.'
-                      : 'Reading date and location from your video file…'}
-                  </p>
-                ) : captionEventTitle ? (
-                  <p className="text-lg sm:text-xl font-bold text-white leading-snug">{captionEventTitle}</p>
-                ) : (
-                  <p className="text-sm text-gray-400">
-                    Event title will appear when we match your recording to a nearby show.
-                  </p>
-                )}
-                {uploadSource !== 'library' ? (
-                  <>
-                    <div className="flex items-start gap-2 text-white border-t border-white/10 pt-3">
-                      <MapPin className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{formData.venue_name || 'Venue not set yet'}</p>
-                        <p className="text-sm text-gray-300 break-words">
-                          {formData.location || 'Location will appear from your GPS or after you pick a show.'}
-                        </p>
-                      </div>
-                    </div>
-                    {formData.artist_name ? (
-                      <div className="flex items-center gap-2 text-gray-300 text-sm">
-                        <Music className="w-4 h-4 text-momentum-rose shrink-0" />
-                        <span>{formData.artist_name}</span>
-                      </div>
-                    ) : null}
-                    <p className="text-xs text-gray-500">
-                      Filled automatically when we match your recording to a nearby venue. Use &quot;Change
-                      Artist/Venue&quot; below to edit.
+                {isShowMatching ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-400">
+                      {libraryMetaReading
+                        ? 'Reading location from your video file…'
+                        : uploadSource === 'library'
+                          ? 'Matching show from GPS embedded in your video…'
+                          : 'Matching your recording to a nearby show…'}
                     </p>
+                    <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                      <div className="absolute inset-y-0 w-2/5 rounded-full bg-momentum-flare/90 animate-show-resolve-indeterminate" />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {captionEventTitle ? (
+                      <p className="text-lg sm:text-xl font-bold text-white leading-snug">
+                        {captionEventTitle}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-400">
+                        {uploadSource === 'library'
+                          ? 'Add artist and venue below, or pick from JamBase search results.'
+                          : 'Event title will appear when we match your recording to a nearby show.'}
+                      </p>
+                    )}
+                    {(showMatchFilled || uploadSource !== 'library') && (
+                      <>
+                        <div className="flex items-start gap-2 text-white border-t border-white/10 pt-3">
+                          <MapPin className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">
+                              {formData.venue_name || 'Venue not set yet'}
+                            </p>
+                            <p className="text-sm text-gray-300 break-words">
+                              {formData.location ||
+                                'Location will appear from your GPS or after you pick a show.'}
+                            </p>
+                          </div>
+                        </div>
+                        {formData.artist_name ? (
+                          <div className="flex items-center gap-2 text-gray-300 text-sm">
+                            <Music className="w-4 h-4 text-momentum-rose shrink-0" />
+                            <span>{formData.artist_name}</span>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
+                    {uploadSource !== 'library' ? (
+                      <p className="text-xs text-gray-500">
+                        Filled automatically when we match your recording to a nearby venue. Use
+                        &quot;Change Artist/Venue&quot; below to edit.
+                      </p>
+                    ) : showMatchFilled ? (
+                      <p className="text-xs text-gray-500">
+                        Matched from your video file. Use &quot;Change Artist/Venue&quot; below to
+                        edit.
+                      </p>
+                    ) : null}
                   </>
-                ) : null}
+                )}
               </div>
               )}
 

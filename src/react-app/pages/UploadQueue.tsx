@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { CloudUpload } from 'lucide-react';
+import { CloudUpload, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
@@ -57,21 +57,39 @@ export default function UploadQueuePage() {
       <Header />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Upload Queue</h1>
-          <p className="text-gray-400 text-sm sm:text-base">
-            Clips you shared keep uploading here in the background. You can keep recording while they
-            finish.
-          </p>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Upload Queue</h1>
+            <p className="text-gray-400 text-sm sm:text-base">
+              Clips you shared keep uploading here in the background. You can keep recording while they
+              finish.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/upload')}
+            className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-lg shadow-momentum-ember/35"
+          >
+            <Upload className="w-5 h-5" aria-hidden />
+            Upload clip
+          </button>
         </div>
 
         {visibleJobs.length === 0 ? (
           <div className="glass-panel rounded-xl p-8 text-center">
             <CloudUpload className="w-12 h-12 text-momentum-flare mx-auto mb-4" aria-hidden />
             <h2 className="text-lg font-semibold text-white mb-2">No uploads in progress</h2>
-            <p className="text-gray-400 text-sm max-w-sm mx-auto">
+            <p className="text-gray-400 text-sm max-w-sm mx-auto mb-6">
               When you share a clip, it will show up here until it is posted.
             </p>
+            <button
+              type="button"
+              onClick={() => navigate('/upload')}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] active:scale-[0.98] transition-transform"
+            >
+              <Upload className="w-5 h-5" aria-hidden />
+              Upload clip
+            </button>
           </div>
         ) : (
           <div className="space-y-3">

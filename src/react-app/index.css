@@ -384,6 +384,19 @@ body {
   }
 }
 
+@keyframes show-resolve-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.animate-show-resolve-indeterminate {
+  animation: show-resolve-indeterminate 1.4s ease-in-out infinite;
+}
+
 .animate-glow {
   animation: glow 2s ease-in-out infinite;
 }
