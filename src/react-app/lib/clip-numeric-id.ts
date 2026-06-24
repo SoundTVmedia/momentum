@@ -1,7 +1,8 @@
 /** Stable positive integer clip id for API calls and comparisons. */
-export function clipNumericId(clip: { id?: unknown }): number | null {
+export function clipNumericId(clip: unknown): number | null {
+  if (clip == null || typeof clip !== 'object') return null;
   const rec = clip as Record<string, unknown>;
-  const raw = clip.id ?? rec.clip_primary_id ?? rec.clip_id ?? rec.ID ?? rec.clipId;
+  const raw = rec.id ?? rec.clip_primary_id ?? rec.clip_id ?? rec.ID ?? rec.clipId;
   if (typeof raw === 'bigint') {
     const n = Number(raw);
     return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;

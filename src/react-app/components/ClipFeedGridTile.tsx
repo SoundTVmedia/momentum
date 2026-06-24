@@ -8,10 +8,12 @@ import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelative
 import { artistPath, venuePath } from '@/shared/app-paths';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
-  type ClipPlaybackFields,
-  feedTileUsesStaticPoster,
   prefetchCarouselNeighborClips,
   prefetchModalPlayback,
+} from '@/react-app/lib/clipPlaybackPrefetch';
+import {
+  type ClipPlaybackFields,
+  feedTileUsesStaticPoster,
 } from '@/shared/clip-playback';
 
 export type ClipFeedGridTileProps = {

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music } from 'lucide-react';
+import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music, Camera } from 'lucide-react';
 import CameraZoomControls from '@/react-app/components/CameraZoomControls';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -45,6 +45,10 @@ import {
   prepareCameraPreviewElement,
   readCaptureDimensionsFromPreview,
 } from '@/react-app/utils/cameraPreview';
+import {
+  capturePhotoFromStream,
+  photoBlobToStillVideoBlob,
+} from '@/react-app/utils/cameraPhotoCapture';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -117,6 +121,9 @@ export default function QuickRecordButton({
   const showModalRef = useRef(showModal);
   showModalRef.current = showModal;
   const [isRecording, setIsRecording] = useState(false);
+  const [captureMode, setCaptureMode] = useState<'video' | 'photo'>('video');
+  const [photoCapturing, setPhotoCapturing] = useState(false);
+  const [photoFlash, setPhotoFlash] = useState(false);
   /** Seconds elapsed while recording (no UI; drives haptics + auto-stop). */
   const recordingSecondsRef = useRef(0);
   const [hasPermission, setHasPermission] = useState(false);
@@ -1847,10 +1854,17 @@ export default function QuickRecordButton({
     })();
   };
 
-  const handleRecordingComplete = async (blob: Blob) => {
+  const handleRecordingComplete = async (
+    blob: Blob,
+    opts?: { skipAudd?: boolean },
+  ) => {
     try {
       const par = auddParallelAudioRecorderRef.current;
-      if (par && (par.state === 'recording' || par.state === 'paused')) {
+      if (
+        !opts?.skipAudd &&
+        par &&
+        (par.state === 'recording' || par.state === 'paused')
+      ) {
         await new Promise<void>((resolve) => {
           par.onstop = () => {
             finalizeParallelAuddRecorderOnly(par);
@@ -1864,6 +1878,7 @@ export default function QuickRecordButton({
           par.stop();
         });
       } else if (
+        !opts?.skipAudd &&
         !lastParallelAuddAudioBlobRef.current &&
         auddParallelAudioChunksRef.current.length > 0
       ) {
@@ -1877,10 +1892,10 @@ export default function QuickRecordButton({
         auddParallelAudioChunksRef.current = [];
       }
 
-      const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
+      const captureAudioBlob = opts?.skipAudd ? null : lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
 
-      if (!lastLiveSongMatchRef.current && captureAudioBlob) {
+      if (!opts?.skipAudd && !lastLiveSongMatchRef.current && captureAudioBlob) {
         if (captureAudioBlob.size >= MIN_LIVE_AUDD_CHUNK_BYTES) {
           try {
             const r = await identifyMusicWithAudD(captureAudioBlob);
@@ -1968,6 +1983,9 @@ export default function QuickRecordButton({
       setShowModal(false);
       setHasPermission(false);
       setCameraReady(false);
+      setCaptureMode('video');
+      setPhotoCapturing(false);
+      setPhotoFlash(false);
       setPreviewStream(null);
       setCameraOpenRequested(false);
       recordingSecondsRef.current = 0;
@@ -1977,6 +1995,52 @@ export default function QuickRecordButton({
       setCameraError('Could not open your clip for review. Try again.');
       isRecordingRef.current = false;
       setIsRecording(false);
+    }
+  };
+
+  const capturePhoto = async () => {
+    if (!hasPermission || !streamRef.current || isRecording || photoCapturing) return;
+
+    setPhotoCapturing(true);
+    isRecordingRef.current = true;
+
+    const currentOrientation = deviceIsPortraitViewport() ? 'portrait' : 'landscape';
+    setRecordingOrientation(currentOrientation);
+    setIsPortrait(currentOrientation === 'portrait');
+
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    const capturedResolution = readCaptureDimensionsFromPreview(
+      videoRef.current,
+      videoTrack,
+      currentOrientation,
+    );
+    setVideoResolution(capturedResolution);
+
+    if ('vibrate' in navigator) {
+      navigator.vibrate(30);
+    }
+
+    recordingStartedAtRef.current = new Date().toISOString();
+    clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
+
+    try {
+      stopLiveAuddRecorder();
+      setPhotoFlash(true);
+      window.setTimeout(() => setPhotoFlash(false), 120);
+
+      const photoBlob = await capturePhotoFromStream(
+        streamRef.current,
+        videoRef.current,
+        currentOrientation,
+      );
+      const videoBlob = await photoBlobToStillVideoBlob(photoBlob);
+      await handleRecordingComplete(videoBlob, { skipAudd: true });
+    } catch (err) {
+      console.error('Photo capture failed:', err);
+      setCameraError('Could not capture photo. Try again.');
+      isRecordingRef.current = false;
+    } finally {
+      setPhotoCapturing(false);
     }
   };
 
@@ -1992,6 +2056,9 @@ export default function QuickRecordButton({
 
     setShowModal(false);
     setIsRecording(false);
+    setCaptureMode('video');
+    setPhotoCapturing(false);
+    setPhotoFlash(false);
     setHasPermission(false);
     setCameraReady(false);
     setCameraOpenRequested(false);
@@ -2216,6 +2283,47 @@ export default function QuickRecordButton({
       ) : null}
 
       <div
+        className={`mx-auto flex w-full justify-center px-1 ${
+          landscapeCapture ? 'mb-2' : 'mb-3'
+        }`}
+      >
+        <div
+          className="inline-flex rounded-full bg-black/40 p-0.5 ring-1 ring-white/15"
+          role="group"
+          aria-label="Capture mode"
+        >
+          <button
+            type="button"
+            disabled={isRecording || photoCapturing}
+            onClick={() => setCaptureMode('video')}
+            className={`flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+              captureMode === 'video'
+                ? 'bg-white text-gray-900'
+                : 'text-white/80 hover:text-white'
+            }`}
+            aria-pressed={captureMode === 'video'}
+          >
+            <Film className="h-3.5 w-3.5" />
+            Video
+          </button>
+          <button
+            type="button"
+            disabled={isRecording || photoCapturing}
+            onClick={() => setCaptureMode('photo')}
+            className={`flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+              captureMode === 'photo'
+                ? 'bg-white text-gray-900'
+                : 'text-white/80 hover:text-white'
+            }`}
+            aria-pressed={captureMode === 'photo'}
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Photo
+          </button>
+        </div>
+      </div>
+
+      <div
         className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
           isPortrait ? 'max-w-lg' : 'max-w-2xl'
         }`}
@@ -2242,38 +2350,60 @@ export default function QuickRecordButton({
         </div>
 
         <div className="flex justify-center pb-0.5">
-          {!isRecording ? (
-            <button
-              type="button"
-              onClick={startRecording}
-              disabled={!cameraReady}
-              className="relative group disabled:opacity-50 shrink-0"
-              title="Start capturing your moment (up to 60 seconds)"
-              style={{ minWidth: '5rem', minHeight: '5rem' }}
-            >
-              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
-                <Circle className="w-16 h-16 text-red-500 fill-red-500" />
-              </div>
-              {cameraReady && !landscapeCapture && (
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                  <span className="text-white text-xs font-medium">Capture</span>
+          {captureMode === 'video' ? (
+            !isRecording ? (
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={!cameraReady}
+                className="relative group disabled:opacity-50 shrink-0"
+                title="Start capturing your moment (up to 60 seconds)"
+                style={{ minWidth: '5rem', minHeight: '5rem' }}
+              >
+                <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                  <Circle className="w-16 h-16 text-red-500 fill-red-500" />
                 </div>
-              )}
-            </button>
+                {cameraReady && !landscapeCapture && (
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-white text-xs font-medium">Capture</span>
+                  </div>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="relative group shrink-0"
+                title="Stop recording and save your moment"
+                style={{ minWidth: '5rem', minHeight: '5rem' }}
+              >
+                <div className="on-light-surface w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
+                  <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
+                </div>
+                {!landscapeCapture && (
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-white text-xs font-medium">End Moment</span>
+                  </div>
+                )}
+              </button>
+            )
           ) : (
             <button
               type="button"
-              onClick={stopRecording}
-              className="relative group shrink-0"
-              title="Stop recording and save your moment"
+              onClick={() => void capturePhoto()}
+              disabled={!cameraReady || photoCapturing}
+              className="relative group disabled:opacity-50 shrink-0"
+              title="Take a photo"
               style={{ minWidth: '5rem', minHeight: '5rem' }}
             >
-              <div className="on-light-surface w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
-                <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
+              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full border-[5px] border-white bg-white" />
               </div>
-              {!landscapeCapture && (
+              {cameraReady && !landscapeCapture && (
                 <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                  <span className="text-white text-xs font-medium">End Moment</span>
+                  <span className="text-white text-xs font-medium">
+                    {photoCapturing ? 'Saving…' : 'Photo'}
+                  </span>
                 </div>
               )}
             </button>
@@ -2284,7 +2414,7 @@ export default function QuickRecordButton({
           <button
             type="button"
             onClick={toggleCameraFacing}
-            disabled={isRecording}
+            disabled={isRecording || photoCapturing}
             className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
             style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
             title="Flip camera"
@@ -2376,6 +2506,13 @@ export default function QuickRecordButton({
                   {cameraError && <p className="text-red-400/90 text-xs mt-2">{cameraError}</p>}
                 </div>
               </div>
+            )}
+
+            {photoFlash && (
+              <div
+                className="pointer-events-none absolute inset-0 z-20 bg-white animate-pulse"
+                aria-hidden
+              />
             )}
 
             {isRecording && (

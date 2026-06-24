@@ -3,7 +3,7 @@ import { useLocation, useSearchParams } from 'react-router';
 import ClipModal from '@/react-app/components/ClipModal';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { fetchRelatedClips } from '@/react-app/lib/fetchRelatedClips';
-import { prefetchModalPlayback } from '@/shared/clip-playback';
+import { prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
 import type { ClipWithUser } from '@/shared/types';
 
 type NavState = { selectedClip?: ClipWithUser } | null;

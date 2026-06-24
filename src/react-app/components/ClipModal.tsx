@@ -61,7 +61,7 @@ import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 import { formatCount } from '@/react-app/lib/formatCount';
-import { prefetchModalPlayback } from '@/shared/clip-playback';
+import { prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
 import { clipShareUrl } from '@/shared/clip-share';
 import { buildClipShareMeta } from '@/shared/clip-share-meta';
 import { applyClipShareMetaToDocument } from '@/react-app/lib/applyClipShareMetaToDocument';

@@ -23,7 +23,6 @@ import {
 import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
-  NEARBY_PICKER_MAX_DISTANCE_MILES,
   NEARBY_VENUE_PICKER_COUNT,
   resolveShowFromGoingMark,
   resolveShowFromLibraryMark,

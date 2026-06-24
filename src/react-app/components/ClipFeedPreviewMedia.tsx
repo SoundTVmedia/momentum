@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   type ClipPlaybackFields,
-  prefetchFeedPreviewMp4,
   resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
+import { prefetchFeedPreviewMp4 } from '@/react-app/lib/clipPlaybackPrefetch';
 import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
 import {
   clearFeedPreviewPlayback,

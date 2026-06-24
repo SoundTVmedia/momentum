@@ -1,4 +1,4 @@
-import { preconnectStreamDelivery } from '@/shared/clip-playback';
+import { preconnectStreamDelivery } from '@/react-app/lib/clipPlaybackPrefetch';
 import { warmHlsPlaybackModule } from '@/react-app/components/StreamVideoPlayer';
 
 /** Best-effort CDN + hls.js warmup on app load (feed / modal playback). */
