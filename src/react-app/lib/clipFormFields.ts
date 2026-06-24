@@ -23,6 +23,10 @@ export function metadataFieldsFromClip(clip: {
   hashtags?: unknown;
   song_title?: unknown;
   genre_name?: unknown;
+  event_title?: unknown;
+  jambase_event_id?: unknown;
+  jambase_artist_id?: unknown;
+  jambase_venue_id?: unknown;
 }): AcrClipFieldSnapshot & ClipMetadataSaveFields {
   return {
     artist_name: (clip.artist_name as string) ?? '',
@@ -32,5 +36,9 @@ export function metadataFieldsFromClip(clip: {
     hashtags: hashtagsToInput(clip.hashtags),
     song_title: (clip.song_title as string) ?? '',
     genre_name: (clip.genre_name as string) ?? '',
+    event_title: (clip.event_title as string) ?? '',
+    jambase_event_id: (clip.jambase_event_id as string | null) ?? null,
+    jambase_artist_id: (clip.jambase_artist_id as string | null) ?? null,
+    jambase_venue_id: (clip.jambase_venue_id as string | null) ?? null,
   };
 }

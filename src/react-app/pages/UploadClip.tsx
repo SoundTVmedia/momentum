@@ -214,6 +214,8 @@ export default function UploadClip() {
   const [resolveNotice, setResolveNotice] = useState<string | null>(null);
   /** True while resolve-show (or library metadata read) is in flight for the Show panel. */
   const [showResolveLoading, setShowResolveLoading] = useState(false);
+  /** 0–100 while show matching runs; drives the Show panel progress bar. */
+  const [showResolveProgress, setShowResolveProgress] = useState(0);
   /** Top nearby venues when auto-apply is skipped (wrong day or >2 mi). */
   const [nearbyVenueChoices, setNearbyVenueChoices] = useState<ClipShowCandidate[]>([]);
 
@@ -2171,6 +2173,37 @@ export default function UploadClip() {
     setCaptionVideoMuted(!captionVideoMuted);
   };
 
+  const libraryMetaReading =
+    uploadSource === 'library' && Boolean(formData.video_file) && !libraryMetaReady;
+  const isShowMatching = showResolveLoading || libraryMetaReading;
+
+  useEffect(() => {
+    if (!isShowMatching) {
+      setShowResolveProgress(0);
+      return;
+    }
+
+    setShowResolveProgress((prev) => {
+      if (libraryMetaReading) return prev < 8 || prev > 40 ? 8 : prev;
+      return Math.max(prev, 42);
+    });
+
+    const intervalId = window.setInterval(() => {
+      setShowResolveProgress((prev) => {
+        if (libraryMetaReading) {
+          const cap = 38;
+          if (prev >= cap) return prev;
+          return Math.min(cap, prev + 1.4);
+        }
+        const cap = 94;
+        if (prev >= cap) return prev;
+        return Math.min(cap, prev + 0.9);
+      });
+    }, 70);
+
+    return () => window.clearInterval(intervalId);
+  }, [isShowMatching, libraryMetaReading]);
+
   // Reset inline preview when opening review or swapping blob URL
   useEffect(() => {
     if (!showCaptionScreen || !videoBlobUrl) return;
@@ -2315,8 +2348,6 @@ export default function UploadClip() {
       artist_name: formData.artist_name,
       venue_name: formData.venue_name,
     });
-    const libraryMetaReading = uploadSource === 'library' && !libraryMetaReady;
-    const isShowMatching = showResolveLoading || libraryMetaReading;
     const showMatchFilled = Boolean(
       captionEventTitle?.trim() || formData.venue_name?.trim(),
     );
@@ -2562,7 +2593,10 @@ export default function UploadClip() {
                           : 'Matching your recording to a nearby show…'}
                     </p>
                     <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                      <div className="absolute inset-y-0 w-2/5 rounded-full bg-momentum-flare/90 animate-show-resolve-indeterminate" />
+                      <div
+                        className="h-full rounded-full bg-momentum-flare/90 transition-[width] duration-100 ease-linear"
+                        style={{ width: `${showResolveProgress}%` }}
+                      />
                     </div>
                   </div>
                 ) : (

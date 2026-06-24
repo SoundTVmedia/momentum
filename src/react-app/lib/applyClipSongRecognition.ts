@@ -17,6 +17,11 @@ export type ClipMetadataSaveFields = {
   hashtags: string;
   song_title: string;
   genre_name: string;
+  /** Superadmin: explicit show title override. */
+  event_title?: string;
+  jambase_event_id?: string | null;
+  jambase_artist_id?: string | null;
+  jambase_venue_id?: string | null;
 };
 
 export async function saveClipMetadataFields(
@@ -82,6 +87,10 @@ export async function runClipSongRecognitionAndSave(input: {
       hashtags: input.currentFields.hashtags ?? '',
       song_title: patch.song_title ?? input.currentFields.song_title ?? '',
       genre_name: input.currentFields.genre_name ?? '',
+      event_title: input.currentFields.event_title,
+      jambase_event_id: input.currentFields.jambase_event_id,
+      jambase_artist_id: input.currentFields.jambase_artist_id,
+      jambase_venue_id: input.currentFields.jambase_venue_id,
     };
     const updated = await saveClipMetadataFields(input.clip, nextFields, {
       asSuperadmin: input.asSuperadmin,

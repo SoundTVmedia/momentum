@@ -940,6 +940,9 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
   const { song_title, song_slug } = songFieldsFromBody(body);
   const { genre_name, genre_slug } = genreFieldsFromBody(body);
   const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
+  const jambase_event_id = trimOrNull(body.jambase_event_id);
+  const jambase_artist_id = trimOrNull(body.jambase_artist_id);
+  const jambase_venue_id = trimOrNull(body.jambase_venue_id);
 
   const resolvedArtist =
     artist_name ??
@@ -950,16 +953,18 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
   const resolvedTimestamp =
     typeof row.timestamp === 'string' ? row.timestamp : null;
   const showId = computeShowId({
-    jambase_event_id:
-      typeof row.jambase_event_id === 'string' ? row.jambase_event_id : null,
+    jambase_event_id,
     artist_name: resolvedArtist,
     venue_name: resolvedVenue,
     timestamp: resolvedTimestamp,
   });
-  const eventTitle = resolveClipEventTitle({
-    artist_name: resolvedArtist,
-    venue_name: resolvedVenue,
-  });
+  const explicitEventTitle = trimOrNull(body.event_title);
+  const eventTitle =
+    explicitEventTitle ??
+    resolveClipEventTitle({
+      artist_name: resolvedArtist,
+      venue_name: resolvedVenue,
+    });
 
   await c.env.DB.prepare(
     `UPDATE clips SET
@@ -972,6 +977,9 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
       song_slug = ?,
       genre_name = ?,
       genre_slug = ?,
+      jambase_event_id = ?,
+      jambase_artist_id = ?,
+      jambase_venue_id = ?,
       show_id = ?,
       event_title = ?,
       updated_at = CURRENT_TIMESTAMP
@@ -987,6 +995,9 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
       song_slug,
       genre_name,
       genre_slug,
+      jambase_event_id,
+      jambase_artist_id,
+      jambase_venue_id,
       showId,
       eventTitle,
       canonicalId,

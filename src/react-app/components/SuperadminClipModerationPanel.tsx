@@ -1,26 +1,12 @@
 import { useState } from 'react';
-import { Loader2, Search, Trash2, Video } from 'lucide-react';
+import { Loader2, Pencil, Search, Trash2, Video } from 'lucide-react';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
+import ClipEditModal from '@/react-app/components/ClipEditModal';
 import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
 import { metadataFieldsFromClip } from '@/react-app/lib/clipFormFields';
+import type { ClipWithUser } from '@/shared/types';
 
-type ModerationClip = {
-  id: number;
-  artist_name: string | null;
-  venue_name: string | null;
-  location?: string | null;
-  content_description?: string | null;
-  song_title?: string | null;
-  genre_name?: string | null;
-  hashtags?: unknown;
-  thumbnail_url: string | null;
-  stream_video_id?: string | null;
-  stream_playback_url?: string | null;
-  stream_thumbnail_url?: string | null;
-  video_url?: string | null;
-  mocha_user_id: string;
-  user_display_name: string | null;
-  created_at: string;
+type ModerationClip = ClipWithUser & {
   is_hidden: number;
 };
 
@@ -29,6 +15,7 @@ export default function SuperadminClipModerationPanel() {
   const [searching, setSearching] = useState(false);
   const [clips, setClips] = useState<ModerationClip[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingClip, setEditingClip] = useState<ModerationClip | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -167,24 +154,21 @@ export default function SuperadminClipModerationPanel() {
                 </p>
               </div>
               <div className="flex flex-col gap-2 self-start">
+                <button
+                  type="button"
+                  onClick={() => setEditingClip(clip)}
+                  className="px-4 py-2 bg-violet-500/15 border border-violet-500/30 rounded-lg text-violet-100 hover:bg-violet-500/25 transition-colors flex items-center gap-2"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit
+                </button>
                 <ClipSongRecognitionControl
                   clip={clip}
                   currentFields={metadataFieldsFromClip(clip)}
                   asSuperadmin
                   onSaved={(updated) => {
                     setClips((prev) =>
-                      prev.map((c) =>
-                        c.id === updated.id
-                          ? {
-                              ...c,
-                              artist_name: (updated.artist_name as string | null) ?? c.artist_name,
-                              song_title: (updated.song_title as string | null) ?? c.song_title,
-                              content_description:
-                                (updated.content_description as string | null) ??
-                                c.content_description,
-                            }
-                          : c,
-                      ),
+                      prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
                     );
                     setSuccess(
                       updated.song_title?.trim()
@@ -211,6 +195,21 @@ export default function SuperadminClipModerationPanel() {
           ))}
         </div>
       )}
+
+      {editingClip ? (
+        <ClipEditModal
+          clip={editingClip}
+          asSuperadmin
+          onClose={() => setEditingClip(null)}
+          onSaved={(updated) => {
+            setClips((prev) =>
+              prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
+            );
+            setEditingClip(null);
+            setSuccess(`Saved changes to clip #${updated.id}`);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

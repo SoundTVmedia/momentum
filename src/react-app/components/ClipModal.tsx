@@ -307,7 +307,7 @@ export default function ClipModal({
 
   const glassIconBtn = 'rounded-full glass-icon-btn p-2 text-white transition-colors';
 
-  const editClipButton = isOwnClip ? (
+  const editClipButton = isOwnClip || isSuperAdmin ? (
     <button
       type="button"
       onClick={() => setEditOpen(true)}
@@ -821,7 +821,7 @@ export default function ClipModal({
 
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
-              {isOwnClip ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
+              {editClipButton ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
               {superadminSongRecognition ? (
                 <div className="mb-3">{superadminSongRecognition}</div>
               ) : null}
@@ -1047,6 +1047,7 @@ export default function ClipModal({
       {editOpen ? (
         <ClipEditModal
           clip={clip}
+          asSuperadmin={isSuperAdmin}
           onClose={() => setEditOpen(false)}
           onSaved={handleClipSaved}
         />
