@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Momentum</string>
+        <string>Feedback</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,13 +23,13 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Momentum uses the camera to record concert clips in the app.</string>
+	<string>Feedback uses the camera to record concert clips in the app.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Momentum uses the microphone to record concert audio and identify songs.</string>
+	<string>Feedback uses the microphone to record concert audio and identify songs.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Momentum saves your concert clips to Photos so you keep a copy on your device.</string>
+	<string>Feedback saves your concert clips to Photos so you keep a copy on your device.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Momentum may access your photo library when you choose clips to upload.</string>
+	<string>Feedback may access your photo library when you choose clips to upload.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

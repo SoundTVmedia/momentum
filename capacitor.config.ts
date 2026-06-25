@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.momentum.app',
-  appName: 'Momentum',
+  appName: 'Feedback',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
@@ -11,13 +11,13 @@ const config: CapacitorConfig = {
     contentInset: 'automatic',
     infoPlist: {
       NSCameraUsageDescription:
-        'Momentum uses the camera to record concert clips in the app.',
+        'Feedback uses the camera to record concert clips in the app.',
       NSMicrophoneUsageDescription:
-        'Momentum uses the microphone to record concert audio and identify songs.',
+        'Feedback uses the microphone to record concert audio and identify songs.',
       NSPhotoLibraryAddUsageDescription:
-        'Momentum saves your concert clips to Photos so you keep a copy on your device.',
+        'Feedback saves your concert clips to Photos so you keep a copy on your device.',
       NSPhotoLibraryUsageDescription:
-        'Momentum may access your photo library when you choose clips to upload.',
+        'Feedback may access your photo library when you choose clips to upload.',
     },
   },
   plugins: {
