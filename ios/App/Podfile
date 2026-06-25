@@ -23,4 +23,11 @@ end
 
 post_install do |installer|
   assertDeploymentTarget(installer)
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      # Newer Xcode treats quoted includes in framework headers as errors; CocoaPods
+      # libs (Capacitor Cordova, SDWebImage) still use them. Keep them as warnings.
+      config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+    end
+  end
 end
