@@ -13,7 +13,7 @@ import {
 } from '@/react-app/utils/auddIdentify';
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
-import { pickAudioRecorderMime } from '@/react-app/utils/audioRecorderMime';
+import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clipShowCandidateToNavState,
   clearCaptureShowSession,
@@ -777,7 +777,18 @@ export default function QuickRecordButton({
       const currentIsPortrait = deviceIsPortraitViewport();
       console.log('QuickRecordButton: Current orientation:', currentIsPortrait ? 'portrait' : 'landscape');
       
-      // Try multiple camera constraint sets for broader mobile compatibility.
+      // Try high-quality constraints first, then broader compatibility fallbacks.
+      const highQualityVideo = currentIsPortrait
+        ? {
+            width: { ideal: 2160 },
+            height: { ideal: 3840 },
+            frameRate: { ideal: 30 },
+          }
+        : {
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 30 },
+          };
       const baseVideo = currentIsPortrait
         ? {
             width: { ideal: 1080, min: 640 },
@@ -792,6 +803,10 @@ export default function QuickRecordButton({
       const facing = facingOverride ?? preferredFacingMode;
       const orderedFacingModes: ('environment' | 'user')[] =
         facing === 'environment' ? ['environment', 'user'] : ['user', 'environment'];
+      const highQualityFacing: MediaTrackConstraints[] = [
+        { ...highQualityVideo, facingMode: { ideal: orderedFacingModes[0] } },
+        { ...highQualityVideo, facingMode: { ideal: orderedFacingModes[1] } },
+      ];
       const heavyFacing: MediaTrackConstraints[] = [
         { ...baseVideo, facingMode: { ideal: orderedFacingModes[0] } },
         { ...baseVideo, facingMode: { ideal: orderedFacingModes[1] } },
@@ -811,14 +826,14 @@ export default function QuickRecordButton({
       // before facingMode hints run. Desktop keeps `true` first (often no "environment" device).
       const videoAttempts: (MediaTrackConstraints | boolean)[] =
         facingOverride !== undefined
-          ? [...facingFirst, ...heavyFacing]
+          ? [...highQualityFacing, ...heavyFacing, ...facingFirst]
           : isIOS || isAndroid
-            ? [...facingFirst, ...heavyFacing, true]
-            : [true, ...facingFirst, ...heavyFacing];
+            ? [...highQualityFacing, ...heavyFacing, ...facingFirst, true]
+            : [true, ...highQualityFacing, ...heavyFacing, ...facingFirst];
 
-      const audioConstraintsObj = {
-        sampleRate: 48000,
-        channelCount: 2,
+      const audioConstraintsObj: MediaTrackConstraints = {
+        sampleRate: { ideal: 48000 },
+        channelCount: { ideal: 2 },
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
@@ -1708,25 +1723,15 @@ export default function QuickRecordButton({
 
     try {
       clearAuddParallelCapTimer();
-      /** Prefer VP*+Opus so the file includes an audio track for AudD; `vp9` alone often muxes video-only. */
-      const recorderMimeCandidates = [
-        'video/webm;codecs=vp9,opus',
-        'video/webm;codecs=vp8,opus',
-        'video/webm;codecs=vp9',
-        'video/webm;codecs=vp8',
-        'video/webm;codecs=h264',
-        'video/webm',
-      ];
-      const mimeType =
-        recorderMimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
-
       const hasAudio = stream.getAudioTracks().length > 0;
+      const preferMp4 = isIOS || isSafari || isAppleMediaRecorderPlatform();
+      const mimeType = pickVideoRecorderMime({ hasAudio, preferMp4 }) ?? '';
       const recorderOptions: MediaRecorderOptions = {
-        videoBitsPerSecond: 3_500_000,
+        videoBitsPerSecond: preferMp4 ? 10_000_000 : 5_000_000,
       };
       if (mimeType) recorderOptions.mimeType = mimeType;
       if (hasAudio) {
-        recorderOptions.audioBitsPerSecond = 128_000;
+        recorderOptions.audioBitsPerSecond = 192_000;
       }
 
       const mediaRecorder = new MediaRecorder(stream, recorderOptions);
@@ -1743,7 +1748,7 @@ export default function QuickRecordButton({
         const outType =
           mediaRecorder.mimeType && mediaRecorder.mimeType.length > 0
             ? mediaRecorder.mimeType
-            : mimeType || 'video/webm';
+            : mimeType || (preferMp4 ? 'video/mp4' : 'video/webm');
         const blob = new Blob(chunksRef.current, { type: outType });
         handleRecordingComplete(blob);
       };

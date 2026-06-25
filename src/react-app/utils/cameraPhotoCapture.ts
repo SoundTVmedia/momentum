@@ -1,4 +1,8 @@
 import { readCaptureDimensionsFromPreview } from '@/react-app/utils/cameraPreview';
+import {
+  isAppleMediaRecorderPlatform,
+  pickVideoRecorderMime,
+} from '@/react-app/utils/audioRecorderMime';
 
 /** Capture a still JPEG from the live camera preview or MediaStream track. */
 export async function capturePhotoFromStream(
@@ -92,7 +96,7 @@ export async function capturePhotoFromStream(
   return blob;
 }
 
-/** Encode a still photo as a short WebM so existing clip upload / Stream paths work unchanged. */
+/** Encode a still photo as a short video so existing clip upload / Stream paths work unchanged. */
 export async function photoBlobToStillVideoBlob(
   photo: Blob,
   durationMs = 400,
@@ -107,12 +111,10 @@ export async function photoBlobToStillVideoBlob(
     throw new Error('Canvas unavailable');
   }
 
-  const mimeCandidates = [
-    'video/webm;codecs=vp8',
-    'video/webm;codecs=vp9',
-    'video/webm',
-  ];
-  const mimeType = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+  const mimeType = pickVideoRecorderMime({
+    hasAudio: false,
+    preferMp4: isAppleMediaRecorderPlatform(),
+  }) ?? '';
   if (!mimeType) {
     bitmap.close();
     throw new Error('Video encoder unavailable');

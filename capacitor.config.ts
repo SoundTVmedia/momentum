@@ -10,6 +10,10 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     infoPlist: {
+      NSCameraUsageDescription:
+        'Momentum uses the camera to record concert clips in the app.',
+      NSMicrophoneUsageDescription:
+        'Momentum uses the microphone to record concert audio and identify songs.',
       NSPhotoLibraryAddUsageDescription:
         'Momentum saves your concert clips to Photos so you keep a copy on your device.',
       NSPhotoLibraryUsageDescription:
