@@ -1,4 +1,4 @@
-package com.momentum.app;
+package com.feedback.app;
 
 import com.getcapacitor.BridgeActivity;
 

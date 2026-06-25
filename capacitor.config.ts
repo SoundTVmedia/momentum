@@ -1,11 +1,12 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.momentum.app',
+  appId: 'com.feedback.app',
   appName: 'Feedback',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
+    url: 'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev',
   },
   ios: {
     contentInset: 'automatic',
