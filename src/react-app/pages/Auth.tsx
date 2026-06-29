@@ -7,7 +7,7 @@ import {
   startGoogleSignIn,
 } from '@/react-app/lib/oauth-client';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
-import { Loader2, Music, Sparkles, Users, Award, Mail, Lock, UserCircle } from 'lucide-react';
+import { Loader2, Mail, Lock, UserCircle } from 'lucide-react';
 
 const DEVICE_TOKEN_COOKIE = 'momentum_device_token';
 
@@ -67,6 +67,7 @@ export default function Auth() {
   const [displayName, setDisplayName] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [forgotMessage, setForgotMessage] = useState<string | null>(null);
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
   // Restore session from device token (works for email-based accounts; OAuth users still need Google)
   useEffect(() => {
@@ -212,6 +213,11 @@ export default function Auth() {
       setError(message + hint);
       setLoading(false);
     }
+  };
+
+  const startAppleAuth = () => {
+    // TODO: Wire up Apple OAuth on the Worker (Apple Service ID + key, token verification).
+    setError('Apple sign-in is coming soon.');
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -379,10 +385,10 @@ export default function Auth() {
     <div className="min-h-screen text-white flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent mb-4">
+          <h1 className="text-2xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent mb-1">
             FEEDBACK
           </h1>
-          <p className="text-xl text-gray-300">Where Live Music Lives</p>
+          <p className="text-sm text-gray-300">Where Live Music Lives</p>
         </div>
 
         <div className="glass-panel rounded-xl p-8 space-y-6">
@@ -392,46 +398,11 @@ export default function Auth() {
             </div>
           )}
 
-          <div className="space-y-4">
-            <div className="flex items-start space-x-3">
-              <Music className="w-6 h-6 text-momentum-ember flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-white font-semibold">Capture Live Moments</h3>
-                <p className="text-gray-400 text-sm">
-                  Share clips from concerts and connect with fans worldwide
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <Sparkles className="w-6 h-6 text-momentum-rose flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-white font-semibold">Discover Shows</h3>
-                <p className="text-gray-400 text-sm">
-                  Find concerts near you and get early access to tickets
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <Users className="w-6 h-6 text-momentum-flare flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-white font-semibold">Join the Community</h3>
-                <p className="text-gray-400 text-sm">
-                  Follow artists, connect with fans, and build your profile
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start space-x-3">
-              <Award className="w-6 h-6 text-momentum-ember flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="text-white font-semibold">Earn Rewards</h3>
-                <p className="text-gray-400 text-sm">
-                  Get points, badges, and exclusive perks for your engagement
-                </p>
-              </div>
-            </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white">Welcome</h2>
           </div>
 
-          <div className="space-y-4 pt-4 border-t border-white/10">
+          <div className="space-y-3">
             <GoogleSignInButton
               onClick={() => void startGoogleAuth()}
               disabled={emailLoading}
@@ -439,55 +410,38 @@ export default function Auth() {
               label="Sign in with Google"
             />
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-black/40 text-gray-400">or continue with email</span>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={startAppleAuth}
+              disabled={loading || emailLoading}
+              className="on-light-surface w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-black hover:bg-gray-900 text-white rounded-xl font-semibold text-base shadow-md border border-white/10 transition-colors disabled:opacity-50"
+            >
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M16.365 1.43c0 1.14-.417 2.2-1.114 2.99-.84.97-2.22 1.72-3.41 1.62-.14-1.12.42-2.3 1.06-3.03.72-.82 2-1.46 3.18-1.58.02.13.024.27.024.4zM20.7 17.18c-.6 1.39-.89 2-1.66 3.23-1.08 1.72-2.6 3.86-4.49 3.88-1.68.02-2.11-1.1-4.39-1.08-2.28.01-2.76 1.1-4.43 1.09-1.89-.02-3.34-1.95-4.42-3.66C-1.04 16.99-1.36 11.4 1.34 8.42 2.61 7 4.46 6.1 6.2 6.1c1.77 0 2.88 1.09 4.35 1.09 1.42 0 2.29-1.09 4.34-1.09 1.55 0 3.19.84 4.36 2.3-3.83 2.1-3.21 7.56.45 8.78z" />
+              </svg>
+              <span>Sign in with Apple</span>
+            </button>
+          </div>
 
+          {!showEmailForm && (
             <div className="text-center">
-              <h3 className="text-lg font-semibold text-white">Email &amp; password</h3>
-              <p className="text-gray-500 text-sm mt-1">
-                One account for the app — same session as social sign-in after you land.
-              </p>
-            </div>
-
-            <div className="flex rounded-lg border border-white/10 p-1 bg-black/20">
               <button
                 type="button"
                 onClick={() => {
+                  setShowEmailForm(true);
                   setEmailMode('signin');
                   setError(null);
                   setForgotMessage(null);
                 }}
-                className={`flex-1 py-2 text-sm font-semibold rounded-md transition-colors ${
-                  emailMode === 'signin' || emailMode === 'forgot'
-                    ? 'bg-white/15 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
+                className="text-sm text-gray-400 hover:text-white transition-colors"
               >
-                Sign in
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmailMode('signup');
-                  setError(null);
-                  setForgotMessage(null);
-                }}
-                className={`flex-1 py-2 text-sm font-semibold rounded-md transition-colors ${
-                  emailMode === 'signup'
-                    ? 'bg-white/15 text-white'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                Create account
+                or sign in with email
               </button>
             </div>
+          )}
 
+          {showEmailForm && (
+            <div className="space-y-4 pt-4 border-t border-white/10">
             {forgotMessage && (
               <div className="p-4 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
                 <p className="text-momentum-flare text-sm">{forgotMessage}</p>
@@ -586,21 +540,47 @@ export default function Auth() {
                   'Sign in with email'
                 )}
               </button>
-              {emailMode === 'signin' && (
+              {emailMode === 'signin' ? (
+                <div className="flex items-center justify-between text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailMode('forgot');
+                      setError(null);
+                      setForgotMessage(null);
+                    }}
+                    className="text-momentum-ember hover:text-momentum-flare"
+                  >
+                    Forgot password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailMode('signup');
+                      setError(null);
+                      setForgotMessage(null);
+                    }}
+                    className="text-momentum-ember hover:text-momentum-flare"
+                  >
+                    Create account
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={() => {
-                    setEmailMode('forgot');
+                    setEmailMode('signin');
                     setError(null);
                     setForgotMessage(null);
                   }}
                   className="w-full text-center text-[11px] text-momentum-ember hover:text-momentum-flare"
                 >
-                  Forgot password
+                  Back to sign in
                 </button>
               )}
             </form>
-          </div>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-gray-500 text-xs mt-6">
