@@ -15,9 +15,9 @@ import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 const SIGN_IN_GRADIENT_STOPS = (
   <>
-    <stop offset="0%" stopColor="var(--momentum-ember, #00e8ff)" />
-    <stop offset="50%" stopColor="var(--momentum-flare, #00d4aa)" />
-    <stop offset="100%" stopColor="var(--momentum-rose, #059669)" />
+    <stop offset="0%" stopColor="var(--momentum-ember, #22d3ee)" />
+    <stop offset="50%" stopColor="var(--momentum-flare, #3b82f6)" />
+    <stop offset="100%" stopColor="var(--momentum-rose, #6366f1)" />
   </>
 );
 

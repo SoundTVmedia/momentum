@@ -132,7 +132,7 @@ export const CRIMSON_PULSE: DesignPalette = {
   },
 };
 
-/** Electric cyan → bio-teal → emerald on cool ink (ACTIVE). */
+/** Electric cyan → bio-teal → emerald on cool ink. */
 export const NEON_TIDE: DesignPalette = {
   id: 'neon-tide',
   label: 'Neon tide',
@@ -163,6 +163,6 @@ export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
 };
 
 /** Palette currently wired in tailwind.config.js + index.css */
-export const ACTIVE_PALETTE_ID: DesignPaletteId = 'neon-tide';
+export const ACTIVE_PALETTE_ID: DesignPaletteId = 'neon-blue';
 
 export const ACTIVE_PALETTE = DESIGN_PALETTES[ACTIVE_PALETTE_ID];
