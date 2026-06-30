@@ -25,6 +25,7 @@ import {
 } from "./google-oauth";
 import {
   APPLE_OAUTH_STATE_COOKIE,
+  APPLE_SESSION_COOKIE_NAME,
   buildAppleOAuthRedirectUrl,
   clearAppleSessionCookie,
   exchangeAppleOAuthCode,
@@ -263,17 +264,41 @@ app.post('/api/auth/apple/callback', async (c) => {
 
   try {
     const signIn = await exchangeAppleOAuthCode(c, code, state, userJson);
-    const appleCookieBase = {
+    const local = isLocalDevHost(c);
+    const cookieBase = {
       httpOnly: true,
       path: '/',
-      sameSite: isLocalDevHost(c) ? ('lax' as const) : ('none' as const),
-      secure: !isLocalDevHost(c),
+      sameSite: local ? ('lax' as const) : ('none' as const),
+      secure: !local,
       maxAge: 30 * 24 * 60 * 60,
     };
+
+    const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
+    if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
+      await revokeAppleSession(c.env.DB, staleAppleToken);
+    }
+    clearAppleSessionCookie(c);
+
+    if (signIn.sessionType !== 'google') {
+      const staleGoogleToken = getCookie(c, GOOGLE_SESSION_COOKIE_NAME);
+      if (typeof staleGoogleToken === 'string' && staleGoogleToken.length > 0) {
+        await revokeGoogleSession(c.env.DB, staleGoogleToken);
+      }
+      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, '', { ...cookieBase, maxAge: 0 });
+    }
+
+    if (signIn.sessionType !== 'email') {
+      const staleEmailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
+      if (typeof staleEmailToken === 'string' && staleEmailToken.length > 0) {
+        await revokeEmailSession(c.env.DB, staleEmailToken);
+      }
+      clearEmailSessionCookie(c);
+    }
+
     if (signIn.sessionType === 'email') {
       setEmailSessionCookie(c, signIn.sessionToken);
     } else if (signIn.sessionType === 'google') {
-      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, appleCookieBase);
+      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
     } else {
       setAppleSessionCookie(c, signIn.sessionToken);
     }
@@ -336,6 +361,11 @@ app.post("/api/sessions", async (c) => {
           body.code,
           body.state ?? null,
         );
+        const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
+        if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
+          await revokeAppleSession(c.env.DB, staleAppleToken);
+        }
+        clearAppleSessionCookie(c);
         if (signIn.sessionType === 'email') {
           setEmailSessionCookie(c, signIn.sessionToken);
         } else {
@@ -460,7 +490,7 @@ app.get('/api/logout', async (c) => {
     maxAge: 0,
   });
 
-  const appleToken = getCookie(c, 'momentum_apple_session');
+  const appleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
   if (typeof appleToken === 'string' && appleToken.length > 0) {
     await revokeAppleSession(c.env.DB, appleToken);
   }

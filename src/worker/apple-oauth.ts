@@ -9,6 +9,7 @@ import {
 import { normalizeEmail } from './auth-password-utils';
 import {
   findEmailAccountByAppleSub,
+  findEmailAccountByOAuthEmail,
   findExistingAccountByEmail,
   linkAppleSubOnEmailAccount,
   reassignMochaUserId,
@@ -241,6 +242,33 @@ async function removeOtherAppleAccountsForEmail(
     .run();
 }
 
+async function resolveAppleEmail(
+  db: D1Database,
+  sub: string,
+  claims: Record<string, unknown>,
+): Promise<string> {
+  const fromToken =
+    typeof claims.email === 'string' ? normalizeEmail(claims.email) : '';
+  if (fromToken) {
+    return fromToken;
+  }
+
+  const linkedEmailAccount = await findEmailAccountByAppleSub(db, sub);
+  if (linkedEmailAccount?.email) {
+    return normalizeEmail(linkedEmailAccount.email);
+  }
+
+  const appleRow = await db
+    .prepare('SELECT email FROM apple_accounts WHERE id = ?')
+    .bind(sub)
+    .first<{ email: string }>();
+  if (appleRow?.email) {
+    return normalizeEmail(appleRow.email);
+  }
+
+  return '';
+}
+
 export async function resolveAppleSignInSession(
   db: D1Database,
   info: AppleUserInfo,
@@ -256,6 +284,22 @@ export async function resolveAppleSignInSession(
     await upsertAppleAccount(db, info);
     await upsertUserEmailIndex(db, email, linkedEmailAccount.id, 'email');
     const sessionToken = await createEmailSessionToken(db, linkedEmailAccount.id);
+    return { sessionToken, sessionType: 'email' };
+  }
+
+  // Mirror Google OAuth: email/password accounts win when the address matches.
+  const emailAccount = await findEmailAccountByOAuthEmail(db, email);
+  if (emailAccount) {
+    await linkAppleSubOnEmailAccount(db, emailAccount.id, sub);
+    await reassignMochaUserId(db, sub, emailAccount.id);
+    await removeOtherAppleAccountsForEmail(db, email, sub);
+    try {
+      await upsertAppleAccount(db, info);
+    } catch (e) {
+      console.warn('resolveAppleSignInSession: apple_accounts upsert skipped', e);
+    }
+    await upsertUserEmailIndex(db, email, emailAccount.id, 'email');
+    const sessionToken = await createEmailSessionToken(db, emailAccount.id);
     return { sessionToken, sessionType: 'email' };
   }
 
@@ -377,7 +421,7 @@ export async function exchangeAppleOAuthCode(
 
   const idClaims = await verifyAppleJwt(tokenJson.id_token, clientId);
   const sub = typeof idClaims.sub === 'string' ? idClaims.sub : '';
-  const email = typeof idClaims.email === 'string' ? idClaims.email : '';
+  const email = await resolveAppleEmail(c.env.DB, sub, idClaims);
   if (!sub || !email) {
     throw new Error('Apple did not return a usable email for this account');
   }
