@@ -1,0 +1,19 @@
+
+> mocha-app@0.0.0 build
+> tsc -b && vite build
+
+vite v7.3.2 building client environment for production...
+transforming...
+✓ 2584 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     2.06 kB │ gzip:   0.70 kB
+dist/assets/index-BK_GV1UN.css     98.05 kB │ gzip:  17.83 kB
+dist/assets/web-BjpTTkFL.js         0.18 kB │ gzip:   0.16 kB
+dist/assets/web-B9N0uZCx.js         0.73 kB │ gzip:   0.24 kB
+dist/assets/web-d5o9z6d6.js         0.90 kB │ gzip:   0.45 kB
+dist/assets/web-nVAjH4F2.js         8.67 kB │ gzip:   2.96 kB
+dist/assets/web-AurBZj37.js        16.92 kB │ gzip:   5.06 kB
+dist/assets/hls-PqkoW0Po.js       523.16 kB │ gzip: 161.82 kB
+dist/assets/index-ChjZbtIA.js   1,441.96 kB │ gzip: 387.61 kB
+✓ built in 4.41s
