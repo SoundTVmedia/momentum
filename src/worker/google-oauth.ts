@@ -449,6 +449,67 @@ export async function exchangeGoogleOAuthCode(
   return resolveGoogleSignInSession(c.env.DB, userInfo);
 }
 
+type GoogleIdTokenInfo = {
+  sub?: string;
+  email?: string;
+  email_verified?: string;
+  name?: string;
+  picture?: string;
+  aud?: string;
+  error?: string;
+  error_description?: string;
+};
+
+/** Verify a Google ID token from native iOS Sign-In and create a session. */
+export async function exchangeGoogleNativeIdToken(
+  env: Env,
+  idToken: string,
+): Promise<GoogleSignInResult> {
+  const token = idToken.trim();
+  if (!token) {
+    throw new Error('Google identity token is required');
+  }
+
+  const webClientId = env.GOOGLE_OAUTH_CLIENT_ID?.trim();
+  const iosClientId = env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim();
+  if (!webClientId) {
+    throw new Error('Google sign-in is not configured on the server.');
+  }
+
+  const res = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(token)}`,
+  );
+  const info = (await res.json()) as GoogleIdTokenInfo;
+  if (!res.ok) {
+    throw new Error(
+      info.error_description ||
+        info.error ||
+        'Google sign-in could not be verified. Please try again.',
+    );
+  }
+
+  const allowedAudiences = new Set(
+    [webClientId, iosClientId].filter((id): id is string => Boolean(id)),
+  );
+  if (!info.aud || !allowedAudiences.has(info.aud)) {
+    throw new Error('Google identity token audience mismatch.');
+  }
+
+  const userInfo: GoogleUserInfo = {
+    sub: info.sub,
+    email: info.email,
+    email_verified: info.email_verified === 'true',
+    name: info.name,
+    picture: info.picture,
+  };
+
+  if (!userInfo.sub) {
+    throw new Error('Google account is missing required profile fields');
+  }
+
+  return resolveGoogleSignInSession(env.DB, userInfo);
+}
+
 export async function validateGoogleSession(
   db: D1Database,
   rawToken: string,

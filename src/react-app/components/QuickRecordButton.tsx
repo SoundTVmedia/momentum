@@ -810,6 +810,7 @@ export default function QuickRecordButton({
         setHasPermission(true);
         setCameraReady(true);
         setPreviewTapToStart(false);
+        setCameraOpenRequested(true);
         setPreferredFacingMode(facing === 'front' ? 'user' : 'environment');
         const zoomState = await readNativeZoomState();
         if (zoomState) {
@@ -976,6 +977,7 @@ export default function QuickRecordButton({
       console.warn('QuickRecordButton: camera access failed:', err);
       setPreviewStream(null);
       const errMessage = err instanceof Error ? err.message : String(err);
+      const isNativeIos = shouldUseNativeIosCapture();
       const isNotAllowed =
         (err instanceof DOMException &&
           (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) ||
@@ -984,9 +986,11 @@ export default function QuickRecordButton({
       const noDeviceHint =
         'No camera was detected (common without a webcam, in Docker, or when the browser cannot access devices). Use the photo library button to pick a video.';
       const fallbackMsg = isNotAllowed
-        ? isIOS && isSafari
-          ? 'Camera access is blocked for this site. In Settings → Safari → Camera, allow access, then use Capture again.'
-          : 'Camera access was denied. Allow camera (and microphone if asked) for this site in your browser settings, then open Capture again.'
+        ? isNativeIos
+          ? 'Camera access was denied. Open Settings → Feedback → Camera, allow access, then tap Capture again.'
+          : isIOS && isSafari
+            ? 'Camera access is blocked for this site. In Settings → Safari → Camera, allow access, then use Capture again.'
+            : 'Camera access was denied. Allow camera (and microphone if asked) for this site in your browser settings, then open Capture again.'
         : isAndroid && isChrome
           ? 'Could not start the camera. Close other apps using the camera, then try Capture again.'
           : noDeviceHint;
@@ -2711,8 +2715,9 @@ export default function QuickRecordButton({
                       : 'Starting camera…'}
                   </p>
                   <p className="text-momentum-flare/90 text-xs mt-2 max-w-xs mx-auto">
-                    Location is requested when you tap Capture (with the camera) so we can match JamBase venues to
-                    your clip on the next screen.
+                    {shouldUseNativeIosCapture()
+                      ? 'Allow Camera when iOS asks. Location runs right after so we can match JamBase venues.'
+                      : 'Location is requested when you tap Capture (with the camera) so we can match JamBase venues to your clip on the next screen.'}
                   </p>
                   {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
                 </div>
@@ -2724,8 +2729,9 @@ export default function QuickRecordButton({
                   <Film className="w-16 h-16 text-gray-400 mx-auto" />
                   <h3 className="text-xl font-bold text-white">Camera blocked</h3>
                   <p className="text-gray-400 text-sm">
-                    Use your device settings to allow the camera for this site, then tap Capture again. You can also
-                    use the photo library button below to pick a video.
+                    {shouldUseNativeIosCapture()
+                      ? 'Open Settings → Feedback → Camera and allow access, then tap Capture again. You can also use the photo library button below.'
+                      : 'Use your device settings to allow the camera for this site, then tap Capture again. You can also use the photo library button below to pick a video.'}
                   </p>
                   {cameraError && <p className="text-red-400/90 text-xs mt-2">{cameraError}</p>}
                 </div>

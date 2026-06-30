@@ -23,6 +23,7 @@ export type NativeZoomState = {
 
 let previewRunning = false;
 let recordingActive = false;
+let startPreviewPromise: Promise<void> | null = null;
 let audioListener: PluginListenerHandle | null = null;
 let onAudioSegmentHandler: ((blob: Blob) => void) | null = null;
 
@@ -42,23 +43,42 @@ export async function startNativeCapturePreview(opts?: {
   paddingBottom?: number;
 }): Promise<void> {
   if (!shouldUseNativeIosCapture()) return;
+  if (previewRunning) return;
+  if (startPreviewPromise) {
+    await startPreviewPromise;
+    return;
+  }
 
   const width = window.screen.width;
   const height = window.screen.height;
   const paddingBottom = opts?.paddingBottom ?? estimateNativeCapturePaddingBottom();
 
-  await CameraPreview.start({
-    position: opts?.facing ?? 'rear',
-    toBack: true,
-    disableAudio: true,
-    enableVideoMode: true,
-    width,
-    height,
-    paddingBottom,
-    rotateWhenOrientationChanged: true,
-  });
+  startPreviewPromise = (async () => {
+    try {
+      await CameraPreview.start({
+        position: opts?.facing ?? 'rear',
+        toBack: true,
+        disableAudio: true,
+        enableVideoMode: true,
+        width,
+        height,
+        paddingBottom,
+        rotateWhenOrientationChanged: true,
+      });
+      previewRunning = true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/already started/i.test(message)) {
+        previewRunning = true;
+        return;
+      }
+      throw err;
+    } finally {
+      startPreviewPromise = null;
+    }
+  })();
 
-  previewRunning = true;
+  await startPreviewPromise;
 }
 
 export async function stopNativeCaptureSession(): Promise<void> {

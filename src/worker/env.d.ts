@@ -55,6 +55,8 @@ interface Env {
   /** Direct Google OAuth (optional — used when Mocha Users Service key is not set). */
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
+  /** iOS OAuth client ID from Google Cloud (for native Google Sign-In on Capacitor). */
+  GOOGLE_IOS_OAUTH_CLIENT_ID?: string;
 
   /** Sign in with Apple (Services ID + .p8 key). */
   APPLE_SERVICES_ID?: string;

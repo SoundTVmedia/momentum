@@ -43,12 +43,13 @@ import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueCon
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
 import { useEffect } from "react";
 import { registerNativePush } from "@/react-app/lib/native-bridge";
-import { registerNativeOAuthDeepLinkHandler } from "@/react-app/lib/native-oauth";
+import { registerNativeOAuthDeepLinkHandler, initNativeSocialLogin } from "@/react-app/lib/native-oauth";
 import { warmClipPlaybackAssets } from "@/react-app/lib/warmClipPlaybackAssets";
 
 function NativeAppBootstrap() {
   useEffect(() => {
     registerNativeOAuthDeepLinkHandler();
+    void initNativeSocialLogin();
     void registerNativePush();
     warmClipPlaybackAssets();
   }, []);

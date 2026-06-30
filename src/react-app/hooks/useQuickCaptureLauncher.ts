@@ -57,8 +57,6 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     }
 
     const nativeIos = shouldUseNativeIosCapture();
-    const geoPromise = primeGeolocationOnUserGesture();
-
     setCaptureLaunchGeo(null);
     setCaptureLaunchGeoResolved(false);
     setOpenedWithGestureCamera(false);
@@ -67,25 +65,29 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     setShowQuickCapture(true);
 
     if (nativeIos) {
-      void startNativeCapturePreview().catch((err) => {
-        console.warn('useQuickCaptureLauncher: native camera preview failed on open', err);
-      });
+      void startNativeCapturePreview()
+        .then(() => primeGeolocationOnUserGesture())
+        .then((g) => {
+          setCaptureLaunchGeo(g);
+        })
+        .catch((err) => {
+          console.warn('useQuickCaptureLauncher: native capture/geo failed on open', err);
+        })
+        .finally(() => {
+          setCaptureLaunchGeoResolved(true);
+          setGesturePrimePending(false);
+        });
+      return;
     }
+
+    const geoPromise = primeGeolocationOnUserGesture();
 
     void geoPromise
       .then((g) => {
         setCaptureLaunchGeo(g);
-        if (nativeIos) {
-          return null;
-        }
         return primeCameraOnUserGesture();
       })
       .then((stream) => {
-        if (nativeIos) {
-          setOpenedWithGestureCamera(false);
-          setPrimedMediaStream(null);
-          return;
-        }
         setOpenedWithGestureCamera(!!stream);
         setPrimedMediaStream(stream);
       })

@@ -19,6 +19,7 @@
     "@capacitor/ios": "^7.6.6",
     "@capacitor/push-notifications": "^7.0.6",
     "@capgo/camera-preview": "^7.5.0",
+    "@capgo/capacitor-social-login": "^7.20.0",
     "@feedback/native-audio-capture": "file:packages/native-audio-capture",
     "@hono/zod-validator": "^0.5.0",
     "aws4fetch": "^1.0.20",

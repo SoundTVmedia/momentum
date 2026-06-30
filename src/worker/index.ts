@@ -19,6 +19,7 @@ import {
 } from "./hybrid-auth";
 import {
   buildGoogleOAuthRedirectUrl,
+  exchangeGoogleNativeIdToken,
   exchangeGoogleOAuthCode,
   hasDirectGoogleOAuth,
   resolveOAuthCallbackUrl,
@@ -252,7 +253,86 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
 app.get('/auth/ios-callback', (c) => {
   const url = new URL(c.req.url);
   const deepLink = buildNativeAppOAuthDeepLink(url.searchParams.toString());
-  return c.redirect(deepLink, 302);
+  const safeLink = deepLink.replace(/"/g, '&quot;');
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Return to Feedback</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0b0b0f; color:#fff; display:flex; min-height:100vh; align-items:center; justify-content:center; margin:0; padding:24px; text-align:center; }
+    a { color:#ff6b35; font-weight:600; font-size:18px; }
+    p { color:#9ca3af; margin-top:12px; }
+  </style>
+</head>
+<body>
+  <div>
+    <p>Finishing Google sign-in…</p>
+    <p><a id="open" href="${safeLink}">Open Feedback</a></p>
+  </div>
+  <script>window.location.replace(${JSON.stringify(deepLink)});</script>
+</body>
+</html>`;
+  return c.html(html);
+});
+
+// Public config for native Google Sign-In (iOS client id is not secret).
+app.get('/api/oauth/google/native-config', (c) => {
+  const webClientId = c.env.GOOGLE_OAUTH_CLIENT_ID?.trim() ?? '';
+  const iOSClientId = c.env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim() ?? '';
+  if (!webClientId || !iOSClientId) {
+    return c.json({ enabled: false, webClientId: webClientId || null }, 200);
+  }
+  return c.json({ enabled: true, webClientId, iOSClientId }, 200);
+});
+
+// Native iOS Google Sign-In (ID token from @capgo/capacitor-social-login).
+app.post('/api/auth/google/native', async (c) => {
+  if (!hasDirectGoogleOAuth(c.env)) {
+    return c.json({ error: 'Google sign-in is not configured.' }, 503);
+  }
+
+  const body = (await c.req.json()) as { idToken?: string };
+  try {
+    const signIn = await exchangeGoogleNativeIdToken(c.env, body.idToken ?? '');
+    const local = isLocalDevHost(c);
+    const cookieBase = {
+      httpOnly: true,
+      path: '/',
+      sameSite: local ? ('lax' as const) : ('none' as const),
+      secure: !local,
+      maxAge: 30 * 24 * 60 * 60,
+    };
+
+    const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
+    if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
+      await revokeAppleSession(c.env.DB, staleAppleToken);
+    }
+    clearAppleSessionCookie(c);
+
+    if (signIn.sessionType === 'email') {
+      setEmailSessionCookie(c, signIn.sessionToken);
+    } else {
+      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
+    }
+
+    return c.json(
+      { success: true, provider: signIn.sessionType === 'email' ? 'email' : 'google' },
+      200,
+    );
+  } catch (e) {
+    console.error('Google native sign-in error:', e);
+    return c.json(
+      {
+        error:
+          e instanceof Error
+            ? e.message
+            : 'Google sign-in could not be completed.',
+      },
+      502,
+    );
+  }
 });
 
 // Apple form_post callback (Sign in with Apple posts code here — not the SPA /auth/callback).

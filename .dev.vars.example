@@ -13,6 +13,9 @@
 #   https://<your-workers-subdomain>.workers.dev/auth/ios-callback   (iOS in-app Google sign-in)
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
+# iOS native Google Sign-In — create an iOS OAuth client for com.feedbacklive.app in Google Cloud.
+# Also add its reversed URL scheme to Xcode → App → Info → URL Types (see Google Cloud iOS client details).
+# GOOGLE_IOS_OAUTH_CLIENT_ID=
 # Used when MOCHA_USERS_SERVICE_API_KEY is empty. Run: npm run db:migrate:local
 #
 # --- Sign in with Apple (Apple Developer portal) ---

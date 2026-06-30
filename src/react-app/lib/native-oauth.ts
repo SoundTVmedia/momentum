@@ -1,10 +1,12 @@
 /**
- * In-app OAuth for iOS Capacitor: Google via ASWebAuthenticationSession (Browser plugin)
- * and native Sign in with Apple. Avoids leaving the app in external Safari.
+ * In-app OAuth for iOS Capacitor:
+ * - Google: native Google Sign-In when configured, else in-app browser + deep link
+ * - Apple: native Sign in with Apple sheet
  */
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { SignInWithApple } from '@capacitor-community/apple-sign-in';
+import { SocialLogin } from '@capgo/capacitor-social-login';
 import { Capacitor } from '@capacitor/core';
 import {
   NATIVE_APP_ID,
@@ -27,13 +29,55 @@ type OAuthWaiter = {
   reject: (err: Error) => void;
 };
 
+type GoogleNativeConfig = {
+  enabled: boolean;
+  webClientId: string | null;
+  iOSClientId: string | null;
+};
+
 let googleOAuthWaiter: OAuthWaiter | null = null;
 let googleOAuthRedirectUri: string | null = null;
 let googleOAuthCompleted = false;
 let nativeOAuthListenerRegistered = false;
+let socialLoginInitialized = false;
 
 export function shouldUseNativeInAppOAuth(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+}
+
+async function readGoogleNativeConfig(): Promise<GoogleNativeConfig> {
+  try {
+    const response = await fetch('/api/oauth/google/native-config', {
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      return { enabled: false, webClientId: null, iOSClientId: null };
+    }
+    return (await response.json()) as GoogleNativeConfig;
+  } catch {
+    return { enabled: false, webClientId: null, iOSClientId: null };
+  }
+}
+
+export async function initNativeSocialLogin(): Promise<void> {
+  if (!shouldUseNativeInAppOAuth() || socialLoginInitialized) {
+    return;
+  }
+
+  const config = await readGoogleNativeConfig();
+  if (!config.enabled || !config.webClientId || !config.iOSClientId) {
+    return;
+  }
+
+  await SocialLogin.initialize({
+    google: {
+      webClientId: config.webClientId,
+      iOSClientId: config.iOSClientId,
+      iOSServerClientId: config.webClientId,
+      mode: 'online',
+    },
+  });
+  socialLoginInitialized = true;
 }
 
 function parseNativeOAuthCallback(url: string): URL | null {
@@ -66,6 +110,21 @@ async function exchangeNativeGoogleCode(
       state,
       redirect_uri: redirectUri,
     }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readApiError(response, 'Google sign-in could not be completed. Please try again.'),
+    );
+  }
+}
+
+async function exchangeNativeGoogleIdToken(idToken: string): Promise<void> {
+  const response = await fetch('/api/auth/google/native', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ idToken }),
   });
 
   if (!response.ok) {
@@ -125,6 +184,14 @@ export function registerNativeOAuthDeepLinkHandler(): void {
   void App.addListener('appUrlOpen', (event) => {
     void handleNativeOAuthReturnUrl(event.url);
   });
+
+  void App.addListener('appStateChange', ({ isActive }) => {
+    if (!isActive || !googleOAuthWaiter || googleOAuthCompleted) {
+      return;
+    }
+    // User may have switched to YouTube for Google verification — nudge them back.
+    void Browser.close().catch(() => undefined);
+  });
 }
 
 function waitForNativeGoogleCallback(): Promise<void> {
@@ -140,7 +207,32 @@ function waitForNativeGoogleCallback(): Promise<void> {
   });
 }
 
-export async function performNativeGoogleSignIn(): Promise<void> {
+async function performNativeGoogleSignInWithSdk(): Promise<void> {
+  await initNativeSocialLogin();
+  if (!socialLoginInitialized) {
+    throw new Error('Native Google Sign-In is not configured on the server.');
+  }
+
+  const result = await SocialLogin.login({
+    provider: 'google',
+    options: {
+      scopes: ['email', 'profile'],
+    },
+  });
+
+  if (result.provider !== 'google' || result.result.responseType !== 'online') {
+    throw new Error('Google sign-in did not return an online session.');
+  }
+
+  const idToken = result.result.idToken;
+  if (!idToken) {
+    throw new Error('Google sign-in did not return an identity token.');
+  }
+
+  await exchangeNativeGoogleIdToken(idToken);
+}
+
+async function performNativeGoogleSignInWithBrowser(): Promise<void> {
   registerNativeOAuthDeepLinkHandler();
 
   const appOrigin = window.location.origin;
@@ -186,7 +278,11 @@ export async function performNativeGoogleSignIn(): Promise<void> {
     if (googleOAuthCompleted || !googleOAuthWaiter) {
       return;
     }
-    googleOAuthWaiter.reject(new Error('Google sign-in was cancelled.'));
+    googleOAuthWaiter.reject(
+      new Error(
+        'Google sign-in was cancelled. If you verified in the YouTube app, open Feedback again and retry sign-in.',
+      ),
+    );
     googleOAuthWaiter = null;
   });
 
@@ -201,6 +297,15 @@ export async function performNativeGoogleSignIn(): Promise<void> {
       /* ignore */
     }
   }
+}
+
+export async function performNativeGoogleSignIn(): Promise<void> {
+  const config = await readGoogleNativeConfig();
+  if (config.enabled) {
+    await performNativeGoogleSignInWithSdk();
+    return;
+  }
+  await performNativeGoogleSignInWithBrowser();
 }
 
 export async function performNativeAppleSignIn(): Promise<void> {
