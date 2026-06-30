@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeOAuthCallbackUrl, OAUTH_CALLBACK_PATH } from './oauth-redirect';
+import {
+  normalizeOAuthCallbackUrl,
+  OAUTH_CALLBACK_PATH,
+  resolveAppleOAuthCallbackUrl,
+} from './oauth-redirect';
 
 describe('normalizeOAuthCallbackUrl', () => {
   it('appends callback path to origin', () => {
@@ -22,5 +26,13 @@ describe('normalizeOAuthCallbackUrl', () => {
 
   it('returns bare path when base is empty', () => {
     expect(normalizeOAuthCallbackUrl('')).toBe(OAUTH_CALLBACK_PATH);
+  });
+});
+
+describe('resolveAppleOAuthCallbackUrl', () => {
+  it('appends Apple worker callback path to origin', () => {
+    expect(resolveAppleOAuthCallbackUrl('https://app.example')).toBe(
+      'https://app.example/api/auth/apple/callback',
+    );
   });
 });

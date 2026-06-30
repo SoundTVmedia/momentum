@@ -57,6 +57,7 @@ function assertCanModerateTarget(
 async function revokeTargetSessions(db: D1Database, targetUserId: string): Promise<void> {
   await revokeAllEmailSessionsForUser(db, targetUserId);
   await db.prepare('DELETE FROM google_sessions WHERE user_id = ?').bind(targetUserId).run();
+  await db.prepare('DELETE FROM apple_sessions WHERE user_id = ?').bind(targetUserId).run();
 }
 
 function requireUserIdParam(c: Context): string | Response {

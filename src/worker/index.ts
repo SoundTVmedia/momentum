@@ -22,6 +22,18 @@ import {
   hasDirectGoogleOAuth,
   resolveOAuthCallbackUrl,
 } from "./google-oauth";
+import {
+  APPLE_OAUTH_STATE_COOKIE,
+  buildAppleOAuthRedirectUrl,
+  clearAppleSessionCookie,
+  exchangeAppleOAuthCode,
+  hasDirectAppleOAuth,
+  postAuthRedirectUrl,
+  resolveAppleCallbackUrl,
+  revokeAppleSession,
+  setAppleSessionCookie,
+} from "./apple-oauth";
+import { handleAppleServerNotification } from "./apple-notifications";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import { isAdmin } from "./admin-auth";
 import {
@@ -148,7 +160,7 @@ app.use('*', async (c, next) => {
   monitor.setHeaders(c);
 });
 
-const ALLOWED_OAUTH_PROVIDERS = new Set(['google']);
+const ALLOWED_OAUTH_PROVIDERS = new Set(['google', 'apple']);
 
 // OAuth redirect URL (Google via Mocha Users Service or direct Google OAuth credentials)
 app.get('/api/oauth/:provider/redirect_url', async (c) => {
@@ -173,6 +185,17 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
     }
   }
 
+  if (provider === 'apple' && hasDirectAppleOAuth(c.env)) {
+    try {
+      const appleCallbackUrl = resolveAppleCallbackUrl(c);
+      const redirectUrl = buildAppleOAuthRedirectUrl(c, appleCallbackUrl);
+      return c.json({ redirectUrl, callbackUrl: appleCallbackUrl }, 200);
+    } catch (e) {
+      console.error('Direct Apple OAuth redirect error', e);
+      return c.json({ error: 'Could not start Apple sign-in.' }, 500);
+    }
+  }
+
   const apiKey = c.env.MOCHA_USERS_SERVICE_API_KEY;
   if (typeof apiKey !== 'string' || apiKey.trim() === '') {
     return c.json(
@@ -180,7 +203,9 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
         error:
           provider === 'google'
             ? 'Google sign-in is not configured. Set MOCHA_USERS_SERVICE_API_KEY (Mocha) or GOOGLE_OAUTH_CLIENT_ID + GOOGLE_OAUTH_CLIENT_SECRET in .dev.vars / Worker secrets.'
-            : 'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars (local) or Worker secrets (Cloudflare).',
+            : provider === 'apple'
+              ? 'Apple sign-in is not configured. Set APPLE_SERVICES_ID, APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY in .dev.vars / Worker secrets.'
+              : 'OAuth is not configured. Set MOCHA_USERS_SERVICE_API_KEY in .dev.vars (local) or Worker secrets (Cloudflare).',
         callbackUrl,
       },
       503
@@ -216,6 +241,62 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
 
   const data = (await response.json()) as { redirect_url: string };
   return c.json({ redirectUrl: data.redirect_url }, 200);
+});
+
+// Apple form_post callback (Sign in with Apple posts code here — not the SPA /auth/callback).
+app.post('/api/auth/apple/callback', async (c) => {
+  if (!hasDirectAppleOAuth(c.env)) {
+    return c.text('Apple sign-in is not configured.', 503);
+  }
+
+  const form = await c.req.parseBody();
+  const code = typeof form.code === 'string' ? form.code : '';
+  const state = typeof form.state === 'string' ? form.state : null;
+  const userJson = typeof form.user === 'string' ? form.user : null;
+  const appOrigin = postAuthRedirectUrl(c);
+
+  if (!code) {
+    return c.redirect(`${appOrigin}/auth?error=apple_missing_code`, 302);
+  }
+
+  try {
+    const signIn = await exchangeAppleOAuthCode(c, code, state, userJson);
+    if (signIn.sessionType === 'email') {
+      setEmailSessionCookie(c, signIn.sessionToken);
+    } else {
+      setAppleSessionCookie(c, signIn.sessionToken);
+    }
+    setCookie(c, APPLE_OAUTH_STATE_COOKIE, '', {
+      httpOnly: true,
+      path: '/',
+      sameSite: isLocalDevHost(c) ? 'lax' : 'none',
+      secure: !isLocalDevHost(c),
+      maxAge: 0,
+    });
+    return c.redirect(`${appOrigin}/auth?apple=success`, 302);
+  } catch (e) {
+    console.error('Apple OAuth callback error:', e);
+    const msg =
+      e instanceof Error ? encodeURIComponent(e.message) : 'apple_signin_failed';
+    return c.redirect(`${appOrigin}/auth?error=${msg}`, 302);
+  }
+});
+
+// Apple server-to-server account lifecycle notifications.
+app.post('/api/auth/apple/notifications', async (c) => {
+  return handleAppleServerNotification(c);
+});
+
+// Apple domain verification file for Services ID web sign-in.
+app.get('/.well-known/apple-developer-domain-association.txt', async (c) => {
+  const body = c.env.APPLE_DOMAIN_ASSOCIATION?.trim();
+  if (!body) {
+    return c.text('Not configured', 404);
+  }
+  return c.text(body, 200, {
+    'Content-Type': 'text/plain',
+    'Cache-Control': 'public, max-age=300',
+  });
 });
 
 // Exchange code for session token
@@ -355,6 +436,12 @@ app.get('/api/logout', async (c) => {
     secure: !localLogout,
     maxAge: 0,
   });
+
+  const appleToken = getCookie(c, 'momentum_apple_session');
+  if (typeof appleToken === 'string' && appleToken.length > 0) {
+    await revokeAppleSession(c.env.DB, appleToken);
+  }
+  clearAppleSessionCookie(c);
 
   const emailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
   if (typeof emailToken === 'string' && emailToken.length > 0) {
