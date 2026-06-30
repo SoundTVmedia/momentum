@@ -19,6 +19,8 @@ const config: CapacitorConfig = {
         'Feedback saves your concert clips to Photos so you keep a copy on your device.',
       NSPhotoLibraryUsageDescription:
         'Feedback may access your photo library when you choose clips to upload.',
+      NSLocationWhenInUseUsageDescription:
+        'Feedback uses your location to match concert clips to nearby venues and JamBase shows.',
     },
   },
   plugins: {

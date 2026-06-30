@@ -2,7 +2,10 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
-import { shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
+import {
+  shouldUseNativeIosCapture,
+  startNativeCapturePreview,
+} from '@/react-app/lib/native-capture';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
   primeGeolocationOnUserGesture,
@@ -53,25 +56,32 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
       return;
     }
 
+    const nativeIos = shouldUseNativeIosCapture();
     const geoPromise = primeGeolocationOnUserGesture();
 
     setCaptureLaunchGeo(null);
     setCaptureLaunchGeoResolved(false);
     setOpenedWithGestureCamera(false);
     setPrimedMediaStream(null);
-    setGesturePrimePending(true);
+    setGesturePrimePending(!nativeIos);
     setShowQuickCapture(true);
+
+    if (nativeIos) {
+      void startNativeCapturePreview().catch((err) => {
+        console.warn('useQuickCaptureLauncher: native camera preview failed on open', err);
+      });
+    }
 
     void geoPromise
       .then((g) => {
         setCaptureLaunchGeo(g);
-        if (shouldUseNativeIosCapture()) {
+        if (nativeIos) {
           return null;
         }
         return primeCameraOnUserGesture();
       })
       .then((stream) => {
-        if (shouldUseNativeIosCapture()) {
+        if (nativeIos) {
           setOpenedWithGestureCamera(false);
           setPrimedMediaStream(null);
           return;

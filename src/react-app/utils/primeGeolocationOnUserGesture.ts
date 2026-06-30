@@ -1,7 +1,10 @@
 /**
  * Call only from a direct user gesture (e.g. Capture / Continue tap).
- * Starts the browser location prompt in the same synchronous turn as the call.
+ * Starts the location prompt in the same synchronous turn as the call when possible.
  */
+import { Geolocation } from '@capacitor/geolocation';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
+
 export type PrimedCaptureGeo = {
   latitude: number;
   longitude: number;
@@ -13,7 +16,36 @@ export function isGeolocationSecureContext(): boolean {
   return typeof window === 'undefined' || window.isSecureContext;
 }
 
+async function primeNativeGeolocationOnUserGesture(): Promise<PrimedCaptureGeo | null> {
+  try {
+    const permissions = await Geolocation.requestPermissions();
+    const locationState = permissions.location ?? permissions.coarseLocation;
+    if (locationState === 'denied') {
+      return null;
+    }
+
+    const position = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 20_000,
+      maximumAge: 0,
+    });
+
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: position.coords.accuracy,
+    };
+  } catch (err) {
+    console.warn('primeNativeGeolocationOnUserGesture failed:', err);
+    return null;
+  }
+}
+
 export function primeGeolocationOnUserGesture(): Promise<PrimedCaptureGeo | null> {
+  if (isNativeApp()) {
+    return primeNativeGeolocationOnUserGesture();
+  }
+
   if (!isGeolocationSecureContext()) {
     return Promise.resolve(null);
   }
@@ -42,7 +74,6 @@ export function primeGeolocationOnUserGesture(): Promise<PrimedCaptureGeo | null
         {
           enableHighAccuracy: true,
           timeout: 20000,
-          /** Fresh fix so venue tagging matches this capture (cached coords skip re-prompt but still need prior grant). */
           maximumAge: 0,
         },
       );

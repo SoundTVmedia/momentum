@@ -51,6 +51,7 @@ import {
 } from '@/react-app/utils/cameraPhotoCapture';
 import {
   shouldUseNativeIosCapture,
+  isNativeCapturePreviewRunning,
   startNativeCapturePreview,
   stopNativeCaptureSession,
   startNativeVideoRecording,
@@ -799,7 +800,9 @@ export default function QuickRecordButton({
         primed?.getTracks().forEach((track) => track.stop());
         const facing: 'rear' | 'front' =
           facingOverride === 'user' ? 'front' : 'rear';
-        await startNativeCapturePreview({ facing });
+        if (!isNativeCapturePreviewRunning()) {
+          await startNativeCapturePreview({ facing });
+        }
         nativeCaptureActiveRef.current = true;
         setPermissionDenied(false);
         setAudioEnabled(true);
@@ -972,8 +975,11 @@ export default function QuickRecordButton({
     } catch (err) {
       console.warn('QuickRecordButton: camera access failed:', err);
       setPreviewStream(null);
+      const errMessage = err instanceof Error ? err.message : String(err);
       const isNotAllowed =
-        err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+        (err instanceof DOMException &&
+          (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) ||
+        /permission/i.test(errMessage);
       setPermissionDenied(isNotAllowed);
       const noDeviceHint =
         'No camera was detected (common without a webcam, in Docker, or when the browser cannot access devices). Use the photo library button to pick a video.';
@@ -2270,6 +2276,36 @@ export default function QuickRecordButton({
     if (video && showModal) prepareCameraPreviewElement(video);
   }, [showModal]);
 
+  // Launcher may have already started native preview on the Capture tap (iOS).
+  useEffect(() => {
+    if (!showModal || !shouldUseNativeIosCapture() || !isNativeCapturePreviewRunning()) {
+      return;
+    }
+    if (nativeCaptureActiveRef.current && hasPermission && cameraReady) {
+      return;
+    }
+    nativeCaptureActiveRef.current = true;
+    setPermissionDenied(false);
+    setAudioEnabled(true);
+    setCameraError(null);
+    setHasPermission(true);
+    setCameraReady(true);
+    setPreviewTapToStart(false);
+    setCameraOpenRequested(true);
+    void readNativeZoomState().then((zoomState) => {
+      if (!zoomState) return;
+      setHardwareZoomRange({ min: zoomState.min, max: zoomState.max });
+      setZoomRange({ min: zoomState.min, max: zoomState.max });
+      setZoomPresets(zoomState.presets);
+      setZoomLevel(zoomState.current);
+      zoomLevelRef.current = zoomState.current;
+    });
+    setVideoResolution({
+      width: window.screen.width,
+      height: window.screen.height,
+    });
+  }, [showModal, hasPermission, cameraReady]);
+
   // Trigger camera when modal opens (skip when parent primed stream, or while waiting for launch-time GPS)
   useEffect(() => {
     if (!autoRequestCamera) return;
@@ -2312,7 +2348,9 @@ export default function QuickRecordButton({
           {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
             <p className="text-center text-momentum-flare/90 text-xs mb-2 flex items-center justify-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-              Waiting for location permission — allow it when the browser asks so we can match venues.
+              {shouldUseNativeIosCapture()
+                ? 'Getting your location to match nearby venues…'
+                : 'Waiting for location permission — allow it when the browser asks so we can match venues.'}
             </p>
           )}
           <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">

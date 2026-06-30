@@ -28,11 +28,29 @@ export function tonightShowsApiUrl(
   return q ? `/api/shows/tonight?${q}` : '/api/shows/tonight';
 }
 
-/** Best-effort browser GPS for nearby show feeds (non-blocking, cached up to 60s). */
+/** Best-effort device GPS for nearby show feeds (non-blocking, cached up to 60s). */
 export async function readDeviceCoordsForNearbyShows(): Promise<{
   latitude: number;
   longitude: number;
 } | null> {
+  const { Capacitor } = await import('@capacitor/core');
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { Geolocation } = await import('@capacitor/geolocation');
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false,
+        timeout: 8000,
+        maximumAge: 60_000,
+      });
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
