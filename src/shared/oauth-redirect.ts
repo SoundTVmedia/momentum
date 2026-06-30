@@ -1,5 +1,5 @@
 /** iOS/Android Capacitor app id — also used as the native OAuth URL scheme. */
-export const NATIVE_APP_ID = 'com.feedback.app';
+export const NATIVE_APP_ID = 'com.feedbacklive.app';
 
 /** Canonical OAuth return path for Google + Mocha (SPA exchanges code via POST /api/sessions). */
 export const OAUTH_CALLBACK_PATH = '/auth/callback';

@@ -467,7 +467,7 @@ export async function exchangeAppleNativeIdentityToken(
     throw new Error('Apple identity token is required');
   }
 
-  const bundleId = c.env.APPLE_BUNDLE_ID?.trim() || 'com.feedback.app';
+  const bundleId = c.env.APPLE_BUNDLE_ID?.trim() || 'com.feedbacklive.app';
   const idClaims = await verifyAppleJwt(identityToken, bundleId);
   const sub = typeof idClaims.sub === 'string' ? idClaims.sub : '';
   const claimEmail =

@@ -11,7 +11,7 @@ type AppleNotificationPayload = {
 export async function handleAppleServerNotification(
   c: Context<{ Bindings: Env }>,
 ): Promise<Response> {
-  const bundleId = c.env.APPLE_BUNDLE_ID?.trim() || 'com.feedback.app';
+  const bundleId = c.env.APPLE_BUNDLE_ID?.trim() || 'com.feedbacklive.app';
 
   let body: { payload?: string };
   try {

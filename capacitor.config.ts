@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.feedback.app',
+  appId: 'com.feedbacklive.app',
   appName: 'Feedback',
   webDir: 'dist',
   server: {
@@ -23,8 +23,8 @@ const config: CapacitorConfig = {
         'Feedback uses your location to match concert clips to nearby venues and JamBase shows.',
       CFBundleURLTypes: [
         {
-          CFBundleURLName: 'com.feedback.app',
-          CFBundleURLSchemes: ['com.feedback.app'],
+          CFBundleURLName: 'com.feedbacklive.app',
+          CFBundleURLSchemes: ['com.feedbacklive.app'],
         },
       ],
     },

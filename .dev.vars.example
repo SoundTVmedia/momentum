@@ -22,7 +22,7 @@ GOOGLE_OAUTH_CLIENT_SECRET=
 # APPLE_TEAM_ID=
 # APPLE_KEY_ID=
 # APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-# APPLE_BUNDLE_ID=com.feedback.app
+# APPLE_BUNDLE_ID=com.feedbacklive.app
 # APPLE_DOMAIN_ASSOCIATION=
 #
 # Production: set this to your live app URL (no trailing slash) if needed:

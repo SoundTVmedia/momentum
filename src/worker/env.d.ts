@@ -62,7 +62,7 @@ interface Env {
   APPLE_KEY_ID?: string;
   /** PEM contents of the Apple .p8 private key (use \\n for newlines in wrangler secrets). */
   APPLE_PRIVATE_KEY?: string;
-  /** iOS bundle id — audience for server-to-server notifications (default com.feedback.app). */
+  /** iOS bundle id — audience for native Apple sign-in + S2S notifications (default com.feedbacklive.app). */
   APPLE_BUNDLE_ID?: string;
   /** Raw contents of apple-developer-domain-association file from Apple Developer portal. */
   APPLE_DOMAIN_ASSOCIATION?: string;
