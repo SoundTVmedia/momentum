@@ -8,6 +8,9 @@ PODS:
   - CapacitorFilesystem (7.1.8):
     - Capacitor
     - IONFilesystemLib (~> 1.1.1)
+  - CapacitorGeolocation (7.1.8):
+    - Capacitor
+    - IONGeolocationLib (= 1.0.1)
   - CapacitorHaptics (7.0.3):
     - Capacitor
   - CapacitorPushNotifications (7.0.6):
@@ -17,6 +20,7 @@ PODS:
   - FeedbackNativeAudioCapture (0.1.0):
     - Capacitor
   - IONFilesystemLib (1.1.2)
+  - IONGeolocationLib (1.0.1)
   - SDWebImage (5.21.7):
     - SDWebImage/Core (= 5.21.7)
   - SDWebImage/Core (5.21.7)
@@ -26,6 +30,7 @@ DEPENDENCIES:
   - "CapacitorCommunityMedia (from `../../node_modules/@capacitor-community/media`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
+  - "CapacitorGeolocation (from `../../node_modules/@capacitor/geolocation`)"
   - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
   - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
   - "CapgoCameraPreview (from `../../node_modules/@capgo/camera-preview`)"
@@ -34,6 +39,7 @@ DEPENDENCIES:
 SPEC REPOS:
   trunk:
     - IONFilesystemLib
+    - IONGeolocationLib
     - SDWebImage
 
 EXTERNAL SOURCES:
@@ -45,6 +51,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorFilesystem:
     :path: "../../node_modules/@capacitor/filesystem"
+  CapacitorGeolocation:
+    :path: "../../node_modules/@capacitor/geolocation"
   CapacitorHaptics:
     :path: "../../node_modules/@capacitor/haptics"
   CapacitorPushNotifications:
@@ -59,13 +67,15 @@ SPEC CHECKSUMS:
   CapacitorCommunityMedia: d1538b56a3303298e7cf45a18b11e624fbcbdc8e
   CapacitorCordova: 3a4e0027a89a59421c918d19aee9d6ba1c7a3556
   CapacitorFilesystem: c63fc54df41e5a6761785a7f3c49dc696c22e296
+  CapacitorGeolocation: ab54d708e2fcf99a7bafe0219eaa6f7a932f001a
   CapacitorHaptics: ce15be8f287fa2c61c7d2d9e958885b90cf0bebc
   CapacitorPushNotifications: b8e30637549ce91468b8c4dddbef2657be831f4c
   CapgoCameraPreview: 44d4980e10b9d47bf680a631ba89c2a69745c8b0
   FeedbackNativeAudioCapture: 3481bb46741917eace9d496b81da39dd3f1dca09
   IONFilesystemLib: 21a63377696b2d8fab5632ecfb7d2ac67bddb68a
+  IONGeolocationLib: 20f9d0248a0b5264511fb57a37e25dd2badf797a
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
 
-PODFILE CHECKSUM: 0c33984897d565972d3af168d9974d2ac77fcc6d
+PODFILE CHECKSUM: 71cdad362efa6baf353a3eda3c209a697b38c0d6
 
 COCOAPODS: 1.16.2
