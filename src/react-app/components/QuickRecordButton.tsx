@@ -2341,9 +2341,17 @@ export default function QuickRecordButton({
 
   // Responsive layout — video layer is always full-screen; only chrome styling changes on rotate.
   const landscapeCapture = !isPortrait;
+  const isNativeIosCapture = shouldUseNativeIosCapture();
   const previewTrackLive = previewStream?.getVideoTracks()[0]?.readyState === 'live';
+  const nativePreviewLive =
+    isNativeIosCapture &&
+    isNativeCapturePreviewRunning() &&
+    hasPermission &&
+    cameraReady;
+  const previewLive = previewTrackLive || nativePreviewLive;
   const showStartupOverlay =
-    !previewTapToStart && !permissionDenied && !previewTrackLive && (!hasPermission || !cameraReady);
+    !previewTapToStart && !permissionDenied && !previewLive && (!hasPermission || !cameraReady);
+  const useTransparentNativePreview = nativePreviewLive;
 
   const captureControls = (
     <>
@@ -2667,10 +2675,16 @@ export default function QuickRecordButton({
 
       {/* Recording Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden bg-black">
+        <div
+          className={`fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden ${
+            useTransparentNativePreview ? 'bg-transparent' : 'bg-black'
+          }`}
+        >
           {/* Camera preview — always full viewport; layout must not change on device rotation. */}
           <div
-            className="absolute inset-0 z-0 touch-none overflow-hidden bg-black"
+            className={`absolute inset-0 z-0 touch-none overflow-hidden ${
+              useTransparentNativePreview ? 'bg-transparent' : 'bg-black'
+            }`}
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
@@ -2682,7 +2696,9 @@ export default function QuickRecordButton({
               playsInline
               muted
               disablePictureInPicture
-              className="absolute inset-0 z-0 h-full w-full min-h-full min-w-full object-cover"
+              className={`absolute inset-0 z-0 h-full w-full min-h-full min-w-full object-cover ${
+                isNativeIosCapture ? 'pointer-events-none opacity-0' : ''
+              }`}
               style={{
                 transform: digitalZoomScale > 1 ? `scale(${digitalZoomScale})` : undefined,
                 transformOrigin: 'center center',
