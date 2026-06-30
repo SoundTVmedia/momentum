@@ -8,7 +8,7 @@ import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 import { Capacitor } from '@capacitor/core';
 import {
   NATIVE_APP_ID,
-  NATIVE_OAUTH_CALLBACK_URL,
+  nativeIosGoogleOAuthCallbackUrl,
 } from '@/shared/oauth-redirect';
 
 async function readApiError(response: Response, fallback: string): Promise<string> {
@@ -28,6 +28,7 @@ type OAuthWaiter = {
 };
 
 let googleOAuthWaiter: OAuthWaiter | null = null;
+let googleOAuthRedirectUri: string | null = null;
 let googleOAuthCompleted = false;
 let nativeOAuthListenerRegistered = false;
 
@@ -51,7 +52,11 @@ function parseNativeOAuthCallback(url: string): URL | null {
   }
 }
 
-async function exchangeNativeGoogleCode(code: string, state: string | null): Promise<void> {
+async function exchangeNativeGoogleCode(
+  code: string,
+  state: string | null,
+  redirectUri: string,
+): Promise<void> {
   const response = await fetch('/api/sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -59,7 +64,7 @@ async function exchangeNativeGoogleCode(code: string, state: string | null): Pro
     body: JSON.stringify({
       code,
       state,
-      redirect_uri: NATIVE_OAUTH_CALLBACK_URL,
+      redirect_uri: redirectUri,
     }),
   });
 
@@ -100,7 +105,10 @@ async function handleNativeOAuthReturnUrl(url: string): Promise<void> {
     if (!code) {
       throw new Error('Google sign-in did not return an authorization code.');
     }
-    await exchangeNativeGoogleCode(code, state);
+    if (!googleOAuthRedirectUri) {
+      throw new Error('Google sign-in session was lost. Please try again.');
+    }
+    await exchangeNativeGoogleCode(code, state, googleOAuthRedirectUri);
     googleOAuthCompleted = true;
     waiter.resolve();
   } catch (err) {
@@ -135,9 +143,13 @@ function waitForNativeGoogleCallback(): Promise<void> {
 export async function performNativeGoogleSignIn(): Promise<void> {
   registerNativeOAuthDeepLinkHandler();
 
+  const appOrigin = window.location.origin;
+  const googleRedirectUri = nativeIosGoogleOAuthCallbackUrl(appOrigin);
+  googleOAuthRedirectUri = googleRedirectUri;
+
   const params = new URLSearchParams({
-    redirect_uri: NATIVE_OAUTH_CALLBACK_URL,
-    redirect_base: NATIVE_OAUTH_CALLBACK_URL,
+    redirect_uri: googleRedirectUri,
+    redirect_base: appOrigin,
     native_app: '1',
   });
   const response = await fetch(

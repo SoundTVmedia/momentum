@@ -7,9 +7,7 @@ import {
   performAppleSignIn,
   performGoogleSignIn,
 } from '@/react-app/lib/oauth-client';
-import {
-  NATIVE_OAUTH_CALLBACK_URL,
-} from '@/shared/oauth-redirect';
+import { nativeIosGoogleOAuthCallbackUrl } from '@/shared/oauth-redirect';
 import { shouldUseNativeInAppOAuth } from '@/react-app/lib/native-oauth';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
 import { Loader2, Mail, Lock, UserCircle } from 'lucide-react';
@@ -245,7 +243,7 @@ export default function Auth() {
       const message = err instanceof Error ? err.message : 'Sign-in failed.';
       const hint =
         typeof window !== 'undefined' && message.includes('redirect')
-          ? ` Add ${NATIVE_OAUTH_CALLBACK_URL} in Google Cloud Console if it is missing.`
+          ? ` Add ${nativeIosGoogleOAuthCallbackUrl(window.location.origin)} in Google Cloud Console if it is missing.`
           : '';
       setError(message + hint);
     } finally {

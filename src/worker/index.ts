@@ -37,6 +37,7 @@ import {
   setAppleSessionCookie,
 } from "./apple-oauth";
 import { handleAppleServerNotification } from "./apple-notifications";
+import { buildNativeAppOAuthDeepLink } from "../shared/oauth-redirect";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import { syncMochaUserIdentity } from "./mocha-identity-sync";
 import { isAdmin } from "./admin-auth";
@@ -245,6 +246,13 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
 
   const data = (await response.json()) as { redirect_url: string };
   return c.json({ redirectUrl: data.redirect_url }, 200);
+});
+
+// iOS in-app Google OAuth: Google redirects here (https); we bounce into the app scheme.
+app.get('/auth/ios-callback', (c) => {
+  const url = new URL(c.req.url);
+  const deepLink = buildNativeAppOAuthDeepLink(url.searchParams.toString());
+  return c.redirect(deepLink, 302);
 });
 
 // Apple form_post callback (Sign in with Apple posts code here — not the SPA /auth/callback).

@@ -10,7 +10,7 @@
 #   http://localhost:5173/auth/callback
 #   http://127.0.0.1:5173/auth/callback
 #   https://<your-workers-subdomain>.workers.dev/auth/callback
-#   com.feedback.app://auth/callback   (iOS Capacitor in-app Google sign-in)
+#   https://<your-workers-subdomain>.workers.dev/auth/ios-callback   (iOS in-app Google sign-in)
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
 # Used when MOCHA_USERS_SERVICE_API_KEY is empty. Run: npm run db:migrate:local

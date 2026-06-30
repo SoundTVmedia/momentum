@@ -4,8 +4,32 @@ export const NATIVE_APP_ID = 'com.feedback.app';
 /** Canonical OAuth return path for Google + Mocha (SPA exchanges code via POST /api/sessions). */
 export const OAUTH_CALLBACK_PATH = '/auth/callback';
 
-/** Native deep link Google OAuth returns to (register in Google Cloud redirect URIs). */
+/**
+ * HTTPS bridge for iOS in-app Google OAuth (register THIS in Google Cloud, not the custom scheme).
+ * Google Web OAuth clients only allow http/https redirect URIs.
+ */
+export const NATIVE_IOS_OAUTH_BRIDGE_PATH = '/auth/ios-callback';
+
+/** Deep link the iOS app receives after the HTTPS bridge redirects (not registered in Google). */
 export const NATIVE_OAUTH_CALLBACK_URL = `${NATIVE_APP_ID}://${OAUTH_CALLBACK_PATH.replace(/^\//, '')}`;
+
+export function nativeIosGoogleOAuthCallbackUrl(origin: string): string {
+  const trimmed = origin.trim().replace(/\/$/, '');
+  if (!trimmed) {
+    return NATIVE_IOS_OAUTH_BRIDGE_PATH;
+  }
+  try {
+    const base = trimmed.includes('://') ? trimmed : `https://${trimmed}`;
+    return `${new URL(base).origin}${NATIVE_IOS_OAUTH_BRIDGE_PATH}`;
+  } catch {
+    return `${trimmed}${NATIVE_IOS_OAUTH_BRIDGE_PATH}`;
+  }
+}
+
+export function buildNativeAppOAuthDeepLink(queryString: string): string {
+  const qs = queryString.replace(/^\?/, '');
+  return qs ? `${NATIVE_OAUTH_CALLBACK_URL}?${qs}` : NATIVE_OAUTH_CALLBACK_URL;
+}
 
 /** Apple Sign in with Apple posts the auth code to this Worker route (form_post). */
 export const APPLE_OAUTH_CALLBACK_PATH = '/api/auth/apple/callback';
@@ -20,17 +44,17 @@ export function isNativeOAuthCallbackUrl(url: string): boolean {
  */
 export function normalizeOAuthCallbackUrl(
   originOrBase: string,
-  opts?: { native?: boolean },
+  opts?: { nativeIosBridge?: boolean },
 ): string {
-  if (opts?.native) {
-    return NATIVE_OAUTH_CALLBACK_URL;
+  if (opts?.nativeIosBridge) {
+    return nativeIosGoogleOAuthCallbackUrl(originOrBase);
   }
 
   const trimmed = originOrBase.trim().replace(/\/$/, '');
   if (!trimmed) {
     return OAUTH_CALLBACK_PATH;
   }
-  if (isNativeOAuthCallbackUrl(trimmed)) {
+  if (trimmed.endsWith(NATIVE_IOS_OAUTH_BRIDGE_PATH)) {
     return trimmed;
   }
   if (trimmed.endsWith(OAUTH_CALLBACK_PATH)) {

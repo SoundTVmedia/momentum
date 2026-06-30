@@ -2,7 +2,10 @@ import type { Context } from 'hono';
 import { setCookie, getCookie } from 'hono/cookie';
 import * as nodeCrypto from 'node:crypto';
 import type { MochaUser } from '@/shared/mocha-user';
-import { normalizeOAuthCallbackUrl, isNativeOAuthCallbackUrl } from '../shared/oauth-redirect';
+import {
+  normalizeOAuthCallbackUrl,
+  nativeIosGoogleOAuthCallbackUrl,
+} from '../shared/oauth-redirect';
 import {
   createOAuthStateToken,
   consumeOAuthPendingState,
@@ -68,6 +71,52 @@ function readRedirectFromQuery(c: Context<{ Bindings: Env }>): string | undefine
   return raw || undefined;
 }
 
+function resolveOAuthAppOrigin(
+  c: Context<{ Bindings: Env }>,
+  redirectBaseQuery?: string,
+): string {
+  const fromQuery = redirectBaseQuery?.trim() || readRedirectFromQuery(c);
+  if (fromQuery) {
+    try {
+      if (fromQuery.includes('://')) {
+        return new URL(fromQuery).origin;
+      }
+      return fromQuery.replace(/\/$/, '');
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const explicit =
+    typeof c.env.OAUTH_REDIRECT_URI === 'string'
+      ? c.env.OAUTH_REDIRECT_URI.trim()
+      : '';
+  if (explicit) {
+    try {
+      return new URL(explicit).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+
+  const publicApp =
+    typeof c.env.PUBLIC_APP_URL === 'string' ? c.env.PUBLIC_APP_URL.trim() : '';
+  if (publicApp) {
+    return publicApp.replace(/\/$/, '');
+  }
+
+  const origin = c.req.header('origin')?.trim();
+  if (origin) {
+    return origin.replace(/\/$/, '');
+  }
+
+  try {
+    return new URL(c.req.url).origin;
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Resolve the exact redirect_uri sent to Google. Prefer the browser's current origin
  * (redirect_uri query) so it matches where the user is actually signed in.
@@ -79,14 +128,13 @@ export function resolveOAuthCallbackUrl(
   const nativeApp =
     c.req.query('native_app') === '1' || c.req.query('native_app') === 'true';
   if (nativeApp) {
-    return normalizeOAuthCallbackUrl('', { native: true });
+    return nativeIosGoogleOAuthCallbackUrl(
+      resolveOAuthAppOrigin(c, redirectBaseQuery),
+    );
   }
 
   const fromQuery = redirectBaseQuery?.trim() || readRedirectFromQuery(c);
   if (fromQuery) {
-    if (isNativeOAuthCallbackUrl(fromQuery)) {
-      return normalizeOAuthCallbackUrl(fromQuery);
-    }
     return normalizeOAuthCallbackUrl(fromQuery);
   }
 
