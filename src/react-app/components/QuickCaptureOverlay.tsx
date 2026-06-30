@@ -1,5 +1,6 @@
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import type { QuickCaptureLauncherState } from '@/react-app/hooks/useQuickCaptureLauncher';
+import { shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
 
 type QuickCaptureOverlayProps = Pick<
   QuickCaptureLauncherState,
@@ -31,7 +32,7 @@ export default function QuickCaptureOverlay({
       autoRequestCamera={!openedWithGestureCamera && !gesturePrimePending}
       captureLaunchGeo={captureLaunchGeo}
       captureLaunchGeoResolved={captureLaunchGeoResolved}
-      deferCameraUntilLaunchGeo
+      deferCameraUntilLaunchGeo={!shouldUseNativeIosCapture()}
       onClose={closeQuickCapture}
     />
   );

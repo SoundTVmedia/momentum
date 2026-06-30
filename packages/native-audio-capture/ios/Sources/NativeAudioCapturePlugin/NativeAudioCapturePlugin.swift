@@ -27,18 +27,24 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
         segmentDuration = max(1.0, Double(segmentMs) / 1000.0)
 
         queue.async {
-            do {
-                if self.isActive {
-                    call.resolve()
+            self.requestMicrophonePermission { granted in
+                guard granted else {
+                    call.reject("Microphone permission denied")
                     return
                 }
-                try self.configureSession()
-                self.isActive = true
-                try self.beginSegment()
-                call.resolve()
-            } catch {
-                self.isActive = false
-                call.reject("Failed to start native audio capture: \(error.localizedDescription)")
+                do {
+                    if self.isActive {
+                        call.resolve()
+                        return
+                    }
+                    try self.configureSession()
+                    self.isActive = true
+                    try self.beginSegment()
+                    call.resolve()
+                } catch {
+                    self.isActive = false
+                    call.reject("Failed to start native audio capture: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -51,6 +57,22 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
             self.recorder = nil
             self.cleanupCurrentFile()
             call.resolve()
+        }
+    }
+
+    private func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
+        let session = AVAudioSession.sharedInstance()
+        switch session.recordPermission {
+        case .granted:
+            completion(true)
+        case .denied:
+            completion(false)
+        case .undetermined:
+            session.requestRecordPermission { granted in
+                completion(granted)
+            }
+        @unknown default:
+            completion(false)
         }
     }
 
