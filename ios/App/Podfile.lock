@@ -8,7 +8,13 @@ PODS:
   - CapacitorFilesystem (7.1.8):
     - Capacitor
     - IONFilesystemLib (~> 1.1.1)
+  - CapacitorHaptics (7.0.3):
+    - Capacitor
   - CapacitorPushNotifications (7.0.6):
+    - Capacitor
+  - CapgoCameraPreview (7.5.0):
+    - Capacitor
+  - FeedbackNativeAudioCapture (0.1.0):
     - Capacitor
   - IONFilesystemLib (1.1.2)
   - SDWebImage (5.21.7):
@@ -20,7 +26,10 @@ DEPENDENCIES:
   - "CapacitorCommunityMedia (from `../../node_modules/@capacitor-community/media`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
+  - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
   - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
+  - "CapgoCameraPreview (from `../../node_modules/@capgo/camera-preview`)"
+  - FeedbackNativeAudioCapture (from `../../packages/native-audio-capture`)
 
 SPEC REPOS:
   trunk:
@@ -36,18 +45,27 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorFilesystem:
     :path: "../../node_modules/@capacitor/filesystem"
+  CapacitorHaptics:
+    :path: "../../node_modules/@capacitor/haptics"
   CapacitorPushNotifications:
     :path: "../../node_modules/@capacitor/push-notifications"
+  CapgoCameraPreview:
+    :path: "../../node_modules/@capgo/camera-preview"
+  FeedbackNativeAudioCapture:
+    :path: "../../packages/native-audio-capture"
 
 SPEC CHECKSUMS:
   Capacitor: 961efd309ab0e390a8081b63c561186f61a6714d
   CapacitorCommunityMedia: d1538b56a3303298e7cf45a18b11e624fbcbdc8e
   CapacitorCordova: 3a4e0027a89a59421c918d19aee9d6ba1c7a3556
   CapacitorFilesystem: c63fc54df41e5a6761785a7f3c49dc696c22e296
+  CapacitorHaptics: ce15be8f287fa2c61c7d2d9e958885b90cf0bebc
   CapacitorPushNotifications: b8e30637549ce91468b8c4dddbef2657be831f4c
+  CapgoCameraPreview: 44d4980e10b9d47bf680a631ba89c2a69745c8b0
+  FeedbackNativeAudioCapture: 3481bb46741917eace9d496b81da39dd3f1dca09
   IONFilesystemLib: 21a63377696b2d8fab5632ecfb7d2ac67bddb68a
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
 
-PODFILE CHECKSUM: aed3f5f0d321eb82c834eae3e79d7a1804d0ac28
+PODFILE CHECKSUM: 305728e35d55fc7315f74d5954da9a83f23ec23a
 
 COCOAPODS: 1.16.2
