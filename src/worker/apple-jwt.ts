@@ -3,7 +3,7 @@ const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const JWKS_CACHE_MS = 60 * 60 * 1000;
 
 type JwtHeader = { alg?: string; kid?: string };
-type AppleJwk = JsonWebKey & { kid?: string };
+type AppleJwk = JsonWebKey & { kid?: string; kty?: string };
 type AppleJwksResponse = { keys: AppleJwk[] };
 
 let jwksCache: { keys: AppleJwksResponse; fetchedAt: number } | null = null;
@@ -45,14 +45,36 @@ async function importApplePrivateKey(pem: string): Promise<CryptoKey> {
   );
 }
 
-async function importApplePublicKey(jwk: AppleJwk): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    'jwk',
-    jwk,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['verify'],
-  );
+async function importAppleVerificationKey(jwk: AppleJwk, alg: string): Promise<CryptoKey> {
+  if (alg === 'RS256' || jwk.kty === 'RSA') {
+    return crypto.subtle.importKey(
+      'jwk',
+      jwk,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+  }
+  if (alg === 'ES256' || jwk.kty === 'EC') {
+    return crypto.subtle.importKey(
+      'jwk',
+      jwk,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify'],
+    );
+  }
+  throw new Error(`Unsupported Apple JWT algorithm: ${alg}`);
+}
+
+function audienceMatchesClaim(aud: unknown, expectedAudience: string): boolean {
+  if (typeof aud === 'string') {
+    return aud === expectedAudience;
+  }
+  if (Array.isArray(aud)) {
+    return aud.some((value) => typeof value === 'string' && value === expectedAudience);
+  }
+  return false;
 }
 
 /** Apple OAuth client secret — ES256 JWT signed with the .p8 key (valid up to 6 months). */
@@ -114,8 +136,12 @@ export async function verifyAppleJwt(
 
   const [headerB64, payloadB64, signatureB64] = parts;
   const header = base64UrlDecodeJson<JwtHeader>(headerB64);
-  if (header.alg !== 'ES256' || !header.kid) {
+  const alg = header.alg?.trim();
+  if (!alg || !header.kid) {
     throw new Error('Unsupported Apple JWT header');
+  }
+  if (alg !== 'RS256' && alg !== 'ES256') {
+    throw new Error(`Unsupported Apple JWT algorithm: ${alg}`);
   }
 
   const jwks = await fetchAppleJwks();
@@ -124,11 +150,13 @@ export async function verifyAppleJwt(
     throw new Error('Apple JWKS key not found');
   }
 
-  const key = await importApplePublicKey(jwk);
+  const key = await importAppleVerificationKey(jwk, alg);
   const signingInput = `${headerB64}.${payloadB64}`;
   const signature = Buffer.from(signatureB64, 'base64url');
   const valid = await crypto.subtle.verify(
-    { name: 'ECDSA', hash: 'SHA-256' },
+    alg === 'RS256'
+      ? { name: 'RSASSA-PKCS1-v1_5' }
+      : { name: 'ECDSA', hash: 'SHA-256' },
     key,
     signature,
     new TextEncoder().encode(signingInput),
@@ -141,7 +169,7 @@ export async function verifyAppleJwt(
   if (payload.iss !== APPLE_ISSUER) {
     throw new Error('Invalid Apple JWT issuer');
   }
-  if (payload.aud !== expectedAudience) {
+  if (!audienceMatchesClaim(payload.aud, expectedAudience)) {
     throw new Error('Invalid Apple JWT audience');
   }
   const exp = typeof payload.exp === 'number' ? payload.exp : 0;
