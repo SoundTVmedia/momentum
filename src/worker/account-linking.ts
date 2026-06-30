@@ -8,6 +8,17 @@ type EmailAccountRow = {
   apple_sub?: string | null;
 };
 
+export type OAuthAccountRow = {
+  id: string;
+  email: string;
+  display_name: string | null;
+};
+
+export type ExistingOAuthAccount =
+  | { type: 'email'; account: EmailAccountRow }
+  | { type: 'google'; account: OAuthAccountRow }
+  | { type: 'apple'; account: OAuthAccountRow };
+
 export async function findEmailAccountByOAuthEmail(
   db: D1Database,
   email: string,
@@ -27,6 +38,56 @@ export async function findEmailAccountByGoogleEmail(
   email: string,
 ): Promise<EmailAccountRow | null> {
   return findEmailAccountByOAuthEmail(db, email);
+}
+
+export async function findGoogleAccountByOAuthEmail(
+  db: D1Database,
+  email: string,
+): Promise<OAuthAccountRow | null> {
+  const normalized = normalizeEmail(email);
+  const row = await db
+    .prepare('SELECT id, email, display_name FROM google_accounts WHERE email = ?')
+    .bind(normalized)
+    .first<OAuthAccountRow>();
+  return row ?? null;
+}
+
+export async function findAppleAccountByOAuthEmail(
+  db: D1Database,
+  email: string,
+): Promise<OAuthAccountRow | null> {
+  const normalized = normalizeEmail(email);
+  const row = await db
+    .prepare('SELECT id, email, display_name FROM apple_accounts WHERE email = ?')
+    .bind(normalized)
+    .first<OAuthAccountRow>();
+  return row ?? null;
+}
+
+/**
+ * Find an existing app account for an OAuth email across email/password, Google,
+ * and Apple tables. Email/password wins, then Google, then Apple.
+ */
+export async function findExistingAccountByEmail(
+  db: D1Database,
+  email: string,
+): Promise<ExistingOAuthAccount | null> {
+  const emailAccount = await findEmailAccountByOAuthEmail(db, email);
+  if (emailAccount) {
+    return { type: 'email', account: emailAccount };
+  }
+
+  const googleAccount = await findGoogleAccountByOAuthEmail(db, email);
+  if (googleAccount) {
+    return { type: 'google', account: googleAccount };
+  }
+
+  const appleAccount = await findAppleAccountByOAuthEmail(db, email);
+  if (appleAccount) {
+    return { type: 'apple', account: appleAccount };
+  }
+
+  return null;
 }
 
 /** Tables with a single `mocha_user_id` column to re-point when merging identities. */

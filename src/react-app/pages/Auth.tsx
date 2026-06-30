@@ -450,9 +450,9 @@ export default function Auth() {
               type="button"
               onClick={() => void startAppleAuth()}
               disabled={loading || emailLoading}
-              className="on-light-surface w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-black hover:bg-gray-900 text-white rounded-xl font-semibold text-base shadow-md border border-white/10 transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-black hover:bg-gray-900 !text-white rounded-xl font-semibold text-base shadow-md border border-white/10 transition-colors disabled:opacity-50"
             >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <svg className="w-5 h-5 shrink-0 fill-white" viewBox="0 0 24 24" aria-hidden>
                 <path d="M16.365 1.43c0 1.14-.417 2.2-1.114 2.99-.84.97-2.22 1.72-3.41 1.62-.14-1.12.42-2.3 1.06-3.03.72-.82 2-1.46 3.18-1.58.02.13.024.27.024.4zM20.7 17.18c-.6 1.39-.89 2-1.66 3.23-1.08 1.72-2.6 3.86-4.49 3.88-1.68.02-2.11-1.1-4.39-1.08-2.28.01-2.76 1.1-4.43 1.09-1.89-.02-3.34-1.95-4.42-3.66C-1.04 16.99-1.36 11.4 1.34 8.42 2.61 7 4.46 6.1 6.2 6.1c1.77 0 2.88 1.09 4.35 1.09 1.42 0 2.29-1.09 4.34-1.09 1.55 0 3.19.84 4.36 2.3-3.83 2.1-3.21 7.56.45 8.78z" />
               </svg>
               <span>Sign in with Apple</span>

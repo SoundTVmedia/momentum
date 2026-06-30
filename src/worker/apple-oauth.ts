@@ -8,10 +8,11 @@ import {
 } from '../shared/oauth-redirect';
 import { normalizeEmail } from './auth-password-utils';
 import {
-  findEmailAccountByOAuthEmail,
+  findExistingAccountByEmail,
   linkAppleSubOnEmailAccount,
   reassignMochaUserId,
 } from './account-linking';
+import { createGoogleSession } from './google-oauth';
 import { createAppleClientSecret, verifyAppleJwt } from './apple-jwt';
 import { hashOpaqueToken, isLocalDevHost } from './hybrid-auth';
 
@@ -223,7 +224,7 @@ async function createEmailSessionToken(db: D1Database, userId: string): Promise<
 
 export type AppleSignInResult = {
   sessionToken: string;
-  sessionType: 'apple' | 'email';
+  sessionType: 'apple' | 'email' | 'google';
 };
 
 export async function resolveAppleSignInSession(
@@ -236,17 +237,35 @@ export async function resolveAppleSignInSession(
     throw new Error('Apple account is missing required profile fields');
   }
 
-  const emailAccount = await findEmailAccountByOAuthEmail(db, email);
-  if (emailAccount) {
-    await linkAppleSubOnEmailAccount(db, emailAccount.id, sub);
-    await reassignMochaUserId(db, sub, emailAccount.id);
-    await upsertAppleAccount(db, info);
-    const sessionToken = await createEmailSessionToken(db, emailAccount.id);
-    return { sessionToken, sessionType: 'email' };
+  const existing = await findExistingAccountByEmail(db, email);
+
+  if (existing) {
+    const canonicalId = existing.account.id;
+    if (canonicalId !== sub) {
+      await reassignMochaUserId(db, sub, canonicalId);
+    }
+
+    if (existing.type !== 'apple' || canonicalId === sub) {
+      await upsertAppleAccount(db, info);
+    }
+
+    if (existing.type === 'email') {
+      await linkAppleSubOnEmailAccount(db, canonicalId, sub);
+      const sessionToken = await createEmailSessionToken(db, canonicalId);
+      return { sessionToken, sessionType: 'email' };
+    }
+
+    if (existing.type === 'google') {
+      const sessionToken = await createGoogleSession(db, canonicalId);
+      return { sessionToken, sessionType: 'google' };
+    }
+
+    const sessionToken = await createAppleSession(db, canonicalId);
+    return { sessionToken, sessionType: 'apple' };
   }
 
-  const account = await upsertAppleAccount(db, info);
-  const sessionToken = await createAppleSession(db, account.id);
+  await upsertAppleAccount(db, info);
+  const sessionToken = await createAppleSession(db, sub);
   return { sessionToken, sessionType: 'apple' };
 }
 

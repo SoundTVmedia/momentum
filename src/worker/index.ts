@@ -261,8 +261,17 @@ app.post('/api/auth/apple/callback', async (c) => {
 
   try {
     const signIn = await exchangeAppleOAuthCode(c, code, state, userJson);
+    const appleCookieBase = {
+      httpOnly: true,
+      path: '/',
+      sameSite: isLocalDevHost(c) ? ('lax' as const) : ('none' as const),
+      secure: !isLocalDevHost(c),
+      maxAge: 30 * 24 * 60 * 60,
+    };
     if (signIn.sessionType === 'email') {
       setEmailSessionCookie(c, signIn.sessionToken);
+    } else if (signIn.sessionType === 'google') {
+      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, appleCookieBase);
     } else {
       setAppleSessionCookie(c, signIn.sessionToken);
     }

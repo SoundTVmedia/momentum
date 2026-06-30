@@ -227,7 +227,7 @@ async function upsertGoogleAccount(
   return row;
 }
 
-async function createGoogleSession(
+export async function createGoogleSession(
   db: D1Database,
   userId: string,
 ): Promise<string> {
