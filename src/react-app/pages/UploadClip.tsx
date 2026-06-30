@@ -127,10 +127,12 @@ export default function UploadClip() {
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const galleryCaptureKeyRef = useRef<string | null>(null);
+  const nativeVideoUriRef = useRef<string | null>(null);
   const pendingRecoveryAttemptedRef = useRef(false);
 
   const clearLocalCaptureDraft = useCallback(() => {
     galleryCaptureKeyRef.current = null;
+    nativeVideoUriRef.current = null;
     void clearPendingCapture();
     void clearCaptionDraft();
   }, []);
@@ -386,6 +388,8 @@ export default function UploadClip() {
       lastCaptionFromNavAtRef.current = navAt;
 
       const blob = location.state.videoBlob as Blob;
+      const navNativePath = (location.state as { nativeVideoPath?: string }).nativeVideoPath;
+      nativeVideoUriRef.current = navNativePath ?? null;
       setFormData(prev => ({ ...prev, video_blob: blob }));
       setUploadMethod('file');
       
@@ -635,7 +639,9 @@ export default function UploadClip() {
     const ext = source.type.includes('mp4') ? 'mp4' : 'webm';
     const fileName =
       formData.video_file?.name ?? `momentum-${Date.now()}.${ext}`;
-    void persistClipLocallyOnCapture(source, fileName);
+    void persistClipLocallyOnCapture(source, fileName, {
+      nativeVideoUri: nativeVideoUriRef.current ?? undefined,
+    });
   }, [
     showCaptionScreen,
     uploadMethod,

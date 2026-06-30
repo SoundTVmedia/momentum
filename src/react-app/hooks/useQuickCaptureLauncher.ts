@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
+import { shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
   primeGeolocationOnUserGesture,
@@ -64,9 +65,17 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     void geoPromise
       .then((g) => {
         setCaptureLaunchGeo(g);
+        if (shouldUseNativeIosCapture()) {
+          return null;
+        }
         return primeCameraOnUserGesture();
       })
       .then((stream) => {
+        if (shouldUseNativeIosCapture()) {
+          setOpenedWithGestureCamera(false);
+          setPrimedMediaStream(null);
+          return;
+        }
         setOpenedWithGestureCamera(!!stream);
         setPrimedMediaStream(stream);
       })

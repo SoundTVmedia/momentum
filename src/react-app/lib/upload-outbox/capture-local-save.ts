@@ -11,8 +11,6 @@ import {
   blobSourceKey,
   saveClipToDeviceGallery,
 } from '@/react-app/lib/upload-outbox/gallery-save';
-
-/** IndexedDB key for the most recent capture (before Share creates a queue job). */
 export const PENDING_CAPTURE_JOB_ID = '__momentum_pending_capture__';
 
 /**
@@ -22,6 +20,7 @@ export const PENDING_CAPTURE_JOB_ID = '__momentum_pending_capture__';
 export async function persistClipLocallyOnCapture(
   video: Blob,
   fileName: string,
+  opts?: { nativeVideoUri?: string },
 ): Promise<{ localSaved: boolean; galleryMethod: string }> {
   const blobs = { video, thumbnail: null as Blob | null };
   cacheOutboxBlobs(PENDING_CAPTURE_JOB_ID, blobs);
@@ -34,6 +33,7 @@ export async function persistClipLocallyOnCapture(
   const gallery = await saveClipToDeviceGallery(video, fileName, {
     sourceKey: blobSourceKey(video),
     skipIfSaved: false,
+    nativeVideoUri: opts?.nativeVideoUri,
   });
 
   return { localSaved: true, galleryMethod: gallery.method };

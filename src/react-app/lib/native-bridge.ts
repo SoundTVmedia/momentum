@@ -70,6 +70,15 @@ export async function saveVideoToGallery(filePath: string, fileName?: string): P
   });
 }
 
+/** Save a native filesystem video URI directly to Photos (skips blob round-trip). */
+export async function saveNativeVideoUriToGallery(
+  fileUri: string,
+  fileName?: string,
+): Promise<void> {
+  if (!isNativeApp()) return;
+  await saveVideoToGallery(fileUri, fileName);
+}
+
 /**
  * Hook for a future native background uploader (URLSession / WorkManager).
  * Persists the cache path so native code can resume multipart upload after app backgrounding.

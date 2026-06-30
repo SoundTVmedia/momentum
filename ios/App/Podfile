@@ -12,6 +12,9 @@ def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCommunityMedia', :path => '../../node_modules/@capacitor-community/media'
+  pod 'CapacitorHaptics', :path => '../../node_modules/@capacitor/haptics'
+  pod 'CapgoCameraPreview', :path => '../../node_modules/@capgo/camera-preview'
+  pod 'FeedbackNativeAudioCapture', :path => '../../packages/native-audio-capture'
   pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
 end

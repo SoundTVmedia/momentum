@@ -49,6 +49,23 @@ import {
   capturePhotoFromStream,
   photoBlobToStillVideoBlob,
 } from '@/react-app/utils/cameraPhotoCapture';
+import {
+  shouldUseNativeIosCapture,
+  startNativeCapturePreview,
+  stopNativeCaptureSession,
+  startNativeVideoRecording,
+  stopNativeVideoRecording,
+  setNativeCaptureZoom,
+  flipNativeCamera,
+  startNativeLiveAudioSegments,
+  stopNativeLiveAudioSegments,
+  readNativeZoomState,
+  nativeVideoPathToBlob,
+  nativeCaptureHaptic,
+  nativeCaptureWarningHaptic,
+  captureNativePhoto,
+  NATIVE_CAPTURE_MAX_SECONDS,
+} from '@/react-app/lib/native-capture';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -154,6 +171,7 @@ export default function QuickRecordButton({
   /** Set true for whole record tap so preview→record effect cleanup does not stop the live mic pipeline. */
   const isRecordingRef = useRef(false);
   const liveStabilizerRef = useRef(new LiveSongStabilizer());
+  const nativeCaptureActiveRef = useRef(false);
   /** Stabilized song/artist used as caption prefill fallback (not shown on camera). */
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -753,7 +771,11 @@ export default function QuickRecordButton({
 
     const primed = primedMediaStreamRef.current;
     const primedTrack = primed?.getVideoTracks()[0];
-    if (primedTrack && primedTrack.readyState === 'live') {
+    if (
+      !shouldUseNativeIosCapture() &&
+      primedTrack &&
+      primedTrack.readyState === 'live'
+    ) {
       console.log('QuickRecordButton: reusing primed camera stream');
       streamRef.current = primed;
       setPreviewStream(primed);
@@ -773,6 +795,34 @@ export default function QuickRecordButton({
 
     setPreviewStream(null);
     try {
+      if (shouldUseNativeIosCapture()) {
+        primed?.getTracks().forEach((track) => track.stop());
+        const facing: 'rear' | 'front' =
+          facingOverride === 'user' ? 'front' : 'rear';
+        await startNativeCapturePreview({ facing });
+        nativeCaptureActiveRef.current = true;
+        setPermissionDenied(false);
+        setAudioEnabled(true);
+        setCameraError(null);
+        setHasPermission(true);
+        setCameraReady(true);
+        setPreviewTapToStart(false);
+        setPreferredFacingMode(facing === 'front' ? 'user' : 'environment');
+        const zoomState = await readNativeZoomState();
+        if (zoomState) {
+          setHardwareZoomRange({ min: zoomState.min, max: zoomState.max });
+          setZoomRange({ min: zoomState.min, max: zoomState.max });
+          setZoomPresets(zoomState.presets);
+          setZoomLevel(zoomState.current);
+          zoomLevelRef.current = zoomState.current;
+        }
+        setVideoResolution({
+          width: window.screen.width,
+          height: window.screen.height,
+        });
+        return null;
+      }
+
       // Detect current orientation
       const currentIsPortrait = deviceIsPortraitViewport();
       console.log('QuickRecordButton: Current orientation:', currentIsPortrait ? 'portrait' : 'landscape');
@@ -1165,15 +1215,28 @@ export default function QuickRecordButton({
   }, [previewStream, strictPreviewFrames]);
 
   useEffect(() => {
-    if (!previewStream || !cameraReady) {
-      setZoomRange(null);
-      setHardwareZoomRange(null);
-      setZoomPresets([]);
-      setZoomLevel(1);
-      setDigitalZoomScale(1);
-      zoomLevelRef.current = 1;
-      return;
+    if (!previewStream || !cameraReady || nativeCaptureActiveRef.current) {
+      if (nativeCaptureActiveRef.current && cameraReady) {
+        void readNativeZoomState().then((zoomState) => {
+          if (!zoomState) return;
+          setHardwareZoomRange({ min: zoomState.min, max: zoomState.max });
+          setZoomRange({ min: zoomState.min, max: zoomState.max });
+          setZoomPresets(zoomState.presets);
+          setZoomLevel(zoomState.current);
+          zoomLevelRef.current = zoomState.current;
+        });
+      } else if (!nativeCaptureActiveRef.current) {
+        setZoomRange(null);
+        setHardwareZoomRange(null);
+        setZoomPresets([]);
+        setZoomLevel(1);
+        setDigitalZoomScale(1);
+        zoomLevelRef.current = 1;
+      }
+      if (!previewStream || !cameraReady) return;
     }
+
+    if (nativeCaptureActiveRef.current) return;
 
     const track = previewStream.getVideoTracks()[0];
     const hardware = readCameraZoomRange(track);
@@ -1208,6 +1271,14 @@ export default function QuickRecordButton({
 
   const applyZoomInstant = useCallback(
     async (next: number) => {
+      if (nativeCaptureActiveRef.current) {
+        if (!zoomRange) return;
+        const target = clampCameraZoom(next, zoomRange);
+        await setNativeCaptureZoom(target);
+        zoomLevelRef.current = target;
+        setZoomLevel(target);
+        return;
+      }
       const track = streamRef.current?.getVideoTracks()[0];
       if (!track || !zoomRange || !hardwareZoomRange) return;
       zoomAnimCancelRef.current?.();
@@ -1224,6 +1295,14 @@ export default function QuickRecordButton({
 
   const handleZoomSelect = useCallback(
     async (next: number) => {
+      if (nativeCaptureActiveRef.current) {
+        if (!zoomRange) return;
+        const target = clampCameraZoom(next, zoomRange);
+        await setNativeCaptureZoom(target);
+        zoomLevelRef.current = target;
+        setZoomLevel(target);
+        return;
+      }
       const track = streamRef.current?.getVideoTracks()[0];
       if (!track || !zoomRange || !hardwareZoomRange) return;
       const target = clampCameraZoom(next, zoomRange);
@@ -1291,6 +1370,13 @@ export default function QuickRecordButton({
 
   const toggleCameraFacing = async () => {
     if (isRecording) return;
+    if (nativeCaptureActiveRef.current) {
+      await flipNativeCamera();
+      setPreferredFacingMode((prev) =>
+        prev === 'environment' ? 'user' : 'environment',
+      );
+      return;
+    }
     const track = streamRef.current?.getVideoTracks()[0];
     const currentFacing = track?.getSettings?.()?.facingMode;
     let next: 'environment' | 'user';
@@ -1417,6 +1503,11 @@ export default function QuickRecordButton({
   const releaseAllCaptureResources = () => {
     stopLiveAuddPipeline();
     clearAuddParallelCapTimer();
+
+    if (nativeCaptureActiveRef.current) {
+      void stopNativeCaptureSession();
+      nativeCaptureActiveRef.current = false;
+    }
 
     const par = auddParallelAudioRecorderRef.current;
     auddParallelAudioRecorderRef.current = null;
@@ -1680,6 +1771,18 @@ export default function QuickRecordButton({
   /** Start live song ID as soon as camera preview has mic (before user taps record). */
   useEffect(() => {
     if (!showModal || !hasPermission || !cameraReady || isRecording) return;
+
+    if (nativeCaptureActiveRef.current && audioEnabled) {
+      liveAuddStoppedRef.current = false;
+      void startNativeLiveAudioSegments((blob) => identifyLiveSegmentBlob(blob));
+      return () => {
+        if (!isRecordingRef.current) {
+          void stopNativeLiveAudioSegments();
+          stopLiveAuddRecorder();
+        }
+      };
+    }
+
     const stream = streamRef.current;
     if (!stream || !audioEnabled || stream.getAudioTracks().length === 0) return;
     startLiveSongPipeline(stream);
@@ -1692,13 +1795,51 @@ export default function QuickRecordButton({
 
   const startRecording = async () => {
     // Only start if camera is ready
-    if (!hasPermission || !streamRef.current) {
+    if (
+      !hasPermission ||
+      (!streamRef.current && !nativeCaptureActiveRef.current)
+    ) {
       return;
     }
 
     isRecordingRef.current = true;
 
-    const stream = streamRef.current;
+    if (nativeCaptureActiveRef.current) {
+      const currentOrientation = deviceIsPortraitViewport() ? 'portrait' : 'landscape';
+      setRecordingOrientation(currentOrientation);
+      setIsPortrait(currentOrientation === 'portrait');
+      setVideoResolution({
+        width: window.screen.width,
+        height: window.screen.height,
+      });
+      await nativeCaptureHaptic('light');
+      recordingStartedAtRef.current = new Date().toISOString();
+      clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
+
+      try {
+        await stopNativeLiveAudioSegments();
+        await startNativeVideoRecording();
+        setIsRecording(true);
+        recordingSecondsRef.current = 0;
+        timerRef.current = setInterval(() => {
+          recordingSecondsRef.current += 1;
+          const t = recordingSecondsRef.current;
+          if (t === HAPTIC_WARNING_TIME) {
+            void nativeCaptureWarningHaptic();
+          }
+          if (t >= NATIVE_CAPTURE_MAX_SECONDS) {
+            stopRecording();
+          }
+        }, 1000);
+      } catch (err) {
+        console.error('Native recording failed:', err);
+        isRecordingRef.current = false;
+        setIsRecording(false);
+      }
+      return;
+    }
+
+    const stream = streamRef.current!;
 
     // Capture current orientation when recording starts (read live — state may lag rotation).
     const currentOrientation = deviceIsPortraitViewport() ? 'portrait' : 'landscape';
@@ -1808,6 +1949,27 @@ export default function QuickRecordButton({
   };
 
   const stopRecording = () => {
+    if (nativeCaptureActiveRef.current) {
+      void (async () => {
+        try {
+          const { videoFilePath } = await stopNativeVideoRecording();
+          isRecordingRef.current = false;
+          setIsRecording(false);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          const blob = await nativeVideoPathToBlob(videoFilePath);
+          await handleRecordingComplete(blob, { nativeVideoPath: videoFilePath });
+        } catch (err) {
+          console.error('Native stop recording failed:', err);
+          isRecordingRef.current = false;
+          setIsRecording(false);
+        }
+      })();
+      return;
+    }
+
     const mr = mediaRecorderRef.current;
     if (!mr || (mr.state !== 'recording' && mr.state !== 'paused')) {
       return;
@@ -1861,7 +2023,7 @@ export default function QuickRecordButton({
 
   const handleRecordingComplete = async (
     blob: Blob,
-    opts?: { skipAudd?: boolean },
+    opts?: { skipAudd?: boolean; nativeVideoPath?: string },
   ) => {
     try {
       const par = auddParallelAudioRecorderRef.current;
@@ -1957,6 +2119,7 @@ export default function QuickRecordButton({
           replace: true,
           state: {
             videoBlob: blob,
+            ...(opts?.nativeVideoPath ? { nativeVideoPath: opts.nativeVideoPath } : {}),
             captureAudioBlob,
             recordingStartedAt: at,
             captureGeo: geo
@@ -2004,7 +2167,14 @@ export default function QuickRecordButton({
   };
 
   const capturePhoto = async () => {
-    if (!hasPermission || !streamRef.current || isRecording || photoCapturing) return;
+    if (
+      !hasPermission ||
+      (!streamRef.current && !nativeCaptureActiveRef.current) ||
+      isRecording ||
+      photoCapturing
+    ) {
+      return;
+    }
 
     setPhotoCapturing(true);
     isRecordingRef.current = true;
@@ -2013,31 +2183,42 @@ export default function QuickRecordButton({
     setRecordingOrientation(currentOrientation);
     setIsPortrait(currentOrientation === 'portrait');
 
-    const videoTrack = streamRef.current.getVideoTracks()[0];
-    const capturedResolution = readCaptureDimensionsFromPreview(
-      videoRef.current,
-      videoTrack,
-      currentOrientation,
-    );
-    setVideoResolution(capturedResolution);
-
-    if ('vibrate' in navigator) {
-      navigator.vibrate(30);
+    if (nativeCaptureActiveRef.current) {
+      setVideoResolution({
+        width: window.screen.width,
+        height: window.screen.height,
+      });
+    } else {
+      const videoTrack = streamRef.current!.getVideoTracks()[0];
+      const capturedResolution = readCaptureDimensionsFromPreview(
+        videoRef.current,
+        videoTrack,
+        currentOrientation,
+      );
+      setVideoResolution(capturedResolution);
     }
+
+    await nativeCaptureHaptic('light');
 
     recordingStartedAtRef.current = new Date().toISOString();
     clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
 
     try {
       stopLiveAuddRecorder();
+      void stopNativeLiveAudioSegments();
       setPhotoFlash(true);
       window.setTimeout(() => setPhotoFlash(false), 120);
 
-      const photoBlob = await capturePhotoFromStream(
-        streamRef.current,
-        videoRef.current,
-        currentOrientation,
-      );
+      let photoBlob: Blob;
+      if (nativeCaptureActiveRef.current) {
+        photoBlob = await captureNativePhoto();
+      } else {
+        photoBlob = await capturePhotoFromStream(
+          streamRef.current!,
+          videoRef.current,
+          currentOrientation,
+        );
+      }
       const videoBlob = await photoBlobToStillVideoBlob(photoBlob);
       await handleRecordingComplete(videoBlob, { skipAudd: true });
     } catch (err) {

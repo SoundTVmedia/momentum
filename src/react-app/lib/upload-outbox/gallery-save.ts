@@ -1,5 +1,6 @@
 import {
   isNativeApp,
+  saveNativeVideoUriToGallery,
   saveVideoToGallery,
   writeVideoToNativeCache,
 } from '@/react-app/lib/native-bridge';
@@ -27,7 +28,12 @@ export function blobSourceKey(blob: Blob): string {
 export async function saveClipToDeviceGallery(
   video: Blob,
   fileName: string,
-  opts?: { sourceKey?: string; skipIfSaved?: boolean },
+  opts?: {
+    sourceKey?: string;
+    skipIfSaved?: boolean;
+    /** When set, save this native capture file URI directly (iOS hybrid capture). */
+    nativeVideoUri?: string;
+  },
 ): Promise<GallerySaveResult> {
   const sourceKey = opts?.sourceKey ?? blobSourceKey(video);
   if (opts?.skipIfSaved && savedGalleryKeys.has(sourceKey)) {
@@ -36,6 +42,15 @@ export async function saveClipToDeviceGallery(
 
   if (isNativeApp()) {
     try {
+      if (opts?.nativeVideoUri) {
+        await saveNativeVideoUriToGallery(opts.nativeVideoUri, fileName);
+        savedGalleryKeys.add(sourceKey);
+        return {
+          saved: true,
+          method: 'native',
+          nativeCachePath: opts.nativeVideoUri,
+        };
+      }
       const cachePath = await writeVideoToNativeCache(video, fileName);
       await saveVideoToGallery(cachePath, fileName);
       savedGalleryKeys.add(sourceKey);
