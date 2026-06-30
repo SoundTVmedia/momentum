@@ -1,6 +1,3 @@
-import { createPrivateKey, createPublicKey, createSign, verify } from 'node:crypto';
-import type { JsonWebKey } from 'node:crypto';
-
 const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const JWKS_CACHE_MS = 60 * 60 * 1000;
@@ -11,8 +8,13 @@ type AppleJwksResponse = { keys: AppleJwk[] };
 
 let jwksCache: { keys: AppleJwksResponse; fetchedAt: number } | null = null;
 
-function base64UrlEncode(input: string | Buffer): string {
-  const buf = typeof input === 'string' ? Buffer.from(input, 'utf8') : input;
+function base64UrlEncode(input: string | Buffer | Uint8Array): string {
+  const buf =
+    typeof input === 'string'
+      ? Buffer.from(input, 'utf8')
+      : Buffer.isBuffer(input)
+        ? input
+        : Buffer.from(input);
   return buf.toString('base64url');
 }
 
@@ -24,8 +26,37 @@ function normalizeApplePrivateKey(pem: string): string {
   return pem.replace(/\\n/g, '\n').trim();
 }
 
+function pemToPkcs8Der(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s/g, '');
+  const bytes = Buffer.from(b64, 'base64');
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+async function importApplePrivateKey(pem: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    'pkcs8',
+    pemToPkcs8Der(pem),
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign'],
+  );
+}
+
+async function importApplePublicKey(jwk: AppleJwk): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['verify'],
+  );
+}
+
 /** Apple OAuth client secret — ES256 JWT signed with the .p8 key (valid up to 6 months). */
-export function createAppleClientSecret(env: Env): string {
+export async function createAppleClientSecret(env: Env): Promise<string> {
   const teamId = env.APPLE_TEAM_ID?.trim();
   const keyId = env.APPLE_KEY_ID?.trim();
   const clientId = env.APPLE_SERVICES_ID?.trim();
@@ -49,13 +80,14 @@ export function createAppleClientSecret(env: Env): string {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload));
   const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-  const key = createPrivateKey(privateKeyPem);
-  const signer = createSign('SHA256');
-  signer.update(signingInput);
-  signer.end();
-  const signature = signer.sign({ key, dsaEncoding: 'ieee-p1363' });
+  const key = await importApplePrivateKey(privateKeyPem);
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    new TextEncoder().encode(signingInput),
+  );
 
-  return `${signingInput}.${base64UrlEncode(signature)}`;
+  return `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
 }
 
 async function fetchAppleJwks(): Promise<AppleJwksResponse> {
@@ -92,14 +124,14 @@ export async function verifyAppleJwt(
     throw new Error('Apple JWKS key not found');
   }
 
-  const key = createPublicKey({ key: jwk as JsonWebKey, format: 'jwk' });
+  const key = await importApplePublicKey(jwk);
   const signingInput = `${headerB64}.${payloadB64}`;
   const signature = Buffer.from(signatureB64, 'base64url');
-  const valid = verify(
-    'sha256',
-    Buffer.from(signingInput, 'utf8'),
-    { key, dsaEncoding: 'ieee-p1363' },
+  const valid = await crypto.subtle.verify(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
     signature,
+    new TextEncoder().encode(signingInput),
   );
   if (!valid) {
     throw new Error('Invalid Apple JWT signature');

@@ -288,7 +288,7 @@ export async function exchangeAppleOAuthCode(
   }
 
   const clientId = c.env.APPLE_SERVICES_ID!.trim();
-  const clientSecret = createAppleClientSecret(c.env);
+  const clientSecret = await createAppleClientSecret(c.env);
 
   const tokenRes = await fetch(APPLE_TOKEN_URL, {
     method: 'POST',
