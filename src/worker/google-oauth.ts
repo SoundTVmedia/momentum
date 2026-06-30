@@ -8,6 +8,7 @@ import {
   findEmailAccountByGoogleEmail,
   linkGoogleSubOnEmailAccount,
   reassignMochaUserId,
+  upsertUserEmailIndex,
 } from './account-linking';
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 
@@ -224,6 +225,7 @@ async function upsertGoogleAccount(
   if (!row) {
     throw new Error('Could not persist Google account');
   }
+  await upsertUserEmailIndex(db, email, row.id, 'google');
   return row;
 }
 

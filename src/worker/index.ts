@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import {
   exchangeCodeForSessionToken,
   deleteSession,
+  getCurrentUser,
   MOCHA_SESSION_TOKEN_COOKIE_NAME,
   DEFAULT_MOCHA_USERS_SERVICE_API_URL,
 } from "@getmocha/users-service/backend";
@@ -35,6 +36,7 @@ import {
 } from "./apple-oauth";
 import { handleAppleServerNotification } from "./apple-notifications";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
+import { syncMochaUserIdentity } from "./mocha-identity-sync";
 import { isAdmin } from "./admin-auth";
 import {
   isSameMochaUser,
@@ -388,6 +390,18 @@ app.post("/api/sessions", async (c) => {
   }
 
   setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, cookieBase);
+
+  try {
+    const user = await getCurrentUser(sessionToken, {
+      apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL,
+      apiKey,
+    });
+    if (user) {
+      await syncMochaUserIdentity(c.env.DB, user);
+    }
+  } catch (e) {
+    console.warn('mocha identity sync after exchange failed', e);
+  }
 
   return c.json({ success: true, provider: 'mocha' }, 200);
 });

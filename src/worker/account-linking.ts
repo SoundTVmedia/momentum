@@ -17,7 +17,41 @@ export type OAuthAccountRow = {
 export type ExistingOAuthAccount =
   | { type: 'email'; account: EmailAccountRow }
   | { type: 'google'; account: OAuthAccountRow }
-  | { type: 'apple'; account: OAuthAccountRow };
+  | { type: 'apple'; account: OAuthAccountRow }
+  | { type: 'indexed'; account: OAuthAccountRow };
+
+const EMAIL_LOOKUP_SQL = (table: string) =>
+  `SELECT id, email, display_name FROM ${table} WHERE lower(trim(email)) = ?`;
+
+export async function upsertUserEmailIndex(
+  db: D1Database,
+  email: string,
+  mochaUserId: string,
+  source: string,
+): Promise<void> {
+  const normalizedEmail = normalizeEmail(email);
+  const userId = mochaUserId.trim();
+  const src = source.trim();
+  if (!normalizedEmail || !userId || !src) {
+    return;
+  }
+
+  try {
+    await db
+      .prepare(
+        `INSERT INTO user_emails (email, mocha_user_id, source, updated_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(email) DO UPDATE SET
+           mocha_user_id = excluded.mocha_user_id,
+           source = excluded.source,
+           updated_at = CURRENT_TIMESTAMP`,
+      )
+      .bind(normalizedEmail, userId, src)
+      .run();
+  } catch (e) {
+    console.warn('upsertUserEmailIndex failed', e);
+  }
+}
 
 export async function findEmailAccountByOAuthEmail(
   db: D1Database,
@@ -26,9 +60,26 @@ export async function findEmailAccountByOAuthEmail(
   const normalized = normalizeEmail(email);
   const row = await db
     .prepare(
-      'SELECT id, email, display_name, google_sub, apple_sub FROM email_accounts WHERE email = ?',
+      'SELECT id, email, display_name, google_sub, apple_sub FROM email_accounts WHERE lower(trim(email)) = ?',
     )
     .bind(normalized)
+    .first<EmailAccountRow>();
+  return row ?? null;
+}
+
+export async function findEmailAccountByAppleSub(
+  db: D1Database,
+  appleSub: string,
+): Promise<EmailAccountRow | null> {
+  const sub = appleSub.trim();
+  if (!sub) {
+    return null;
+  }
+  const row = await db
+    .prepare(
+      'SELECT id, email, display_name, google_sub, apple_sub FROM email_accounts WHERE apple_sub = ?',
+    )
+    .bind(sub)
     .first<EmailAccountRow>();
   return row ?? null;
 }
@@ -46,7 +97,7 @@ export async function findGoogleAccountByOAuthEmail(
 ): Promise<OAuthAccountRow | null> {
   const normalized = normalizeEmail(email);
   const row = await db
-    .prepare('SELECT id, email, display_name FROM google_accounts WHERE email = ?')
+    .prepare(EMAIL_LOOKUP_SQL('google_accounts'))
     .bind(normalized)
     .first<OAuthAccountRow>();
   return row ?? null;
@@ -58,15 +109,64 @@ export async function findAppleAccountByOAuthEmail(
 ): Promise<OAuthAccountRow | null> {
   const normalized = normalizeEmail(email);
   const row = await db
-    .prepare('SELECT id, email, display_name FROM apple_accounts WHERE email = ?')
+    .prepare(EMAIL_LOOKUP_SQL('apple_accounts'))
     .bind(normalized)
     .first<OAuthAccountRow>();
   return row ?? null;
 }
 
+async function findIndexedAccountByEmail(
+  db: D1Database,
+  email: string,
+): Promise<OAuthAccountRow | null> {
+  const normalized = normalizeEmail(email);
+  try {
+    const row = await db
+      .prepare('SELECT mocha_user_id, source FROM user_emails WHERE email = ?')
+      .bind(normalized)
+      .first<{ mocha_user_id: string; source: string }>();
+    if (!row?.mocha_user_id) {
+      return null;
+    }
+
+    const accountId = row.mocha_user_id.trim();
+    const emailRow = await db
+      .prepare('SELECT id, email, display_name FROM email_accounts WHERE id = ?')
+      .bind(accountId)
+      .first<OAuthAccountRow>();
+    if (emailRow) {
+      return emailRow;
+    }
+
+    const googleRow = await db
+      .prepare('SELECT id, email, display_name FROM google_accounts WHERE id = ?')
+      .bind(accountId)
+      .first<OAuthAccountRow>();
+    if (googleRow) {
+      return googleRow;
+    }
+
+    const appleRow = await db
+      .prepare('SELECT id, email, display_name FROM apple_accounts WHERE id = ?')
+      .bind(accountId)
+      .first<OAuthAccountRow>();
+    if (appleRow) {
+      return appleRow;
+    }
+
+    return {
+      id: accountId,
+      email: normalized,
+      display_name: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Find an existing app account for an OAuth email across email/password, Google,
- * and Apple tables. Email/password wins, then Google, then Apple.
+ * Find an existing app account for an OAuth email across the email index,
+ * email/password, Google, and Apple tables.
  */
 export async function findExistingAccountByEmail(
   db: D1Database,
@@ -80,6 +180,11 @@ export async function findExistingAccountByEmail(
   const googleAccount = await findGoogleAccountByOAuthEmail(db, email);
   if (googleAccount) {
     return { type: 'google', account: googleAccount };
+  }
+
+  const indexedAccount = await findIndexedAccountByEmail(db, email);
+  if (indexedAccount) {
+    return { type: 'indexed', account: indexedAccount };
   }
 
   const appleAccount = await findAppleAccountByOAuthEmail(db, email);

@@ -10,6 +10,7 @@ import {
 import type { MochaUser } from '@/shared/mocha-user';
 import { validateGoogleSession, revokeGoogleSession } from './google-oauth';
 import { validateAppleSession, revokeAppleSession } from './apple-oauth';
+import { syncMochaUserIdentity } from './mocha-identity-sync';
 import { isUserSuspended } from './user-ban-utils';
 import { mochaUserIdKey } from './mocha-user-id';
 
@@ -228,7 +229,10 @@ async function resolveUserFromRequest(c: Context): Promise<MochaUser | null> {
         apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL,
         apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
       });
-      if (user) return user;
+      if (user) {
+        await syncMochaUserIdentity(c.env.DB, user);
+        return user;
+      }
     } catch {
       /* stale or invalid Mocha session cookie */
     }

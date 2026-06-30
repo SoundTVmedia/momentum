@@ -18,6 +18,7 @@ import {
 } from './transactional-email-config';
 import { shouldLogPasswordResetLinkInsteadOfEmail } from './hybrid-auth';
 import { logPasswordResetLinkDev, sendPasswordResetEmail } from './transactional-email';
+import { upsertUserEmailIndex } from './account-linking';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -120,6 +121,7 @@ export async function emailSignUp(c: Context<{ Bindings: Env }>) {
   }
 
   setEmailSessionCookie(c, rawToken);
+  await upsertUserEmailIndex(c.env.DB, email, id, 'email');
 
   return c.json({ success: true, userId: id }, 201);
 }
@@ -142,7 +144,7 @@ export async function emailPasswordSignIn(c: Context<{ Bindings: Env }>) {
   }
 
   const row = await c.env.DB.prepare(
-    'SELECT id, password_hash FROM email_accounts WHERE email = ?'
+    'SELECT id, password_hash FROM email_accounts WHERE lower(trim(email)) = ?'
   )
     .bind(email)
     .first<{ id: string; password_hash: string }>();
@@ -153,6 +155,7 @@ export async function emailPasswordSignIn(c: Context<{ Bindings: Env }>) {
 
   const { rawToken } = await createEmailSession(c.env.DB, row.id);
   setEmailSessionCookie(c, rawToken);
+  await upsertUserEmailIndex(c.env.DB, email, row.id, 'email');
 
   return c.json({ success: true }, 200);
 }

@@ -8,11 +8,14 @@ import {
 } from '../shared/oauth-redirect';
 import { normalizeEmail } from './auth-password-utils';
 import {
+  findEmailAccountByAppleSub,
   findExistingAccountByEmail,
   linkAppleSubOnEmailAccount,
   reassignMochaUserId,
+  upsertUserEmailIndex,
 } from './account-linking';
 import { createGoogleSession } from './google-oauth';
+import { ensureGoogleBridgeAccount } from './mocha-identity-sync';
 import { createAppleClientSecret, verifyAppleJwt } from './apple-jwt';
 import { hashOpaqueToken, isLocalDevHost } from './hybrid-auth';
 
@@ -227,14 +230,33 @@ export type AppleSignInResult = {
   sessionType: 'apple' | 'email' | 'google';
 };
 
+async function removeOtherAppleAccountsForEmail(
+  db: D1Database,
+  email: string,
+  keepSub: string,
+): Promise<void> {
+  await db
+    .prepare('DELETE FROM apple_accounts WHERE lower(trim(email)) = ? AND id != ?')
+    .bind(normalizeEmail(email), keepSub.trim())
+    .run();
+}
+
 export async function resolveAppleSignInSession(
   db: D1Database,
   info: AppleUserInfo,
 ): Promise<AppleSignInResult> {
   const sub = info.sub.trim();
-  const email = info.email.trim();
+  const email = normalizeEmail(info.email);
   if (!sub || !email) {
     throw new Error('Apple account is missing required profile fields');
+  }
+
+  const linkedEmailAccount = await findEmailAccountByAppleSub(db, sub);
+  if (linkedEmailAccount) {
+    await upsertAppleAccount(db, info);
+    await upsertUserEmailIndex(db, email, linkedEmailAccount.id, 'email');
+    const sessionToken = await createEmailSessionToken(db, linkedEmailAccount.id);
+    return { sessionToken, sessionType: 'email' };
   }
 
   const existing = await findExistingAccountByEmail(db, email);
@@ -243,11 +265,28 @@ export async function resolveAppleSignInSession(
     const canonicalId = existing.account.id;
     if (canonicalId !== sub) {
       await reassignMochaUserId(db, sub, canonicalId);
+      await removeOtherAppleAccountsForEmail(db, email, sub);
     }
 
-    if (existing.type !== 'apple' || canonicalId === sub) {
+    if (existing.type === 'apple' && canonicalId === sub) {
       await upsertAppleAccount(db, info);
+    } else {
+      try {
+        await upsertAppleAccount(db, info);
+      } catch (e) {
+        console.warn('resolveAppleSignInSession: apple_accounts upsert skipped', e);
+      }
     }
+
+    const indexSource =
+      existing.type === 'indexed'
+        ? 'mocha'
+        : existing.type === 'email'
+          ? 'email'
+          : existing.type === 'google'
+            ? 'google'
+            : 'apple';
+    await upsertUserEmailIndex(db, email, canonicalId, indexSource);
 
     if (existing.type === 'email') {
       await linkAppleSubOnEmailAccount(db, canonicalId, sub);
@@ -255,7 +294,11 @@ export async function resolveAppleSignInSession(
       return { sessionToken, sessionType: 'email' };
     }
 
-    if (existing.type === 'google') {
+    if (
+      existing.type === 'google' ||
+      existing.type === 'indexed'
+    ) {
+      await ensureGoogleBridgeAccount(db, canonicalId, email, info.name);
       const sessionToken = await createGoogleSession(db, canonicalId);
       return { sessionToken, sessionType: 'google' };
     }
@@ -265,6 +308,7 @@ export async function resolveAppleSignInSession(
   }
 
   await upsertAppleAccount(db, info);
+  await upsertUserEmailIndex(db, email, sub, 'apple');
   const sessionToken = await createAppleSession(db, sub);
   return { sessionToken, sessionType: 'apple' };
 }
