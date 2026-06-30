@@ -9,6 +9,7 @@ import {
 } from '@getmocha/users-service/backend';
 import type { MochaUser } from '@/shared/mocha-user';
 import { validateGoogleSession, revokeGoogleSession } from './google-oauth';
+import { validateAppleSession, revokeAppleSession } from './apple-oauth';
 import { isUserSuspended } from './user-ban-utils';
 import { mochaUserIdKey } from './mocha-user-id';
 
@@ -243,6 +244,16 @@ async function resolveUserFromRequest(c: Context): Promise<MochaUser | null> {
     }
   }
 
+  const appleToken = getCookie(c, 'momentum_apple_session');
+  if (typeof appleToken === 'string' && appleToken.length > 0) {
+    try {
+      const appleUser = await validateAppleSession(c.env.DB, appleToken);
+      if (appleUser) return appleUser;
+    } catch {
+      /* stale apple session */
+    }
+  }
+
   const emailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
   if (typeof emailToken === 'string' && emailToken.length > 0) {
     const account = await validateEmailSession(c.env.DB, emailToken);
@@ -252,7 +263,7 @@ async function resolveUserFromRequest(c: Context): Promise<MochaUser | null> {
   return null;
 }
 
-export { revokeGoogleSession };
+export { revokeGoogleSession, revokeAppleSession };
 
 /**
  * Sets `user` when a valid session exists; always continues (no 401).

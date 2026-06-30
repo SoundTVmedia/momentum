@@ -5,6 +5,7 @@ import { apiFetch } from '@/react-app/lib/apiFetch';
 import {
   exchangeOAuthCodeFromUrl,
   startGoogleSignIn,
+  startAppleSignIn,
 } from '@/react-app/lib/oauth-client';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
 import { Loader2, Mail, Lock, UserCircle } from 'lucide-react';
@@ -154,6 +155,33 @@ export default function Auth() {
     }
   }, [searchParams]);
 
+  // Apple Sign in with Apple returns via Worker redirect (?apple=success).
+  useEffect(() => {
+    if (searchParams.get('apple') !== 'success') return;
+    void (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        await fetchUser();
+        window.history.replaceState({}, document.title, '/auth');
+        setShowRememberDevice(true);
+      } catch (err) {
+        console.error('Apple auth return error:', err);
+        setError('Apple sign-in could not be completed. Please try again.');
+        window.history.replaceState({}, document.title, '/auth');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [searchParams, fetchUser]);
+
+  useEffect(() => {
+    const err = searchParams.get('error');
+    if (!err || err === 'apple_missing_code') return;
+    setError(decodeURIComponent(err.replace(/\+/g, ' ')));
+    window.history.replaceState({}, document.title, '/auth');
+  }, [searchParams]);
+
   const navigateAfterAuth = async (saveDevice: boolean) => {
     if (saveDevice && user) {
       try {
@@ -215,9 +243,17 @@ export default function Auth() {
     }
   };
 
-  const startAppleAuth = () => {
-    // TODO: Wire up Apple OAuth on the Worker (Apple Service ID + key, token verification).
-    setError('Apple sign-in is coming soon.');
+  const startAppleAuth = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      window.location.href = await startAppleSignIn();
+    } catch (err) {
+      console.error(err);
+      const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
+      setError(message);
+      setLoading(false);
+    }
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -412,7 +448,7 @@ export default function Auth() {
 
             <button
               type="button"
-              onClick={startAppleAuth}
+              onClick={() => void startAppleAuth()}
               disabled={loading || emailLoading}
               className="on-light-surface w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-black hover:bg-gray-900 text-white rounded-xl font-semibold text-base shadow-md border border-white/10 transition-colors disabled:opacity-50"
             >

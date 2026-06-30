@@ -6,6 +6,10 @@ async function revokeAllGoogleSessionsForUser(db: D1Database, userId: string): P
   await db.prepare('DELETE FROM google_sessions WHERE user_id = ?').bind(userId).run();
 }
 
+async function revokeAllAppleSessionsForUserLocal(db: D1Database, userId: string): Promise<void> {
+  await db.prepare('DELETE FROM apple_sessions WHERE user_id = ?').bind(userId).run();
+}
+
 export async function purgeUserClips(db: D1Database, userId: string): Promise<void> {
   const clips = await db
     .prepare('SELECT id FROM clips WHERE mocha_user_id = ?')
@@ -62,7 +66,9 @@ export async function purgeUserAccount(
 
   await revokeAllEmailSessionsForUser(db, userId);
   await revokeAllGoogleSessionsForUser(db, userId);
+  await revokeAllAppleSessionsForUserLocal(db, userId);
   await db.prepare('DELETE FROM email_password_resets WHERE user_id = ?').bind(userId).run();
   await db.prepare('DELETE FROM email_accounts WHERE id = ?').bind(userId).run();
   await db.prepare('DELETE FROM google_accounts WHERE id = ?').bind(userId).run();
+  await db.prepare('DELETE FROM apple_accounts WHERE id = ?').bind(userId).run();
 }

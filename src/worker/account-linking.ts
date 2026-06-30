@@ -5,7 +5,29 @@ type EmailAccountRow = {
   email: string;
   display_name: string | null;
   google_sub: string | null;
+  apple_sub?: string | null;
 };
+
+export async function findEmailAccountByOAuthEmail(
+  db: D1Database,
+  email: string,
+): Promise<EmailAccountRow | null> {
+  const normalized = normalizeEmail(email);
+  const row = await db
+    .prepare(
+      'SELECT id, email, display_name, google_sub, apple_sub FROM email_accounts WHERE email = ?',
+    )
+    .bind(normalized)
+    .first<EmailAccountRow>();
+  return row ?? null;
+}
+
+export async function findEmailAccountByGoogleEmail(
+  db: D1Database,
+  email: string,
+): Promise<EmailAccountRow | null> {
+  return findEmailAccountByOAuthEmail(db, email);
+}
 
 /** Tables with a single `mocha_user_id` column to re-point when merging identities. */
 export const MOCHA_USER_ID_TABLES = [
@@ -30,18 +52,19 @@ export const MOCHA_USER_ID_TABLES = [
   'transactions',
 ] as const;
 
-export async function findEmailAccountByGoogleEmail(
+export async function linkAppleSubOnEmailAccount(
   db: D1Database,
-  email: string,
-): Promise<EmailAccountRow | null> {
-  const normalized = normalizeEmail(email);
-  const row = await db
+  emailAccountId: string,
+  appleSub: string,
+): Promise<void> {
+  await db
     .prepare(
-      'SELECT id, email, display_name, google_sub FROM email_accounts WHERE email = ?',
+      `UPDATE email_accounts
+       SET apple_sub = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
     )
-    .bind(normalized)
-    .first<EmailAccountRow>();
-  return row ?? null;
+    .bind(appleSub, emailAccountId)
+    .run();
 }
 
 export async function linkGoogleSubOnEmailAccount(

@@ -56,6 +56,17 @@ interface Env {
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
 
+  /** Sign in with Apple (Services ID + .p8 key). */
+  APPLE_SERVICES_ID?: string;
+  APPLE_TEAM_ID?: string;
+  APPLE_KEY_ID?: string;
+  /** PEM contents of the Apple .p8 private key (use \\n for newlines in wrangler secrets). */
+  APPLE_PRIVATE_KEY?: string;
+  /** iOS bundle id — audience for server-to-server notifications (default com.feedback.app). */
+  APPLE_BUNDLE_ID?: string;
+  /** Raw contents of apple-developer-domain-association file from Apple Developer portal. */
+  APPLE_DOMAIN_ASSOCIATION?: string;
+
   /** Optional — [ACRCloud](https://www.acrcloud.com/) music recognition (preferred when all three are set). */
   ACRCLOUD_HOST?: string;
   ACRCLOUD_ACCESS_KEY?: string;
