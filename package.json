@@ -7,8 +7,11 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "dependencies": {
+    "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor-community/media": "^8.0.1",
     "@capacitor/android": "^7.6.6",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/browser": "^7.0.5",
     "@capacitor/core": "^7.6.6",
     "@capacitor/filesystem": "^7.1.8",
     "@capacitor/geolocation": "^7.1.8",

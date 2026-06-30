@@ -440,6 +440,60 @@ export async function exchangeAppleOAuthCode(
   return resolveAppleSignInSession(c.env.DB, info);
 }
 
+export type AppleNativeSignInBody = {
+  identityToken: string;
+  authorizationCode?: string | null;
+  email?: string | null;
+  givenName?: string | null;
+  familyName?: string | null;
+  user?: string | null;
+};
+
+function parseAppleNativeUserName(body: AppleNativeSignInBody): string | null {
+  const parts = [body.givenName?.trim(), body.familyName?.trim()].filter(Boolean);
+  if (parts.length > 0) {
+    return parts.join(' ');
+  }
+  return parseAppleUserName(body.user ?? null);
+}
+
+/** Native iOS Sign in with Apple — verify identity token (bundle id audience) and create session. */
+export async function exchangeAppleNativeIdentityToken(
+  c: Context<{ Bindings: Env }>,
+  body: AppleNativeSignInBody,
+): Promise<AppleSignInResult> {
+  const identityToken = body.identityToken?.trim();
+  if (!identityToken) {
+    throw new Error('Apple identity token is required');
+  }
+
+  const bundleId = c.env.APPLE_BUNDLE_ID?.trim() || 'com.feedback.app';
+  const idClaims = await verifyAppleJwt(identityToken, bundleId);
+  const sub = typeof idClaims.sub === 'string' ? idClaims.sub : '';
+  const claimEmail =
+    typeof idClaims.email === 'string' ? idClaims.email : undefined;
+  const email = await resolveAppleEmail(c.env.DB, sub, {
+    ...idClaims,
+    email: body.email?.trim() || claimEmail,
+  });
+  if (!sub || !email) {
+    throw new Error('Apple did not return a usable email for this account');
+  }
+
+  const info: AppleUserInfo = {
+    sub,
+    email,
+    email_verified: idClaims.email_verified === true || idClaims.email_verified === 'true',
+    is_private_email:
+      idClaims.is_private_email === true ||
+      idClaims.is_private_email === 'true' ||
+      String(idClaims.is_private_email) === 'true',
+    name: parseAppleNativeUserName(body),
+  };
+
+  return resolveAppleSignInSession(c.env.DB, info);
+}
+
 export async function validateAppleSession(
   db: D1Database,
   rawToken: string,

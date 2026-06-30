@@ -4,9 +4,13 @@ import { useAuth } from '@getmocha/users-service/react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import {
   exchangeOAuthCodeFromUrl,
-  startGoogleSignIn,
-  startAppleSignIn,
+  performAppleSignIn,
+  performGoogleSignIn,
 } from '@/react-app/lib/oauth-client';
+import {
+  NATIVE_OAUTH_CALLBACK_URL,
+} from '@/shared/oauth-redirect';
+import { shouldUseNativeInAppOAuth } from '@/react-app/lib/native-oauth';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
 import { Loader2, Mail, Lock, UserCircle } from 'lucide-react';
 
@@ -230,15 +234,21 @@ export default function Auth() {
     setError(null);
     setLoading(true);
     try {
-      window.location.href = await startGoogleSignIn();
+      await performGoogleSignIn();
+      if (!shouldUseNativeInAppOAuth()) {
+        return;
+      }
+      await fetchUser();
+      setShowRememberDevice(true);
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'Sign-in failed.';
       const hint =
         typeof window !== 'undefined' && message.includes('redirect')
-          ? ` Add ${window.location.origin}/auth/callback in Google Cloud Console if it is missing.`
+          ? ` Add ${NATIVE_OAUTH_CALLBACK_URL} in Google Cloud Console if it is missing.`
           : '';
       setError(message + hint);
+    } finally {
       setLoading(false);
     }
   };
@@ -247,11 +257,17 @@ export default function Auth() {
     setError(null);
     setLoading(true);
     try {
-      window.location.href = await startAppleSignIn();
+      await performAppleSignIn();
+      if (!shouldUseNativeInAppOAuth()) {
+        return;
+      }
+      await fetchUser();
+      setShowRememberDevice(true);
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
       setError(message);
+    } finally {
       setLoading(false);
     }
   };

@@ -21,6 +21,12 @@ const config: CapacitorConfig = {
         'Feedback may access your photo library when you choose clips to upload.',
       NSLocationWhenInUseUsageDescription:
         'Feedback uses your location to match concert clips to nearby venues and JamBase shows.',
+      CFBundleURLTypes: [
+        {
+          CFBundleURLName: 'com.feedback.app',
+          CFBundleURLSchemes: ['com.feedback.app'],
+        },
+      ],
     },
   },
   plugins: {

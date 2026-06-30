@@ -29,6 +29,7 @@ import {
   buildAppleOAuthRedirectUrl,
   clearAppleSessionCookie,
   exchangeAppleOAuthCode,
+  exchangeAppleNativeIdentityToken,
   hasDirectAppleOAuth,
   postAuthRedirectUrl,
   resolveAppleCallbackUrl,
@@ -180,7 +181,7 @@ app.get('/api/oauth/:provider/redirect_url', async (c) => {
 
   if (provider === 'google' && !mochaApiKey && hasDirectGoogleOAuth(c.env)) {
     try {
-      const redirectUrl = buildGoogleOAuthRedirectUrl(c, callbackUrl);
+      const redirectUrl = await buildGoogleOAuthRedirectUrl(c, callbackUrl);
       return c.json({ redirectUrl, callbackUrl }, 200);
     } catch (e) {
       console.error('Direct Google OAuth redirect error', e);
@@ -318,6 +319,88 @@ app.post('/api/auth/apple/callback', async (c) => {
   }
 });
 
+// Native iOS Sign in with Apple (identity token from @capacitor-community/apple-sign-in).
+app.post('/api/auth/apple/native', async (c) => {
+  if (!hasDirectAppleOAuth(c.env)) {
+    return c.json({ error: 'Apple sign-in is not configured.' }, 503);
+  }
+
+  const body = (await c.req.json()) as {
+    identityToken?: string;
+    authorizationCode?: string | null;
+    email?: string | null;
+    givenName?: string | null;
+    familyName?: string | null;
+    user?: string | null;
+  };
+
+  try {
+    const signIn = await exchangeAppleNativeIdentityToken(c, {
+      identityToken: body.identityToken ?? '',
+      authorizationCode: body.authorizationCode ?? null,
+      email: body.email ?? null,
+      givenName: body.givenName ?? null,
+      familyName: body.familyName ?? null,
+      user: body.user ?? null,
+    });
+
+    const local = isLocalDevHost(c);
+    const cookieBase = {
+      httpOnly: true,
+      path: '/',
+      sameSite: local ? ('lax' as const) : ('none' as const),
+      secure: !local,
+      maxAge: 30 * 24 * 60 * 60,
+    };
+
+    const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
+    if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
+      await revokeAppleSession(c.env.DB, staleAppleToken);
+    }
+    clearAppleSessionCookie(c);
+
+    if (signIn.sessionType !== 'google') {
+      const staleGoogleToken = getCookie(c, GOOGLE_SESSION_COOKIE_NAME);
+      if (typeof staleGoogleToken === 'string' && staleGoogleToken.length > 0) {
+        await revokeGoogleSession(c.env.DB, staleGoogleToken);
+      }
+      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, '', { ...cookieBase, maxAge: 0 });
+    }
+
+    if (signIn.sessionType !== 'email') {
+      const staleEmailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
+      if (typeof staleEmailToken === 'string' && staleEmailToken.length > 0) {
+        await revokeEmailSession(c.env.DB, staleEmailToken);
+      }
+      clearEmailSessionCookie(c);
+    }
+
+    if (signIn.sessionType === 'email') {
+      setEmailSessionCookie(c, signIn.sessionToken);
+    } else if (signIn.sessionType === 'google') {
+      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
+    } else {
+      setAppleSessionCookie(c, signIn.sessionToken);
+    }
+
+    return c.json(
+      { success: true, provider: signIn.sessionType },
+      200,
+    );
+  } catch (e) {
+    console.error('Apple native sign-in error:', e);
+    return c.json(
+      {
+        error:
+          e instanceof Error
+            ? e.message
+            : 'Apple sign-in could not be completed.',
+      },
+      502,
+    );
+  }
+});
+
 // Apple server-to-server account lifecycle notifications.
 app.post('/api/auth/apple/notifications', async (c) => {
   return handleAppleServerNotification(c);
@@ -337,7 +420,11 @@ app.get('/.well-known/apple-developer-domain-association.txt', async (c) => {
 
 // Exchange code for session token
 app.post("/api/sessions", async (c) => {
-  const body = (await c.req.json()) as { code?: string; state?: string };
+  const body = (await c.req.json()) as {
+    code?: string;
+    state?: string;
+    redirect_uri?: string;
+  };
 
   if (!body.code) {
     return c.json({ error: "No authorization code provided" }, 400);
@@ -353,41 +440,39 @@ app.post("/api/sessions", async (c) => {
   };
 
   if (hasDirectGoogleOAuth(c.env)) {
-    const stateCookie = getCookie(c, 'google_oauth_state');
-    if (stateCookie) {
-      try {
-        const signIn = await exchangeGoogleOAuthCode(
-          c,
-          body.code,
-          body.state ?? null,
-        );
-        const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
-        if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
-          await revokeAppleSession(c.env.DB, staleAppleToken);
-        }
-        clearAppleSessionCookie(c);
-        if (signIn.sessionType === 'email') {
-          setEmailSessionCookie(c, signIn.sessionToken);
-        } else {
-          setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
-        }
-        setCookie(c, 'google_oauth_state', '', { ...cookieBase, maxAge: 0 });
-        return c.json(
-          { success: true, provider: signIn.sessionType === 'email' ? 'email' : 'google' },
-          200,
-        );
-      } catch (e) {
-        console.error('exchangeGoogleOAuthCode:', e);
-        return c.json(
-          {
-            error:
-              e instanceof Error
-                ? e.message
-                : 'Google sign-in could not be completed.',
-          },
-          502,
-        );
+    try {
+      const signIn = await exchangeGoogleOAuthCode(
+        c,
+        body.code,
+        body.state ?? null,
+        body.redirect_uri ?? null,
+      );
+      const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
+      if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
+        await revokeAppleSession(c.env.DB, staleAppleToken);
       }
+      clearAppleSessionCookie(c);
+      if (signIn.sessionType === 'email') {
+        setEmailSessionCookie(c, signIn.sessionToken);
+      } else {
+        setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
+      }
+      setCookie(c, 'google_oauth_state', '', { ...cookieBase, maxAge: 0 });
+      return c.json(
+        { success: true, provider: signIn.sessionType === 'email' ? 'email' : 'google' },
+        200,
+      );
+    } catch (e) {
+      console.error('exchangeGoogleOAuthCode:', e);
+      return c.json(
+        {
+          error:
+            e instanceof Error
+              ? e.message
+              : 'Google sign-in could not be completed.',
+        },
+        502,
+      );
     }
   }
 

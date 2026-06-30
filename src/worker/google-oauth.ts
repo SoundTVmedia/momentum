@@ -2,7 +2,12 @@ import type { Context } from 'hono';
 import { setCookie, getCookie } from 'hono/cookie';
 import * as nodeCrypto from 'node:crypto';
 import type { MochaUser } from '@/shared/mocha-user';
-import { normalizeOAuthCallbackUrl } from '../shared/oauth-redirect';
+import { normalizeOAuthCallbackUrl, isNativeOAuthCallbackUrl } from '../shared/oauth-redirect';
+import {
+  createOAuthStateToken,
+  consumeOAuthPendingState,
+  saveOAuthPendingState,
+} from './oauth-state-store';
 import { normalizeEmail } from './auth-password-utils';
 import {
   findEmailAccountByGoogleEmail,
@@ -71,8 +76,17 @@ export function resolveOAuthCallbackUrl(
   c: Context<{ Bindings: Env }>,
   redirectBaseQuery?: string,
 ): string {
+  const nativeApp =
+    c.req.query('native_app') === '1' || c.req.query('native_app') === 'true';
+  if (nativeApp) {
+    return normalizeOAuthCallbackUrl('', { native: true });
+  }
+
   const fromQuery = redirectBaseQuery?.trim() || readRedirectFromQuery(c);
   if (fromQuery) {
+    if (isNativeOAuthCallbackUrl(fromQuery)) {
+      return normalizeOAuthCallbackUrl(fromQuery);
+    }
     return normalizeOAuthCallbackUrl(fromQuery);
   }
 
@@ -122,18 +136,19 @@ function oauthStateCookieOptions(c: Context<{ Bindings: Env }>) {
   };
 }
 
-export function buildGoogleOAuthRedirectUrl(
+export async function buildGoogleOAuthRedirectUrl(
   c: Context<{ Bindings: Env }>,
   redirectUri: string,
-): string {
+): Promise<string> {
   const clientId = c.env.GOOGLE_OAUTH_CLIENT_ID!.trim();
-  const state = nodeCrypto.randomBytes(24).toString('hex');
+  const state = createOAuthStateToken();
   setCookie(
     c,
     GOOGLE_OAUTH_STATE_COOKIE,
     JSON.stringify({ state, redirectUri }),
     oauthStateCookieOptions(c),
   );
+  await saveOAuthPendingState(c.env.DB, state, 'google', redirectUri);
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -297,26 +312,57 @@ async function resolveGoogleSignInSession(
   return { sessionToken, sessionType: 'google' };
 }
 
+async function resolveGoogleOAuthState(
+  c: Context<{ Bindings: Env }>,
+  stateFromQuery?: string | null,
+  redirectUriFromBody?: string | null,
+): Promise<{ state: string; redirectUri: string }> {
+  const stateRaw = getCookie(c, GOOGLE_OAUTH_STATE_COOKIE);
+  if (stateRaw) {
+    let parsed: { state?: string; redirectUri?: string };
+    try {
+      parsed = JSON.parse(stateRaw) as { state?: string; redirectUri?: string };
+    } catch {
+      throw new Error('Invalid OAuth state');
+    }
+    if (!parsed.state || !parsed.redirectUri || parsed.state !== stateFromQuery) {
+      throw new Error('OAuth state mismatch. Please try signing in again.');
+    }
+    return { state: parsed.state, redirectUri: parsed.redirectUri };
+  }
+
+  const state = stateFromQuery?.trim();
+  if (!state) {
+    throw new Error('OAuth session expired. Please try signing in again.');
+  }
+
+  const pending = await consumeOAuthPendingState(c.env.DB, state, 'google');
+  if (!pending) {
+    throw new Error('OAuth session expired. Please try signing in again.');
+  }
+
+  if (
+    redirectUriFromBody &&
+    redirectUriFromBody.trim() &&
+    redirectUriFromBody.trim() !== pending.redirectUri
+  ) {
+    throw new Error('OAuth redirect URI mismatch. Please try signing in again.');
+  }
+
+  return { state: pending.state, redirectUri: pending.redirectUri };
+}
+
 export async function exchangeGoogleOAuthCode(
   c: Context<{ Bindings: Env }>,
   code: string,
   stateFromQuery?: string | null,
+  redirectUriFromBody?: string | null,
 ): Promise<GoogleSignInResult> {
-  const stateRaw = getCookie(c, GOOGLE_OAUTH_STATE_COOKIE);
-  if (!stateRaw) {
-    throw new Error('OAuth session expired. Please try signing in again.');
-  }
-
-  let parsed: { state?: string; redirectUri?: string };
-  try {
-    parsed = JSON.parse(stateRaw) as { state?: string; redirectUri?: string };
-  } catch {
-    throw new Error('Invalid OAuth state');
-  }
-
-  if (!parsed.state || !parsed.redirectUri || parsed.state !== stateFromQuery) {
-    throw new Error('OAuth state mismatch. Please try signing in again.');
-  }
+  const { redirectUri } = await resolveGoogleOAuthState(
+    c,
+    stateFromQuery,
+    redirectUriFromBody,
+  );
 
   const clientId = c.env.GOOGLE_OAUTH_CLIENT_ID!.trim();
   const clientSecret = c.env.GOOGLE_OAUTH_CLIENT_SECRET!.trim();
@@ -328,7 +374,7 @@ export async function exchangeGoogleOAuthCode(
       code,
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uri: parsed.redirectUri,
+      redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     }),
   });

@@ -1,4 +1,4 @@
-import { OAUTH_CALLBACK_PATH } from '@/shared/oauth-redirect';
+import { OAUTH_CALLBACK_PATH, NATIVE_OAUTH_CALLBACK_URL } from '@/shared/oauth-redirect';
 
 export function oauthCallbackUrl(): string {
   if (typeof window === 'undefined') {
@@ -87,6 +87,32 @@ export async function startAppleSignIn(): Promise<string> {
   }
   return data.redirectUrl;
 }
+
+/** Google sign-in — in-app on iOS native, full-page redirect on web. */
+export async function performGoogleSignIn(): Promise<void> {
+  const { shouldUseNativeInAppOAuth, performNativeGoogleSignIn } = await import(
+    '@/react-app/lib/native-oauth'
+  );
+  if (shouldUseNativeInAppOAuth()) {
+    await performNativeGoogleSignIn();
+    return;
+  }
+  window.location.href = await startGoogleSignIn();
+}
+
+/** Apple sign-in — native sheet on iOS, web redirect elsewhere. */
+export async function performAppleSignIn(): Promise<void> {
+  const { shouldUseNativeInAppOAuth, performNativeAppleSignIn } = await import(
+    '@/react-app/lib/native-oauth'
+  );
+  if (shouldUseNativeInAppOAuth()) {
+    await performNativeAppleSignIn();
+    return;
+  }
+  window.location.href = await startAppleSignIn();
+}
+
+export { NATIVE_OAUTH_CALLBACK_URL };
 
 /** Exchange ?code= from /auth/callback for an httpOnly session cookie. */
 export async function exchangeOAuthCodeFromUrl(): Promise<void> {
