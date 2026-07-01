@@ -68,12 +68,11 @@ import {
   captureNativePhoto,
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
-import { flushPendingCaptureToDevice } from '@/react-app/lib/upload-outbox/capture-local-save';
+import { completeCaptureHandoff } from '@/react-app/lib/upload-outbox/capture-local-save';
 import {
-  primePendingCaptureVideo,
   writeCaptureHandoffMeta,
-  dispatchPendingCaptureReady,
   captureReviewSearch,
+  dispatchPendingCaptureReady,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
@@ -1996,10 +1995,32 @@ export default function QuickRecordButton({
           isRecordingRef.current = false;
           setIsRecording(false);
           const at = recordingStartedAtRef.current || new Date().toISOString();
+          if (videoFilePath) {
+            try {
+              const blob = await nativeVideoPathToBlob(videoFilePath);
+              if (blob.size > 0) {
+                const fileName = `momentum-${Date.now()}.mp4`;
+                completeCaptureHandoff({
+                  blob,
+                  fileName,
+                  navigate,
+                  recordingStartedAt: at,
+                  nativeVideoPath: videoFilePath,
+                  meta: {},
+                  onReleaseResources: () => releaseAllCaptureResources(),
+                  onAfterNavigate: () => (onAfterCaptureNavigate ?? onClose)?.(),
+                });
+                return;
+              }
+            } catch {
+              /* fall through to path-only handoff */
+            }
+          }
           writeCaptureHandoffMeta({
             recordingStartedAt: at,
             ...(videoFilePath ? { nativeVideoPath: videoFilePath } : {}),
           });
+          (onAfterCaptureNavigate ?? onClose)?.();
           navigate(
             { pathname: '/upload', search: captureReviewSearch() },
             {
@@ -2012,8 +2033,7 @@ export default function QuickRecordButton({
             },
           );
           releaseAllCaptureResources();
-          (onAfterCaptureNavigate ?? onClose)?.();
-          dispatchPendingCaptureReady(at);
+          queueMicrotask(() => dispatchPendingCaptureReady(at));
         }
       })();
       return;
@@ -2196,28 +2216,21 @@ export default function QuickRecordButton({
         ...(prefetchShow ? { showData: clipShowCandidateToNavState(prefetchShow) } : {}),
       };
 
-      primePendingCaptureVideo(blob);
-      writeCaptureHandoffMeta({
+      completeCaptureHandoff({
+        blob,
+        fileName,
+        navigate,
         recordingStartedAt: at,
         nativeVideoPath: opts?.nativeVideoPath,
-        captureGeo: navState.captureGeo,
-        videoMetadata: navState.videoMetadata,
-        auddPrefill,
-        showData: prefetchShow ? clipShowCandidateToNavState(prefetchShow) : undefined,
-      });
-
-      navigate(
-        { pathname: '/upload', search: captureReviewSearch() },
-        { replace: true, state: navState },
-      );
-
-      releaseAllCaptureResources();
-
-      (onAfterCaptureNavigate ?? onClose)?.();
-      dispatchPendingCaptureReady(at);
-
-      void flushPendingCaptureToDevice(blob, fileName, {
-        nativeVideoUri: opts?.nativeVideoPath,
+        meta: {
+          captureGeo: navState.captureGeo,
+          videoMetadata: navState.videoMetadata,
+          auddPrefill,
+          showData: prefetchShow ? clipShowCandidateToNavState(prefetchShow) : undefined,
+        },
+        routerState: navState,
+        onReleaseResources: () => releaseAllCaptureResources(),
+        onAfterNavigate: () => (onAfterCaptureNavigate ?? onClose)?.(),
       });
 
       recordingStartedAtRef.current = null;

@@ -15,8 +15,13 @@ import {
   primePendingCaptureVideo,
   clearCaptureHandoffMeta,
   readCaptureHandoffMeta,
+  dispatchPendingCaptureReady,
+  writeCaptureHandoffMeta,
+  captureReviewSearch,
+  type CaptureHandoffMeta,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
 import { nativeVideoPathToBlob } from '@/react-app/lib/native-capture';
+import type { NavigateFunction } from 'react-router';
 export const PENDING_CAPTURE_JOB_ID = '__momentum_pending_capture__';
 
 /**
@@ -75,7 +80,60 @@ export async function flushPendingCaptureToDevice(
   }
 }
 
-export { blobSourceKey } from '@/react-app/lib/upload-outbox/gallery-save';
+export type CompleteCaptureHandoffOpts = {
+  blob: Blob;
+  fileName: string;
+  navigate: NavigateFunction;
+  recordingStartedAt: string;
+  meta: Omit<CaptureHandoffMeta, 'recordingStartedAt'>;
+  nativeVideoPath?: string;
+  routerState?: Record<string, unknown>;
+  onAfterNavigate?: () => void;
+  onReleaseResources?: () => void;
+};
+
+/**
+ * Upload-outbox handoff: pin blob in memory, write session meta, navigate to caption screen,
+ * then flush IndexedDB + Photos without blocking navigation.
+ */
+export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
+  const {
+    blob,
+    fileName,
+    navigate,
+    recordingStartedAt,
+    meta,
+    nativeVideoPath,
+    routerState,
+    onAfterNavigate,
+    onReleaseResources,
+  } = opts;
+
+  primePendingCaptureVideo(blob);
+  writeCaptureHandoffMeta({ recordingStartedAt, ...meta, nativeVideoPath });
+
+  onReleaseResources?.();
+  onAfterNavigate?.();
+
+  navigate(
+    { pathname: '/upload', search: captureReviewSearch() },
+    {
+      replace: true,
+      state: {
+        recordingStartedAt,
+        fromQuickCapture: true,
+        ...(nativeVideoPath ? { nativeVideoPath } : {}),
+        ...routerState,
+      },
+    },
+  );
+
+  queueMicrotask(() => dispatchPendingCaptureReady(recordingStartedAt));
+
+  void flushPendingCaptureToDevice(blob, fileName, {
+    nativeVideoUri: nativeVideoPath,
+  });
+}
 
 export async function loadPendingCapture(): Promise<StoredUploadBlobs | null> {
   return resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID);

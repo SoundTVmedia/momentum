@@ -48,13 +48,13 @@ import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext'
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import {
-  blobSourceKey,
   clearPendingCapture,
   loadPendingCapture,
   persistClipLocallyOnCapture,
   resolvePendingCaptureForReview,
   PENDING_CAPTURE_JOB_ID,
 } from '@/react-app/lib/upload-outbox/capture-local-save';
+import { blobSourceKey } from '@/react-app/lib/upload-outbox/gallery-save';
 import {
   hasPrimedPendingCapture,
   wantsCaptureReviewScreen,
@@ -711,24 +711,34 @@ export default function UploadClip() {
       }
     }
 
-    // Cleanup blob URL on unmount
+    // Cancel in-flight async hydration when navigation changes
     return () => {
       cancelled = true;
-      if (videoBlobUrl) {
-        URL.revokeObjectURL(videoBlobUrl);
-      }
     };
   }, [location.state, location.search]);
 
   useEffect(() => {
+    if (!wantsCaptureReviewScreen(location.search)) return;
+    setShowQuickCapture(false);
+    setQuickCaptureAwaitUserTap(false);
+  }, [location.search]);
+
+  useEffect(() => {
     const onPendingReady = () => {
-      if (showCaptionScreen || skipNavVideoHydrationRef.current) return;
+      if (skipNavVideoHydrationRef.current) return;
       void (async () => {
         const handoff = readCaptureHandoffMeta();
         const blob = await resolvePendingCaptureForReview({
           nativeVideoPath: handoff?.nativeVideoPath ?? null,
         });
         if (!blob?.size) return;
+        if (skipNavVideoHydrationRef.current) return;
+        const navAt = handoff?.recordingStartedAt ?? null;
+        if (navAt && navAt === lastCaptionFromNavAtRef.current) return;
+
+        skipNavVideoHydrationRef.current = false;
+        lastCaptionFromNavAtRef.current = navAt;
+
         nativeVideoUriRef.current = handoff?.nativeVideoPath ?? null;
         setFormData((prev) => ({ ...prev, video_blob: blob }));
         setUploadMethod('file');
@@ -740,7 +750,7 @@ export default function UploadClip() {
     };
     window.addEventListener(PENDING_CAPTURE_READY_EVENT, onPendingReady);
     return () => window.removeEventListener(PENDING_CAPTURE_READY_EVENT, onPendingReady);
-  }, [showCaptionScreen]);
+  }, []);
   
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
 
@@ -1964,10 +1974,10 @@ export default function UploadClip() {
     const link = jambaseOverride ?? jambaseLink;
     return {
       uploadMethod,
-      videoFile: formData.video_file,
-      videoBlob: formData.video_blob,
-      thumbnailFile: formData.thumbnail_file,
-      videoUrl: formData.video_url,
+      videoFile: form.video_file,
+      videoBlob: form.video_blob,
+      thumbnailFile: form.thumbnail_file,
+      videoUrl: form.video_url,
       classificationId,
       contentFeed,
       captureAudioBlob:
@@ -2416,7 +2426,7 @@ export default function UploadClip() {
   }
 
   // Show quick capture modal if requested (mobile only — desktop uses file upload)
-  if (showQuickCapture && isMobile) {
+  if (showQuickCapture && isMobile && !wantsCaptureReviewScreen(location.search)) {
     return (
       <div className="min-h-screen text-white">
         <QuickRecordButton
@@ -2456,6 +2466,21 @@ export default function UploadClip() {
 
   // CAPTION SCREEN — post-capture review (same post flow as full "Share your moment" via handleSubmit)
   if (showCaptionScreen) {
+    const awaitingCaptureBlob =
+      uploadSource === 'capture' &&
+      !formData.video_blob &&
+      !formData.video_file &&
+      !videoBlobUrl;
+
+    if (awaitingCaptureBlob) {
+      return (
+        <div className="min-h-screen text-white flex flex-col items-center justify-center px-6 text-center">
+          <Loader2 className="w-12 h-12 text-momentum-flare animate-spin mb-4" aria-hidden />
+          <p className="text-gray-300 text-sm">Preparing your clip…</p>
+        </div>
+      );
+    }
+
     const isPrePostClip = isPrePostContentFeed(classifyResult?.content_feed);
     const canPostWithShowDetails = clipManualShowPostReady(formData);
     /** Venue/show fields always visible on main-feed clips — filled in parallel with song ID. */

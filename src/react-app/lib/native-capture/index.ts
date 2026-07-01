@@ -3,7 +3,7 @@
  * Web and Android continue using getUserMedia / MediaRecorder.
  */
 import { Capacitor } from '@capacitor/core';
-import { Filesystem } from '@capacitor/filesystem';
+import { Directory, Filesystem } from '@capacitor/filesystem';
 import { CameraPreview } from '@capgo/camera-preview';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -273,16 +273,24 @@ export async function nativeVideoPathToBlob(filePath: string): Promise<Blob> {
     console.warn('nativeVideoPathToBlob fetch:', err);
   }
 
-  const readCandidates = [
-    trimmed,
-    trimmed.replace(/^file:\/\//, ''),
-    decodeURIComponent(trimmed.replace(/^file:\/\//, '')),
-  ];
+  const readCandidates: Array<{ path: string; directory?: Directory }> = [];
+  const pathPart = trimmed.replace(/^file:\/\//, '');
+  const fileName = pathPart.split('/').pop();
+  if (fileName) {
+    readCandidates.push({ path: fileName, directory: Directory.Documents });
+    readCandidates.push({ path: fileName, directory: Directory.Cache });
+  }
+  readCandidates.push({ path: trimmed });
+  readCandidates.push({ path: pathPart });
+  readCandidates.push({ path: decodeURIComponent(pathPart) });
 
   for (const candidate of readCandidates) {
-    if (!candidate) continue;
+    if (!candidate.path) continue;
     try {
-      const read = await Filesystem.readFile({ path: candidate });
+      const read = await Filesystem.readFile({
+        path: candidate.path,
+        ...(candidate.directory ? { directory: candidate.directory } : {}),
+      });
       let bytes: Uint8Array;
       if (typeof read.data === 'string') {
         const binary = atob(read.data);
