@@ -34,13 +34,32 @@ export function buildNativeAppOAuthDeepLink(queryString: string): string {
 /** Apple Sign in with Apple posts the auth code to this Worker route (form_post). */
 export const APPLE_OAUTH_CALLBACK_PATH = '/api/auth/apple/callback';
 
-export function googleIosUrlSchemeFromClientId(iosClientId: string): string | null {
+export const GOOGLE_IOS_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com';
+
+/**
+ * Google iOS OAuth client ids must end with `.apps.googleusercontent.com`.
+ * Accept the bare hash too — otherwise GIDSignIn expects that hash as the URL scheme and crashes.
+ */
+export function normalizeGoogleIosClientId(iosClientId: string): string | null {
   const trimmed = iosClientId.trim();
-  const suffix = '.apps.googleusercontent.com';
-  if (!trimmed.endsWith(suffix)) {
+  if (!trimmed) {
     return null;
   }
-  return `com.googleusercontent.apps.${trimmed.slice(0, -suffix.length)}`;
+  if (trimmed.endsWith(GOOGLE_IOS_CLIENT_ID_SUFFIX)) {
+    return trimmed;
+  }
+  if (/^[a-z0-9-]+$/i.test(trimmed)) {
+    return `${trimmed}${GOOGLE_IOS_CLIENT_ID_SUFFIX}`;
+  }
+  return null;
+}
+
+export function googleIosUrlSchemeFromClientId(iosClientId: string): string | null {
+  const normalized = normalizeGoogleIosClientId(iosClientId);
+  if (!normalized) {
+    return null;
+  }
+  return `com.googleusercontent.apps.${normalized.slice(0, -GOOGLE_IOS_CLIENT_ID_SUFFIX.length)}`;
 }
 
 export function isNativeOAuthCallbackUrl(url: string): boolean {

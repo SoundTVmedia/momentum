@@ -68,6 +68,7 @@ import {
   captureNativePhoto,
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
+import { persistClipLocallyOnCapture } from '@/react-app/lib/upload-outbox/capture-local-save';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -2126,6 +2127,18 @@ export default function QuickRecordButton({
         captureResolveCandidateRef.current ??
         sticky?.candidate ??
         null;
+
+      const ext =
+        blob.type.includes('mp4') || opts?.nativeVideoPath ? 'mp4' : 'webm';
+      const fileName = `momentum-${Date.now()}.${ext}`;
+      try {
+        await persistClipLocallyOnCapture(blob, fileName, {
+          nativeVideoUri: opts?.nativeVideoPath,
+        });
+      } catch (persistErr) {
+        console.warn('QuickRecordButton: persist clip locally failed', persistErr);
+      }
+
       navigate(
         { pathname: '/upload', search: '' },
         {

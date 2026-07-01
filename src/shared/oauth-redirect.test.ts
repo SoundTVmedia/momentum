@@ -3,6 +3,8 @@ import {
   normalizeOAuthCallbackUrl,
   OAUTH_CALLBACK_PATH,
   resolveAppleOAuthCallbackUrl,
+  normalizeGoogleIosClientId,
+  googleIosUrlSchemeFromClientId,
 } from './oauth-redirect';
 
 describe('normalizeOAuthCallbackUrl', () => {
@@ -34,5 +36,26 @@ describe('resolveAppleOAuthCallbackUrl', () => {
     expect(resolveAppleOAuthCallbackUrl('https://app.example')).toBe(
       'https://app.example/api/auth/apple/callback',
     );
+  });
+});
+
+describe('normalizeGoogleIosClientId', () => {
+  it('accepts full Google iOS client ids', () => {
+    expect(normalizeGoogleIosClientId('abc123.apps.googleusercontent.com')).toBe(
+      'abc123.apps.googleusercontent.com',
+    );
+  });
+
+  it('appends the googleusercontent suffix to bare hashes', () => {
+    expect(normalizeGoogleIosClientId('abc123')).toBe('abc123.apps.googleusercontent.com');
+  });
+});
+
+describe('googleIosUrlSchemeFromClientId', () => {
+  it('returns the reversed client id scheme', () => {
+    expect(googleIosUrlSchemeFromClientId('abc123.apps.googleusercontent.com')).toBe(
+      'com.googleusercontent.apps.abc123',
+    );
+    expect(googleIosUrlSchemeFromClientId('abc123')).toBe('com.googleusercontent.apps.abc123');
   });
 });

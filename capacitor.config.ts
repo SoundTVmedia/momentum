@@ -1,10 +1,12 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 import {
   googleIosUrlSchemeFromClientId,
+  normalizeGoogleIosClientId,
   NATIVE_APP_ID,
 } from './src/shared/oauth-redirect';
 
-const googleIosClientId = process.env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim() ?? '';
+const googleIosClientId =
+  normalizeGoogleIosClientId(process.env.GOOGLE_IOS_OAUTH_CLIENT_ID ?? '') ?? '';
 const googleIosUrlScheme = googleIosClientId
   ? googleIosUrlSchemeFromClientId(googleIosClientId)
   : null;

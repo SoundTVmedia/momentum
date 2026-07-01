@@ -5,6 +5,7 @@ import type { MochaUser } from '@/shared/mocha-user';
 import {
   normalizeOAuthCallbackUrl,
   nativeIosGoogleOAuthCallbackUrl,
+  normalizeGoogleIosClientId,
 } from '../shared/oauth-redirect';
 import {
   createOAuthStateToken,
@@ -471,7 +472,7 @@ export async function exchangeGoogleNativeIdToken(
   }
 
   const webClientId = env.GOOGLE_OAUTH_CLIENT_ID?.trim();
-  const iosClientId = env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim();
+  const iosClientId = normalizeGoogleIosClientId(env.GOOGLE_IOS_OAUTH_CLIENT_ID ?? '');
   if (!webClientId) {
     throw new Error('Google sign-in is not configured on the server.');
   }

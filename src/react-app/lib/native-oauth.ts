@@ -11,6 +11,7 @@ import { Capacitor } from '@capacitor/core';
 import {
   NATIVE_APP_ID,
   nativeIosGoogleOAuthCallbackUrl,
+  normalizeGoogleIosClientId,
 } from '@/shared/oauth-redirect';
 
 async function readApiError(response: Response, fallback: string): Promise<string> {
@@ -93,14 +94,17 @@ export async function initNativeSocialLogin(): Promise<void> {
   }
 
   const config = await readGoogleNativeConfig();
-  if (!config.enabled || !config.webClientId || !config.iOSClientId) {
+  const iosClientId = config.iOSClientId
+    ? normalizeGoogleIosClientId(config.iOSClientId)
+    : null;
+  if (!config.enabled || !config.webClientId || !iosClientId) {
     return;
   }
 
   await SocialLogin.initialize({
     google: {
       webClientId: config.webClientId,
-      iOSClientId: config.iOSClientId,
+      iOSClientId: iosClientId,
       iOSServerClientId: config.webClientId,
       mode: 'online',
     },

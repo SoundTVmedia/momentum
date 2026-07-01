@@ -38,7 +38,7 @@ import {
   setAppleSessionCookie,
 } from "./apple-oauth";
 import { handleAppleServerNotification } from "./apple-notifications";
-import { buildNativeAppOAuthDeepLink } from "../shared/oauth-redirect";
+import { buildNativeAppOAuthDeepLink, normalizeGoogleIosClientId } from "../shared/oauth-redirect";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import { syncMochaUserIdentity } from "./mocha-identity-sync";
 import { isAdmin } from "./admin-auth";
@@ -280,7 +280,7 @@ app.get('/auth/ios-callback', (c) => {
 // Public config for native Google Sign-In (iOS client id is not secret).
 app.get('/api/oauth/google/native-config', (c) => {
   const webClientId = c.env.GOOGLE_OAUTH_CLIENT_ID?.trim() ?? '';
-  const iOSClientId = c.env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim() ?? '';
+  const iOSClientId = normalizeGoogleIosClientId(c.env.GOOGLE_IOS_OAUTH_CLIENT_ID ?? '');
   if (!webClientId || !iOSClientId) {
     return c.json({ enabled: false, webClientId: webClientId || null }, 200);
   }
