@@ -20,6 +20,10 @@ import Header from '@/react-app/components/Header';
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
+  shouldUseNativeIosCapture,
+  startNativeCapturePreview,
+} from '@/react-app/lib/native-capture';
+import {
   primeGeolocationOnUserGesture,
   isGeolocationSecureContext,
   type PrimedCaptureGeo,
@@ -727,6 +731,7 @@ export default function UploadClip() {
 
   useEffect(() => {
     if (!wantsCaptureReviewScreen(location.search)) return;
+    if (skipNavVideoHydrationRef.current) return;
     setShowQuickCapture(false);
     setQuickCaptureAwaitUserTap(false);
   }, [location.search]);
@@ -2088,12 +2093,28 @@ export default function UploadClip() {
   /** Prime geo + camera in the same tap as Share (iOS Safari). Desktop uses file upload only. */
   const openCaptureFromShareGesture = useCallback(() => {
     if (!isMobile) return;
-    const geoPromise = primeGeolocationOnUserGesture();
     setReRecordLaunchGeo(null);
     setReRecordLaunchGeoResolved(false);
     setReRecordPrimedStream(null);
     setReRecordGesturePending(true);
     setShowQuickCapture(true);
+
+    if (shouldUseNativeIosCapture()) {
+      void primeGeolocationOnUserGesture()
+        .then((g) => {
+          setReRecordLaunchGeo(g);
+          setReRecordLaunchGeoResolved(true);
+          return startNativeCapturePreview();
+        })
+        .catch((err) => {
+          console.warn('openCaptureFromShareGesture: native capture failed', err);
+          return startNativeCapturePreview();
+        })
+        .finally(() => setReRecordGesturePending(false));
+      return;
+    }
+
+    const geoPromise = primeGeolocationOnUserGesture();
     void geoPromise
       .then((g) => {
         setReRecordLaunchGeo(g);
@@ -2185,8 +2206,11 @@ export default function UploadClip() {
   const finishAfterQueuedShare = useCallback(() => {
     const wasCaptionScreen = showCaptionScreen;
     skipNavVideoHydrationRef.current = true;
+    pendingRecoveryAttemptedRef.current = true;
+    lastCaptionFromNavAtRef.current = null;
     resetForNextCapture();
     if (wasCaptionScreen && isMobile) {
+      navigate({ pathname: '/upload', search: '' }, { replace: true, state: null });
       setShowQuickCapture(true);
       openCaptureFromShareGesture();
     } else {
@@ -2480,7 +2504,7 @@ export default function UploadClip() {
           autoRequestCamera={!reRecordPrimedStream && !reRecordGesturePending}
           captureLaunchGeo={reRecordLaunchGeo}
           captureLaunchGeoResolved={reRecordLaunchGeoResolved}
-          deferCameraUntilLaunchGeo
+          deferCameraUntilLaunchGeo={!shouldUseNativeIosCapture()}
           onAfterCaptureNavigate={() => {
             reRecordPrimedStream?.getTracks().forEach((t) => t.stop());
             setReRecordPrimedStream(null);
