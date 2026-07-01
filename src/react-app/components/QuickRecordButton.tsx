@@ -54,6 +54,8 @@ import {
   isNativeCapturePreviewRunning,
   startNativeCapturePreview,
   stopNativeCaptureSession,
+  applyNativeCaptureFullScreenPreview,
+  readNativeCaptureViewportSize,
   startNativeVideoRecording,
   stopNativeVideoRecording,
   setNativeCaptureZoom,
@@ -1028,6 +1030,9 @@ export default function QuickRecordButton({
 
     const syncOrientation = () => {
       applyOrientation();
+      if (nativeCaptureActiveRef.current) {
+        void applyNativeCaptureFullScreenPreview();
+      }
       requestAnimationFrame(applyOrientation);
       if (orientationSyncTimerRef.current) {
         clearTimeout(orientationSyncTimerRef.current);
@@ -1035,6 +1040,9 @@ export default function QuickRecordButton({
       orientationSyncTimerRef.current = setTimeout(() => {
         orientationSyncTimerRef.current = null;
         applyOrientation();
+        if (nativeCaptureActiveRef.current) {
+          void applyNativeCaptureFullScreenPreview();
+        }
       }, 300);
     };
 
@@ -2315,11 +2323,14 @@ export default function QuickRecordButton({
       setZoomLevel(zoomState.current);
       zoomLevelRef.current = zoomState.current;
     });
-    setVideoResolution({
-      width: window.screen.width,
-      height: window.screen.height,
-    });
+    setVideoResolution(readNativeCaptureViewportSize());
+    void applyNativeCaptureFullScreenPreview();
   }, [showModal, hasPermission, cameraReady]);
+
+  useEffect(() => {
+    if (!showModal || !shouldUseNativeIosCapture() || !cameraReady) return;
+    void applyNativeCaptureFullScreenPreview();
+  }, [showModal, cameraReady]);
 
   // Trigger camera when modal opens (skip when parent primed stream, or while waiting for launch-time GPS)
   useEffect(() => {
@@ -2805,8 +2816,8 @@ export default function QuickRecordButton({
 
           <div
             className={
-              landscapeCapture
-                ? 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/75 to-transparent pt-8'
+              landscapeCapture || isNativeIosCapture
+                ? 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/70 to-transparent pt-10'
                 : 'pointer-events-none absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/90 backdrop-blur-lg'
             }
             style={{

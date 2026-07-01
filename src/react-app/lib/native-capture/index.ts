@@ -41,27 +41,42 @@ export function shouldUseNativeIosCapture(): boolean {
   return isNativeApp() && getNativePlatform() === 'ios';
 }
 
-/** Bottom chrome height so native preview sits above controls. */
-export function estimateNativeCapturePaddingBottom(): number {
-  if (typeof window === 'undefined') return 160;
-  const portrait = window.innerHeight >= window.innerWidth;
-  return portrait ? 160 : 100;
+/** CSS viewport size for full-bleed native preview (differs from UIScreen bounds). */
+export function readNativeCaptureViewportSize(): { width: number; height: number } {
+  if (typeof window === 'undefined') {
+    return { width: 390, height: 844 };
+  }
+  const width = Math.round(window.innerWidth);
+  const height = Math.round(window.visualViewport?.height ?? window.innerHeight);
+  return { width, height };
+}
+
+/**
+ * Expand native preview to the full web viewport. Capgo defaults to a 4:3 letterboxed
+ * frame with paddingBottom; controls are overlaid in the web layer instead.
+ */
+export async function applyNativeCaptureFullScreenPreview(): Promise<void> {
+  if (!shouldUseNativeIosCapture() || !previewRunning) return;
+  const { width, height } = readNativeCaptureViewportSize();
+  try {
+    await CameraPreview.setPreviewSize({ y: 0, width, height });
+  } catch (err) {
+    console.warn('applyNativeCaptureFullScreenPreview:', err);
+  }
 }
 
 export async function startNativeCapturePreview(opts?: {
   facing?: NativeCaptureFacing;
-  paddingBottom?: number;
 }): Promise<void> {
   if (!shouldUseNativeIosCapture()) return;
-  if (previewRunning) return;
+  if (previewRunning) {
+    await applyNativeCaptureFullScreenPreview();
+    return;
+  }
   if (startPreviewPromise) {
     await startPreviewPromise;
     return;
   }
-
-  const width = window.screen.width;
-  const height = window.screen.height;
-  const paddingBottom = opts?.paddingBottom ?? estimateNativeCapturePaddingBottom();
 
   startPreviewPromise = (async () => {
     try {
@@ -72,19 +87,20 @@ export async function startNativeCapturePreview(opts?: {
         enableVideoMode: true,
         // iOS native plugin reads `cameraMode` (not enableVideoMode) to attach AVCaptureMovieFileOutput.
         cameraMode: true,
-        width,
-        height,
-        paddingBottom,
+        paddingBottom: 0,
+        positioning: 'top',
         rotateWhenOrientationChanged: true,
       } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean });
       previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
       await ensureNativeVideoOutputReady();
+      await applyNativeCaptureFullScreenPreview();
       previewRunning = true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (/already started/i.test(message)) {
         previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
         await ensureNativeVideoOutputReady();
+        await applyNativeCaptureFullScreenPreview();
         previewRunning = true;
         return;
       }
