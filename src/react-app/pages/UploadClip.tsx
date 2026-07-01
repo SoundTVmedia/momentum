@@ -19,10 +19,7 @@ import {
 import Header from '@/react-app/components/Header';
 import QuickRecordButton from '@/react-app/components/QuickRecordButton';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
-import {
-  shouldUseNativeIosCapture,
-  startNativeCapturePreview,
-} from '@/react-app/lib/native-capture';
+import { shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
 import {
   primeGeolocationOnUserGesture,
   isGeolocationSecureContext,
@@ -32,6 +29,7 @@ import { useJamBase } from '@/react-app/hooks/useJamBase';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useGeolocation } from '@/react-app/hooks/useGeolocation';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
+import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 import {
   mergeSongTitleIntoCaption,
@@ -134,6 +132,7 @@ export default function UploadClip() {
   const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
   const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
+  const quickCapture = useQuickCapture();
   const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight, jobs: clipUploadJobs } =
     useClipUploadQueue();
   const isMobile = useIsMobileViewport();
@@ -2090,41 +2089,13 @@ export default function UploadClip() {
     void clearLocalCaptureDraft(opts);
   }, [clearLocalCaptureDraft, videoBlobUrl]);
 
-  /** Prime geo + camera in the same tap as Share (iOS Safari). Desktop uses file upload only. */
-  const openCaptureFromShareGesture = useCallback(() => {
-    if (!isMobile) return;
-    setReRecordLaunchGeo(null);
-    setReRecordLaunchGeoResolved(false);
-    setReRecordPrimedStream(null);
-    setReRecordGesturePending(true);
-    setShowQuickCapture(true);
-
-    if (shouldUseNativeIosCapture()) {
-      void primeGeolocationOnUserGesture()
-        .then((g) => {
-          setReRecordLaunchGeo(g);
-          setReRecordLaunchGeoResolved(true);
-          return startNativeCapturePreview();
-        })
-        .catch((err) => {
-          console.warn('openCaptureFromShareGesture: native capture failed', err);
-          return startNativeCapturePreview();
-        })
-        .finally(() => setReRecordGesturePending(false));
-      return;
-    }
-
-    const geoPromise = primeGeolocationOnUserGesture();
-    void geoPromise
-      .then((g) => {
-        setReRecordLaunchGeo(g);
-        setReRecordLaunchGeoResolved(true);
-        return primeCameraOnUserGesture();
-      })
-      .then((stream) => setReRecordPrimedStream(stream))
-      .catch(() => setReRecordPrimedStream(null))
-      .finally(() => setReRecordGesturePending(false));
-  }, [isMobile]);
+  /** Re-open the global capture overlay (same as bottom-nav Capture) after Share or discard. */
+  const resumeGlobalCaptureAfterReview = useCallback(() => {
+    setShowQuickCapture(false);
+    setQuickCaptureAwaitUserTap(false);
+    navigate({ pathname: '/', search: '' }, { replace: true, state: null });
+    quickCapture.openQuickCapture();
+  }, [navigate, quickCapture]);
 
   const applyPostShareSideEffects = useCallback(
     (
@@ -2210,9 +2181,7 @@ export default function UploadClip() {
     lastCaptionFromNavAtRef.current = null;
     resetForNextCapture();
     if (wasCaptionScreen && isMobile) {
-      navigate({ pathname: '/upload', search: '' }, { replace: true, state: null });
-      setShowQuickCapture(true);
-      openCaptureFromShareGesture();
+      resumeGlobalCaptureAfterReview();
     } else {
       setShowQuickCapture(false);
       if (wasCaptionScreen) {
@@ -2221,7 +2190,7 @@ export default function UploadClip() {
         navigate('/', { replace: true });
       }
     }
-  }, [isMobile, navigate, openCaptureFromShareGesture, resetForNextCapture, showCaptionScreen]);
+  }, [isMobile, navigate, resetForNextCapture, resumeGlobalCaptureAfterReview, showCaptionScreen]);
 
   const handleSubmit = async (e: React.FormEvent | null) => {
     if (e) e.preventDefault();
@@ -2316,13 +2285,11 @@ export default function UploadClip() {
     lastCaptionFromNavAtRef.current = null;
     resetForNextCapture({ discarded: true });
     if (isMobile) {
-      navigate({ pathname: '/upload', search: '' }, { replace: true, state: null });
-      setShowQuickCapture(true);
-      openCaptureFromShareGesture();
+      resumeGlobalCaptureAfterReview();
       return;
     }
     navigate('/', { replace: true });
-  }, [isMobile, navigate, openCaptureFromShareGesture, resetForNextCapture]);
+  }, [isMobile, navigate, resetForNextCapture, resumeGlobalCaptureAfterReview]);
 
   /** Leave upload (e.g. mobile caption screen) and return to the feed; drops in-progress media. */
   const handleCloseUploadToFeed = () => {
