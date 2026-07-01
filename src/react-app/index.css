@@ -31,6 +31,19 @@ body {
   color: var(--text-body);
 }
 
+/* Native iOS camera renders behind the WKWebView — hide routed page paint so the feed
+   does not show through transparent capture chrome. */
+html.native-quick-capture-open .app-route-outlet,
+html.native-quick-capture-open .momentum-ambient {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+html.native-quick-capture-open body {
+  background: transparent !important;
+  background-image: none !important;
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 

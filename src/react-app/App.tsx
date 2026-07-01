@@ -38,6 +38,7 @@ import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
 import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
+import { QuickCaptureProvider } from "@/react-app/contexts/QuickCaptureContext";
 import PendingCaptureRouteRecovery from "@/react-app/components/PendingCaptureRouteRecovery";
 import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
@@ -66,6 +67,7 @@ export default function App() {
         <ClipUploadQueueProvider>
         <NotificationsProvider>
         <Router>
+          <QuickCaptureProvider>
           <PendingCaptureRouteRecovery />
           <Routes>
             <Route element={<AppRouteChrome />}>
@@ -109,6 +111,7 @@ export default function App() {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
+          </QuickCaptureProvider>
         </Router>
         </NotificationsProvider>
         </ClipUploadQueueProvider>

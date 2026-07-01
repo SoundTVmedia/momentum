@@ -15,8 +15,7 @@ import type { ClipWithUser, ExtendedMochaUser, UserProfile } from '@/shared/type
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
 import SuperadminProfileModerationBar from '@/react-app/components/SuperadminProfileModerationBar';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
-import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
-import { useQuickCaptureLauncher } from '@/react-app/hooks/useQuickCaptureLauncher';
+import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { artistPath } from '@/shared/app-paths';
 
@@ -65,7 +64,7 @@ export default function UserProfilePage() {
   const isOwnProfile = user?.id === userId;
   const showSuperadminModeration =
     !isOwnProfile && isSuperAdminUser(extendedUser) && !!userId;
-  const quickCapture = useQuickCaptureLauncher();
+  const quickCapture = useQuickCapture();
 
   const fetchUserProfile = async () => {
     if (!userId) return;
@@ -560,8 +559,6 @@ export default function UserProfilePage() {
           onFollowingChanged={() => void fetchUserProfile()}
         />
       ) : null}
-
-      {isOwnProfile && user ? <QuickCaptureOverlay {...quickCapture} /> : null}
     </div>
   );
 }

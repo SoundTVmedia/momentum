@@ -7,10 +7,9 @@ import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext'
 import NotificationAlertBadge from '@/react-app/components/NotificationAlertBadge';
 import NotificationPanel from '@/react-app/components/NotificationPanel';
 import { hasUnreadNotifications } from '@/react-app/lib/notification-badge';
-import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
 import UserAvatar from './UserAvatar';
 import type { ExtendedMochaUser } from '@/shared/types';
-import { useQuickCaptureLauncher } from '@/react-app/hooks/useQuickCaptureLauncher';
+import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 const SIGN_IN_GRADIENT_STOPS = (
@@ -31,7 +30,7 @@ export default function MobileBottomNav() {
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
   const unreadCount = useUnreadNotificationCount();
   const { jobs: uploadJobs } = useClipUploadQueue();
-  const quickCapture = useQuickCaptureLauncher();
+  const quickCapture = useQuickCapture();
   const [showNotifications, setShowNotifications] = useState(false);
 
   const profilePath = user ? `/users/${user.id}` : '/auth';
@@ -262,8 +261,6 @@ export default function MobileBottomNav() {
           </div>
         </>
       ) : null}
-
-      <QuickCaptureOverlay {...quickCapture} />
     </>
   );
 }

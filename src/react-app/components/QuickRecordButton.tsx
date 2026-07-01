@@ -58,7 +58,6 @@ import {
   stopNativeVideoRecording,
   setNativeCaptureZoom,
   flipNativeCamera,
-  startNativeLiveAudioSegments,
   stopNativeLiveAudioSegments,
   readNativeZoomState,
   nativeVideoPathToBlob,
@@ -1782,15 +1781,11 @@ export default function QuickRecordButton({
   useEffect(() => {
     if (!showModal || !hasPermission || !cameraReady || isRecording) return;
 
-    if (nativeCaptureActiveRef.current && audioEnabled) {
-      liveAuddStoppedRef.current = false;
-      void startNativeLiveAudioSegments((blob) => identifyLiveSegmentBlob(blob));
-      return () => {
-        if (!isRecordingRef.current) {
-          void stopNativeLiveAudioSegments();
-          stopLiveAuddRecorder();
-        }
-      };
+    // Native iOS uses Capgo camera-preview behind the webview. Starting a separate mic
+    // capture (AVAudioSession) during preview triggers the microphone permission sheet and
+    // can interrupt the camera session / make the home feed show through the webview.
+    if (nativeCaptureActiveRef.current) {
+      return;
     }
 
     const stream = streamRef.current;
@@ -2272,8 +2267,24 @@ export default function QuickRecordButton({
   
   // Sync external isOpen prop with internal state
   useEffect(() => {
-    setShowModal(isOpen);
+    if (isOpen) {
+      setShowModal(true);
+      return;
+    }
+    if (showModalRef.current) {
+      closeModal();
+    }
   }, [isOpen]);
+
+  // If capture UI unmounts while native preview is active, stop the native session.
+  useEffect(() => {
+    return () => {
+      if (nativeCaptureActiveRef.current) {
+        void stopNativeCaptureSession();
+        nativeCaptureActiveRef.current = false;
+      }
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const video = videoRef.current;
@@ -2676,7 +2687,7 @@ export default function QuickRecordButton({
       {/* Recording Modal */}
       {showModal && (
         <div
-          className={`fixed inset-0 z-50 h-[100dvh] w-full overflow-hidden ${
+          className={`fixed inset-0 z-[120] h-[100dvh] w-full overflow-hidden ${
             useTransparentNativePreview ? 'bg-transparent' : 'bg-black'
           }`}
         >
