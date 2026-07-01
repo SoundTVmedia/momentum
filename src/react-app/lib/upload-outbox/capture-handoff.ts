@@ -112,3 +112,20 @@ export function captureReviewSearch(): string {
 export function wantsCaptureReviewScreen(search: string): boolean {
   return new URLSearchParams(search).get(CAPTURE_REVIEW_SEARCH_PARAM) === '1';
 }
+
+/** True when the user landed from in-app capture (router state, handoff meta, or review URL). */
+export function isQuickCaptureReviewFlow(
+  search: string,
+  nav?: {
+    videoBlob?: unknown;
+    videoFile?: unknown;
+    fromQuickCapture?: boolean;
+    recordingStartedAt?: string;
+  } | null,
+  handoff?: Pick<CaptureHandoffMeta, 'recordingStartedAt'> | null,
+): boolean {
+  if (wantsCaptureReviewScreen(search)) return true;
+  if (nav?.videoBlob || nav?.fromQuickCapture || nav?.recordingStartedAt) return true;
+  if (handoff?.recordingStartedAt) return true;
+  return false;
+}

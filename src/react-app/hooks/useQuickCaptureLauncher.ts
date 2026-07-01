@@ -65,13 +65,14 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     setShowQuickCapture(true);
 
     if (nativeIos) {
-      void startNativeCapturePreview()
-        .then(() => primeGeolocationOnUserGesture())
+      void primeGeolocationOnUserGesture()
         .then((g) => {
           setCaptureLaunchGeo(g);
+          return startNativeCapturePreview();
         })
         .catch((err) => {
           console.warn('useQuickCaptureLauncher: native capture/geo failed on open', err);
+          return startNativeCapturePreview();
         })
         .finally(() => {
           setCaptureLaunchGeoResolved(true);

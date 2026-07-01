@@ -703,6 +703,28 @@ export default function QuickRecordButton({
     coordsForNearbyVenues,
   ]);
 
+  /** If GPS arrives mid-recording, pin it for upload handoff (common on native iOS). */
+  useEffect(() => {
+    if (!showModal || !isRecording) return;
+    const crd = coordsForNearbyVenues;
+    if (!crd || !Number.isFinite(crd.lat) || !Number.isFinite(crd.lon)) return;
+    const existing = clipGeoAtRecordingStartRef.current;
+    if (
+      existing &&
+      Number.isFinite(existing.latitude) &&
+      Number.isFinite(existing.longitude)
+    ) {
+      return;
+    }
+    clipGeoAtRecordingStartRef.current = {
+      latitude: crd.lat,
+      longitude: crd.lon,
+      city: lastGeoRef.current?.city ?? null,
+      state: lastGeoRef.current?.state ?? null,
+      country: lastGeoRef.current?.country ?? null,
+    };
+  }, [showModal, isRecording, coordsForNearbyVenues]);
+
   useEffect(() => {
     liveStabilizerRef.current.setPriors(liveSongPriors);
   }, [liveSongPriors]);
@@ -2152,8 +2174,24 @@ export default function QuickRecordButton({
       }
 
       const at = recordingStartedAtRef.current || new Date().toISOString();
-      const geo =
+      let geo =
         clipGeoAtRecordingStartRef.current ?? snapshotClipGeoForUpload();
+      if (
+        !geo ||
+        !Number.isFinite(geo.latitude) ||
+        !Number.isFinite(geo.longitude)
+      ) {
+        const device = await readDeviceCoordsForNearbyShows();
+        if (device) {
+          geo = {
+            latitude: device.latitude,
+            longitude: device.longitude,
+            city: null,
+            state: null,
+            country: null,
+          };
+        }
+      }
       clipGeoAtRecordingStartRef.current = null;
 
       const sourceKey = auddSourceKey(blob);

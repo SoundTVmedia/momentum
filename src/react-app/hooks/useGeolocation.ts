@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
+import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 
 interface GeolocationData {
   latitude: number;
@@ -31,8 +33,21 @@ export function useGeolocation() {
     []
   );
 
-  /** Browser GPS only (no reverse geocode). Best for capture / JamBase lat–lon matching. */
+  /** Device GPS (Capacitor on native shell). Best for capture / JamBase lat–lon matching. */
   const getDeviceCoordinates = useCallback(async (): Promise<GeolocationData | null> => {
+    if (isNativeApp()) {
+      const coords = await readDeviceCoordsForNearbyShows();
+      if (!coords) return null;
+      return {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: undefined,
+        city: null,
+        state: null,
+        country: null,
+      };
+    }
+
     try {
       const position = await getCurrentPosition();
       const { latitude, longitude, accuracy } = position.coords;

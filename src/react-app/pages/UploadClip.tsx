@@ -58,6 +58,7 @@ import { blobSourceKey } from '@/react-app/lib/upload-outbox/gallery-save';
 import {
   hasPrimedPendingCapture,
   wantsCaptureReviewScreen,
+  isQuickCaptureReviewFlow,
   readCaptureHandoffMeta,
   PENDING_CAPTURE_READY_EVENT,
   markCaptureDiscarded,
@@ -259,10 +260,10 @@ export default function UploadClip() {
   const [storedClassificationId, setStoredClassificationId] = useState<string | null>(null);
   const classifyAttemptedForSourceKeyRef = useRef<string | null>(null);
 
-  /** Apply GPS from navigation state before paint so resolve-show sees coords on first run. */
+  /** Apply GPS from navigation / handoff before paint so resolve-show sees coords on first run. */
   useLayoutEffect(() => {
+    const handoff = readCaptureHandoffMeta();
     const nav = location.state as {
-      videoBlob?: unknown;
       captureGeo?: {
         latitude: number;
         longitude: number;
@@ -271,12 +272,10 @@ export default function UploadClip() {
         country: string | null;
       };
     } | null | undefined;
-    if (!nav?.videoBlob || !nav.captureGeo) return;
-    const cg = nav.captureGeo;
-    if (Number.isFinite(cg.latitude) && Number.isFinite(cg.longitude)) {
-      setCaptureGeo(cg);
-    }
-  }, [location.state]);
+    const cg = nav?.captureGeo ?? handoff?.captureGeo;
+    if (!cg || !Number.isFinite(cg.latitude) || !Number.isFinite(cg.longitude)) return;
+    setCaptureGeo(cg);
+  }, [location.state, location.search]);
 
   /** Keep hook `location` in sync with capture coords so resolve + fallbacks see the same point. */
   useEffect(() => {
@@ -1202,6 +1201,7 @@ export default function UploadClip() {
     const nav = location.state as {
       videoBlob?: unknown;
       showData?: { jambase_event_id?: string; jambase_venue_id?: string };
+      fromQuickCapture?: boolean;
       recordingStartedAt?: string;
       captureGeo?: {
         latitude: number;
@@ -1212,15 +1212,22 @@ export default function UploadClip() {
       };
     } | null;
 
-    const fromQuick = Boolean(nav?.videoBlob);
-    const isQuickCaption = showCaptionScreen && fromQuick;
+    const handoff = readCaptureHandoffMeta();
+    const fromQuick = isQuickCaptureReviewFlow(location.search, nav, handoff);
+    const isQuickCaption =
+      showCaptionScreen &&
+      (fromQuick || Boolean(formData.video_blob) || uploadSource === 'capture');
 
     const resolveForFile =
       Boolean(formData.video_file && uploadMethod === 'file' && !fromQuick);
 
+    const preloadedShow = nav?.showData ?? handoff?.showData;
     /** Auto-tag from GPS when QuickRecord / session did not preload show data */
     const resolveForAutoTagQuick =
-      isQuickCaption && !nav?.showData && !jambaseLink?.venue && !jambaseLink?.event;
+      isQuickCaption &&
+      !preloadedShow &&
+      !jambaseLink?.venue &&
+      !jambaseLink?.event;
 
     if (!resolveForFile && !resolveForAutoTagQuick) return;
 
@@ -1279,12 +1286,17 @@ export default function UploadClip() {
         }
       } else if (
         (geo == null || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) &&
-        nav?.captureGeo != null &&
-        Number.isFinite(nav.captureGeo.latitude) &&
-        Number.isFinite(nav.captureGeo.longitude)
+        (nav?.captureGeo != null || handoff?.captureGeo != null)
       ) {
-        geo = nav.captureGeo;
-        if (!cancelled) setCaptureGeo(geo);
+        const capGeo = nav?.captureGeo ?? handoff?.captureGeo;
+        if (
+          capGeo &&
+          Number.isFinite(capGeo.latitude) &&
+          Number.isFinite(capGeo.longitude)
+        ) {
+          geo = capGeo;
+          if (!cancelled) setCaptureGeo(geo);
+        }
       }
       if (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude)) {
         const validG = (g: { latitude: number; longitude: number } | null | undefined) =>
@@ -1325,7 +1337,8 @@ export default function UploadClip() {
             setCaptureGeo(geo);
           } else {
             if (!cancelled && showMarksHydrated) {
-              const autoFill = resolveCameraGoingAutoFill(captureMarks, Date.now());
+              const captureMs = Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now();
+              const autoFill = resolveCameraGoingAutoFill(captureMarks, captureMs);
               if (autoFill) {
                 applyClipCandidate(autoFill.candidate);
                 setResolveNotice(null);
@@ -1487,11 +1500,13 @@ export default function UploadClip() {
     jambaseLink?.event,
     jambaseLink?.venue,
     formData.video_file,
+    formData.video_blob,
     uploadMethod,
     showCaptionScreen,
     recordingAtIso,
     captureGeo,
     location.state,
+    location.search,
     lastKnownGeo,
     applyClipCandidate,
     getDeviceCoordinates,
