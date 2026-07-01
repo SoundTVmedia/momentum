@@ -831,7 +831,7 @@ export default function QuickRecordButton({
         primed?.getTracks().forEach((track) => track.stop());
         const facing: 'rear' | 'front' =
           facingOverride === 'user' ? 'front' : 'rear';
-        await startNativeCapturePreview({ facing, withAudio: audioEnabled });
+        await startNativeCapturePreview({ facing, withAudio: true });
         nativeCaptureActiveRef.current = true;
         setPermissionDenied(false);
         setAudioEnabled(true);

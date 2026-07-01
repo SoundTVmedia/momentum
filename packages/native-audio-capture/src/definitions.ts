@@ -7,6 +7,8 @@ export type NativeAudioSegmentEvent = {
 };
 
 export interface NativeAudioCapturePlugin {
+  /** Request mic permission and configure AVAudioSession for Capgo video recording. */
+  prepareForVideoCapture(): Promise<void>;
   start(options?: { segmentDurationMs?: number }): Promise<void>;
   stop(): Promise<void>;
   addListener(

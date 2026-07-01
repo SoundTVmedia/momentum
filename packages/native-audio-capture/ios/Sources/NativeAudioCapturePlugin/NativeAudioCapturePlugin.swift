@@ -11,6 +11,7 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "NativeAudioCapturePlugin"
     public let jsName = "NativeAudioCapture"
     public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "prepareForVideoCapture", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
     ]
@@ -21,6 +22,18 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
     private var isActive = false
     private var currentFileURL: URL?
     private let queue = DispatchQueue(label: "com.feedback.native-audio-capture")
+
+    @objc func prepareForVideoCapture(_ call: CAPPluginCall) {
+        queue.async {
+            self.requestMicrophonePermission { granted in
+                guard granted else {
+                    call.reject("Microphone permission denied")
+                    return
+                }
+                call.resolve()
+            }
+        }
+    }
 
     @objc func start(_ call: CAPPluginCall) {
         let segmentMs = call.getInt("segmentDurationMs") ?? 5000

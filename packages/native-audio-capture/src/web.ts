@@ -2,6 +2,10 @@ import { WebPlugin } from '@capacitor/core';
 import type { NativeAudioCapturePlugin } from './definitions';
 
 export class NativeAudioCaptureWeb extends WebPlugin implements NativeAudioCapturePlugin {
+  async prepareForVideoCapture(): Promise<void> {
+    /* no-op on web */
+  }
+
   async start(): Promise<void> {
     console.warn('NativeAudioCapture: not available on web');
   }

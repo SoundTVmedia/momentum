@@ -39,6 +39,37 @@ async function ensureNativeVideoOutputReady(): Promise<void> {
   }
 }
 
+/** Mic permission + AVAudioSession before Capgo attaches AVCapture audio input. */
+async function ensureNativeCaptureAudioReady(): Promise<void> {
+  if (!shouldUseNativeIosCapture()) return;
+  await NativeAudioCapture.prepareForVideoCapture();
+}
+
+async function runCameraPreviewStart(
+  withAudio: boolean,
+  opts?: { facing?: NativeCaptureFacing },
+): Promise<void> {
+  if (withAudio) {
+    await ensureNativeCaptureAudioReady();
+  }
+  await CameraPreview.start({
+    position: opts?.facing ?? 'rear',
+    toBack: true,
+    disableAudio: !withAudio,
+    enableVideoMode: true,
+    // iOS native plugin reads `cameraMode` (not enableVideoMode) to attach AVCaptureMovieFileOutput.
+    cameraMode: true,
+    paddingBottom: 0,
+    positioning: 'top',
+    rotateWhenOrientationChanged: true,
+  } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean });
+  previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
+  await ensureNativeVideoOutputReady();
+  await applyNativeCaptureFullScreenPreview();
+  previewRunning = true;
+  previewAudioEnabled = withAudio;
+}
+
 export function shouldUseNativeIosCapture(): boolean {
   return isNativeApp() && getNativePlatform() === 'ios';
 }
@@ -95,30 +126,18 @@ export async function startNativeCapturePreview(opts?: {
 
   startPreviewPromise = (async () => {
     try {
-      await CameraPreview.start({
-        position: opts?.facing ?? 'rear',
-        toBack: true,
-        disableAudio: !withAudio,
-        enableVideoMode: true,
-        // iOS native plugin reads `cameraMode` (not enableVideoMode) to attach AVCaptureMovieFileOutput.
-        cameraMode: true,
-        paddingBottom: 0,
-        positioning: 'top',
-        rotateWhenOrientationChanged: true,
-      } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean });
-      previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
-      await ensureNativeVideoOutputReady();
-      await applyNativeCaptureFullScreenPreview();
-      previewRunning = true;
-      previewAudioEnabled = withAudio;
+      await runCameraPreviewStart(withAudio, opts);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (/already started/i.test(message)) {
-        previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
-        await ensureNativeVideoOutputReady();
-        await applyNativeCaptureFullScreenPreview();
-        previewRunning = true;
-        previewAudioEnabled = withAudio;
+        try {
+          await CameraPreview.stop();
+        } catch {
+          /* ignore */
+        }
+        previewRunning = false;
+        previewAudioEnabled = false;
+        await runCameraPreviewStart(withAudio, opts);
         return;
       }
       throw err;
@@ -205,9 +224,12 @@ export async function captureNativePhoto(): Promise<Blob> {
 
 export async function startNativeVideoRecording(): Promise<void> {
   if (!previewRunning || recordingActive) return;
+  if (previewAudioEnabled) {
+    await ensureNativeCaptureAudioReady();
+  }
   await ensureNativeVideoOutputReady();
   await CameraPreview.startRecordVideo({
-    disableAudio: false,
+    disableAudio: !previewAudioEnabled,
     storeToFile: true,
   });
   recordingActive = true;

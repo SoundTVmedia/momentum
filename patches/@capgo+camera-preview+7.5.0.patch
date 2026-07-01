@@ -1,0 +1,117 @@
+diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
+index 5dec305..3115636 100644
+--- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
++++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
+@@ -250,6 +250,17 @@ extension CameraController {
+                 self.requestedAspectRatio = aspectRatio
+                 self.configureSessionPreset(for: aspectRatio)
+ 
++                // Configure AVAudioSession before attaching mic input (Capgo previously skipped this).
++                if !disableAudio {
++                    let audioSession = AVAudioSession.sharedInstance()
++                    try audioSession.setCategory(
++                        .playAndRecord,
++                        mode: .videoRecording,
++                        options: [.defaultToSpeaker, .allowBluetoothHFP]
++                    )
++                    try audioSession.setActive(true)
++                }
++
+                 // Configure device inputs
+                 try self.configureDeviceInputs(cameraPosition: cameraPosition, deviceId: deviceId, disableAudio: disableAudio)
+ 
+@@ -416,13 +427,17 @@ extension CameraController {
+             if self.audioDevice == nil {
+                 self.audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
+             }
+-            if let audioDevice = self.audioDevice {
+-                self.audioInput = try AVCaptureDeviceInput(device: audioDevice)
+-                if captureSession.canAddInput(self.audioInput!) {
+-                    captureSession.addInput(self.audioInput!)
+-                } else {
+-                    throw CameraControllerError.inputsAreInvalid
+-                }
++            guard let audioDevice = self.audioDevice else {
++                print("[CameraPreview] No audio capture device available")
++                throw CameraControllerError.inputsAreInvalid
++            }
++            self.audioInput = try AVCaptureDeviceInput(device: audioDevice)
++            if captureSession.canAddInput(self.audioInput!) {
++                captureSession.addInput(self.audioInput!)
++                print("[CameraPreview] Audio input attached for video recording")
++            } else {
++                print("[CameraPreview] Cannot add audio input to capture session")
++                throw CameraControllerError.inputsAreInvalid
+             }
+         }
+     }
+diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
+index d7a333f..68eae72 100644
+--- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
++++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
+@@ -588,30 +588,49 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+         AVCaptureDevice.requestAccess(for: .video, completionHandler: { (granted: Bool) in
+ 
+             guard granted else {
++                self.isInitializing = false
+                 call.reject("permission failed")
+                 return
+             }
+ 
+-            if self.cameraController.captureSession?.isRunning ?? false {
+-                call.reject("camera already started")
+-            } else {
+-                self.cameraController.prepare(cameraPosition: self.cameraPosition, deviceId: deviceId, disableAudio: self.disableAudio, cameraMode: cameraMode, aspectRatio: self.aspectRatio, initialZoomLevel: initialZoomLevel) {error in
+-                    if let error = error {
+-                        print(error)
+-                        call.reject(error.localizedDescription)
+-                        return
+-                    }
++            let beginPrepare = {
++                if self.cameraController.captureSession?.isRunning ?? false {
++                    self.isInitializing = false
++                    call.reject("camera already started")
++                } else {
++                    self.cameraController.prepare(cameraPosition: self.cameraPosition, deviceId: deviceId, disableAudio: self.disableAudio, cameraMode: cameraMode, aspectRatio: self.aspectRatio, initialZoomLevel: initialZoomLevel) {error in
++                        if let error = error {
++                            print(error)
++                            self.isInitializing = false
++                            call.reject(error.localizedDescription)
++                            return
++                        }
+ 
+-                    DispatchQueue.main.async {
+-                        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+-                        NotificationCenter.default.addObserver(self,
+-                                                               selector: #selector(self.handleOrientationChange),
+-                                                               name: UIDevice.orientationDidChangeNotification,
+-                                                               object: nil)
+-                        self.completeStartCamera(call: call)
++                        DispatchQueue.main.async {
++                            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
++                            NotificationCenter.default.addObserver(self,
++                                                                   selector: #selector(self.handleOrientationChange),
++                                                                   name: UIDevice.orientationDidChangeNotification,
++                                                                   object: nil)
++                            self.completeStartCamera(call: call)
++                        }
+                     }
+                 }
+             }
++
++            if self.disableAudio {
++                beginPrepare()
++                return
++            }
++
++            AVAudioSession.sharedInstance().requestRecordPermission { micGranted in
++                guard micGranted else {
++                    self.isInitializing = false
++                    call.reject("microphone permission failed")
++                    return
++                }
++                beginPrepare()
++            }
+         })
+     }
+ 
