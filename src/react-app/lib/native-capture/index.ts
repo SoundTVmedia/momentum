@@ -23,6 +23,7 @@ export type NativeZoomState = {
 };
 
 let previewRunning = false;
+let previewAudioEnabled = false;
 let recordingActive = false;
 let startPreviewPromise: Promise<void> | null = null;
 let audioListener: PluginListenerHandle | null = null;
@@ -68,15 +69,28 @@ export async function applyNativeCaptureFullScreenPreview(): Promise<void> {
 
 export async function startNativeCapturePreview(opts?: {
   facing?: NativeCaptureFacing;
+  /** When false, preview starts without mic (no audio in recorded video). Default true. */
+  withAudio?: boolean;
 }): Promise<void> {
   if (!shouldUseNativeIosCapture()) return;
+  const withAudio = opts?.withAudio !== false;
+
   if (previewRunning) {
-    await applyNativeCaptureFullScreenPreview();
-    return;
+    if (previewAudioEnabled === withAudio) {
+      await applyNativeCaptureFullScreenPreview();
+      return;
+    }
+    await stopNativeCaptureSession();
   }
   if (startPreviewPromise) {
     await startPreviewPromise;
-    return;
+    if (previewRunning && previewAudioEnabled === withAudio) {
+      await applyNativeCaptureFullScreenPreview();
+      return;
+    }
+    if (previewRunning && previewAudioEnabled !== withAudio) {
+      await stopNativeCaptureSession();
+    }
   }
 
   startPreviewPromise = (async () => {
@@ -84,7 +98,7 @@ export async function startNativeCapturePreview(opts?: {
       await CameraPreview.start({
         position: opts?.facing ?? 'rear',
         toBack: true,
-        disableAudio: true,
+        disableAudio: !withAudio,
         enableVideoMode: true,
         // iOS native plugin reads `cameraMode` (not enableVideoMode) to attach AVCaptureMovieFileOutput.
         cameraMode: true,
@@ -96,6 +110,7 @@ export async function startNativeCapturePreview(opts?: {
       await ensureNativeVideoOutputReady();
       await applyNativeCaptureFullScreenPreview();
       previewRunning = true;
+      previewAudioEnabled = withAudio;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (/already started/i.test(message)) {
@@ -103,6 +118,7 @@ export async function startNativeCapturePreview(opts?: {
         await ensureNativeVideoOutputReady();
         await applyNativeCaptureFullScreenPreview();
         previewRunning = true;
+        previewAudioEnabled = withAudio;
         return;
       }
       throw err;
@@ -133,6 +149,7 @@ export async function stopNativeCaptureSession(): Promise<void> {
     previewRunning = false;
   }
   previewRecordingReadyAt = 0;
+  previewAudioEnabled = false;
 }
 
 export function isNativeCapturePreviewRunning(): boolean {
