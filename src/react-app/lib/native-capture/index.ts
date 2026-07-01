@@ -26,6 +26,16 @@ let recordingActive = false;
 let startPreviewPromise: Promise<void> | null = null;
 let audioListener: PluginListenerHandle | null = null;
 let onAudioSegmentHandler: ((blob: Blob) => void) | null = null;
+/** Capgo adds AVCaptureMovieFileOutput on a background queue after preview start. */
+const NATIVE_VIDEO_OUTPUT_READY_MS = 750;
+let previewRecordingReadyAt = 0;
+
+async function ensureNativeVideoOutputReady(): Promise<void> {
+  const remaining = previewRecordingReadyAt - Date.now();
+  if (remaining > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remaining));
+  }
+}
 
 export function shouldUseNativeIosCapture(): boolean {
   return isNativeApp() && getNativePlatform() === 'ios';
@@ -60,15 +70,21 @@ export async function startNativeCapturePreview(opts?: {
         toBack: true,
         disableAudio: true,
         enableVideoMode: true,
+        // iOS native plugin reads `cameraMode` (not enableVideoMode) to attach AVCaptureMovieFileOutput.
+        cameraMode: true,
         width,
         height,
         paddingBottom,
         rotateWhenOrientationChanged: true,
-      });
+      } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean });
+      previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
+      await ensureNativeVideoOutputReady();
       previewRunning = true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (/already started/i.test(message)) {
+        previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
+        await ensureNativeVideoOutputReady();
         previewRunning = true;
         return;
       }
@@ -99,6 +115,7 @@ export async function stopNativeCaptureSession(): Promise<void> {
     }
     previewRunning = false;
   }
+  previewRecordingReadyAt = 0;
 }
 
 export function isNativeCapturePreviewRunning(): boolean {
@@ -154,6 +171,7 @@ export async function captureNativePhoto(): Promise<Blob> {
 
 export async function startNativeVideoRecording(): Promise<void> {
   if (!previewRunning || recordingActive) return;
+  await ensureNativeVideoOutputReady();
   await CameraPreview.startRecordVideo({
     disableAudio: false,
     storeToFile: true,
