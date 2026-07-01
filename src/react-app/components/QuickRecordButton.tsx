@@ -2611,7 +2611,6 @@ export default function QuickRecordButton({
           <CameraZoomControls
             presets={zoomPresets}
             value={zoomLevel}
-            disabled={isRecording}
             onSelect={(z) => void handleZoomSelect(z)}
           />
         </div>
