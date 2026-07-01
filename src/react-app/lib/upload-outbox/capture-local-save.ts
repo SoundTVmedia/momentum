@@ -15,6 +15,7 @@ import {
   primePendingCaptureVideo,
   clearCaptureHandoffMeta,
   readCaptureHandoffMeta,
+  clearCaptureDiscardedMarker,
   dispatchPendingCaptureReady,
   writeCaptureHandoffMeta,
   captureReviewSearch,
@@ -110,6 +111,7 @@ export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
   } = opts;
 
   primePendingCaptureVideo(blob);
+  clearCaptureDiscardedMarker();
   writeCaptureHandoffMeta({ recordingStartedAt, ...meta, nativeVideoPath });
 
   onReleaseResources?.();

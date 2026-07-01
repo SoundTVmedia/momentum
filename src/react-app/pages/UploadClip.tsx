@@ -60,6 +60,8 @@ import {
   wantsCaptureReviewScreen,
   readCaptureHandoffMeta,
   PENDING_CAPTURE_READY_EVENT,
+  markCaptureDiscarded,
+  wasCaptureRecentlyDiscarded,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
 import { peekCachedOutboxBlobs } from '@/react-app/lib/upload-outbox/blob-store';
 import {
@@ -139,9 +141,12 @@ export default function UploadClip() {
   const nativeVideoUriRef = useRef<string | null>(null);
   const pendingRecoveryAttemptedRef = useRef(false);
 
-  const clearLocalCaptureDraft = useCallback(() => {
+  const clearLocalCaptureDraft = useCallback((opts?: { discarded?: boolean }) => {
     galleryCaptureKeyRef.current = null;
     nativeVideoUriRef.current = null;
+    if (opts?.discarded) {
+      markCaptureDiscarded();
+    }
     void clearPendingCapture();
     void clearCaptionDraft();
   }, []);
@@ -356,6 +361,7 @@ export default function UploadClip() {
   // Sync hydrate from upload-outbox memory cache before first paint (iOS router state often drops Blobs).
   useLayoutEffect(() => {
     if (skipNavVideoHydrationRef.current) return;
+    if (wasCaptureRecentlyDiscarded() && !hasPrimedPendingCapture()) return;
     if (!wantsCaptureReviewScreen(location.search) && !hasPrimedPendingCapture()) return;
 
     const pending = peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
@@ -420,6 +426,9 @@ export default function UploadClip() {
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
     let cancelled = false;
+
+    if (skipNavVideoHydrationRef.current) return;
+    if (wasCaptureRecentlyDiscarded() && !hasPrimedPendingCapture()) return;
 
     const handoff = readCaptureHandoffMeta();
     const routerState = location.state as {
@@ -779,6 +788,7 @@ export default function UploadClip() {
   useEffect(() => {
     if (!user || isPending || pendingRecoveryAttemptedRef.current) return;
     if (skipNavVideoHydrationRef.current) return;
+    if (wasCaptureRecentlyDiscarded()) return;
     const nav = location.state as {
       videoBlob?: unknown;
       videoFile?: unknown;
@@ -2008,7 +2018,7 @@ export default function UploadClip() {
     ],
   );
 
-  const resetForNextCapture = useCallback(() => {
+  const resetForNextCapture = useCallback((opts?: { discarded?: boolean }) => {
     if (videoBlobUrl) {
       URL.revokeObjectURL(videoBlobUrl);
       setVideoBlobUrl(null);
@@ -2057,7 +2067,7 @@ export default function UploadClip() {
     setUploadSource('capture');
     setLibraryFileMeta(null);
     setLibraryMetaReady(false);
-    void clearLocalCaptureDraft();
+    void clearLocalCaptureDraft(opts);
   }, [clearLocalCaptureDraft, videoBlobUrl]);
 
   /** Prime geo + camera in the same tap as Share (iOS Safari). Desktop uses file upload only. */
@@ -2261,8 +2271,27 @@ export default function UploadClip() {
     finishAfterQueuedShare();
   };
 
+  const handleDiscardCapture = useCallback(() => {
+    skipNavVideoHydrationRef.current = true;
+    pendingRecoveryAttemptedRef.current = true;
+    lastCaptionFromNavAtRef.current = null;
+    resetForNextCapture({ discarded: true });
+    if (isMobile) {
+      navigate({ pathname: '/upload', search: '' }, { replace: true, state: null });
+      setShowQuickCapture(true);
+      openCaptureFromShareGesture();
+      return;
+    }
+    navigate('/', { replace: true });
+  }, [isMobile, navigate, openCaptureFromShareGesture, resetForNextCapture]);
+
   /** Leave upload (e.g. mobile caption screen) and return to the feed; drops in-progress media. */
   const handleCloseUploadToFeed = () => {
+    if (showCaptionScreen && uploadSource === 'capture') {
+      handleDiscardCapture();
+      return;
+    }
+
     if (videoBlobUrl) {
       URL.revokeObjectURL(videoBlobUrl);
       setVideoBlobUrl(null);
@@ -2290,7 +2319,7 @@ export default function UploadClip() {
     auddAttemptedForSourceKeyRef.current = null;
     setAuddStatus('idle');
     setAuddMessage(null);
-    void clearLocalCaptureDraft();
+    void clearLocalCaptureDraft({ discarded: true });
     navigate('/', { replace: true });
   };
 
@@ -2535,7 +2564,7 @@ export default function UploadClip() {
               type="button"
               onClick={handleCloseUploadToFeed}
               className="shrink-0 flex items-center justify-center p-2.5 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 active:scale-95 transition-transform"
-              aria-label="Close and go to feed"
+              aria-label="Discard clip and record again"
             >
               <X className="w-6 h-6" />
             </button>

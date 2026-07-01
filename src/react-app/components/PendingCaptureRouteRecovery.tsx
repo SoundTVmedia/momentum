@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { loadPendingCapture } from '@/react-app/lib/upload-outbox/capture-local-save';
-import { captureReviewSearch } from '@/react-app/lib/upload-outbox/capture-handoff';
+import { captureReviewSearch, wasCaptureRecentlyDiscarded } from '@/react-app/lib/upload-outbox/capture-handoff';
 
 /** Send users back to /upload when a pre-Share clip is still on this device. */
 export default function PendingCaptureRouteRecovery() {
@@ -28,6 +28,7 @@ export default function PendingCaptureRouteRecovery() {
 
     let cancelled = false;
     void (async () => {
+      if (wasCaptureRecentlyDiscarded()) return;
       const pending = await loadPendingCapture();
       if (cancelled || !pending?.video) return;
       navigate({ pathname: '/upload', search: captureReviewSearch() }, { replace: true });

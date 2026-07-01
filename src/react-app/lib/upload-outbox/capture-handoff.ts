@@ -4,6 +4,7 @@ import { PENDING_CAPTURE_JOB_ID } from '@/react-app/lib/upload-outbox/capture-lo
 import type { AudDNavPrefill } from '@/react-app/utils/auddIdentify';
 
 export const CAPTURE_HANDOFF_SESSION_KEY = 'momentum_capture_handoff_v1';
+export const CAPTURE_DISCARDED_SESSION_KEY = 'momentum_capture_discarded_v1';
 export const CAPTURE_REVIEW_SEARCH_PARAM = 'reviewCapture';
 export const PENDING_CAPTURE_READY_EVENT = 'momentum:pending-capture-ready';
 
@@ -61,6 +62,38 @@ export function clearCaptureHandoffMeta(): void {
     sessionStorage.removeItem(CAPTURE_HANDOFF_SESSION_KEY);
   } catch {
     /* ignore */
+  }
+}
+
+/** Prevents route recovery from sending the user back to a clip they just discarded. */
+export function markCaptureDiscarded(): void {
+  try {
+    sessionStorage.setItem(CAPTURE_DISCARDED_SESSION_KEY, String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearCaptureDiscardedMarker(): void {
+  try {
+    sessionStorage.removeItem(CAPTURE_DISCARDED_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function wasCaptureRecentlyDiscarded(maxAgeMs = 120_000): boolean {
+  try {
+    const raw = sessionStorage.getItem(CAPTURE_DISCARDED_SESSION_KEY);
+    if (!raw) return false;
+    const at = Number(raw);
+    if (!Number.isFinite(at) || Date.now() - at > maxAgeMs) {
+      sessionStorage.removeItem(CAPTURE_DISCARDED_SESSION_KEY);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
