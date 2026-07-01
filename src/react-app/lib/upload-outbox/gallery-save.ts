@@ -43,13 +43,17 @@ export async function saveClipToDeviceGallery(
   if (isNativeApp()) {
     try {
       if (opts?.nativeVideoUri) {
-        await saveNativeVideoUriToGallery(opts.nativeVideoUri, fileName);
-        savedGalleryKeys.add(sourceKey);
-        return {
-          saved: true,
-          method: 'native',
-          nativeCachePath: opts.nativeVideoUri,
-        };
+        try {
+          await saveNativeVideoUriToGallery(opts.nativeVideoUri, fileName);
+          savedGalleryKeys.add(sourceKey);
+          return {
+            saved: true,
+            method: 'native',
+            nativeCachePath: opts.nativeVideoUri,
+          };
+        } catch (nativeUriErr) {
+          console.warn('saveClipToDeviceGallery native uri:', nativeUriErr);
+        }
       }
       const cachePath = await writeVideoToNativeCache(video, fileName);
       await saveVideoToGallery(cachePath, fileName);

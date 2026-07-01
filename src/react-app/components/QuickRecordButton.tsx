@@ -68,6 +68,7 @@ import {
   captureNativePhoto,
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
+import { persistClipLocallyOnCapture } from '@/react-app/lib/upload-outbox/capture-local-save';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -174,6 +175,8 @@ export default function QuickRecordButton({
   const isRecordingRef = useRef(false);
   const liveStabilizerRef = useRef(new LiveSongStabilizer());
   const nativeCaptureActiveRef = useRef(false);
+  /** True while finishing a native clip (persist + navigate) — blocks unmount cleanup. */
+  const nativeCaptureFinishingRef = useRef(false);
   /** Stabilized song/artist used as caption prefill fallback (not shown on camera). */
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -1973,7 +1976,13 @@ export default function QuickRecordButton({
             timerRef.current = null;
           }
           const blob = await nativeVideoPathToBlob(videoFilePath);
-          await handleRecordingComplete(blob, { nativeVideoPath: videoFilePath });
+          if (!blob.size) {
+            throw new Error('Recorded video is empty');
+          }
+          await handleRecordingComplete(blob, {
+            nativeVideoPath: videoFilePath,
+            skipAudd: true,
+          });
         } catch (err) {
           console.error('Native stop recording failed:', err);
           isRecordingRef.current = false;
@@ -2038,6 +2047,14 @@ export default function QuickRecordButton({
     blob: Blob,
     opts?: { skipAudd?: boolean; nativeVideoPath?: string },
   ) => {
+    if (!blob.size) {
+      setCameraError('Could not read your recording. Try again.');
+      isRecordingRef.current = false;
+      setIsRecording(false);
+      return;
+    }
+
+    nativeCaptureFinishingRef.current = true;
     try {
       const par = auddParallelAudioRecorderRef.current;
       if (
@@ -2087,8 +2104,6 @@ export default function QuickRecordButton({
         }
       }
 
-      releaseAllCaptureResources();
-
       const at = recordingStartedAtRef.current || new Date().toISOString();
       const geo =
         clipGeoAtRecordingStartRef.current ?? snapshotClipGeoForUpload();
@@ -2126,36 +2141,46 @@ export default function QuickRecordButton({
         captureResolveCandidateRef.current ??
         sticky?.candidate ??
         null;
-      navigate(
-        { pathname: '/upload', search: '' },
-        {
-          replace: true,
-          state: {
-            videoBlob: blob,
-            ...(opts?.nativeVideoPath ? { nativeVideoPath: opts.nativeVideoPath } : {}),
-            captureAudioBlob,
-            recordingStartedAt: at,
-            captureGeo: geo
-              ? {
-                  latitude: geo.latitude,
-                  longitude: geo.longitude,
-                  city: geo.city,
-                  state: geo.state,
-                  country: geo.country,
-                }
-              : null,
-            videoMetadata: {
-              recording_orientation: recordingOrientation,
-              video_resolution_w: videoResolution.width,
-              video_resolution_h: videoResolution.height,
-            },
-            auddPrefill,
-            ...(prefetchShow
-              ? { showData: clipShowCandidateToNavState(prefetchShow) }
-              : {}),
-          },
+
+      const ext =
+        blob.type.includes('mp4') || opts?.nativeVideoPath ? 'mp4' : 'webm';
+      const fileName = `momentum-${Date.now()}.${ext}`;
+      try {
+        await persistClipLocallyOnCapture(blob, fileName, {
+          nativeVideoUri: opts?.nativeVideoPath,
+        });
+      } catch (persistErr) {
+        console.warn('QuickRecordButton: persist clip locally failed', persistErr);
+      }
+
+      const navState = {
+        videoBlob: blob,
+        ...(opts?.nativeVideoPath ? { nativeVideoPath: opts.nativeVideoPath } : {}),
+        captureAudioBlob,
+        recordingStartedAt: at,
+        fromQuickCapture: true,
+        captureGeo: geo
+          ? {
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+              city: geo.city,
+              state: geo.state,
+              country: geo.country,
+            }
+          : null,
+        videoMetadata: {
+          recording_orientation: recordingOrientation,
+          video_resolution_w: videoResolution.width,
+          video_resolution_h: videoResolution.height,
         },
-      );
+        auddPrefill,
+        ...(prefetchShow ? { showData: clipShowCandidateToNavState(prefetchShow) } : {}),
+      };
+
+      navigate({ pathname: '/upload', search: '' }, { replace: true, state: navState });
+
+      releaseAllCaptureResources();
+
       (onAfterCaptureNavigate ?? onClose)?.();
 
       recordingStartedAtRef.current = null;
@@ -2176,6 +2201,8 @@ export default function QuickRecordButton({
       setCameraError('Could not open your clip for review. Try again.');
       isRecordingRef.current = false;
       setIsRecording(false);
+    } finally {
+      nativeCaptureFinishingRef.current = false;
     }
   };
 
@@ -2287,7 +2314,7 @@ export default function QuickRecordButton({
   // If capture UI unmounts while native preview is active, stop the native session.
   useEffect(() => {
     return () => {
-      if (nativeCaptureActiveRef.current) {
+      if (nativeCaptureActiveRef.current && !nativeCaptureFinishingRef.current) {
         void stopNativeCaptureSession();
         nativeCaptureActiveRef.current = false;
       }

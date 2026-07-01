@@ -76,7 +76,12 @@ export async function saveNativeVideoUriToGallery(
   fileName?: string,
 ): Promise<void> {
   if (!isNativeApp()) return;
-  await saveVideoToGallery(fileUri, fileName);
+  const trimmed = fileUri.trim();
+  const path =
+    trimmed.startsWith('file://') || trimmed.startsWith('capacitor://')
+      ? trimmed
+      : Capacitor.convertFileSrc(trimmed);
+  await saveVideoToGallery(path, fileName);
 }
 
 /**

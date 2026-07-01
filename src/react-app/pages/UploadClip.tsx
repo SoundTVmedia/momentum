@@ -371,13 +371,29 @@ export default function UploadClip() {
 
   // Check if we received a recorded video blob from QuickRecord
   useEffect(() => {
-    const navAt =
-      typeof (location.state as { recordingStartedAt?: string } | null)?.recordingStartedAt ===
-      'string'
-        ? (location.state as { recordingStartedAt: string }).recordingStartedAt
-        : null;
+    let cancelled = false;
 
-    if (location.state?.videoBlob) {
+    const navState = location.state as {
+      videoBlob?: Blob;
+      videoFile?: File;
+      recordingStartedAt?: string;
+      nativeVideoPath?: string;
+      fromPhotoLibrary?: boolean;
+      fromQuickCapture?: boolean;
+      showData?: Record<string, unknown>;
+      captureGeo?: {
+        latitude?: number;
+        longitude?: number;
+        city?: string | null;
+        state?: string | null;
+        country?: string | null;
+      };
+    } | null;
+
+    const navAt =
+      typeof navState?.recordingStartedAt === 'string' ? navState.recordingStartedAt : null;
+
+    const hydrateCapturedBlob = (blob: Blob, nativePath?: string | null) => {
       if (
         skipNavVideoHydrationRef.current &&
         (!navAt || navAt === lastCaptionFromNavAtRef.current)
@@ -387,22 +403,36 @@ export default function UploadClip() {
       skipNavVideoHydrationRef.current = false;
       lastCaptionFromNavAtRef.current = navAt;
 
-      const blob = location.state.videoBlob as Blob;
-      const navNativePath = (location.state as { nativeVideoPath?: string }).nativeVideoPath;
-      nativeVideoUriRef.current = navNativePath ?? null;
-      setFormData(prev => ({ ...prev, video_blob: blob }));
+      nativeVideoUriRef.current = nativePath ?? null;
+      setFormData((prev) => ({ ...prev, video_blob: blob }));
       setUploadMethod('file');
-      
-      // Create blob URL for video preview
+      setUploadSource('capture');
+
       const blobUrl = URL.createObjectURL(blob);
       setVideoBlobUrl(blobUrl);
       setShowCaptionScreen(true);
-      // Recording finished — close capture overlay and release primed stream
       setShowQuickCapture(false);
-      setReRecordPrimedStream((prev) => { prev?.getTracks().forEach((t) => t.stop()); return null; });
+      setReRecordPrimedStream((prev) => {
+        prev?.getTracks().forEach((t) => t.stop());
+        return null;
+      });
       setReRecordGesturePending(false);
+    };
+
+    if (navState?.videoBlob?.size) {
+      hydrateCapturedBlob(navState.videoBlob, navState.nativeVideoPath ?? null);
+    } else if (
+      (navState?.recordingStartedAt || navState?.fromQuickCapture) &&
+      !navState?.videoFile
+    ) {
+      void (async () => {
+        const pending = await loadPendingCapture();
+        if (cancelled || !pending?.video?.size) return;
+        hydrateCapturedBlob(pending.video, navState.nativeVideoPath ?? null);
+      })();
     }
-    if (location.state?.videoFile) {
+
+    if (navState?.videoFile) {
       const fileAt = navAt ?? `file:${(location.state.videoFile as File).lastModified}`;
       if (
         skipNavVideoHydrationRef.current &&
@@ -413,7 +443,7 @@ export default function UploadClip() {
       skipNavVideoHydrationRef.current = false;
       lastCaptionFromNavAtRef.current = fileAt;
 
-      const selectedFile = location.state.videoFile as File;
+      const selectedFile = navState.videoFile;
       setFormData(prev => ({ ...prev, video_file: selectedFile, video_blob: null }));
       setUploadMethod('file');
       const fileUrl = URL.createObjectURL(selectedFile);
@@ -429,17 +459,13 @@ export default function UploadClip() {
     }
     
     // Check if we received show data from auto-tagging (live capture only — not photo library)
-    const navFromLibrary = Boolean(
-      (location.state as { fromPhotoLibrary?: boolean } | null)?.fromPhotoLibrary,
-    );
+    const navFromLibrary = Boolean(navState?.fromPhotoLibrary);
     const navQuickCapture = Boolean(
-      (location.state as { videoBlob?: unknown } | null)?.videoBlob,
+      navState?.videoBlob || navState?.recordingStartedAt || navState?.fromQuickCapture,
     );
-    let showData = location.state?.showData as Record<string, unknown> | undefined;
+    let showData = navState?.showData;
     if (!showData && !navFromLibrary && navQuickCapture) {
-      const capGeo = location.state?.captureGeo as
-        | { latitude?: number; longitude?: number }
-        | undefined;
+      const capGeo = navState?.captureGeo;
       if (showMarksHydrated) {
         const autoFill = resolveCameraGoingAutoFill(
           captureMarks,
@@ -466,9 +492,7 @@ export default function UploadClip() {
     }
 
     if (showData && !navFromLibrary) {
-      const cap = location.state.captureGeo as
-        | { city?: string | null; state?: string | null }
-        | undefined;
+      const cap = navState?.captureGeo;
       const fromGeo = cap ? [cap.city, cap.state].filter(Boolean).join(', ') : '';
       const locFromShow =
         typeof showData.location === 'string' && showData.location.trim() !== ''
@@ -620,6 +644,7 @@ export default function UploadClip() {
 
     // Cleanup blob URL on unmount
     return () => {
+      cancelled = true;
       if (videoBlobUrl) {
         URL.revokeObjectURL(videoBlobUrl);
       }
@@ -653,8 +678,15 @@ export default function UploadClip() {
   useEffect(() => {
     if (!user || isPending || pendingRecoveryAttemptedRef.current) return;
     if (skipNavVideoHydrationRef.current) return;
-    const nav = location.state as { videoBlob?: unknown; videoFile?: unknown } | null | undefined;
-    if (nav?.videoBlob || nav?.videoFile) return;
+    const nav = location.state as {
+      videoBlob?: unknown;
+      videoFile?: unknown;
+      recordingStartedAt?: unknown;
+      fromQuickCapture?: unknown;
+    } | null | undefined;
+    if (nav?.videoBlob || nav?.videoFile || nav?.recordingStartedAt || nav?.fromQuickCapture) {
+      return;
+    }
 
     const hasActiveUpload = clipUploadJobs.some(
       (j) =>

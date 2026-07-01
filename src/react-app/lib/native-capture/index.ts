@@ -3,6 +3,7 @@
  * Web and Android continue using getUserMedia / MediaRecorder.
  */
 import { Capacitor } from '@capacitor/core';
+import { Filesystem } from '@capacitor/filesystem';
 import { CameraPreview } from '@capgo/camera-preview';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import type { PluginListenerHandle } from '@capacitor/core';
@@ -251,12 +252,57 @@ export async function stopNativeLiveAudioSegments(): Promise<void> {
 }
 
 export async function nativeVideoPathToBlob(filePath: string): Promise<Blob> {
-  const url = Capacitor.convertFileSrc(filePath);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to read native video at ${filePath}`);
+  const trimmed = filePath.trim();
+  if (!trimmed) {
+    throw new Error('Native video path is empty');
   }
-  return response.blob();
+
+  // Brief pause so AVCaptureMovieFileOutput can flush the file to disk.
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  try {
+    const url = Capacitor.convertFileSrc(trimmed);
+    const response = await fetch(url);
+    if (response.ok) {
+      const blob = await response.blob();
+      if (blob.size > 0) {
+        return blob;
+      }
+    }
+  } catch (err) {
+    console.warn('nativeVideoPathToBlob fetch:', err);
+  }
+
+  const readCandidates = [
+    trimmed,
+    trimmed.replace(/^file:\/\//, ''),
+    decodeURIComponent(trimmed.replace(/^file:\/\//, '')),
+  ];
+
+  for (const candidate of readCandidates) {
+    if (!candidate) continue;
+    try {
+      const read = await Filesystem.readFile({ path: candidate });
+      let bytes: Uint8Array;
+      if (typeof read.data === 'string') {
+        const binary = atob(read.data);
+        bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+      } else {
+        bytes = new Uint8Array(await read.data.arrayBuffer());
+      }
+      const blob = new Blob([bytes], { type: 'video/mp4' });
+      if (blob.size > 0) {
+        return blob;
+      }
+    } catch {
+      /* try next path form */
+    }
+  }
+
+  throw new Error(`Failed to read native video at ${filePath}`);
 }
 
 export async function nativeCaptureHaptic(style: 'light' | 'medium' | 'heavy' = 'light'): Promise<void> {
