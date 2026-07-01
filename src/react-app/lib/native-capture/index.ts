@@ -258,7 +258,7 @@ export async function nativeVideoPathToBlob(filePath: string): Promise<Blob> {
   }
 
   // Brief pause so AVCaptureMovieFileOutput can flush the file to disk.
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   try {
     const url = Capacitor.convertFileSrc(trimmed);

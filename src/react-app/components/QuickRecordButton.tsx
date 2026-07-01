@@ -68,7 +68,13 @@ import {
   captureNativePhoto,
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
-import { persistClipLocallyOnCapture } from '@/react-app/lib/upload-outbox/capture-local-save';
+import { flushPendingCaptureToDevice } from '@/react-app/lib/upload-outbox/capture-local-save';
+import {
+  primePendingCaptureVideo,
+  writeCaptureHandoffMeta,
+  dispatchPendingCaptureReady,
+  captureReviewSearch,
+} from '@/react-app/lib/upload-outbox/capture-handoff';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -1967,8 +1973,10 @@ export default function QuickRecordButton({
   const stopRecording = () => {
     if (nativeCaptureActiveRef.current) {
       void (async () => {
+        let videoFilePath: string | null = null;
         try {
-          const { videoFilePath } = await stopNativeVideoRecording();
+          const stopped = await stopNativeVideoRecording();
+          videoFilePath = stopped.videoFilePath;
           isRecordingRef.current = false;
           setIsRecording(false);
           if (timerRef.current) {
@@ -1987,6 +1995,25 @@ export default function QuickRecordButton({
           console.error('Native stop recording failed:', err);
           isRecordingRef.current = false;
           setIsRecording(false);
+          const at = recordingStartedAtRef.current || new Date().toISOString();
+          writeCaptureHandoffMeta({
+            recordingStartedAt: at,
+            ...(videoFilePath ? { nativeVideoPath: videoFilePath } : {}),
+          });
+          navigate(
+            { pathname: '/upload', search: captureReviewSearch() },
+            {
+              replace: true,
+              state: {
+                recordingStartedAt: at,
+                fromQuickCapture: true,
+                ...(videoFilePath ? { nativeVideoPath: videoFilePath } : {}),
+              },
+            },
+          );
+          releaseAllCaptureResources();
+          (onAfterCaptureNavigate ?? onClose)?.();
+          dispatchPendingCaptureReady(at);
         }
       })();
       return;
@@ -2145,20 +2172,12 @@ export default function QuickRecordButton({
       const ext =
         blob.type.includes('mp4') || opts?.nativeVideoPath ? 'mp4' : 'webm';
       const fileName = `momentum-${Date.now()}.${ext}`;
-      try {
-        await persistClipLocallyOnCapture(blob, fileName, {
-          nativeVideoUri: opts?.nativeVideoPath,
-        });
-      } catch (persistErr) {
-        console.warn('QuickRecordButton: persist clip locally failed', persistErr);
-      }
 
       const navState = {
-        videoBlob: blob,
-        ...(opts?.nativeVideoPath ? { nativeVideoPath: opts.nativeVideoPath } : {}),
-        captureAudioBlob,
         recordingStartedAt: at,
         fromQuickCapture: true,
+        ...(opts?.nativeVideoPath ? { nativeVideoPath: opts.nativeVideoPath } : {}),
+        captureAudioBlob,
         captureGeo: geo
           ? {
               latitude: geo.latitude,
@@ -2177,11 +2196,29 @@ export default function QuickRecordButton({
         ...(prefetchShow ? { showData: clipShowCandidateToNavState(prefetchShow) } : {}),
       };
 
-      navigate({ pathname: '/upload', search: '' }, { replace: true, state: navState });
+      primePendingCaptureVideo(blob);
+      writeCaptureHandoffMeta({
+        recordingStartedAt: at,
+        nativeVideoPath: opts?.nativeVideoPath,
+        captureGeo: navState.captureGeo,
+        videoMetadata: navState.videoMetadata,
+        auddPrefill,
+        showData: prefetchShow ? clipShowCandidateToNavState(prefetchShow) : undefined,
+      });
+
+      navigate(
+        { pathname: '/upload', search: captureReviewSearch() },
+        { replace: true, state: navState },
+      );
 
       releaseAllCaptureResources();
 
       (onAfterCaptureNavigate ?? onClose)?.();
+      dispatchPendingCaptureReady(at);
+
+      void flushPendingCaptureToDevice(blob, fileName, {
+        nativeVideoUri: opts?.nativeVideoPath,
+      });
 
       recordingStartedAtRef.current = null;
       lastGeoRef.current = null;

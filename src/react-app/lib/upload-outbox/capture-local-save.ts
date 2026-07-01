@@ -1,9 +1,9 @@
 import {
-  cacheOutboxBlobs,
   clearCachedOutboxBlobs,
   persistOutboxVideo,
   peekCachedOutboxBlobs,
   resolveOutboxBlobs,
+  waitForOutboxBlobs,
 } from '@/react-app/lib/upload-outbox/blob-store';
 import { deleteOutboxJob, saveOutboxBlobs } from '@/react-app/lib/upload-outbox/idb';
 import type { StoredUploadBlobs } from '@/react-app/lib/upload-outbox/types';
@@ -11,6 +11,12 @@ import {
   blobSourceKey,
   saveClipToDeviceGallery,
 } from '@/react-app/lib/upload-outbox/gallery-save';
+import {
+  primePendingCaptureVideo,
+  clearCaptureHandoffMeta,
+  readCaptureHandoffMeta,
+} from '@/react-app/lib/upload-outbox/capture-handoff';
+import { nativeVideoPathToBlob } from '@/react-app/lib/native-capture';
 export const PENDING_CAPTURE_JOB_ID = '__momentum_pending_capture__';
 
 /**
@@ -22,10 +28,13 @@ export async function persistClipLocallyOnCapture(
   fileName: string,
   opts?: { nativeVideoUri?: string },
 ): Promise<{ localSaved: boolean; galleryMethod: string }> {
-  const blobs = { video, thumbnail: null as Blob | null };
-  cacheOutboxBlobs(PENDING_CAPTURE_JOB_ID, blobs);
+  primePendingCaptureVideo(video);
+
   try {
-    await saveOutboxBlobs(PENDING_CAPTURE_JOB_ID, blobs);
+    await saveOutboxBlobs(PENDING_CAPTURE_JOB_ID, {
+      video,
+      thumbnail: null,
+    });
   } catch (err) {
     console.warn('persistClipLocallyOnCapture IndexedDB (using in-tab cache):', err);
   }
@@ -39,15 +48,74 @@ export async function persistClipLocallyOnCapture(
   return { localSaved: true, galleryMethod: gallery.method };
 }
 
+/**
+ * Non-blocking device persist after capture — IDB + Photos while caption screen opens.
+ * Memory cache is primed synchronously before navigation.
+ */
+export async function flushPendingCaptureToDevice(
+  video: Blob,
+  fileName: string,
+  opts?: { nativeVideoUri?: string },
+): Promise<void> {
+  if (!video?.size) return;
+  primePendingCaptureVideo(video);
+  try {
+    await saveOutboxBlobs(PENDING_CAPTURE_JOB_ID, { video, thumbnail: null });
+  } catch (err) {
+    console.warn('flushPendingCaptureToDevice IndexedDB:', err);
+  }
+  try {
+    await saveClipToDeviceGallery(video, fileName, {
+      sourceKey: blobSourceKey(video),
+      skipIfSaved: false,
+      nativeVideoUri: opts?.nativeVideoUri,
+    });
+  } catch (err) {
+    console.warn('flushPendingCaptureToDevice gallery:', err);
+  }
+}
+
 export { blobSourceKey } from '@/react-app/lib/upload-outbox/gallery-save';
 
 export async function loadPendingCapture(): Promise<StoredUploadBlobs | null> {
   return resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID);
 }
 
+/** Resolve pre-Share clip from outbox memory, IndexedDB, or native recording path. */
+export async function resolvePendingCaptureForReview(opts?: {
+  nativeVideoPath?: string | null;
+}): Promise<Blob | null> {
+  const cached = peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+  if (cached?.video?.size) return cached.video;
+
+  const fromDb = await waitForOutboxBlobs(PENDING_CAPTURE_JOB_ID, {
+    attempts: 20,
+    delayMs: 100,
+  });
+  if (fromDb?.video?.size) return fromDb.video;
+
+  const nativePath =
+    opts?.nativeVideoPath?.trim() ||
+    readCaptureHandoffMeta()?.nativeVideoPath?.trim() ||
+    '';
+  if (!nativePath) return null;
+
+  try {
+    const blob = await nativeVideoPathToBlob(nativePath);
+    if (blob.size > 0) {
+      primePendingCaptureVideo(blob);
+      return blob;
+    }
+  } catch (err) {
+    console.warn('resolvePendingCaptureForReview native path:', err);
+  }
+  return null;
+}
+
 /** Remove the pre-Share capture blob after Share or explicit discard. */
 export async function clearPendingCapture(): Promise<void> {
   clearCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+  clearCaptureHandoffMeta();
   try {
     await deleteOutboxJob(PENDING_CAPTURE_JOB_ID);
   } catch (err) {

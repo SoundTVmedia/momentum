@@ -52,7 +52,16 @@ import {
   clearPendingCapture,
   loadPendingCapture,
   persistClipLocallyOnCapture,
+  resolvePendingCaptureForReview,
+  PENDING_CAPTURE_JOB_ID,
 } from '@/react-app/lib/upload-outbox/capture-local-save';
+import {
+  hasPrimedPendingCapture,
+  wantsCaptureReviewScreen,
+  readCaptureHandoffMeta,
+  PENDING_CAPTURE_READY_EVENT,
+} from '@/react-app/lib/upload-outbox/capture-handoff';
+import { peekCachedOutboxBlobs } from '@/react-app/lib/upload-outbox/blob-store';
 import {
   captionDraftMatchesVideo,
   clearCaptionDraft,
@@ -139,8 +148,17 @@ export default function UploadClip() {
 
   /** Post-capture review (Share your moment) — open immediately when landing with a recorded blob/file. */
   const [showCaptionScreen, setShowCaptionScreen] = useState(() => {
-    const s = location.state as { videoBlob?: unknown; videoFile?: unknown } | null | undefined;
-    return Boolean(s?.videoBlob ?? s?.videoFile);
+    if (wantsCaptureReviewScreen(location.search)) return true;
+    const s = location.state as {
+      videoBlob?: unknown;
+      videoFile?: unknown;
+      fromQuickCapture?: boolean;
+      recordingStartedAt?: string;
+    } | null | undefined;
+    if (s?.videoBlob ?? s?.videoFile ?? s?.fromQuickCapture ?? s?.recordingStartedAt) {
+      return true;
+    }
+    return hasPrimedPendingCapture();
   });
 
   /** JamBase pick committed in caption/tags editor — keeps autocomplete closed until the user edits again. */
@@ -335,6 +353,36 @@ export default function UploadClip() {
     setReRecordGesturePending(false);
   }, [isMobile]);
 
+  // Sync hydrate from upload-outbox memory cache before first paint (iOS router state often drops Blobs).
+  useLayoutEffect(() => {
+    if (skipNavVideoHydrationRef.current) return;
+    if (!wantsCaptureReviewScreen(location.search) && !hasPrimedPendingCapture()) return;
+
+    const pending = peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+    if (!pending?.video?.size) return;
+
+    const handoff = readCaptureHandoffMeta();
+    const routerState = location.state as { nativeVideoPath?: string; recordingStartedAt?: string } | null;
+    const navAt =
+      routerState?.recordingStartedAt ?? handoff?.recordingStartedAt ?? null;
+    if (skipNavVideoHydrationRef.current && navAt && navAt === lastCaptionFromNavAtRef.current) {
+      return;
+    }
+
+    skipNavVideoHydrationRef.current = false;
+    lastCaptionFromNavAtRef.current = navAt;
+
+    nativeVideoUriRef.current =
+      routerState?.nativeVideoPath ?? handoff?.nativeVideoPath ?? null;
+    setFormData((prev) => ({ ...prev, video_blob: pending.video }));
+    setUploadMethod('file');
+    setUploadSource('capture');
+    const blobUrl = URL.createObjectURL(pending.video);
+    setVideoBlobUrl(blobUrl);
+    setShowCaptionScreen(true);
+    setShowQuickCapture(false);
+  }, [location.search, location.state]);
+
   // Open quick capture when ?quickCapture=true — needs an explicit Continue tap for location (iOS gesture policy).
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -373,7 +421,8 @@ export default function UploadClip() {
   useEffect(() => {
     let cancelled = false;
 
-    const navState = location.state as {
+    const handoff = readCaptureHandoffMeta();
+    const routerState = location.state as {
       videoBlob?: Blob;
       videoFile?: File;
       recordingStartedAt?: string;
@@ -388,10 +437,27 @@ export default function UploadClip() {
         state?: string | null;
         country?: string | null;
       };
+      videoMetadata?: {
+        recording_orientation?: 'portrait' | 'landscape';
+        video_resolution_w?: number;
+        video_resolution_h?: number;
+      };
+      auddPrefill?: AudDNavPrefill;
     } | null;
 
+    const navState = {
+      ...handoff,
+      ...routerState,
+      recordingStartedAt: routerState?.recordingStartedAt ?? handoff?.recordingStartedAt,
+      nativeVideoPath: routerState?.nativeVideoPath ?? handoff?.nativeVideoPath,
+      captureGeo: routerState?.captureGeo ?? handoff?.captureGeo ?? undefined,
+      videoMetadata: routerState?.videoMetadata ?? handoff?.videoMetadata,
+      auddPrefill: routerState?.auddPrefill ?? handoff?.auddPrefill ?? undefined,
+      showData: routerState?.showData ?? handoff?.showData,
+    };
+
     const navAt =
-      typeof navState?.recordingStartedAt === 'string' ? navState.recordingStartedAt : null;
+      typeof navState.recordingStartedAt === 'string' ? navState.recordingStartedAt : null;
 
     const hydrateCapturedBlob = (blob: Blob, nativePath?: string | null) => {
       if (
@@ -419,20 +485,29 @@ export default function UploadClip() {
       setReRecordGesturePending(false);
     };
 
-    if (navState?.videoBlob?.size) {
-      hydrateCapturedBlob(navState.videoBlob, navState.nativeVideoPath ?? null);
-    } else if (
-      (navState?.recordingStartedAt || navState?.fromQuickCapture) &&
-      !navState?.videoFile
-    ) {
+    const shouldTryHydrate =
+      wantsCaptureReviewScreen(location.search) ||
+      Boolean(navState.videoBlob?.size) ||
+      navState.recordingStartedAt ||
+      navState.fromQuickCapture ||
+      hasPrimedPendingCapture();
+
+    if (shouldTryHydrate && !navState.videoFile) {
       void (async () => {
-        const pending = await loadPendingCapture();
-        if (cancelled || !pending?.video?.size) return;
-        hydrateCapturedBlob(pending.video, navState.nativeVideoPath ?? null);
+        let blob = navState.videoBlob?.size ? navState.videoBlob : null;
+        if (!blob) {
+          blob = await resolvePendingCaptureForReview({
+            nativeVideoPath: navState.nativeVideoPath ?? null,
+          });
+        }
+        if (cancelled || !blob?.size) return;
+        hydrateCapturedBlob(blob, navState.nativeVideoPath ?? null);
       })();
+    } else if (navState.videoBlob?.size) {
+      hydrateCapturedBlob(navState.videoBlob, navState.nativeVideoPath ?? null);
     }
 
-    if (navState?.videoFile) {
+    if (navState.videoFile) {
       const fileAt = navAt ?? `file:${(location.state.videoFile as File).lastModified}`;
       if (
         skipNavVideoHydrationRef.current &&
@@ -559,7 +634,7 @@ export default function UploadClip() {
       setResolveNotice(null);
     }
 
-    const nav = location.state as Record<string, unknown> | undefined;
+    const nav = navState;
     if (typeof nav?.recordingStartedAt === 'string' && !navFromLibrary) {
       setRecordingAtIso(nav.recordingStartedAt);
     }
@@ -588,9 +663,8 @@ export default function UploadClip() {
       }
     }
     
-    // Check if we received video metadata (orientation and resolution)
-    if (location.state?.videoMetadata) {
-      const metadata = location.state.videoMetadata as any;
+    if (navState.videoMetadata) {
+      const metadata = navState.videoMetadata;
       setVideoMetadata({
         recording_orientation: metadata.recording_orientation,
         video_resolution_w: metadata.video_resolution_w,
@@ -598,13 +672,8 @@ export default function UploadClip() {
       });
     }
 
-    // Live capture may have prefilled song from stabilized in-camera ID.
-    const navWithAudD = location.state as {
-      auddPrefill?: AudDNavPrefill;
-      fromPhotoLibrary?: boolean;
-    } | null | undefined;
-    const ap = navWithAudD?.auddPrefill;
-    if (ap?.sourceKey && !navWithAudD?.fromPhotoLibrary) {
+    const ap = navState.auddPrefill;
+    if (ap?.sourceKey && !navFromLibrary) {
       if (ap.status === 'done') {
         const artist = (ap.artist ?? '').trim();
         const title = (ap.title ?? '').trim();
@@ -649,7 +718,29 @@ export default function UploadClip() {
         URL.revokeObjectURL(videoBlobUrl);
       }
     };
-  }, [location.state]);
+  }, [location.state, location.search]);
+
+  useEffect(() => {
+    const onPendingReady = () => {
+      if (showCaptionScreen || skipNavVideoHydrationRef.current) return;
+      void (async () => {
+        const handoff = readCaptureHandoffMeta();
+        const blob = await resolvePendingCaptureForReview({
+          nativeVideoPath: handoff?.nativeVideoPath ?? null,
+        });
+        if (!blob?.size) return;
+        nativeVideoUriRef.current = handoff?.nativeVideoPath ?? null;
+        setFormData((prev) => ({ ...prev, video_blob: blob }));
+        setUploadMethod('file');
+        setUploadSource('capture');
+        setVideoBlobUrl(URL.createObjectURL(blob));
+        setShowCaptionScreen(true);
+        setShowQuickCapture(false);
+      })();
+    };
+    window.addEventListener(PENDING_CAPTURE_READY_EVENT, onPendingReady);
+    return () => window.removeEventListener(PENDING_CAPTURE_READY_EVENT, onPendingReady);
+  }, [showCaptionScreen]);
   
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
 
