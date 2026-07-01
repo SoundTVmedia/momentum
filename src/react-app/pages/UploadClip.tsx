@@ -766,9 +766,10 @@ export default function UploadClip() {
   
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file');
 
-  /** Persist locally + Photos (native) immediately after capture — before Share / upload. */
+  /** Ensure clip is in IndexedDB when caption screen opens (Photos save runs once in capture handoff). */
   useEffect(() => {
     if (!showCaptionScreen || uploadMethod !== 'file') return;
+    if (uploadSource === 'capture') return;
     const source = formData.video_blob ?? formData.video_file;
     if (!source) return;
     const key = blobSourceKey(source);
@@ -777,12 +778,11 @@ export default function UploadClip() {
     const ext = source.type.includes('mp4') ? 'mp4' : 'webm';
     const fileName =
       formData.video_file?.name ?? `momentum-${Date.now()}.${ext}`;
-    void persistClipLocallyOnCapture(source, fileName, {
-      nativeVideoUri: nativeVideoUriRef.current ?? undefined,
-    });
+    void persistClipLocallyOnCapture(source, fileName);
   }, [
     showCaptionScreen,
     uploadMethod,
+    uploadSource,
     formData.video_blob,
     formData.video_file,
   ]);

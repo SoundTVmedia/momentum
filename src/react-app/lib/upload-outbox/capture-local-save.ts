@@ -26,14 +26,14 @@ import type { NavigateFunction } from 'react-router';
 export const PENDING_CAPTURE_JOB_ID = '__momentum_pending_capture__';
 
 /**
- * First action after capture: persist locally (always works offline),
- * then best-effort Photos save on native shell.
+ * Persist capture clip to IndexedDB (offline outbox). Photos save is handled by
+ * {@link flushPendingCaptureToDevice} during quick-capture handoff — not here.
  */
 export async function persistClipLocallyOnCapture(
   video: Blob,
   fileName: string,
-  opts?: { nativeVideoUri?: string },
-): Promise<{ localSaved: boolean; galleryMethod: string }> {
+): Promise<{ localSaved: boolean }> {
+  void fileName;
   primePendingCaptureVideo(video);
 
   try {
@@ -45,13 +45,7 @@ export async function persistClipLocallyOnCapture(
     console.warn('persistClipLocallyOnCapture IndexedDB (using in-tab cache):', err);
   }
 
-  const gallery = await saveClipToDeviceGallery(video, fileName, {
-    sourceKey: blobSourceKey(video),
-    skipIfSaved: false,
-    nativeVideoUri: opts?.nativeVideoUri,
-  });
-
-  return { localSaved: true, galleryMethod: gallery.method };
+  return { localSaved: true };
 }
 
 /**
