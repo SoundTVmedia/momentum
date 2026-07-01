@@ -81,7 +81,7 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
         try session.setCategory(
             .playAndRecord,
             mode: .videoRecording,
-            options: [.defaultToSpeaker, .allowBluetooth]
+            options: [.defaultToSpeaker, .allowBluetoothHFP]
         )
         try session.setActive(true)
     }

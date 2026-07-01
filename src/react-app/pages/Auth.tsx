@@ -57,7 +57,9 @@ export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isPending, exchangeCodeForSessionToken, fetchUser } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [sessionBusy, setSessionBusy] = useState(false);
   const [showRememberDevice, setShowRememberDevice] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export default function Auth() {
 
       if (deviceToken && !user) {
         try {
-          setLoading(true);
+          setSessionBusy(true);
           const response = await apiFetch('/api/auth/verify-device-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -114,7 +116,7 @@ export default function Auth() {
         } catch (err) {
           console.error('Device token verification failed:', err);
         } finally {
-          setLoading(false);
+          setSessionBusy(false);
         }
       }
     };
@@ -130,7 +132,7 @@ export default function Auth() {
         return;
       }
       try {
-        setLoading(true);
+        setSessionBusy(true);
         setError(null);
         await exchangeOAuthCodeFromUrl();
         await fetchUser();
@@ -141,7 +143,7 @@ export default function Auth() {
         setError('Authentication failed. Please try again.');
         window.history.replaceState({}, document.title, '/auth');
       } finally {
-        setLoading(false);
+        setSessionBusy(false);
       }
     };
 
@@ -162,7 +164,7 @@ export default function Auth() {
     if (searchParams.get('apple') !== 'success') return;
     void (async () => {
       try {
-        setLoading(true);
+        setSessionBusy(true);
         setError(null);
         await fetchUser();
         window.history.replaceState({}, document.title, '/auth');
@@ -172,7 +174,7 @@ export default function Auth() {
         setError('Apple sign-in could not be completed. Please try again.');
         window.history.replaceState({}, document.title, '/auth');
       } finally {
-        setLoading(false);
+        setSessionBusy(false);
       }
     })();
   }, [searchParams, fetchUser]);
@@ -230,7 +232,7 @@ export default function Auth() {
 
   const startGoogleAuth = async () => {
     setError(null);
-    setLoading(true);
+    setGoogleLoading(true);
     try {
       await performGoogleSignIn();
       if (!shouldUseNativeInAppOAuth()) {
@@ -247,13 +249,13 @@ export default function Auth() {
           : '';
       setError(message + hint);
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
   const startAppleAuth = async () => {
     setError(null);
-    setLoading(true);
+    setAppleLoading(true);
     try {
       await performAppleSignIn();
       if (!shouldUseNativeInAppOAuth()) {
@@ -266,7 +268,7 @@ export default function Auth() {
       const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
       setError(message);
     } finally {
-      setLoading(false);
+      setAppleLoading(false);
     }
   };
 
@@ -365,12 +367,23 @@ export default function Auth() {
     await navigateAfterAuth(false);
   };
 
-  if (isPending || loading) {
+  if (isPending) {
     return (
       <div className="min-h-screen text-white flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-momentum-ember animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionBusy) {
+    return (
+      <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin mx-auto mb-4" />
+          <p className="text-white text-lg">Finishing sign-in...</p>
         </div>
       </div>
     );
@@ -455,15 +468,15 @@ export default function Auth() {
           <div className="space-y-3">
             <GoogleSignInButton
               onClick={() => void startGoogleAuth()}
-              disabled={emailLoading}
-              loading={loading}
+              disabled={emailLoading || appleLoading}
+              loading={googleLoading}
               label="Sign in with Google"
             />
 
             <button
               type="button"
               onClick={() => void startAppleAuth()}
-              disabled={loading || emailLoading}
+              disabled={googleLoading || appleLoading || emailLoading}
               className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-black hover:bg-gray-900 !text-white rounded-xl font-semibold text-base shadow-md border border-white/10 transition-colors disabled:opacity-50"
             >
               <svg className="w-5 h-5 shrink-0 fill-white" viewBox="0 0 24 24" aria-hidden>
@@ -513,7 +526,7 @@ export default function Auth() {
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="How should we call you?"
                       className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
-                      disabled={loading || emailLoading}
+                      disabled={googleLoading || appleLoading || emailLoading}
                     />
                   </div>
                 </div>
@@ -533,7 +546,7 @@ export default function Auth() {
                     placeholder="your.email@example.com"
                     autoComplete="email"
                     className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
-                    disabled={loading || emailLoading}
+                    disabled={googleLoading || appleLoading || emailLoading}
                   />
                 </div>
               </div>
@@ -553,7 +566,7 @@ export default function Auth() {
                       placeholder={emailMode === 'signup' ? 'At least 8 characters' : '••••••••'}
                       autoComplete={emailMode === 'signup' ? 'new-password' : 'current-password'}
                       className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
-                      disabled={loading || emailLoading}
+                      disabled={googleLoading || appleLoading || emailLoading}
                     />
                   </div>
                 </div>
@@ -568,7 +581,7 @@ export default function Auth() {
 
               <button
                 type="submit"
-                disabled={loading || emailLoading}
+                disabled={googleLoading || appleLoading || emailLoading}
                 className="w-full px-6 py-3 bg-white/10 border border-white/20 rounded-lg text-white font-semibold hover:bg-white/20 transition-colors disabled:opacity-50"
               >
                 {emailLoading ? (

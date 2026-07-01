@@ -1,4 +1,26 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import {
+  googleIosUrlSchemeFromClientId,
+  NATIVE_APP_ID,
+} from './src/shared/oauth-redirect';
+
+const googleIosClientId = process.env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim() ?? '';
+const googleIosUrlScheme = googleIosClientId
+  ? googleIosUrlSchemeFromClientId(googleIosClientId)
+  : null;
+
+const iosUrlTypes: Array<{ CFBundleURLName: string; CFBundleURLSchemes: string[] }> = [
+  {
+    CFBundleURLName: NATIVE_APP_ID,
+    CFBundleURLSchemes: [NATIVE_APP_ID],
+  },
+];
+if (googleIosUrlScheme) {
+  iosUrlTypes.push({
+    CFBundleURLName: 'GoogleSignIn',
+    CFBundleURLSchemes: [googleIosUrlScheme],
+  });
+}
 
 const config: CapacitorConfig = {
   appId: 'com.feedbacklive.app',
@@ -21,12 +43,8 @@ const config: CapacitorConfig = {
         'Feedback may access your photo library when you choose clips to upload.',
       NSLocationWhenInUseUsageDescription:
         'Feedback uses your location to match concert clips to nearby venues and JamBase shows.',
-      CFBundleURLTypes: [
-        {
-          CFBundleURLName: 'com.feedbacklive.app',
-          CFBundleURLSchemes: ['com.feedbacklive.app'],
-        },
-      ],
+      ...(googleIosClientId ? { GIDClientID: googleIosClientId } : {}),
+      CFBundleURLTypes: iosUrlTypes,
     },
   },
   plugins: {

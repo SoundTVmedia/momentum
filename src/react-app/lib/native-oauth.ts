@@ -23,6 +23,34 @@ async function readApiError(response: Response, fallback: string): Promise<strin
 }
 
 const NATIVE_OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
+const NATIVE_GOOGLE_SDK_TIMEOUT_MS = 2 * 60 * 1000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        window.clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+async function refreshNativeSessionUser(): Promise<void> {
+  const response = await fetch('/api/users/me', { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error('Signed in but the session could not be loaded. Please try again.');
+  }
+  const data = (await response.json()) as unknown;
+  if (!data) {
+    throw new Error('Signed in but you still appear logged out. Please try again.');
+  }
+}
 
 type OAuthWaiter = {
   resolve: () => void;
@@ -169,6 +197,7 @@ async function handleNativeOAuthReturnUrl(url: string): Promise<void> {
     }
     await exchangeNativeGoogleCode(code, state, googleOAuthRedirectUri);
     googleOAuthCompleted = true;
+    await refreshNativeSessionUser();
     waiter.resolve();
   } catch (err) {
     waiter.reject(err instanceof Error ? err : new Error('Google sign-in failed.'));
@@ -183,14 +212,6 @@ export function registerNativeOAuthDeepLinkHandler(): void {
 
   void App.addListener('appUrlOpen', (event) => {
     void handleNativeOAuthReturnUrl(event.url);
-  });
-
-  void App.addListener('appStateChange', ({ isActive }) => {
-    if (!isActive || !googleOAuthWaiter || googleOAuthCompleted) {
-      return;
-    }
-    // User may have switched to YouTube for Google verification — nudge them back.
-    void Browser.close().catch(() => undefined);
   });
 }
 
@@ -210,15 +231,21 @@ function waitForNativeGoogleCallback(): Promise<void> {
 async function performNativeGoogleSignInWithSdk(): Promise<void> {
   await initNativeSocialLogin();
   if (!socialLoginInitialized) {
-    throw new Error('Native Google Sign-In is not configured on the server.');
+    throw new Error(
+      'Native Google Sign-In is not configured. Set GOOGLE_IOS_OAUTH_CLIENT_ID on the Worker, export the same value when running npx cap sync ios, then rebuild in Xcode.',
+    );
   }
 
-  const result = await SocialLogin.login({
-    provider: 'google',
-    options: {
-      scopes: ['email', 'profile'],
-    },
-  });
+  const result = await withTimeout(
+    SocialLogin.login({
+      provider: 'google',
+      options: {
+        scopes: ['email', 'profile'],
+      },
+    }),
+    NATIVE_GOOGLE_SDK_TIMEOUT_MS,
+    'Google sign-in timed out. Confirm the Google iOS URL scheme is in Xcode (run cap sync with GOOGLE_IOS_OAUTH_CLIENT_ID set), then try again.',
+  );
 
   if (result.provider !== 'google' || result.result.responseType !== 'online') {
     throw new Error('Google sign-in did not return an online session.');
@@ -230,6 +257,7 @@ async function performNativeGoogleSignInWithSdk(): Promise<void> {
   }
 
   await exchangeNativeGoogleIdToken(idToken);
+  await refreshNativeSessionUser();
 }
 
 async function performNativeGoogleSignInWithBrowser(): Promise<void> {
