@@ -33,15 +33,48 @@ body {
 
 /* Native iOS camera renders behind the WKWebView — hide routed page paint so the feed
    does not show through transparent capture chrome. */
+html.native-quick-capture-open,
+html.native-quick-capture-open body,
+html.native-quick-capture-open #root,
+html.native-quick-capture-open .native-capture-modal,
+html.native-quick-capture-open .native-capture-preview,
+html.native-quick-capture-open .native-capture-bottom-chrome,
+html.native-quick-capture-open .native-capture-venue-card {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Keep camera visible when React re-renders venue match / controls. */
+html.native-quick-capture-open
+  .native-capture-modal
+  *:not(.native-capture-control):not(.native-capture-control *):not(.native-capture-pill):not(
+    .native-capture-pill *
+  ) {
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+html.native-quick-capture-open .native-capture-control {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.native-quick-capture-open .native-capture-pill {
+  background-color: rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: none !important;
+}
+
 html.native-quick-capture-open .app-route-outlet,
 html.native-quick-capture-open .momentum-ambient {
   visibility: hidden !important;
   pointer-events: none !important;
 }
 
-html.native-quick-capture-open body {
-  background: transparent !important;
-  background-image: none !important;
+html.native-quick-capture-open .native-capture-overlay-text,
+html.native-quick-capture-open .native-capture-overlay-text * {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
 :root {

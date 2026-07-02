@@ -28,9 +28,13 @@ let recordingActive = false;
 let startPreviewPromise: Promise<void> | null = null;
 let audioListener: PluginListenerHandle | null = null;
 let onAudioSegmentHandler: ((blob: Blob) => void) | null = null;
+let previewLayoutTimer: ReturnType<typeof setTimeout> | null = null;
+let previewLayoutInFlight = false;
+let lastPreviewLayoutKey = '';
 /** Capgo adds AVCaptureMovieFileOutput on a background queue after preview start. */
-const NATIVE_VIDEO_OUTPUT_READY_MS = 750;
+const NATIVE_VIDEO_OUTPUT_READY_MS = 1000;
 let previewRecordingReadyAt = 0;
+let previewStartGeneration = 0;
 
 async function ensureNativeVideoOutputReady(): Promise<void> {
   const remaining = previewRecordingReadyAt - Date.now();
@@ -39,33 +43,52 @@ async function ensureNativeVideoOutputReady(): Promise<void> {
   }
 }
 
-/** Mic permission + AVAudioSession before Capgo attaches AVCapture audio input. */
+/** Mic permission is requested by Capgo when video mode starts with audio enabled. */
 async function ensureNativeCaptureAudioReady(): Promise<void> {
   if (!shouldUseNativeIosCapture()) return;
-  await NativeAudioCapture.prepareForVideoCapture();
 }
 
 async function runCameraPreviewStart(
   withAudio: boolean,
+  generation: number,
   opts?: { facing?: NativeCaptureFacing },
 ): Promise<void> {
+  if (generation !== previewStartGeneration) return;
   if (withAudio) {
     await ensureNativeCaptureAudioReady();
   }
-  await CameraPreview.start({
+  if (generation !== previewStartGeneration) return;
+  const { width, height } = readNativeCaptureViewportSize();
+  const startOpts = {
     position: opts?.facing ?? 'rear',
     toBack: true,
-    disableAudio: !withAudio,
     enableVideoMode: true,
-    // iOS native plugin reads `cameraMode` (not enableVideoMode) to attach AVCaptureMovieFileOutput.
     cameraMode: true,
+    width,
+    height,
+    x: 0,
+    y: 0,
     paddingBottom: 0,
-    positioning: 'top',
-    rotateWhenOrientationChanged: true,
-  } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean });
+    positioning: 'top' as const,
+    rotateWhenOrientationChanged: false,
+    ...(withAudio ? {} : { disableAudio: true }),
+  } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean };
+  await CameraPreview.start(startOpts);
+  if (generation !== previewStartGeneration) {
+    await forceStopNativeCaptureSession();
+    return;
+  }
   previewRecordingReadyAt = Date.now() + NATIVE_VIDEO_OUTPUT_READY_MS;
   await ensureNativeVideoOutputReady();
+  if (generation !== previewStartGeneration) {
+    await forceStopNativeCaptureSession();
+    return;
+  }
   await applyNativeCaptureFullScreenPreview();
+  if (generation !== previewStartGeneration) {
+    await forceStopNativeCaptureSession();
+    return;
+  }
   previewRunning = true;
   previewAudioEnabled = withAudio;
 }
@@ -91,11 +114,28 @@ export function readNativeCaptureViewportSize(): { width: number; height: number
 export async function applyNativeCaptureFullScreenPreview(): Promise<void> {
   if (!shouldUseNativeIosCapture() || !previewRunning) return;
   const { width, height } = readNativeCaptureViewportSize();
+  const layoutKey = `${width}x${height}`;
+  if (layoutKey === lastPreviewLayoutKey && !previewLayoutInFlight) return;
+  lastPreviewLayoutKey = layoutKey;
+  previewLayoutInFlight = true;
   try {
-    await CameraPreview.setPreviewSize({ y: 0, width, height });
+    await CameraPreview.setPreviewSize({ x: 0, y: 0, width, height });
   } catch (err) {
     console.warn('applyNativeCaptureFullScreenPreview:', err);
+    lastPreviewLayoutKey = '';
+  } finally {
+    previewLayoutInFlight = false;
   }
+}
+
+/** Debounced layout sync — avoids flicker from rapid setPreviewSize / transparency passes. */
+export function scheduleNativeCaptureFullScreenPreview(): void {
+  if (!shouldUseNativeIosCapture() || !previewRunning) return;
+  if (previewLayoutTimer) clearTimeout(previewLayoutTimer);
+  previewLayoutTimer = setTimeout(() => {
+    previewLayoutTimer = null;
+    void applyNativeCaptureFullScreenPreview();
+  }, 200);
 }
 
 export async function startNativeCapturePreview(opts?: {
@@ -124,10 +164,12 @@ export async function startNativeCapturePreview(opts?: {
     }
   }
 
+  const generation = ++previewStartGeneration;
   startPreviewPromise = (async () => {
     try {
-      await runCameraPreviewStart(withAudio, opts);
+      await runCameraPreviewStart(withAudio, generation, opts);
     } catch (err) {
+      if (generation !== previewStartGeneration) return;
       const message = err instanceof Error ? err.message : String(err);
       if (/already started/i.test(message)) {
         try {
@@ -137,7 +179,7 @@ export async function startNativeCapturePreview(opts?: {
         }
         previewRunning = false;
         previewAudioEnabled = false;
-        await runCameraPreviewStart(withAudio, opts);
+        await runCameraPreviewStart(withAudio, generation, opts);
         return;
       }
       throw err;
@@ -149,7 +191,14 @@ export async function startNativeCapturePreview(opts?: {
   await startPreviewPromise;
 }
 
-export async function stopNativeCaptureSession(): Promise<void> {
+/** Cancel an in-flight preview start (e.g. user closed capture before init finished). */
+export function invalidateNativeCapturePreview(): void {
+  previewStartGeneration += 1;
+}
+
+/** Always attempt native teardown — safe when previewRunning is false or init is still in flight. */
+export async function forceStopNativeCaptureSession(): Promise<void> {
+  invalidateNativeCapturePreview();
   await stopNativeLiveAudioSegments();
   if (recordingActive) {
     try {
@@ -159,16 +208,23 @@ export async function stopNativeCaptureSession(): Promise<void> {
     }
     recordingActive = false;
   }
-  if (previewRunning) {
-    try {
-      await CameraPreview.stop();
-    } catch {
-      /* ignore */
-    }
-    previewRunning = false;
-  }
-  previewRecordingReadyAt = 0;
+  previewRunning = false;
   previewAudioEnabled = false;
+  previewRecordingReadyAt = 0;
+  if (previewLayoutTimer) {
+    clearTimeout(previewLayoutTimer);
+    previewLayoutTimer = null;
+  }
+  lastPreviewLayoutKey = '';
+  try {
+    await CameraPreview.stop();
+  } catch {
+    /* not initialized / already stopped */
+  }
+}
+
+export async function stopNativeCaptureSession(): Promise<void> {
+  await forceStopNativeCaptureSession();
 }
 
 export function isNativeCapturePreviewRunning(): boolean {
@@ -202,6 +258,7 @@ export async function setNativeCaptureZoom(level: number): Promise<void> {
 export async function flipNativeCamera(): Promise<void> {
   if (!previewRunning || recordingActive) return;
   await CameraPreview.flip();
+  await applyNativeCaptureFullScreenPreview();
 }
 
 export async function captureNativePhoto(): Promise<Blob> {

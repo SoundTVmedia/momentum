@@ -7,7 +7,11 @@ import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { MOBILE_PAGE_INSET_BOTTOM_CLASS } from '@/react-app/lib/mobileBottomNavLayout';
-import { shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
+import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
+import {
+  forceStopNativeCaptureSession,
+  shouldUseNativeIosCapture,
+} from '@/react-app/lib/native-capture';
 
 function shouldHideBottomNavForPath(pathname: string): boolean {
   return pathname === '/auth' || pathname.startsWith('/auth/');
@@ -34,9 +38,14 @@ export default function AppRouteChrome() {
     if (!hideRouteContentForNativeCapture) {
       return;
     }
-    document.documentElement.classList.add('native-quick-capture-open');
-    return () => document.documentElement.classList.remove('native-quick-capture-open');
+    return acquireNativeCaptureChromeLock();
   }, [hideRouteContentForNativeCapture]);
+
+  useEffect(() => {
+    if (!shouldUseNativeIosCapture()) return;
+    if (quickCapture.showQuickCapture) return;
+    void forceStopNativeCaptureSession();
+  }, [quickCapture.showQuickCapture]);
 
   return (
     <>

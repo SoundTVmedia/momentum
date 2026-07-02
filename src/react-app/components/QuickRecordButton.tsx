@@ -54,7 +54,9 @@ import {
   isNativeCapturePreviewRunning,
   startNativeCapturePreview,
   stopNativeCaptureSession,
+  forceStopNativeCaptureSession,
   applyNativeCaptureFullScreenPreview,
+  scheduleNativeCaptureFullScreenPreview,
   readNativeCaptureViewportSize,
   startNativeVideoRecording,
   stopNativeVideoRecording,
@@ -74,6 +76,7 @@ import {
   captureReviewSearch,
   dispatchPendingCaptureReady,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
+import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -1059,7 +1062,7 @@ export default function QuickRecordButton({
     const syncOrientation = () => {
       applyOrientation();
       if (nativeCaptureActiveRef.current) {
-        void applyNativeCaptureFullScreenPreview();
+        scheduleNativeCaptureFullScreenPreview();
       }
       requestAnimationFrame(applyOrientation);
       if (orientationSyncTimerRef.current) {
@@ -1069,7 +1072,7 @@ export default function QuickRecordButton({
         orientationSyncTimerRef.current = null;
         applyOrientation();
         if (nativeCaptureActiveRef.current) {
-          void applyNativeCaptureFullScreenPreview();
+          scheduleNativeCaptureFullScreenPreview();
         }
       }, 300);
     };
@@ -2400,12 +2403,18 @@ export default function QuickRecordButton({
   // If capture UI unmounts while native preview is active, stop the native session.
   useEffect(() => {
     return () => {
-      if (nativeCaptureActiveRef.current && !nativeCaptureFinishingRef.current) {
-        void stopNativeCaptureSession();
-        nativeCaptureActiveRef.current = false;
-      }
+      if (!shouldUseNativeIosCapture() || nativeCaptureFinishingRef.current) return;
+      // Skip on React StrictMode remount while capture is still open.
+      if (isOpen) return;
+      void forceStopNativeCaptureSession();
     };
-  }, []);
+  }, [isOpen]);
+
+  // Native camera sits behind WKWebView — force page + shell transparency for every entry path.
+  useEffect(() => {
+    if (!shouldUseNativeIosCapture() || !showModal) return;
+    return acquireNativeCaptureChromeLock();
+  }, [showModal]);
 
   useLayoutEffect(() => {
     const video = videoRef.current;
@@ -2413,7 +2422,7 @@ export default function QuickRecordButton({
   }, [showModal]);
 
   // Launcher may have already started native preview on the Capture tap (iOS).
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!showModal || !shouldUseNativeIosCapture() || !isNativeCapturePreviewRunning()) {
       return;
     }
@@ -2439,11 +2448,6 @@ export default function QuickRecordButton({
     setVideoResolution(readNativeCaptureViewportSize());
     void applyNativeCaptureFullScreenPreview();
   }, [showModal, hasPermission, cameraReady]);
-
-  useEffect(() => {
-    if (!showModal || !shouldUseNativeIosCapture() || !cameraReady) return;
-    void applyNativeCaptureFullScreenPreview();
-  }, [showModal, cameraReady]);
 
   // Trigger camera when modal opens (skip when parent primed stream, or while waiting for launch-time GPS)
   useEffect(() => {
@@ -2485,8 +2489,25 @@ export default function QuickRecordButton({
     cameraReady;
   const previewLive = previewTrackLive || nativePreviewLive;
   const showStartupOverlay =
-    !previewTapToStart && !permissionDenied && !previewLive && (!hasPermission || !cameraReady);
-  const useTransparentNativePreview = nativePreviewLive;
+    !isNativeIosCapture &&
+    !previewTapToStart &&
+    !permissionDenied &&
+    !previewLive &&
+    (!hasPermission || !cameraReady);
+  const useTransparentCaptureShell = isNativeIosCapture || previewLive;
+  const captureBottomChromeClass = isNativeIosCapture
+    ? 'native-capture-bottom-chrome pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-transparent'
+    : 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/55 via-black/20 to-transparent pt-28';
+  const nativeCaptureShellStyle = isNativeIosCapture
+    ? ({ background: 'transparent', backgroundColor: 'transparent' } as const)
+    : undefined;
+  const captureVenueCardClass = isNativeIosCapture
+    ? 'native-capture-venue-card rounded-xl border border-white/25 bg-transparent px-3 py-2 flex items-start gap-2'
+    : 'rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2';
+  const captureVenueSelectClass = isNativeIosCapture
+    ? 'w-full rounded-lg border border-white/25 bg-transparent px-2 py-1.5 text-[11px] text-white'
+    : 'w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white';
+  const captureOverlayTextClass = isNativeIosCapture ? 'native-capture-overlay-text' : '';
 
   const captureControls = (
     <>
@@ -2500,9 +2521,9 @@ export default function QuickRecordButton({
                 : 'Waiting for location permission — allow it when the browser asks so we can match venues.'}
             </p>
           )}
-          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2">
+          <div className={captureVenueCardClass}>
             <MapPin className="w-3.5 h-3.5 shrink-0 text-momentum-flare mt-0.5" />
-            <div className="min-w-0 flex-1 text-left space-y-1">
+            <div className={`min-w-0 flex-1 text-left space-y-1 ${captureOverlayTextClass}`}>
               {!coordsForNearbyVenues ? (
                 <p className="text-gray-300 text-[11px] leading-snug flex items-center gap-2">
                   <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-momentum-flare" />
@@ -2574,7 +2595,7 @@ export default function QuickRecordButton({
                         </label>
                         <select
                           id="capture-venue-picker"
-                          className="w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white"
+                          className={captureVenueSelectClass}
                           value={captureVenuePickerSelectedKey}
                           onChange={(e) => {
                             const picked = captureVenuePickerChoices.find(
@@ -2645,6 +2666,7 @@ export default function QuickRecordButton({
           }`}
         >
           <CameraZoomControls
+            className="native-capture-pill"
             presets={zoomPresets}
             value={zoomLevel}
             onSelect={(z) => void handleZoomSelect(z)}
@@ -2658,7 +2680,7 @@ export default function QuickRecordButton({
         }`}
       >
         <div
-          className="inline-flex rounded-full bg-black/40 p-0.5 ring-1 ring-white/15"
+          className="inline-flex rounded-full native-capture-pill bg-black/40 p-0.5 ring-1 ring-white/15"
           role="group"
           aria-label="Capture mode"
         >
@@ -2702,7 +2724,7 @@ export default function QuickRecordButton({
           <button
             type="button"
             onClick={closeModal}
-            className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
             style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
           >
             <span className="text-xl">✕</span>
@@ -2710,7 +2732,7 @@ export default function QuickRecordButton({
           <button
             type="button"
             onClick={openPhotoLibraryPicker}
-            className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
             style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
             title="Photo library"
             aria-label="Choose video from photo library"
@@ -2730,7 +2752,7 @@ export default function QuickRecordButton({
                 title="Start capturing your moment (up to 60 seconds)"
                 style={{ minWidth: '5rem', minHeight: '5rem' }}
               >
-                <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full native-capture-control bg-white/10 flex items-center justify-center">
                   <Circle className="w-16 h-16 text-red-500 fill-red-500" />
                 </div>
                 {cameraReady && !landscapeCapture && (
@@ -2766,7 +2788,7 @@ export default function QuickRecordButton({
               title="Take a photo"
               style={{ minWidth: '5rem', minHeight: '5rem' }}
             >
-              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+              <div className="w-20 h-20 rounded-full native-capture-control bg-white/10 flex items-center justify-center">
                 <div className="w-16 h-16 rounded-full border-[5px] border-white bg-white" />
               </div>
               {cameraReady && !landscapeCapture && (
@@ -2785,7 +2807,7 @@ export default function QuickRecordButton({
             type="button"
             onClick={toggleCameraFacing}
             disabled={isRecording || photoCapturing}
-            className="w-14 h-14 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
+            className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
             style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
             title="Flip camera"
           >
@@ -2810,15 +2832,17 @@ export default function QuickRecordButton({
       {/* Recording Modal */}
       {showModal && (
         <div
-          className={`fixed inset-0 z-[120] h-[100dvh] w-full overflow-hidden ${
-            useTransparentNativePreview ? 'bg-transparent' : 'bg-black'
+          className={`native-capture-modal fixed inset-0 z-[120] h-[100dvh] w-full overflow-hidden ${
+            isNativeIosCapture || useTransparentCaptureShell ? 'bg-transparent' : 'bg-black'
           }`}
+          style={nativeCaptureShellStyle}
         >
           {/* Camera preview — always full viewport; layout must not change on device rotation. */}
           <div
-            className={`absolute inset-0 z-0 touch-none overflow-hidden ${
-              useTransparentNativePreview ? 'bg-transparent' : 'bg-black'
+            className={`native-capture-preview absolute inset-0 z-0 touch-none overflow-hidden ${
+              isNativeIosCapture || useTransparentCaptureShell ? 'bg-transparent' : 'bg-black'
             }`}
+            style={nativeCaptureShellStyle}
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
@@ -2927,13 +2951,9 @@ export default function QuickRecordButton({
           </div>
 
           <div
-            className={
-              landscapeCapture || isNativeIosCapture
-                ? 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/70 to-transparent pt-10'
-                : 'pointer-events-none absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-black/90 backdrop-blur-lg'
-            }
+            className={captureBottomChromeClass}
             style={{
-              paddingTop: landscapeCapture ? undefined : '1.5rem',
+              ...(nativeCaptureShellStyle ?? {}),
               paddingBottom: 'max(0.75rem, calc(env(safe-area-inset-bottom, 0px) + 0.5rem))',
               paddingLeft: landscapeCapture ? '1rem' : '1.5rem',
               paddingRight: landscapeCapture ? '1rem' : '1.5rem',

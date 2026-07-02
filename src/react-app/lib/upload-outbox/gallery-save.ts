@@ -14,10 +14,31 @@ export type GallerySaveResult = {
 };
 
 const savedGalleryKeys = new Set<string>();
+const inFlightGalleryKeys = new Set<string>();
 
 export function blobSourceKey(blob: Blob): string {
   const name = blob instanceof File ? blob.name : 'blob';
   return `${name}:${blob.size}:${blob.type || 'video/webm'}`;
+}
+
+/** True when this clip was saved or a Photos write is already in progress. */
+export function isGallerySaveCommitted(sourceKey: string): boolean {
+  return savedGalleryKeys.has(sourceKey) || inFlightGalleryKeys.has(sourceKey);
+}
+
+function beginGallerySave(sourceKey: string): boolean {
+  if (isGallerySaveCommitted(sourceKey)) return false;
+  inFlightGalleryKeys.add(sourceKey);
+  return true;
+}
+
+function commitGallerySave(sourceKey: string): void {
+  inFlightGalleryKeys.delete(sourceKey);
+  savedGalleryKeys.add(sourceKey);
+}
+
+function abortGallerySave(sourceKey: string): void {
+  inFlightGalleryKeys.delete(sourceKey);
 }
 
 /**
@@ -36,7 +57,10 @@ export async function saveClipToDeviceGallery(
   },
 ): Promise<GallerySaveResult> {
   const sourceKey = opts?.sourceKey ?? blobSourceKey(video);
-  if (opts?.skipIfSaved && savedGalleryKeys.has(sourceKey)) {
+  if (opts?.skipIfSaved && isGallerySaveCommitted(sourceKey)) {
+    return { saved: true, method: 'device_cache', skipped: true };
+  }
+  if (!beginGallerySave(sourceKey)) {
     return { saved: true, method: 'device_cache', skipped: true };
   }
 
@@ -45,7 +69,7 @@ export async function saveClipToDeviceGallery(
       if (opts?.nativeVideoUri) {
         try {
           await saveNativeVideoUriToGallery(opts.nativeVideoUri, fileName);
-          savedGalleryKeys.add(sourceKey);
+          commitGallerySave(sourceKey);
           return {
             saved: true,
             method: 'native',
@@ -57,15 +81,17 @@ export async function saveClipToDeviceGallery(
       }
       const cachePath = await writeVideoToNativeCache(video, fileName);
       await saveVideoToGallery(cachePath, fileName);
-      savedGalleryKeys.add(sourceKey);
+      commitGallerySave(sourceKey);
       return { saved: true, method: 'native', nativeCachePath: cachePath };
     } catch (err) {
+      abortGallerySave(sourceKey);
       console.warn('saveClipToDeviceGallery native:', err);
     }
+    return { saved: false, method: 'device_cache' };
   }
 
   // Web: clips stay in IndexedDB — do not open the system share / save sheet.
-  savedGalleryKeys.add(sourceKey);
+  commitGallerySave(sourceKey);
   return { saved: true, method: 'device_cache' };
 }
 

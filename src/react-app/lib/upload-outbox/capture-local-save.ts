@@ -16,14 +16,29 @@ import {
   clearCaptureHandoffMeta,
   readCaptureHandoffMeta,
   clearCaptureDiscardedMarker,
+  allowCaptureReviewRecovery,
   dispatchPendingCaptureReady,
   writeCaptureHandoffMeta,
+  wasBlobRecentlyShared,
+  wasNativeVideoPathShared,
   captureReviewSearch,
   type CaptureHandoffMeta,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
 import { nativeVideoPathToBlob } from '@/react-app/lib/native-capture';
 import type { NavigateFunction } from 'react-router';
 export const PENDING_CAPTURE_JOB_ID = '__momentum_pending_capture__';
+
+let pendingCaptureFlushGeneration = 0;
+
+/** Cancel in-flight flushPendingCaptureToDevice IDB writes after Share/discard. */
+export function invalidatePendingCaptureFlush(): void {
+  pendingCaptureFlushGeneration += 1;
+}
+
+export function clearPendingCaptureMemory(): void {
+  clearCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+  clearCaptureHandoffMeta();
+}
 
 /**
  * Persist capture clip to IndexedDB (offline outbox). Photos save is handled by
@@ -58,16 +73,26 @@ export async function flushPendingCaptureToDevice(
   opts?: { nativeVideoUri?: string },
 ): Promise<void> {
   if (!video?.size) return;
-  primePendingCaptureVideo(video);
+  const generation = pendingCaptureFlushGeneration;
+  if (generation !== pendingCaptureFlushGeneration) return;
   try {
     await saveOutboxBlobs(PENDING_CAPTURE_JOB_ID, { video, thumbnail: null });
+    if (generation !== pendingCaptureFlushGeneration) {
+      try {
+        await deleteOutboxJob(PENDING_CAPTURE_JOB_ID);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
   } catch (err) {
     console.warn('flushPendingCaptureToDevice IndexedDB:', err);
   }
+  if (generation !== pendingCaptureFlushGeneration) return;
   try {
     await saveClipToDeviceGallery(video, fileName, {
       sourceKey: blobSourceKey(video),
-      skipIfSaved: false,
+      skipIfSaved: true,
       nativeVideoUri: opts?.nativeVideoUri,
     });
   } catch (err) {
@@ -106,6 +131,7 @@ export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
 
   primePendingCaptureVideo(blob);
   clearCaptureDiscardedMarker();
+  allowCaptureReviewRecovery();
   writeCaptureHandoffMeta({ recordingStartedAt, ...meta, nativeVideoPath });
 
   onReleaseResources?.();
@@ -132,32 +158,48 @@ export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
 }
 
 export async function loadPendingCapture(): Promise<StoredUploadBlobs | null> {
-  return resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+  const pending = await resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+  if (pending?.video?.size && wasBlobRecentlyShared(pending.video)) {
+    await clearPendingCapture();
+    return null;
+  }
+  return pending;
 }
 
 /** Resolve pre-Share clip from outbox memory, IndexedDB, or native recording path. */
 export async function resolvePendingCaptureForReview(opts?: {
   nativeVideoPath?: string | null;
+  /** When false, do not reload from native temp file or re-prime pending cache. */
+  allowNativeReload?: boolean;
 }): Promise<Blob | null> {
   const cached = peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
-  if (cached?.video?.size) return cached.video;
+  if (cached?.video?.size) {
+    if (wasBlobRecentlyShared(cached.video)) return null;
+    return cached.video;
+  }
 
   const fromDb = await waitForOutboxBlobs(PENDING_CAPTURE_JOB_ID, {
     attempts: 20,
     delayMs: 100,
   });
-  if (fromDb?.video?.size) return fromDb.video;
+  if (fromDb?.video?.size) {
+    if (wasBlobRecentlyShared(fromDb.video)) return null;
+    return fromDb.video;
+  }
+
+  if (opts?.allowNativeReload === false) return null;
 
   const nativePath =
     opts?.nativeVideoPath?.trim() ||
     readCaptureHandoffMeta()?.nativeVideoPath?.trim() ||
     '';
   if (!nativePath) return null;
+  if (wasNativeVideoPathShared(nativePath)) return null;
 
   try {
     const blob = await nativeVideoPathToBlob(nativePath);
     if (blob.size > 0) {
-      primePendingCaptureVideo(blob);
+      if (wasBlobRecentlyShared(blob)) return null;
       return blob;
     }
   } catch (err) {
@@ -168,8 +210,8 @@ export async function resolvePendingCaptureForReview(opts?: {
 
 /** Remove the pre-Share capture blob after Share or explicit discard. */
 export async function clearPendingCapture(): Promise<void> {
-  clearCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
-  clearCaptureHandoffMeta();
+  invalidatePendingCaptureFlush();
+  clearPendingCaptureMemory();
   try {
     await deleteOutboxJob(PENDING_CAPTURE_JOB_ID);
   } catch (err) {

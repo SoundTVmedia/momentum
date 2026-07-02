@@ -15,6 +15,7 @@ import {
   formatUploadError,
   isBlobWaitPauseError,
   isRetryableUploadError,
+  peekCachedOutboxBlobs,
   persistOutboxVideo,
   resolveOutboxBlobs,
   waitForOutboxBlobs,
@@ -26,7 +27,13 @@ import {
   registerClipBlob,
   releaseClipBlob,
 } from '@/react-app/lib/upload-outbox/clip-blob-registry';
-import { PENDING_CAPTURE_JOB_ID, clearPendingCapture } from '@/react-app/lib/upload-outbox/capture-local-save';
+import {
+  PENDING_CAPTURE_JOB_ID,
+  clearPendingCapture,
+  clearPendingCaptureMemory,
+  invalidatePendingCaptureFlush,
+} from '@/react-app/lib/upload-outbox/capture-local-save';
+import { markCaptureSharedForBlob, blockCaptureReviewRecovery } from '@/react-app/lib/upload-outbox/capture-handoff';
 import {
   deleteOutboxJob,
   loadOutboxMeta,
@@ -242,6 +249,12 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     (job: ClipUploadQueueJob) => {
       if (notifiedPublishedRef.current.has(job.id)) return;
       notifiedPublishedRef.current.add(job.id);
+      const publishedVideo = peekCachedOutboxBlobs(job.id)?.video;
+      if (publishedVideo?.size) {
+        markCaptureSharedForBlob(publishedVideo);
+      }
+      blockCaptureReviewRecovery();
+      void clearPendingCapture();
       void notifyClipUploadSuccess(welcomeName);
     },
     [welcomeName],
@@ -700,6 +713,13 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       }
 
       registerClipBlob(job.id, videoBlob);
+      markCaptureSharedForBlob(videoBlob);
+      blockCaptureReviewRecovery();
+      invalidatePendingCaptureFlush();
+      clearPendingCaptureMemory();
+      void deleteOutboxJob(PENDING_CAPTURE_JOB_ID).catch((err) => {
+        console.warn('ClipUploadQueue delete pending capture:', err);
+      });
       cacheOutboxBlobs(job.id, {
         video: videoBlob,
         thumbnail: payload.thumbnailFile ?? null,

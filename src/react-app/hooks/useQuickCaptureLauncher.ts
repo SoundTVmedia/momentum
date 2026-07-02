@@ -4,7 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import {
   shouldUseNativeIosCapture,
-  startNativeCapturePreview,
+  forceStopNativeCaptureSession,
 } from '@/react-app/lib/native-capture';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
@@ -43,6 +43,9 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     setCaptureLaunchGeo(null);
     setCaptureLaunchGeoResolved(false);
     setShowQuickCapture(false);
+    if (shouldUseNativeIosCapture()) {
+      void forceStopNativeCaptureSession();
+    }
   }, [primedMediaStream]);
 
   const openQuickCapture = useCallback(() => {
@@ -68,11 +71,9 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
       void primeGeolocationOnUserGesture()
         .then((g) => {
           setCaptureLaunchGeo(g);
-          return startNativeCapturePreview();
         })
         .catch((err) => {
-          console.warn('useQuickCaptureLauncher: native capture/geo failed on open', err);
-          return startNativeCapturePreview();
+          console.warn('useQuickCaptureLauncher: geolocation failed on open', err);
         })
         .finally(() => {
           setCaptureLaunchGeoResolved(true);

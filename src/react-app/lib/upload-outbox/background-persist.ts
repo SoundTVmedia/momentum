@@ -6,6 +6,7 @@ import { registerClipBlob } from '@/react-app/lib/upload-outbox/clip-blob-regist
 import { adoptPendingCaptureForJob } from '@/react-app/lib/upload-outbox/capture-local-save';
 import {
   blobSourceKey,
+  isGallerySaveCommitted,
   saveClipToDeviceGallery,
 } from '@/react-app/lib/upload-outbox/gallery-save';
 import { scheduleNativeBackgroundUpload } from '@/react-app/lib/native-bridge';
@@ -36,12 +37,19 @@ export async function persistClipInBackground(opts: {
 
   try {
     const sourceKey = blobSourceKey(video);
-    const gallery = await saveClipToDeviceGallery(video, fileName, {
-      sourceKey,
-      skipIfSaved: true,
-    });
-    onGallerySaved?.(gallery.method === 'native' || gallery.method === 'share');
-    scheduleNativeBackgroundUpload(jobId, gallery.nativeCachePath);
+    if (isGallerySaveCommitted(sourceKey)) {
+      onGallerySaved?.(true);
+      scheduleNativeBackgroundUpload(jobId);
+    } else {
+      const gallery = await saveClipToDeviceGallery(video, fileName, {
+        sourceKey,
+        skipIfSaved: true,
+      });
+      onGallerySaved?.(
+        gallery.skipped || gallery.method === 'native' || gallery.method === 'share',
+      );
+      scheduleNativeBackgroundUpload(jobId, gallery.nativeCachePath);
+    }
   } catch (galleryErr) {
     console.warn('background-persist gallery:', galleryErr);
   }

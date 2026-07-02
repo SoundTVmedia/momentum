@@ -30,7 +30,12 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Microphone permission denied")
                     return
                 }
-                call.resolve()
+                do {
+                    try self.configureSession()
+                    call.resolve()
+                } catch {
+                    call.reject("Failed to prepare audio session: \(error.localizedDescription)")
+                }
             }
         }
     }
