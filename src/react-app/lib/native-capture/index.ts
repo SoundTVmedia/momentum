@@ -59,18 +59,12 @@ async function runCameraPreviewStart(
     await ensureNativeCaptureAudioReady();
   }
   if (generation !== previewStartGeneration) return;
-  const { width, height } = readNativeCaptureViewportSize();
   const startOpts = {
     position: opts?.facing ?? 'rear',
     toBack: true,
     enableVideoMode: true,
     cameraMode: true,
     aspectRatio: nativeCaptureAspectRatio(),
-    width,
-    height,
-    x: 0,
-    y: 0,
-    paddingBottom: 0,
     positioning: 'top' as const,
     rotateWhenOrientationChanged: true,
     ...(withAudio ? {} : { disableAudio: true }),
@@ -86,13 +80,29 @@ async function runCameraPreviewStart(
     await forceStopNativeCaptureSession();
     return;
   }
-  await applyNativeCaptureFullScreenPreview();
+  previewRunning = true;
+  previewAudioEnabled = withAudio;
+  await layoutNativeCapturePreview();
   if (generation !== previewStartGeneration) {
     await forceStopNativeCaptureSession();
     return;
   }
-  previewRunning = true;
-  previewAudioEnabled = withAudio;
+}
+
+async function layoutNativeCapturePreview(): Promise<void> {
+  const { width, height } = readNativeCaptureViewportSize();
+  const layoutKey = `${width}x${height}`;
+  if (layoutKey === lastPreviewLayoutKey && !previewLayoutInFlight) return;
+  lastPreviewLayoutKey = layoutKey;
+  previewLayoutInFlight = true;
+  try {
+    await CameraPreview.setPreviewSize({ x: 0, y: 0, width, height });
+  } catch (err) {
+    console.warn('layoutNativeCapturePreview:', err);
+    lastPreviewLayoutKey = '';
+  } finally {
+    previewLayoutInFlight = false;
+  }
 }
 
 /** Capgo aspect string for the current device orientation. */
@@ -124,19 +134,7 @@ export function readNativeCaptureViewportSize(): { width: number; height: number
  */
 export async function applyNativeCaptureFullScreenPreview(): Promise<void> {
   if (!shouldUseNativeIosCapture() || !previewRunning) return;
-  const { width, height } = readNativeCaptureViewportSize();
-  const layoutKey = `${width}x${height}`;
-  if (layoutKey === lastPreviewLayoutKey && !previewLayoutInFlight) return;
-  lastPreviewLayoutKey = layoutKey;
-  previewLayoutInFlight = true;
-  try {
-    await CameraPreview.setPreviewSize({ x: 0, y: 0, width, height });
-  } catch (err) {
-    console.warn('applyNativeCaptureFullScreenPreview:', err);
-    lastPreviewLayoutKey = '';
-  } finally {
-    previewLayoutInFlight = false;
-  }
+  await layoutNativeCapturePreview();
 }
 
 /** Debounced layout sync — avoids flicker from rapid setPreviewSize / transparency passes. */
