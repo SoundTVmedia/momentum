@@ -1,40 +1,99 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..63c7b2c 100644
+index 5dec305..62738d2 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-@@ -248,13 +248,43 @@ extension CameraController {
+@@ -192,6 +192,63 @@ extension CameraController {
+         }
+     }
  
-                 // Set aspect ratio preset and remember requested ratio
++    /// Concert/loud-SPL capture — iOS has no AVCaptureDevice AGC APIs (those are macOS-only).
++    /// Audio processing is controlled via AVAudioSession mode in activateMusicRecordingAudioSession().
++    private func configureAudioInputForMusicRecording(_ device: AVCaptureDevice) {
++        print("[CameraPreview] Audio input \(device.localizedName) ready for music capture")
++    }
++
++    private func configurePreferredMicrophoneForAmbientCapture() {
++        let audioSession = AVAudioSession.sharedInstance()
++        guard let inputs = audioSession.availableInputs else { return }
++
++        guard let builtInMic = inputs.first(where: { $0.portType == .builtInMic }) else { return }
++        try? audioSession.setPreferredInput(builtInMic)
++
++        guard let dataSources = builtInMic.dataSources, !dataSources.isEmpty else { return }
++
++        // Prefer the rear mic — it points at the stage/PA rather than the user's mouth.
++        let dataSource =
++            dataSources.first(where: { $0.orientation == .back }) ??
++            dataSources.first(where: { $0.orientation == .bottom }) ??
++            dataSources.first
++
++        guard let dataSource = dataSource else { return }
++        try? builtInMic.setPreferredDataSource(dataSource)
++
++        if let patterns = dataSource.supportedPolarPatterns,
++           patterns.contains(AVAudioSession.PolarPattern.omnidirectional) {
++            try? dataSource.setPreferredPolarPattern(AVAudioSession.PolarPattern.omnidirectional)
++            print("[CameraPreview] Mic polar pattern set to omnidirectional")
++        }
++
++        if #available(iOS 15.0, *) {
++            let preferred = AVCaptureDevice.preferredMicrophoneMode
++            let active = AVCaptureDevice.activeMicrophoneMode
++            print("[CameraPreview] Mic mode preferred=\(preferred.rawValue) active=\(active.rawValue)")
++            if preferred == .voiceIsolation || active == .voiceIsolation {
++                print("[CameraPreview] WARNING: Voice Isolation suppresses concert/PA audio — user should set Wide Spectrum in Control Center")
++            }
++        }
++    }
++
++    private func activateMusicRecordingAudioSession() {
++        let audioSession = AVAudioSession.sharedInstance()
++        do {
++            // .measurement minimizes Apple signal processing (vs .videoRecording speech/beamforming).
++            try audioSession.setCategory(
++                .playAndRecord,
++                mode: .measurement,
++                options: [.defaultToSpeaker, .allowBluetoothHFP]
++            )
++            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
++            configurePreferredMicrophoneForAmbientCapture()
++            print("[CameraPreview] AVAudioSession active for music recording (mode=measurement)")
++        } catch {
++            print("[CameraPreview] AVAudioSession activation failed: \(error)")
++        }
++    }
++
+     private func prepareOutputs() {
+         // Skip if already prepared
+         guard !self.outputsPrepared else { return }
+@@ -234,12 +291,15 @@ extension CameraController {
+                 // Create session if needed
+                 if self.captureSession == nil {
+                     self.captureSession = AVCaptureSession()
++                    self.captureSession?.automaticallyConfiguresApplicationAudioSession = disableAudio || !cameraMode
+                 }
+ 
+                 guard let captureSession = self.captureSession else {
+                     throw CameraControllerError.captureSessionIsMissing
+                 }
+ 
++                captureSession.automaticallyConfiguresApplicationAudioSession = disableAudio || !cameraMode
++
+                 // Prepare outputs
+                 self.prepareOutputs()
+ 
+@@ -250,10 +310,23 @@ extension CameraController {
                  self.requestedAspectRatio = aspectRatio
--                self.configureSessionPreset(for: aspectRatio)
+                 self.configureSessionPreset(for: aspectRatio)
+ 
 +                if cameraMode && !disableAudio {
-+                    if captureSession.canSetSessionPreset(.hd1920x1080) {
-+                        captureSession.sessionPreset = .hd1920x1080
-+                    } else if captureSession.canSetSessionPreset(.high) {
-+                        captureSession.sessionPreset = .high
-+                    } else {
-+                        self.configureSessionPreset(for: aspectRatio)
-+                    }
-+                } else {
-+                    self.configureSessionPreset(for: aspectRatio)
++                    self.activateMusicRecordingAudioSession()
 +                }
 +
-+                // Configure AVAudioSession before attaching mic input (Capgo previously skipped this).
-+                if !disableAudio {
-+                    let audioSession = AVAudioSession.sharedInstance()
-+                    try audioSession.setCategory(
-+                        .playAndRecord,
-+                        mode: .videoRecording,
-+                        options: [.defaultToSpeaker, .allowBluetoothHFP]
-+                    )
-+                    try audioSession.setActive(true)
-+                }
- 
                  // Configure device inputs
                  try self.configureDeviceInputs(cameraPosition: cameraPosition, deviceId: deviceId, disableAudio: disableAudio)
  
 -                // Add data output BEFORE starting session for faster first frame
--                if let dataOutput = self.dataOutput, captureSession.canAddOutput(dataOutput) {
 +                // Movie output must be attached before startRunning so mic audio connects for recording.
 +                if cameraMode, let fileVideoOutput = self.fileVideoOutput, captureSession.canAddOutput(fileVideoOutput) {
 +                    captureSession.addOutput(fileVideoOutput)
@@ -43,13 +102,12 @@ index 5dec305..63c7b2c 100644
 +                    }
 +                }
 +
-+                // Preview uses AVCaptureVideoPreviewLayer — skip AVCaptureVideoDataOutput in video
-+                // mode; it competes with movie-file audio on many devices.
-+                if !cameraMode, let dataOutput = self.dataOutput, captureSession.canAddOutput(dataOutput) {
++                // Data output drives Capgo's first-frame callback; safe in video mode now that
++                // Plugin resolves start() immediately when videoCaptureMode is true.
+                 if let dataOutput = self.dataOutput, captureSession.canAddOutput(dataOutput) {
                      captureSession.addOutput(dataOutput)
                      dataOutput.setSampleBufferDelegate(self, queue: DispatchQueue.main)
-                 }
-@@ -280,11 +310,6 @@ extension CameraController {
+@@ -280,11 +353,6 @@ extension CameraController {
                          captureSession.addOutput(photoOutput)
                      }
  
@@ -61,7 +119,20 @@ index 5dec305..63c7b2c 100644
                      captureSession.commitConfiguration()
                  }
  
-@@ -416,13 +441,17 @@ extension CameraController {
+@@ -312,6 +380,12 @@ extension CameraController {
+                 } else if captureSession.canSetSessionPreset(.hd1920x1080) {
+                     targetPreset = .hd1920x1080
+                 }
++            case "9:16":
++                if captureSession.canSetSessionPreset(.high) {
++                    targetPreset = .high
++                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
++                    targetPreset = .hd1920x1080
++                }
+             case "4:3":
+                 if captureSession.canSetSessionPreset(.photo) {
+                     targetPreset = .photo
+@@ -416,13 +490,18 @@ extension CameraController {
              if self.audioDevice == nil {
                  self.audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
              }
@@ -79,24 +150,34 @@ index 5dec305..63c7b2c 100644
 +            self.audioInput = try AVCaptureDeviceInput(device: audioDevice)
 +            if captureSession.canAddInput(self.audioInput!) {
 +                captureSession.addInput(self.audioInput!)
++                self.configureAudioInputForMusicRecording(audioDevice)
 +                print("[CameraPreview] Audio input attached for video recording")
 +            } else {
-+                print("[CameraPreview] Cannot add audio input to capture session")
-+                throw CameraControllerError.inputsAreInvalid
++                print("[CameraPreview] Cannot add audio input to capture session — recording video-only")
++                self.audioInput = nil
              }
          }
      }
-@@ -1463,6 +1492,15 @@ extension CameraController {
+@@ -1446,6 +1525,10 @@ extension CameraController {
+             throw CameraControllerError.fileVideoOutputNotFound
+         }
+ 
++        if self.audioInput != nil {
++            self.activateMusicRecordingAudioSession()
++        }
++
+         // cpcp_video_A6C01203 - portrait
+         //
+         if let connection = fileVideoOutput.connection(with: .video) {
+@@ -1463,6 +1546,13 @@ extension CameraController {
              }
          }
  
 +        if let audioConnection = fileVideoOutput.connection(with: .audio) {
-+            if audioConnection.isActive {
-+                audioConnection.isEnabled = true
-+            }
++            audioConnection.isEnabled = true
 +            print("[CameraPreview] Movie file audio connection active=\(audioConnection.isActive) enabled=\(audioConnection.isEnabled)")
-+        } else {
-+            print("[CameraPreview] WARNING: Movie file output has no audio connection")
++        } else if self.audioInput != nil {
++            print("[CameraPreview] WARNING: Movie file output has no audio connection despite mic input")
 +        }
 +
          let identifier = UUID()

@@ -10,8 +10,14 @@ export const CAPTURE_SHARED_SESSION_KEY = 'momentum_capture_shared_v1';
 export const CAPTURE_SHARED_BLOB_KEYS_KEY = 'momentum_capture_shared_blob_keys_v1';
 export const CAPTURE_REVIEW_BLOCKED_KEY = 'momentum_capture_review_blocked_v1';
 export const CAPTURE_SHARED_NATIVE_PATHS_KEY = 'momentum_capture_shared_native_paths_v1';
+export const CAPTURE_SHARED_RECORDING_ATS_KEY = 'momentum_capture_shared_recording_ats_v1';
+/** Set after Share/upload; cleared only when a new capture handoff opens caption. */
+export const CAPTURE_REVIEW_SUPPRESS_KEY = 'momentum_capture_review_suppress_v1';
 export const CAPTURE_REVIEW_SEARCH_PARAM = 'reviewCapture';
 export const PENDING_CAPTURE_READY_EVENT = 'momentum:pending-capture-ready';
+
+/** In-tab guard — survives UploadClip remount when WKWebView storage writes fail. */
+let captureReviewSessionBlocked = false;
 
 export type CaptureHandoffMeta = {
   recordingStartedAt: string;
@@ -94,12 +100,72 @@ export function clearCaptureHandoffMeta(): void {
 
 /** Block caption recovery after Share/upload until the next in-app capture handoff. */
 export function blockCaptureReviewRecovery(): void {
+  captureReviewSessionBlocked = true;
   writeStorageItem(CAPTURE_REVIEW_BLOCKED_KEY, String(Date.now()));
+  writeStorageItem(CAPTURE_REVIEW_SUPPRESS_KEY, '1');
   markCaptureShared();
 }
 
+export function isCaptureReviewSessionBlocked(): boolean {
+  return captureReviewSessionBlocked;
+}
+
+export function isCaptureReviewSuppressed(): boolean {
+  return readStorageItem(CAPTURE_REVIEW_SUPPRESS_KEY) === '1';
+}
+
+export function clearCaptureReviewSuppression(): void {
+  removeStorageItem(CAPTURE_REVIEW_SUPPRESS_KEY);
+}
+
 export function allowCaptureReviewRecovery(): void {
+  captureReviewSessionBlocked = false;
   removeStorageItem(CAPTURE_REVIEW_BLOCKED_KEY);
+  clearCaptureReviewSuppression();
+}
+
+export function readCaptureReviewBlockedAt(): number | null {
+  const raw = readStorageItem(CAPTURE_REVIEW_BLOCKED_KEY);
+  if (!raw) return null;
+  const at = Number(raw);
+  return Number.isFinite(at) ? at : null;
+}
+
+/** True when a new in-app recording should open the caption screen (not a stale handoff). */
+export function canOpenCaptureReviewHandoff(blob: Blob, recordingStartedAt: string): boolean {
+  if (!blob?.size) return false;
+  if (wasBlobRecentlyShared(blob)) return false;
+  if (wasRecordingStartedAtShared(recordingStartedAt)) return false;
+  const blockedAt = readCaptureReviewBlockedAt();
+  const recordAt = Date.parse(recordingStartedAt);
+  if (
+    isCaptureReviewRecoveryBlocked() &&
+    blockedAt != null &&
+    Number.isFinite(recordAt) &&
+    recordAt <= blockedAt
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Clear the post-Share block only for a genuinely new recording session. */
+export function allowCaptureReviewForNewRecording(recordingStartedAt: string): void {
+  const blockedAt = readCaptureReviewBlockedAt();
+  const recordAt = Date.parse(recordingStartedAt);
+  if (blockedAt == null || (Number.isFinite(recordAt) && recordAt > blockedAt)) {
+    allowCaptureReviewRecovery();
+    clearCaptureSharedMarker();
+  }
+}
+
+/** True when stale route/IDB recovery must not reopen the caption screen. */
+export function shouldSkipCaptureReviewHydration(): boolean {
+  return (
+    captureReviewSessionBlocked ||
+    isCaptureReviewSuppressed() ||
+    isCaptureReviewRecoveryBlocked()
+  );
 }
 
 export function isCaptureReviewRecoveryBlocked(): boolean {
@@ -175,6 +241,40 @@ function writeSharedNativePaths(paths: string[]): void {
   }
 }
 
+function readSharedRecordingAts(): string[] {
+  try {
+    const raw = readStorageItem(CAPTURE_SHARED_RECORDING_ATS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as string[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSharedRecordingAts(ats: string[]): void {
+  try {
+    writeStorageItem(CAPTURE_SHARED_RECORDING_ATS_KEY, JSON.stringify(ats));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Pin a capture session id so route recovery cannot reopen caption after Share. */
+export function markRecordingStartedAtShared(at: string | null | undefined): void {
+  const trimmed = at?.trim();
+  if (!trimmed) return;
+  const kept = readSharedRecordingAts().filter((entry) => entry !== trimmed);
+  kept.push(trimmed);
+  writeSharedRecordingAts(kept.slice(-32));
+}
+
+export function wasRecordingStartedAtShared(at: string | null | undefined): boolean {
+  const trimmed = at?.trim();
+  if (!trimmed) return false;
+  return readSharedRecordingAts().includes(trimmed);
+}
+
 export function markNativeVideoPathShared(nativePath: string | null | undefined): void {
   const path = nativePath?.trim();
   if (!path) return;
@@ -214,10 +314,12 @@ export function isCaptureBlobConsumed(blob: Blob): boolean {
   return wasBlobRecentlyShared(blob);
 }
 
-export function shouldHydrateCaptureReview(): boolean {
-  if (isCaptureReviewRecoveryBlocked()) return false;
-  if (wasCaptureRecentlyShared()) return false;
+export function shouldHydrateCaptureReview(recordingStartedAt?: string | null): boolean {
+  if (shouldSkipCaptureReviewHydration()) return false;
   if (wasCaptureRecentlyDiscarded()) return false;
+  if (wasRecordingStartedAtShared(recordingStartedAt)) return false;
+  const handoffAt = readCaptureHandoffMeta()?.recordingStartedAt;
+  if (wasRecordingStartedAtShared(handoffAt)) return false;
   return true;
 }
 
@@ -241,7 +343,7 @@ export function wasCaptureRecentlyShared(maxAgeMs = 86_400_000): boolean {
 }
 
 export function dispatchPendingCaptureReady(recordingStartedAt?: string): void {
-  if (!shouldHydrateCaptureReview()) return;
+  if (!shouldHydrateCaptureReview(recordingStartedAt)) return;
   window.dispatchEvent(
     new CustomEvent(PENDING_CAPTURE_READY_EVENT, {
       detail: { recordingStartedAt: recordingStartedAt ?? null },
@@ -268,9 +370,15 @@ export function isQuickCaptureReviewFlow(
   } | null,
   handoff?: Pick<CaptureHandoffMeta, 'recordingStartedAt'> | null,
 ): boolean {
-  if (!shouldHydrateCaptureReview()) return false;
+  if (!shouldHydrateCaptureReview(handoff?.recordingStartedAt)) return false;
+  if (wasRecordingStartedAtShared(handoff?.recordingStartedAt)) return false;
   if (wantsCaptureReviewScreen(search)) return true;
   if (nav?.videoBlob || nav?.fromQuickCapture || nav?.recordingStartedAt) return true;
   if (handoff?.recordingStartedAt) return true;
   return false;
+}
+
+if (typeof window !== 'undefined') {
+  captureReviewSessionBlocked =
+    isCaptureReviewSuppressed() || isCaptureReviewRecoveryBlocked();
 }

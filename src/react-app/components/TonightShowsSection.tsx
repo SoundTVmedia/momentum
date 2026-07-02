@@ -9,6 +9,12 @@ import {
   readDeviceCoordsForNearbyShows,
   tonightShowsApiUrl,
 } from '@/react-app/lib/nearby-shows-url';
+import {
+  fetchErrorMessage,
+  fetchWithTimeout,
+  isFetchNetworkError,
+  isFetchTimeoutError,
+} from '@/react-app/lib/fetch-with-timeout';
 
 type TonightShowsApi = {
   events?: Record<string, unknown>[];
@@ -32,47 +38,63 @@ export default function TonightShowsSection({
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const device = await readDeviceCoordsForNearbyShows();
-      const response = await fetch(
-        tonightShowsApiUrl({
-          limit: maxEvents,
-          latitude: device?.latitude,
-          longitude: device?.longitude,
-        }),
-        { credentials: 'include', signal: AbortSignal.timeout(22_000) },
-      );
-      const data = (await response.json()) as TonightShowsApi;
-      setEvents(Array.isArray(data.events) ? data.events : []);
-      const label =
-        typeof data.location?.label === 'string' && data.location.label.trim()
-          ? data.location.label.trim()
-          : null;
-      setLocationLabel(label);
-      const notice =
-        typeof data.jambaseNotice === 'string' && data.jambaseNotice.trim()
-          ? data.jambaseNotice.trim()
-          : null;
-      setMessage(
-        notice ??
-          ((data.events?.length ?? 0) === 0
-            ? 'No shows tonight near you right now.'
-            : null),
-      );
-    } catch (error) {
-      console.error('TonightShowsSection load failed', error);
-      setEvents([]);
-      const timedOut =
-        error instanceof Error &&
-        (error.name === 'TimeoutError' || error.name === 'AbortError');
-      setMessage(
-        timedOut
-          ? 'Tonight’s shows took too long to load. Try again in a moment.'
-          : 'Could not load tonight’s shows.',
-      );
-    } finally {
-      setLoading(false);
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const device = await readDeviceCoordsForNearbyShows();
+        const response = await fetchWithTimeout(
+          tonightShowsApiUrl({
+            limit: maxEvents,
+            latitude: device?.latitude,
+            longitude: device?.longitude,
+          }),
+          { credentials: 'include' },
+          attempt === 0 ? 28_000 : 35_000,
+        );
+        if (!response.ok) {
+          throw new Error(`Tonight shows request failed (${response.status})`);
+        }
+        const data = (await response.json()) as TonightShowsApi;
+        setEvents(Array.isArray(data.events) ? data.events : []);
+        const label =
+          typeof data.location?.label === 'string' && data.location.label.trim()
+            ? data.location.label.trim()
+            : null;
+        setLocationLabel(label);
+        const notice =
+          typeof data.jambaseNotice === 'string' && data.jambaseNotice.trim()
+            ? data.jambaseNotice.trim()
+            : null;
+        setMessage(
+          notice ??
+            ((data.events?.length ?? 0) === 0
+              ? 'No shows tonight near you right now.'
+              : null),
+        );
+        setLoading(false);
+        return;
+      } catch (error) {
+        lastError = error;
+        const detail = fetchErrorMessage(error);
+        console.warn(
+          `TonightShowsSection load attempt ${attempt + 1} failed: ${detail}`,
+        );
+        if (attempt === 0 && isFetchNetworkError(error)) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          continue;
+        }
+        break;
+      }
     }
+
+    setEvents([]);
+    setMessage(
+      isFetchTimeoutError(lastError)
+        ? 'Tonight’s shows took too long to load. Try again in a moment.'
+        : 'Could not load tonight’s shows.',
+    );
+    setLoading(false);
   }, [maxEvents]);
 
   useEffect(() => {

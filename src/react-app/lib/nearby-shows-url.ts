@@ -33,32 +33,41 @@ export async function readDeviceCoordsForNearbyShows(): Promise<{
   latitude: number;
   longitude: number;
 } | null> {
-  const { Capacitor } = await import('@capacitor/core');
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const { Geolocation } = await import('@capacitor/geolocation');
-      const position = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: false,
-        timeout: 8000,
-        maximumAge: 60_000,
-      });
-      return {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      };
-    } catch {
-      return null;
+  const readCoords = async (): Promise<{ latitude: number; longitude: number } | null> => {
+    const { Capacitor } = await import('@capacitor/core');
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { Geolocation } = await import('@capacitor/geolocation');
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: false,
+          timeout: 8000,
+          maximumAge: 60_000,
+        });
+        return {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+      } catch {
+        return null;
+      }
     }
-  }
 
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
-  return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-      },
-      () => resolve(null),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
-    );
-  });
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        },
+        () => resolve(null),
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 },
+      );
+    });
+  };
+
+  return Promise.race([
+    readCoords(),
+    new Promise<null>((resolve) => {
+      window.setTimeout(() => resolve(null), 6000);
+    }),
+  ]);
 }

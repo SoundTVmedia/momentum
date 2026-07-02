@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import ClipDeepLinkHandler from '@/react-app/components/ClipDeepLinkHandler';
 import PerfDebugOverlay from '@/react-app/components/PerfDebugOverlay';
@@ -34,7 +34,7 @@ export default function AppRouteChrome() {
     return () => setHideBottomNav(false);
   }, [quickCapture.showQuickCapture, setHideBottomNav]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!hideRouteContentForNativeCapture) {
       return;
     }

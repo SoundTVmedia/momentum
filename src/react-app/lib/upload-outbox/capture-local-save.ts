@@ -16,11 +16,14 @@ import {
   clearCaptureHandoffMeta,
   readCaptureHandoffMeta,
   clearCaptureDiscardedMarker,
-  allowCaptureReviewRecovery,
+  allowCaptureReviewForNewRecording,
+  canOpenCaptureReviewHandoff,
   dispatchPendingCaptureReady,
   writeCaptureHandoffMeta,
   wasBlobRecentlyShared,
   wasNativeVideoPathShared,
+  wasRecordingStartedAtShared,
+  shouldSkipCaptureReviewHydration,
   captureReviewSearch,
   type CaptureHandoffMeta,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
@@ -73,6 +76,7 @@ export async function flushPendingCaptureToDevice(
   opts?: { nativeVideoUri?: string },
 ): Promise<void> {
   if (!video?.size) return;
+  if (shouldSkipCaptureReviewHydration()) return;
   const generation = pendingCaptureFlushGeneration;
   if (generation !== pendingCaptureFlushGeneration) return;
   try {
@@ -129,9 +133,14 @@ export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
     onReleaseResources,
   } = opts;
 
+  if (!canOpenCaptureReviewHandoff(blob, recordingStartedAt)) {
+    console.warn('completeCaptureHandoff: skipped — clip already shared or stale handoff');
+    return;
+  }
+
   primePendingCaptureVideo(blob);
   clearCaptureDiscardedMarker();
-  allowCaptureReviewRecovery();
+  allowCaptureReviewForNewRecording(recordingStartedAt);
   writeCaptureHandoffMeta({ recordingStartedAt, ...meta, nativeVideoPath });
 
   onReleaseResources?.();
@@ -158,6 +167,14 @@ export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
 }
 
 export async function loadPendingCapture(): Promise<StoredUploadBlobs | null> {
+  if (shouldSkipCaptureReviewHydration()) {
+    return null;
+  }
+  const handoffAt = readCaptureHandoffMeta()?.recordingStartedAt;
+  if (wasRecordingStartedAtShared(handoffAt)) {
+    await clearPendingCapture();
+    return null;
+  }
   const pending = await resolveOutboxBlobs(PENDING_CAPTURE_JOB_ID);
   if (pending?.video?.size && wasBlobRecentlyShared(pending.video)) {
     await clearPendingCapture();
@@ -230,5 +247,11 @@ export async function adoptPendingCaptureForJob(
   const videoToSave = pending?.video ?? video;
   if (!videoToSave || videoToSave.size === 0) return false;
   await persistOutboxVideo(jobId, videoToSave, pending?.thumbnail ?? null);
+  clearCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
+  try {
+    await deleteOutboxJob(PENDING_CAPTURE_JOB_ID);
+  } catch {
+    /* ignore */
+  }
   return Boolean(peekCachedOutboxBlobs(jobId)?.video);
 }

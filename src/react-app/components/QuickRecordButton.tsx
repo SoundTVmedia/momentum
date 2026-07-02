@@ -53,11 +53,12 @@ import {
   shouldUseNativeIosCapture,
   isNativeCapturePreviewRunning,
   startNativeCapturePreview,
+  nativeCaptureOrientation,
+  readNativeCaptureViewportSize,
   stopNativeCaptureSession,
   forceStopNativeCaptureSession,
   applyNativeCaptureFullScreenPreview,
   scheduleNativeCaptureFullScreenPreview,
-  readNativeCaptureViewportSize,
   startNativeVideoRecording,
   stopNativeVideoRecording,
   setNativeCaptureZoom,
@@ -836,6 +837,9 @@ export default function QuickRecordButton({
           facingOverride === 'user' ? 'front' : 'rear';
         await startNativeCapturePreview({ facing, withAudio: true });
         nativeCaptureActiveRef.current = true;
+        const portrait = nativeCaptureOrientation() === 'portrait';
+        setIsPortrait(portrait);
+        setRecordingOrientation(portrait ? 'portrait' : 'landscape');
         setPermissionDenied(false);
         setAudioEnabled(true);
         setCameraError(null);
@@ -852,10 +856,7 @@ export default function QuickRecordButton({
           setZoomLevel(zoomState.current);
           zoomLevelRef.current = zoomState.current;
         }
-        setVideoResolution({
-          width: window.screen.width,
-          height: window.screen.height,
-        });
+        setVideoResolution(readNativeCaptureViewportSize());
         return null;
       }
 
@@ -1038,6 +1039,7 @@ export default function QuickRecordButton({
     const applyOrientation = () => {
       const portrait = deviceIsPortraitViewport();
       setIsPortrait(portrait);
+      setRecordingOrientation(portrait ? 'portrait' : 'landscape');
 
       if (!showModalRef.current) return;
       const video = videoRef.current;
@@ -2411,7 +2413,7 @@ export default function QuickRecordButton({
   }, [isOpen]);
 
   // Native camera sits behind WKWebView — force page + shell transparency for every entry path.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!shouldUseNativeIosCapture() || !showModal) return;
     return acquireNativeCaptureChromeLock();
   }, [showModal]);
@@ -2505,14 +2507,14 @@ export default function QuickRecordButton({
     ? 'native-capture-venue-card rounded-xl border border-white/25 bg-transparent px-3 py-2 flex items-start gap-2'
     : 'rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2';
   const captureVenueSelectClass = isNativeIosCapture
-    ? 'w-full rounded-lg border border-white/25 bg-transparent px-2 py-1.5 text-[11px] text-white'
+    ? 'native-capture-venue-select w-full rounded-lg border border-white/25 bg-transparent px-2 py-1.5 text-[11px] text-white'
     : 'w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white';
   const captureOverlayTextClass = isNativeIosCapture ? 'native-capture-overlay-text' : '';
 
   const captureControls = (
     <>
       {hasPermission && cameraReady && !landscapeCapture && (
-        <div className="mx-auto mb-3 w-full max-w-lg px-1">
+        <div className="native-capture-show-panel mx-auto mb-3 w-full max-w-lg px-1">
           {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
             <p className="text-center text-momentum-flare/90 text-xs mb-2 flex items-center justify-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
@@ -2644,6 +2646,10 @@ export default function QuickRecordButton({
                 {!isRecording ? (
                   <p className="text-gray-500 text-[10px] leading-snug pt-1">
                     Saved with this clip — edit on the next screen.
+                  </p>
+                ) : isNativeIosCapture ? (
+                  <p className="text-momentum-flare/90 text-[10px] leading-snug pt-1">
+                    No music in your clip? Open Control Center → Mic Mode → Wide Spectrum.
                   </p>
                 ) : null}
                 </>
@@ -2833,8 +2839,8 @@ export default function QuickRecordButton({
       {showModal && (
         <div
           className={`native-capture-modal fixed inset-0 z-[120] h-[100dvh] w-full overflow-hidden ${
-            isNativeIosCapture || useTransparentCaptureShell ? 'bg-transparent' : 'bg-black'
-          }`}
+            isNativeIosCapture ? 'native-ios-capture' : ''
+          } ${isNativeIosCapture || useTransparentCaptureShell ? 'bg-transparent' : 'bg-black'}`}
           style={nativeCaptureShellStyle}
         >
           {/* Camera preview — always full viewport; layout must not change on device rotation. */}

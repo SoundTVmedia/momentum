@@ -34,6 +34,7 @@ import {
   invalidatePendingCaptureFlush,
 } from '@/react-app/lib/upload-outbox/capture-local-save';
 import { markCaptureSharedForBlob, blockCaptureReviewRecovery } from '@/react-app/lib/upload-outbox/capture-handoff';
+import { clearCaptionDraft } from '@/react-app/lib/upload-outbox/caption-draft';
 import {
   deleteOutboxJob,
   loadOutboxMeta,
@@ -159,6 +160,10 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
     registerClipBlob(job.id, pending.video);
     cacheOutboxBlobs(job.id, pending);
     void persistOutboxVideo(job.id, pending.video, pending.thumbnail ?? null, pending.captureAudio ?? null);
+    clearPendingCaptureMemory();
+    void deleteOutboxJob(PENDING_CAPTURE_JOB_ID).catch(() => {
+      /* ignore */
+    });
     return { ...job, blobsReady: true, status: 'queued', error: null };
   }
 
@@ -255,6 +260,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       }
       blockCaptureReviewRecovery();
       void clearPendingCapture();
+      void clearCaptionDraft();
       void notifyClipUploadSuccess(welcomeName);
     },
     [welcomeName],
@@ -740,6 +746,10 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
+      queueMicrotask(() => {
+        void processNext();
+      });
+
       void (async () => {
         try {
           await persistOutboxVideo(
@@ -752,7 +762,6 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
           console.warn('ClipUploadQueue persistOutboxVideo:', err);
         }
         await clearPendingCapture();
-        void processNext();
         void persistClipInBackground({
           jobId: job.id,
           video: videoBlob,
@@ -796,6 +805,10 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
               registerClipBlob(id, pending.video);
               cacheOutboxBlobs(id, pending);
               blobs = pending;
+              clearPendingCaptureMemory();
+              void deleteOutboxJob(PENDING_CAPTURE_JOB_ID).catch(() => {
+                /* ignore */
+              });
             }
           }
           if (!blobs?.video) {

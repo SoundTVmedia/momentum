@@ -15,6 +15,10 @@ import {
 
 /** Closest venues to enrich with in-progress listings (expandPastEvents). */
 const NEARBY_VENUE_IN_SHOW_ENRICH = 8;
+/** Home feed tonight: keep in-progress enrich small so cold requests finish quickly. */
+const TONIGHT_HOME_IN_SHOW_MAX_VENUES = 2;
+const TONIGHT_HOME_IN_SHOW_DEADLINE_MS = 7_000;
+const TONIGHT_HOME_EXPAND_PAST_DATE_CANDIDATES = 1;
 
 /** In-isolate cache for geo nearby/tonight listings (cuts repeat JamBase work on home feed). */
 const SCOPED_NEAR_CACHE_MS = 5 * 60 * 1000;
@@ -556,12 +560,13 @@ async function fetchVenueExpandPastEvents(
   captureMs: number,
   latitude: number,
   longitude: number,
+  maxDateCandidates?: number,
 ): Promise<Record<string, unknown>[]> {
   const dateCandidates = jamBaseVenueExpandPastEventDateCandidates(
     captureMs,
     latitude,
     longitude,
-  );
+  ).slice(0, Math.max(1, maxDateCandidates ?? 3));
   const merged = new Map<string, Record<string, unknown>>();
   for (const eventDateFrom of dateCandidates) {
     const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
@@ -596,6 +601,7 @@ async function fetchExpandPastEventsAtNearbyVenues(
   captureMs: number,
   maxVenues: number,
   matchesCapture: (ev: Record<string, unknown>) => boolean,
+  maxDateCandidates?: number,
 ): Promise<{ events: Record<string, unknown>[]; venuesScanned: number; rawBeforeFilterCount: number }> {
   const venuesData = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
     apiKey,
@@ -624,6 +630,7 @@ async function fetchExpandPastEventsAtNearbyVenues(
         captureMs,
         latitude,
         longitude,
+        maxDateCandidates,
       );
     }),
   );
@@ -656,6 +663,8 @@ async function fetchInShowEventsAtNearbyVenues(
   radiusMiles: number,
   captureMs: number,
   matchesCapture: (ev: Record<string, unknown>) => boolean,
+  maxVenues = NEARBY_VENUE_IN_SHOW_ENRICH,
+  maxDateCandidates?: number,
 ): Promise<Record<string, unknown>[]> {
   const { events } = await fetchExpandPastEventsAtNearbyVenues(
     apiKey,
@@ -664,10 +673,20 @@ async function fetchInShowEventsAtNearbyVenues(
     longitude,
     radiusMiles,
     captureMs,
-    NEARBY_VENUE_IN_SHOW_ENRICH,
+    maxVenues,
     matchesCapture,
+    maxDateCandidates,
   );
   return events;
+}
+
+function promiseWithTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), ms);
+    }),
+  ]);
 }
 
 type NearbyJamBaseEventsScope = 'tonight' | 'upcoming';
@@ -727,16 +746,23 @@ async function fetchNearbyJamBaseEventsScoped(
       },
       jbQ,
       diag,
+      scope === 'tonight' ? { fetchBudgetMs: 14_000 } : undefined,
     ),
     scope === 'tonight'
-      ? fetchInShowEventsAtNearbyVenues(
-          key,
-          jbQ,
-          latitude,
-          longitude,
-          radius,
-          captureMs,
-          visible,
+      ? promiseWithTimeout(
+          fetchInShowEventsAtNearbyVenues(
+            key,
+            jbQ,
+            latitude,
+            longitude,
+            radius,
+            captureMs,
+            visible,
+            TONIGHT_HOME_IN_SHOW_MAX_VENUES,
+            TONIGHT_HOME_EXPAND_PAST_DATE_CANDIDATES,
+          ),
+          TONIGHT_HOME_IN_SHOW_DEADLINE_MS,
+          [] as Record<string, unknown>[],
         )
       : Promise.resolve([] as Record<string, unknown>[]),
   ]);

@@ -77,6 +77,56 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
+/* Native iOS shell — keep show-info area transparent even if html lock flickers during
+   venue-match re-renders (React StrictMode / lock handoff). */
+.native-ios-capture,
+.native-ios-capture .native-capture-preview,
+.native-ios-capture .native-capture-bottom-chrome,
+.native-ios-capture .native-capture-show-panel,
+.native-ios-capture .native-capture-venue-card {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+.native-ios-capture
+  .native-capture-show-panel
+  *:not(.native-capture-control):not(.native-capture-control *):not(.native-capture-pill):not(
+    .native-capture-pill *
+  ),
+.native-ios-capture
+  .native-capture-venue-card
+  *:not(.native-capture-control):not(.native-capture-control *):not(.native-capture-pill):not(
+    .native-capture-pill *
+  ) {
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+.native-ios-capture .native-capture-venue-select {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #fff;
+}
+
+.native-ios-capture .native-capture-overlay-text,
+.native-ios-capture .native-capture-overlay-text * {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.native-ios-capture .native-capture-control {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.native-ios-capture .native-capture-pill {
+  background-color: rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: none !important;
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 

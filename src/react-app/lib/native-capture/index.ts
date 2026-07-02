@@ -8,6 +8,7 @@ import { CameraPreview } from '@capgo/camera-preview';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { NativeAudioCapture } from '@feedback/native-audio-capture';
+import { deviceIsPortraitViewport } from '@/react-app/utils/cameraPreview';
 import { getNativePlatform, isNativeApp } from '@/react-app/lib/native-bridge';
 
 export const NATIVE_CAPTURE_MAX_SECONDS = 60;
@@ -64,13 +65,14 @@ async function runCameraPreviewStart(
     toBack: true,
     enableVideoMode: true,
     cameraMode: true,
+    aspectRatio: nativeCaptureAspectRatio(),
     width,
     height,
     x: 0,
     y: 0,
     paddingBottom: 0,
     positioning: 'top' as const,
-    rotateWhenOrientationChanged: false,
+    rotateWhenOrientationChanged: true,
     ...(withAudio ? {} : { disableAudio: true }),
   } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean };
   await CameraPreview.start(startOpts);
@@ -91,6 +93,15 @@ async function runCameraPreviewStart(
   }
   previewRunning = true;
   previewAudioEnabled = withAudio;
+}
+
+/** Capgo aspect string for the current device orientation. */
+export function nativeCaptureAspectRatio(): string {
+  return deviceIsPortraitViewport() ? '9:16' : '16:9';
+}
+
+export function nativeCaptureOrientation(): 'portrait' | 'landscape' {
+  return deviceIsPortraitViewport() ? 'portrait' : 'landscape';
 }
 
 export function shouldUseNativeIosCapture(): boolean {
@@ -199,7 +210,6 @@ export function invalidateNativeCapturePreview(): void {
 /** Always attempt native teardown — safe when previewRunning is false or init is still in flight. */
 export async function forceStopNativeCaptureSession(): Promise<void> {
   invalidateNativeCapturePreview();
-  await stopNativeLiveAudioSegments();
   if (recordingActive) {
     try {
       await CameraPreview.stopRecordVideo();

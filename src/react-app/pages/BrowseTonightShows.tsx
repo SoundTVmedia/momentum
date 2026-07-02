@@ -3,6 +3,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import Header from '@/react-app/components/Header';
 import { readDeviceCoordsForNearbyShows, tonightShowsApiUrl } from '@/react-app/lib/nearby-shows-url';
+import { fetchWithTimeout } from '@/react-app/lib/fetch-with-timeout';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 
 type TonightShowsApi = {
@@ -22,13 +23,14 @@ export default function BrowseTonightShowsPage() {
       setLoading(true);
       try {
         const device = await readDeviceCoordsForNearbyShows();
-        const response = await fetch(
+        const response = await fetchWithTimeout(
           tonightShowsApiUrl({
             limit: 40,
             latitude: device?.latitude,
             longitude: device?.longitude,
           }),
           { credentials: 'include' },
+          28_000,
         );
         setPayload((await response.json()) as TonightShowsApi);
       } catch {

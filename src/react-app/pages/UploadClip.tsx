@@ -50,6 +50,8 @@ import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import {
   clearPendingCapture,
+  clearPendingCaptureMemory,
+  invalidatePendingCaptureFlush,
   loadPendingCapture,
   persistClipLocallyOnCapture,
   resolvePendingCaptureForReview,
@@ -66,10 +68,14 @@ import {
   blockCaptureReviewRecovery,
   isCaptureBlobConsumed,
   isCaptureReviewRecoveryBlocked,
+  isCaptureReviewSessionBlocked,
   markCaptureSharedForBlob,
+  markRecordingStartedAtShared,
   shouldHydrateCaptureReview,
+  shouldSkipCaptureReviewHydration,
   wasCaptureRecentlyShared,
   wasBlobRecentlyShared,
+  wasRecordingStartedAtShared,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
 import { peekCachedOutboxBlobs } from '@/react-app/lib/upload-outbox/blob-store';
 import {
@@ -169,7 +175,11 @@ export default function UploadClip() {
 
   /** Post-capture review (Share your moment) — open immediately when landing with a recorded blob/file. */
   const [showCaptionScreen, setShowCaptionScreen] = useState(() => {
+    if (shouldSkipCaptureReviewHydration()) return false;
     if (isCaptureReviewRecoveryBlocked() || wasCaptureRecentlyShared()) return false;
+    const handoffAt = readCaptureHandoffMeta()?.recordingStartedAt;
+    if (wasRecordingStartedAtShared(handoffAt)) return false;
+    if (!shouldHydrateCaptureReview(handoffAt)) return false;
     if (!wantsCaptureReviewScreen(location.search) && !hasPrimedPendingCapture()) {
       const s = location.state as {
         videoBlob?: unknown;
@@ -198,7 +208,7 @@ export default function UploadClip() {
   const captionCommittedArtistNameRef = useRef('');
   const captionCommittedVenueNameRef = useRef('');
   /** After Share — ignore stale `location.state` video until a new recording navigates here. */
-  const skipNavVideoHydrationRef = useRef(false);
+  const skipNavVideoHydrationRef = useRef(shouldSkipCaptureReviewHydration());
   const lastCaptionFromNavAtRef = useRef<string | null>(null);
   /** User changed tags — block auto-tag / song ID from overwriting edits. */
   const userOverrodeAutoTagsRef = useRef(false);
@@ -238,6 +248,33 @@ export default function UploadClip() {
   useEffect(() => {
     isEditingTagsRef.current = isEditingTags;
   }, [isEditingTags]);
+
+  /** After Share/upload, never stay on /upload?reviewCapture — redirect home immediately. */
+  useEffect(() => {
+    if (location.pathname !== '/upload') return;
+    if (!wantsCaptureReviewScreen(location.search)) return;
+    const handoffAt = readCaptureHandoffMeta()?.recordingStartedAt;
+    if (
+      shouldSkipCaptureReviewHydration() ||
+      isCaptureReviewSessionBlocked() ||
+      !shouldHydrateCaptureReview(handoffAt)
+    ) {
+      skipNavVideoHydrationRef.current = true;
+      setShowCaptionScreen(false);
+      navigate({ pathname: '/', search: '' }, { replace: true, state: null });
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  /** Close caption if post-Share guards are active (covers late IDB hydration after upload). */
+  useEffect(() => {
+    if (!showCaptionScreen) return;
+    if (!shouldSkipCaptureReviewHydration() && !isCaptureReviewSessionBlocked()) return;
+    skipNavVideoHydrationRef.current = true;
+    setShowCaptionScreen(false);
+    if (location.pathname === '/upload' && wantsCaptureReviewScreen(location.search)) {
+      navigate({ pathname: '/', search: '' }, { replace: true, state: null });
+    }
+  }, [showCaptionScreen, location.pathname, location.search, navigate]);
 
   const markTagsEdited = useCallback(() => {
     userOverrodeAutoTagsRef.current = true;
@@ -400,7 +437,7 @@ export default function UploadClip() {
 
   // Sync hydrate from upload-outbox memory cache before first paint (iOS router state often drops Blobs).
   useLayoutEffect(() => {
-    if (skipNavVideoHydrationRef.current) return;
+    if (skipNavVideoHydrationRef.current || shouldSkipCaptureReviewHydration()) return;
     if (!shouldHydrateCaptureReview()) return;
     if (!wantsCaptureReviewScreen(location.search) && !hasPrimedPendingCapture()) return;
 
@@ -463,7 +500,7 @@ export default function UploadClip() {
   useEffect(() => {
     let cancelled = false;
 
-    if (skipNavVideoHydrationRef.current) return;
+    if (skipNavVideoHydrationRef.current || shouldSkipCaptureReviewHydration()) return;
     if (!shouldHydrateCaptureReview()) return;
 
     const handoff = readCaptureHandoffMeta();
@@ -508,10 +545,14 @@ export default function UploadClip() {
       if (skipNavVideoHydrationRef.current) {
         return;
       }
-      if (wasCaptureRecentlyShared() || wasBlobRecentlyShared(blob) || isCaptureBlobConsumed(blob)) {
+      if (
+        wasCaptureRecentlyShared() ||
+        wasBlobRecentlyShared(blob) ||
+        isCaptureBlobConsumed(blob) ||
+        wasRecordingStartedAtShared(navAt)
+      ) {
         return;
       }
-      skipNavVideoHydrationRef.current = false;
       lastCaptionFromNavAtRef.current = navAt;
 
       nativeVideoUriRef.current = nativePath ?? null;
@@ -760,27 +801,27 @@ export default function UploadClip() {
 
   useEffect(() => {
     if (!wantsCaptureReviewScreen(location.search)) return;
-    if (skipNavVideoHydrationRef.current) return;
+    if (skipNavVideoHydrationRef.current || shouldSkipCaptureReviewHydration()) return;
     setShowQuickCapture(false);
     setQuickCaptureAwaitUserTap(false);
   }, [location.search]);
 
   useEffect(() => {
     const onPendingReady = () => {
-      if (skipNavVideoHydrationRef.current) return;
-      if (!shouldHydrateCaptureReview()) return;
+      if (skipNavVideoHydrationRef.current || shouldSkipCaptureReviewHydration()) return;
+      const handoff = readCaptureHandoffMeta();
+      if (!shouldHydrateCaptureReview(handoff?.recordingStartedAt)) return;
       void (async () => {
-        const handoff = readCaptureHandoffMeta();
         const blob = await resolvePendingCaptureForReview({
           nativeVideoPath: handoff?.nativeVideoPath ?? null,
         });
         if (!blob?.size) return;
         if (wasBlobRecentlyShared(blob)) return;
-        if (skipNavVideoHydrationRef.current) return;
+        if (skipNavVideoHydrationRef.current || shouldSkipCaptureReviewHydration()) return;
         const navAt = handoff?.recordingStartedAt ?? null;
         if (navAt && navAt === lastCaptionFromNavAtRef.current) return;
+        if (wasRecordingStartedAtShared(navAt)) return;
 
-        skipNavVideoHydrationRef.current = false;
         lastCaptionFromNavAtRef.current = navAt;
 
         nativeVideoUriRef.current = handoff?.nativeVideoPath ?? null;
@@ -824,7 +865,7 @@ export default function UploadClip() {
     if (!user || isPending) return;
     if (location.pathname !== '/upload') return;
     if (!wantsCaptureReviewScreen(location.search) && !hasPrimedPendingCapture()) return;
-    if (skipNavVideoHydrationRef.current) return;
+    if (skipNavVideoHydrationRef.current || shouldSkipCaptureReviewHydration()) return;
     if (!shouldHydrateCaptureReview()) return;
     const nav = location.state as {
       videoBlob?: unknown;
@@ -835,18 +876,6 @@ export default function UploadClip() {
     if (nav?.videoBlob || nav?.videoFile || nav?.recordingStartedAt || nav?.fromQuickCapture) {
       return;
     }
-
-    const hasActiveUpload = clipUploadJobs.some(
-      (j) =>
-        j.status === 'queued' ||
-        j.status === 'classifying' ||
-        j.status === 'uploading' ||
-        j.status === 'completing' ||
-        j.status === 'processing' ||
-        j.status === 'paused' ||
-        j.status === 'published',
-    );
-    if (hasActiveUpload) return;
 
     let cancelled = false;
     void (async () => {
@@ -934,15 +963,9 @@ export default function UploadClip() {
     return () => {
       cancelled = true;
     };
-  }, [
-    user,
-    isPending,
-    location.pathname,
-    location.search,
-    location.state,
-    clipUploadJobs,
-    clipUploadsInFlight,
-  ]);
+    // Do not depend on clipUploadJobs — when the last published job is removed (~8s after
+    // upload) this must NOT re-run and resurrect Share your moment from stale IDB data.
+  }, [user, isPending, location.pathname, location.search, location.state]);
 
   // Artist autocomplete
   const [artistSuggestions, setArtistSuggestions] = useState<JamBaseArtist[]>([]);
@@ -2209,23 +2232,20 @@ export default function UploadClip() {
     ],
   );
 
-  const finishAfterQueuedShare = useCallback(() => {
-    const wasCaptionScreen = showCaptionScreen;
+  const finishAfterQueuedShare = useCallback((opts?: { fromCaption?: boolean }) => {
     blockCaptureReviewRecovery();
     skipNavVideoHydrationRef.current = true;
     lastCaptionFromNavAtRef.current = null;
     setShowCaptionScreen(false);
     resetForNextCapture({ shared: true });
-    if (wasCaptionScreen && isMobile) {
+    const leaveCaption = opts?.fromCaption ?? showCaptionScreen;
+    if (leaveCaption) {
       resumeGlobalCaptureAfterReview();
     } else {
       setShowQuickCapture(false);
-      navigate(
-        wasCaptionScreen ? { pathname: '/upload', search: '' } : { pathname: '/' },
-        { replace: true, state: null },
-      );
+      navigate({ pathname: '/', search: '' }, { replace: true, state: null });
     }
-  }, [isMobile, navigate, resetForNextCapture, resumeGlobalCaptureAfterReview, showCaptionScreen]);
+  }, [navigate, resetForNextCapture, resumeGlobalCaptureAfterReview, showCaptionScreen]);
 
   const handleSubmit = async (e: React.FormEvent | null) => {
     if (e) e.preventDefault();
@@ -2272,6 +2292,24 @@ export default function UploadClip() {
 
     const manualAfterSticky = clipManualShowPostReady(shareForm);
     const queueMainFeedClip = !isPrePostContentFeed(classification.contentFeed);
+
+    // Block caption recovery before enqueue — queue updates re-run hydration effects.
+    const sharedRecordingAt =
+      lastCaptionFromNavAtRef.current ??
+      readCaptureHandoffMeta()?.recordingStartedAt ??
+      recordingAtIso;
+    blockCaptureReviewRecovery();
+    if (sharedRecordingAt) {
+      markRecordingStartedAtShared(sharedRecordingAt);
+    }
+    skipNavVideoHydrationRef.current = true;
+    setShowCaptionScreen(false);
+    invalidatePendingCaptureFlush();
+    clearPendingCaptureMemory();
+    if (shareForm.video_blob?.size) {
+      markCaptureSharedForBlob(shareForm.video_blob, nativeVideoUriRef.current);
+    }
+
     const jobId = enqueueClipUpload(
       {
         ...buildUploadPayload(
@@ -2311,13 +2349,10 @@ export default function UploadClip() {
         : undefined,
     );
     setError(null);
-    const sharedNativePath = nativeVideoUriRef.current;
-    if (shareForm.video_blob?.size) {
-      markCaptureSharedForBlob(shareForm.video_blob, sharedNativePath);
-    }
     blockCaptureReviewRecovery();
     await clearPendingCapture();
-    finishAfterQueuedShare();
+    await clearCaptionDraft();
+    finishAfterQueuedShare({ fromCaption: true });
   };
 
   const handleDiscardCapture = useCallback(() => {
