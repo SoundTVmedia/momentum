@@ -38,7 +38,7 @@ import {
   setAppleSessionCookie,
 } from "./apple-oauth";
 import { handleAppleServerNotification } from "./apple-notifications";
-import { buildNativeAppOAuthDeepLink } from "../shared/oauth-redirect";
+import { buildNativeAppOAuthDeepLink, isValidGoogleIosOAuthClientId } from "../shared/oauth-redirect";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import { syncMochaUserIdentity } from "./mocha-identity-sync";
 import { isAdmin } from "./admin-auth";
@@ -281,8 +281,15 @@ app.get('/auth/ios-callback', (c) => {
 app.get('/api/oauth/google/native-config', (c) => {
   const webClientId = c.env.GOOGLE_OAUTH_CLIENT_ID?.trim() ?? '';
   const iOSClientId = c.env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim() ?? '';
-  if (!webClientId || !iOSClientId) {
-    return c.json({ enabled: false, webClientId: webClientId || null }, 200);
+  if (!webClientId || !isValidGoogleIosOAuthClientId(iOSClientId)) {
+    return c.json(
+      {
+        enabled: false,
+        webClientId: webClientId || null,
+        iOSClientId: null,
+      },
+      200,
+    );
   }
   return c.json({ enabled: true, webClientId, iOSClientId }, 200);
 });

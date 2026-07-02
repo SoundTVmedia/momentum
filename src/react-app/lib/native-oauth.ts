@@ -9,6 +9,7 @@ import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 import { SocialLogin } from '@capgo/capacitor-social-login';
 import { Capacitor } from '@capacitor/core';
 import {
+  isValidGoogleIosOAuthClientId,
   NATIVE_APP_ID,
   nativeIosGoogleOAuthCallbackUrl,
 } from '@/shared/oauth-redirect';
@@ -81,7 +82,16 @@ async function readGoogleNativeConfig(): Promise<GoogleNativeConfig> {
     if (!response.ok) {
       return { enabled: false, webClientId: null, iOSClientId: null };
     }
-    return (await response.json()) as GoogleNativeConfig;
+    const data = (await response.json()) as GoogleNativeConfig;
+    if (
+      !data.enabled ||
+      !data.webClientId ||
+      !data.iOSClientId ||
+      !isValidGoogleIosOAuthClientId(data.iOSClientId)
+    ) {
+      return { enabled: false, webClientId: data.webClientId, iOSClientId: null };
+    }
+    return data;
   } catch {
     return { enabled: false, webClientId: null, iOSClientId: null };
   }

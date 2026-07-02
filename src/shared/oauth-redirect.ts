@@ -34,13 +34,23 @@ export function buildNativeAppOAuthDeepLink(queryString: string): string {
 /** Apple Sign in with Apple posts the auth code to this Worker route (form_post). */
 export const APPLE_OAUTH_CALLBACK_PATH = '/api/auth/apple/callback';
 
+const GOOGLE_IOS_CLIENT_ID_SUFFIX = '.apps.googleusercontent.com';
+
+/** iOS OAuth client IDs end with `.apps.googleusercontent.com` (not API keys like AIzaSy…). */
+export function isValidGoogleIosOAuthClientId(iosClientId: string): boolean {
+  const trimmed = iosClientId.trim();
+  return (
+    trimmed.length > GOOGLE_IOS_CLIENT_ID_SUFFIX.length &&
+    trimmed.endsWith(GOOGLE_IOS_CLIENT_ID_SUFFIX)
+  );
+}
+
 export function googleIosUrlSchemeFromClientId(iosClientId: string): string | null {
   const trimmed = iosClientId.trim();
-  const suffix = '.apps.googleusercontent.com';
-  if (!trimmed.endsWith(suffix)) {
+  if (!isValidGoogleIosOAuthClientId(trimmed)) {
     return null;
   }
-  return `com.googleusercontent.apps.${trimmed.slice(0, -suffix.length)}`;
+  return `com.googleusercontent.apps.${trimmed.slice(0, -GOOGLE_IOS_CLIENT_ID_SUFFIX.length)}`;
 }
 
 export function isNativeOAuthCallbackUrl(url: string): boolean {

@@ -1,11 +1,12 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 import {
   googleIosUrlSchemeFromClientId,
+  isValidGoogleIosOAuthClientId,
   NATIVE_APP_ID,
 } from './src/shared/oauth-redirect';
 
 const googleIosClientId = process.env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim() ?? '';
-const googleIosUrlScheme = googleIosClientId
+const googleIosUrlScheme = isValidGoogleIosOAuthClientId(googleIosClientId)
   ? googleIosUrlSchemeFromClientId(googleIosClientId)
   : null;
 
@@ -43,7 +44,9 @@ const config: CapacitorConfig = {
         'Feedback may access your photo library when you choose clips to upload.',
       NSLocationWhenInUseUsageDescription:
         'Feedback uses your location to match concert clips to nearby venues and JamBase shows.',
-      ...(googleIosClientId ? { GIDClientID: googleIosClientId } : {}),
+      ...(isValidGoogleIosOAuthClientId(googleIosClientId)
+        ? { GIDClientID: googleIosClientId }
+        : {}),
       CFBundleURLTypes: iosUrlTypes,
     },
   },
