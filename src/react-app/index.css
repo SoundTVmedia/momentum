@@ -72,6 +72,12 @@ html.native-quick-capture-open .momentum-ambient {
   pointer-events: none !important;
 }
 
+/* UploadClip re-record path renders capture inside the outlet — keep controls visible. */
+html.native-quick-capture-open .app-route-outlet .native-capture-modal {
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
 html.native-quick-capture-open .native-capture-overlay-text,
 html.native-quick-capture-open .native-capture-overlay-text * {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);

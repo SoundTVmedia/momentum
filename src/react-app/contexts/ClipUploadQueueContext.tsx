@@ -33,7 +33,7 @@ import {
   clearPendingCaptureMemory,
   invalidatePendingCaptureFlush,
 } from '@/react-app/lib/upload-outbox/capture-local-save';
-import { markCaptureSharedForBlob, blockCaptureReviewRecovery } from '@/react-app/lib/upload-outbox/capture-handoff';
+import { markCaptureSharedForBlob, blockCaptureReviewRecovery, isActiveCaptureHandoff } from '@/react-app/lib/upload-outbox/capture-handoff';
 import { clearCaptionDraft } from '@/react-app/lib/upload-outbox/caption-draft';
 import {
   deleteOutboxJob,
@@ -258,10 +258,12 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       if (publishedVideo?.size) {
         markCaptureSharedForBlob(publishedVideo);
       }
-      blockCaptureReviewRecovery();
-      void clearPendingCapture();
-      void clearCaptionDraft();
       void notifyClipUploadSuccess(welcomeName);
+      // Earlier clips finishing upload must not wipe a newer in-progress capture session.
+      if (isActiveCaptureHandoff()) return;
+      blockCaptureReviewRecovery();
+      void clearPendingCapture({ force: true });
+      void clearCaptionDraft();
     },
     [welcomeName],
   );
@@ -722,7 +724,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       markCaptureSharedForBlob(videoBlob);
       blockCaptureReviewRecovery();
       invalidatePendingCaptureFlush();
-      clearPendingCaptureMemory();
+      clearPendingCaptureMemory({ force: true });
       void deleteOutboxJob(PENDING_CAPTURE_JOB_ID).catch((err) => {
         console.warn('ClipUploadQueue delete pending capture:', err);
       });

@@ -1,14 +1,23 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..62738d2 100644
+index 5dec305..b2c15e8 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-@@ -192,6 +192,63 @@ extension CameraController {
+@@ -41,6 +41,8 @@ class CameraController: NSObject {
+     private let zoomUpdateThrottle: TimeInterval = 1.0 / 60.0 // 60 FPS max
+ 
+     var videoFileURL: URL?
++    private var stopRecordingCompletion: ((URL?, Error?) -> Void)?
++    var lastRecordedAudioTrackCount: Int = 0
+     private let saneMaxZoomFactor: CGFloat = 25.5
+ 
+     // Track output preparation status
+@@ -192,30 +194,85 @@ extension CameraController {
          }
      }
  
-+    /// Concert/loud-SPL capture — iOS has no AVCaptureDevice AGC APIs (those are macOS-only).
-+    /// Audio processing is controlled via AVAudioSession mode in activateMusicRecordingAudioSession().
++    /// Prefer rear/omnidirectional mic for concert capture without overriding AVFoundation audio session.
 +    private func configureAudioInputForMusicRecording(_ device: AVCaptureDevice) {
++        configurePreferredMicrophoneForAmbientCapture()
 +        print("[CameraPreview] Audio input \(device.localizedName) ready for music capture")
 +    }
 +
@@ -21,7 +30,6 @@ index 5dec305..62738d2 100644
 +
 +        guard let dataSources = builtInMic.dataSources, !dataSources.isEmpty else { return }
 +
-+        // Prefer the rear mic — it points at the stage/PA rather than the user's mouth.
 +        let dataSource =
 +            dataSources.first(where: { $0.orientation == .back }) ??
 +            dataSources.first(where: { $0.orientation == .bottom }) ??
@@ -46,54 +54,76 @@ index 5dec305..62738d2 100644
 +        }
 +    }
 +
-+    private func activateMusicRecordingAudioSession() {
-+        let audioSession = AVAudioSession.sharedInstance()
++    /// Reset AVAudioSession after caption/feed playback — required for clip 2+ mic muxing.
++    private func activateRecordingAudioSession() {
++        let session = AVAudioSession.sharedInstance()
 +        do {
-+            // .measurement minimizes Apple signal processing (vs .videoRecording speech/beamforming).
-+            try audioSession.setCategory(
-+                .playAndRecord,
-+                mode: .measurement,
-+                options: [.defaultToSpeaker, .allowBluetoothHFP]
-+            )
-+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
++            let alreadyVideoRecording =
++                session.category == .playAndRecord && session.mode == .videoRecording
++            if !alreadyVideoRecording {
++                try session.setActive(false, options: [.notifyOthersOnDeactivation])
++                try session.setCategory(
++                    .playAndRecord,
++                    mode: .videoRecording,
++                    options: [.defaultToSpeaker, .allowBluetoothHFP]
++                )
++            }
++            try session.setActive(true)
 +            configurePreferredMicrophoneForAmbientCapture()
-+            print("[CameraPreview] AVAudioSession active for music recording (mode=measurement)")
++            print("[CameraPreview] Recording audio session activated (videoRecording mode)")
 +        } catch {
-+            print("[CameraPreview] AVAudioSession activation failed: \(error)")
++            print("[CameraPreview] WARNING: activateRecordingAudioSession failed: \(error.localizedDescription)")
 +        }
 +    }
 +
      private func prepareOutputs() {
-         // Skip if already prepared
+-        // Skip if already prepared
          guard !self.outputsPrepared else { return }
-@@ -234,12 +291,15 @@ extension CameraController {
-                 // Create session if needed
-                 if self.captureSession == nil {
-                     self.captureSession = AVCaptureSession()
-+                    self.captureSession?.automaticallyConfiguresApplicationAudioSession = disableAudio || !cameraMode
-                 }
  
-                 guard let captureSession = self.captureSession else {
+-        // Create photo output
+         self.photoOutput = AVCapturePhotoOutput()
+         self.photoOutput?.isHighResolutionCaptureEnabled = true
+ 
+-        // Create video output
+         self.fileVideoOutput = AVCaptureMovieFileOutput()
+ 
+-        // Create data output for preview
+         self.dataOutput = AVCaptureVideoDataOutput()
+         self.dataOutput?.videoSettings = [
+             (kCVPixelBufferPixelFormatTypeKey as String): NSNumber(value: kCVPixelFormatType_32BGRA as UInt32)
+         ]
+         self.dataOutput?.alwaysDiscardsLateVideoFrames = true
+ 
+-        // Pre-create preview layer to avoid delay later
+         if self.previewLayer == nil {
+             self.previewLayer = AVCaptureVideoPreviewLayer()
+         }
+ 
+-        // Mark as prepared
+         self.outputsPrepared = true
+     }
+ 
+@@ -240,6 +297,11 @@ extension CameraController {
                      throw CameraControllerError.captureSessionIsMissing
                  }
  
-+                captureSession.automaticallyConfiguresApplicationAudioSession = disableAudio || !cameraMode
++                // Let AVCaptureSession configure AVAudioSession for movie recording (.videoRecording).
++                // Manual .measurement mode breaks audio muxing into the MP4 (audio tracks=0).
++                let autoConfigureAudio = !disableAudio
++                captureSession.automaticallyConfiguresApplicationAudioSession = autoConfigureAudio
 +
                  // Prepare outputs
                  self.prepareOutputs()
  
-@@ -250,10 +310,23 @@ extension CameraController {
-                 self.requestedAspectRatio = aspectRatio
-                 self.configureSessionPreset(for: aspectRatio)
- 
-+                if cameraMode && !disableAudio {
-+                    self.activateMusicRecordingAudioSession()
-+                }
-+
+@@ -253,7 +315,20 @@ extension CameraController {
                  // Configure device inputs
                  try self.configureDeviceInputs(cameraPosition: cameraPosition, deviceId: deviceId, disableAudio: disableAudio)
  
 -                // Add data output BEFORE starting session for faster first frame
++                if !disableAudio {
++                    self.activateRecordingAudioSession()
++                }
++
 +                // Movie output must be attached before startRunning so mic audio connects for recording.
 +                if cameraMode, let fileVideoOutput = self.fileVideoOutput, captureSession.canAddOutput(fileVideoOutput) {
 +                    captureSession.addOutput(fileVideoOutput)
@@ -107,7 +137,7 @@ index 5dec305..62738d2 100644
                  if let dataOutput = self.dataOutput, captureSession.canAddOutput(dataOutput) {
                      captureSession.addOutput(dataOutput)
                      dataOutput.setSampleBufferDelegate(self, queue: DispatchQueue.main)
-@@ -280,11 +353,6 @@ extension CameraController {
+@@ -280,11 +355,6 @@ extension CameraController {
                          captureSession.addOutput(photoOutput)
                      }
  
@@ -119,7 +149,7 @@ index 5dec305..62738d2 100644
                      captureSession.commitConfiguration()
                  }
  
-@@ -312,6 +380,12 @@ extension CameraController {
+@@ -312,6 +382,18 @@ extension CameraController {
                  } else if captureSession.canSetSessionPreset(.hd1920x1080) {
                      targetPreset = .hd1920x1080
                  }
@@ -129,10 +159,16 @@ index 5dec305..62738d2 100644
 +                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
 +                    targetPreset = .hd1920x1080
 +                }
++            case "9:16":
++                if captureSession.canSetSessionPreset(.high) {
++                    targetPreset = .high
++                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
++                    targetPreset = .hd1920x1080
++                }
              case "4:3":
                  if captureSession.canSetSessionPreset(.photo) {
                      targetPreset = .photo
-@@ -416,13 +490,18 @@ extension CameraController {
+@@ -416,13 +498,18 @@ extension CameraController {
              if self.audioDevice == nil {
                  self.audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
              }
@@ -158,18 +194,51 @@ index 5dec305..62738d2 100644
              }
          }
      }
-@@ -1446,6 +1525,10 @@ extension CameraController {
+@@ -1434,7 +1521,34 @@ extension CameraController {
+         self.firstFrameReadyCallback = nil
+     }
+ 
++    func ensureMovieFileAudioForRecording() {
++        guard let captureSession = self.captureSession,
++              let fileVideoOutput = self.fileVideoOutput,
++              self.audioInput != nil else {
++            return
++        }
++
++        if fileVideoOutput.connection(with: .audio) != nil {
++            fileVideoOutput.connection(with: .audio)?.isEnabled = true
++            return
++        }
++
++        print("[CameraPreview] Re-attaching movie output to restore audio connection")
++        captureSession.beginConfiguration()
++        if captureSession.outputs.contains(fileVideoOutput) {
++            captureSession.removeOutput(fileVideoOutput)
++        }
++        if captureSession.canAddOutput(fileVideoOutput) {
++            captureSession.addOutput(fileVideoOutput)
++            fileVideoOutput.connection(with: .audio)?.isEnabled = true
++        } else {
++            print("[CameraPreview] WARNING: Could not re-add movie output for audio")
++        }
++        captureSession.commitConfiguration()
++    }
++
+     func captureVideo() throws {
++        self.activateRecordingAudioSession()
+         guard let captureSession = self.captureSession, captureSession.isRunning else {
+             throw CameraControllerError.captureSessionIsMissing
+         }
+@@ -1446,6 +1560,8 @@ extension CameraController {
              throw CameraControllerError.fileVideoOutputNotFound
          }
  
-+        if self.audioInput != nil {
-+            self.activateMusicRecordingAudioSession()
-+        }
++        self.ensureMovieFileAudioForRecording()
 +
          // cpcp_video_A6C01203 - portrait
          //
          if let connection = fileVideoOutput.connection(with: .video) {
-@@ -1463,6 +1546,13 @@ extension CameraController {
+@@ -1463,6 +1579,20 @@ extension CameraController {
              }
          }
  
@@ -177,14 +246,78 @@ index 5dec305..62738d2 100644
 +            audioConnection.isEnabled = true
 +            print("[CameraPreview] Movie file audio connection active=\(audioConnection.isActive) enabled=\(audioConnection.isEnabled)")
 +        } else if self.audioInput != nil {
-+            print("[CameraPreview] WARNING: Movie file output has no audio connection despite mic input")
++            self.ensureMovieFileAudioForRecording()
++            if fileVideoOutput.connection(with: .audio) == nil {
++                throw CameraControllerError.inputsAreInvalid
++            }
++            if let audioConnection = fileVideoOutput.connection(with: .audio) {
++                audioConnection.isEnabled = true
++                print("[CameraPreview] Movie file audio connection active=\(audioConnection.isActive) enabled=\(audioConnection.isEnabled)")
++            }
 +        }
 +
          let identifier = UUID()
          let randomIdentifier = identifier.uuidString.replacingOccurrences(of: "-", with: "")
          let finalIdentifier = String(randomIdentifier.prefix(8))
+@@ -1488,11 +1618,31 @@ extension CameraController {
+             return
+         }
+ 
+-        // Stop recording video
++        guard fileVideoOutput.isRecording else {
++            completion(self.videoFileURL, nil)
++            return
++        }
++
++        self.ensureMovieFileAudioForRecording()
++        if let audioConnection = fileVideoOutput.connection(with: .audio) {
++            audioConnection.isEnabled = true
++            print("[CameraPreview] Pre-stop movie audio connection active=\(audioConnection.isActive) enabled=\(audioConnection.isEnabled)")
++        }
++
++        // Resolve only after didFinishRecordingTo — returning early yields incomplete MP4 (no audio track).
++        self.stopRecordingCompletion = completion
+         fileVideoOutput.stopRecording()
++    }
+ 
+-        // Return the video file URL in the completion handler
+-        completion(self.videoFileURL, nil)
++    private func logRecordedMovieAudioStatus(at url: URL) {
++        let asset = AVURLAsset(url: url)
++        let audioTracks = asset.tracks(withMediaType: .audio)
++        let duration = CMTimeGetSeconds(asset.duration)
++        self.lastRecordedAudioTrackCount = audioTracks.count
++        print("[CameraPreview] Recorded movie audio tracks=\(audioTracks.count) duration=\(duration)s path=\(url.lastPathComponent)")
++        if audioTracks.isEmpty {
++            print("[CameraPreview] WARNING: Recorded movie has no audio tracks")
++        }
+     }
+ }
+ 
+@@ -1839,11 +1989,18 @@ extension UIImage {
+ 
+ extension CameraController: AVCaptureFileOutputRecordingDelegate {
+     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
++        let completion = self.stopRecordingCompletion
++        self.stopRecordingCompletion = nil
++        self.videoFileURL = outputFileURL
++
+         if let error = error {
+             print("Error recording movie: \(error.localizedDescription)")
+-        } else {
+-            print("Movie recorded successfully: \(outputFileURL)")
+-            // You can save the file to the library, upload it, etc.
++            completion?(nil, error)
++            return
+         }
++
++        print("Movie recorded successfully: \(outputFileURL)")
++        self.logRecordedMovieAudioStatus(at: outputFileURL)
++        completion?(outputFileURL, nil)
+     }
+ }
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
-index d7a333f..626db85 100644
+index d7a333f..e73930d 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 @@ -6,6 +6,17 @@ import CoreImage
@@ -205,56 +338,15 @@ index d7a333f..626db85 100644
  extension UIWindow {
      static var isLandscape: Bool {
          if #available(iOS 13.0, *) {
-@@ -75,6 +86,8 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -75,6 +86,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
      // Camera state tracking
      private var isInitializing: Bool = false
      private var isInitialized: Bool = false
-+    private var startCancelled: Bool = false
 +    private var videoCaptureMode: Bool = false
      private var backgroundSession: AVCaptureSession?
  
      var previewView: UIView!
-@@ -136,28 +149,17 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-         guard let webView = self.webView else { return }
- 
-         DispatchQueue.main.async {
--            // Define a recursive function to traverse the view hierarchy
--            func makeSubviewsTransparent(_ view: UIView) {
--                // Set the background color to clear
--                view.backgroundColor = .clear
--
--                // Recurse for all subviews
--                for subview in view.subviews {
--                    makeSubviewsTransparent(subview)
--                }
--            }
--
--            // Set the main webView to be transparent
-             webView.isOpaque = false
-             webView.backgroundColor = .clear
-+            webView.scrollView.isOpaque = false
-+            webView.scrollView.backgroundColor = .clear
- 
--            // Recursively make all subviews transparent
--            makeSubviewsTransparent(webView)
--
--            // Also ensure the webview's container is transparent
--            webView.superview?.backgroundColor = .clear
-+            var parent = webView.superview
-+            while parent != nil {
-+                parent?.backgroundColor = .clear
-+                parent = parent?.superview
-+            }
- 
--            // Force a layout pass to apply changes
-             webView.setNeedsLayout()
-             webView.layoutIfNeeded()
-         }
-@@ -525,10 +527,22 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-             return
-         }
-         self.isInitializing = true
-+        self.startCancelled = false
+@@ -528,7 +540,18 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
  
          self.cameraPosition = call.getString("position") ?? "rear"
          let deviceId = call.getString("deviceId")
@@ -274,7 +366,7 @@ index d7a333f..626db85 100644
  
          // Set width - use screen width if not provided or if 0
          if let width = call.getInt("width"), width > 0 {
-@@ -565,7 +579,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -565,7 +588,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
          self.toBack = call.getBool("toBack") ?? true
          self.storeToFile = call.getBool("storeToFile") ?? false
          self.enableZoom = call.getBool("enableZoom") ?? false
@@ -283,177 +375,37 @@ index d7a333f..626db85 100644
          // Default to 4:3 aspect ratio if not provided
          self.aspectRatio = call.getString("aspectRatio") ?? "4:3"
          self.gridMode = call.getString("gridMode") ?? "none"
-@@ -588,34 +602,64 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-         AVCaptureDevice.requestAccess(for: .video, completionHandler: { (granted: Bool) in
+@@ -1139,6 +1162,14 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+     }
  
-             guard granted else {
-+                self.isInitializing = false
-                 call.reject("permission failed")
+     @objc func startRecordVideo(_ call: CAPPluginCall) {
++        if self.videoCaptureMode {
++            if call.options["enableAudio"] != nil {
++                self.disableAudio = !capacitorBool(call, "enableAudio", default: false)
++            } else if call.options["disableAudio"] != nil {
++                self.disableAudio = capacitorBool(call, "disableAudio", default: true)
++            }
++        }
++        print("[CameraPreview] startRecordVideo disableAudio=\(self.disableAudio) videoCaptureMode=\(self.videoCaptureMode)")
+         do {
+             try self.cameraController.captureVideo()
+             call.resolve()
+@@ -1159,7 +1190,17 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
                  return
              }
  
--            if self.cameraController.captureSession?.isRunning ?? false {
--                call.reject("camera already started")
--            } else {
--                self.cameraController.prepare(cameraPosition: self.cameraPosition, deviceId: deviceId, disableAudio: self.disableAudio, cameraMode: cameraMode, aspectRatio: self.aspectRatio, initialZoomLevel: initialZoomLevel) {error in
--                    if let error = error {
--                        print(error)
--                        call.reject(error.localizedDescription)
--                        return
--                    }
-+            let beginPrepare = {
-+                if self.cameraController.captureSession?.isRunning ?? false {
-+                    self.isInitializing = false
-+                    call.reject("camera already started")
-+                } else {
-+                    self.cameraController.prepare(cameraPosition: self.cameraPosition, deviceId: deviceId, disableAudio: self.disableAudio, cameraMode: cameraMode, aspectRatio: self.aspectRatio, initialZoomLevel: initialZoomLevel) {error in
-+                        if let error = error {
-+                            print(error)
-+                            self.isInitializing = false
-+                            call.reject(error.localizedDescription)
-+                            return
-+                        }
- 
--                    DispatchQueue.main.async {
--                        UIDevice.current.beginGeneratingDeviceOrientationNotifications()
--                        NotificationCenter.default.addObserver(self,
--                                                               selector: #selector(self.handleOrientationChange),
--                                                               name: UIDevice.orientationDidChangeNotification,
--                                                               object: nil)
--                        self.completeStartCamera(call: call)
-+                        DispatchQueue.main.async {
-+                            if self.startCancelled {
-+                                self.isInitializing = false
-+                                call.resolve()
-+                                return
-+                            }
-+                            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
-+                            NotificationCenter.default.addObserver(self,
-+                                                                   selector: #selector(self.handleOrientationChange),
-+                                                                   name: UIDevice.orientationDidChangeNotification,
-+                                                                   object: nil)
-+                            self.completeStartCamera(call: call)
-+                        }
-                     }
-                 }
-             }
-+
-+            if self.disableAudio {
-+                beginPrepare()
+-            call.resolve(["videoFilePath": fileURL.absoluteString])
++            let audioTrackCount = self.cameraController.lastRecordedAudioTrackCount
++            if !self.disableAudio && audioTrackCount < 1 {
++                try? FileManager.default.removeItem(at: fileURL)
++                call.reject("Recorded video has no audio track")
 +                return
 +            }
 +
-+            AVAudioSession.sharedInstance().requestRecordPermission { micGranted in
-+                if !micGranted {
-+                    print("[CameraPreview] Microphone denied — starting preview without audio")
-+                    self.disableAudio = true
-+                }
-+                beginPrepare()
-+            }
-         })
-     }
- 
-     private func completeStartCamera(call: CAPPluginCall) {
-+        if self.startCancelled {
-+            self.isInitializing = false
-+            self.isInitialized = false
-+            self.cameraController.cleanup()
-+            call.resolve()
-+            return
-+        }
-         // Create and configure the preview view first
-         self.updateCameraFrame()
- 
-@@ -652,6 +696,20 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-         self.isInitializing = false
-         self.isInitialized = true
- 
-+        // Video mode skips AVCaptureVideoDataOutput; preview still renders via preview layer
-+        // but firstFrameReadyCallback would never fire without an immediate resolve.
-+        if self.videoCaptureMode {
-+            DispatchQueue.main.async {
-+                var returnedObject = JSObject()
-+                returnedObject["width"] = self.previewView.frame.width as any JSValue
-+                returnedObject["height"] = self.previewView.frame.height as any JSValue
-+                returnedObject["x"] = self.previewView.frame.origin.x as any JSValue
-+                returnedObject["y"] = self.previewView.frame.origin.y as any JSValue
-+                call.resolve(returnedObject)
-+            }
-+            return
-+        }
-+
-         // Set up callback to wait for first frame before resolving
-         self.cameraController.firstFrameReadyCallback = { [weak self] in
-             guard let self = self else { return }
-@@ -691,12 +749,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-         do {
-             try self.cameraController.switchCameras()
- 
--            // Update preview layer frame without animation
--            CATransaction.begin()
--            CATransaction.setDisableActions(true)
--            self.cameraController.previewLayer?.frame = self.previewView.bounds
--            self.cameraController.previewLayer?.videoGravity = .resizeAspectFill
--            CATransaction.commit()
-+            self.updateCameraFrame()
- 
-             self.previewView.isUserInteractionEnabled = true
- 
-@@ -712,17 +765,15 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-     }
- 
-     @objc func stop(_ call: CAPPluginCall) {
--        if self.isInitializing {
--            call.reject("cannot stop camera while initialization is in progress")
--            return
--        }
--        if !self.isInitialized {
--            call.reject("camera not initialized")
--            return
--        }
--
--        // UI operations must be on main thread
-         DispatchQueue.main.async {
-+            if !self.isInitialized && !self.isInitializing {
-+                call.reject("camera not initialized")
-+                return
-+            }
-+
-+            self.startCancelled = true
-+            self.isInitializing = false
-+
-             // Always attempt to stop and clean up, regardless of captureSession state
-             self.cameraController.removeGridOverlay()
-             if let previewView = self.previewView {
-@@ -1663,22 +1714,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-         // Calculate the base frame using the factorized method
-         var frame = calculateCameraFrame()
- 
--        // Apply aspect ratio adjustments only if not auto-centering
--        if posX != -1 && posY != -1, let aspectRatio = self.aspectRatio {
--            let isPortrait = self.isPortrait()
--            let ratio = parseAspectRatio(aspectRatio, isPortrait: isPortrait)
--            let currentRatio = frame.width / frame.height
--
--            if currentRatio > ratio {
--                let newWidth = frame.height * ratio
--                frame.origin.x = frame.origin.x + (frame.width - newWidth) / 2
--                frame.size.width = newWidth
--            } else {
--                let newHeight = frame.width / ratio
--                frame.origin.y = frame.origin.y + (frame.height - newHeight) / 2
--                frame.size.height = newHeight
--            }
--        }
-+        // Full-bleed previews (explicit x/y from setPreviewSize) keep the requested frame.
- 
-         // Disable ALL animations for frame updates - we want instant positioning
-         CATransaction.begin()
-@@ -1695,6 +1731,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
-         // Update preview layer frame efficiently
-         if let previewLayer = self.cameraController.previewLayer {
-             previewLayer.frame = self.previewView.bounds
-+            previewLayer.videoGravity = .resizeAspectFill
++            call.resolve([
++                "videoFilePath": fileURL.absoluteString,
++                "audioTrackCount": audioTrackCount,
++            ])
          }
+     }
  
-         // Update grid overlay frame if it exists

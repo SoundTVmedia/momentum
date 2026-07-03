@@ -11,6 +11,7 @@ type QuickCaptureOverlayProps = Pick<
   | 'captureLaunchGeo'
   | 'captureLaunchGeoResolved'
   | 'closeQuickCapture'
+  | 'dismissQuickCaptureOverlay'
 >;
 
 export default function QuickCaptureOverlay({
@@ -21,12 +22,9 @@ export default function QuickCaptureOverlay({
   captureLaunchGeo,
   captureLaunchGeoResolved,
   closeQuickCapture,
+  dismissQuickCaptureOverlay,
 }: QuickCaptureOverlayProps) {
   if (!showQuickCapture) return null;
-
-  const dismissAfterCaptureNavigate = () => {
-    window.requestAnimationFrame(() => closeQuickCapture());
-  };
 
   return (
     <QuickRecordButton
@@ -37,7 +35,7 @@ export default function QuickCaptureOverlay({
       captureLaunchGeo={captureLaunchGeo}
       captureLaunchGeoResolved={captureLaunchGeoResolved}
       deferCameraUntilLaunchGeo={!shouldUseNativeIosCapture()}
-      onAfterCaptureNavigate={dismissAfterCaptureNavigate}
+      onAfterCaptureNavigate={dismissQuickCaptureOverlay}
       onClose={closeQuickCapture}
     />
   );

@@ -12,6 +12,7 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "NativeAudioCapture"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "prepareForVideoCapture", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restoreForMediaPlayback", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
     ]
@@ -67,6 +68,37 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func restoreForMediaPlayback(_ call: CAPPluginCall) {
+        queue.async {
+            let session = AVAudioSession.sharedInstance()
+            // Release camera/recording mode before preview playback.
+            try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+
+            // `.playback` routes to the speaker by default — never combine with `.defaultToSpeaker`
+            // (that option is only valid for `.playAndRecord` and causes OSStatus -50).
+            do {
+                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+                try session.setActive(true)
+                call.resolve()
+                return
+            } catch {
+                /* fall through — camera may leave the session in an unusual state */
+            }
+
+            do {
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .default,
+                    options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers]
+                )
+                try session.setActive(true)
+                call.resolve()
+            } catch {
+                call.reject("Failed to restore playback audio session: \(error.localizedDescription)")
+            }
+        }
+    }
+
     @objc func stop(_ call: CAPPluginCall) {
         queue.async {
             self.isActive = false
@@ -96,6 +128,11 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func configureSession() throws {
         let session = AVAudioSession.sharedInstance()
+        let alreadyVideoRecording =
+            session.category == .playAndRecord && session.mode == .videoRecording
+        if !alreadyVideoRecording {
+            try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+        }
         try session.setCategory(
             .playAndRecord,
             mode: .videoRecording,

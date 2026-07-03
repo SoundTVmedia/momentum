@@ -6,6 +6,10 @@ export class NativeAudioCaptureWeb extends WebPlugin implements NativeAudioCaptu
     /* no-op on web */
   }
 
+  async restoreForMediaPlayback(): Promise<void> {
+    /* no-op on web */
+  }
+
   async start(): Promise<void> {
     console.warn('NativeAudioCapture: not available on web');
   }

@@ -5,7 +5,12 @@ import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import {
   shouldUseNativeIosCapture,
   forceStopNativeCaptureSession,
+  prepareNativeCaptureRecordingAudio,
 } from '@/react-app/lib/native-capture';
+import {
+  blockCaptureReviewRecovery,
+  clearCaptureHandoffMeta,
+} from '@/react-app/lib/upload-outbox/capture-handoff';
 import { primeCameraOnUserGesture } from '@/react-app/utils/primeCameraOnUserGesture';
 import {
   primeGeolocationOnUserGesture,
@@ -20,7 +25,10 @@ export type QuickCaptureLauncherState = {
   captureLaunchGeo: PrimedCaptureGeo | null;
   captureLaunchGeoResolved: boolean;
   openQuickCapture: () => void;
+  /** X / cancel — return to feed and discard in-progress capture. */
   closeQuickCapture: () => void;
+  /** After handoff navigates to caption — hide overlay only; keep handoff meta. */
+  dismissQuickCaptureOverlay: () => void;
 };
 
 /** Opens QuickRecord with geolocation + camera primed on the same user gesture (iOS Safari). */
@@ -35,6 +43,16 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
   const [captureLaunchGeo, setCaptureLaunchGeo] = useState<PrimedCaptureGeo | null>(null);
   const [captureLaunchGeoResolved, setCaptureLaunchGeoResolved] = useState(false);
 
+  const dismissQuickCaptureOverlay = useCallback(() => {
+    primedMediaStream?.getTracks().forEach((t) => t.stop());
+    setPrimedMediaStream(null);
+    setOpenedWithGestureCamera(false);
+    setGesturePrimePending(false);
+    setCaptureLaunchGeo(null);
+    setCaptureLaunchGeoResolved(false);
+    setShowQuickCapture(false);
+  }, [primedMediaStream]);
+
   const closeQuickCapture = useCallback(() => {
     primedMediaStream?.getTracks().forEach((t) => t.stop());
     setPrimedMediaStream(null);
@@ -43,10 +61,13 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     setCaptureLaunchGeo(null);
     setCaptureLaunchGeoResolved(false);
     setShowQuickCapture(false);
+    blockCaptureReviewRecovery();
+    clearCaptureHandoffMeta();
+    navigate('/', { replace: true });
     if (shouldUseNativeIosCapture()) {
-      void forceStopNativeCaptureSession();
+      void forceStopNativeCaptureSession({ restorePlayback: true });
     }
-  }, [primedMediaStream]);
+  }, [navigate, primedMediaStream]);
 
   const openQuickCapture = useCallback(() => {
     if (isPending) return;
@@ -68,6 +89,7 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     setShowQuickCapture(true);
 
     if (nativeIos) {
+      void prepareNativeCaptureRecordingAudio();
       void primeGeolocationOnUserGesture()
         .then((g) => {
           setCaptureLaunchGeo(g);
@@ -112,5 +134,6 @@ export function useQuickCaptureLauncher(): QuickCaptureLauncherState {
     captureLaunchGeoResolved,
     openQuickCapture,
     closeQuickCapture,
+    dismissQuickCaptureOverlay,
   };
 }

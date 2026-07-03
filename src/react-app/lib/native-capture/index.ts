@@ -44,9 +44,28 @@ async function ensureNativeVideoOutputReady(): Promise<void> {
   }
 }
 
-/** Mic permission is requested by Capgo when video mode starts with audio enabled. */
+/** Reset AVAudioSession for video recording — required before each clip after playback restore. */
 async function ensureNativeCaptureAudioReady(): Promise<void> {
   if (!shouldUseNativeIosCapture()) return;
+  // Capgo owns the session while preview is running — re-preparing breaks movie audio mux.
+  if (previewRunning) return;
+  try {
+    await NativeAudioCapture.prepareForVideoCapture();
+    console.log('[native-capture] prepareForVideoCapture ok');
+  } catch (err) {
+    console.warn('ensureNativeCaptureAudioReady:', err);
+  }
+}
+
+/** Public alias — call before reopening the camera for clip 2+ in a session. */
+export async function prepareNativeCaptureRecordingAudio(): Promise<void> {
+  await ensureNativeCaptureAudioReady();
+}
+
+const NATIVE_CAPTURE_SESSION_SETTLE_MS = 450;
+
+async function settleNativeCaptureSession(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, NATIVE_CAPTURE_SESSION_SETTLE_MS));
 }
 
 async function runCameraPreviewStart(
@@ -64,11 +83,12 @@ async function runCameraPreviewStart(
     toBack: true,
     enableVideoMode: true,
     cameraMode: true,
+    enableAudio: withAudio,
     aspectRatio: nativeCaptureAspectRatio(),
     positioning: 'top' as const,
     rotateWhenOrientationChanged: true,
     ...(withAudio ? {} : { disableAudio: true }),
-  } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean };
+  } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean; enableAudio?: boolean };
   await CameraPreview.start(startOpts);
   if (generation !== previewStartGeneration) {
     await forceStopNativeCaptureSession();
@@ -82,6 +102,7 @@ async function runCameraPreviewStart(
   }
   previewRunning = true;
   previewAudioEnabled = withAudio;
+  // Layout after movie output + mic are wired — setPreviewSize must not run before audio is ready.
   await layoutNativeCapturePreview();
   if (generation !== previewStartGeneration) {
     await forceStopNativeCaptureSession();
@@ -96,7 +117,7 @@ async function layoutNativeCapturePreview(): Promise<void> {
   lastPreviewLayoutKey = layoutKey;
   previewLayoutInFlight = true;
   try {
-    await CameraPreview.setPreviewSize({ x: 0, y: 0, width, height });
+    await CameraPreview.setPreviewSize({ width, height });
   } catch (err) {
     console.warn('layoutNativeCapturePreview:', err);
     lastPreviewLayoutKey = '';
@@ -107,7 +128,8 @@ async function layoutNativeCapturePreview(): Promise<void> {
 
 /** Capgo aspect string for the current device orientation. */
 export function nativeCaptureAspectRatio(): string {
-  return deviceIsPortraitViewport() ? '9:16' : '16:9';
+  // Capgo inverts this for portrait (16:9 → tall 9:16 frame). Passing 9:16 yields a wide letterbox.
+  return '16:9';
 }
 
 export function nativeCaptureOrientation(): 'portrait' | 'landscape' {
@@ -155,22 +177,12 @@ export async function startNativeCapturePreview(opts?: {
   if (!shouldUseNativeIosCapture()) return;
   const withAudio = opts?.withAudio !== false;
 
-  if (previewRunning) {
-    if (previewAudioEnabled === withAudio) {
-      await applyNativeCaptureFullScreenPreview();
-      return;
-    }
+  // Always tear down the prior session — partial reuse breaks mic muxing on clip 2+.
+  if (previewRunning || startPreviewPromise) {
     await stopNativeCaptureSession();
-  }
-  if (startPreviewPromise) {
-    await startPreviewPromise;
-    if (previewRunning && previewAudioEnabled === withAudio) {
-      await applyNativeCaptureFullScreenPreview();
-      return;
-    }
-    if (previewRunning && previewAudioEnabled !== withAudio) {
-      await stopNativeCaptureSession();
-    }
+    await settleNativeCaptureSession();
+  } else if (withAudio) {
+    await ensureNativeCaptureAudioReady();
   }
 
   const generation = ++previewStartGeneration;
@@ -188,6 +200,7 @@ export async function startNativeCapturePreview(opts?: {
         }
         previewRunning = false;
         previewAudioEnabled = false;
+        await settleNativeCaptureSession();
         await runCameraPreviewStart(withAudio, generation, opts);
         return;
       }
@@ -205,8 +218,57 @@ export function invalidateNativeCapturePreview(): void {
   previewStartGeneration += 1;
 }
 
+let restorePlaybackInFlight: Promise<void> | null = null;
+let lastRestorePlaybackAt = 0;
+let lastRestorePlaybackOkAt = 0;
+
+export async function restoreNativeMediaPlaybackAudio(): Promise<void> {
+  if (!shouldUseNativeIosCapture()) return;
+  const now = Date.now();
+  // Skip if a recent restore succeeded — camera stop + play tap cover the handoff.
+  if (now - lastRestorePlaybackOkAt < 1500) return;
+  if (restorePlaybackInFlight && now - lastRestorePlaybackAt < 1200) {
+    return restorePlaybackInFlight;
+  }
+  lastRestorePlaybackAt = now;
+  restorePlaybackInFlight = NativeAudioCapture.restoreForMediaPlayback()
+    .then(() => {
+      lastRestorePlaybackOkAt = Date.now();
+    })
+    .catch((err) => {
+      console.warn('restoreNativeMediaPlaybackAudio:', err);
+    });
+  try {
+    await restorePlaybackInFlight;
+  } finally {
+    restorePlaybackInFlight = null;
+  }
+}
+
+/** Capacitor file URL for in-app preview — WKWebView plays audio reliably vs blob URLs. */
+export function nativeCapturePreviewVideoUrl(nativeVideoPath: string | null | undefined): string | null {
+  const path = nativeVideoPath?.trim();
+  if (!path || !shouldUseNativeIosCapture()) return null;
+  return Capacitor.convertFileSrc(path);
+}
+
+export function isBlobObjectUrl(url: string | null | undefined): boolean {
+  return Boolean(url?.startsWith('blob:'));
+}
+
+/** Prefer native file src on iOS; fall back to an existing blob object URL. */
+export function resolveCapturePreviewVideoSrc(opts: {
+  blobObjectUrl?: string | null;
+  nativeVideoPath?: string | null;
+}): string | null {
+  return nativeCapturePreviewVideoUrl(opts.nativeVideoPath) ?? opts.blobObjectUrl ?? null;
+}
+
 /** Always attempt native teardown — safe when previewRunning is false or init is still in flight. */
-export async function forceStopNativeCaptureSession(): Promise<void> {
+export async function forceStopNativeCaptureSession(opts?: {
+  /** Switch to playback category for feed/caption video — omit when handing off to the next clip. */
+  restorePlayback?: boolean;
+}): Promise<void> {
   invalidateNativeCapturePreview();
   if (recordingActive) {
     try {
@@ -229,10 +291,15 @@ export async function forceStopNativeCaptureSession(): Promise<void> {
   } catch {
     /* not initialized / already stopped */
   }
+  if (opts?.restorePlayback) {
+    await restoreNativeMediaPlaybackAudio();
+  }
 }
 
-export async function stopNativeCaptureSession(): Promise<void> {
-  await forceStopNativeCaptureSession();
+export async function stopNativeCaptureSession(opts?: {
+  restorePlayback?: boolean;
+}): Promise<void> {
+  await forceStopNativeCaptureSession(opts);
 }
 
 export function isNativeCapturePreviewRunning(): boolean {
@@ -289,24 +356,45 @@ export async function captureNativePhoto(): Promise<Blob> {
 
 export async function startNativeVideoRecording(): Promise<void> {
   if (!previewRunning || recordingActive) return;
-  if (previewAudioEnabled) {
-    await ensureNativeCaptureAudioReady();
-  }
+  // Capgo captureVideo() owns the recording audio session — do not call
+  // NativeAudioCapture.prepareForVideoCapture here; setActive(false) breaks muxing.
   await ensureNativeVideoOutputReady();
-  await CameraPreview.startRecordVideo({
-    disableAudio: !previewAudioEnabled,
-    storeToFile: true,
-  });
+  // Capacitor drops `false` booleans — omit disableAudio when mic is on (native defaults to audio in cameraMode).
+  await CameraPreview.startRecordVideo(
+    (previewAudioEnabled
+      ? { storeToFile: true, enableAudio: true }
+      : { storeToFile: true, disableAudio: true }) as Parameters<typeof CameraPreview.startRecordVideo>[0] & {
+      enableAudio?: boolean;
+    },
+  );
   recordingActive = true;
 }
 
-export async function stopNativeVideoRecording(): Promise<{ videoFilePath: string }> {
+export async function stopNativeVideoRecording(): Promise<{
+  videoFilePath: string;
+  audioTrackCount?: number;
+}> {
   if (!recordingActive) {
     throw new Error('Native video recording is not active');
   }
-  const result = await CameraPreview.stopRecordVideo();
+  const result = (await CameraPreview.stopRecordVideo()) as {
+    videoFilePath: string;
+    audioTrackCount?: number;
+  };
   recordingActive = false;
-  return { videoFilePath: result.videoFilePath };
+  const audioTrackCount = result.audioTrackCount ?? 0;
+  if (previewAudioEnabled && audioTrackCount < 1) {
+    throw new Error('Recorded video has no audio track');
+  }
+  return {
+    videoFilePath: result.videoFilePath,
+    audioTrackCount,
+  };
+}
+
+/** True when native stopRecordVideo reported at least one muxed audio track. */
+export function nativeRecordingHasRequiredAudio(audioTrackCount?: number | null): boolean {
+  return (audioTrackCount ?? 0) >= 1;
 }
 
 export async function startNativeLiveAudioSegments(
@@ -355,39 +443,121 @@ export async function stopNativeLiveAudioSegments(): Promise<void> {
   }
 }
 
-export async function nativeVideoPathToBlob(filePath: string): Promise<Blob> {
-  const trimmed = filePath.trim();
-  if (!trimmed) {
-    throw new Error('Native video path is empty');
-  }
-
-  // Brief pause so AVCaptureMovieFileOutput can flush the file to disk.
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
+function blobLikelyHasAudio(bytes: Uint8Array): boolean {
   try {
-    const url = Capacitor.convertFileSrc(trimmed);
-    const response = await fetch(url);
-    if (response.ok) {
-      const blob = await response.blob();
-      if (blob.size > 0) {
-        return blob;
+    return captureVideoBlobLikelyHasAudio(bytes);
+  } catch (err) {
+    console.warn('captureVideoBlobLikelyHasAudio:', err);
+    return true;
+  }
+}
+
+function detectRecordedVideoMime(bytes: Uint8Array): string {
+  if (bytes.length >= 8) {
+    const ftyp = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+    if (ftyp === 'qt  ') return 'video/quicktime';
+  }
+  return 'video/mp4';
+}
+
+function bytesContainPattern(bytes: Uint8Array, pattern: string): boolean {
+  if (pattern.length === 0 || bytes.length < pattern.length) return false;
+  const first = pattern.charCodeAt(0);
+  const lastIndex = bytes.length - pattern.length;
+  for (let i = 0; i <= lastIndex; i += 1) {
+    if (bytes[i] !== first) continue;
+    let matched = true;
+    for (let j = 1; j < pattern.length; j += 1) {
+      if (bytes[i + j] !== pattern.charCodeAt(j)) {
+        matched = false;
+        break;
       }
     }
-  } catch (err) {
-    console.warn('nativeVideoPathToBlob fetch:', err);
+    if (matched) return true;
   }
+  return false;
+}
 
-  const readCandidates: Array<{ path: string; directory?: Directory }> = [];
-  const pathPart = trimmed.replace(/^file:\/\//, '');
-  const fileName = pathPart.split('/').pop();
-  if (fileName) {
-    readCandidates.push({ path: fileName, directory: Directory.Documents });
-    readCandidates.push({ path: fileName, directory: Directory.Cache });
+/** Heuristic: MP4/MOV contains an audio sample description (mp4a/soun/esds). */
+export function nativeVideoBlobLikelyHasAudio(bytes: Uint8Array): boolean {
+  if (bytes.length < 32) return false;
+  const patterns = ['mp4a', 'soun', 'aac ', 'aac\0', 'esds', 'alac', 'ec-3', 'ac-3', 'samr', 'twos'];
+  const scanLen = Math.min(bytes.length, 2 * 1024 * 1024);
+  const regions =
+    bytes.length <= scanLen
+      ? [bytes]
+      : [bytes.subarray(0, scanLen), bytes.subarray(bytes.length - scanLen)];
+  return patterns.some((pattern) => regions.some((region) => bytesContainPattern(region, pattern)));
+}
+
+/** MP4/MOV or WebM capture blob heuristics — used to block silent clip handoffs. */
+export function captureVideoBlobLikelyHasAudio(bytes: Uint8Array): boolean {
+  if (bytes.length < 32) return false;
+  const scanLen = Math.min(bytes.length, 512 * 1024);
+  const head = bytes.subarray(0, scanLen);
+  const webmPatterns = ['A_OPUS', 'A_VORBIS', 'OpusHead', 'A_AAC'];
+  if (webmPatterns.some((pattern) => bytesContainPattern(head, pattern))) {
+    return true;
   }
-  readCandidates.push({ path: trimmed });
-  readCandidates.push({ path: pathPart });
-  readCandidates.push({ path: decodeURIComponent(pathPart) });
+  return nativeVideoBlobLikelyHasAudio(bytes);
+}
 
+export async function assertCaptureBlobHasAudio(
+  blob: Blob,
+  opts?: {
+    nativeAudioTrackCount?: number | null;
+    /** Web MediaRecorder started with live mic tracks — skip byte heuristics. */
+    webStreamHadAudio?: boolean;
+  },
+): Promise<void> {
+  if (nativeRecordingHasRequiredAudio(opts?.nativeAudioTrackCount)) {
+    return;
+  }
+  // Browser capture (incl. mobile Safari): mic was requested at getUserMedia / record start.
+  if (!shouldUseNativeIosCapture()) {
+    return;
+  }
+  const scanLen = Math.min(blob.size, 2 * 1024 * 1024);
+  const head = new Uint8Array(await blob.slice(0, scanLen).arrayBuffer());
+  if (captureVideoBlobLikelyHasAudio(head)) {
+    return;
+  }
+  if (blob.size > scanLen) {
+    const tail = new Uint8Array(await blob.slice(blob.size - scanLen).arrayBuffer());
+    if (captureVideoBlobLikelyHasAudio(tail)) {
+      return;
+    }
+  }
+  throw new Error('Recorded video has no audio track');
+}
+
+async function decodeFilesystemReadData(data: string | Blob): Promise<Uint8Array> {
+  if (typeof data === 'string') {
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+async function fetchNativeVideoBlobFromUrl(url: string): Promise<Blob | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return blob.size > 0 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readNativeVideoBytesFromFilesystem(
+  filePath: string,
+): Promise<Uint8Array | null> {
+  const readCandidates = nativeVideoFileCandidates(filePath);
   for (const candidate of readCandidates) {
     if (!candidate.path) continue;
     try {
@@ -395,23 +565,182 @@ export async function nativeVideoPathToBlob(filePath: string): Promise<Blob> {
         path: candidate.path,
         ...(candidate.directory ? { directory: candidate.directory } : {}),
       });
-      let bytes: Uint8Array;
-      if (typeof read.data === 'string') {
-        const binary = atob(read.data);
-        bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i += 1) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-      } else {
-        bytes = new Uint8Array(await read.data.arrayBuffer());
-      }
-      const blob = new Blob([bytes], { type: 'video/mp4' });
-      if (blob.size > 0) {
-        return blob;
-      }
+      const bytes = await decodeFilesystemReadData(read.data);
+      if (bytes.length > 0) return bytes;
     } catch {
       /* try next path form */
     }
+  }
+  return null;
+}
+
+async function fetchNativeVideoBlobViaUri(filePath: string): Promise<Blob | null> {
+  const pathPart = filePath.trim().replace(/^file:\/\//, '');
+  const fileName = pathPart.split('/').pop();
+  if (!fileName) return null;
+
+  const uriCandidates: Array<{ directory: Directory; path: string }> = [
+    { directory: Directory.Documents, path: fileName },
+  ];
+
+  for (const candidate of uriCandidates) {
+    try {
+      const uriResult = await Filesystem.getUri({
+        directory: candidate.directory,
+        path: candidate.path,
+      });
+      const blob = await fetchNativeVideoBlobFromUrl(Capacitor.convertFileSrc(uriResult.uri));
+      if (blob?.size) return blob;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+function nativeVideoFileCandidates(
+  filePath: string,
+): Array<{ path: string; directory?: Directory }> {
+  const trimmed = filePath.trim();
+  const pathPart = trimmed.replace(/^file:\/\//, '');
+  const fileName = pathPart.split('/').pop();
+  const candidates: Array<{ path: string; directory?: Directory }> = [];
+  if (fileName) {
+    candidates.push({ path: fileName, directory: Directory.Documents });
+  }
+  candidates.push({ path: trimmed });
+  candidates.push({ path: pathPart });
+  candidates.push({ path: decodeURIComponent(pathPart) });
+  return candidates;
+}
+
+/** Wait until AVCaptureMovieFileOutput finishes writing (size stable). */
+async function waitForNativeVideoFileReady(filePath: string, maxMs = 8000): Promise<void> {
+  if (!shouldUseNativeIosCapture()) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return;
+  }
+
+  const statCandidates = nativeVideoFileCandidates(filePath).filter((c) => c.directory);
+  if (!statCandidates.length) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return;
+  }
+
+  const started = Date.now();
+  let lastSize = -1;
+  let stableAt = 0;
+
+  while (Date.now() - started < maxMs) {
+    for (const candidate of statCandidates) {
+      try {
+        const stat = await Filesystem.stat({
+          path: candidate.path,
+          directory: candidate.directory!,
+        });
+        const size = stat.size ?? 0;
+        if (size > 1024) {
+          if (size === lastSize) {
+            if (Date.now() - stableAt >= 600) return;
+          } else {
+            lastSize = size;
+            stableAt = Date.now();
+          }
+        }
+      } catch {
+        /* file not ready yet */
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  }
+}
+
+export async function resolveNativeCaptureUploadBlob(
+  nativeVideoPath: string | null | undefined,
+  fallback?: Blob | null,
+  opts?: { requireAudio?: boolean; nativeAudioTrackCount?: number | null },
+): Promise<Blob | null> {
+  if (!nativeVideoPath?.trim() || !shouldUseNativeIosCapture()) {
+    return fallback?.size ? fallback : null;
+  }
+  const requireAudio = opts?.requireAudio === true;
+  const nativeAudioOk = nativeRecordingHasRequiredAudio(opts?.nativeAudioTrackCount);
+  try {
+    await waitForNativeVideoFileReady(nativeVideoPath);
+    const blob = await nativeVideoPathToBlob(nativeVideoPath, {
+      requireAudio: requireAudio && !nativeAudioOk,
+    });
+    if (blob.size > 0) return blob;
+  } catch (err) {
+    console.warn('resolveNativeCaptureUploadBlob:', err);
+  }
+  if (requireAudio && !nativeAudioOk && fallback?.size) {
+    try {
+      const bytes = new Uint8Array(await fallback.arrayBuffer());
+      if (blobLikelyHasAudio(bytes)) return fallback;
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+  return fallback?.size ? fallback : null;
+}
+
+export async function nativeVideoPathToBlob(
+  filePath: string,
+  opts?: { requireAudio?: boolean },
+): Promise<Blob> {
+  const trimmed = filePath.trim();
+  if (!trimmed) {
+    throw new Error('Native video path is empty');
+  }
+
+  const requireAudio = opts?.requireAudio === true;
+  const maxAttempts = requireAudio ? 4 : 1;
+
+  await waitForNativeVideoFileReady(trimmed);
+
+  let lastBlob: Blob | null = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await waitForNativeVideoFileReady(trimmed, 4000);
+    }
+
+    const fromUri = await fetchNativeVideoBlobViaUri(trimmed);
+    if (fromUri?.size) {
+      lastBlob = fromUri;
+      if (!requireAudio) return fromUri;
+      const bytes = new Uint8Array(await fromUri.arrayBuffer());
+      if (blobLikelyHasAudio(bytes)) return fromUri;
+    }
+
+    try {
+      const url = Capacitor.convertFileSrc(trimmed);
+      const fromFetch = await fetchNativeVideoBlobFromUrl(url);
+      if (fromFetch?.size) {
+        lastBlob = fromFetch;
+        if (!requireAudio) return fromFetch;
+        const bytes = new Uint8Array(await fromFetch.arrayBuffer());
+        if (blobLikelyHasAudio(bytes)) return fromFetch;
+      }
+    } catch (err) {
+      console.warn('nativeVideoPathToBlob fetch:', err);
+    }
+
+    const bytes = await readNativeVideoBytesFromFilesystem(trimmed);
+    if (bytes?.length) {
+      const blob = new Blob([bytes], { type: detectRecordedVideoMime(bytes) });
+      lastBlob = blob;
+      if (!requireAudio || blobLikelyHasAudio(bytes)) {
+        return blob;
+      }
+    }
+  }
+
+  if (lastBlob?.size && !requireAudio) return lastBlob;
+  if (lastBlob?.size && requireAudio) {
+    throw new Error('Native video file has no audio track');
   }
 
   throw new Error(`Failed to read native video at ${filePath}`);

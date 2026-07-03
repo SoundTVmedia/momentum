@@ -44,7 +44,7 @@ export default function AppRouteChrome() {
   useEffect(() => {
     if (!shouldUseNativeIosCapture()) return;
     if (quickCapture.showQuickCapture) return;
-    void forceStopNativeCaptureSession();
+    void forceStopNativeCaptureSession({ restorePlayback: true });
   }, [quickCapture.showQuickCapture]);
 
   return (

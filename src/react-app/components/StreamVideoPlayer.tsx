@@ -7,7 +7,8 @@ import {
   resolveModalPlaybackSource,
 } from '@/shared/clip-playback';
 import { recordClipView } from '@/react-app/lib/recordClipView';
-import { tryVideoPlayPreferSound } from '@/react-app/utils/videoAutoplay';
+import { tryVideoPlayPreferSound, playVideoWithSoundOnGesture } from '@/react-app/utils/videoAutoplay';
+import { restoreNativeMediaPlaybackAudio, shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
 
 export type StreamVideoPlayerHandle = {
   togglePlay: () => void;
@@ -175,6 +176,12 @@ function StreamVideoPlayer(
     setPlaybackIsHls(true);
     return true;
   }, [destroyHls]);
+
+  const playbackAudioRestore = useCallback(async () => {
+    if (shouldUseNativeIosCapture()) {
+      await restoreNativeMediaPlaybackAudio();
+    }
+  }, []);
 
   const tryAutoplay = useCallback(() => {
     if (!autoPlayRef.current) return;
@@ -384,17 +391,37 @@ function StreamVideoPlayer(
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
-    if (isPlaying) video.pause();
-    else void video.play().catch(() => {});
+    if (isPlaying) {
+      video.pause();
+      return;
+    }
+    if (isMuted) {
+      void video.play().catch(() => {});
+      return;
+    }
+    void playVideoWithSoundOnGesture(video, {
+      onMutedChange: setIsMuted,
+      restoreAudioSession: playbackAudioRestore,
+    });
   };
 
   const toggleMute = () => {
     const video = videoRef.current;
     if (!video) return;
     const nextMuted = !video.muted;
-    video.muted = nextMuted;
-    setIsMuted(nextMuted);
     userMutePreferenceRef.current = nextMuted;
+    if (nextMuted) {
+      video.muted = true;
+      setIsMuted(true);
+      return;
+    }
+    void playVideoWithSoundOnGesture(video, {
+      onMutedChange: (muted) => {
+        setIsMuted(muted);
+        userMutePreferenceRef.current = muted;
+      },
+      restoreAudioSession: playbackAudioRestore,
+    });
   };
 
   const toggleFullscreen = () => {

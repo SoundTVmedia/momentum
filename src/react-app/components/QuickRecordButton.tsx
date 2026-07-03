@@ -65,18 +65,15 @@ import {
   flipNativeCamera,
   stopNativeLiveAudioSegments,
   readNativeZoomState,
-  nativeVideoPathToBlob,
+  resolveNativeCaptureUploadBlob,
+  assertCaptureBlobHasAudio,
+  nativeRecordingHasRequiredAudio,
   nativeCaptureHaptic,
   nativeCaptureWarningHaptic,
   captureNativePhoto,
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
 import { completeCaptureHandoff } from '@/react-app/lib/upload-outbox/capture-local-save';
-import {
-  writeCaptureHandoffMeta,
-  captureReviewSearch,
-  dispatchPendingCaptureReady,
-} from '@/react-app/lib/upload-outbox/capture-handoff';
 import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
@@ -186,6 +183,8 @@ export default function QuickRecordButton({
   const nativeCaptureActiveRef = useRef(false);
   /** True while finishing a native clip (persist + navigate) — blocks unmount cleanup. */
   const nativeCaptureFinishingRef = useRef(false);
+  /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
+  const webCaptureHadAudioRef = useRef(false);
   /** Stabilized song/artist used as caption prefill fallback (not shown on camera). */
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -1038,6 +1037,14 @@ export default function QuickRecordButton({
   useEffect(() => {
     const applyOrientation = () => {
       const portrait = deviceIsPortraitViewport();
+
+      if (nativeCaptureActiveRef.current) {
+        if (showModalRef.current) {
+          scheduleNativeCaptureFullScreenPreview();
+        }
+        return;
+      }
+
       setIsPortrait(portrait);
       setRecordingOrientation(portrait ? 'portrait' : 'landscape');
 
@@ -1064,7 +1071,7 @@ export default function QuickRecordButton({
     const syncOrientation = () => {
       applyOrientation();
       if (nativeCaptureActiveRef.current) {
-        scheduleNativeCaptureFullScreenPreview();
+        return;
       }
       requestAnimationFrame(applyOrientation);
       if (orientationSyncTimerRef.current) {
@@ -1073,9 +1080,6 @@ export default function QuickRecordButton({
       orientationSyncTimerRef.current = setTimeout(() => {
         orientationSyncTimerRef.current = null;
         applyOrientation();
-        if (nativeCaptureActiveRef.current) {
-          scheduleNativeCaptureFullScreenPreview();
-        }
       }, 300);
     };
 
@@ -1863,7 +1867,6 @@ export default function QuickRecordButton({
       clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
 
       try {
-        await stopNativeLiveAudioSegments();
         await startNativeVideoRecording();
         setIsRecording(true);
         recordingSecondsRef.current = 0;
@@ -1911,6 +1914,7 @@ export default function QuickRecordButton({
     try {
       clearAuddParallelCapTimer();
       const hasAudio = stream.getAudioTracks().length > 0;
+      webCaptureHadAudioRef.current = hasAudio && audioEnabled;
       const preferMp4 = isIOS || isSafari || isAppleMediaRecorderPlatform();
       const mimeType = pickVideoRecorderMime({ hasAudio, preferMp4 }) ?? '';
       const recorderOptions: MediaRecorderOptions = {
@@ -1937,7 +1941,7 @@ export default function QuickRecordButton({
             ? mediaRecorder.mimeType
             : mimeType || (preferMp4 ? 'video/mp4' : 'video/webm');
         const blob = new Blob(chunksRef.current, { type: outType });
-        handleRecordingComplete(blob);
+        void handleRecordingComplete(blob, { webStreamHadAudio: webCaptureHadAudioRef.current });
       };
 
       mediaRecorder.start(100); // Capture data every 100ms for smoother recording
@@ -2007,58 +2011,36 @@ export default function QuickRecordButton({
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          const blob = await nativeVideoPathToBlob(videoFilePath);
-          if (!blob.size) {
+          const blob = await resolveNativeCaptureUploadBlob(videoFilePath, null, {
+            requireAudio: true,
+            nativeAudioTrackCount: stopped.audioTrackCount,
+          });
+          if (!blob?.size) {
             throw new Error('Recorded video is empty');
           }
           await handleRecordingComplete(blob, {
             nativeVideoPath: videoFilePath,
+            nativeAudioTrackCount: stopped.audioTrackCount,
             skipAudd: true,
           });
         } catch (err) {
           console.error('Native stop recording failed:', err);
           isRecordingRef.current = false;
           setIsRecording(false);
-          const at = recordingStartedAtRef.current || new Date().toISOString();
-          if (videoFilePath) {
-            try {
-              const blob = await nativeVideoPathToBlob(videoFilePath);
-              if (blob.size > 0) {
-                const fileName = `momentum-${Date.now()}.mp4`;
-                completeCaptureHandoff({
-                  blob,
-                  fileName,
-                  navigate,
-                  recordingStartedAt: at,
-                  nativeVideoPath: videoFilePath,
-                  meta: {},
-                  onReleaseResources: () => releaseAllCaptureResources(),
-                  onAfterNavigate: () => (onAfterCaptureNavigate ?? onClose)?.(),
-                });
-                return;
-              }
-            } catch {
-              /* fall through to path-only handoff */
-            }
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
           }
-          writeCaptureHandoffMeta({
-            recordingStartedAt: at,
-            ...(videoFilePath ? { nativeVideoPath: videoFilePath } : {}),
-          });
-          (onAfterCaptureNavigate ?? onClose)?.();
-          navigate(
-            { pathname: '/upload', search: captureReviewSearch() },
-            {
-              replace: true,
-              state: {
-                recordingStartedAt: at,
-                fromQuickCapture: true,
-                ...(videoFilePath ? { nativeVideoPath: videoFilePath } : {}),
-              },
-            },
+          const msg = err instanceof Error ? err.message : String(err);
+          setCameraError(
+            /no audio/i.test(msg)
+              ? 'Microphone audio was not captured. Please record again.'
+              : 'Recording failed. Please try again.',
           );
           releaseAllCaptureResources();
-          queueMicrotask(() => dispatchPendingCaptureReady(at));
+          if (/no audio/i.test(msg)) {
+            void requestPermissions();
+          }
         }
       })();
       return;
@@ -2117,7 +2099,12 @@ export default function QuickRecordButton({
 
   const handleRecordingComplete = async (
     blob: Blob,
-    opts?: { skipAudd?: boolean; nativeVideoPath?: string },
+    opts?: {
+      skipAudd?: boolean;
+      nativeVideoPath?: string;
+      nativeAudioTrackCount?: number;
+      webStreamHadAudio?: boolean;
+    },
   ) => {
     if (!blob.size) {
       setCameraError('Could not read your recording. Try again.');
@@ -2128,6 +2115,13 @@ export default function QuickRecordButton({
 
     nativeCaptureFinishingRef.current = true;
     try {
+      if (opts?.nativeVideoPath && !nativeRecordingHasRequiredAudio(opts.nativeAudioTrackCount)) {
+        throw new Error('Recorded video has no audio track');
+      }
+      await assertCaptureBlobHasAudio(blob, {
+        nativeAudioTrackCount: opts?.nativeAudioTrackCount,
+        webStreamHadAudio: opts?.webStreamHadAudio,
+      });
       const par = auddParallelAudioRecorderRef.current;
       if (
         !opts?.skipAudd &&
@@ -2257,22 +2251,27 @@ export default function QuickRecordButton({
         ...(prefetchShow ? { showData: clipShowCandidateToNavState(prefetchShow) } : {}),
       };
 
-      completeCaptureHandoff({
+      const handedOff = await completeCaptureHandoff({
         blob,
         fileName,
         navigate,
         recordingStartedAt: at,
         nativeVideoPath: opts?.nativeVideoPath,
+        nativeAudioTrackCount: opts?.nativeAudioTrackCount,
         meta: {
           captureGeo: navState.captureGeo,
           videoMetadata: navState.videoMetadata,
           auddPrefill,
           showData: prefetchShow ? clipShowCandidateToNavState(prefetchShow) : undefined,
+          nativeAudioTrackCount: opts?.nativeAudioTrackCount,
         },
         routerState: navState,
         onReleaseResources: () => releaseAllCaptureResources(),
         onAfterNavigate: () => (onAfterCaptureNavigate ?? onClose)?.(),
       });
+      if (!handedOff) {
+        throw new Error('Could not open your clip for review');
+      }
 
       recordingStartedAtRef.current = null;
       lastGeoRef.current = null;
@@ -2287,11 +2286,21 @@ export default function QuickRecordButton({
       setCameraOpenRequested(false);
       recordingSecondsRef.current = 0;
       lastLiveSongMatchRef.current = null;
+      webCaptureHadAudioRef.current = false;
     } catch (e) {
       console.error('QuickRecordButton: recording complete failed', e);
-      setCameraError('Could not open your clip for review. Try again.');
+      const msg = e instanceof Error ? e.message : String(e);
+      setCameraError(
+        /no audio/i.test(msg)
+          ? 'Microphone audio was not captured. Please record again.'
+          : 'Could not open your clip for review. Try again.',
+      );
       isRecordingRef.current = false;
       setIsRecording(false);
+      if (/no audio/i.test(msg)) {
+        releaseAllCaptureResources();
+        void requestPermissions();
+      }
     } finally {
       nativeCaptureFinishingRef.current = false;
     }
@@ -2406,11 +2415,11 @@ export default function QuickRecordButton({
   useEffect(() => {
     return () => {
       if (!shouldUseNativeIosCapture() || nativeCaptureFinishingRef.current) return;
-      // Skip on React StrictMode remount while capture is still open.
-      if (isOpen) return;
+      // Use ref — isOpen prop can be stale when parent remounts during post-Share reopen.
+      if (showModalRef.current) return;
       void forceStopNativeCaptureSession();
     };
-  }, [isOpen]);
+  }, []);
 
   // Native camera sits behind WKWebView — force page + shell transparency for every entry path.
   useLayoutEffect(() => {
@@ -2775,8 +2784,8 @@ export default function QuickRecordButton({
                 title="Stop recording and save your moment"
                 style={{ minWidth: '5rem', minHeight: '5rem' }}
               >
-                <div className="on-light-surface w-20 h-20 rounded-full bg-white/80 flex items-center justify-center">
-                  <Square className="w-10 h-10 text-gray-800 fill-gray-800" />
+                <div className="native-capture-control w-20 h-20 rounded-full border border-white flex items-center justify-center bg-white/10">
+                  <Square className="w-8 h-8 text-white fill-white" />
                 </div>
                 {!landscapeCapture && (
                   <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">

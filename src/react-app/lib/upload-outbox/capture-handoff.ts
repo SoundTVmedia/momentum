@@ -18,10 +18,14 @@ export const PENDING_CAPTURE_READY_EVENT = 'momentum:pending-capture-ready';
 
 /** In-tab guard — survives UploadClip remount when WKWebView storage writes fail. */
 let captureReviewSessionBlocked = false;
+/** Set when completeCaptureHandoff navigates to ?reviewCapture for a new recording. */
+let pendingCaptureReviewHandoffAt: string | null = null;
 
 export type CaptureHandoffMeta = {
   recordingStartedAt: string;
   nativeVideoPath?: string;
+  /** From Capgo stopRecordVideo — must be >= 1 for native iOS captures. */
+  nativeAudioTrackCount?: number;
   captureGeo?: {
     latitude: number;
     longitude: number;
@@ -101,6 +105,7 @@ export function clearCaptureHandoffMeta(): void {
 /** Block caption recovery after Share/upload until the next in-app capture handoff. */
 export function blockCaptureReviewRecovery(): void {
   captureReviewSessionBlocked = true;
+  pendingCaptureReviewHandoffAt = null;
   writeStorageItem(CAPTURE_REVIEW_BLOCKED_KEY, String(Date.now()));
   writeStorageItem(CAPTURE_REVIEW_SUPPRESS_KEY, '1');
   markCaptureShared();
@@ -122,6 +127,28 @@ export function allowCaptureReviewRecovery(): void {
   captureReviewSessionBlocked = false;
   removeStorageItem(CAPTURE_REVIEW_BLOCKED_KEY);
   clearCaptureReviewSuppression();
+}
+
+/** True when the user is mid multi-clip session (caption open or handoff in flight). */
+export function isActiveCaptureHandoff(recordingStartedAt?: string | null): boolean {
+  return hasPendingCaptureReviewHandoff(recordingStartedAt) || hasPrimedPendingCapture();
+}
+
+/** True when a new capture just navigated to /upload?reviewCapture and hydration must run. */
+export function hasPendingCaptureReviewHandoff(recordingStartedAt?: string | null): boolean {
+  if (!pendingCaptureReviewHandoffAt) return false;
+  if (!recordingStartedAt) return true;
+  return pendingCaptureReviewHandoffAt === recordingStartedAt;
+}
+
+export function markPendingCaptureReviewHandoff(recordingStartedAt: string): void {
+  pendingCaptureReviewHandoffAt = recordingStartedAt;
+}
+
+export function clearPendingCaptureReviewHandoff(recordingStartedAt?: string | null): void {
+  if (!pendingCaptureReviewHandoffAt) return;
+  if (recordingStartedAt && pendingCaptureReviewHandoffAt !== recordingStartedAt) return;
+  pendingCaptureReviewHandoffAt = null;
 }
 
 export function readCaptureReviewBlockedAt(): number | null {
@@ -315,6 +342,7 @@ export function isCaptureBlobConsumed(blob: Blob): boolean {
 }
 
 export function shouldHydrateCaptureReview(recordingStartedAt?: string | null): boolean {
+  if (isActiveCaptureHandoff(recordingStartedAt)) return true;
   if (shouldSkipCaptureReviewHydration()) return false;
   if (wasCaptureRecentlyDiscarded()) return false;
   if (wasRecordingStartedAtShared(recordingStartedAt)) return false;

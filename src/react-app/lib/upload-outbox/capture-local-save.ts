@@ -18,16 +18,23 @@ import {
   clearCaptureDiscardedMarker,
   allowCaptureReviewForNewRecording,
   canOpenCaptureReviewHandoff,
+  markPendingCaptureReviewHandoff,
   dispatchPendingCaptureReady,
   writeCaptureHandoffMeta,
   wasBlobRecentlyShared,
   wasNativeVideoPathShared,
   wasRecordingStartedAtShared,
   shouldSkipCaptureReviewHydration,
+  isActiveCaptureHandoff,
   captureReviewSearch,
   type CaptureHandoffMeta,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
-import { nativeVideoPathToBlob } from '@/react-app/lib/native-capture';
+import {
+  resolveNativeCaptureUploadBlob,
+  captureVideoBlobLikelyHasAudio,
+  nativeRecordingHasRequiredAudio,
+  shouldUseNativeIosCapture,
+} from '@/react-app/lib/native-capture';
 import type { NavigateFunction } from 'react-router';
 export const PENDING_CAPTURE_JOB_ID = '__momentum_pending_capture__';
 
@@ -38,7 +45,8 @@ export function invalidatePendingCaptureFlush(): void {
   pendingCaptureFlushGeneration += 1;
 }
 
-export function clearPendingCaptureMemory(): void {
+export function clearPendingCaptureMemory(opts?: { force?: boolean }): void {
+  if (!opts?.force && isActiveCaptureHandoff()) return;
   clearCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
   clearCaptureHandoffMeta();
 }
@@ -111,6 +119,7 @@ export type CompleteCaptureHandoffOpts = {
   recordingStartedAt: string;
   meta: Omit<CaptureHandoffMeta, 'recordingStartedAt'>;
   nativeVideoPath?: string;
+  nativeAudioTrackCount?: number;
   routerState?: Record<string, unknown>;
   onAfterNavigate?: () => void;
   onReleaseResources?: () => void;
@@ -120,7 +129,7 @@ export type CompleteCaptureHandoffOpts = {
  * Upload-outbox handoff: pin blob in memory, write session meta, navigate to caption screen,
  * then flush IndexedDB + Photos without blocking navigation.
  */
-export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
+export async function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): Promise<boolean> {
   const {
     blob,
     fileName,
@@ -128,23 +137,60 @@ export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
     recordingStartedAt,
     meta,
     nativeVideoPath,
+    nativeAudioTrackCount,
     routerState,
     onAfterNavigate,
     onReleaseResources,
   } = opts;
 
+  if (!blob?.size) {
+    console.warn('completeCaptureHandoff: skipped — empty blob');
+    return false;
+  }
+
+  if (shouldUseNativeIosCapture() && nativeVideoPath?.trim()) {
+    if (!nativeRecordingHasRequiredAudio(nativeAudioTrackCount)) {
+      console.warn('completeCaptureHandoff: blocked — native clip has no audio track');
+      return false;
+    }
+  } else if (shouldUseNativeIosCapture()) {
+    try {
+      const scanLen = Math.min(blob.size, 2 * 1024 * 1024);
+      const head = new Uint8Array(await blob.slice(0, scanLen).arrayBuffer());
+      let hasAudio = captureVideoBlobLikelyHasAudio(head);
+      if (!hasAudio && blob.size > scanLen) {
+        const tail = new Uint8Array(await blob.slice(blob.size - scanLen).arrayBuffer());
+        hasAudio = captureVideoBlobLikelyHasAudio(tail);
+      }
+      if (!hasAudio) {
+        console.warn('completeCaptureHandoff: blocked — video blob missing audio');
+        return false;
+      }
+    } catch (err) {
+      console.warn('completeCaptureHandoff: blocked — could not verify audio', err);
+      return false;
+    }
+  }
+  // Web browser capture: audio validated at record stop via live mic tracks.
+
+  allowCaptureReviewForNewRecording(recordingStartedAt);
+
   if (!canOpenCaptureReviewHandoff(blob, recordingStartedAt)) {
     console.warn('completeCaptureHandoff: skipped — clip already shared or stale handoff');
-    return;
+    return false;
   }
 
   primePendingCaptureVideo(blob);
   clearCaptureDiscardedMarker();
-  allowCaptureReviewForNewRecording(recordingStartedAt);
-  writeCaptureHandoffMeta({ recordingStartedAt, ...meta, nativeVideoPath });
+  markPendingCaptureReviewHandoff(recordingStartedAt);
+  writeCaptureHandoffMeta({
+    recordingStartedAt,
+    ...meta,
+    nativeVideoPath,
+    nativeAudioTrackCount,
+  });
 
   onReleaseResources?.();
-  onAfterNavigate?.();
 
   navigate(
     { pathname: '/upload', search: captureReviewSearch() },
@@ -161,9 +207,13 @@ export function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): void {
 
   queueMicrotask(() => dispatchPendingCaptureReady(recordingStartedAt));
 
+  onAfterNavigate?.();
+
   void flushPendingCaptureToDevice(blob, fileName, {
     nativeVideoUri: nativeVideoPath,
   });
+
+  return true;
 }
 
 export async function loadPendingCapture(): Promise<StoredUploadBlobs | null> {
@@ -214,8 +264,8 @@ export async function resolvePendingCaptureForReview(opts?: {
   if (wasNativeVideoPathShared(nativePath)) return null;
 
   try {
-    const blob = await nativeVideoPathToBlob(nativePath);
-    if (blob.size > 0) {
+    const blob = await resolveNativeCaptureUploadBlob(nativePath, null, { requireAudio: true });
+    if (blob?.size) {
       if (wasBlobRecentlyShared(blob)) return null;
       return blob;
     }
@@ -226,9 +276,10 @@ export async function resolvePendingCaptureForReview(opts?: {
 }
 
 /** Remove the pre-Share capture blob after Share or explicit discard. */
-export async function clearPendingCapture(): Promise<void> {
+export async function clearPendingCapture(opts?: { force?: boolean }): Promise<void> {
+  if (!opts?.force && isActiveCaptureHandoff()) return;
   invalidatePendingCaptureFlush();
-  clearPendingCaptureMemory();
+  clearPendingCaptureMemory({ force: true });
   try {
     await deleteOutboxJob(PENDING_CAPTURE_JOB_ID);
   } catch (err) {

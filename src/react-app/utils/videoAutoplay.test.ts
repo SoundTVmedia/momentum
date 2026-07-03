@@ -11,6 +11,7 @@ function mockVideo() {
     paused = false;
   });
   return {
+    volume: 1,
     get muted() {
       return muted;
     },
@@ -39,6 +40,7 @@ describe('tryVideoPlayPreferSound', () => {
   it('falls back to muted when unmuted play is blocked', async () => {
     const video = mockVideo();
     tryVideoPlayPreferSound(video);
+    await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
     expect(video.muted).toBe(true);
