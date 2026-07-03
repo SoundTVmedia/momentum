@@ -42,17 +42,7 @@
 				<string>com.feedbacklive.app</string>
 			</array>
 		</dict>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>GoogleSignIn</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.254629847229-rub6emauah8kv0om2mah9a0tts1edro9</string>
-			</array>
-		</dict>
 	</array>
-	<key>GIDClientID</key>
-	<string>254629847229-rub6emauah8kv0om2mah9a0tts1edro9.apps.googleusercontent.com</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

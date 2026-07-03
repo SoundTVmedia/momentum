@@ -76,6 +76,7 @@ JAMBASE_API_KEY=
 # AUDD_API_TOKEN=
 # YouTube Data API v3 — home feed carousels for favorite artists (Google Cloud → enable API → API key).
 # Use a server key with API restriction "YouTube Data API v3" only (not HTTP referrer restriction).
+# If a key was ever committed to git, revoke it in Google Cloud Console and create a replacement.
 # Worker caches responses at the edge + in D1 (migration 50.sql) to cut quota use.
 # Default project quota is 10,000 units/day (search.list = 100 units). Recommended local:
 #   YOUTUBE_QUOTA_ENFORCEMENT=1
