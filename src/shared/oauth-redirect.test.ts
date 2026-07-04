@@ -39,30 +39,29 @@ describe('resolveAppleOAuthCallbackUrl', () => {
   });
 });
 
+/** Synthetic values for unit tests — never commit real Google API keys or OAuth client IDs. */
+const FAKE_IOS_OAUTH_CLIENT_ID =
+  '123456789-fakeiosclientidforunittests.apps.googleusercontent.com';
+const FAKE_GOOGLE_API_KEY = `AIza${'Sy'}${'0'.repeat(33)}`;
+
 describe('isValidGoogleIosOAuthClientId', () => {
   it('accepts iOS OAuth client IDs', () => {
-    expect(
-      isValidGoogleIosOAuthClientId(
-        '254629847229-nneb3tf32q119en80rn75nhanjel7gvf.apps.googleusercontent.com',
-      ),
-    ).toBe(true);
+    expect(isValidGoogleIosOAuthClientId(FAKE_IOS_OAUTH_CLIENT_ID)).toBe(true);
   });
 
   it('rejects Google API keys', () => {
-    expect(isValidGoogleIosOAuthClientId('AIzaSyC1gXJbd5qmAq9vrl8P1yxiDILiMHZ5WfM')).toBe(false);
+    expect(isValidGoogleIosOAuthClientId(FAKE_GOOGLE_API_KEY)).toBe(false);
   });
 });
 
 describe('googleIosUrlSchemeFromClientId', () => {
   it('derives reversed URL scheme from iOS client ID', () => {
-    expect(
-      googleIosUrlSchemeFromClientId(
-        '254629847229-nneb3tf32q119en80rn75nhanjel7gvf.apps.googleusercontent.com',
-      ),
-    ).toBe('com.googleusercontent.apps.254629847229-nneb3tf32q119en80rn75nhanjel7gvf');
+    expect(googleIosUrlSchemeFromClientId(FAKE_IOS_OAUTH_CLIENT_ID)).toBe(
+      'com.googleusercontent.apps.123456789-fakeiosclientidforunittests',
+    );
   });
 
   it('returns null for API keys', () => {
-    expect(googleIosUrlSchemeFromClientId('AIzaSyC1gXJbd5qmAq9vrl8P1yxiDILiMHZ5WfM')).toBeNull();
+    expect(googleIosUrlSchemeFromClientId(FAKE_GOOGLE_API_KEY)).toBeNull();
   });
 });
