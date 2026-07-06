@@ -78,13 +78,16 @@ async function runCameraPreviewStart(
     await ensureNativeCaptureAudioReady();
   }
   if (generation !== previewStartGeneration) return;
+  const { width, height } = readNativeCaptureViewportSize();
   const startOpts = {
     position: opts?.facing ?? 'rear',
     toBack: true,
     enableVideoMode: true,
     cameraMode: true,
     enableAudio: withAudio,
-    aspectRatio: nativeCaptureAspectRatio(),
+    width,
+    height,
+    paddingBottom: 0,
     positioning: 'top' as const,
     rotateWhenOrientationChanged: true,
     ...(withAudio ? {} : { disableAudio: true }),
@@ -145,8 +148,13 @@ export function readNativeCaptureViewportSize(): { width: number; height: number
   if (typeof window === 'undefined') {
     return { width: 390, height: 844 };
   }
-  const width = Math.round(window.innerWidth);
-  const height = Math.round(window.visualViewport?.height ?? window.innerHeight);
+  const vv = window.visualViewport;
+  const width = Math.round(vv?.width ?? window.innerWidth);
+  // Match the capture modal (100dvh) — use the tallest applicable height so the native
+  // layer covers the full screen and does not leave a black strip at the bottom.
+  const height = Math.round(
+    Math.max(vv?.height ?? 0, window.innerHeight, document.documentElement.clientHeight),
+  );
   return { width, height };
 }
 

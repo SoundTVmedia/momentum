@@ -2506,9 +2506,10 @@ export default function QuickRecordButton({
     !previewLive &&
     (!hasPermission || !cameraReady);
   const useTransparentCaptureShell = isNativeIosCapture || previewLive;
-  const captureBottomChromeClass = isNativeIosCapture
-    ? 'native-capture-bottom-chrome pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-transparent'
-    : 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/55 via-black/20 to-transparent pt-28';
+  const captureBottomChromeClass =
+    isNativeIosCapture || previewLive
+      ? 'native-capture-bottom-chrome pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-transparent'
+      : 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/55 via-black/20 to-transparent pt-28';
   const nativeCaptureShellStyle = isNativeIosCapture
     ? ({ background: 'transparent', backgroundColor: 'transparent' } as const)
     : undefined;
