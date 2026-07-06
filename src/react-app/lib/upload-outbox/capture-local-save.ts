@@ -19,6 +19,7 @@ import {
   allowCaptureReviewForNewRecording,
   canOpenCaptureReviewHandoff,
   markPendingCaptureReviewHandoff,
+  markCaptureHandoffBusy,
   dispatchPendingCaptureReady,
   writeCaptureHandoffMeta,
   wasBlobRecentlyShared,
@@ -180,6 +181,7 @@ export async function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): 
     return false;
   }
 
+  markCaptureHandoffBusy(8000);
   primePendingCaptureVideo(blob);
   clearCaptureDiscardedMarker();
   markPendingCaptureReviewHandoff(recordingStartedAt);

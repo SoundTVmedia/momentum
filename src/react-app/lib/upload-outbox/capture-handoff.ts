@@ -20,6 +20,17 @@ export const PENDING_CAPTURE_READY_EVENT = 'momentum:pending-capture-ready';
 let captureReviewSessionBlocked = false;
 /** Set when completeCaptureHandoff navigates to ?reviewCapture for a new recording. */
 let pendingCaptureReviewHandoffAt: string | null = null;
+/** Blocks camera reopen while handoff / native file reads are still in flight. */
+let captureHandoffBusyUntil = 0;
+
+/** Mark handoff busy — prevents camera reopen and playback restore during native I/O. */
+export function markCaptureHandoffBusy(ms = 5000): void {
+  captureHandoffBusyUntil = Math.max(captureHandoffBusyUntil, Date.now() + ms);
+}
+
+export function isCaptureHandoffBusy(): boolean {
+  return Date.now() < captureHandoffBusyUntil;
+}
 
 export type CaptureHandoffMeta = {
   recordingStartedAt: string;
@@ -132,6 +143,11 @@ export function allowCaptureReviewRecovery(): void {
 /** True when the user is mid multi-clip session (caption open or handoff in flight). */
 export function isActiveCaptureHandoff(recordingStartedAt?: string | null): boolean {
   return hasPendingCaptureReviewHandoff(recordingStartedAt) || hasPrimedPendingCapture();
+}
+
+/** True when caption review or handoff I/O is active — do not reopen capture. */
+export function isCaptureSessionBusy(): boolean {
+  return isActiveCaptureHandoff() || isCaptureHandoffBusy();
 }
 
 /** True when a new capture just navigated to /upload?reviewCapture and hydration must run. */

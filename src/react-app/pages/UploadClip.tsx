@@ -26,6 +26,10 @@ import {
   nativeCapturePreviewVideoUrl,
   resolveNativeCaptureUploadBlob,
   assertCaptureBlobHasAudio,
+  settleNativeCaptureSession,
+  prepareNativeCaptureRecordingAudio,
+  waitForNativeCaptureIdle,
+  nativeRecordingHasRequiredAudio,
 } from '@/react-app/lib/native-capture';
 import {
   primeGeolocationOnUserGesture,
@@ -84,6 +88,7 @@ import {
   hasPendingCaptureReviewHandoff,
   clearPendingCaptureReviewHandoff,
   isActiveCaptureHandoff,
+  isCaptureHandoffBusy,
   primePendingCaptureVideo,
   shouldHydrateCaptureReview,
   shouldSkipCaptureReviewHydration,
@@ -277,7 +282,7 @@ export default function UploadClip() {
   }, []);
 
   /** After Share/upload, leave /upload?reviewCapture without reopening a stale caption screen. */
-  const leaveReviewCaptureRouteAfterShare = useCallback(() => {
+  const leaveReviewCaptureRouteAfterShare = useCallback(async () => {
     setShowCaptionScreen(false);
     setQuickCaptureAwaitUserTap(false);
     if (isMobile) {
@@ -291,13 +296,26 @@ export default function UploadClip() {
       setReRecordLaunchGeoResolved(false);
       setShowQuickCapture(false);
       navigate({ pathname: '/', search: '' }, { replace: true, state: null });
-      // Global overlay sits outside app-route-outlet — feed stays visible when the user dismisses capture.
-      queueMicrotask(() => quickCapture.openQuickCapture());
+      if (shouldUseNativeIosCapture()) {
+        await waitForNativeCaptureIdle();
+        await settleNativeCaptureSession();
+        await prepareNativeCaptureRecordingAudio();
+      }
+      quickCapture.openQuickCapture();
       return;
     }
     setShowQuickCapture(false);
     navigate({ pathname: '/', search: '' }, { replace: true, state: null });
   }, [isMobile, navigate, quickCapture]);
+
+  /** Stale handoff / blocked review — return to feed without reopening the camera. */
+  const returnToFeedAfterStaleCapture = useCallback(() => {
+    skipNavVideoHydrationRef.current = true;
+    setShowCaptionScreen(false);
+    setShowQuickCapture(false);
+    setQuickCaptureAwaitUserTap(false);
+    navigate({ pathname: '/', search: '' }, { replace: true, state: null });
+  }, [navigate]);
 
   useEffect(() => {
     if (location.pathname !== '/upload') return;
@@ -319,27 +337,23 @@ export default function UploadClip() {
       isCaptureReviewSessionBlocked() ||
       !shouldHydrateCaptureReview(handoffAt)
     ) {
-      skipNavVideoHydrationRef.current = true;
-      leaveReviewCaptureRouteAfterShare();
+      returnToFeedAfterStaleCapture();
     }
-  }, [location.pathname, location.search, navigate, leaveReviewCaptureRouteAfterShare]);
+  }, [location.pathname, location.search, navigate, returnToFeedAfterStaleCapture]);
 
   /** Close caption if post-Share guards are active (covers late IDB hydration after upload). */
   useEffect(() => {
     if (!showCaptionScreen) return;
     if (isActiveCaptureHandoff()) return;
+    if (isCaptureHandoffBusy()) return;
+    if (readCaptureHandoffMeta()?.recordingStartedAt) return;
     if (!shouldSkipCaptureReviewHydration() && !isCaptureReviewSessionBlocked()) return;
-    skipNavVideoHydrationRef.current = true;
-    if (location.pathname === '/upload' && wantsCaptureReviewScreen(location.search)) {
-      leaveReviewCaptureRouteAfterShare();
-      return;
-    }
-    setShowCaptionScreen(false);
+    returnToFeedAfterStaleCapture();
   }, [
     showCaptionScreen,
     location.pathname,
     location.search,
-    leaveReviewCaptureRouteAfterShare,
+    returnToFeedAfterStaleCapture,
   ]);
 
   const markTagsEdited = useCallback(() => {
@@ -2241,7 +2255,7 @@ export default function UploadClip() {
   const reopenCaptureAfterQueuedShare = useCallback(() => {
     skipNavVideoHydrationRef.current = true;
     lastCaptionFromNavAtRef.current = null;
-    leaveReviewCaptureRouteAfterShare();
+    void leaveReviewCaptureRouteAfterShare();
   }, [leaveReviewCaptureRouteAfterShare]);
 
   /** Return home after discard — user re-opens capture via the Capture button. */
@@ -2639,16 +2653,26 @@ export default function UploadClip() {
   // Background refresh of the upload blob from the native file (preview stays muted).
   useEffect(() => {
     if (!showCaptionScreen || uploadSource !== 'capture') return;
+    const handoff = readCaptureHandoffMeta();
     const nativePath =
-      nativeVideoUriRef.current ?? readCaptureHandoffMeta()?.nativeVideoPath ?? null;
+      nativeVideoUriRef.current ?? handoff?.nativeVideoPath ?? null;
     if (!nativePath || !shouldUseNativeIosCapture()) return;
+    if (
+      formData.video_blob?.size &&
+      nativeRecordingHasRequiredAudio(handoff?.nativeAudioTrackCount)
+    ) {
+      return;
+    }
 
     let cancelled = false;
     void (async () => {
       const fresh = await resolveNativeCaptureUploadBlob(
         nativePath,
-        peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID)?.video ?? null,
-        { requireAudio: true },
+        peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID)?.video ?? formData.video_blob ?? null,
+        {
+          requireAudio: true,
+          nativeAudioTrackCount: handoff?.nativeAudioTrackCount,
+        },
       );
       if (cancelled || !fresh?.size) return;
       setFormData((prev) =>
@@ -2660,7 +2684,12 @@ export default function UploadClip() {
     return () => {
       cancelled = true;
     };
-  }, [showCaptionScreen, uploadSource, videoBlobUrl]);
+  }, [
+    showCaptionScreen,
+    uploadSource,
+    formData.video_blob,
+    recordingAtIso,
+  ]);
 
   // Reset inline preview when opening review or swapping clip source (preview stays muted).
   useEffect(() => {

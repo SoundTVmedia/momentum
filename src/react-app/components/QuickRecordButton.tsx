@@ -74,6 +74,7 @@ import {
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
 import { completeCaptureHandoff } from '@/react-app/lib/upload-outbox/capture-local-save';
+import { isCaptureSessionBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
 import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
@@ -183,6 +184,7 @@ export default function QuickRecordButton({
   const nativeCaptureActiveRef = useRef(false);
   /** True while finishing a native clip (persist + navigate) — blocks unmount cleanup. */
   const nativeCaptureFinishingRef = useRef(false);
+  const nativeStopInFlightRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
   /** Stabilized song/artist used as caption prefill fallback (not shown on camera). */
@@ -2000,11 +2002,12 @@ export default function QuickRecordButton({
 
   const stopRecording = () => {
     if (nativeCaptureActiveRef.current) {
+      if (nativeStopInFlightRef.current || nativeCaptureFinishingRef.current) return;
+      nativeStopInFlightRef.current = true;
       void (async () => {
-        let videoFilePath: string | null = null;
         try {
           const stopped = await stopNativeVideoRecording();
-          videoFilePath = stopped.videoFilePath;
+          const videoFilePath = stopped.videoFilePath;
           isRecordingRef.current = false;
           setIsRecording(false);
           if (timerRef.current) {
@@ -2038,9 +2041,11 @@ export default function QuickRecordButton({
               : 'Recording failed. Please try again.',
           );
           releaseAllCaptureResources();
-          if (/no audio/i.test(msg)) {
+          if (/no audio/i.test(msg) && !isCaptureSessionBusy() && !nativeCaptureFinishingRef.current) {
             void requestPermissions();
           }
+        } finally {
+          nativeStopInFlightRef.current = false;
         }
       })();
       return;
@@ -2299,10 +2304,14 @@ export default function QuickRecordButton({
       setIsRecording(false);
       if (/no audio/i.test(msg)) {
         releaseAllCaptureResources();
-        void requestPermissions();
+        if (!isCaptureSessionBusy()) {
+          void requestPermissions();
+        }
       }
     } finally {
-      nativeCaptureFinishingRef.current = false;
+      window.setTimeout(() => {
+        nativeCaptureFinishingRef.current = false;
+      }, 600);
     }
   };
 

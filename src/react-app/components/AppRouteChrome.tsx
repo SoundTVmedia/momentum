@@ -12,6 +12,7 @@ import {
   forceStopNativeCaptureSession,
   shouldUseNativeIosCapture,
 } from '@/react-app/lib/native-capture';
+import { isCaptureSessionBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
 
 function shouldHideBottomNavForPath(pathname: string): boolean {
   return pathname === '/auth' || pathname.startsWith('/auth/');
@@ -44,6 +45,7 @@ export default function AppRouteChrome() {
   useEffect(() => {
     if (!shouldUseNativeIosCapture()) return;
     if (quickCapture.showQuickCapture) return;
+    if (isCaptureSessionBusy()) return;
     void forceStopNativeCaptureSession({ restorePlayback: true });
   }, [quickCapture.showQuickCapture]);
 

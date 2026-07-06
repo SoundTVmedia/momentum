@@ -64,8 +64,20 @@ export async function prepareNativeCaptureRecordingAudio(): Promise<void> {
 
 const NATIVE_CAPTURE_SESSION_SETTLE_MS = 450;
 
-async function settleNativeCaptureSession(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, NATIVE_CAPTURE_SESSION_SETTLE_MS));
+/** Wait for AVAudioSession / capture stack to settle between clips. */
+export async function settleNativeCaptureSession(ms = NATIVE_CAPTURE_SESSION_SETTLE_MS): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const nativeBlobReadInflight = new Map<string, Promise<Blob | null>>();
+
+/** Wait until in-flight native file reads finish before reopening the camera. */
+export async function waitForNativeCaptureIdle(maxMs = 12_000): Promise<void> {
+  const started = Date.now();
+  while (nativeBlobReadInflight.size > 0 && Date.now() - started < maxMs) {
+    await Promise.all([...nativeBlobReadInflight.values()]);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  }
 }
 
 async function runCameraPreviewStart(
@@ -665,25 +677,46 @@ export async function resolveNativeCaptureUploadBlob(
   }
   const requireAudio = opts?.requireAudio === true;
   const nativeAudioOk = nativeRecordingHasRequiredAudio(opts?.nativeAudioTrackCount);
-  try {
-    await waitForNativeVideoFileReady(nativeVideoPath);
-    const blob = await nativeVideoPathToBlob(nativeVideoPath, {
-      requireAudio: requireAudio && !nativeAudioOk,
-    });
-    if (blob.size > 0) return blob;
-  } catch (err) {
-    console.warn('resolveNativeCaptureUploadBlob:', err);
+  if (nativeAudioOk && fallback?.size) {
+    return fallback;
   }
-  if (requireAudio && !nativeAudioOk && fallback?.size) {
+
+  const pathKey = nativeVideoPath.trim();
+  const existing = nativeBlobReadInflight.get(pathKey);
+  if (existing) {
+    return existing;
+  }
+
+  const readPromise = (async (): Promise<Blob | null> => {
     try {
-      const bytes = new Uint8Array(await fallback.arrayBuffer());
-      if (blobLikelyHasAudio(bytes)) return fallback;
-    } catch {
-      /* ignore */
+      await waitForNativeVideoFileReady(pathKey);
+      const blob = await nativeVideoPathToBlob(pathKey, {
+        requireAudio: requireAudio && !nativeAudioOk,
+      });
+      if (blob.size > 0) return blob;
+    } catch (err) {
+      console.warn('resolveNativeCaptureUploadBlob:', err);
     }
-    return null;
+    if (requireAudio && !nativeAudioOk && fallback?.size) {
+      try {
+        const bytes = new Uint8Array(await fallback.arrayBuffer());
+        if (blobLikelyHasAudio(bytes)) return fallback;
+      } catch {
+        /* ignore */
+      }
+      return null;
+    }
+    return fallback?.size ? fallback : null;
+  })();
+
+  nativeBlobReadInflight.set(pathKey, readPromise);
+  try {
+    return await readPromise;
+  } finally {
+    if (nativeBlobReadInflight.get(pathKey) === readPromise) {
+      nativeBlobReadInflight.delete(pathKey);
+    }
   }
-  return fallback?.size ? fallback : null;
 }
 
 export async function nativeVideoPathToBlob(
@@ -697,8 +730,6 @@ export async function nativeVideoPathToBlob(
 
   const requireAudio = opts?.requireAudio === true;
   const maxAttempts = requireAudio ? 4 : 1;
-
-  await waitForNativeVideoFileReady(trimmed);
 
   let lastBlob: Blob | null = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
