@@ -317,7 +317,7 @@ index 5dec305..b2c15e8 100644
      }
  }
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
-index d7a333f..e73930d 100644
+index d7a333f..f7dfb3c 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 @@ -6,6 +6,17 @@ import CoreImage
@@ -366,16 +366,26 @@ index d7a333f..e73930d 100644
  
          // Set width - use screen width if not provided or if 0
          if let width = call.getInt("width"), width > 0 {
-@@ -565,7 +588,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -565,9 +588,15 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
          self.toBack = call.getBool("toBack") ?? true
          self.storeToFile = call.getBool("storeToFile") ?? false
          self.enableZoom = call.getBool("enableZoom") ?? false
 -        self.disableAudio = call.getBool("disableAudio") ?? true
+-        // Default to 4:3 aspect ratio if not provided
+-        self.aspectRatio = call.getString("aspectRatio") ?? "4:3"
 +        // disableAudio resolved above with cameraMode
-         // Default to 4:3 aspect ratio if not provided
-         self.aspectRatio = call.getString("aspectRatio") ?? "4:3"
++        let hasExplicitWidth = (call.getInt("width") ?? 0) > 0
++        let hasExplicitHeight = (call.getInt("height") ?? 0) > 0
++        if hasExplicitWidth && hasExplicitHeight {
++            // Full-bleed mode — skip aspect-ratio letterboxing (avoids black bar at bottom).
++            self.aspectRatio = nil
++        } else {
++            self.aspectRatio = call.getString("aspectRatio") ?? "4:3"
++        }
          self.gridMode = call.getString("gridMode") ?? "none"
-@@ -1139,6 +1162,14 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+         self.positioning = call.getString("positioning") ?? "top"
+ 
+@@ -1139,6 +1168,14 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
      }
  
      @objc func startRecordVideo(_ call: CAPPluginCall) {
@@ -390,7 +400,7 @@ index d7a333f..e73930d 100644
          do {
              try self.cameraController.captureVideo()
              call.resolve()
-@@ -1159,7 +1190,17 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -1159,7 +1196,17 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
                  return
              }
  
@@ -409,3 +419,12 @@ index d7a333f..e73930d 100644
          }
      }
  
+@@ -1742,6 +1789,8 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+ 
+         if let width = call.getInt("width") { self.width = CGFloat(width) }
+         if let height = call.getInt("height") { self.height = CGFloat(height) }
++        // Honor explicit dimensions from setPreviewSize — do not re-letterbox.
++        self.aspectRatio = nil
+ 
+         DispatchQueue.main.async {
+             // Direct update without animation for better performance
