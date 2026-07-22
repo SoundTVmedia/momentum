@@ -14,10 +14,17 @@ import {
 import { normalizeEmail } from './auth-password-utils';
 import {
   findEmailAccountByGoogleEmail,
+  findEmailAccountByGoogleSub,
+  findExistingAccountByEmail,
   linkGoogleSubOnEmailAccount,
   reassignMochaUserId,
   upsertUserEmailIndex,
 } from './account-linking';
+import {
+  ensureAppleBridgeAccount,
+  ensureGoogleBridgeAccount,
+} from './mocha-identity-sync';
+import { ensureOAuthUserProfile } from './oauth-profile-bootstrap';
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 
 function hashOpaqueToken(raw: string): string {
@@ -251,8 +258,19 @@ export function googleAccountToMochaUser(row: {
 export type GoogleSignInResult = {
   sessionToken: string;
   /** Use `momentum_email_session` when linked to an existing email/password account. */
-  sessionType: 'google' | 'email';
+  sessionType: 'google' | 'email' | 'apple';
 };
+
+async function removeOtherGoogleAccountsForEmail(
+  db: D1Database,
+  email: string,
+  keepSub: string,
+): Promise<void> {
+  await db
+    .prepare('DELETE FROM google_accounts WHERE lower(trim(email)) = ? AND id != ?')
+    .bind(normalizeEmail(email), keepSub.trim())
+    .run();
+}
 
 async function upsertGoogleAccount(
   db: D1Database,
@@ -333,8 +351,7 @@ async function createEmailSessionToken(
 }
 
 /**
- * If Google email matches an existing email/password account, sign in as that user
- * (email session) and merge Google-only data onto the canonical id.
+ * Resolve a Google sign-in to a single canonical account (email, Google, Apple, or indexed).
  */
 async function resolveGoogleSignInSession(
   db: D1Database,
@@ -346,18 +363,103 @@ async function resolveGoogleSignInSession(
     throw new Error('Google account is missing required profile fields');
   }
 
-  const emailAccount = await findEmailAccountByGoogleEmail(db, email);
-  if (emailAccount) {
-    await linkGoogleSubOnEmailAccount(db, emailAccount.id, sub);
-    await reassignMochaUserId(db, sub, emailAccount.id);
+  const normalizedEmail = normalizeEmail(email);
+  let mochaUserId: string;
+  let sessionToken: string;
+  let sessionType: GoogleSignInResult['sessionType'];
+
+  const linkedEmailAccount = await findEmailAccountByGoogleSub(db, sub);
+  if (linkedEmailAccount) {
     await upsertGoogleAccount(db, info);
-    const sessionToken = await createEmailSessionToken(db, emailAccount.id);
-    return { sessionToken, sessionType: 'email' };
+    await upsertUserEmailIndex(db, normalizedEmail, linkedEmailAccount.id, 'email');
+    mochaUserId = linkedEmailAccount.id;
+    sessionToken = await createEmailSessionToken(db, linkedEmailAccount.id);
+    sessionType = 'email';
+  } else {
+    const emailAccount = await findEmailAccountByGoogleEmail(db, email);
+    if (emailAccount) {
+      await linkGoogleSubOnEmailAccount(db, emailAccount.id, sub);
+      await reassignMochaUserId(db, sub, emailAccount.id);
+      await removeOtherGoogleAccountsForEmail(db, normalizedEmail, sub);
+      await upsertGoogleAccount(db, info);
+      await upsertUserEmailIndex(db, normalizedEmail, emailAccount.id, 'email');
+      mochaUserId = emailAccount.id;
+      sessionToken = await createEmailSessionToken(db, emailAccount.id);
+      sessionType = 'email';
+    } else {
+      const existing = await findExistingAccountByEmail(db, email);
+
+      if (existing) {
+        const canonicalId = existing.account.id;
+        if (canonicalId !== sub) {
+          await reassignMochaUserId(db, sub, canonicalId);
+          await removeOtherGoogleAccountsForEmail(db, normalizedEmail, sub);
+        }
+
+        if (existing.type === 'google' && canonicalId === sub) {
+          await upsertGoogleAccount(db, info);
+        } else {
+          try {
+            await upsertGoogleAccount(db, info);
+          } catch (e) {
+            console.warn('resolveGoogleSignInSession: google_accounts upsert skipped', e);
+          }
+        }
+
+        const indexSource =
+          existing.type === 'indexed'
+            ? 'mocha'
+            : existing.type === 'email'
+              ? 'email'
+              : existing.type === 'apple'
+                ? 'apple'
+                : 'google';
+        await upsertUserEmailIndex(db, normalizedEmail, canonicalId, indexSource);
+
+        mochaUserId = canonicalId;
+
+        if (existing.type === 'email') {
+          await linkGoogleSubOnEmailAccount(db, canonicalId, sub);
+          sessionToken = await createEmailSessionToken(db, canonicalId);
+          sessionType = 'email';
+        } else if (existing.type === 'apple') {
+          await ensureAppleBridgeAccount(
+            db,
+            canonicalId,
+            normalizedEmail,
+            info.name,
+          );
+          const { createAppleOAuthSession } = await import('./apple-oauth');
+          sessionToken = await createAppleOAuthSession(db, canonicalId);
+          sessionType = 'apple';
+        } else if (existing.type === 'indexed') {
+          await ensureGoogleBridgeAccount(
+            db,
+            canonicalId,
+            normalizedEmail,
+            info.name,
+          );
+          sessionToken = await createGoogleSession(db, canonicalId);
+          sessionType = 'google';
+        } else {
+          sessionToken = await createGoogleSession(db, canonicalId);
+          sessionType = 'google';
+        }
+      } else {
+        await upsertGoogleAccount(db, info);
+        mochaUserId = sub;
+        sessionToken = await createGoogleSession(db, sub);
+        sessionType = 'google';
+      }
+    }
   }
 
-  const account = await upsertGoogleAccount(db, info);
-  const sessionToken = await createGoogleSession(db, account.id);
-  return { sessionToken, sessionType: 'google' };
+  await ensureOAuthUserProfile(db, mochaUserId, {
+    email: normalizedEmail,
+    avatarUrl: info.picture,
+  });
+
+  return { sessionToken, sessionType };
 }
 
 async function resolveGoogleOAuthState(
@@ -472,6 +574,7 @@ export async function exchangeGoogleNativeIdToken(
 
   const webClientId = env.GOOGLE_OAUTH_CLIENT_ID?.trim();
   const iosClientId = env.GOOGLE_IOS_OAUTH_CLIENT_ID?.trim();
+  const iosClientIdRn = env.GOOGLE_IOS_OAUTH_CLIENT_ID_RN?.trim();
   if (!webClientId) {
     throw new Error('Google sign-in is not configured on the server.');
   }
@@ -489,7 +592,7 @@ export async function exchangeGoogleNativeIdToken(
   }
 
   const allowedAudiences = new Set(
-    [webClientId, iosClientId].filter((id): id is string => Boolean(id)),
+    [webClientId, iosClientId, iosClientIdRn].filter((id): id is string => Boolean(id)),
   );
   if (!info.aud || !allowedAudiences.has(info.aud)) {
     throw new Error('Google identity token audience mismatch.');

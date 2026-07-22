@@ -10,6 +10,7 @@ import {
   isCaptureBlobConsumed,
   shouldSkipCaptureReviewHydration,
   wasBlobRecentlyShared,
+  wasCaptureRecentlyDiscarded,
   wasRecordingStartedAtShared,
   readCaptureHandoffMeta,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
@@ -25,7 +26,7 @@ export default function PendingCaptureRouteRecovery() {
 
     let cancelled = false;
     void (async () => {
-      if (shouldSkipCaptureReviewHydration()) {
+      if (shouldSkipCaptureReviewHydration() || wasCaptureRecentlyDiscarded()) {
         return;
       }
 

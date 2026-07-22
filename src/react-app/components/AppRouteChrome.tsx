@@ -11,8 +11,14 @@ import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/c
 import {
   forceStopNativeCaptureSession,
   shouldUseNativeIosCapture,
+  isNativeCapturePreviewRunning,
 } from '@/react-app/lib/native-capture';
-import { isCaptureSessionBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
+import {
+  isCaptureSessionBusy,
+  isCaptureReopenPending,
+  isCaptureHandoffBusy,
+  wantsCaptureReviewScreen,
+} from '@/react-app/lib/upload-outbox/capture-handoff';
 
 function shouldHideBottomNavForPath(pathname: string): boolean {
   return pathname === '/auth' || pathname.startsWith('/auth/');
@@ -21,13 +27,17 @@ function shouldHideBottomNavForPath(pathname: string): boolean {
 /** Wraps routed pages with mobile bottom inset when the tab bar is visible. */
 export default function AppRouteChrome() {
   const { hideBottomNav, setHideBottomNav } = useMobileChrome();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const quickCapture = useQuickCapture();
   const showMobileNavInset = !hideBottomNav && !shouldHideBottomNavForPath(pathname);
+  const onCaptureReviewRoute =
+    pathname === '/upload' && wantsCaptureReviewScreen(search);
   const hideRouteContentForNativeCapture =
-    quickCapture.showQuickCapture && shouldUseNativeIosCapture();
+    quickCapture.showQuickCapture &&
+    shouldUseNativeIosCapture() &&
+    !onCaptureReviewRoute;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!quickCapture.showQuickCapture) {
       return;
     }
@@ -46,6 +56,9 @@ export default function AppRouteChrome() {
     if (!shouldUseNativeIosCapture()) return;
     if (quickCapture.showQuickCapture) return;
     if (isCaptureSessionBusy()) return;
+    if (isCaptureHandoffBusy()) return;
+    if (isCaptureReopenPending()) return;
+    if (!isNativeCapturePreviewRunning()) return;
     void forceStopNativeCaptureSession({ restorePlayback: true });
   }, [quickCapture.showQuickCapture]);
 
@@ -58,7 +71,9 @@ export default function AppRouteChrome() {
         <Outlet />
       </div>
       <MobileBottomNav />
-      <QuickCaptureOverlay {...quickCapture} />
+      {(!onCaptureReviewRoute || isCaptureReopenPending()) && (
+        <QuickCaptureOverlay {...quickCapture} />
+      )}
       <ClipDeepLinkHandler />
       <PerfDebugOverlay />
     </>

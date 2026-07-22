@@ -9,6 +9,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { NativeAudioCapture } from '@feedback/native-audio-capture';
 import { deviceIsPortraitViewport } from '@/react-app/utils/cameraPreview';
+import { buildCaptureZoomPresets, captureZoomRange } from '@/react-app/utils/cameraZoom';
 import { getNativePlatform, isNativeApp } from '@/react-app/lib/native-bridge';
 
 export const NATIVE_CAPTURE_MAX_SECONDS = 60;
@@ -33,9 +34,15 @@ let previewLayoutTimer: ReturnType<typeof setTimeout> | null = null;
 let previewLayoutInFlight = false;
 let lastPreviewLayoutKey = '';
 /** Capgo adds AVCaptureMovieFileOutput on a background queue after preview start. */
-const NATIVE_VIDEO_OUTPUT_READY_MS = 1000;
+const NATIVE_VIDEO_OUTPUT_READY_MS = 2500;
 let previewRecordingReadyAt = 0;
 let previewStartGeneration = 0;
+let clipsRecordedSincePreviewStart = 0;
+/** Clips finished in this app session — used to recover audio after caption playback. */
+let totalNativeClipsRecorded = 0;
+let restorePlaybackInFlight: Promise<void> | null = null;
+let lastRestorePlaybackAt = 0;
+let lastRestorePlaybackOkAt = 0;
 
 async function ensureNativeVideoOutputReady(): Promise<void> {
   const remaining = previewRecordingReadyAt - Date.now();
@@ -44,12 +51,11 @@ async function ensureNativeVideoOutputReady(): Promise<void> {
   }
 }
 
-/** Reset AVAudioSession for video recording — required before each clip after playback restore. */
 async function ensureNativeCaptureAudioReady(): Promise<void> {
   if (!shouldUseNativeIosCapture()) return;
-  // Capgo owns the session while preview is running — re-preparing breaks movie audio mux.
   if (previewRunning) return;
   try {
+    // Mic permission only — Capgo owns AVAudioSession via automaticallyConfiguresApplicationAudioSession.
     await NativeAudioCapture.prepareForVideoCapture();
     console.log('[native-capture] prepareForVideoCapture ok');
   } catch (err) {
@@ -57,7 +63,12 @@ async function ensureNativeCaptureAudioReady(): Promise<void> {
   }
 }
 
-/** Public alias — call before reopening the camera for clip 2+ in a session. */
+/** True while native capture is starting, running, or recording — blocks playback audio hijack. */
+export function isNativeCaptureAudioBusy(): boolean {
+  return previewRunning || recordingActive || startPreviewPromise != null;
+}
+
+/** Prime mic permission before Capgo start — does not reconfigure AVAudioSession. */
 export async function prepareNativeCaptureRecordingAudio(): Promise<void> {
   await ensureNativeCaptureAudioReady();
 }
@@ -80,16 +91,24 @@ export async function waitForNativeCaptureIdle(maxMs = 12_000): Promise<void> {
   }
 }
 
+/** Capgo iOS parses "H:W" in portrait as W/H — match the device screen to avoid letterboxing. */
+export function nativeCapturePreviewAspectRatio(): string {
+  const { width, height } = readNativeCaptureViewportSize();
+  return deviceIsPortraitViewport() ? `${height}:${width}` : `${width}:${height}`;
+}
+
 async function runCameraPreviewStart(
   withAudio: boolean,
   generation: number,
   opts?: { facing?: NativeCaptureFacing },
 ): Promise<void> {
   if (generation !== previewStartGeneration) return;
+  // Prime mic permission + session before Capgo starts — only when preview is not already running.
   if (withAudio) {
     await ensureNativeCaptureAudioReady();
   }
   if (generation !== previewStartGeneration) return;
+
   const { width, height } = readNativeCaptureViewportSize();
   const startOpts = {
     position: opts?.facing ?? 'rear',
@@ -97,13 +116,19 @@ async function runCameraPreviewStart(
     enableVideoMode: true,
     cameraMode: true,
     enableAudio: withAudio,
+    enableZoom: true,
+    x: 0,
+    y: 0,
     width,
     height,
     paddingBottom: 0,
     positioning: 'top' as const,
     rotateWhenOrientationChanged: true,
     ...(withAudio ? {} : { disableAudio: true }),
-  } as Parameters<typeof CameraPreview.start>[0] & { cameraMode?: boolean; enableAudio?: boolean };
+  } as Parameters<typeof CameraPreview.start>[0] & {
+    cameraMode?: boolean;
+    enableAudio?: boolean;
+  };
   await CameraPreview.start(startOpts);
   if (generation !== previewStartGeneration) {
     await forceStopNativeCaptureSession();
@@ -117,22 +142,25 @@ async function runCameraPreviewStart(
   }
   previewRunning = true;
   previewAudioEnabled = withAudio;
-  // Layout after movie output + mic are wired — setPreviewSize must not run before audio is ready.
-  await layoutNativeCapturePreview();
+  clipsRecordedSincePreviewStart = 0;
+  // setPreviewSize must run after movie output + mic are wired — doing it earlier breaks audio mux.
+  await layoutNativeCapturePreview({ force: true });
   if (generation !== previewStartGeneration) {
     await forceStopNativeCaptureSession();
     return;
   }
 }
 
-async function layoutNativeCapturePreview(): Promise<void> {
+async function layoutNativeCapturePreview(opts?: { force?: boolean }): Promise<void> {
   const { width, height } = readNativeCaptureViewportSize();
   const layoutKey = `${width}x${height}`;
-  if (layoutKey === lastPreviewLayoutKey && !previewLayoutInFlight) return;
+  if (!opts?.force && layoutKey === lastPreviewLayoutKey && !previewLayoutInFlight) return;
   lastPreviewLayoutKey = layoutKey;
   previewLayoutInFlight = true;
   try {
-    await CameraPreview.setPreviewSize({ width, height });
+    // Only resize the preview layer — setAspectRatio reconfigures the capture session and
+    // breaks movie-file audio muxing. Full-bleed layout comes from width/height at start.
+    await CameraPreview.setPreviewSize({ x: 0, y: 0, width, height });
   } catch (err) {
     console.warn('layoutNativeCapturePreview:', err);
     lastPreviewLayoutKey = '';
@@ -141,10 +169,9 @@ async function layoutNativeCapturePreview(): Promise<void> {
   }
 }
 
-/** Capgo aspect string for the current device orientation. */
+/** @deprecated Use {@link nativeCapturePreviewAspectRatio} */
 export function nativeCaptureAspectRatio(): string {
-  // Capgo inverts this for portrait (16:9 → tall 9:16 frame). Passing 9:16 yields a wide letterbox.
-  return '16:9';
+  return nativeCapturePreviewAspectRatio();
 }
 
 export function nativeCaptureOrientation(): 'portrait' | 'landscape' {
@@ -160,33 +187,53 @@ export function readNativeCaptureViewportSize(): { width: number; height: number
   if (typeof window === 'undefined') {
     return { width: 390, height: 844 };
   }
+  const portrait = deviceIsPortraitViewport();
+
+  if (shouldUseNativeIosCapture()) {
+    // Match Capgo's webView.frame — UIScreen bounds can differ and reintroduce letterboxing.
+    let width = Math.round(window.innerWidth);
+    let height = Math.round(
+      Math.max(window.innerHeight, document.documentElement.clientHeight),
+    );
+    if (portrait && width > height) {
+      [width, height] = [height, width];
+    } else if (!portrait && height > width) {
+      [width, height] = [height, width];
+    }
+    return { width, height };
+  }
+
   const vv = window.visualViewport;
-  const width = Math.round(vv?.width ?? window.innerWidth);
-  // Match the capture modal (100dvh) — use the tallest applicable height so the native
-  // layer covers the full screen and does not leave a black strip at the bottom.
-  const height = Math.round(
+  let width = Math.round(vv?.width ?? window.innerWidth);
+  let height = Math.round(
     Math.max(vv?.height ?? 0, window.innerHeight, document.documentElement.clientHeight),
   );
+  if (portrait && width > height) {
+    [width, height] = [height, width];
+  } else if (!portrait && height > width) {
+    [width, height] = [height, width];
+  }
   return { width, height };
 }
 
 /**
- * Expand native preview to the full web viewport. Capgo defaults to a 4:3 letterboxed
- * frame with paddingBottom; controls are overlaid in the web layer instead.
+ * Expand native preview to the full device screen.
+ * Uses explicit width/height + Capgo patch (aspectRatio cleared) — never setAspectRatio() here;
+ * that reconfigures the capture session and breaks movie audio muxing.
  */
 export async function applyNativeCaptureFullScreenPreview(): Promise<void> {
-  if (!shouldUseNativeIosCapture() || !previewRunning) return;
+  if (!shouldUseNativeIosCapture() || !previewRunning || recordingActive) return;
   await layoutNativeCapturePreview();
 }
 
 /** Debounced layout sync — avoids flicker from rapid setPreviewSize / transparency passes. */
 export function scheduleNativeCaptureFullScreenPreview(): void {
-  if (!shouldUseNativeIosCapture() || !previewRunning) return;
+  if (!shouldUseNativeIosCapture() || !previewRunning || recordingActive) return;
   if (previewLayoutTimer) clearTimeout(previewLayoutTimer);
   previewLayoutTimer = setTimeout(() => {
     previewLayoutTimer = null;
     void applyNativeCaptureFullScreenPreview();
-  }, 200);
+  }, 50);
 }
 
 export async function startNativeCapturePreview(opts?: {
@@ -200,15 +247,28 @@ export async function startNativeCapturePreview(opts?: {
   // Always tear down the prior session — partial reuse breaks mic muxing on clip 2+.
   if (previewRunning || startPreviewPromise) {
     await stopNativeCaptureSession();
-    await settleNativeCaptureSession();
-  } else if (withAudio) {
-    await ensureNativeCaptureAudioReady();
+    await settleNativeCaptureSession(900);
   }
+
+  const tryStartPreview = async (generation: number): Promise<void> => {
+    await runCameraPreviewStart(withAudio, generation, opts);
+  };
 
   const generation = ++previewStartGeneration;
   startPreviewPromise = (async () => {
     try {
-      await runCameraPreviewStart(withAudio, generation, opts);
+      await tryStartPreview(generation);
+      if (!previewRunning && generation === previewStartGeneration) {
+        console.warn('[native-capture] preview not running after start — retrying once');
+        await forceStopNativeCaptureSession();
+        await settleNativeCaptureSession(800);
+        const retryGeneration = ++previewStartGeneration;
+        await tryStartPreview(retryGeneration);
+      }
+      if (!previewRunning) {
+        throw new Error('Native camera preview could not start');
+      }
+      await applyNativeCaptureFullScreenPreview();
     } catch (err) {
       if (generation !== previewStartGeneration) return;
       const message = err instanceof Error ? err.message : String(err);
@@ -238,12 +298,9 @@ export function invalidateNativeCapturePreview(): void {
   previewStartGeneration += 1;
 }
 
-let restorePlaybackInFlight: Promise<void> | null = null;
-let lastRestorePlaybackAt = 0;
-let lastRestorePlaybackOkAt = 0;
-
 export async function restoreNativeMediaPlaybackAudio(): Promise<void> {
   if (!shouldUseNativeIosCapture()) return;
+  if (isNativeCaptureAudioBusy()) return;
   const now = Date.now();
   // Skip if a recent restore succeeded — camera stop + play tap cover the handoff.
   if (now - lastRestorePlaybackOkAt < 1500) return;
@@ -289,6 +346,7 @@ export async function forceStopNativeCaptureSession(opts?: {
   /** Switch to playback category for feed/caption video — omit when handing off to the next clip. */
   restorePlayback?: boolean;
 }): Promise<void> {
+  const wasPreviewRunning = previewRunning;
   invalidateNativeCapturePreview();
   if (recordingActive) {
     try {
@@ -311,7 +369,7 @@ export async function forceStopNativeCaptureSession(opts?: {
   } catch {
     /* not initialized / already stopped */
   }
-  if (opts?.restorePlayback) {
+  if (opts?.restorePlayback && wasPreviewRunning) {
     await restoreNativeMediaPlaybackAudio();
   }
 }
@@ -333,11 +391,14 @@ export async function readNativeZoomState(): Promise<NativeZoomState | null> {
       CameraPreview.getZoom(),
       CameraPreview.getZoomButtonValues(),
     ]);
+    const range = captureZoomRange({ min: zoom.min, max: zoom.max });
+    const presets =
+      buttons.values.length >= 2 ? buttons.values : buildCaptureZoomPresets(range);
     return {
       min: zoom.min,
       max: zoom.max,
       current: zoom.current,
-      presets: buttons.values.length >= 2 ? buttons.values : [zoom.min, zoom.max],
+      presets: presets.length >= 2 ? presets : [range.min, Math.min(1, range.max), range.max],
     };
   } catch (err) {
     console.warn('readNativeZoomState:', err);
@@ -345,9 +406,17 @@ export async function readNativeZoomState(): Promise<NativeZoomState | null> {
   }
 }
 
-export async function setNativeCaptureZoom(level: number): Promise<void> {
+export async function setNativeCaptureZoom(
+  level: number,
+  opts?: { ramp?: boolean; autoFocus?: boolean },
+): Promise<void> {
   if (!previewRunning) return;
-  await CameraPreview.setZoom({ level, autoFocus: true });
+  await CameraPreview.setZoom({
+    level,
+    ramp: opts?.ramp ?? true,
+    // Skip refocus while recording — avoids hunt; zoom is allowed (movieFragmentInterval fix).
+    autoFocus: opts?.autoFocus ?? !recordingActive,
+  });
 }
 
 export async function flipNativeCamera(): Promise<void> {
@@ -374,11 +443,24 @@ export async function captureNativePhoto(): Promise<Blob> {
   return new Blob([bytes], { type: 'image/jpeg' });
 }
 
-export async function startNativeVideoRecording(): Promise<void> {
-  if (!previewRunning || recordingActive) return;
-  // Capgo captureVideo() owns the recording audio session — do not call
-  // NativeAudioCapture.prepareForVideoCapture here; setActive(false) breaks muxing.
+export async function waitForNativeCaptureReadyToRecord(): Promise<void> {
+  if (!shouldUseNativeIosCapture() || !previewRunning) return;
   await ensureNativeVideoOutputReady();
+  await settleNativeCaptureSession(500);
+}
+
+export function isNativeCaptureReadyToRecord(): boolean {
+  if (!shouldUseNativeIosCapture() || !previewRunning || recordingActive) return false;
+  return Date.now() >= previewRecordingReadyAt;
+}
+
+export async function startNativeVideoRecording(): Promise<void> {
+  if (!previewRunning) {
+    throw new Error('Native camera preview is not running');
+  }
+  if (recordingActive) return;
+  await waitForNativeCaptureReadyToRecord();
+  // Capgo rewireMovieAudioPipelineForRecording runs natively before each clip — no JS session tweaks.
   // Capacitor drops `false` booleans — omit disableAudio when mic is on (native defaults to audio in cameraMode).
   await CameraPreview.startRecordVideo(
     (previewAudioEnabled
@@ -397,19 +479,22 @@ export async function stopNativeVideoRecording(): Promise<{
   if (!recordingActive) {
     throw new Error('Native video recording is not active');
   }
-  const result = (await CameraPreview.stopRecordVideo()) as {
-    videoFilePath: string;
-    audioTrackCount?: number;
-  };
-  recordingActive = false;
-  const audioTrackCount = result.audioTrackCount ?? 0;
-  if (previewAudioEnabled && audioTrackCount < 1) {
-    throw new Error('Recorded video has no audio track');
+  try {
+    const result = (await CameraPreview.stopRecordVideo()) as {
+      videoFilePath: string;
+      audioTrackCount?: number;
+    };
+    recordingActive = false;
+    clipsRecordedSincePreviewStart += 1;
+    totalNativeClipsRecorded += 1;
+    return {
+      videoFilePath: result.videoFilePath,
+      audioTrackCount: result.audioTrackCount ?? 0,
+    };
+  } catch (err) {
+    recordingActive = false;
+    throw err;
   }
-  return {
-    videoFilePath: result.videoFilePath,
-    audioTrackCount,
-  };
 }
 
 /** True when native stopRecordVideo reported at least one muxed audio track. */
@@ -533,22 +618,61 @@ export async function assertCaptureBlobHasAudio(
   if (nativeRecordingHasRequiredAudio(opts?.nativeAudioTrackCount)) {
     return;
   }
-  // Browser capture (incl. mobile Safari): mic was requested at getUserMedia / record start.
   if (!shouldUseNativeIosCapture()) {
     return;
   }
   const scanLen = Math.min(blob.size, 2 * 1024 * 1024);
-  const head = new Uint8Array(await blob.slice(0, scanLen).arrayBuffer());
-  if (captureVideoBlobLikelyHasAudio(head)) {
+  const slices: Array<Promise<Uint8Array>> = [
+    blob.slice(0, scanLen).arrayBuffer().then((b) => new Uint8Array(b)),
+  ];
+  if (blob.size > scanLen) {
+    slices.push(blob.slice(blob.size - scanLen).arrayBuffer().then((b) => new Uint8Array(b)));
+  }
+  if (blob.size > scanLen * 3) {
+    const mid = Math.max(0, Math.floor(blob.size / 2) - Math.floor(scanLen / 2));
+    slices.push(
+      blob.slice(mid, mid + scanLen).arrayBuffer().then((b) => new Uint8Array(b)),
+    );
+  }
+  const regions = await Promise.all(slices);
+  if (regions.some((region) => captureVideoBlobLikelyHasAudio(region))) {
     return;
   }
-  if (blob.size > scanLen) {
-    const tail = new Uint8Array(await blob.slice(blob.size - scanLen).arrayBuffer());
-    if (captureVideoBlobLikelyHasAudio(tail)) {
-      return;
+  throw new Error('Recorded video has no audio track');
+}
+
+/**
+ * After native stopRecordVideo — wait for muxed file + audio atoms, with retries.
+ * Capgo often reports audioTrackCount=0 on clip 1 while the file is still being finalized.
+ */
+export async function finalizeNativeRecordingForHandoff(
+  videoFilePath: string,
+  audioTrackCount?: number,
+): Promise<Blob> {
+  // Brief settle then poll file size — UI already navigated away for path-first handoff.
+  await settleNativeCaptureSession(350);
+  let lastErr: unknown = new Error('Recorded video has no audio track');
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (attempt > 0) {
+      await settleNativeCaptureSession(200 + attempt * 200);
+    }
+    await waitForNativeVideoFileReady(videoFilePath, 8000);
+    try {
+      const blob = await resolveNativeCaptureUploadBlob(videoFilePath, null, {
+        requireAudio: true,
+        nativeAudioTrackCount: audioTrackCount,
+      });
+      if (!blob?.size) {
+        throw new Error('Recorded video is empty');
+      }
+      await assertCaptureBlobHasAudio(blob, { nativeAudioTrackCount: audioTrackCount });
+      return blob;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`finalizeNativeRecordingForHandoff attempt ${attempt + 1}:`, err);
     }
   }
-  throw new Error('Recorded video has no audio track');
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 async function decodeFilesystemReadData(data: string | Blob): Promise<Uint8Array> {
@@ -661,7 +785,7 @@ async function waitForNativeVideoFileReady(filePath: string, maxMs = 8000): Prom
         const size = stat.size ?? 0;
         if (size > 1024) {
           if (size === lastSize) {
-            if (Date.now() - stableAt >= 600) return;
+            if (Date.now() - stableAt >= 350) return;
           } else {
             lastSize = size;
             stableAt = Date.now();

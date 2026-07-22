@@ -84,6 +84,23 @@ export async function findEmailAccountByAppleSub(
   return row ?? null;
 }
 
+export async function findEmailAccountByGoogleSub(
+  db: D1Database,
+  googleSub: string,
+): Promise<EmailAccountRow | null> {
+  const sub = googleSub.trim();
+  if (!sub) {
+    return null;
+  }
+  const row = await db
+    .prepare(
+      'SELECT id, email, display_name, google_sub, apple_sub FROM email_accounts WHERE google_sub = ?',
+    )
+    .bind(sub)
+    .first<EmailAccountRow>();
+  return row ?? null;
+}
+
 export async function findEmailAccountByGoogleEmail(
   db: D1Database,
   email: string,

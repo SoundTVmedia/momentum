@@ -67,14 +67,22 @@ async function importAppleVerificationKey(jwk: AppleJwk, alg: string): Promise<C
   throw new Error(`Unsupported Apple JWT algorithm: ${alg}`);
 }
 
-function audienceMatchesClaim(aud: unknown, expectedAudience: string): boolean {
-  if (typeof aud === 'string') {
-    return aud === expectedAudience;
-  }
-  if (Array.isArray(aud)) {
-    return aud.some((value) => typeof value === 'string' && value === expectedAudience);
-  }
-  return false;
+function audienceMatchesClaim(
+  aud: unknown,
+  expectedAudience: string | readonly string[],
+): boolean {
+  const allowed = Array.isArray(expectedAudience)
+    ? expectedAudience
+    : [expectedAudience];
+  return allowed.some((expected) => {
+    if (typeof aud === 'string') {
+      return aud === expected;
+    }
+    if (Array.isArray(aud)) {
+      return aud.some((value) => typeof value === 'string' && value === expected);
+    }
+    return false;
+  });
 }
 
 /** Apple OAuth client secret — ES256 JWT signed with the .p8 key (valid up to 6 months). */
@@ -127,7 +135,7 @@ async function fetchAppleJwks(): Promise<AppleJwksResponse> {
 
 export async function verifyAppleJwt(
   token: string,
-  expectedAudience: string,
+  expectedAudience: string | readonly string[],
 ): Promise<Record<string, unknown>> {
   const parts = token.split('.');
   if (parts.length !== 3) {

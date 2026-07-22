@@ -7,8 +7,12 @@ export type NativeAudioSegmentEvent = {
 };
 
 export interface NativeAudioCapturePlugin {
-  /** Request mic permission and configure AVAudioSession for Capgo video recording. */
+  /** Request mic permission; recover from .playback before Capgo start when needed. */
   prepareForVideoCapture(): Promise<void>;
+  /** Reset when session is in .playback before Capgo start (prefer prepareForVideoCapture). */
+  prepareRecordingSessionRecovery(options?: { force?: boolean }): Promise<void>;
+  /** Upgrade to videoRecording while capture is running — safe before clip 2+ record. */
+  prepareForRecordingCapture(): Promise<void>;
   /** Switch AVAudioSession to playback after camera capture so clip preview has audio. */
   restoreForMediaPlayback(): Promise<void>;
   start(options?: { segmentDurationMs?: number }): Promise<void>;

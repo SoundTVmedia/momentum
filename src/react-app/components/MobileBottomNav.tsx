@@ -99,7 +99,7 @@ export default function MobileBottomNav() {
   const hideOnAuthRoute =
     location.pathname === '/auth' || location.pathname.startsWith('/auth/');
 
-  if (hideBottomNav || hideOnAuthRoute) {
+  if (hideBottomNav || hideOnAuthRoute || quickCapture.showQuickCapture) {
     return null;
   }
 

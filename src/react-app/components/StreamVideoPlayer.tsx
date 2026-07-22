@@ -192,8 +192,9 @@ function StreamVideoPlayer(
     tryVideoPlayPreferSound(video, {
       preferMuted: resolveAutoplayMuted(),
       onMutedChange: setIsMuted,
+      restoreAudioSession: playbackAudioRestore,
     });
-  }, [videoSrc, resolveAutoplayMuted]);
+  }, [videoSrc, resolveAutoplayMuted, playbackAudioRestore]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -203,7 +204,7 @@ function StreamVideoPlayer(
     setLoadError(false);
 
     if (attachedSrcRef.current !== videoSrc) {
-      setIsLoading(false);
+      setIsLoading(true);
     }
 
     const setup = async () => {

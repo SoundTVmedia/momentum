@@ -10,6 +10,7 @@ type QuickCaptureOverlayProps = Pick<
   | 'gesturePrimePending'
   | 'captureLaunchGeo'
   | 'captureLaunchGeoResolved'
+  | 'captureReopenWarmupPending'
   | 'closeQuickCapture'
   | 'dismissQuickCaptureOverlay'
 >;
@@ -21,20 +22,24 @@ export default function QuickCaptureOverlay({
   gesturePrimePending,
   captureLaunchGeo,
   captureLaunchGeoResolved,
+  captureReopenWarmupPending,
   closeQuickCapture,
   dismissQuickCaptureOverlay,
 }: QuickCaptureOverlayProps) {
   if (!showQuickCapture) return null;
+
+  const nativeIos = shouldUseNativeIosCapture();
 
   return (
     <QuickRecordButton
       isOpen={showQuickCapture}
       primedMediaStream={primedMediaStream}
       gestureCameraPrimingPending={gesturePrimePending}
-      autoRequestCamera={!openedWithGestureCamera && !gesturePrimePending}
+      captureReopenWarmupPending={captureReopenWarmupPending}
+      autoRequestCamera={!openedWithGestureCamera && !gesturePrimePending && !captureReopenWarmupPending}
       captureLaunchGeo={captureLaunchGeo}
       captureLaunchGeoResolved={captureLaunchGeoResolved}
-      deferCameraUntilLaunchGeo={!shouldUseNativeIosCapture()}
+      deferCameraUntilLaunchGeo={!nativeIos || captureReopenWarmupPending}
       onAfterCaptureNavigate={dismissQuickCaptureOverlay}
       onClose={closeQuickCapture}
     />

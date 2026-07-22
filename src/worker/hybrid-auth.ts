@@ -268,6 +268,41 @@ async function resolveUserFromRequest(c: Context): Promise<MochaUser | null> {
     }
   }
 
+  // Additive RN path: Authorization Bearer when Set-Cookie is invisible to JS.
+  // Cookie-based Cap/web clients are unchanged.
+  const authHeader = c.req.header('authorization')?.trim() ?? '';
+  if (/^bearer\s+/i.test(authHeader)) {
+    const bearer = authHeader.replace(/^bearer\s+/i, '').trim();
+    if (bearer) {
+      try {
+        const googleUser = await validateGoogleSession(c.env.DB, bearer);
+        if (googleUser) return googleUser;
+      } catch {
+        /* not a google session */
+      }
+      try {
+        const appleUser = await validateAppleSession(c.env.DB, bearer);
+        if (appleUser) return appleUser;
+      } catch {
+        /* not an apple session */
+      }
+      const emailAccount = await validateEmailSession(c.env.DB, bearer);
+      if (emailAccount) return emailAccountToMochaUser(emailAccount);
+      try {
+        const user = await getCurrentUser(bearer, {
+          apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL || DEFAULT_MOCHA_USERS_SERVICE_API_URL,
+          apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
+        });
+        if (user) {
+          await syncMochaUserIdentity(c.env.DB, user);
+          return user;
+        }
+      } catch {
+        /* not mocha */
+      }
+    }
+  }
+
   return null;
 }
 

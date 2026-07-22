@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..b2c15e8 100644
+index 5dec305..58a1775 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 @@ -41,6 +41,8 @@ class CameraController: NSObject {
@@ -11,65 +11,48 @@ index 5dec305..b2c15e8 100644
      private let saneMaxZoomFactor: CGFloat = 25.5
  
      // Track output preparation status
-@@ -192,30 +194,85 @@ extension CameraController {
+@@ -192,30 +194,108 @@ extension CameraController {
          }
      }
  
-+    /// Prefer rear/omnidirectional mic for concert capture without overriding AVFoundation audio session.
-+    private func configureAudioInputForMusicRecording(_ device: AVCaptureDevice) {
-+        configurePreferredMicrophoneForAmbientCapture()
-+        print("[CameraPreview] Audio input \(device.localizedName) ready for music capture")
-+    }
-+
-+    private func configurePreferredMicrophoneForAmbientCapture() {
-+        let audioSession = AVAudioSession.sharedInstance()
-+        guard let inputs = audioSession.availableInputs else { return }
-+
-+        guard let builtInMic = inputs.first(where: { $0.portType == .builtInMic }) else { return }
-+        try? audioSession.setPreferredInput(builtInMic)
-+
-+        guard let dataSources = builtInMic.dataSources, !dataSources.isEmpty else { return }
-+
-+        let dataSource =
-+            dataSources.first(where: { $0.orientation == .back }) ??
-+            dataSources.first(where: { $0.orientation == .bottom }) ??
-+            dataSources.first
-+
-+        guard let dataSource = dataSource else { return }
-+        try? builtInMic.setPreferredDataSource(dataSource)
-+
-+        if let patterns = dataSource.supportedPolarPatterns,
-+           patterns.contains(AVAudioSession.PolarPattern.omnidirectional) {
-+            try? dataSource.setPreferredPolarPattern(AVAudioSession.PolarPattern.omnidirectional)
-+            print("[CameraPreview] Mic polar pattern set to omnidirectional")
-+        }
-+
-+        if #available(iOS 15.0, *) {
-+            let preferred = AVCaptureDevice.preferredMicrophoneMode
-+            let active = AVCaptureDevice.activeMicrophoneMode
-+            print("[CameraPreview] Mic mode preferred=\(preferred.rawValue) active=\(active.rawValue)")
-+            if preferred == .voiceIsolation || active == .voiceIsolation {
-+                print("[CameraPreview] WARNING: Voice Isolation suppresses concert/PA audio — user should set Wide Spectrum in Control Center")
-+            }
-+        }
-+    }
-+
-+    /// Reset AVAudioSession after caption/feed playback — required for clip 2+ mic muxing.
++    /// Only recover AVAudioSession when caption/feed left it in playback — Capgo owns a healthy session.
 +    private func activateRecordingAudioSession() {
 +        let session = AVAudioSession.sharedInstance()
++        let captureRunning = self.captureSession?.isRunning == true
++        let alreadyVideoRecording =
++            session.category == .playAndRecord && session.mode == .videoRecording
++
++        if alreadyVideoRecording {
++            print("[CameraPreview] Recording audio session ok (videoRecording)")
++            return
++        }
++
++        let inPlayback =
++            session.category == .playback || session.category == .soloAmbient
++        if !captureRunning && !inPlayback {
++            print("[CameraPreview] Recording audio session deferred to AVCaptureSession")
++            return
++        }
++
 +        do {
-+            let alreadyVideoRecording =
-+                session.category == .playAndRecord && session.mode == .videoRecording
-+            if !alreadyVideoRecording {
-+                try session.setActive(false, options: [.notifyOthersOnDeactivation])
++            if captureRunning {
 +                try session.setCategory(
 +                    .playAndRecord,
 +                    mode: .videoRecording,
 +                    options: [.defaultToSpeaker, .allowBluetoothHFP]
 +                )
++                try session.setActive(true)
++                print("[CameraPreview] Recording audio session upgraded (capture running)")
++                return
 +            }
++
++            try session.setActive(false, options: [.notifyOthersOnDeactivation])
++            try session.setCategory(
++                .playAndRecord,
++                mode: .videoRecording,
++                options: [.defaultToSpeaker, .allowBluetoothHFP]
++            )
 +            try session.setActive(true)
-+            configurePreferredMicrophoneForAmbientCapture()
 +            print("[CameraPreview] Recording audio session activated (videoRecording mode)")
 +        } catch {
 +            print("[CameraPreview] WARNING: activateRecordingAudioSession failed: \(error.localizedDescription)")
@@ -86,6 +69,7 @@ index 5dec305..b2c15e8 100644
  
 -        // Create video output
          self.fileVideoOutput = AVCaptureMovieFileOutput()
++        self.configureMovieFileOutputForMp4Recording(self.fileVideoOutput)
  
 -        // Create data output for preview
          self.dataOutput = AVCaptureVideoDataOutput()
@@ -103,7 +87,7 @@ index 5dec305..b2c15e8 100644
          self.outputsPrepared = true
      }
  
-@@ -240,6 +297,11 @@ extension CameraController {
+@@ -240,6 +301,11 @@ extension CameraController {
                      throw CameraControllerError.captureSessionIsMissing
                  }
  
@@ -115,14 +99,13 @@ index 5dec305..b2c15e8 100644
                  // Prepare outputs
                  self.prepareOutputs()
  
-@@ -253,7 +315,20 @@ extension CameraController {
+@@ -253,7 +319,19 @@ extension CameraController {
                  // Configure device inputs
                  try self.configureDeviceInputs(cameraPosition: cameraPosition, deviceId: deviceId, disableAudio: disableAudio)
  
 -                // Add data output BEFORE starting session for faster first frame
-+                if !disableAudio {
-+                    self.activateRecordingAudioSession()
-+                }
++                // Let automaticallyConfiguresApplicationAudioSession handle AVAudioSession — manual
++                // activateRecordingAudioSession() here fights Capgo and breaks movie audio muxing.
 +
 +                // Movie output must be attached before startRunning so mic audio connects for recording.
 +                if cameraMode, let fileVideoOutput = self.fileVideoOutput, captureSession.canAddOutput(fileVideoOutput) {
@@ -137,7 +120,7 @@ index 5dec305..b2c15e8 100644
                  if let dataOutput = self.dataOutput, captureSession.canAddOutput(dataOutput) {
                      captureSession.addOutput(dataOutput)
                      dataOutput.setSampleBufferDelegate(self, queue: DispatchQueue.main)
-@@ -280,11 +355,6 @@ extension CameraController {
+@@ -280,11 +358,6 @@ extension CameraController {
                          captureSession.addOutput(photoOutput)
                      }
  
@@ -149,7 +132,7 @@ index 5dec305..b2c15e8 100644
                      captureSession.commitConfiguration()
                  }
  
-@@ -312,6 +382,18 @@ extension CameraController {
+@@ -312,6 +385,12 @@ extension CameraController {
                  } else if captureSession.canSetSessionPreset(.hd1920x1080) {
                      targetPreset = .hd1920x1080
                  }
@@ -159,16 +142,10 @@ index 5dec305..b2c15e8 100644
 +                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
 +                    targetPreset = .hd1920x1080
 +                }
-+            case "9:16":
-+                if captureSession.canSetSessionPreset(.high) {
-+                    targetPreset = .high
-+                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
-+                    targetPreset = .hd1920x1080
-+                }
              case "4:3":
                  if captureSession.canSetSessionPreset(.photo) {
                      targetPreset = .photo
-@@ -416,13 +498,18 @@ extension CameraController {
+@@ -416,13 +501,18 @@ extension CameraController {
              if self.audioDevice == nil {
                  self.audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
              }
@@ -186,7 +163,6 @@ index 5dec305..b2c15e8 100644
 +            self.audioInput = try AVCaptureDeviceInput(device: audioDevice)
 +            if captureSession.canAddInput(self.audioInput!) {
 +                captureSession.addInput(self.audioInput!)
-+                self.configureAudioInputForMusicRecording(audioDevice)
 +                print("[CameraPreview] Audio input attached for video recording")
 +            } else {
 +                print("[CameraPreview] Cannot add audio input to capture session — recording video-only")
@@ -194,51 +170,78 @@ index 5dec305..b2c15e8 100644
              }
          }
      }
-@@ -1434,7 +1521,34 @@ extension CameraController {
+@@ -538,9 +544,9 @@
+             previewLayer.frame = frame
+             previewLayer.videoGravity = .resizeAspectFill
+         } else {
+-            // No specific aspect ratio requested - fill the entire view
++            // Full-bleed explicit size — crop to fill the preview view (not letterbox).
+             previewLayer.frame = view.bounds
+-            previewLayer.videoGravity = .resizeAspect
++            previewLayer.videoGravity = .resizeAspectFill
+         }
+ 
+         // Insert layer immediately (only if new)
+@@ -1434,7 +1524,64 @@ extension CameraController {
          self.firstFrameReadyCallback = nil
      }
  
++    /// MP4 + default ~10s movie fragments can drop audio; disable fragments for all clip lengths.
++    private func configureMovieFileOutputForMp4Recording(_ output: AVCaptureMovieFileOutput?) {
++        guard let output = output else { return }
++        output.movieFragmentInterval = CMTime.invalid
++    }
++
 +    func ensureMovieFileAudioForRecording() {
-+        guard let captureSession = self.captureSession,
-+              let fileVideoOutput = self.fileVideoOutput,
-+              self.audioInput != nil else {
-+            return
-+        }
-+
-+        if fileVideoOutput.connection(with: .audio) != nil {
-+            fileVideoOutput.connection(with: .audio)?.isEnabled = true
-+            return
-+        }
-+
-+        print("[CameraPreview] Re-attaching movie output to restore audio connection")
-+        captureSession.beginConfiguration()
-+        if captureSession.outputs.contains(fileVideoOutput) {
-+            captureSession.removeOutput(fileVideoOutput)
-+        }
-+        if captureSession.canAddOutput(fileVideoOutput) {
-+            captureSession.addOutput(fileVideoOutput)
-+            fileVideoOutput.connection(with: .audio)?.isEnabled = true
-+        } else {
-+            print("[CameraPreview] WARNING: Could not re-add movie output for audio")
-+        }
-+        captureSession.commitConfiguration()
++        guard let fileVideoOutput = self.fileVideoOutput else { return }
++        configureMovieFileOutputForMp4Recording(fileVideoOutput)
++        fileVideoOutput.connection(with: .audio)?.isEnabled = true
 +    }
 +
      func captureVideo() throws {
-+        self.activateRecordingAudioSession()
++        var capturedError: Error?
++        let semaphore = DispatchSemaphore(value: 0)
++        self.captureVideoWhenReady { error in
++            capturedError = error
++            semaphore.signal()
++        }
++        if Thread.isMainThread {
++            while semaphore.wait(timeout: .now()) == .timedOut {
++                RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
++            }
++        } else {
++            semaphore.wait()
++        }
++        if let error = capturedError {
++            throw error
++        }
++    }
++
++    func captureVideoWhenReady(completion: @escaping (Error?) -> Void) {
++        let session = AVAudioSession.sharedInstance()
++        print("[CameraPreview] Record start AVAudioSession category=\(session.category.rawValue) mode=\(session.mode.rawValue)")
++        do {
++            try self.beginMovieFileRecording()
++            completion(nil)
++        } catch {
++            completion(error)
++        }
++    }
++
++    private func beginMovieFileRecording() throws {
          guard let captureSession = self.captureSession, captureSession.isRunning else {
              throw CameraControllerError.captureSessionIsMissing
          }
-@@ -1446,6 +1560,8 @@ extension CameraController {
+@@ -1446,6 +1593,8 @@ extension CameraController {
              throw CameraControllerError.fileVideoOutputNotFound
          }
  
-+        self.ensureMovieFileAudioForRecording()
++        self.configureMovieFileOutputForMp4Recording(fileVideoOutput)
 +
          // cpcp_video_A6C01203 - portrait
          //
          if let connection = fileVideoOutput.connection(with: .video) {
-@@ -1463,6 +1579,20 @@ extension CameraController {
+@@ -1463,6 +1612,20 @@ extension CameraController {
              }
          }
  
@@ -259,7 +262,7 @@ index 5dec305..b2c15e8 100644
          let identifier = UUID()
          let randomIdentifier = identifier.uuidString.replacingOccurrences(of: "-", with: "")
          let finalIdentifier = String(randomIdentifier.prefix(8))
-@@ -1488,11 +1618,31 @@ extension CameraController {
+@@ -1488,11 +1651,47 @@ extension CameraController {
              return
          }
  
@@ -269,7 +272,6 @@ index 5dec305..b2c15e8 100644
 +            return
 +        }
 +
-+        self.ensureMovieFileAudioForRecording()
 +        if let audioConnection = fileVideoOutput.connection(with: .audio) {
 +            audioConnection.isEnabled = true
 +            print("[CameraPreview] Pre-stop movie audio connection active=\(audioConnection.isActive) enabled=\(audioConnection.isEnabled)")
@@ -282,19 +284,35 @@ index 5dec305..b2c15e8 100644
  
 -        // Return the video file URL in the completion handler
 -        completion(self.videoFileURL, nil)
-+    private func logRecordedMovieAudioStatus(at url: URL) {
++    private func recordedMovieAudioTrackCount(at url: URL) -> Int {
 +        let asset = AVURLAsset(url: url)
-+        let audioTracks = asset.tracks(withMediaType: .audio)
-+        let duration = CMTimeGetSeconds(asset.duration)
-+        self.lastRecordedAudioTrackCount = audioTracks.count
-+        print("[CameraPreview] Recorded movie audio tracks=\(audioTracks.count) duration=\(duration)s path=\(url.lastPathComponent)")
-+        if audioTracks.isEmpty {
-+            print("[CameraPreview] WARNING: Recorded movie has no audio tracks")
++        return asset.tracks(withMediaType: .audio).count
++    }
++
++    /// AVAsset often reports 0 audio tracks immediately after didFinishRecordingTo while the MP4 moov atom is still being written.
++    private func finalizeRecordedMovieAudio(at url: URL, attempt: Int = 0, completion: @escaping () -> Void) {
++        let audioCount = self.recordedMovieAudioTrackCount(at: url)
++        let duration = CMTimeGetSeconds(AVURLAsset(url: url).duration)
++        self.lastRecordedAudioTrackCount = audioCount
++        print("[CameraPreview] Recorded movie audio tracks=\(audioCount) duration=\(duration)s path=\(url.lastPathComponent) attempt=\(attempt)")
++        if audioCount > 0 || attempt >= 20 {
++            if audioCount == 0 {
++                print("[CameraPreview] WARNING: Recorded movie has no audio tracks after finalize")
++            }
++            completion()
++            return
++        }
++        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.35) { [weak self] in
++            guard let self = self else {
++                completion()
++                return
++            }
++            self.finalizeRecordedMovieAudio(at: url, attempt: attempt + 1, completion: completion)
 +        }
      }
  }
  
-@@ -1839,11 +1989,18 @@ extension UIImage {
+@@ -1839,11 +2038,19 @@ extension UIImage {
  
  extension CameraController: AVCaptureFileOutputRecordingDelegate {
      func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
@@ -309,15 +327,16 @@ index 5dec305..b2c15e8 100644
 -            // You can save the file to the library, upload it, etc.
 +            completion?(nil, error)
 +            return
-         }
++        }
 +
 +        print("Movie recorded successfully: \(outputFileURL)")
-+        self.logRecordedMovieAudioStatus(at: outputFileURL)
-+        completion?(outputFileURL, nil)
++        self.finalizeRecordedMovieAudio(at: outputFileURL) {
++            completion?(outputFileURL, nil)
+         }
      }
  }
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
-index d7a333f..f7dfb3c 100644
+index d7a333f..b2d0744 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 @@ -6,6 +6,17 @@ import CoreImage
@@ -385,10 +404,15 @@ index d7a333f..f7dfb3c 100644
          self.gridMode = call.getString("gridMode") ?? "none"
          self.positioning = call.getString("positioning") ?? "top"
  
-@@ -1139,6 +1168,14 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -1139,11 +1162,20 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
      }
  
      @objc func startRecordVideo(_ call: CAPPluginCall) {
+-        do {
+-            try self.cameraController.captureVideo()
+-            call.resolve()
+-        } catch {
+-            call.reject(error.localizedDescription)
 +        if self.videoCaptureMode {
 +            if call.options["enableAudio"] != nil {
 +                self.disableAudio = !capacitorBool(call, "enableAudio", default: false)
@@ -397,21 +421,21 @@ index d7a333f..f7dfb3c 100644
 +            }
 +        }
 +        print("[CameraPreview] startRecordVideo disableAudio=\(self.disableAudio) videoCaptureMode=\(self.videoCaptureMode)")
-         do {
-             try self.cameraController.captureVideo()
-             call.resolve()
-@@ -1159,7 +1196,17 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
++        self.cameraController.captureVideoWhenReady { error in
++            if let error = error {
++                call.reject(error.localizedDescription)
++            } else {
++                call.resolve()
++            }
+         }
+     }
+ 
+@@ -1159,7 +1191,11 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
                  return
              }
  
 -            call.resolve(["videoFilePath": fileURL.absoluteString])
 +            let audioTrackCount = self.cameraController.lastRecordedAudioTrackCount
-+            if !self.disableAudio && audioTrackCount < 1 {
-+                try? FileManager.default.removeItem(at: fileURL)
-+                call.reject("Recorded video has no audio track")
-+                return
-+            }
-+
 +            call.resolve([
 +                "videoFilePath": fileURL.absoluteString,
 +                "audioTrackCount": audioTrackCount,
@@ -419,7 +443,15 @@ index d7a333f..f7dfb3c 100644
          }
      }
  
-@@ -1742,6 +1789,8 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -1737,6 +1737,7 @@
+         // Update preview layer frame efficiently
+         if let previewLayer = self.cameraController.previewLayer {
+             previewLayer.frame = self.previewView.bounds
++            previewLayer.videoGravity = .resizeAspectFill
+         }
+ 
+         // Update grid overlay frame if it exists
+@@ -1742,8 +1789,10 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
  
          if let width = call.getInt("width") { self.width = CGFloat(width) }
          if let height = call.getInt("height") { self.height = CGFloat(height) }
@@ -428,3 +460,5 @@ index d7a333f..f7dfb3c 100644
  
          DispatchQueue.main.async {
              // Direct update without animation for better performance
+             self.updateCameraFrame()
+             self.makeWebViewTransparent()
