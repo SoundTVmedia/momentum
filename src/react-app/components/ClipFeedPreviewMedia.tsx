@@ -11,6 +11,10 @@ import {
   requestFeedPreviewPlay,
 } from '@/react-app/lib/feedVideoPlaybackLimiter';
 import { tryVideoPlayPreferSound } from '@/react-app/utils/videoAutoplay';
+import {
+  restoreNativeMediaPlaybackAudio,
+  shouldUseNativeIosCapture,
+} from '@/react-app/lib/native-capture';
 
 /** True for typical desktop: real hover + mouse/trackpad (not primary touch). */
 const HOVER_FINE_POINTER_MQ = '(hover: hover) and (pointer: fine)';
@@ -145,7 +149,12 @@ export default function ClipFeedPreviewMedia({
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !previewVideoSrc || !shouldPlay) return;
-    tryVideoPlayPreferSound(v, { onMutedChange: setIsMuted });
+    tryVideoPlayPreferSound(v, {
+      onMutedChange: setIsMuted,
+      restoreAudioSession: shouldUseNativeIosCapture()
+        ? restoreNativeMediaPlaybackAudio
+        : undefined,
+    });
   }, [shouldPlay, previewVideoSrc]);
 
   /** Always restore poster when preview stops — video ref is often null after unmount. */

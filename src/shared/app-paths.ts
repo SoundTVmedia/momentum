@@ -1,4 +1,4 @@
-import { slugifyEntityName } from '@/shared/jambase-slug';
+import { slugifyEntityName } from './jambase-slug';
 import { computeShowId } from './show-id';
 
 export type ShowMarkClipsInput = {

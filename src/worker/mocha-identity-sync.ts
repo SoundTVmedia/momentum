@@ -71,3 +71,39 @@ export async function ensureGoogleBridgeAccount(
     console.warn('ensureGoogleBridgeAccount failed', e);
   }
 }
+
+/** Ensure an Apple account row exists for a canonical user id (cross-provider sign-in). */
+export async function ensureAppleBridgeAccount(
+  db: D1Database,
+  accountId: string,
+  email: string,
+  displayName?: string | null,
+): Promise<void> {
+  const id = accountId.trim();
+  const normalizedEmail = normalizeEmail(email);
+  if (!id || !normalizedEmail) {
+    return;
+  }
+
+  const existing = await db
+    .prepare('SELECT id FROM apple_accounts WHERE id = ?')
+    .bind(id)
+    .first<{ id: string }>();
+  if (existing) {
+    await upsertUserEmailIndex(db, normalizedEmail, id, 'apple');
+    return;
+  }
+
+  try {
+    await db
+      .prepare(
+        `INSERT INTO apple_accounts (id, email, display_name, is_private_email, created_at, updated_at)
+         VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      )
+      .bind(id, normalizedEmail, displayName?.trim() || null)
+      .run();
+    await upsertUserEmailIndex(db, normalizedEmail, id, 'apple');
+  } catch (e) {
+    console.warn('ensureAppleBridgeAccount failed', e);
+  }
+}

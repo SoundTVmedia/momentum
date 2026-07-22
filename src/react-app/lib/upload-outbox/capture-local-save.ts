@@ -18,6 +18,7 @@ import {
   clearCaptureDiscardedMarker,
   allowCaptureReviewForNewRecording,
   canOpenCaptureReviewHandoff,
+  canOpenNativePathCaptureReviewHandoff,
   markPendingCaptureReviewHandoff,
   markCaptureHandoffBusy,
   dispatchPendingCaptureReady,
@@ -28,11 +29,15 @@ import {
   shouldSkipCaptureReviewHydration,
   isActiveCaptureHandoff,
   captureReviewSearch,
+  clearCaptureHandoffBusy,
+  clearPendingCaptureReviewHandoff,
+  wantsCaptureReviewScreen,
   type CaptureHandoffMeta,
 } from '@/react-app/lib/upload-outbox/capture-handoff';
 import {
   resolveNativeCaptureUploadBlob,
   captureVideoBlobLikelyHasAudio,
+  finalizeNativeRecordingForHandoff,
   nativeRecordingHasRequiredAudio,
   shouldUseNativeIosCapture,
 } from '@/react-app/lib/native-capture';
@@ -126,6 +131,18 @@ export type CompleteCaptureHandoffOpts = {
   onReleaseResources?: () => void;
 };
 
+export type BeginNativePathCaptureHandoffOpts = {
+  fileName: string;
+  navigate: NavigateFunction;
+  recordingStartedAt: string;
+  nativeVideoPath: string;
+  nativeAudioTrackCount?: number;
+  meta: Omit<CaptureHandoffMeta, 'recordingStartedAt'>;
+  routerState?: Record<string, unknown>;
+  onAfterNavigate?: () => void;
+  onReleaseResources?: () => void;
+};
+
 /**
  * Upload-outbox handoff: pin blob in memory, write session meta, navigate to caption screen,
  * then flush IndexedDB + Photos without blocking navigation.
@@ -149,27 +166,29 @@ export async function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): 
     return false;
   }
 
-  if (shouldUseNativeIosCapture() && nativeVideoPath?.trim()) {
+  if (shouldUseNativeIosCapture()) {
     if (!nativeRecordingHasRequiredAudio(nativeAudioTrackCount)) {
-      console.warn('completeCaptureHandoff: blocked — native clip has no audio track');
-      return false;
-    }
-  } else if (shouldUseNativeIosCapture()) {
-    try {
-      const scanLen = Math.min(blob.size, 2 * 1024 * 1024);
-      const head = new Uint8Array(await blob.slice(0, scanLen).arrayBuffer());
-      let hasAudio = captureVideoBlobLikelyHasAudio(head);
-      if (!hasAudio && blob.size > scanLen) {
-        const tail = new Uint8Array(await blob.slice(blob.size - scanLen).arrayBuffer());
-        hasAudio = captureVideoBlobLikelyHasAudio(tail);
-      }
-      if (!hasAudio) {
-        console.warn('completeCaptureHandoff: blocked — video blob missing audio');
+      try {
+        const scanLen = Math.min(blob.size, 2 * 1024 * 1024);
+        const regions: Uint8Array[] = [
+          new Uint8Array(await blob.slice(0, scanLen).arrayBuffer()),
+        ];
+        if (blob.size > scanLen) {
+          regions.push(new Uint8Array(await blob.slice(blob.size - scanLen).arrayBuffer()));
+        }
+        if (blob.size > scanLen * 3) {
+          const mid = Math.max(0, Math.floor(blob.size / 2) - Math.floor(scanLen / 2));
+          regions.push(new Uint8Array(await blob.slice(mid, mid + scanLen).arrayBuffer()));
+        }
+        const hasAudio = regions.some((region) => captureVideoBlobLikelyHasAudio(region));
+        if (!hasAudio) {
+          console.warn('completeCaptureHandoff: blocked — native clip has no audio track');
+          return false;
+        }
+      } catch (err) {
+        console.warn('completeCaptureHandoff: blocked — could not verify audio', err);
         return false;
       }
-    } catch (err) {
-      console.warn('completeCaptureHandoff: blocked — could not verify audio', err);
-      return false;
     }
   }
   // Web browser capture: audio validated at record stop via live mic tracks.
@@ -193,6 +212,11 @@ export async function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): 
   });
 
   onReleaseResources?.();
+  // Dismiss the feed capture overlay before navigation — otherwise AppRouteChrome keeps
+  // the outlet hidden (native capture chrome) and the caption screen never appears.
+  onAfterNavigate?.();
+
+  dispatchPendingCaptureReady(recordingStartedAt);
 
   navigate(
     { pathname: '/upload', search: captureReviewSearch() },
@@ -201,6 +225,7 @@ export async function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): 
       state: {
         recordingStartedAt,
         fromQuickCapture: true,
+        videoBlob: blob,
         ...(nativeVideoPath ? { nativeVideoPath } : {}),
         ...routerState,
       },
@@ -209,13 +234,95 @@ export async function completeCaptureHandoff(opts: CompleteCaptureHandoffOpts): 
 
   queueMicrotask(() => dispatchPendingCaptureReady(recordingStartedAt));
 
-  onAfterNavigate?.();
-
   void flushPendingCaptureToDevice(blob, fileName, {
     nativeVideoUri: nativeVideoPath,
   });
 
   return true;
+}
+
+/**
+ * Navigate to caption immediately with a native file path — preview via convertFileSrc
+ * while finalize/read runs in the background.
+ */
+export function beginNativePathCaptureHandoff(
+  opts: BeginNativePathCaptureHandoffOpts,
+): boolean {
+  const {
+    navigate,
+    recordingStartedAt,
+    nativeVideoPath,
+    nativeAudioTrackCount,
+    meta,
+    routerState,
+    onAfterNavigate,
+    onReleaseResources,
+  } = opts;
+
+  const path = nativeVideoPath.trim();
+  if (!path) {
+    console.warn('beginNativePathCaptureHandoff: skipped — empty path');
+    return false;
+  }
+
+  allowCaptureReviewForNewRecording(recordingStartedAt);
+
+  if (!canOpenNativePathCaptureReviewHandoff(path, recordingStartedAt)) {
+    console.warn('beginNativePathCaptureHandoff: skipped — clip already shared or stale handoff');
+    return false;
+  }
+
+  markCaptureHandoffBusy(15_000);
+  clearCaptureDiscardedMarker();
+  markPendingCaptureReviewHandoff(recordingStartedAt);
+  writeCaptureHandoffMeta({
+    recordingStartedAt,
+    ...meta,
+    nativeVideoPath: path,
+    nativeAudioTrackCount,
+  });
+
+  onReleaseResources?.();
+  onAfterNavigate?.();
+  dispatchPendingCaptureReady(recordingStartedAt);
+
+  navigate(
+    { pathname: '/upload', search: captureReviewSearch() },
+    {
+      replace: true,
+      state: {
+        recordingStartedAt,
+        fromQuickCapture: true,
+        nativeVideoPath: path,
+        ...routerState,
+      },
+    },
+  );
+
+  queueMicrotask(() => dispatchPendingCaptureReady(recordingStartedAt));
+  return true;
+}
+
+/** After path-first navigation — read muxed file, prime memory cache, flush IDB/Photos. */
+export async function primePendingCaptureAfterNativeFinalize(
+  nativeVideoPath: string,
+  fileName: string,
+  nativeAudioTrackCount?: number,
+): Promise<Blob> {
+  const blob = await finalizeNativeRecordingForHandoff(
+    nativeVideoPath,
+    nativeAudioTrackCount,
+  );
+  if (!blob?.size) {
+    throw new Error('Recorded video is empty');
+  }
+  primePendingCaptureVideo(blob);
+  dispatchPendingCaptureReady(readCaptureHandoffMeta()?.recordingStartedAt ?? undefined);
+  clearCaptureHandoffBusy();
+  void flushPendingCaptureToDevice(blob, fileName, {
+    nativeVideoUri: nativeVideoPath,
+  });
+  return blob;
 }
 
 export async function loadPendingCapture(): Promise<StoredUploadBlobs | null> {
@@ -287,6 +394,18 @@ export async function clearPendingCapture(opts?: { force?: boolean }): Promise<v
   } catch (err) {
     console.warn('clearPendingCapture:', err);
   }
+}
+
+/** Drop stale handoff locks when opening capture outside the caption review screen. */
+export function resetStaleCaptureSessionUnlessOnReview(
+  pathname: string,
+  search: string,
+): void {
+  if (pathname === '/upload' && wantsCaptureReviewScreen(search)) return;
+  clearCaptureHandoffBusy();
+  clearPendingCaptureReviewHandoff();
+  clearPendingCaptureMemory({ force: true });
+  void clearPendingCapture({ force: true });
 }
 
 /** Copy pending capture blob into a queue job (memory cache or IndexedDB). */

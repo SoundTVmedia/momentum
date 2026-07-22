@@ -10,6 +10,9 @@ const prefetchedModalKeys = new Set<string>();
 const prefetchedFeedMp4 = new Set<string>();
 const prefetchedHlsManifests = new Set<string>();
 
+/** First ~1.5MB — enough for moov + early GOPs on typical Stream MP4s. */
+const MP4_HEAD_PREFETCH_BYTES = 1_500_000;
+
 function modalPrefetchKey(clip: ClipPlaybackFields): string {
   const modal = resolveModalPlaybackSource(clip);
   return modal.streamVideoId ?? modal.src;
@@ -54,24 +57,37 @@ async function prefetchHlsStartup(hlsUrl: string): Promise<void> {
   }
 }
 
-/** Warm CDN MP4 for feed hover / scroll (best-effort; avoids HLS in grid). */
-export function prefetchFeedPreviewMp4(src: string | null | undefined): void {
-  const url = typeof src === 'string' ? src.trim() : '';
+/** Warm CDN bytes for progressive MP4 without spinning up a decoder. */
+function prefetchMp4Head(src: string): void {
+  const url = src.trim();
   if (!url || prefetchedFeedMp4.has(url)) return;
   prefetchedFeedMp4.add(url);
 
-  // `<link rel=preload as=video>` is not supported in Chromium — use a muted video element instead.
-  const el = document.createElement('video');
-  el.preload = 'auto';
-  el.muted = true;
-  el.playsInline = true;
-  el.src = url;
-  el.load();
-  window.setTimeout(() => {
-    el.removeAttribute('src');
+  void fetch(url, {
+    mode: 'cors',
+    credentials: 'omit',
+    headers: { Range: `bytes=0-${MP4_HEAD_PREFETCH_BYTES - 1}` },
+  }).catch(() => {
+    // Some CDNs reject Range — fall back to a short-lived muted video warm.
+    const el = document.createElement('video');
+    el.preload = 'auto';
+    el.muted = true;
+    el.playsInline = true;
+    el.src = url;
     el.load();
-    el.remove();
-  }, 45_000);
+    window.setTimeout(() => {
+      el.removeAttribute('src');
+      el.load();
+      el.remove();
+    }, 20_000);
+  });
+}
+
+/** Warm CDN MP4 for feed hover / scroll (best-effort; avoids HLS in grid). */
+export function prefetchFeedPreviewMp4(src: string | null | undefined): void {
+  const url = typeof src === 'string' ? src.trim() : '';
+  if (!url) return;
+  prefetchMp4Head(url);
 }
 
 /** Warm feed MP4 + modal sources for carousel neighbors on hover (best-effort). */
@@ -85,7 +101,11 @@ export function prefetchCarouselNeighborClips(
   }
 }
 
-/** Warm network cache for modal playback: Stream MP4 + HLS manifest/segments (best-effort). */
+/**
+ * Warm network cache for modal playback.
+ * MP4-first: only prefetch the progressive source that will play; defer HLS to idle
+ * so it does not compete with first-frame bytes. Keeps unmuted autoplay path fast.
+ */
 export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
   const key = modalPrefetchKey(clip);
   if (!key || prefetchedModalKeys.has(key)) return;
@@ -94,13 +114,22 @@ export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
   const modal = resolveModalPlaybackSource(clip);
 
   if (!modal.isHls && modal.src) {
-    prefetchFeedPreviewMp4(modal.src);
-  } else if (modal.src) {
-    void prefetchHlsStartup(modal.src);
+    prefetchMp4Head(modal.src);
+    if (modal.hlsFallbackSrc) {
+      const hlsUrl = modal.hlsFallbackSrc;
+      const schedule =
+        typeof requestIdleCallback === 'function'
+          ? (cb: () => void) => requestIdleCallback(() => cb(), { timeout: 4_000 })
+          : (cb: () => void) => window.setTimeout(cb, 2_500);
+      schedule(() => {
+        void prefetchHlsStartup(hlsUrl);
+      });
+    }
+    return;
   }
 
-  if (modal.hlsFallbackSrc) {
-    void prefetchHlsStartup(modal.hlsFallbackSrc);
+  if (modal.src) {
+    void prefetchHlsStartup(modal.src);
   }
 }
 

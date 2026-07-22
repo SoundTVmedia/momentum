@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Feedback">
+  <rect width="1024" height="1024" fill="#030712" />
+  <defs>
+    <linearGradient id="f-grad" x1="512" y1="224" x2="512" y2="800" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="42%" stop-color="#eff6ff" />
+      <stop offset="100%" stop-color="#67e8f9" />
+    </linearGradient>
+  </defs>
+  <path
+    fill="url(#f-grad)"
+    d="M272 224h496v128H416v136h288v120H416v176H272V224z"
+  />
+</svg>

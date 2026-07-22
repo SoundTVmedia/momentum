@@ -36,11 +36,6 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
         const response = await fetch('/api/users/me');
         const data = await response.json();
 
-        if (!data.profile) {
-          navigate('/onboarding');
-          return;
-        }
-
         setUserData(data);
       } catch (error) {
         console.error('Failed to fetch user data:', error);

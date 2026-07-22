@@ -6,3 +6,15 @@ dist/
 .dev.vars
 .DS_Store
 npm-debug.log*
+
+# Expo / React Native (apps/mobile)
+apps/mobile/.expo/
+apps/mobile/dist/
+apps/mobile/web-build/
+apps/mobile/.env
+apps/mobile/.env.local
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.orig.*

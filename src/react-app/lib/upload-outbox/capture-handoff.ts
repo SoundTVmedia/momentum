@@ -22,6 +22,8 @@ let captureReviewSessionBlocked = false;
 let pendingCaptureReviewHandoffAt: string | null = null;
 /** Blocks camera reopen while handoff / native file reads are still in flight. */
 let captureHandoffBusyUntil = 0;
+/** Post-Share transition — AppRouteChrome must not restore playback until overlay opens. */
+let captureReopenPending = false;
 
 /** Mark handoff busy — prevents camera reopen and playback restore during native I/O. */
 export function markCaptureHandoffBusy(ms = 5000): void {
@@ -30,6 +32,24 @@ export function markCaptureHandoffBusy(ms = 5000): void {
 
 export function isCaptureHandoffBusy(): boolean {
   return Date.now() < captureHandoffBusyUntil;
+}
+
+/** Allow camera reopen after Share/discard once native I/O has finished. */
+export function clearCaptureHandoffBusy(): void {
+  captureHandoffBusyUntil = 0;
+}
+
+/** True while Share navigates away from caption and before capture overlay mounts. */
+export function isCaptureReopenPending(): boolean {
+  return captureReopenPending;
+}
+
+export function markCaptureReopenPending(): void {
+  captureReopenPending = true;
+}
+
+export function clearCaptureReopenPending(): void {
+  captureReopenPending = false;
 }
 
 export type CaptureHandoffMeta = {
@@ -147,7 +167,10 @@ export function isActiveCaptureHandoff(recordingStartedAt?: string | null): bool
 
 /** True when caption review or handoff I/O is active — do not reopen capture. */
 export function isCaptureSessionBusy(): boolean {
-  return isActiveCaptureHandoff() || isCaptureHandoffBusy();
+  if (hasPrimedPendingCapture() || hasPendingCaptureReviewHandoff()) {
+    return true;
+  }
+  return isCaptureHandoffBusy();
 }
 
 /** True when a new capture just navigated to /upload?reviewCapture and hydration must run. */
@@ -174,11 +197,8 @@ export function readCaptureReviewBlockedAt(): number | null {
   return Number.isFinite(at) ? at : null;
 }
 
-/** True when a new in-app recording should open the caption screen (not a stale handoff). */
-export function canOpenCaptureReviewHandoff(blob: Blob, recordingStartedAt: string): boolean {
-  if (!blob?.size) return false;
-  if (wasBlobRecentlyShared(blob)) return false;
-  if (wasRecordingStartedAtShared(recordingStartedAt)) return false;
+function isCaptureReviewBlockedForRecording(recordingStartedAt: string): boolean {
+  if (wasRecordingStartedAtShared(recordingStartedAt)) return true;
   const blockedAt = readCaptureReviewBlockedAt();
   const recordAt = Date.parse(recordingStartedAt);
   if (
@@ -187,9 +207,26 @@ export function canOpenCaptureReviewHandoff(blob: Blob, recordingStartedAt: stri
     Number.isFinite(recordAt) &&
     recordAt <= blockedAt
   ) {
-    return false;
+    return true;
   }
-  return true;
+  return false;
+}
+
+/** True when a new in-app recording should open the caption screen (not a stale handoff). */
+export function canOpenCaptureReviewHandoff(blob: Blob, recordingStartedAt: string): boolean {
+  if (!blob?.size) return false;
+  if (wasBlobRecentlyShared(blob)) return false;
+  return !isCaptureReviewBlockedForRecording(recordingStartedAt);
+}
+
+/** Path-first native handoff — caption opens before the upload blob is fully read. */
+export function canOpenNativePathCaptureReviewHandoff(
+  nativeVideoPath: string,
+  recordingStartedAt: string,
+): boolean {
+  if (!nativeVideoPath.trim()) return false;
+  if (wasNativeVideoPathShared(nativeVideoPath)) return false;
+  return !isCaptureReviewBlockedForRecording(recordingStartedAt);
 }
 
 /** Clear the post-Share block only for a genuinely new recording session. */

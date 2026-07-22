@@ -19,6 +19,8 @@ GOOGLE_OAUTH_CLIENT_SECRET=
 #   export GOOGLE_IOS_OAUTH_CLIENT_ID='123456789-xxxx.apps.googleusercontent.com'
 #   npx cap sync ios
 # GOOGLE_IOS_OAUTH_CLIENT_ID=
+# React Native migration app (com.feedbacklive.app.rn) — additive; Cap keeps GOOGLE_IOS_OAUTH_CLIENT_ID:
+# GOOGLE_IOS_OAUTH_CLIENT_ID_RN=254629847229-1ge9jdqj2l6j09n7o67pump5pfo8giki.apps.googleusercontent.com
 # Used when MOCHA_USERS_SERVICE_API_KEY is empty. Run: npm run db:migrate:local
 #
 # --- Sign in with Apple (Apple Developer portal) ---
@@ -29,6 +31,8 @@ GOOGLE_OAUTH_CLIENT_SECRET=
 # APPLE_KEY_ID=
 # APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
 # APPLE_BUNDLE_ID=com.feedbacklive.app
+# Optional RN migration audience (defaults to com.feedbacklive.app.rn if unset):
+# APPLE_BUNDLE_ID_RN=com.feedbacklive.app.rn
 # APPLE_DOMAIN_ASSOCIATION=
 #
 # Production: set this to your live app URL (no trailing slash) if needed:

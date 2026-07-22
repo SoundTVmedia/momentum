@@ -62,6 +62,7 @@ type GoogleNativeConfig = {
   enabled: boolean;
   webClientId: string | null;
   iOSClientId: string | null;
+  urlScheme?: string | null;
 };
 
 let googleOAuthWaiter: OAuthWaiter | null = null;
@@ -72,6 +73,41 @@ let socialLoginInitialized = false;
 
 export function shouldUseNativeInAppOAuth(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+}
+
+type CapacitorConfigWithGoogle = {
+  googleIosOAuthClientId?: string;
+  ios?: {
+    infoPlist?: {
+      GIDClientID?: string;
+    };
+  };
+};
+
+/** iOS client id baked into the native binary at `cap sync` (Info.plist GIDClientID). */
+export function readBuiltGoogleIosOAuthClientId(): string | null {
+  if (!shouldUseNativeInAppOAuth()) {
+    return null;
+  }
+  const cfg = (Capacitor as unknown as { getConfig?: () => CapacitorConfigWithGoogle }).getConfig?.();
+  if (!cfg) {
+    return null;
+  }
+  for (const raw of [cfg.googleIosOAuthClientId, cfg.ios?.infoPlist?.GIDClientID]) {
+    const trimmed = raw?.trim();
+    if (trimmed && isValidGoogleIosOAuthClientId(trimmed)) {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
+export function nativeGoogleSdkMatchesServerConfig(config: GoogleNativeConfig): boolean {
+  if (!config.enabled || !config.iOSClientId) {
+    return false;
+  }
+  const built = readBuiltGoogleIosOAuthClientId();
+  return built === config.iOSClientId.trim();
 }
 
 async function readGoogleNativeConfig(): Promise<GoogleNativeConfig> {
@@ -103,7 +139,7 @@ export async function initNativeSocialLogin(): Promise<void> {
   }
 
   const config = await readGoogleNativeConfig();
-  if (!config.enabled || !config.webClientId || !config.iOSClientId) {
+  if (!nativeGoogleSdkMatchesServerConfig(config) || !config.webClientId || !config.iOSClientId) {
     return;
   }
 
@@ -339,9 +375,17 @@ async function performNativeGoogleSignInWithBrowser(): Promise<void> {
 
 export async function performNativeGoogleSignIn(): Promise<void> {
   const config = await readGoogleNativeConfig();
-  if (config.enabled) {
-    await performNativeGoogleSignInWithSdk();
-    return;
+  if (nativeGoogleSdkMatchesServerConfig(config)) {
+    try {
+      await performNativeGoogleSignInWithSdk();
+      return;
+    } catch (err) {
+      console.warn('Native Google SDK sign-in failed; falling back to in-app browser:', err);
+    }
+  } else if (config.enabled && config.iOSClientId) {
+    console.warn(
+      'Native Google SDK unavailable in this build (missing GOOGLE_IOS_OAUTH_CLIENT_ID at cap sync). Using browser sign-in.',
+    );
   }
   await performNativeGoogleSignInWithBrowser();
 }

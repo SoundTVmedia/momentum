@@ -26,9 +26,6 @@ import {
   nativeCapturePreviewVideoUrl,
   resolveNativeCaptureUploadBlob,
   assertCaptureBlobHasAudio,
-  settleNativeCaptureSession,
-  prepareNativeCaptureRecordingAudio,
-  waitForNativeCaptureIdle,
   nativeRecordingHasRequiredAudio,
 } from '@/react-app/lib/native-capture';
 import {
@@ -87,6 +84,7 @@ import {
   allowCaptureReviewRecovery,
   hasPendingCaptureReviewHandoff,
   clearPendingCaptureReviewHandoff,
+  clearCaptureHandoffBusy,
   isActiveCaptureHandoff,
   isCaptureHandoffBusy,
   primePendingCaptureVideo,
@@ -163,6 +161,8 @@ export default function UploadClip() {
   const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
   const quickCapture = useQuickCapture();
+  const globalQuickCaptureOpenRef = useRef(quickCapture.showQuickCapture);
+  globalQuickCaptureOpenRef.current = quickCapture.showQuickCapture;
   const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight, jobs: clipUploadJobs } =
     useClipUploadQueue();
   const isMobile = useIsMobileViewport();
@@ -189,7 +189,8 @@ export default function UploadClip() {
         markCaptureSharedForBlob(new Blob(), nativePath);
       }
     }
-    await clearPendingCapture();
+    clearPendingCaptureReviewHandoff();
+    await clearPendingCapture({ force: opts?.discarded || opts?.shared });
     await clearCaptionDraft();
   }, []);
 
@@ -281,32 +282,35 @@ export default function UploadClip() {
     if (url && isBlobObjectUrl(url)) URL.revokeObjectURL(url);
   }, []);
 
-  /** After Share/upload, leave /upload?reviewCapture without reopening a stale caption screen. */
-  const leaveReviewCaptureRouteAfterShare = useCallback(async () => {
+  /** Leave /upload review and reopen the in-app camera (feed route + capture overlay). */
+  const leaveReviewCaptureRouteToCamera = useCallback(() => {
     setShowCaptionScreen(false);
     setQuickCaptureAwaitUserTap(false);
-    if (isMobile) {
-      allowCaptureReviewRecovery();
-      setReRecordPrimedStream((prev) => {
-        prev?.getTracks().forEach((t) => t.stop());
-        return null;
-      });
-      setReRecordGesturePending(false);
-      setReRecordLaunchGeo(null);
-      setReRecordLaunchGeoResolved(false);
+    if (!isMobile) {
       setShowQuickCapture(false);
       navigate({ pathname: '/', search: '' }, { replace: true, state: null });
-      if (shouldUseNativeIosCapture()) {
-        await waitForNativeCaptureIdle();
-        await settleNativeCaptureSession();
-        await prepareNativeCaptureRecordingAudio();
-      }
-      quickCapture.openQuickCapture();
       return;
     }
+
+    setReRecordPrimedStream((prev) => {
+      prev?.getTracks().forEach((t) => t.stop());
+      return null;
+    });
+    setReRecordGesturePending(false);
+    setReRecordLaunchGeo(null);
+    setReRecordLaunchGeoResolved(false);
     setShowQuickCapture(false);
+
+    // Navigate to feed first, then reopen capture once the router leaves ?reviewCapture.
+    quickCapture.openQuickCaptureAfterShare();
     navigate({ pathname: '/', search: '' }, { replace: true, state: null });
   }, [isMobile, navigate, quickCapture]);
+
+  /** After Share/upload, leave /upload?reviewCapture without reopening a stale caption screen. */
+  const leaveReviewCaptureRouteAfterShare = useCallback(() => {
+    allowCaptureReviewRecovery();
+    leaveReviewCaptureRouteToCamera();
+  }, [leaveReviewCaptureRouteToCamera]);
 
   /** Stale handoff / blocked review — return to feed without reopening the camera. */
   const returnToFeedAfterStaleCapture = useCallback(() => {
@@ -314,30 +318,52 @@ export default function UploadClip() {
     setShowCaptionScreen(false);
     setShowQuickCapture(false);
     setQuickCaptureAwaitUserTap(false);
+    quickCapture.dismissQuickCaptureOverlay();
     navigate({ pathname: '/', search: '' }, { replace: true, state: null });
-  }, [navigate]);
+  }, [navigate, quickCapture]);
 
   useEffect(() => {
     if (location.pathname !== '/upload') return;
     if (!wantsCaptureReviewScreen(location.search)) return;
 
     const handoffAt = readCaptureHandoffMeta()?.recordingStartedAt;
-    if (hasPendingCaptureReviewHandoff(handoffAt)) {
+
+    if (
+      hasPendingCaptureReviewHandoff(handoffAt) ||
+      hasPrimedPendingCapture() ||
+      isCaptureHandoffBusy()
+    ) {
+      skipNavVideoHydrationRef.current = false;
+      return;
+    }
+
+    // Handoff meta or caption UI — hydration (incl. native file read) may still be in flight.
+    if (handoffAt && shouldHydrateCaptureReview(handoffAt)) {
       skipNavVideoHydrationRef.current = false;
       return;
     }
 
     if (skipNavVideoHydrationRef.current) {
-      // Post-Share guard — strip stale reviewCapture only, never a fresh capture handoff.
-      navigate({ pathname: '/upload', search: '' }, { replace: true, state: null });
       return;
     }
+
     if (
       shouldSkipCaptureReviewHydration() ||
       isCaptureReviewSessionBlocked() ||
       !shouldHydrateCaptureReview(handoffAt)
     ) {
-      returnToFeedAfterStaleCapture();
+      // Defer — first capture often needs a moment for async blob/native hydration.
+      const timer = window.setTimeout(() => {
+        if (hasPendingCaptureReviewHandoff() || hasPrimedPendingCapture() || isCaptureHandoffBusy()) {
+          return;
+        }
+        const metaAt = readCaptureHandoffMeta()?.recordingStartedAt;
+        if (metaAt && shouldHydrateCaptureReview(metaAt)) {
+          return;
+        }
+        returnToFeedAfterStaleCapture();
+      }, 2000);
+      return () => window.clearTimeout(timer);
     }
   }, [location.pathname, location.search, navigate, returnToFeedAfterStaleCapture]);
 
@@ -500,8 +526,17 @@ export default function UploadClip() {
   }, [formData.video_file, formData.video_blob, formData.thumbnail_file]);
 
   useEffect(() => {
-    setHideBottomNav(showCaptionScreen || showQuickCapture);
-    return () => setHideBottomNav(false);
+    const shouldHide = showCaptionScreen || showQuickCapture;
+    if (shouldHide) {
+      setHideBottomNav(true);
+    } else if (!globalQuickCaptureOpenRef.current) {
+      setHideBottomNav(false);
+    }
+    return () => {
+      if (!globalQuickCaptureOpenRef.current) {
+        setHideBottomNav(false);
+      }
+    };
   }, [showCaptionScreen, showQuickCapture, setHideBottomNav]);
 
   useEffect(() => {
@@ -525,24 +560,46 @@ export default function UploadClip() {
     if (!shouldHydrateCaptureReview(handoff?.recordingStartedAt)) return;
     if (!wantsCaptureReviewScreen(location.search) && !hasPrimedPendingCapture()) return;
 
-    const pending = peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID);
-    if (!pending?.video?.size) return;
-    if (isCaptureBlobConsumed(pending.video)) return;
+    const routerState = location.state as {
+      videoBlob?: Blob;
+      nativeVideoPath?: string;
+      recordingStartedAt?: string;
+      fromQuickCapture?: boolean;
+    } | null;
+    const nativePath =
+      routerState?.nativeVideoPath ?? handoff?.nativeVideoPath ?? null;
+    const pendingVideo =
+      routerState?.videoBlob?.size
+        ? routerState.videoBlob
+        : peekCachedOutboxBlobs(PENDING_CAPTURE_JOB_ID)?.video;
 
-    const routerState = location.state as { nativeVideoPath?: string; recordingStartedAt?: string } | null;
+    // Path-first native handoff: open caption + native preview before the blob is ready.
+    if (!pendingVideo?.size && nativePath?.trim() && wantsCaptureReviewScreen(location.search)) {
+      const navAt =
+        routerState?.recordingStartedAt ?? handoff?.recordingStartedAt ?? null;
+      lastCaptionFromNavAtRef.current = navAt;
+      nativeVideoUriRef.current = nativePath;
+      setUploadMethod('file');
+      setUploadSource('capture');
+      const previewUrl = nativeCapturePreviewVideoUrl(nativePath);
+      if (previewUrl) setVideoBlobUrl(previewUrl);
+      setShowCaptionScreen(true);
+      setShowQuickCapture(false);
+      return;
+    }
+
+    if (!pendingVideo?.size) return;
+    if (isCaptureBlobConsumed(pendingVideo)) return;
+
     const navAt =
       routerState?.recordingStartedAt ?? handoff?.recordingStartedAt ?? null;
     lastCaptionFromNavAtRef.current = navAt;
 
-    nativeVideoUriRef.current =
-      routerState?.nativeVideoPath ?? handoff?.nativeVideoPath ?? null;
-    setFormData((prev) => ({ ...prev, video_blob: pending.video }));
+    nativeVideoUriRef.current = nativePath;
+    setFormData((prev) => ({ ...prev, video_blob: pendingVideo }));
     setUploadMethod('file');
     setUploadSource('capture');
-    assignCapturePreviewVideo(
-      pending.video,
-      routerState?.nativeVideoPath ?? handoff?.nativeVideoPath ?? null,
-    );
+    assignCapturePreviewVideo(pendingVideo, nativePath);
     setShowCaptionScreen(true);
     setShowQuickCapture(false);
     clearPendingCaptureReviewHandoff(navAt);
@@ -2347,13 +2404,15 @@ export default function UploadClip() {
     skipNavVideoHydrationRef.current = true;
     lastCaptionFromNavAtRef.current = null;
     setShowCaptionScreen(false);
-    resetForNextCapture({ shared: true });
     const leaveCaption = opts?.fromCaption ?? showCaptionScreen;
     if (leaveCaption && isMobile) {
+      resetForNextCapture({ shared: true });
       reopenCaptureAfterQueuedShare();
     } else if (leaveCaption) {
+      resetForNextCapture({ shared: true });
       resumeGlobalCaptureAfterReview();
     } else {
+      resetForNextCapture({ shared: true });
       setShowQuickCapture(false);
       navigate({ pathname: '/', search: '' }, { replace: true, state: null });
     }
@@ -2458,6 +2517,8 @@ export default function UploadClip() {
     setShowCaptionScreen(false);
     invalidatePendingCaptureFlush();
     clearPendingCaptureMemory({ force: true });
+    clearCaptureHandoffBusy();
+    clearPendingCaptureReviewHandoff();
     if (formForUpload.video_blob?.size) {
       markCaptureSharedForBlob(formForUpload.video_blob, nativeVideoUriRef.current);
     }
@@ -2502,7 +2563,7 @@ export default function UploadClip() {
     );
     setError(null);
     blockCaptureReviewRecovery();
-    await clearPendingCapture();
+    await clearPendingCapture({ force: true });
     await clearCaptionDraft();
     finishAfterQueuedShare({ fromCaption: true });
   };
@@ -2510,13 +2571,12 @@ export default function UploadClip() {
   const handleDiscardCapture = useCallback(() => {
     skipNavVideoHydrationRef.current = true;
     lastCaptionFromNavAtRef.current = null;
+    markCaptureDiscarded();
+    clearPendingCaptureReviewHandoff();
+    clearPendingCaptureMemory({ force: true });
     resetForNextCapture({ discarded: true });
-    if (isMobile) {
-      resumeGlobalCaptureAfterReview();
-      return;
-    }
-    navigate('/', { replace: true });
-  }, [isMobile, navigate, resetForNextCapture, resumeGlobalCaptureAfterReview]);
+    leaveReviewCaptureRouteToCamera();
+  }, [leaveReviewCaptureRouteToCamera, resetForNextCapture]);
 
   /** Leave upload (e.g. mobile caption screen) and return to the feed; drops in-progress media. */
   const handleCloseUploadToFeed = () => {

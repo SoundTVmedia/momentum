@@ -7,7 +7,6 @@ import NotFoundPage from "@/react-app/pages/NotFound";
 import AuthPage from "@/react-app/pages/Auth";
 import AuthCallbackPage from "@/react-app/pages/AuthCallback";
 import ResetPasswordPage from "@/react-app/pages/ResetPassword";
-import OnboardingPage from "@/react-app/pages/Onboarding";
 import DashboardPage from "@/react-app/pages/Dashboard";
 import UploadClipPage from "@/react-app/pages/UploadClip";
 import UploadQueuePage from "@/react-app/pages/UploadQueue";
@@ -77,7 +76,7 @@ export default function App() {
               <Route path="/auth" element={<AuthPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
               <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/onboarding" element={<Navigate to="/" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/upload" element={<UploadClipPage />} />
               <Route path="/upload-queue" element={<UploadQueuePage />} />

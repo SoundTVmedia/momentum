@@ -6,6 +6,14 @@ export class NativeAudioCaptureWeb extends WebPlugin implements NativeAudioCaptu
     /* no-op on web */
   }
 
+  async prepareRecordingSessionRecovery(_options?: { force?: boolean }): Promise<void> {
+    /* no-op on web */
+  }
+
+  async prepareForRecordingCapture(): Promise<void> {
+    /* no-op on web */
+  }
+
   async restoreForMediaPlayback(): Promise<void> {
     /* no-op on web */
   }

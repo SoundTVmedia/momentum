@@ -27,10 +27,14 @@ const config: CapacitorConfig = {
   appId: 'com.feedbacklive.app',
   appName: 'Feedback',
   webDir: 'dist',
+  // Live Workers URL: WebView loads from deploy — JS updates without a new TestFlight build.
+  // App Store release with bundled dist/: comment out `url` and run `npm run cap:sync ios`.
   server: {
     androidScheme: 'https',
     url: 'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev',
   },
+  // Baked into ios/App/App/capacitor.config.json at sync — used to gate native Google SDK vs browser OAuth.
+  ...(googleIosClientId ? { googleIosOAuthClientId: googleIosClientId } : {}),
   ios: {
     contentInset: 'automatic',
     infoPlist: {

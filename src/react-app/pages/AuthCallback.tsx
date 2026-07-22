@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Loader2 } from 'lucide-react';
-import { apiFetch } from '@/react-app/lib/apiFetch';
-import { exchangeOAuthCodeFromUrl, readApiError } from '@/react-app/lib/oauth-client';
+import { exchangeOAuthCodeFromUrl } from '@/react-app/lib/oauth-client';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -16,28 +15,7 @@ export default function AuthCallback() {
         await exchangeOAuthCodeFromUrl();
         await fetchUser();
         window.history.replaceState({}, document.title, '/auth/callback');
-
-        const response = await apiFetch('/api/users/me');
-        if (!response.ok) {
-          const msg = await readApiError(
-            response,
-            'Signed in but could not load your account. Try again.'
-          );
-          setError(msg);
-          return;
-        }
-
-        const userData = (await response.json()) as { profile?: unknown } | null;
-        if (!userData) {
-          setError('Signed in but could not load your account. Try again.');
-          return;
-        }
-
-        if (userData.profile) {
-          navigate('/', { replace: true });
-        } else {
-          navigate('/onboarding', { replace: true });
-        }
+        navigate('/', { replace: true });
       } catch (err) {
         console.error('Auth callback error:', err);
         window.history.replaceState({}, document.title, '/auth/callback');

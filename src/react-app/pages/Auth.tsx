@@ -60,8 +60,6 @@ export default function Auth() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
   const [sessionBusy, setSessionBusy] = useState(false);
-  const [showRememberDevice, setShowRememberDevice] = useState(false);
-  const [rememberDevice, setRememberDevice] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const authModeParam = searchParams.get('mode');
   const [emailMode, setEmailMode] = useState<'signin' | 'signup' | 'forgot'>(() =>
@@ -102,16 +100,7 @@ export default function Auth() {
             } catch {
               /* ignore */
             }
-            const userData = await apiFetch('/api/users/me');
-            if (userData.ok) {
-              const data = (await userData.json()) as { profile?: unknown } | null;
-              if (!data) return;
-              if (data.profile) {
-                navigate('/');
-              } else {
-                navigate('/onboarding');
-              }
-            }
+            navigate('/');
           }
         } catch (err) {
           console.error('Device token verification failed:', err);
@@ -137,7 +126,7 @@ export default function Auth() {
         await exchangeOAuthCodeFromUrl();
         await fetchUser();
         window.history.replaceState({}, document.title, '/auth');
-        setShowRememberDevice(true);
+        navigate('/');
       } catch (err) {
         console.error('Auth callback error:', err);
         setError('Authentication failed. Please try again.');
@@ -168,7 +157,7 @@ export default function Auth() {
         setError(null);
         await fetchUser();
         window.history.replaceState({}, document.title, '/auth');
-        setShowRememberDevice(true);
+        navigate('/');
       } catch (err) {
         console.error('Apple auth return error:', err);
         setError('Apple sign-in could not be completed. Please try again.');
@@ -186,49 +175,16 @@ export default function Auth() {
     window.history.replaceState({}, document.title, '/auth');
   }, [searchParams]);
 
-  const navigateAfterAuth = async (saveDevice: boolean) => {
-    if (saveDevice && user) {
-      try {
-        const response = await fetch('/api/auth/create-device-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        });
-
-        if (response.ok) {
-          const { deviceToken } = await response.json();
-          const local = isLocalBrowserHostname();
-          const secureAttr = local ? '' : 'secure; ';
-          const sameSite = local ? 'lax' : 'strict';
-          document.cookie = `${DEVICE_TOKEN_COOKIE}=${deviceToken}; path=/; max-age=${30 * 24 * 60 * 60}; ${secureAttr}samesite=${sameSite}`;
-        }
-      } catch (err) {
-        console.error('Failed to create device token:', err);
-      }
-    }
-
-    const userData = await apiFetch('/api/users/me');
-    if (!userData.ok) return;
-    const data = (await userData.json()) as { profile?: unknown } | null;
-    if (!data) return;
-
-    if (data.profile) {
-      navigate('/');
-    } else {
-      navigate('/onboarding');
-    }
-  };
-
   // Logged-in users on /auth → feed (avoid racing OAuth ?code= exchange)
   useEffect(() => {
-    if (user && !isPending && !showRememberDevice) {
+    if (user && !isPending) {
       const code = searchParams.get('code');
       if (code) {
         return;
       }
       navigate('/');
     }
-  }, [user, isPending, showRememberDevice, navigate, searchParams]);
+  }, [user, isPending, navigate, searchParams]);
 
   const startGoogleAuth = async () => {
     setError(null);
@@ -239,7 +195,7 @@ export default function Auth() {
         return;
       }
       await fetchUser();
-      setShowRememberDevice(true);
+      navigate('/');
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'Sign-in failed.';
@@ -262,7 +218,7 @@ export default function Auth() {
         return;
       }
       await fetchUser();
-      setShowRememberDevice(true);
+      navigate('/');
     } catch (err) {
       console.error(err);
       const message = err instanceof Error ? err.message : 'Apple sign-in failed.';
@@ -353,7 +309,7 @@ export default function Auth() {
         return;
       }
 
-      setShowRememberDevice(true);
+      navigate('/');
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Something went wrong. Please try again.'
@@ -361,10 +317,6 @@ export default function Auth() {
     } finally {
       setEmailLoading(false);
     }
-  };
-
-  const handleSkipRememberDevice = async () => {
-    await navigateAfterAuth(false);
   };
 
   if (isPending) {
@@ -384,61 +336,6 @@ export default function Auth() {
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-momentum-ember animate-spin mx-auto mb-4" />
           <p className="text-white text-lg">Finishing sign-in...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (showRememberDevice) {
-    return (
-      <div className="min-h-screen text-white flex items-center justify-center px-4">
-        <div className="max-w-md w-full">
-          <div className="text-center mb-8">
-            <h1 className="text-5xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent mb-4">
-              FEEDBACK
-            </h1>
-            <p className="text-xl text-white">Welcome back!</p>
-          </div>
-
-          <div className="glass-panel rounded-xl p-8 space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-white mb-2">Remember this device?</h2>
-              <p className="text-gray-400">Stay signed in for easy access</p>
-            </div>
-
-            <div className="flex items-start space-x-3 p-4 bg-momentum-ember/10 border border-momentum-ember/20 rounded-lg">
-              <input
-                type="checkbox"
-                id="rememberDeviceCheck"
-                checked={rememberDevice}
-                onChange={(e) => setRememberDevice(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-white/20 bg-white/10 text-momentum-ember focus:ring-momentum-flare focus:ring-offset-0"
-              />
-              <label htmlFor="rememberDeviceCheck" className="text-white cursor-pointer flex-1">
-                <div className="font-semibold mb-1">Remember this device for easy sign-in</div>
-                <div className="text-sm text-gray-400">
-                  You&apos;ll stay logged in for 30 days. You can manage trusted devices in your
-                  profile settings.
-                </div>
-              </label>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => navigateAfterAuth(rememberDevice)}
-              className="w-full px-6 py-4 momentum-grad-interactive rounded-xl font-bold text-white text-lg hover:scale-105 transition-transform shadow-lg shadow-momentum-ember/35"
-            >
-              Continue
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSkipRememberDevice}
-              className="w-full text-gray-400 hover:text-white transition-colors text-sm"
-            >
-              Skip for now
-            </button>
-          </div>
         </div>
       </div>
     );

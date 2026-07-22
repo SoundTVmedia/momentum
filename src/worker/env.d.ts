@@ -57,6 +57,8 @@ interface Env {
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
   /** iOS OAuth client ID from Google Cloud (for native Google Sign-In on Capacitor). */
   GOOGLE_IOS_OAUTH_CLIENT_ID?: string;
+  /** Optional second iOS OAuth client for the React Native migration app (`com.feedbacklive.app.rn`). */
+  GOOGLE_IOS_OAUTH_CLIENT_ID_RN?: string;
 
   /** Sign in with Apple (Services ID + .p8 key). */
   APPLE_SERVICES_ID?: string;
@@ -66,6 +68,8 @@ interface Env {
   APPLE_PRIVATE_KEY?: string;
   /** iOS bundle id — audience for native Apple sign-in + S2S notifications (default com.feedbacklive.app). */
   APPLE_BUNDLE_ID?: string;
+  /** Optional RN migration bundle id audience (default com.feedbacklive.app.rn). */
+  APPLE_BUNDLE_ID_RN?: string;
   /** Raw contents of apple-developer-domain-association file from Apple Developer portal. */
   APPLE_DOMAIN_ASSOCIATION?: string;
 

@@ -70,13 +70,23 @@ export function tryVideoPlayPreferSound(
   }
 
   const run = async () => {
+    if (opts?.restoreAudioSession) {
+      try {
+        await opts.restoreAudioSession();
+      } catch {
+        /* ignore */
+      }
+    }
     video.volume = 1;
     try {
       await attempt(false);
     } catch {
+      // Keep trying for sound — muted is only a temporary bridge so playback starts.
       await attempt(true);
+      window.setTimeout(tryUnmuteWhilePlaying, 120);
+      window.setTimeout(tryUnmuteWhilePlaying, 400);
       if (!isMobilePlaybackPlatform()) {
-        window.setTimeout(tryUnmuteWhilePlaying, 250);
+        window.setTimeout(tryUnmuteWhilePlaying, 800);
       }
     }
   };

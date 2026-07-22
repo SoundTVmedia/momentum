@@ -1,0 +1,108 @@
+{
+  "expo": {
+    "name": "Feedback RN",
+    "slug": "feedback-rn",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "com.feedbacklive.app.rn",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#030712"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.feedbacklive.app.rn",
+      "buildNumber": "1",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "CFBundleDisplayName": "Feedback RN",
+        "NSCameraUsageDescription": "Feedback uses the camera to record concert clips in the app.",
+        "NSMicrophoneUsageDescription": "Feedback uses the microphone to record concert audio and identify songs.",
+        "NSPhotoLibraryAddUsageDescription": "Feedback saves your concert clips to Photos so you keep a copy on your device.",
+        "NSPhotoLibraryUsageDescription": "Feedback may access your photo library when you choose clips to upload.",
+        "NSLocationWhenInUseUsageDescription": "Feedback uses your location to match concert clips to nearby venues and JamBase shows.",
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "com.feedbacklive.app.rn",
+            "CFBundleURLSchemes": [
+              "com.feedbacklive.app.rn",
+              "com.googleusercontent.apps.254629847229-1ge9jdqj2l6j09n7o67pump5pfo8giki"
+            ]
+          }
+        ]
+      }
+    },
+    "android": {
+      "package": "com.feedbacklive.app.rn",
+      "adaptiveIcon": {
+        "backgroundColor": "#030712",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-apple-authentication",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Feedback uses your location to match concert clips to nearby venues and JamBase shows."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.254629847229-1ge9jdqj2l6j09n7o67pump5pfo8giki"
+        }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Feedback uses the camera to record concert clips in the app.",
+          "enableMicrophonePermission": true,
+          "microphonePermissionText": "Feedback uses the microphone to record concert audio and identify songs."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Feedback may access your photo library when you choose clips to upload.",
+          "savePhotosPermission": "Feedback saves your concert clips to Photos so you keep a copy on your device.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "./plugins/withGoogleSignInModularHeaders.js",
+      "expo-video",
+      "expo-image"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev",
+      "googleIosClientId": "254629847229-1ge9jdqj2l6j09n7o67pump5pfo8giki.apps.googleusercontent.com",
+      "googleIosUrlScheme": "com.googleusercontent.apps.254629847229-1ge9jdqj2l6j09n7o67pump5pfo8giki",
+      "router": {}
+    }
+  }
+}

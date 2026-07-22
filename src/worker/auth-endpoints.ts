@@ -18,6 +18,7 @@ import {
 } from './transactional-email-config';
 import { shouldLogPasswordResetLinkInsteadOfEmail } from './hybrid-auth';
 import { logPasswordResetLinkDev, sendPasswordResetEmail } from './transactional-email';
+import { ensureOAuthUserProfile } from './oauth-profile-bootstrap';
 import { upsertUserEmailIndex } from './account-linking';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
@@ -122,6 +123,11 @@ export async function emailSignUp(c: Context<{ Bindings: Env }>) {
 
   setEmailSessionCookie(c, rawToken);
   await upsertUserEmailIndex(c.env.DB, email, id, 'email');
+  await ensureOAuthUserProfile(c.env.DB, id, {
+    email,
+    displayName: displayName || null,
+    avatarUrl: null,
+  });
 
   return c.json({ success: true, userId: id }, 201);
 }
@@ -144,10 +150,10 @@ export async function emailPasswordSignIn(c: Context<{ Bindings: Env }>) {
   }
 
   const row = await c.env.DB.prepare(
-    'SELECT id, password_hash FROM email_accounts WHERE lower(trim(email)) = ?'
+    'SELECT id, password_hash, display_name FROM email_accounts WHERE lower(trim(email)) = ?'
   )
     .bind(email)
-    .first<{ id: string; password_hash: string }>();
+    .first<{ id: string; password_hash: string; display_name: string | null }>();
 
   if (!row || !verifyPasswordStored(password, row.password_hash)) {
     return c.json({ error: 'Invalid email or password' }, 401);
@@ -156,6 +162,11 @@ export async function emailPasswordSignIn(c: Context<{ Bindings: Env }>) {
   const { rawToken } = await createEmailSession(c.env.DB, row.id);
   setEmailSessionCookie(c, rawToken);
   await upsertUserEmailIndex(c.env.DB, email, row.id, 'email');
+  await ensureOAuthUserProfile(c.env.DB, row.id, {
+    email,
+    displayName: row.display_name,
+    avatarUrl: null,
+  });
 
   return c.json({ success: true }, 200);
 }

@@ -17,6 +17,7 @@ import {
 } from './account-linking';
 import { createGoogleSession } from './google-oauth';
 import { ensureGoogleBridgeAccount } from './mocha-identity-sync';
+import { ensureOAuthUserProfile } from './oauth-profile-bootstrap';
 import { createAppleClientSecret, verifyAppleJwt } from './apple-jwt';
 import { hashOpaqueToken, isLocalDevHost } from './hybrid-auth';
 
@@ -192,7 +193,10 @@ async function upsertAppleAccount(
   return row;
 }
 
-async function createAppleSession(db: D1Database, userId: string): Promise<string> {
+export async function createAppleOAuthSession(
+  db: D1Database,
+  userId: string,
+): Promise<string> {
   const rawToken = nodeCrypto.randomBytes(32).toString('hex');
   const tokenHash = hashOpaqueToken(rawToken);
   const expiresAt = new Date();
@@ -279,82 +283,96 @@ export async function resolveAppleSignInSession(
     throw new Error('Apple account is missing required profile fields');
   }
 
+  let mochaUserId: string;
+  let sessionToken: string;
+  let sessionType: AppleSignInResult['sessionType'];
+
   const linkedEmailAccount = await findEmailAccountByAppleSub(db, sub);
   if (linkedEmailAccount) {
     await upsertAppleAccount(db, info);
     await upsertUserEmailIndex(db, email, linkedEmailAccount.id, 'email');
-    const sessionToken = await createEmailSessionToken(db, linkedEmailAccount.id);
-    return { sessionToken, sessionType: 'email' };
-  }
-
-  // Mirror Google OAuth: email/password accounts win when the address matches.
-  const emailAccount = await findEmailAccountByOAuthEmail(db, email);
-  if (emailAccount) {
-    await linkAppleSubOnEmailAccount(db, emailAccount.id, sub);
-    await reassignMochaUserId(db, sub, emailAccount.id);
-    await removeOtherAppleAccountsForEmail(db, email, sub);
-    try {
-      await upsertAppleAccount(db, info);
-    } catch (e) {
-      console.warn('resolveAppleSignInSession: apple_accounts upsert skipped', e);
-    }
-    await upsertUserEmailIndex(db, email, emailAccount.id, 'email');
-    const sessionToken = await createEmailSessionToken(db, emailAccount.id);
-    return { sessionToken, sessionType: 'email' };
-  }
-
-  const existing = await findExistingAccountByEmail(db, email);
-
-  if (existing) {
-    const canonicalId = existing.account.id;
-    if (canonicalId !== sub) {
-      await reassignMochaUserId(db, sub, canonicalId);
+    mochaUserId = linkedEmailAccount.id;
+    sessionToken = await createEmailSessionToken(db, linkedEmailAccount.id);
+    sessionType = 'email';
+  } else {
+    // Mirror Google OAuth: email/password accounts win when the address matches.
+    const emailAccount = await findEmailAccountByOAuthEmail(db, email);
+    if (emailAccount) {
+      await linkAppleSubOnEmailAccount(db, emailAccount.id, sub);
+      await reassignMochaUserId(db, sub, emailAccount.id);
       await removeOtherAppleAccountsForEmail(db, email, sub);
-    }
-
-    if (existing.type === 'apple' && canonicalId === sub) {
-      await upsertAppleAccount(db, info);
-    } else {
       try {
         await upsertAppleAccount(db, info);
       } catch (e) {
         console.warn('resolveAppleSignInSession: apple_accounts upsert skipped', e);
       }
+      await upsertUserEmailIndex(db, email, emailAccount.id, 'email');
+      mochaUserId = emailAccount.id;
+      sessionToken = await createEmailSessionToken(db, emailAccount.id);
+      sessionType = 'email';
+    } else {
+      const existing = await findExistingAccountByEmail(db, email);
+
+      if (existing) {
+        const canonicalId = existing.account.id;
+        if (canonicalId !== sub) {
+          await reassignMochaUserId(db, sub, canonicalId);
+          await removeOtherAppleAccountsForEmail(db, email, sub);
+        }
+
+        if (existing.type === 'apple' && canonicalId === sub) {
+          await upsertAppleAccount(db, info);
+        } else {
+          try {
+            await upsertAppleAccount(db, info);
+          } catch (e) {
+            console.warn('resolveAppleSignInSession: apple_accounts upsert skipped', e);
+          }
+        }
+
+        const indexSource =
+          existing.type === 'indexed'
+            ? 'mocha'
+            : existing.type === 'email'
+              ? 'email'
+              : existing.type === 'google'
+                ? 'google'
+                : 'apple';
+        await upsertUserEmailIndex(db, email, canonicalId, indexSource);
+
+        mochaUserId = canonicalId;
+
+        if (existing.type === 'email') {
+          await linkAppleSubOnEmailAccount(db, canonicalId, sub);
+          sessionToken = await createEmailSessionToken(db, canonicalId);
+          sessionType = 'email';
+        } else if (
+          existing.type === 'google' ||
+          existing.type === 'indexed'
+        ) {
+          await ensureGoogleBridgeAccount(db, canonicalId, email, info.name);
+          sessionToken = await createGoogleSession(db, canonicalId);
+          sessionType = 'google';
+        } else {
+          sessionToken = await createAppleOAuthSession(db, canonicalId);
+          sessionType = 'apple';
+        }
+      } else {
+        await upsertAppleAccount(db, info);
+        await upsertUserEmailIndex(db, email, sub, 'apple');
+        mochaUserId = sub;
+        sessionToken = await createAppleOAuthSession(db, sub);
+        sessionType = 'apple';
+      }
     }
-
-    const indexSource =
-      existing.type === 'indexed'
-        ? 'mocha'
-        : existing.type === 'email'
-          ? 'email'
-          : existing.type === 'google'
-            ? 'google'
-            : 'apple';
-    await upsertUserEmailIndex(db, email, canonicalId, indexSource);
-
-    if (existing.type === 'email') {
-      await linkAppleSubOnEmailAccount(db, canonicalId, sub);
-      const sessionToken = await createEmailSessionToken(db, canonicalId);
-      return { sessionToken, sessionType: 'email' };
-    }
-
-    if (
-      existing.type === 'google' ||
-      existing.type === 'indexed'
-    ) {
-      await ensureGoogleBridgeAccount(db, canonicalId, email, info.name);
-      const sessionToken = await createGoogleSession(db, canonicalId);
-      return { sessionToken, sessionType: 'google' };
-    }
-
-    const sessionToken = await createAppleSession(db, canonicalId);
-    return { sessionToken, sessionType: 'apple' };
   }
 
-  await upsertAppleAccount(db, info);
-  await upsertUserEmailIndex(db, email, sub, 'apple');
-  const sessionToken = await createAppleSession(db, sub);
-  return { sessionToken, sessionType: 'apple' };
+  await ensureOAuthUserProfile(db, mochaUserId, {
+    email,
+    avatarUrl: null,
+  });
+
+  return { sessionToken, sessionType };
 }
 
 function parseAppleUserName(userJson: string | null | undefined): string | null {
@@ -467,8 +485,10 @@ export async function exchangeAppleNativeIdentityToken(
     throw new Error('Apple identity token is required');
   }
 
-  const bundleId = c.env.APPLE_BUNDLE_ID?.trim() || 'com.feedbacklive.app';
-  const idClaims = await verifyAppleJwt(identityToken, bundleId);
+  const primaryBundleId = c.env.APPLE_BUNDLE_ID?.trim() || 'com.feedbacklive.app';
+  const rnBundleId = c.env.APPLE_BUNDLE_ID_RN?.trim() || 'com.feedbacklive.app.rn';
+  const allowedAudiences = [...new Set([primaryBundleId, rnBundleId].filter(Boolean))];
+  const idClaims = await verifyAppleJwt(identityToken, allowedAudiences);
   const sub = typeof idClaims.sub === 'string' ? idClaims.sub : '';
   const claimEmail =
     typeof idClaims.email === 'string' ? idClaims.email : undefined;

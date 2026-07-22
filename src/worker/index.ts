@@ -38,7 +38,7 @@ import {
   setAppleSessionCookie,
 } from "./apple-oauth";
 import { handleAppleServerNotification } from "./apple-notifications";
-import { buildNativeAppOAuthDeepLink, isValidGoogleIosOAuthClientId } from "../shared/oauth-redirect";
+import { buildNativeAppOAuthDeepLink, googleIosUrlSchemeFromClientId, isValidGoogleIosOAuthClientId } from "../shared/oauth-redirect";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import { syncMochaUserIdentity } from "./mocha-identity-sync";
 import { isAdmin } from "./admin-auth";
@@ -287,11 +287,20 @@ app.get('/api/oauth/google/native-config', (c) => {
         enabled: false,
         webClientId: webClientId || null,
         iOSClientId: null,
+        urlScheme: null,
       },
       200,
     );
   }
-  return c.json({ enabled: true, webClientId, iOSClientId }, 200);
+  return c.json(
+    {
+      enabled: true,
+      webClientId,
+      iOSClientId,
+      urlScheme: googleIosUrlSchemeFromClientId(iOSClientId),
+    },
+    200,
+  );
 });
 
 // Native iOS Google Sign-In (ID token from @capgo/capacitor-social-login).
@@ -312,20 +321,46 @@ app.post('/api/auth/google/native', async (c) => {
       maxAge: 30 * 24 * 60 * 60,
     };
 
-    const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
-    if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
-      await revokeAppleSession(c.env.DB, staleAppleToken);
+    if (signIn.sessionType !== 'apple') {
+      const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
+      if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
+        await revokeAppleSession(c.env.DB, staleAppleToken);
+      }
+      clearAppleSessionCookie(c);
     }
-    clearAppleSessionCookie(c);
+
+    if (signIn.sessionType !== 'google') {
+      const staleGoogleToken = getCookie(c, GOOGLE_SESSION_COOKIE_NAME);
+      if (typeof staleGoogleToken === 'string' && staleGoogleToken.length > 0) {
+        await revokeGoogleSession(c.env.DB, staleGoogleToken);
+      }
+      setCookie(c, GOOGLE_SESSION_COOKIE_NAME, '', { ...cookieBase, maxAge: 0 });
+    }
+
+    if (signIn.sessionType !== 'email') {
+      const staleEmailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
+      if (typeof staleEmailToken === 'string' && staleEmailToken.length > 0) {
+        await revokeEmailSession(c.env.DB, staleEmailToken);
+      }
+      clearEmailSessionCookie(c);
+    }
 
     if (signIn.sessionType === 'email') {
       setEmailSessionCookie(c, signIn.sessionToken);
-    } else {
+    } else if (signIn.sessionType === 'google') {
       setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
+    } else {
+      setAppleSessionCookie(c, signIn.sessionToken);
     }
 
     return c.json(
-      { success: true, provider: signIn.sessionType === 'email' ? 'email' : 'google' },
+      {
+        success: true,
+        provider: signIn.sessionType,
+        /** Additive for React Native when Set-Cookie is not visible to JS. Cap ignores. */
+        sessionToken: signIn.sessionToken,
+        sessionType: signIn.sessionType,
+      },
       200,
     );
   } catch (e) {
@@ -479,7 +514,13 @@ app.post('/api/auth/apple/native', async (c) => {
     }
 
     return c.json(
-      { success: true, provider: signIn.sessionType },
+      {
+        success: true,
+        provider: signIn.sessionType,
+        /** Additive for React Native when Set-Cookie is not visible to JS. Cap ignores. */
+        sessionToken: signIn.sessionToken,
+        sessionType: signIn.sessionType,
+      },
       200,
     );
   } catch (e) {
@@ -542,19 +583,41 @@ app.post("/api/sessions", async (c) => {
         body.state ?? null,
         body.redirect_uri ?? null,
       );
-      const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
-      if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
-        await revokeAppleSession(c.env.DB, staleAppleToken);
+
+      if (signIn.sessionType !== 'apple') {
+        const staleAppleToken = getCookie(c, APPLE_SESSION_COOKIE_NAME);
+        if (typeof staleAppleToken === 'string' && staleAppleToken.length > 0) {
+          await revokeAppleSession(c.env.DB, staleAppleToken);
+        }
+        clearAppleSessionCookie(c);
       }
-      clearAppleSessionCookie(c);
+
+      if (signIn.sessionType !== 'google') {
+        const staleGoogleToken = getCookie(c, GOOGLE_SESSION_COOKIE_NAME);
+        if (typeof staleGoogleToken === 'string' && staleGoogleToken.length > 0) {
+          await revokeGoogleSession(c.env.DB, staleGoogleToken);
+        }
+        setCookie(c, GOOGLE_SESSION_COOKIE_NAME, '', { ...cookieBase, maxAge: 0 });
+      }
+
+      if (signIn.sessionType !== 'email') {
+        const staleEmailToken = getCookie(c, EMAIL_SESSION_COOKIE_NAME);
+        if (typeof staleEmailToken === 'string' && staleEmailToken.length > 0) {
+          await revokeEmailSession(c.env.DB, staleEmailToken);
+        }
+        clearEmailSessionCookie(c);
+      }
+
       if (signIn.sessionType === 'email') {
         setEmailSessionCookie(c, signIn.sessionToken);
-      } else {
+      } else if (signIn.sessionType === 'google') {
         setCookie(c, GOOGLE_SESSION_COOKIE_NAME, signIn.sessionToken, cookieBase);
+      } else {
+        setAppleSessionCookie(c, signIn.sessionToken);
       }
       setCookie(c, 'google_oauth_state', '', { ...cookieBase, maxAge: 0 });
       return c.json(
-        { success: true, provider: signIn.sessionType === 'email' ? 'email' : 'google' },
+        { success: true, provider: signIn.sessionType },
         200,
       );
     } catch (e) {
@@ -681,6 +744,29 @@ app.get('/api/logout', async (c) => {
     await revokeEmailSession(c.env.DB, emailToken);
   }
   clearEmailSessionCookie(c);
+
+  // Additive RN path: revoke Authorization Bearer when cookies are absent.
+  const authHeader = c.req.header('authorization')?.trim() ?? '';
+  if (/^bearer\s+/i.test(authHeader)) {
+    const bearer = authHeader.replace(/^bearer\s+/i, '').trim();
+    if (bearer) {
+      try {
+        await revokeGoogleSession(c.env.DB, bearer);
+      } catch {
+        /* ignore */
+      }
+      try {
+        await revokeAppleSession(c.env.DB, bearer);
+      } catch {
+        /* ignore */
+      }
+      try {
+        await revokeEmailSession(c.env.DB, bearer);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 
   return c.json({ success: true }, 200);
 });

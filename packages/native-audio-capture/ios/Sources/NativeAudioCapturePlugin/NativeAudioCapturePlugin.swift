@@ -12,6 +12,8 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "NativeAudioCapture"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "prepareForVideoCapture", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "prepareRecordingSessionRecovery", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "prepareForRecordingCapture", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "restoreForMediaPlayback", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
@@ -31,12 +33,41 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
                     call.reject("Microphone permission denied")
                     return
                 }
-                do {
-                    try self.configureSession()
-                    call.resolve()
-                } catch {
-                    call.reject("Failed to prepare audio session: \(error.localizedDescription)")
-                }
+                // Capgo AVCaptureSession owns AVAudioSession via automaticallyConfiguresApplicationAudioSession.
+                call.resolve()
+            }
+        }
+    }
+
+    /// After caption/feed playback the session is `.playback` — reset before Capgo start (capture not running).
+    @objc func prepareRecordingSessionRecovery(_ call: CAPPluginCall) {
+        queue.async {
+            let session = AVAudioSession.sharedInstance()
+            let alreadyVideoRecording =
+                session.category == .playAndRecord && session.mode == .videoRecording
+            let inPlayback =
+                session.category == .playback || session.category == .soloAmbient
+            if alreadyVideoRecording || !inPlayback {
+                call.resolve()
+                return
+            }
+            do {
+                try self.configureSession(captureActive: false)
+                call.resolve()
+            } catch {
+                call.reject("Failed to recover recording audio session: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Upgrade to videoRecording while AVCaptureSession is running — never deactivate the session.
+    @objc func prepareForRecordingCapture(_ call: CAPPluginCall) {
+        queue.async {
+            do {
+                try self.configureSession(captureActive: true)
+                call.resolve()
+            } catch {
+                call.reject("Failed to prepare recording capture audio: \(error.localizedDescription)")
             }
         }
     }
@@ -56,7 +87,7 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
                         call.resolve()
                         return
                     }
-                    try self.configureSession()
+                    try self.configureSession(captureActive: false)
                     self.isActive = true
                     try self.beginSegment()
                     call.resolve()
@@ -71,11 +102,7 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func restoreForMediaPlayback(_ call: CAPPluginCall) {
         queue.async {
             let session = AVAudioSession.sharedInstance()
-            // Release camera/recording mode before preview playback.
-            try? session.setActive(false, options: [.notifyOthersOnDeactivation])
-
-            // `.playback` routes to the speaker by default — never combine with `.defaultToSpeaker`
-            // (that option is only valid for `.playAndRecord` and causes OSStatus -50).
+            // Avoid setActive(false) — it poisons the next Capgo capture session / movie audio mux.
             do {
                 try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
                 try session.setActive(true)
@@ -126,13 +153,24 @@ public class NativeAudioCapturePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    private func configureSession() throws {
+    private func configureSession(captureActive: Bool) throws {
         let session = AVAudioSession.sharedInstance()
         let alreadyVideoRecording =
             session.category == .playAndRecord && session.mode == .videoRecording
-        if !alreadyVideoRecording {
-            try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+        if alreadyVideoRecording {
+            try session.setActive(true)
+            return
         }
+        if captureActive {
+            try session.setCategory(
+                .playAndRecord,
+                mode: .videoRecording,
+                options: [.defaultToSpeaker, .allowBluetoothHFP]
+            )
+            try session.setActive(true)
+            return
+        }
+        try? session.setActive(false, options: [.notifyOthersOnDeactivation])
         try session.setCategory(
             .playAndRecord,
             mode: .videoRecording,

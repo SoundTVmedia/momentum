@@ -40,12 +40,15 @@ export default function ClipFeedGridTile({
       <div
         className="glass-clip-media-frame relative w-full cursor-pointer group/video overflow-hidden bg-black aspect-square rounded-[0.9rem]"
         onClick={() => onOpenClip(clip)}
-        onPointerDown={() => prefetchModalPlayback(clip)}
+        onPointerDown={() => {
+          prefetchModalPlayback(clip);
+          if (neighborClips) prefetchCarouselNeighborClips(neighborClips);
+        }}
         onMouseEnter={() => {
           prefetchModalPlayback(clip);
+          if (neighborClips) prefetchCarouselNeighborClips(neighborClips);
           if (posterOnly) return;
           setMediaHovered(true);
-          if (neighborClips) prefetchCarouselNeighborClips(neighborClips);
         }}
         onMouseLeave={() => setMediaHovered(false)}
       >

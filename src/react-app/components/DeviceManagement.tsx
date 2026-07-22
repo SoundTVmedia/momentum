@@ -147,7 +147,7 @@ export default function DeviceManagement() {
           <Smartphone className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">No Trusted Devices</h3>
           <p className="text-gray-400">
-            When you check "Remember this device" during sign-in, your devices will appear here.
+            Devices you trust for easier sign-in will appear here.
           </p>
         </div>
       ) : (
