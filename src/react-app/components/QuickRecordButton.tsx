@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music, Camera } from 'lucide-react';
+import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music } from 'lucide-react';
 import CameraZoomControls from '@/react-app/components/CameraZoomControls';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -15,9 +15,9 @@ import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
-  clipShowCandidateToNavState,
   clearCaptureShowSession,
   loadStickyCaptureShowSession,
+  markCaptureShowSessionPosted,
   saveCaptureShowSession,
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
@@ -46,10 +46,6 @@ import {
   readCaptureDimensionsFromPreview,
 } from '@/react-app/utils/cameraPreview';
 import {
-  capturePhotoFromStream,
-  photoBlobToStillVideoBlob,
-} from '@/react-app/utils/cameraPhotoCapture';
-import {
   shouldUseNativeIosCapture,
   isNativeCapturePreviewRunning,
   startNativeCapturePreview,
@@ -63,18 +59,17 @@ import {
   stopNativeVideoRecording,
   setNativeCaptureZoom,
   flipNativeCamera,
-  stopNativeLiveAudioSegments,
   readNativeZoomState,
-  resolveNativeCaptureUploadBlob,
   assertCaptureBlobHasAudio,
-  nativeRecordingHasRequiredAudio,
+  finalizeNativeRecordingForHandoff,
+  settleNativeCaptureSession,
+  waitForNativeCaptureReadyToRecord,
   nativeCaptureHaptic,
   nativeCaptureWarningHaptic,
-  captureNativePhoto,
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
-import { completeCaptureHandoff } from '@/react-app/lib/upload-outbox/capture-local-save';
-import { isCaptureSessionBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
+import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
+import { clearCaptureHandoffBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
 import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
@@ -96,8 +91,9 @@ interface QuickRecordButtonProps {
   isOpen?: boolean;
   onClose?: () => void;
   /**
-   * Called after a successful recording or gallery pick navigates to `/upload` with clip state.
-   * Use this to dismiss the parent capture overlay **without** mutating `history.state` (e.g. Upload page).
+   * Called after a gallery pick navigates to `/upload` with clip state.
+   * In-app capture now enqueues uploads in place and stays on the camera.
+   * Use this to dismiss the parent capture overlay **without** mutating `history.state`.
    * If omitted, `onClose` runs (e.g. MobileBottomNav stops primed streams and hides capture).
    */
   onAfterCaptureNavigate?: () => void;
@@ -107,6 +103,8 @@ interface QuickRecordButtonProps {
   autoRequestCamera?: boolean;
   /** Parent is resolving getUserMedia on the capture tap — wait before treating as gesture-only with no stream. */
   gestureCameraPrimingPending?: boolean;
+  /** Native iOS — post-Share warmup; defer camera until native I/O from the previous clip settles. */
+  captureReopenWarmupPending?: boolean;
   /** Parent starts geolocation in the same gesture as camera (Capture / Re-record tap). */
   captureLaunchGeo?: PrimedCaptureGeo | null;
   /** Set true when parent’s priming promise settled (even if geo is null). */
@@ -123,6 +121,7 @@ export default function QuickRecordButton({
   primedMediaStream = null,
   autoRequestCamera = true,
   gestureCameraPrimingPending = false,
+  captureReopenWarmupPending = false,
   captureLaunchGeo,
   /** When `deferCameraUntilLaunchGeo`, parent must set `true` after launch-time GPS finishes (even if coords are null). */
   captureLaunchGeoResolved = false,
@@ -133,7 +132,7 @@ export default function QuickRecordButton({
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
-  const { activeCount: clipUploadsInFlight } = useClipUploadQueue();
+  const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight } = useClipUploadQueue();
   const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const lastGeoRef = useRef<{
     latitude: number;
@@ -148,11 +147,10 @@ export default function QuickRecordButton({
   const showModalRef = useRef(showModal);
   showModalRef.current = showModal;
   const [isRecording, setIsRecording] = useState(false);
-  const [captureMode, setCaptureMode] = useState<'video' | 'photo'>('video');
-  const [photoCapturing, setPhotoCapturing] = useState(false);
-  const [photoFlash, setPhotoFlash] = useState(false);
-  /** Seconds elapsed while recording (no UI; drives haptics + auto-stop). */
+  const [isFinishingRecording, setIsFinishingRecording] = useState(false);
+  /** Seconds elapsed while recording — drives haptics, auto-stop, and HUD countdown. */
   const recordingSecondsRef = useRef(0);
+  const [recordingElapsedSeconds, setRecordingElapsedSeconds] = useState(0);
   const [hasPermission, setHasPermission] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -185,6 +183,9 @@ export default function QuickRecordButton({
   /** True while finishing a native clip (persist + navigate) — blocks unmount cleanup. */
   const nativeCaptureFinishingRef = useRef(false);
   const nativeStopInFlightRef = useRef(false);
+  const nativeAudioRecoveringRef = useRef(false);
+  const nativeCameraRequestInFlightRef = useRef(false);
+  const prevIsOpenRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
   /** Stabilized song/artist used as caption prefill fallback (not shown on camera). */
@@ -798,6 +799,12 @@ export default function QuickRecordButton({
       closeModal();
       return;
     }
+    if (shouldUseNativeIosCapture() && nativeCameraRequestInFlightRef.current) {
+      return;
+    }
+    if (shouldUseNativeIosCapture()) {
+      nativeCameraRequestInFlightRef.current = true;
+    }
     console.log('QuickRecordButton: Requesting camera permissions...');
     setCameraOpenRequested(true);
     setHasPermission(false);
@@ -837,6 +844,10 @@ export default function QuickRecordButton({
         const facing: 'rear' | 'front' =
           facingOverride === 'user' ? 'front' : 'rear';
         await startNativeCapturePreview({ facing, withAudio: true });
+        if (!isNativeCapturePreviewRunning()) {
+          throw new Error('Native camera preview did not start');
+        }
+        await waitForNativeCaptureReadyToRecord();
         nativeCaptureActiveRef.current = true;
         const portrait = nativeCaptureOrientation() === 'portrait';
         setIsPortrait(portrait);
@@ -858,6 +869,7 @@ export default function QuickRecordButton({
           zoomLevelRef.current = zoomState.current;
         }
         setVideoResolution(readNativeCaptureViewportSize());
+        void applyNativeCaptureFullScreenPreview();
         return null;
       }
 
@@ -1032,8 +1044,54 @@ export default function QuickRecordButton({
       setHasPermission(false);
       setCameraReady(false); // Ensure cameraReady is false on failure
       return null;
+    } finally {
+      if (shouldUseNativeIosCapture()) {
+        nativeCameraRequestInFlightRef.current = false;
+      }
     }
   };
+
+  const recoverNativeCaptureAfterAudioFailure = useCallback(async () => {
+    if (nativeAudioRecoveringRef.current) return;
+    nativeAudioRecoveringRef.current = true;
+    setHasPermission(false);
+    setCameraReady(false);
+    try {
+      clearCaptureHandoffBusy();
+      nativeCaptureActiveRef.current = false;
+      nativeCaptureFinishingRef.current = false;
+      await forceStopNativeCaptureSession();
+      await settleNativeCaptureSession(1500);
+      const facing: 'rear' | 'front' =
+        preferredFacingMode === 'user' ? 'front' : 'rear';
+      await startNativeCapturePreview({ facing, withAudio: true });
+      await waitForNativeCaptureReadyToRecord();
+      nativeCaptureActiveRef.current = true;
+      setPermissionDenied(false);
+      setAudioEnabled(true);
+      setHasPermission(true);
+      setCameraReady(true);
+      setPreviewTapToStart(false);
+      const zoomState = await readNativeZoomState();
+      if (zoomState) {
+        setHardwareZoomRange({ min: zoomState.min, max: zoomState.max });
+        setZoomRange({ min: zoomState.min, max: zoomState.max });
+        setZoomPresets(zoomState.presets);
+        setZoomLevel(zoomState.current);
+        zoomLevelRef.current = zoomState.current;
+      }
+      setVideoResolution(readNativeCaptureViewportSize());
+      void applyNativeCaptureFullScreenPreview();
+      setCameraError('Microphone audio was not captured. Please record again.');
+    } catch (err) {
+      console.warn('QuickRecordButton: native audio recovery failed', err);
+      setCameraError('Microphone audio was not captured. Close capture and try again.');
+      setHasPermission(false);
+      setCameraReady(false);
+    } finally {
+      nativeAudioRecoveringRef.current = false;
+    }
+  }, [preferredFacingMode]);
 
   // Keep preview visible when the device rotates — never restart getUserMedia.
   useEffect(() => {
@@ -1330,7 +1388,7 @@ export default function QuickRecordButton({
       if (nativeCaptureActiveRef.current) {
         if (!zoomRange) return;
         const target = clampCameraZoom(next, zoomRange);
-        await setNativeCaptureZoom(target);
+        await setNativeCaptureZoom(target, { ramp: false });
         zoomLevelRef.current = target;
         setZoomLevel(target);
         return;
@@ -1354,7 +1412,7 @@ export default function QuickRecordButton({
       if (nativeCaptureActiveRef.current) {
         if (!zoomRange) return;
         const target = clampCameraZoom(next, zoomRange);
-        await setNativeCaptureZoom(target);
+        await setNativeCaptureZoom(target, { ramp: true });
         zoomLevelRef.current = target;
         setZoomLevel(target);
         return;
@@ -1869,12 +1927,15 @@ export default function QuickRecordButton({
       clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
 
       try {
+        await waitForNativeCaptureReadyToRecord();
         await startNativeVideoRecording();
         setIsRecording(true);
         recordingSecondsRef.current = 0;
+        setRecordingElapsedSeconds(0);
         timerRef.current = setInterval(() => {
           recordingSecondsRef.current += 1;
           const t = recordingSecondsRef.current;
+          setRecordingElapsedSeconds(t);
           if (t === HAPTIC_WARNING_TIME) {
             void nativeCaptureWarningHaptic();
           }
@@ -1886,6 +1947,12 @@ export default function QuickRecordButton({
         console.error('Native recording failed:', err);
         isRecordingRef.current = false;
         setIsRecording(false);
+        const msg = err instanceof Error ? err.message : String(err);
+        setCameraError(
+          /preview is not running/i.test(msg)
+            ? 'Camera is still starting. Wait a moment, then try again.'
+            : 'Could not start recording. Close capture and try again.',
+        );
       }
       return;
     }
@@ -1950,6 +2017,7 @@ export default function QuickRecordButton({
       mediaRecorderRef.current = mediaRecorder;
       setIsRecording(true);
       recordingSecondsRef.current = 0;
+      setRecordingElapsedSeconds(0);
 
       lastParallelAuddAudioBlobRef.current = null;
       auddParallelAudioChunksRef.current = [];
@@ -1986,6 +2054,7 @@ export default function QuickRecordButton({
       timerRef.current = setInterval(() => {
         recordingSecondsRef.current += 1;
         const t = recordingSecondsRef.current;
+        setRecordingElapsedSeconds(t);
         if (t === HAPTIC_WARNING_TIME && 'vibrate' in navigator) {
           navigator.vibrate([100, 50, 100]);
         }
@@ -2003,7 +2072,9 @@ export default function QuickRecordButton({
   const stopRecording = () => {
     if (nativeCaptureActiveRef.current) {
       if (nativeStopInFlightRef.current || nativeCaptureFinishingRef.current) return;
+      if (!isRecordingRef.current) return;
       nativeStopInFlightRef.current = true;
+      setIsFinishingRecording(true);
       void (async () => {
         try {
           const stopped = await stopNativeVideoRecording();
@@ -2014,14 +2085,8 @@ export default function QuickRecordButton({
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          const blob = await resolveNativeCaptureUploadBlob(videoFilePath, null, {
-            requireAudio: true,
-            nativeAudioTrackCount: stopped.audioTrackCount,
-          });
-          if (!blob?.size) {
-            throw new Error('Recorded video is empty');
-          }
-          await handleRecordingComplete(blob, {
+          // Finalize + enqueue in place; keep the camera open for the next clip.
+          await handleRecordingComplete(null, {
             nativeVideoPath: videoFilePath,
             nativeAudioTrackCount: stopped.audioTrackCount,
             skipAudd: true,
@@ -2035,15 +2100,13 @@ export default function QuickRecordButton({
             timerRef.current = null;
           }
           const msg = err instanceof Error ? err.message : String(err);
-          setCameraError(
-            /no audio/i.test(msg)
-              ? 'Microphone audio was not captured. Please record again.'
-              : 'Recording failed. Please try again.',
-          );
-          releaseAllCaptureResources();
-          if (/no audio/i.test(msg) && !isCaptureSessionBusy() && !nativeCaptureFinishingRef.current) {
-            void requestPermissions();
+          if (/no audio|invalid input|not active/i.test(msg)) {
+            await recoverNativeCaptureAfterAudioFailure();
+          } else {
+            setCameraError('Recording failed. Please try again.');
+            releaseAllCaptureResources();
           }
+          setIsFinishingRecording(false);
         } finally {
           nativeStopInFlightRef.current = false;
         }
@@ -2057,6 +2120,7 @@ export default function QuickRecordButton({
     }
 
     void (async () => {
+      setIsFinishingRecording(true);
       await finalizeCurrentLiveAuddSegment();
 
       clearAuddParallelCapTimer();
@@ -2103,7 +2167,7 @@ export default function QuickRecordButton({
   };
 
   const handleRecordingComplete = async (
-    blob: Blob,
+    blob: Blob | null,
     opts?: {
       skipAudd?: boolean;
       nativeVideoPath?: string;
@@ -2111,22 +2175,28 @@ export default function QuickRecordButton({
       webStreamHadAudio?: boolean;
     },
   ) => {
-    if (!blob.size) {
+    const pathFirstNative =
+      shouldUseNativeIosCapture() &&
+      Boolean(opts?.nativeVideoPath?.trim()) &&
+      !blob?.size;
+
+    if (!blob?.size && !pathFirstNative) {
       setCameraError('Could not read your recording. Try again.');
       isRecordingRef.current = false;
       setIsRecording(false);
+      setIsFinishingRecording(false);
       return;
     }
 
     nativeCaptureFinishingRef.current = true;
+    setIsFinishingRecording(true);
     try {
-      if (opts?.nativeVideoPath && !nativeRecordingHasRequiredAudio(opts.nativeAudioTrackCount)) {
-        throw new Error('Recorded video has no audio track');
+      if (blob?.size) {
+        await assertCaptureBlobHasAudio(blob, {
+          nativeAudioTrackCount: opts?.nativeAudioTrackCount,
+          webStreamHadAudio: opts?.webStreamHadAudio,
+        });
       }
-      await assertCaptureBlobHasAudio(blob, {
-        nativeAudioTrackCount: opts?.nativeAudioTrackCount,
-        webStreamHadAudio: opts?.webStreamHadAudio,
-      });
       const par = auddParallelAudioRecorderRef.current;
       if (
         !opts?.skipAudd &&
@@ -2163,17 +2233,7 @@ export default function QuickRecordButton({
       const captureAudioBlob = opts?.skipAudd ? null : lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
 
-      if (!opts?.skipAudd && !lastLiveSongMatchRef.current && captureAudioBlob) {
-        if (captureAudioBlob.size >= MIN_LIVE_AUDD_CHUNK_BYTES) {
-          try {
-            const r = await identifyMusicWithAudD(captureAudioBlob);
-            const { displayed } = liveStabilizerRef.current.observe(r);
-            applyLiveSongDisplayed(displayed);
-          } catch (e) {
-            console.warn('QuickRecordButton: post-capture song identify failed', e);
-          }
-        }
-      }
+      // Live song match is attached if available; full song ID can continue in the upload queue.
 
       const at = recordingStartedAtRef.current || new Date().toISOString();
       let geo =
@@ -2196,7 +2256,9 @@ export default function QuickRecordButton({
       }
       clipGeoAtRecordingStartRef.current = null;
 
-      const sourceKey = auddSourceKey(blob);
+      const sourceKey = blob?.size
+        ? auddSourceKey(blob)
+        : `native:${opts?.nativeVideoPath ?? at}`;
       const auddPrefill = auddPrefillFromLiveMatch(
         sourceKey,
         lastLiveSongMatchRef.current,
@@ -2229,15 +2291,75 @@ export default function QuickRecordButton({
         sticky?.candidate ??
         null;
 
-      const ext =
-        blob.type.includes('mp4') || opts?.nativeVideoPath ? 'mp4' : 'webm';
-      const fileName = `momentum-${Date.now()}.${ext}`;
+      let uploadBlob = blob;
+      if ((!uploadBlob?.size) && opts?.nativeVideoPath?.trim()) {
+        uploadBlob = await finalizeNativeRecordingForHandoff(
+          opts.nativeVideoPath,
+          opts.nativeAudioTrackCount,
+        );
+      }
+      if (!uploadBlob?.size) {
+        throw new Error('Recorded video is empty');
+      }
+      if (pathFirstNative || !blob?.size) {
+        await assertCaptureBlobHasAudio(uploadBlob, {
+          nativeAudioTrackCount: opts?.nativeAudioTrackCount,
+          webStreamHadAudio: opts?.webStreamHadAudio,
+        });
+      }
 
-      const navState = {
-        recordingStartedAt: at,
-        fromQuickCapture: true,
-        ...(opts?.nativeVideoPath ? { nativeVideoPath: opts.nativeVideoPath } : {}),
+      const artist_name = prefetchShow?.artist_name?.trim() ?? '';
+      const venue_name = prefetchShow?.venue_name?.trim() ?? '';
+      const locationLine = prefetchShow?.location?.trim() ?? '';
+      const song_title =
+        auddPrefill.status === 'done' && auddPrefill.title.trim()
+          ? auddPrefill.title.trim()
+          : '';
+      const jambaseLink = prefetchShow
+        ? {
+            event: prefetchShow.jambase_event_id,
+            artist: prefetchShow.jambase_artist_id,
+            venue: prefetchShow.jambase_venue_id,
+            eventTitle: prefetchShow.event_title,
+          }
+        : null;
+
+      const classification = resolveEnqueueClassification({
+        uploadMethod: 'file',
+        form: {
+          artist_name,
+          venue_name,
+          location: locationLine,
+        },
+        storedClassificationId: null,
+        classifyResult: null,
+      });
+      if (!classification.ok) {
+        throw new Error(classification.error);
+      }
+
+      const jobId = enqueueClipUpload({
+        uploadMethod: 'file',
+        videoFile: null,
+        videoBlob: uploadBlob,
+        thumbnailFile: null,
+        videoUrl: '',
+        classificationId: classification.classificationId,
+        contentFeed: classification.contentFeed,
+        classificationPending: classification.classificationPending,
+        songIdentifyPending: !song_title,
         captureAudioBlob,
+        form: {
+          artist_name,
+          venue_name,
+          location: locationLine,
+          content_description: '',
+          song_title,
+          genre_name: '',
+          hashtags: '',
+        },
+        jambaseLink,
+        recordingAtIso: at,
         captureGeo: geo
           ? {
               latitude: geo.latitude,
@@ -2252,44 +2374,31 @@ export default function QuickRecordButton({
           video_resolution_w: videoResolution.width,
           video_resolution_h: videoResolution.height,
         },
-        auddPrefill,
-        ...(prefetchShow ? { showData: clipShowCandidateToNavState(prefetchShow) } : {}),
-      };
-
-      const handedOff = await completeCaptureHandoff({
-        blob,
-        fileName,
-        navigate,
-        recordingStartedAt: at,
-        nativeVideoPath: opts?.nativeVideoPath,
-        nativeAudioTrackCount: opts?.nativeAudioTrackCount,
-        meta: {
-          captureGeo: navState.captureGeo,
-          videoMetadata: navState.videoMetadata,
-          auddPrefill,
-          showData: prefetchShow ? clipShowCandidateToNavState(prefetchShow) : undefined,
-          nativeAudioTrackCount: opts?.nativeAudioTrackCount,
-        },
-        routerState: navState,
-        onReleaseResources: () => releaseAllCaptureResources(),
-        onAfterNavigate: () => (onAfterCaptureNavigate ?? onClose)?.(),
       });
-      if (!handedOff) {
-        throw new Error('Could not open your clip for review');
+      if (!jobId) {
+        throw new Error(
+          clipUploadsInFlight >= 5
+            ? 'Too many clips are uploading. Wait for one to finish, then try again.'
+            : 'Could not queue this clip',
+        );
       }
 
+      if (
+        prefetchShow &&
+        geo &&
+        Number.isFinite(geo.latitude) &&
+        Number.isFinite(geo.longitude) &&
+        venue_name
+      ) {
+        markCaptureShowSessionPosted(prefetchShow, geo.latitude, geo.longitude);
+      }
+
+      // Stay on camera so the user can keep capturing while this clip uploads.
       recordingStartedAtRef.current = null;
       lastGeoRef.current = null;
-
-      setShowModal(false);
-      setHasPermission(false);
-      setCameraReady(false);
-      setCaptureMode('video');
-      setPhotoCapturing(false);
-      setPhotoFlash(false);
-      setPreviewStream(null);
-      setCameraOpenRequested(false);
+      setIsFinishingRecording(false);
       recordingSecondsRef.current = 0;
+      setRecordingElapsedSeconds(0);
       lastLiveSongMatchRef.current = null;
       webCaptureHadAudioRef.current = false;
     } catch (e) {
@@ -2298,84 +2407,21 @@ export default function QuickRecordButton({
       setCameraError(
         /no audio/i.test(msg)
           ? 'Microphone audio was not captured. Please record again.'
-          : 'Could not open your clip for review. Try again.',
+          : /too many clips/i.test(msg)
+            ? msg
+            : 'Could not queue your clip. Try again.',
       );
       isRecordingRef.current = false;
       setIsRecording(false);
+      setIsFinishingRecording(false);
       if (/no audio/i.test(msg)) {
-        releaseAllCaptureResources();
-        if (!isCaptureSessionBusy()) {
-          void requestPermissions();
-        }
+        void recoverNativeCaptureAfterAudioFailure();
       }
+      // Keep the camera open on queue failures so the user can retry without reopening capture.
     } finally {
       window.setTimeout(() => {
         nativeCaptureFinishingRef.current = false;
       }, 600);
-    }
-  };
-
-  const capturePhoto = async () => {
-    if (
-      !hasPermission ||
-      (!streamRef.current && !nativeCaptureActiveRef.current) ||
-      isRecording ||
-      photoCapturing
-    ) {
-      return;
-    }
-
-    setPhotoCapturing(true);
-    isRecordingRef.current = true;
-
-    const currentOrientation = deviceIsPortraitViewport() ? 'portrait' : 'landscape';
-    setRecordingOrientation(currentOrientation);
-    setIsPortrait(currentOrientation === 'portrait');
-
-    if (nativeCaptureActiveRef.current) {
-      setVideoResolution({
-        width: window.screen.width,
-        height: window.screen.height,
-      });
-    } else {
-      const videoTrack = streamRef.current!.getVideoTracks()[0];
-      const capturedResolution = readCaptureDimensionsFromPreview(
-        videoRef.current,
-        videoTrack,
-        currentOrientation,
-      );
-      setVideoResolution(capturedResolution);
-    }
-
-    await nativeCaptureHaptic('light');
-
-    recordingStartedAtRef.current = new Date().toISOString();
-    clipGeoAtRecordingStartRef.current = snapshotClipGeoForUpload();
-
-    try {
-      stopLiveAuddRecorder();
-      void stopNativeLiveAudioSegments();
-      setPhotoFlash(true);
-      window.setTimeout(() => setPhotoFlash(false), 120);
-
-      let photoBlob: Blob;
-      if (nativeCaptureActiveRef.current) {
-        photoBlob = await captureNativePhoto();
-      } else {
-        photoBlob = await capturePhotoFromStream(
-          streamRef.current!,
-          videoRef.current,
-          currentOrientation,
-        );
-      }
-      const videoBlob = await photoBlobToStillVideoBlob(photoBlob);
-      await handleRecordingComplete(videoBlob, { skipAudd: true });
-    } catch (err) {
-      console.error('Photo capture failed:', err);
-      setCameraError('Could not capture photo. Try again.');
-      isRecordingRef.current = false;
-    } finally {
-      setPhotoCapturing(false);
     }
   };
 
@@ -2391,9 +2437,7 @@ export default function QuickRecordButton({
 
     setShowModal(false);
     setIsRecording(false);
-    setCaptureMode('video');
-    setPhotoCapturing(false);
-    setPhotoFlash(false);
+    setIsFinishingRecording(false);
     setHasPermission(false);
     setCameraReady(false);
     setCameraOpenRequested(false);
@@ -2411,8 +2455,16 @@ export default function QuickRecordButton({
   
   // Sync external isOpen prop with internal state
   useEffect(() => {
+    const opening = isOpen && !prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
     if (isOpen) {
       setShowModal(true);
+      if (opening && shouldUseNativeIosCapture()) {
+        setHasPermission(false);
+        setCameraReady(false);
+        nativeCaptureActiveRef.current = false;
+        setCameraOpenRequested(false);
+      }
       return;
     }
     if (showModalRef.current) {
@@ -2449,24 +2501,34 @@ export default function QuickRecordButton({
     if (nativeCaptureActiveRef.current && hasPermission && cameraReady) {
       return;
     }
-    nativeCaptureActiveRef.current = true;
-    setPermissionDenied(false);
-    setAudioEnabled(true);
-    setCameraError(null);
-    setHasPermission(true);
-    setCameraReady(true);
-    setPreviewTapToStart(false);
-    setCameraOpenRequested(true);
-    void readNativeZoomState().then((zoomState) => {
-      if (!zoomState) return;
-      setHardwareZoomRange({ min: zoomState.min, max: zoomState.max });
-      setZoomRange({ min: zoomState.min, max: zoomState.max });
-      setZoomPresets(zoomState.presets);
-      setZoomLevel(zoomState.current);
-      zoomLevelRef.current = zoomState.current;
-    });
-    setVideoResolution(readNativeCaptureViewportSize());
-    void applyNativeCaptureFullScreenPreview();
+    let cancelled = false;
+    void (async () => {
+      await waitForNativeCaptureReadyToRecord();
+      if (cancelled) return;
+      if (!isNativeCapturePreviewRunning()) return;
+      nativeCaptureActiveRef.current = true;
+      setPermissionDenied(false);
+      setAudioEnabled(true);
+      setCameraError(null);
+      setHasPermission(true);
+      setCameraReady(true);
+      setPreviewTapToStart(false);
+      setCameraOpenRequested(true);
+      const zoomState = await readNativeZoomState();
+      if (cancelled) return;
+      if (zoomState) {
+        setHardwareZoomRange({ min: zoomState.min, max: zoomState.max });
+        setZoomRange({ min: zoomState.min, max: zoomState.max });
+        setZoomPresets(zoomState.presets);
+        setZoomLevel(zoomState.current);
+        zoomLevelRef.current = zoomState.current;
+      }
+      setVideoResolution(readNativeCaptureViewportSize());
+      void applyNativeCaptureFullScreenPreview();
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [showModal, hasPermission, cameraReady]);
 
   // Trigger camera when modal opens (skip when parent primed stream, or while waiting for launch-time GPS)
@@ -2475,7 +2537,7 @@ export default function QuickRecordButton({
     if (deferCameraUntilLaunchGeo && !captureLaunchGeoResolved) {
       return;
     }
-    if (gestureCameraPrimingPending) return;
+    if (gestureCameraPrimingPending || captureReopenWarmupPending) return;
     const primedLive =
       primedMediaStream?.getVideoTracks()[0]?.readyState === 'live';
     const previewLive =
@@ -2494,6 +2556,7 @@ export default function QuickRecordButton({
     captureLaunchGeo,
     captureLaunchGeoResolved,
     gestureCameraPrimingPending,
+    captureReopenWarmupPending,
     primedMediaStream,
     previewStream,
   ]);
@@ -2514,32 +2577,57 @@ export default function QuickRecordButton({
     !permissionDenied &&
     !previewLive &&
     (!hasPermission || !cameraReady);
+  const showFinishingRecordingOverlay =
+    isFinishingRecording && showModal && !permissionDenied;
+  const showNativePreparingOverlay =
+    isNativeIosCapture &&
+    showModal &&
+    !permissionDenied &&
+    !cameraReady &&
+    !showFinishingRecordingOverlay;
+  const nativeCaptureShellOpaque = isNativeIosCapture && showNativePreparingOverlay;
+  const nativePreparingTitle = captureReopenWarmupPending
+    ? 'Preparing camera for your next clip…'
+    : deferCameraUntilLaunchGeo && !captureLaunchGeoResolved
+      ? 'Getting your location…'
+      : 'Preparing camera…';
+  const nativePreparingSubtext = captureReopenWarmupPending
+    ? 'Finishing the last recording so mic and camera are ready.'
+    : deferCameraUntilLaunchGeo && !captureLaunchGeoResolved
+      ? 'Location helps us match JamBase venues near you.'
+      : 'Allow Camera when iOS asks. Mic and preview will be ready in a moment.';
   const useTransparentCaptureShell = isNativeIosCapture || previewLive;
   const captureBottomChromeClass =
+    'native-capture-bottom-chrome pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-transparent';
+  const captureActionChromeClass =
     isNativeIosCapture || previewLive
-      ? 'native-capture-bottom-chrome pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-transparent'
-      : 'pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/55 via-black/20 to-transparent pt-28';
+      ? ''
+      : 'native-capture-action-chrome bg-gradient-to-t from-black/55 via-black/20 to-transparent pt-20';
   const nativeCaptureShellStyle = isNativeIosCapture
     ? ({ background: 'transparent', backgroundColor: 'transparent' } as const)
     : undefined;
   const captureVenueCardClass = isNativeIosCapture
-    ? 'native-capture-venue-card rounded-xl border border-white/25 bg-transparent px-3 py-2 flex items-start gap-2'
+    ? 'native-capture-venue-card flex items-start gap-2 px-0 py-0'
     : 'rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2';
   const captureVenueSelectClass = isNativeIosCapture
-    ? 'native-capture-venue-select w-full rounded-lg border border-white/25 bg-transparent px-2 py-1.5 text-[11px] text-white'
+    ? 'native-capture-venue-select w-full px-0 py-1 text-[11px] text-white'
     : 'w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white';
   const captureOverlayTextClass = isNativeIosCapture ? 'native-capture-overlay-text' : '';
 
-  const captureControls = (
-    <>
-      {hasPermission && cameraReady && !landscapeCapture && (
-        <div className="native-capture-show-panel mx-auto mb-3 w-full max-w-lg px-1">
+  const captureShowPanel =
+    hasPermission && cameraReady && !landscapeCapture ? (
+      <div
+        className="native-capture-show-panel mx-auto mb-3 w-full max-w-lg px-1"
+        style={nativeCaptureShellStyle}
+      >
           {deferCameraUntilLaunchGeo && !captureLaunchGeoResolved && (
             <p className="text-center text-momentum-flare/90 text-xs mb-2 flex items-center justify-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-              {shouldUseNativeIosCapture()
-                ? 'Getting your location to match nearby venues…'
-                : 'Waiting for location permission — allow it when the browser asks so we can match venues.'}
+              {captureReopenWarmupPending
+                ? 'Preparing camera for your next clip…'
+                : shouldUseNativeIosCapture()
+                  ? 'Getting your location to match nearby venues…'
+                  : 'Waiting for location permission — allow it when the browser asks so we can match venues.'}
             </p>
           )}
           <div className={captureVenueCardClass}>
@@ -2662,11 +2750,16 @@ export default function QuickRecordButton({
                       'Couldn\u2019t preview venue; we\u2019ll try again after you record.'}
                   </p>
                 )}
-                {!isRecording ? (
-                  <p className="text-gray-500 text-[10px] leading-snug pt-1">
-                    Saved with this clip — edit on the next screen.
+                {clipUploadsInFlight > 0 ? (
+                  <p className="text-momentum-flare/95 text-[10px] font-medium leading-snug pt-1">
+                    Clip is uploading
                   </p>
-                ) : isNativeIosCapture ? (
+                ) : null}
+                {!isRecording && clipUploadsInFlight === 0 ? (
+                  <p className="text-gray-500 text-[10px] leading-snug pt-1">
+                    Saved with this clip — uploads start when you end the moment.
+                  </p>
+                ) : isRecording && isNativeIosCapture ? (
                   <p className="text-momentum-flare/90 text-[10px] leading-snug pt-1">
                     No music in your clip? Open Control Center → Mic Mode → Wide Spectrum.
                   </p>
@@ -2676,103 +2769,78 @@ export default function QuickRecordButton({
             </div>
           </div>
         </div>
-      )}
+    ) : null;
 
-      {hasPermission && cameraReady && landscapeCapture && captureResolvePreview.eventTitle ? (
-        <p className="pointer-events-none mx-auto mb-2 max-w-xl truncate px-1 text-center text-[11px] font-semibold text-white/90">
-          {captureResolvePreview.eventTitle}
-        </p>
-      ) : null}
-
-      {zoomControlsVisible ? (
-        <div
-          className={`mx-auto flex w-full justify-center px-1 ${
-            landscapeCapture ? 'mb-2' : 'mb-4 max-w-lg'
-          }`}
-        >
-          <CameraZoomControls
-            className="native-capture-pill"
-            presets={zoomPresets}
-            value={zoomLevel}
-            onSelect={(z) => void handleZoomSelect(z)}
-          />
-        </div>
-      ) : null}
-
-      <div
-        className={`mx-auto flex w-full justify-center px-1 ${
-          landscapeCapture ? 'mb-2' : 'mb-3'
-        }`}
-      >
-        <div
-          className="inline-flex rounded-full native-capture-pill bg-black/40 p-0.5 ring-1 ring-white/15"
-          role="group"
-          aria-label="Capture mode"
-        >
-          <button
-            type="button"
-            disabled={isRecording || photoCapturing}
-            onClick={() => setCaptureMode('video')}
-            className={`flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
-              captureMode === 'video'
-                ? 'bg-white text-gray-900'
-                : 'text-white/80 hover:text-white'
-            }`}
-            aria-pressed={captureMode === 'video'}
-          >
-            <Film className="h-3.5 w-3.5" />
-            Video
-          </button>
-          <button
-            type="button"
-            disabled={isRecording || photoCapturing}
-            onClick={() => setCaptureMode('photo')}
-            className={`flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
-              captureMode === 'photo'
-                ? 'bg-white text-gray-900'
-                : 'text-white/80 hover:text-white'
-            }`}
-            aria-pressed={captureMode === 'photo'}
-          >
-            <Camera className="h-3.5 w-3.5" />
-            Photo
-          </button>
-        </div>
+  const captureControls = (
+    <>
+      <div className="pointer-events-none" style={nativeCaptureShellStyle}>
+        {captureShowPanel}
       </div>
 
       <div
-        className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
-          isPortrait ? 'max-w-lg' : 'max-w-2xl'
-        }`}
+        className={`native-capture-controls-interactive pointer-events-auto${captureActionChromeClass ? ` ${captureActionChromeClass}` : ''}`}
+        style={nativeCaptureShellStyle}
       >
-        <div className="flex justify-start gap-2">
-          <button
-            type="button"
-            onClick={closeModal}
-            className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-            style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-          >
-            <span className="text-xl">✕</span>
-          </button>
-          <button
-            type="button"
-            onClick={openPhotoLibraryPicker}
-            className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-            style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-            title="Photo library"
-            aria-label="Choose video from photo library"
-          >
-            <Images className="w-6 h-6" />
-          </button>
-        </div>
+        {hasPermission && cameraReady && landscapeCapture ? (
+          <div className="pointer-events-none mx-auto mb-2 max-w-xl space-y-0.5 px-1 text-center">
+            {captureResolvePreview.eventTitle ? (
+              <p className="truncate text-[11px] font-semibold text-white/90">
+                {captureResolvePreview.eventTitle}
+              </p>
+            ) : null}
+            {clipUploadsInFlight > 0 ? (
+              <p className="text-[10px] font-medium text-momentum-flare/95">Clip is uploading</p>
+            ) : null}
+          </div>
+        ) : null}
 
-        <div className="flex justify-center pb-0.5">
-          {captureMode === 'video' ? (
-            !isRecording ? (
+        {zoomControlsVisible ? (
+          <div
+            className={`mx-auto flex w-full justify-center px-1 ${
+              landscapeCapture ? 'mb-2' : 'mb-4 max-w-lg'
+            }`}
+          >
+            <CameraZoomControls
+              className="native-capture-pill"
+              presets={zoomPresets}
+              value={zoomLevel}
+              onSelect={(z) => void handleZoomSelect(z)}
+            />
+          </div>
+        ) : null}
+
+        <div
+          className={`mx-auto grid w-full grid-cols-3 items-end gap-2 transition-all duration-300 ease-in-out ${
+            isPortrait ? 'max-w-lg' : 'max-w-2xl'
+          }`}
+        >
+          <div className="flex justify-start gap-2">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+              style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+            >
+              <span className="text-xl">✕</span>
+            </button>
+            <button
+              type="button"
+              onClick={openPhotoLibraryPicker}
+              className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+              style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+              title="Photo library"
+              aria-label="Choose video from photo library"
+            >
+              <Images className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex justify-center pb-0.5">
+            {!isRecording ? (
               <button
                 type="button"
                 onClick={startRecording}
-                disabled={!cameraReady}
+                disabled={!cameraReady || isFinishingRecording}
                 className="relative group disabled:opacity-50 shrink-0"
                 title="Start capturing your moment (up to 60 seconds)"
                 style={{ minWidth: '5rem', minHeight: '5rem' }}
@@ -2803,41 +2871,21 @@ export default function QuickRecordButton({
                   </div>
                 )}
               </button>
-            )
-          ) : (
+            )}
+          </div>
+
+          <div className="flex flex-col items-end justify-end">
             <button
               type="button"
-              onClick={() => void capturePhoto()}
-              disabled={!cameraReady || photoCapturing}
-              className="relative group disabled:opacity-50 shrink-0"
-              title="Take a photo"
-              style={{ minWidth: '5rem', minHeight: '5rem' }}
+              onClick={toggleCameraFacing}
+              disabled={isRecording}
+              className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
+              style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
+              title="Flip camera"
             >
-              <div className="w-20 h-20 rounded-full native-capture-control bg-white/10 flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full border-[5px] border-white bg-white" />
-              </div>
-              {cameraReady && !landscapeCapture && (
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                  <span className="text-white text-xs font-medium">
-                    {photoCapturing ? 'Saving…' : 'Photo'}
-                  </span>
-                </div>
-              )}
+              <RefreshCw className="w-6 h-6" />
             </button>
-          )}
-        </div>
-
-        <div className="flex flex-col items-end justify-end">
-          <button
-            type="button"
-            onClick={toggleCameraFacing}
-            disabled={isRecording || photoCapturing}
-            className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors disabled:opacity-50"
-            style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-            title="Flip camera"
-          >
-            <RefreshCw className="w-6 h-6" />
-          </button>
+          </div>
         </div>
       </div>
     </>
@@ -2859,15 +2907,25 @@ export default function QuickRecordButton({
         <div
           className={`native-capture-modal fixed inset-0 z-[120] h-[100dvh] w-full overflow-hidden ${
             isNativeIosCapture ? 'native-ios-capture' : ''
-          } ${isNativeIosCapture || useTransparentCaptureShell ? 'bg-transparent' : 'bg-black'}`}
-          style={nativeCaptureShellStyle}
+          } ${
+            nativeCaptureShellOpaque || (!isNativeIosCapture && !useTransparentCaptureShell)
+              ? 'bg-black'
+              : isNativeIosCapture || useTransparentCaptureShell
+                ? 'bg-transparent'
+                : 'bg-black'
+          } ${nativeCaptureShellOpaque ? 'native-capture-boot-mask' : ''}`}
+          style={nativeCaptureShellOpaque ? undefined : nativeCaptureShellStyle}
         >
           {/* Camera preview — always full viewport; layout must not change on device rotation. */}
           <div
             className={`native-capture-preview absolute inset-0 z-0 touch-none overflow-hidden ${
-              isNativeIosCapture || useTransparentCaptureShell ? 'bg-transparent' : 'bg-black'
+              nativeCaptureShellOpaque
+                ? 'bg-black native-capture-boot-mask'
+                : isNativeIosCapture || useTransparentCaptureShell
+                  ? 'bg-transparent'
+                  : 'bg-black'
             }`}
-            style={nativeCaptureShellStyle}
+            style={nativeCaptureShellOpaque ? undefined : nativeCaptureShellStyle}
             onTouchStart={handlePreviewTouchStart}
             onTouchMove={handlePreviewTouchMove}
             onTouchEnd={handlePreviewTouchEnd}
@@ -2903,6 +2961,27 @@ export default function QuickRecordButton({
                 </span>
               </button>
             )}
+            {showFinishingRecordingOverlay && (
+              <div className="native-capture-boot-mask absolute inset-0 z-[25] flex items-center justify-center bg-black/80 pointer-events-none">
+                <div className="native-capture-boot-mask pointer-events-auto text-center space-y-4 p-6 max-w-sm rounded-2xl bg-black/80 backdrop-blur-sm border border-white/10">
+                  <Loader2 className="w-10 h-10 text-momentum-flare animate-spin mx-auto" />
+                  <p className="text-white text-sm">Queuing your clip…</p>
+                  <p className="text-gray-400 text-xs max-w-xs mx-auto">
+                    Upload starts in the background — keep capturing.
+                  </p>
+                </div>
+              </div>
+            )}
+            {showNativePreparingOverlay && (
+              <div className="native-capture-boot-mask absolute inset-0 z-[15] flex items-center justify-center bg-black pointer-events-none">
+                <div className="native-capture-boot-mask pointer-events-auto text-center space-y-4 p-6 max-w-sm rounded-2xl bg-black/80 backdrop-blur-sm border border-white/10">
+                  <Loader2 className="w-10 h-10 text-momentum-flare animate-spin mx-auto" />
+                  <p className="text-white text-sm">{nativePreparingTitle}</p>
+                  <p className="text-gray-400 text-xs max-w-xs mx-auto">{nativePreparingSubtext}</p>
+                  {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
+                </div>
+              </div>
+            )}
             {showStartupOverlay && (
               <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
                 <div className="pointer-events-auto text-center space-y-4 p-6 max-w-sm rounded-2xl bg-black/70 backdrop-blur-sm border border-white/10">
@@ -2916,7 +2995,7 @@ export default function QuickRecordButton({
                   <p className="text-momentum-flare/90 text-xs mt-2 max-w-xs mx-auto">
                     {shouldUseNativeIosCapture()
                       ? 'Allow Camera when iOS asks. Location runs right after so we can match JamBase venues.'
-                      : 'Location is requested when you tap Capture (with the camera) so we can match JamBase venues to your clip on the next screen.'}
+                      : 'Location is requested when you tap Capture (with the camera) so we can match JamBase venues to your clip.'}
                   </p>
                   {cameraError && <p className="text-red-400 text-xs mt-2">{cameraError}</p>}
                 </div>
@@ -2937,26 +3016,46 @@ export default function QuickRecordButton({
               </div>
             )}
 
-            {photoFlash && (
-              <div
-                className="pointer-events-none absolute inset-0 z-20 bg-white animate-pulse"
-                aria-hidden
-              />
-            )}
-
             {isRecording && (
-              <div
-                className="absolute z-10 transition-all duration-300 ease-in-out"
-                style={{
-                  top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-                  left: '1rem',
-                }}
-              >
-                <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-red-500 text-sm font-bold">REC</span>
+              <>
+                <div
+                  className="absolute z-10 transition-all duration-300 ease-in-out"
+                  style={{
+                    top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+                    left: '1rem',
+                  }}
+                >
+                  <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                    <span className="text-red-500 text-sm font-bold">REC</span>
+                  </div>
                 </div>
-              </div>
+                <div
+                  className={`absolute z-10 transition-all duration-300 ease-in-out ${captureOverlayTextClass}`}
+                  style={{
+                    top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+                    right: '1rem',
+                  }}
+                  aria-live="polite"
+                  aria-label={`${Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds)} seconds remaining`}
+                >
+                  <div className="rounded-lg border border-white/20 bg-black/45 px-3 py-1 backdrop-blur-md">
+                    <span
+                      className={`text-sm font-bold tabular-nums ${
+                        MAX_RECORDING_TIME - recordingElapsedSeconds <=
+                        MAX_RECORDING_TIME - HAPTIC_WARNING_TIME
+                          ? 'text-red-400'
+                          : 'text-white'
+                      }`}
+                    >
+                      :
+                      {String(
+                        Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds),
+                      ).padStart(2, '0')}
+                    </span>
+                  </div>
+                </div>
+              </>
             )}
 
             {hasPermission && networkSpeed === 'slow' && (
@@ -2969,7 +3068,20 @@ export default function QuickRecordButton({
                 }}
               >
                 <div className="bg-momentum-ember/15 backdrop-blur-md border border-momentum-ember/40 px-4 py-2 rounded-lg">
-                  <p className="text-white text-xs">Slow connection—your clip will upload when you post</p>
+                  <p className="text-white text-xs">Slow connection—your clip will upload when the network allows</p>
+                </div>
+              </div>
+            )}
+
+            {cameraError && hasPermission && cameraReady && (
+              <div
+                className="absolute left-4 right-4 z-20"
+                style={{
+                  top: 'max(3.5rem, calc(env(safe-area-inset-top, 0px) + 2.75rem))',
+                }}
+              >
+                <div className="bg-red-950/90 backdrop-blur-md border border-red-500/50 px-3 py-2 rounded-lg text-red-300 text-xs text-center">
+                  {cameraError}
                 </div>
               </div>
             )}
@@ -2984,7 +3096,7 @@ export default function QuickRecordButton({
               paddingRight: landscapeCapture ? '1rem' : '1.5rem',
             }}
           >
-            <div className="pointer-events-auto">{captureControls}</div>
+            {captureControls}
           </div>
         </div>
       )}
