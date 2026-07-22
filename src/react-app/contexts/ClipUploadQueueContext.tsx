@@ -66,10 +66,19 @@ const BLOB_WAIT_MAX_ATTEMPTS = 90;
 
 export type ClipUploadQueueJob = UploadOutboxJob;
 
+type EnqueueClipOptions = {
+  /** Native capture file URI — prefer Photos save from this path (skip blob rewrite). */
+  nativeVideoUri?: string | null;
+};
+
 type ClipUploadQueueValue = {
   jobs: ClipUploadQueueJob[];
   activeCount: number;
-  enqueue: (payload: ClipUploadJobPayload, previewObjectUrl?: string | null) => string | null;
+  enqueue: (
+    payload: ClipUploadJobPayload,
+    previewObjectUrl?: string | null,
+    opts?: EnqueueClipOptions,
+  ) => string | null;
   restartJob: (id: string) => void;
 };
 
@@ -688,7 +697,11 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   }, [clearAutoRetryTimer, hydrated, processNext, updateJob]);
 
   const enqueue = useCallback(
-    (payload: ClipUploadJobPayload, previewObjectUrl?: string | null): string | null => {
+    (
+      payload: ClipUploadJobPayload,
+      previewObjectUrl?: string | null,
+      opts?: EnqueueClipOptions,
+    ): string | null => {
       const active = jobsRef.current.filter(
         (j) => j.status !== 'published' && j.status !== 'failed',
       );
@@ -752,6 +765,8 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         void processNext();
       });
 
+      const nativeVideoUri = opts?.nativeVideoUri?.trim() || undefined;
+
       void (async () => {
         try {
           await persistOutboxVideo(
@@ -769,6 +784,7 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
           video: videoBlob,
           fileName: job.fileName,
           thumbnailFile: payload.thumbnailFile,
+          nativeVideoUri,
           onGallerySaved: (saved) => {
             updateJob(job.id, { gallerySaved: true, savedToDevice: saved });
           },
