@@ -3055,7 +3055,7 @@ export default function QuickRecordButton({
                 >
                   <div className="native-capture-rec-badge flex items-center space-x-2 rounded-lg border border-red-500/50 bg-red-500/20 px-3 py-1 backdrop-blur-md">
                     <span
-                      className="native-capture-rec-dot h-3 w-3 shrink-0 rounded-full bg-red-500"
+                      className="native-capture-rec-dot inline-block h-3 w-3 shrink-0 rounded-full bg-red-500"
                       aria-hidden
                     />
                     <span className="native-capture-overlay-text text-sm font-bold text-red-500">

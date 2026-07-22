@@ -111,6 +111,9 @@ html.native-quick-capture-open .native-capture-rec-badge {
 }
 
 html.native-quick-capture-open .native-capture-rec-dot {
+  display: inline-block !important;
+  width: 0.75rem !important;
+  height: 0.75rem !important;
   background-color: #ef4444 !important;
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.9);
 }
@@ -168,6 +171,9 @@ html.native-quick-capture-open .native-capture-rec-dot {
 }
 
 .native-ios-capture .native-capture-rec-dot {
+  display: inline-block !important;
+  width: 0.75rem !important;
+  height: 0.75rem !important;
   background-color: #ef4444 !important;
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.9) !important;
 }
@@ -584,6 +590,9 @@ html.native-quick-capture-open .native-capture-rec-dot {
 }
 
 .native-capture-rec-dot {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
   animation: rec-dot-blink 1s steps(1, end) infinite;
 }
 
