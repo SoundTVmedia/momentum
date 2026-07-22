@@ -39,6 +39,7 @@ html.native-quick-capture-open #root,
 html.native-quick-capture-open .native-capture-modal,
 html.native-quick-capture-open .native-capture-preview,
 html.native-quick-capture-open .native-capture-bottom-chrome,
+html.native-quick-capture-open .native-capture-show-panel,
 html.native-quick-capture-open .native-capture-venue-card {
   background: transparent !important;
   background-color: transparent !important;
@@ -46,12 +47,21 @@ html.native-quick-capture-open .native-capture-venue-card {
   backdrop-filter: none !important;
 }
 
+html.native-quick-capture-open .native-capture-modal.native-capture-boot-mask,
+html.native-quick-capture-open .native-capture-preview.native-capture-boot-mask,
+html.native-quick-capture-open .native-capture-boot-mask {
+  background: #000 !important;
+  background-color: #000 !important;
+}
+
 /* Keep camera visible when React re-renders venue match / controls. */
 html.native-quick-capture-open
   .native-capture-modal
   *:not(.native-capture-control):not(.native-capture-control *):not(.native-capture-pill):not(
     .native-capture-pill *
-  ) {
+  ):not(.native-capture-boot-mask):not(.native-capture-boot-mask *):not(.native-capture-rec-badge):not(
+    .native-capture-rec-badge *
+  ):not(.native-capture-rec-dot) {
   background-color: transparent !important;
   background-image: none !important;
   backdrop-filter: none !important;
@@ -66,8 +76,19 @@ html.native-quick-capture-open .native-capture-pill {
   backdrop-filter: none !important;
 }
 
+html.native-quick-capture-open .native-capture-controls-interactive {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 html.native-quick-capture-open .app-route-outlet,
 html.native-quick-capture-open .momentum-ambient {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+html.native-quick-capture-open nav.bottom-nav {
+  display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
@@ -83,6 +104,17 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 
+/* REC badge — keep red fill visible above the native camera preview. */
+html.native-quick-capture-open .native-capture-rec-badge {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+
+html.native-quick-capture-open .native-capture-rec-dot {
+  background-color: #ef4444 !important;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.9);
+}
+
 /* Native iOS shell — keep show-info area transparent even if html lock flickers during
    venue-match re-renders (React StrictMode / lock handoff). */
 .native-ios-capture,
@@ -94,6 +126,8 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   background-color: transparent !important;
   background-image: none !important;
   backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .native-ios-capture
@@ -116,12 +150,26 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   appearance: none;
   background: transparent !important;
   background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   color: #fff;
+  pointer-events: auto;
 }
 
 .native-ios-capture .native-capture-overlay-text,
 .native-ios-capture .native-capture-overlay-text * {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.native-ios-capture .native-capture-rec-badge {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  border: 1px solid rgba(239, 68, 68, 0.5) !important;
+  box-shadow: none !important;
+}
+
+.native-ios-capture .native-capture-rec-dot {
+  background-color: #ef4444 !important;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.9) !important;
 }
 
 .native-ios-capture .native-capture-control {
@@ -131,6 +179,11 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 .native-ios-capture .native-capture-pill {
   background-color: rgba(0, 0, 0, 0.45) !important;
   backdrop-filter: none !important;
+}
+
+.native-ios-capture .native-capture-controls-interactive {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 :root {
@@ -462,6 +515,18 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 }
 
+/* Hard blink for the camera HUD REC indicator (more visible than opacity pulse). */
+@keyframes rec-dot-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0.15;
+  }
+}
+
 @keyframes neon-pulse {
   0%, 100% {
     box-shadow:
@@ -516,6 +581,10 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.native-capture-rec-dot {
+  animation: rec-dot-blink 1s steps(1, end) infinite;
 }
 
 /* Typography utilities */
@@ -965,6 +1034,11 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .native-capture-rec-dot {
+    animation: none;
+    opacity: 1;
+  }
+
   .hero-concert-photo__img--motion,
   .hero-clip-montage__media--kb-0,
   .hero-clip-montage__media--kb-1,
