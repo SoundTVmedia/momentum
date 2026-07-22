@@ -2775,8 +2775,8 @@ export default function QuickRecordButton({
                 {clipUploadsInFlight > 0 ? (
                   <p className="text-momentum-flare/95 text-[10px] font-medium leading-snug pt-1">
                     {clipUploadsInFlight === 1
-                      ? '1 clip is uploading'
-                      : `${clipUploadsInFlight} clips are uploading`}
+                      ? 'Clip is uploading · 1 in queue'
+                      : `Clips are uploading · ${clipUploadsInFlight} in queue`}
                   </p>
                 ) : null}
                 {!isRecording && clipUploadsInFlight === 0 ? (
@@ -2815,8 +2815,8 @@ export default function QuickRecordButton({
             {clipUploadsInFlight > 0 ? (
               <p className="text-[10px] font-medium text-momentum-flare/95">
                 {clipUploadsInFlight === 1
-                  ? '1 clip is uploading'
-                  : `${clipUploadsInFlight} clips are uploading`}
+                  ? 'Clip is uploading · 1 in queue'
+                  : `Clips are uploading · ${clipUploadsInFlight} in queue`}
               </p>
             ) : null}
           </div>
@@ -3053,14 +3053,9 @@ export default function QuickRecordButton({
                     left: '1rem',
                   }}
                 >
-                  <div className="native-capture-rec-badge flex items-center space-x-2 rounded-lg border border-red-500/50 bg-red-500/20 px-3 py-1 backdrop-blur-md">
-                    <span
-                      className="native-capture-rec-dot inline-block h-3 w-3 shrink-0 rounded-full bg-red-500"
-                      aria-hidden
-                    />
-                    <span className="native-capture-overlay-text text-sm font-bold text-red-500">
-                      REC
-                    </span>
+                  <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                    <span className="text-red-500 text-sm font-bold">REC</span>
                   </div>
                 </div>
                 <div

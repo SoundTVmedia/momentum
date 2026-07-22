@@ -59,9 +59,7 @@ html.native-quick-capture-open
   .native-capture-modal
   *:not(.native-capture-control):not(.native-capture-control *):not(.native-capture-pill):not(
     .native-capture-pill *
-  ):not(.native-capture-boot-mask):not(.native-capture-boot-mask *):not(.native-capture-rec-badge):not(
-    .native-capture-rec-badge *
-  ):not(.native-capture-rec-dot) {
+  ):not(.native-capture-boot-mask):not(.native-capture-boot-mask *) {
   background-color: transparent !important;
   background-image: none !important;
   backdrop-filter: none !important;
@@ -102,20 +100,6 @@ html.native-quick-capture-open .app-route-outlet .native-capture-modal {
 html.native-quick-capture-open .native-capture-overlay-text,
 html.native-quick-capture-open .native-capture-overlay-text * {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
-}
-
-/* REC badge — keep red fill visible above the native camera preview. */
-html.native-quick-capture-open .native-capture-rec-badge {
-  background-color: rgba(239, 68, 68, 0.2) !important;
-  border-color: rgba(239, 68, 68, 0.5) !important;
-}
-
-html.native-quick-capture-open .native-capture-rec-dot {
-  display: inline-block !important;
-  width: 0.75rem !important;
-  height: 0.75rem !important;
-  background-color: #ef4444 !important;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.9);
 }
 
 /* Native iOS shell — keep show-info area transparent even if html lock flickers during
@@ -162,20 +146,6 @@ html.native-quick-capture-open .native-capture-rec-dot {
 .native-ios-capture .native-capture-overlay-text,
 .native-ios-capture .native-capture-overlay-text * {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
-}
-
-.native-ios-capture .native-capture-rec-badge {
-  background-color: rgba(239, 68, 68, 0.2) !important;
-  border: 1px solid rgba(239, 68, 68, 0.5) !important;
-  box-shadow: none !important;
-}
-
-.native-ios-capture .native-capture-rec-dot {
-  display: inline-block !important;
-  width: 0.75rem !important;
-  height: 0.75rem !important;
-  background-color: #ef4444 !important;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.9) !important;
 }
 
 .native-ios-capture .native-capture-control {
@@ -521,18 +491,6 @@ html.native-quick-capture-open .native-capture-rec-dot {
   }
 }
 
-/* Hard blink for the camera HUD REC indicator (more visible than opacity pulse). */
-@keyframes rec-dot-blink {
-  0%,
-  45% {
-    opacity: 1;
-  }
-  55%,
-  100% {
-    opacity: 0.15;
-  }
-}
-
 @keyframes neon-pulse {
   0%, 100% {
     box-shadow:
@@ -587,13 +545,6 @@ html.native-quick-capture-open .native-capture-rec-dot {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
-}
-
-.native-capture-rec-dot {
-  display: inline-block;
-  width: 0.75rem;
-  height: 0.75rem;
-  animation: rec-dot-blink 1s steps(1, end) infinite;
 }
 
 /* Typography utilities */
@@ -1043,11 +994,6 @@ html.native-quick-capture-open .native-capture-rec-dot {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .native-capture-rec-dot {
-    animation: none;
-    opacity: 1;
-  }
-
   .hero-concert-photo__img--motion,
   .hero-clip-montage__media--kb-0,
   .hero-clip-montage__media--kb-1,
