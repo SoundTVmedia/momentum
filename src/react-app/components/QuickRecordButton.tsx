@@ -70,6 +70,10 @@ import {
 } from '@/react-app/lib/native-capture';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import { clearCaptureHandoffBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
+import {
+  blobSourceKey,
+  saveClipToDeviceGallery,
+} from '@/react-app/lib/upload-outbox/gallery-save';
 import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
@@ -2338,43 +2342,52 @@ export default function QuickRecordButton({
         throw new Error(classification.error);
       }
 
-      const jobId = enqueueClipUpload({
-        uploadMethod: 'file',
-        videoFile: null,
-        videoBlob: uploadBlob,
-        thumbnailFile: null,
-        videoUrl: '',
-        classificationId: classification.classificationId,
-        contentFeed: classification.contentFeed,
-        classificationPending: classification.classificationPending,
-        songIdentifyPending: !song_title,
-        captureAudioBlob,
-        form: {
-          artist_name,
-          venue_name,
-          location: locationLine,
-          content_description: '',
-          song_title,
-          genre_name: '',
-          hashtags: '',
+      const ext =
+        uploadBlob.type.includes('mp4') || opts?.nativeVideoPath ? 'mp4' : 'webm';
+      const fileName = `momentum-${Date.now()}.${ext}`;
+      const nativeVideoUri = opts?.nativeVideoPath?.trim() || undefined;
+
+      const jobId = enqueueClipUpload(
+        {
+          uploadMethod: 'file',
+          videoFile: null,
+          videoBlob: uploadBlob,
+          thumbnailFile: null,
+          videoUrl: '',
+          classificationId: classification.classificationId,
+          contentFeed: classification.contentFeed,
+          classificationPending: classification.classificationPending,
+          songIdentifyPending: !song_title,
+          captureAudioBlob,
+          form: {
+            artist_name,
+            venue_name,
+            location: locationLine,
+            content_description: '',
+            song_title,
+            genre_name: '',
+            hashtags: '',
+          },
+          jambaseLink,
+          recordingAtIso: at,
+          captureGeo: geo
+            ? {
+                latitude: geo.latitude,
+                longitude: geo.longitude,
+                city: geo.city,
+                state: geo.state,
+                country: geo.country,
+              }
+            : null,
+          videoMetadata: {
+            recording_orientation: recordingOrientation,
+            video_resolution_w: videoResolution.width,
+            video_resolution_h: videoResolution.height,
+          },
         },
-        jambaseLink,
-        recordingAtIso: at,
-        captureGeo: geo
-          ? {
-              latitude: geo.latitude,
-              longitude: geo.longitude,
-              city: geo.city,
-              state: geo.state,
-              country: geo.country,
-            }
-          : null,
-        videoMetadata: {
-          recording_orientation: recordingOrientation,
-          video_resolution_w: videoResolution.width,
-          video_resolution_h: videoResolution.height,
-        },
-      });
+        null,
+        { nativeVideoUri },
+      );
       if (!jobId) {
         throw new Error(
           clipUploadsInFlight >= 5
@@ -2382,6 +2395,15 @@ export default function QuickRecordButton({
             : 'Could not queue this clip',
         );
       }
+
+      // Same Photos/gallery persist as the old caption handoff — do not wait for upload.
+      void saveClipToDeviceGallery(uploadBlob, fileName, {
+        sourceKey: blobSourceKey(uploadBlob),
+        skipIfSaved: true,
+        nativeVideoUri,
+      }).catch((err) => {
+        console.warn('QuickRecordButton: gallery save failed', err);
+      });
 
       if (
         prefetchShow &&

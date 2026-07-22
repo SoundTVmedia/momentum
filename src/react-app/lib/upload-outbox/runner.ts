@@ -288,6 +288,12 @@ export function jobFromPayload(
   const file = payload.videoFile;
   const size = file?.size ?? blob?.size ?? 0;
   const type = file?.type ?? blob?.type ?? 'video/webm';
+  const defaultExt =
+    /mp4|quicktime|x-m4v/i.test(type) || /\.mp4$/i.test(file?.name ?? '')
+      ? 'mp4'
+      : /webm/i.test(type)
+        ? 'webm'
+        : 'mp4';
   return {
     ...payload,
     id,
@@ -302,7 +308,7 @@ export function jobFromPayload(
     partUrls: null,
     totalParts: 0,
     partSize: 0,
-    fileName: file?.name ?? `recording-${id}.webm`,
+    fileName: file?.name ?? `momentum-${id}.${defaultExt}`,
     fileSize: size,
     contentType: type,
     previewObjectUrl: previewObjectUrl ?? null,

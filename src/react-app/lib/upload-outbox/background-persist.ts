@@ -18,9 +18,11 @@ export async function persistClipInBackground(opts: {
   video: Blob;
   fileName: string;
   thumbnailFile?: File | null;
+  /** When set, save this native capture file URI directly to Photos (iOS hybrid capture). */
+  nativeVideoUri?: string | null;
   onGallerySaved?: (saved: boolean) => void;
 }): Promise<void> {
-  const { jobId, video, fileName, thumbnailFile, onGallerySaved } = opts;
+  const { jobId, video, fileName, thumbnailFile, nativeVideoUri, onGallerySaved } = opts;
 
   try {
     await adoptPendingCaptureForJob(jobId, video);
@@ -44,6 +46,7 @@ export async function persistClipInBackground(opts: {
       const gallery = await saveClipToDeviceGallery(video, fileName, {
         sourceKey,
         skipIfSaved: true,
+        nativeVideoUri: nativeVideoUri?.trim() || undefined,
       });
       onGallerySaved?.(
         gallery.skipped || gallery.method === 'native' || gallery.method === 'share',
