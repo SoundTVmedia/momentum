@@ -20,6 +20,11 @@ import {
   loadAttendedArtistNames,
   loadGoingEventIds,
 } from './user-show-marks-endpoints';
+import {
+  rewriteJamBaseEventImages,
+  rewriteMediaUrlForClient,
+} from '../shared/media-proxy';
+import { clientMediaOrigin } from './client-media-origin';
 
 function normalizeFavoriteArtistNamesFromBody(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
@@ -656,8 +661,9 @@ export async function getPersonalizedConcerts(c: Context) {
       );
 
       if (slice.length > 0) {
+        const mediaOrigin = clientMediaOrigin(c);
         return c.json({
-          events: slice,
+          events: slice.map((e) => rewriteJamBaseEventImages(e, mediaOrigin)),
           concerts: [],
           personalized: true,
           source: 'jambase' as const,
@@ -706,8 +712,15 @@ export async function getPersonalizedConcerts(c: Context) {
       limit,
     );
 
+    const mediaOrigin = clientMediaOrigin(c);
     return c.json({
-      concerts,
+      concerts: concerts.map((row) => ({
+        ...row,
+        artist_image: rewriteMediaUrlForClient(
+          typeof row.artist_image === 'string' ? row.artist_image : null,
+          mediaOrigin,
+        ),
+      })),
       events: [],
       personalized: true,
       source: 'd1' as const,
@@ -800,9 +813,10 @@ export async function getRecommendedConcertsFromAttended(c: Context) {
     }
 
     const slice = dedupeJamBaseEvents(merged).slice(0, limit);
+    const mediaOrigin = clientMediaOrigin(c);
 
     return c.json({
-      events: slice,
+      events: slice.map((e) => rewriteJamBaseEventImages(e, mediaOrigin)),
       personalized: true,
       source: 'jambase' as const,
       attended_artist_count: attendedArtists.length,

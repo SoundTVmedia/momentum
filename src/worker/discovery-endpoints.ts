@@ -288,15 +288,22 @@ async function runGeoScopedAdvancedSearch(
     staleWhileRevalidate: 900,
   });
 
+  const mediaOrigin = clientMediaOrigin(c);
   return c.json({
     clips: clips.results || [],
-    artists: enrichedArtists,
-    venues: enrichedVenues,
+    artists: enrichedArtists.map((row) => ({
+      ...row,
+      image_url: rewriteMediaUrlForClient(row.image_url, mediaOrigin),
+    })),
+    venues: enrichedVenues.map((row) => ({
+      ...row,
+      image_url: rewriteMediaUrlForClient(row.image_url, mediaOrigin),
+    })),
     users,
     jambase: {
       artists: [],
       venues: [],
-      events: jbResult.events,
+      events: rewriteEventListForClient(jbResult.events, mediaOrigin),
     },
     jambaseNotice,
     locationScoped: true,
@@ -537,15 +544,36 @@ export async function advancedSearch(c: Context) {
     staleWhileRevalidate: 900,
   });
 
+  const mediaOrigin = clientMediaOrigin(c);
+  const rewriteArtistRows = (rows: TrendingArtistRow[]) =>
+    rows.map((row) => ({
+      ...row,
+      image_url: rewriteMediaUrlForClient(row.image_url, mediaOrigin),
+    }));
+  const rewriteVenueRows = (rows: SearchVenueRow[]) =>
+    rows.map((row) => ({
+      ...row,
+      image_url: rewriteMediaUrlForClient(row.image_url, mediaOrigin),
+    }));
+  const rewriteJamBaseEntities = (items: unknown[]) =>
+    items.map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+      const row = { ...(item as Record<string, unknown>) };
+      if (typeof row.image === 'string') {
+        row.image = rewriteMediaUrlForClient(row.image, mediaOrigin) ?? row.image;
+      }
+      return row;
+    });
+
   return c.json({
     clips: clips.results || [],
-    artists: searchArtists,
-    venues: enrichedVenues,
+    artists: rewriteArtistRows(searchArtists),
+    venues: rewriteVenueRows(enrichedVenues),
     users,
     jambase: {
-      artists: jambase.artists,
-      venues: jambase.venues,
-      events: jambase.events,
+      artists: rewriteJamBaseEntities(jambase.artists),
+      venues: rewriteJamBaseEntities(jambase.venues),
+      events: rewriteEventListForClient(jambase.events, mediaOrigin),
     },
     jambaseNotice,
   });
