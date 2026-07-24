@@ -20,6 +20,13 @@ describe('sniffImageContentType', () => {
     expect(sniffImageContentType(webp)).toBe('image/webp');
   });
 
+  it('detects AVIF ftyp brand', () => {
+    const avif = new Uint8Array(12);
+    avif.set([0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70], 0);
+    avif.set([0x61, 0x76, 0x69, 0x66], 8); // avif
+    expect(sniffImageContentType(avif)).toBe('image/avif');
+  });
+
   it('returns null for non-images', () => {
     expect(sniffImageContentType(Uint8Array.of(0x00, 0x01))).toBeNull();
     expect(

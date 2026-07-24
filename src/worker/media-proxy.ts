@@ -97,6 +97,12 @@ export function sniffImageContentType(bytes: Uint8Array): string | null {
   ) {
     return 'image/webp';
   }
+  // ISO BMFF (AVIF/HEIC): ....ftypXXXX
+  if (bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+    const brand = String.fromCharCode(bytes[8]!, bytes[9]!, bytes[10]!, bytes[11]!);
+    if (brand === 'avif' || brand === 'avis') return 'image/avif';
+    if (brand === 'heic' || brand === 'heif' || brand === 'mif1') return 'image/heic';
+  }
   return null;
 }
 
@@ -159,17 +165,28 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
 
   const sniffed = sniffImageContentType(buf);
   const declared = headerImageContentType(upstreamRes.headers.get('content-type'));
-  // Trust bytes over headers — CF Polish frequently mismatches extension/MIME.
-  const contentType = sniffed ?? declared;
+  // Trust bytes only — CF Polish frequently mismatches extension/MIME.
+  // Never fall back to an unverified declared type: WKWebView + nosniff rejects
+  // JPEG bodies labeled as image/png (common on JamBase).
+  const contentType = sniffed;
   if (!contentType) {
-    return c.json({ error: 'Upstream response is not an image' }, 502);
+    return c.json(
+      {
+        error: 'Upstream response is not a recognizable image',
+        declaredContentType: declared,
+      },
+      502,
+    );
   }
 
   const headers = new Headers();
   headers.set('Content-Type', contentType);
   headers.set('Content-Length', String(buf.byteLength));
   headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  // Prevent Cloudflare edge from reusing older wrong Content-Type responses.
+  headers.set('CDN-Cache-Control', 'public, max-age=3600');
   headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('X-Media-Proxy-Version', '2');
   headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
   // capacitor:// and ionic:// WebViews load absolute https proxy URLs cross-origin.
   headers.set('Access-Control-Allow-Origin', '*');
