@@ -8,6 +8,7 @@ import {
   jamBaseEventVenueName,
   type JamBaseEventRecord,
 } from '@/shared/jambase-events';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 type ClipModalTicketSheetProps = {
   event: JamBaseEventRecord;
@@ -25,7 +26,7 @@ export default function ClipModalTicketSheet({
   const startDate = typeof event.startDate === 'string' ? event.startDate : null;
   const venueName = jamBaseEventVenueName(event);
   const venueCity = jamBaseEventVenueCityLine(event);
-  const imageUrl = jamBaseEventCardImageUrl(event);
+  const imageUrl = displayMediaUrl(jamBaseEventCardImageUrl(event));
 
   return (
     <div

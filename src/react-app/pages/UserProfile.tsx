@@ -13,6 +13,7 @@ import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
 import type { ClipWithUser, ExtendedMochaUser, UserProfile } from '@/shared/types';
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
+import { displayMediaUrl } from '@/shared/media-proxy';
 import SuperadminProfileModerationBar from '@/react-app/components/SuperadminProfileModerationBar';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
@@ -459,7 +460,7 @@ export default function UserProfilePage() {
                   >
                     {favoriteArtist.artist.image_url && (
                       <img
-                        src={favoriteArtist.artist.image_url}
+                        src={displayMediaUrl(favoriteArtist.artist.image_url)}
                         alt={favoriteArtist.artist.name}
                         className="w-16 h-16 rounded-full object-cover border-2 border-momentum-rose/40"
                       />

@@ -1,5 +1,8 @@
 import type { Context } from 'hono';
-import { isProxyableMediaHost } from '../shared/media-proxy';
+import {
+  base64UrlToUtf8,
+  isProxyableMediaHost,
+} from '../shared/media-proxy';
 
 const MAX_UPSTREAM_BYTES = 8 * 1024 * 1024;
 
@@ -7,7 +10,6 @@ function isBlockedHostname(hostname: string): boolean {
   const host = hostname.toLowerCase();
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
   if (host === '0.0.0.0' || host === '::1' || host === '[::1]') return true;
-  // Block obvious private / link-local IPv4 literals.
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
     const parts = host.split('.').map((p) => Number(p));
     if (parts.length === 4 && parts.every((n) => Number.isFinite(n) && n >= 0 && n <= 255)) {
@@ -21,7 +23,7 @@ function isBlockedHostname(hostname: string): boolean {
   return false;
 }
 
-function parseUpstreamUrl(raw: string | undefined): URL | null {
+function parseUpstreamUrl(raw: string | null | undefined): URL | null {
   const value = typeof raw === 'string' ? raw.trim() : '';
   if (!value) return null;
   let parsed: URL;
@@ -37,12 +39,20 @@ function parseUpstreamUrl(raw: string | undefined): URL | null {
   return parsed;
 }
 
+function resolveUpstreamFromRequest(c: Context): URL | null {
+  const token = c.req.param('token');
+  if (token) {
+    return parseUpstreamUrl(base64UrlToUtf8(token));
+  }
+  return parseUpstreamUrl(c.req.query('url'));
+}
+
 /**
  * Same-origin proxy for JamBase / Unsplash images.
  * Capacitor iOS WKWebView often fails direct third-party image loads (blue "?" tile).
  */
 export async function proxyExternalMedia(c: Context): Promise<Response> {
-  const upstream = parseUpstreamUrl(c.req.query('url'));
+  const upstream = resolveUpstreamFromRequest(c);
   if (!upstream) {
     return c.json({ error: 'Invalid or disallowed media url' }, 400);
   }
@@ -54,7 +64,6 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
       redirect: 'follow',
       headers: {
         Accept: 'image/*,*/*;q=0.8',
-        // Prefer original JPEG/PNG when Cloudflare Polish would otherwise force WebP.
         'Accept-Encoding': 'identity',
         'User-Agent': 'FeedbackMediaProxy/1.0',
       },
@@ -88,6 +97,7 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
   headers.set('Content-Type', contentType || 'image/jpeg');
   headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
   headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
   const len = upstreamRes.headers.get('content-length');
   if (len) headers.set('Content-Length', len);
 

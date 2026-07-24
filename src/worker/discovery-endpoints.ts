@@ -29,6 +29,33 @@ import {
   type TrendingArtistRow,
 } from './discover-jambase-enrich';
 import {
+  DEFAULT_PUBLIC_APP_ORIGIN,
+  rewriteJamBaseEventImages,
+  rewriteMediaUrlForClient,
+} from '../shared/media-proxy';
+
+function clientMediaOrigin(c: Context): string {
+  const pub =
+    typeof c.env.PUBLIC_APP_URL === 'string' ? c.env.PUBLIC_APP_URL.trim() : '';
+  if (pub.startsWith('http://') || pub.startsWith('https://')) {
+    return pub.replace(/\/$/, '');
+  }
+  const reqOrigin = new URL(c.req.url).origin;
+  if (reqOrigin.startsWith('http://') || reqOrigin.startsWith('https://')) {
+    return reqOrigin;
+  }
+  return DEFAULT_PUBLIC_APP_ORIGIN;
+}
+
+function rewriteEventListForClient(
+  events: unknown[],
+  origin: string,
+): Record<string, unknown>[] {
+  return events
+    .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
+    .map((e) => rewriteJamBaseEventImages(e, origin));
+}
+import {
   clipGeoWhereClause,
   filterJamBaseRecordsInRadius,
   parseSearchRadiusMiles,
@@ -776,10 +803,20 @@ export async function getDiscoverFeed(c: Context) {
     cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
   }
 
+  const mediaOrigin = clientMediaOrigin(c);
+  const artistsForClient = artists.map((row) => ({
+    ...row,
+    image_url: rewriteMediaUrlForClient(row.image_url, mediaOrigin),
+  }));
+  const nearbyForClient = rewriteEventListForClient(
+    nearbyEvents as unknown[],
+    mediaOrigin,
+  );
+
   return c.json({
     clips: trendingClips.results || [],
-    artists,
-    nearbyEvents,
+    artists: artistsForClient,
+    nearbyEvents: nearbyForClient,
     location,
     jambaseNotice,
     forYou,
@@ -826,7 +863,7 @@ export async function getNearbyShows(c: Context) {
   cacheJsonProxy(c, { browserMaxAge: 180, cdnMaxAge: 1800, staleWhileRevalidate: 3600 });
 
   return c.json({
-    events,
+    events: rewriteEventListForClient(events as unknown[], clientMediaOrigin(c)),
     location,
     personalized: true,
     source: 'jambase' as const,
@@ -874,7 +911,7 @@ export async function getTonightShows(c: Context) {
   cacheJsonProxy(c, { browserMaxAge: 90, cdnMaxAge: 300, staleWhileRevalidate: 600 });
 
   return c.json({
-    events,
+    events: rewriteEventListForClient(events as unknown[], clientMediaOrigin(c)),
     location,
     personalized: true,
     source: 'jambase' as const,

@@ -1214,6 +1214,7 @@ app.get("/api/files/:key{.+}", serveR2ClipFile);
 
 // Same-origin proxy for JamBase/Unsplash images (Capacitor iOS WKWebView)
 app.get("/api/media/proxy", rateLimiter(RateLimits.API), proxyExternalMedia);
+app.get("/api/media/proxy/b/:token", rateLimiter(RateLimits.API), proxyExternalMedia);
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);

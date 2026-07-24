@@ -5,6 +5,7 @@ import { apiFetch } from '@/react-app/lib/apiFetch';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import { artistPath, venuePath } from '@/shared/app-paths';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 export type FollowingUserRow = {
   mocha_user_id: string;
@@ -225,7 +226,7 @@ export default function FollowingUsersModal({
                       >
                         {a.image_url ? (
                           <img
-                            src={a.image_url}
+                            src={displayMediaUrl(a.image_url)}
                             alt=""
                             className="w-11 h-11 rounded-full object-cover shrink-0"
                           />
@@ -269,7 +270,7 @@ export default function FollowingUsersModal({
                       >
                         {v.image_url ? (
                           <img
-                            src={v.image_url}
+                            src={displayMediaUrl(v.image_url)}
                             alt=""
                             className="w-11 h-11 rounded-full object-cover shrink-0"
                           />
