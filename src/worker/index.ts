@@ -152,7 +152,10 @@ app.use('/api/*', async (c, next) => {
     return;
   }
   // Show/artist image proxy — high volume on home/discover; dedicated bucket below.
-  if (path === '/api/media/proxy' || path.startsWith('/api/media/proxy/')) {
+  if (
+    path === '/api/media/proxy' ||
+    path.startsWith('/api/media/proxy/')
+  ) {
     await next();
     return;
   }
@@ -1218,8 +1221,17 @@ app.post("/api/upload", authMiddleware, rateLimiter(RateLimits.UPLOAD), async (c
 app.get("/api/files/:key{.+}", serveR2ClipFile);
 
 // Same-origin proxy for JamBase/Unsplash images (Capacitor iOS WKWebView)
+app.get("/api/media/proxy/health", (c) =>
+  c.json({
+    ok: true,
+    version: 2,
+    mimeSniff: true,
+    pathPrefix: "/api/media/proxy/v2/b",
+  }),
+);
 app.get("/api/media/proxy", rateLimiter(RateLimits.MEDIA_PROXY), proxyExternalMedia);
 app.get("/api/media/proxy/b/:token", rateLimiter(RateLimits.MEDIA_PROXY), proxyExternalMedia);
+app.get("/api/media/proxy/v2/b/:token", rateLimiter(RateLimits.MEDIA_PROXY), proxyExternalMedia);
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);

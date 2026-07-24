@@ -195,6 +195,8 @@ export default function ArtistPage() {
                     'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop',
                 )}
                 alt={artist.name}
+                referrerPolicy="no-referrer"
+                decoding="async"
                 className="w-48 h-48 rounded-full object-cover border-4 border-momentum-rose/40 shadow-xl shadow-momentum-rose/25"
               />
               {artist.is_verified === 1 && (

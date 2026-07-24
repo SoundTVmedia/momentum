@@ -9,6 +9,13 @@ const PROXY_HOST_SUFFIXES = [
 export const DEFAULT_PUBLIC_APP_ORIGIN =
   'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev';
 
+/**
+ * Path prefix for proxied media.
+ * Bump when proxy response semantics change (e.g. MIME sniffing) so CDNs/clients
+ * do not keep stale wrong Content-Type responses.
+ */
+export const MEDIA_PROXY_PATH_PREFIX = '/api/media/proxy/v2/b';
+
 export function isProxyableMediaHost(hostname: string): boolean {
   const host = hostname.trim().toLowerCase();
   if (!host) return false;
@@ -85,8 +92,75 @@ export function mediaProxyOrigin(preferredOrigin?: string | null): string {
   return DEFAULT_PUBLIC_APP_ORIGIN;
 }
 
+function pageHasHttpsOrigin(): boolean {
+  if (typeof globalThis === 'undefined') return false;
+  const origin =
+    (globalThis as { location?: { origin?: string } }).location?.origin ?? '';
+  return origin.startsWith('http://') || origin.startsWith('https://');
+}
+
 export function proxiedMediaPath(url: string): string {
-  return `/api/media/proxy/b/${encodeMediaProxyToken(url)}`;
+  return `${MEDIA_PROXY_PATH_PREFIX}/${encodeMediaProxyToken(url)}`;
+}
+
+/**
+ * Build a Capacitor-safe proxy URL.
+ * Prefer relative paths on http(s) pages (Capacitor `server.url` / web);
+ * absolute Workers URL when the WebView origin is a custom scheme.
+ */
+export function buildProxiedMediaUrl(
+  upstreamUrl: string,
+  preferredOrigin?: string | null,
+): string {
+  const path = proxiedMediaPath(upstreamUrl);
+  if (pageHasHttpsOrigin() && !preferredOrigin) {
+    return path;
+  }
+  return `${mediaProxyOrigin(preferredOrigin)}${path}`;
+}
+
+/**
+ * Upgrade legacy `/api/media/proxy/b/...` (or query) URLs to v2 so clients
+ * do not keep hitting CDN-cached wrong Content-Type responses.
+ */
+export function upgradeLegacyMediaProxyUrl(
+  url: string,
+  preferredOrigin?: string | null,
+): string {
+  const raw = url.trim();
+  if (!raw.includes('/api/media/proxy')) return raw;
+  if (raw.includes('/api/media/proxy/v2/')) return raw;
+
+  const pathMatch = raw.match(/\/api\/media\/proxy\/b\/([^/?#]+)/);
+  if (pathMatch?.[1]) {
+    const path = `${MEDIA_PROXY_PATH_PREFIX}/${pathMatch[1]}`;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      try {
+        return `${new URL(raw).origin}${path}`;
+      } catch {
+        return buildProxiedMediaUrl(
+          base64UrlToUtf8(pathMatch[1]) ?? raw,
+          preferredOrigin,
+        );
+      }
+    }
+    if (pageHasHttpsOrigin() && !preferredOrigin) return path;
+    return `${mediaProxyOrigin(preferredOrigin)}${path}`;
+  }
+
+  try {
+    const abs =
+      raw.startsWith('http://') || raw.startsWith('https://')
+        ? new URL(raw)
+        : new URL(raw, DEFAULT_PUBLIC_APP_ORIGIN);
+    const upstream = abs.searchParams.get('url');
+    if (upstream && shouldProxyExternalMedia(upstream)) {
+      return buildProxiedMediaUrl(upstream, preferredOrigin);
+    }
+  } catch {
+    /* ignore */
+  }
+  return raw;
 }
 
 /**
@@ -100,8 +174,11 @@ export function displayMediaUrl(
 ): string {
   const raw = typeof url === 'string' ? url.trim() : '';
   if (!raw) return '';
+  if (raw.includes('/api/media/proxy')) {
+    return upgradeLegacyMediaProxyUrl(raw, preferredOrigin);
+  }
   if (!shouldProxyExternalMedia(raw)) return raw;
-  return `${mediaProxyOrigin(preferredOrigin)}${proxiedMediaPath(raw)}`;
+  return buildProxiedMediaUrl(raw, preferredOrigin);
 }
 
 /** Rewrite a single image field for API responses (absolute proxy URL). */
@@ -111,6 +188,9 @@ export function rewriteMediaUrlForClient(
 ): string | null {
   const raw = typeof url === 'string' ? url.trim() : '';
   if (!raw) return null;
+  if (raw.includes('/api/media/proxy')) {
+    return upgradeLegacyMediaProxyUrl(raw, origin);
+  }
   if (!shouldProxyExternalMedia(raw)) return raw;
   return `${mediaProxyOrigin(origin)}${proxiedMediaPath(raw)}`;
 }

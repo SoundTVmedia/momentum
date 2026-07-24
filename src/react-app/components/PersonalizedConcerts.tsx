@@ -86,6 +86,8 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
           <img
             src={displayMediaUrl(concert.artist_image)}
             alt=""
+            referrerPolicy="no-referrer"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
           />
         ) : (

@@ -140,6 +140,8 @@ function JamBaseEventCard({
             <img
               src={image}
               alt=""
+              referrerPolicy="no-referrer"
+              decoding="async"
               className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
             />
             <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-1.5">
@@ -158,6 +160,8 @@ function JamBaseEventCard({
             <img
               src={image}
               alt={title}
+              referrerPolicy="no-referrer"
+              decoding="async"
               className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
             />
             <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">

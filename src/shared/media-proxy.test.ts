@@ -4,8 +4,10 @@ import {
   displayMediaUrl,
   encodeMediaProxyToken,
   isProxyableMediaHost,
+  MEDIA_PROXY_PATH_PREFIX,
   rewriteJamBaseEventImages,
   shouldProxyExternalMedia,
+  upgradeLegacyMediaProxyUrl,
 } from './media-proxy';
 
 describe('media-proxy', () => {
@@ -27,7 +29,7 @@ describe('media-proxy', () => {
     expect(shouldProxyExternalMedia('https://example.com/x.jpg')).toBe(false);
     expect(
       shouldProxyExternalMedia(
-        'https://app.example/api/media/proxy/b/abc',
+        'https://app.example/api/media/proxy/v2/b/abc',
       ),
     ).toBe(false);
   });
@@ -41,9 +43,21 @@ describe('media-proxy', () => {
   it('rewrites display URLs through the path-based proxy', () => {
     const src = 'https://www.jambase.com/wp-content/uploads/a.jpg';
     const out = displayMediaUrl(src, 'https://app.example');
-    expect(out.startsWith('https://app.example/api/media/proxy/b/')).toBe(true);
+    expect(out.startsWith(`https://app.example${MEDIA_PROXY_PATH_PREFIX}/`)).toBe(
+      true,
+    );
     expect(displayMediaUrl('/api/files/x.jpg')).toBe('/api/files/x.jpg');
     expect(displayMediaUrl(null)).toBe('');
+  });
+
+  it('upgrades legacy proxy URLs to v2', () => {
+    const token = encodeMediaProxyToken(
+      'https://www.jambase.com/wp-content/uploads/a.jpg',
+    );
+    const legacy = `https://app.example/api/media/proxy/b/${token}`;
+    expect(upgradeLegacyMediaProxyUrl(legacy, 'https://app.example')).toBe(
+      `https://app.example${MEDIA_PROXY_PATH_PREFIX}/${token}`,
+    );
   });
 
   it('rewrites JamBase event image fields', () => {
@@ -55,12 +69,12 @@ describe('media-proxy', () => {
       },
       'https://app.example',
     );
-    expect(String(rewritten.image)).toContain('/api/media/proxy/b/');
+    expect(String(rewritten.image)).toContain(MEDIA_PROXY_PATH_PREFIX);
     expect(String((rewritten.location as { image: string }).image)).toContain(
-      '/api/media/proxy/b/',
+      MEDIA_PROXY_PATH_PREFIX,
     );
     expect(
       String((rewritten.performer as { image: string }[])[0]?.image),
-    ).toContain('/api/media/proxy/b/');
+    ).toContain(MEDIA_PROXY_PATH_PREFIX);
   });
 });
