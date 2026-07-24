@@ -14,6 +14,7 @@ import type { ClipWithUser } from '@/shared/types';
 import { apiArtistPath, venuePath } from '@/shared/app-paths';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_SECTION_CLASS, PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 interface Artist {
   id: number;
@@ -189,7 +190,10 @@ export default function ArtistPage() {
             {/* Artist Image */}
             <div className="relative">
               <img
-                src={artist.image_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop'}
+                src={displayMediaUrl(
+                  artist.image_url ||
+                    'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop',
+                )}
                 alt={artist.name}
                 className="w-48 h-48 rounded-full object-cover border-4 border-momentum-rose/40 shadow-xl shadow-momentum-rose/25"
               />
@@ -303,7 +307,10 @@ export default function ArtistPage() {
             >
               <div className="relative aspect-[21/9]">
                 <img
-                  src={liveShow.thumbnail_url || 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&h=500&fit=crop'}
+                  src={displayMediaUrl(
+                    liveShow.thumbnail_url ||
+                      'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&h=500&fit=crop',
+                  )}
                   alt="Live Now"
                   className="w-full h-full object-cover"
                 />

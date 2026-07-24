@@ -12,6 +12,7 @@ import {
   jamBaseEventTicket,
   type AdvancedSearchPayload,
 } from '@/react-app/lib/advanced-search';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 type Props = {
   query: string;
@@ -168,7 +169,7 @@ function SearchDropdownPanel({
                 >
                   {a.image_url ? (
                     <img
-                      src={a.image_url}
+                      src={displayMediaUrl(a.image_url)}
                       alt=""
                       className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                     />

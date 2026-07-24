@@ -136,6 +136,7 @@ import { buildSongPagePayload } from "./song-page-endpoints";
 import { normalizeClipApiRows } from "./clip-row-normalize";
 import { r2ForClipObjectKey } from "./r2-clip-key";
 import { serveR2ClipFile } from "./r2-serve";
+import { proxyExternalMedia } from "./media-proxy";
 import { maybeServeClipShareOgHtml } from "./clip-share-og";
 export { RealtimeDurableObject } from "./realtime-durable-object";
 
@@ -1210,6 +1211,9 @@ app.post("/api/upload", authMiddleware, rateLimiter(RateLimits.UPLOAD), async (c
 
 // Retrieve file from R2 (supports Range requests for video seeking / fast start)
 app.get("/api/files/:key{.+}", serveR2ClipFile);
+
+// Same-origin proxy for JamBase/Unsplash images (Capacitor iOS WKWebView)
+app.get("/api/media/proxy", rateLimiter(RateLimits.API), proxyExternalMedia);
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);

@@ -7,6 +7,7 @@ import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import { artistPath } from '@/shared/app-paths';
 import { Calendar, MapPin } from 'lucide-react';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 type D1Concert = {
   id: number;
@@ -43,7 +44,7 @@ function D1ConcertBrowseCard({
       >
         {concert.artist_image ? (
           <img
-            src={concert.artist_image}
+            src={displayMediaUrl(concert.artist_image)}
             alt=""
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
           />

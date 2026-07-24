@@ -8,6 +8,7 @@ import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName'
 import { artistPath, venuePath } from '@/shared/app-paths'
 import EventTicketActions from '@/react-app/components/EventTicketActions'
 import ClipPosterImage from '@/react-app/components/ClipPosterImage'
+import { displayMediaUrl } from '@/shared/media-proxy'
 
 const welcomeGradient =
   'bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent'
@@ -179,7 +180,7 @@ export default function DiscoverSection() {
                       />
                     ) : imageUrl ? (
                       <img
-                        src={imageUrl}
+                        src={displayMediaUrl(imageUrl)}
                         alt={show.artist_name || 'Concert'}
                         className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-500"
                       />

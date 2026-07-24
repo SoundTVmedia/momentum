@@ -22,6 +22,7 @@ import {
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 export type ShowsSectionMode = 'favorite-artists' | 'nearby' | 'auto';
 
@@ -83,7 +84,7 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
       >
         {concert.artist_image ? (
           <img
-            src={concert.artist_image}
+            src={displayMediaUrl(concert.artist_image)}
             alt=""
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
           />

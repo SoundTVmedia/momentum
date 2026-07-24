@@ -13,6 +13,7 @@ import type { ClipWithUser } from '@/shared/types';
 import { HOME_FEED_SECTION_CLASS, PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { venueUpcomingCarouselProps } from '@/react-app/lib/venue-upcoming-events';
 import { apiVenuePath } from '@/shared/app-paths';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 interface Venue {
   id: number;
@@ -113,7 +114,10 @@ export default function VenuePage() {
             {/* Venue Image */}
             <div className="relative">
               <img
-                src={venue.image_url || 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300&h=300&fit=crop'}
+                src={displayMediaUrl(
+                  venue.image_url ||
+                    'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=300&h=300&fit=crop',
+                )}
                 alt={venue.name}
                 className="w-48 h-48 rounded-xl object-cover border-4 border-momentum-flare/40 shadow-xl shadow-momentum-ember/25"
               />

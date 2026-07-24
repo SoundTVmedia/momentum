@@ -3,6 +3,7 @@ import { Search, Loader2, X } from 'lucide-react';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
 import type { JamBaseArtist } from '@/shared/types';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 type Props = {
   favoriteArtists: string[];
@@ -112,7 +113,11 @@ export default function FavoriteArtistsJamBaseField({
                           className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           {a.image ? (
-                            <img src={a.image} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
+                            <img
+                              src={displayMediaUrl(a.image)}
+                              alt=""
+                              className="h-9 w-9 shrink-0 rounded-md object-cover"
+                            />
                           ) : (
                             <div className="h-9 w-9 shrink-0 rounded-md bg-white/10" />
                           )}

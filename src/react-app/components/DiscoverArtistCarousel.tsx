@@ -5,6 +5,7 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 export type DiscoverArtist = {
   name: string;
@@ -43,7 +44,7 @@ export default function DiscoverArtistCarousel({
           >
             <div className="relative aspect-square overflow-hidden">
               <img
-                src={artist.image_url?.trim() || FALLBACK_ARTIST_IMAGE}
+                src={displayMediaUrl(artist.image_url?.trim() || FALLBACK_ARTIST_IMAGE)}
                 alt={artist.name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />

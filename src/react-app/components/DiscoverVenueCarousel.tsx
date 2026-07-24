@@ -5,6 +5,7 @@ import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { MOBILE_CAROUSEL_ITEM_PEEK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 export type DiscoverVenue = {
   name: string;
@@ -44,7 +45,7 @@ export default function DiscoverVenueCarousel({
           >
             <div className="relative aspect-square overflow-hidden">
               <img
-                src={venue.image_url?.trim() || FALLBACK_VENUE_IMAGE}
+                src={displayMediaUrl(venue.image_url?.trim() || FALLBACK_VENUE_IMAGE)}
                 alt={venue.name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />

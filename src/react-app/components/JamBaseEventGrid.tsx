@@ -15,6 +15,7 @@ import {
   jamBaseEventCardImageUrl,
   jamBaseEventHeadliner,
 } from '@/shared/jambase-events';
+import { displayMediaUrl } from '@/shared/media-proxy';
 import { jamBaseEventInProgress } from '@/shared/jambase-event-day';
 
 export interface JamBaseEventGridProps {
@@ -117,7 +118,7 @@ function JamBaseEventCard({
 }) {
   const title = typeof event.name === 'string' ? event.name : 'Show';
   const start = typeof event.startDate === 'string' ? event.startDate : '';
-  const image = jamBaseEventCardImageUrl(event);
+  const image = displayMediaUrl(jamBaseEventCardImageUrl(event));
   const ticket = primaryTicketUrl(event);
   const head = headlinerName(event);
   const vn = venueLabel(event);
