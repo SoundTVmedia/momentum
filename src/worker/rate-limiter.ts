@@ -162,6 +162,17 @@ export const RateLimits = {
   GENERAL: { windowMs: 60 * 1000, maxRequests: 60 }, // 60 per minute
 
   /**
+   * JamBase/Unsplash image proxy — home/discover carousels load many images at once.
+   * Shared per IP so unique path tokens do not bypass the cap, but high enough for feeds.
+   */
+  MEDIA_PROXY: {
+    windowMs: 60 * 1000,
+    maxRequests: 240,
+    sharedBucket: 'media-proxy',
+    message: 'Too many image requests — wait a moment and try again.',
+  },
+
+  /**
    * Shared bucket for all `/api/jambase/*` handlers (per user/IP, rolling hour).
    * Keeps browser abuse from burning JamBase quota (20k/mo, 7200/hr at JamBase).
    */

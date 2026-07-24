@@ -6,6 +6,10 @@ import {
 
 const MAX_UPSTREAM_BYTES = 8 * 1024 * 1024;
 
+/** Browser-like UA — some CDNs (JamBase/CF Polish) behave differently for bots. */
+const UPSTREAM_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+
 function isBlockedHostname(hostname: string): boolean {
   const host = hostname.toLowerCase();
   if (host === 'localhost' || host.endsWith('.localhost')) return true;
@@ -48,6 +52,62 @@ function resolveUpstreamFromRequest(c: Context): URL | null {
 }
 
 /**
+ * Cloudflare Polish often rewrites PNG/JPEG bodies while leaving a stale Content-Type
+ * (e.g. image/png header + JPEG bytes). With `X-Content-Type-Options: nosniff`,
+ * WKWebView rejects those as broken images (blue "?").
+ */
+export function sniffImageContentType(bytes: Uint8Array): string | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  if (
+    bytes.length >= 6 &&
+    bytes[0] === 0x47 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x38 &&
+    (bytes[4] === 0x39 || bytes[4] === 0x37) &&
+    bytes[5] === 0x61
+  ) {
+    return 'image/gif';
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+function headerImageContentType(raw: string | null): string | null {
+  const ct = (raw || '').split(';')[0]?.trim().toLowerCase() ?? '';
+  if (!ct.startsWith('image/')) return null;
+  if (ct === 'image/jpg') return 'image/jpeg';
+  return ct;
+}
+
+/**
  * Same-origin proxy for JamBase / Unsplash images.
  * Capacitor iOS WKWebView often fails direct third-party image loads (blue "?" tile).
  */
@@ -63,9 +123,10 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
       method: 'GET',
       redirect: 'follow',
       headers: {
-        Accept: 'image/*,*/*;q=0.8',
+        // Prefer original raster formats; still sniff body in case Polish rewrites bytes.
+        Accept: 'image/png,image/jpeg,image/webp,image/gif,image/*;q=0.8,*/*;q=0.5',
         'Accept-Encoding': 'identity',
-        'User-Agent': 'FeedbackMediaProxy/1.0',
+        'User-Agent': UPSTREAM_UA,
       },
     });
   } catch (err) {
@@ -80,11 +141,6 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
     );
   }
 
-  const contentType = (upstreamRes.headers.get('content-type') || '').toLowerCase();
-  if (contentType && !contentType.startsWith('image/')) {
-    return c.json({ error: 'Upstream response is not an image' }, 502);
-  }
-
   const contentLengthHeader = upstreamRes.headers.get('content-length');
   if (contentLengthHeader) {
     const len = Number(contentLengthHeader);
@@ -93,15 +149,33 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
     }
   }
 
+  const buf = new Uint8Array(await upstreamRes.arrayBuffer());
+  if (buf.byteLength === 0) {
+    return c.json({ error: 'Upstream media empty' }, 502);
+  }
+  if (buf.byteLength > MAX_UPSTREAM_BYTES) {
+    return c.json({ error: 'Upstream media too large' }, 502);
+  }
+
+  const sniffed = sniffImageContentType(buf);
+  const declared = headerImageContentType(upstreamRes.headers.get('content-type'));
+  // Trust bytes over headers — CF Polish frequently mismatches extension/MIME.
+  const contentType = sniffed ?? declared;
+  if (!contentType) {
+    return c.json({ error: 'Upstream response is not an image' }, 502);
+  }
+
   const headers = new Headers();
-  headers.set('Content-Type', contentType || 'image/jpeg');
+  headers.set('Content-Type', contentType);
+  headers.set('Content-Length', String(buf.byteLength));
   headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
-  const len = upstreamRes.headers.get('content-length');
-  if (len) headers.set('Content-Length', len);
+  // capacitor:// and ionic:// WebViews load absolute https proxy URLs cross-origin.
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Vary', 'Accept');
 
-  return new Response(upstreamRes.body, {
+  return new Response(buf, {
     status: 200,
     headers,
   });

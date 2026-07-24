@@ -24,6 +24,8 @@ import {
   mergeArtistSocialLinks,
   parseArtistSocialLinksJson,
 } from './jambase-artist-links';
+import { rewriteJamBaseEventImages, rewriteMediaUrlForClient } from '../shared/media-proxy';
+import { clientMediaOrigin } from './client-media-origin';
 
 export async function resolveArtistNameForClipsQuery(
   db: D1Database,
@@ -349,7 +351,15 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
   }
 
   return {
-    artist,
+    artist: artist
+      ? {
+          ...artist,
+          image_url: rewriteMediaUrlForClient(
+            typeof artist.image_url === 'string' ? artist.image_url : null,
+            clientMediaOrigin(c),
+          ),
+        }
+      : artist,
     clips: normalizeClipApiRows((clipsRes.results ?? []) as Record<string, unknown>[]),
     tourDates,
     jambase_attribution,
@@ -732,11 +742,24 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     }
   }
 
+  const mediaOrigin = clientMediaOrigin(c);
   return {
-    venue,
+    venue: venue
+      ? {
+          ...venue,
+          image_url: rewriteMediaUrlForClient(
+            typeof venue.image_url === 'string' ? venue.image_url : null,
+            mediaOrigin,
+          ),
+        }
+      : venue,
     clips: normalizeClipApiRows((clipsRes.results ?? []) as Record<string, unknown>[]),
     upcomingEvents,
-    upcomingJamBaseEvents,
+    upcomingJamBaseEvents: Array.isArray(upcomingJamBaseEvents)
+      ? upcomingJamBaseEvents
+          .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
+          .map((e) => rewriteJamBaseEventImages(e, mediaOrigin))
+      : upcomingJamBaseEvents,
     jambase_attribution,
   };
 }

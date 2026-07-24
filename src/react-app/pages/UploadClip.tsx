@@ -51,6 +51,7 @@ import {
   type LiveSongSnapshot,
 } from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
+import { displayMediaUrl } from '@/shared/media-proxy';
 import { resolveClipEventTitle } from '@/shared/event-title';
 
 import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
@@ -3761,7 +3762,11 @@ export default function UploadClip() {
                   >
                     <div className="flex items-center space-x-3">
                       {artist.image && (
-                        <img src={artist.image} alt={artist.name} className="w-10 h-10 rounded-full object-cover" />
+                        <img
+                          src={displayMediaUrl(artist.image)}
+                          alt={artist.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
                       )}
                       <div>
                         <div className="text-white font-medium">{artist.name}</div>

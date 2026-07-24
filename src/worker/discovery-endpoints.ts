@@ -29,32 +29,10 @@ import {
   type TrendingArtistRow,
 } from './discover-jambase-enrich';
 import {
-  DEFAULT_PUBLIC_APP_ORIGIN,
   rewriteJamBaseEventImages,
   rewriteMediaUrlForClient,
 } from '../shared/media-proxy';
-
-function clientMediaOrigin(c: Context): string {
-  const pub =
-    typeof c.env.PUBLIC_APP_URL === 'string' ? c.env.PUBLIC_APP_URL.trim() : '';
-  if (pub.startsWith('http://') || pub.startsWith('https://')) {
-    return pub.replace(/\/$/, '');
-  }
-  const reqOrigin = new URL(c.req.url).origin;
-  if (reqOrigin.startsWith('http://') || reqOrigin.startsWith('https://')) {
-    return reqOrigin;
-  }
-  return DEFAULT_PUBLIC_APP_ORIGIN;
-}
-
-function rewriteEventListForClient(
-  events: unknown[],
-  origin: string,
-): Record<string, unknown>[] {
-  return events
-    .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
-    .map((e) => rewriteJamBaseEventImages(e, origin));
-}
+import { clientMediaOrigin } from './client-media-origin';
 import {
   clipGeoWhereClause,
   filterJamBaseRecordsInRadius,
@@ -67,6 +45,15 @@ import {
   searchFeedbackUsersByText,
   searchFeedbackUsersInGeo,
 } from './search-users';
+
+function rewriteEventListForClient(
+  events: unknown[],
+  origin: string,
+): Record<string, unknown>[] {
+  return events
+    .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
+    .map((e) => rewriteJamBaseEventImages(e, origin));
+}
 
 async function fetchJamBaseCompactCatalog(
   apiKey: string,

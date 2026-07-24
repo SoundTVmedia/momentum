@@ -20,6 +20,48 @@ import {
   jamBaseEventUpcomingOrInProgress,
   jamBaseVenueEventLookbackDateFrom,
 } from '../shared/jambase-event-day';
+import {
+  rewriteJamBaseEventImages,
+  rewriteMediaUrlForClient,
+} from '../shared/media-proxy';
+import { clientMediaOrigin } from './client-media-origin';
+
+function rewriteEventList(events: unknown[] | undefined, origin: string): unknown[] {
+  if (!Array.isArray(events)) return [];
+  return events
+    .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
+    .map((e) => rewriteJamBaseEventImages(e, origin));
+}
+
+function rewriteEntityImage<T extends Record<string, unknown> | null | undefined>(
+  entity: T,
+  origin: string,
+): T {
+  if (!entity || typeof entity !== 'object') return entity;
+  if (typeof entity.image !== 'string') return entity;
+  return {
+    ...entity,
+    image: rewriteMediaUrlForClient(entity.image, origin) ?? entity.image,
+  };
+}
+
+function rewriteArtistList(artists: unknown[] | undefined, origin: string): unknown[] {
+  if (!Array.isArray(artists)) return [];
+  return artists.map((a) =>
+    a && typeof a === 'object' && !Array.isArray(a)
+      ? rewriteEntityImage(a as Record<string, unknown>, origin)
+      : a,
+  );
+}
+
+function rewriteVenueList(venues: unknown[] | undefined, origin: string): unknown[] {
+  if (!Array.isArray(venues)) return [];
+  return venues.map((v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? rewriteEntityImage(v as Record<string, unknown>, origin)
+      : v,
+  );
+}
 
 /**
  * JamBase Data API v3 — proxy endpoints for the SPA.
@@ -188,7 +230,7 @@ export async function searchArtists(c: Context) {
 
     cacheJsonProxy(c, { browserMaxAge: 1800, cdnMaxAge: 28_800 });
     return c.json({
-      artists: data.artists || [],
+      artists: rewriteArtistList(data.artists, clientMediaOrigin(c)),
       pagination: {},
     });
   } catch (error) {
@@ -240,7 +282,7 @@ export async function searchVenues(c: Context) {
 
     cacheJsonProxy(c, { browserMaxAge: 1800, cdnMaxAge: 28_800 });
     return c.json({
-      venues: data.venues || [],
+      venues: rewriteVenueList(data.venues, clientMediaOrigin(c)),
       pagination: {},
     });
   } catch (error) {
@@ -273,7 +315,7 @@ export async function getArtistTourDates(c: Context) {
 
     cacheJsonProxy(c, { browserMaxAge: 900, cdnMaxAge: 7200 });
     return c.json({
-      events: data?.events || [],
+      events: rewriteEventList(data?.events, clientMediaOrigin(c)),
       pagination: {},
     });
   } catch (error) {
@@ -326,7 +368,7 @@ export async function getUpcomingEvents(c: Context) {
 
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
-      events: data?.events || [],
+      events: rewriteEventList(data?.events, clientMediaOrigin(c)),
       pagination: {},
     });
   } catch (error) {
@@ -356,7 +398,7 @@ export async function getArtistById(c: Context) {
     }
 
     cacheJsonProxy(c, { browserMaxAge: 3600, cdnMaxAge: 86_400 });
-    return c.json(data);
+    return c.json(rewriteEntityImage(data, clientMediaOrigin(c)));
   } catch (error) {
     console.error('JamBase artist details error:', error);
     return c.json({ error: 'Failed to fetch artist details' }, 500);
@@ -384,7 +426,7 @@ export async function getVenueById(c: Context) {
     }
 
     cacheJsonProxy(c, { browserMaxAge: 3600, cdnMaxAge: 86_400 });
-    return c.json(data);
+    return c.json(rewriteEntityImage(data, clientMediaOrigin(c)));
   } catch (error) {
     console.error('JamBase venue details error:', error);
     return c.json({ error: 'Failed to fetch venue details' }, 500);
@@ -421,12 +463,12 @@ export async function searchEvents(c: Context) {
         jbQ
       );
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
-      return c.json({ events: data?.events || [] });
+      return c.json({ events: rewriteEventList(data?.events, clientMediaOrigin(c)) });
     }
 
     const events = await buildTightJamBaseEventResults(key, q, max, jbQ);
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
-    return c.json({ events });
+    return c.json({ events: rewriteEventList(events, clientMediaOrigin(c)) });
   } catch (error) {
     console.error('JamBase event search error:', error);
     return c.json({ error: 'Failed to search events', events: [] }, 500);
@@ -494,7 +536,7 @@ export async function getLiveTabEvents(c: Context) {
     }
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
-      events: data.events ?? [],
+      events: rewriteEventList(data.events, clientMediaOrigin(c)),
       meta: { geoMetroId: params.geoMetroId, geoCityId: params.geoCityId, artistName: params.artistName },
     });
   } catch (error) {
@@ -762,8 +804,13 @@ export async function getEventsByArtistName(c: Context) {
 
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
-      events,
-      artist,
+      events: rewriteEventList(events, clientMediaOrigin(c)),
+      artist: rewriteEntityImage(
+        artist && typeof artist === 'object'
+          ? (artist as Record<string, unknown>)
+          : null,
+        clientMediaOrigin(c),
+      ),
       ...(notice ? { notice } : {}),
     });
   } catch (error) {
@@ -799,10 +846,16 @@ export async function getEventsByVenueName(c: Context) {
         ? jamBaseEntityEventsNotice(key, diag, venue, 'venue', raw)
         : null;
 
+    const mediaOrigin = clientMediaOrigin(c);
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({
-      events,
-      venue,
+      events: rewriteEventList(events, mediaOrigin),
+      venue: rewriteEntityImage(
+        venue && typeof venue === 'object'
+          ? (venue as Record<string, unknown>)
+          : null,
+        mediaOrigin,
+      ),
       ...(notice ? { notice } : {}),
     });
   } catch (error) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiArtistPath } from '@/shared/app-paths';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 type ClipArtistProfileState = {
   imageUrl: string | null;
@@ -53,7 +54,7 @@ export function useClipArtistProfile(artistName?: string | null): ClipArtistProf
 
         const img =
           typeof data.artist?.image_url === 'string' ? data.artist.image_url.trim() : '';
-        setImageUrl(img || null);
+        setImageUrl(img ? displayMediaUrl(img) : null);
         setWebsiteUrl(parseSocialLinksWebsite(data.artist?.social_links));
       } catch (err) {
         console.error('Clip artist profile:', err);
