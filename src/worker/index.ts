@@ -1224,14 +1224,16 @@ app.get("/api/files/:key{.+}", serveR2ClipFile);
 app.get("/api/media/proxy/health", (c) =>
   c.json({
     ok: true,
-    version: 2,
+    version: 3,
     mimeSniff: true,
-    pathPrefix: "/api/media/proxy/v2/b",
+    rasterOnly: true,
+    pathPrefix: "/api/media/proxy/v3/b",
   }),
 );
 app.get("/api/media/proxy", rateLimiter(RateLimits.MEDIA_PROXY), proxyExternalMedia);
 app.get("/api/media/proxy/b/:token", rateLimiter(RateLimits.MEDIA_PROXY), proxyExternalMedia);
 app.get("/api/media/proxy/v2/b/:token", rateLimiter(RateLimits.MEDIA_PROXY), proxyExternalMedia);
+app.get("/api/media/proxy/v3/b/:token", rateLimiter(RateLimits.MEDIA_PROXY), proxyExternalMedia);
 
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);

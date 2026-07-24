@@ -42,10 +42,10 @@ function sniff(bytes) {
 }
 
 function okMime(headerCt, kind) {
+  // Cap iOS WKWebView: only JPEG/PNG/GIF are reliable (WebP often blue "?").
   if (kind === 'jpeg') return headerCt.includes('jpeg');
   if (kind === 'png') return headerCt.includes('png');
-  if (kind === 'webp') return headerCt.includes('webp');
-  if (kind === 'avif/heic') return headerCt.includes('avif') || headerCt.includes('heic');
+  if (kind === 'gif') return headerCt.includes('gif');
   return false;
 }
 
@@ -58,8 +58,12 @@ if (!healthCt.includes('application/json')) {
 }
 const health = await healthRes.json();
 console.log('health', health);
-if (!health?.mimeSniff || !String(health?.pathPrefix || '').includes('/v2/')) {
-  console.error('FAIL: health payload missing mimeSniff/v2 pathPrefix');
+if (
+  !health?.mimeSniff ||
+  !health?.rasterOnly ||
+  !String(health?.pathPrefix || '').includes('/v3/')
+) {
+  console.error('FAIL: health payload missing mimeSniff/rasterOnly/v3 pathPrefix');
   process.exit(1);
 }
 
@@ -94,7 +98,8 @@ for (const url of unique) {
     mismatches += 1;
     console.error(`MISMATCH ${ct} vs ${kind} version=${version} ${url.slice(0, 120)}`);
   } else {
-    console.log(`ok ${ct} (${kind}) v=${version || '?'} ${url.includes('/v2/') ? 'v2' : 'legacy'}`);
+    const pathTag = url.includes('/v3/') ? 'v3' : url.includes('/v2/') ? 'v2' : 'legacy';
+    console.log(`ok ${ct} (${kind}) v=${version || '?'} ${pathTag}`);
   }
 }
 

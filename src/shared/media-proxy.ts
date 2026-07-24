@@ -11,10 +11,10 @@ export const DEFAULT_PUBLIC_APP_ORIGIN =
 
 /**
  * Path prefix for proxied media.
- * Bump when proxy response semantics change (e.g. MIME sniffing) so CDNs/clients
- * do not keep stale wrong Content-Type responses.
+ * Bump when proxy response semantics change (e.g. MIME sniffing, no-WebP)
+ * so CDNs/clients do not keep stale broken responses.
  */
-export const MEDIA_PROXY_PATH_PREFIX = '/api/media/proxy/v2/b';
+export const MEDIA_PROXY_PATH_PREFIX = '/api/media/proxy/v3/b';
 
 export function isProxyableMediaHost(hostname: string): boolean {
   const host = hostname.trim().toLowerCase();
@@ -120,8 +120,9 @@ export function buildProxiedMediaUrl(
 }
 
 /**
- * Upgrade legacy `/api/media/proxy/b/...` (or query) URLs to v2 so clients
- * do not keep hitting CDN-cached wrong Content-Type responses.
+ * Upgrade legacy `/api/media/proxy/b/...` or `/v2/b/...` (or query) URLs to the
+ * current path prefix so clients do not keep hitting CDN-cached broken responses
+ * (wrong MIME, or WebP that iOS WKWebView fails to paint).
  */
 export function upgradeLegacyMediaProxyUrl(
   url: string,
@@ -129,9 +130,11 @@ export function upgradeLegacyMediaProxyUrl(
 ): string {
   const raw = url.trim();
   if (!raw.includes('/api/media/proxy')) return raw;
-  if (raw.includes('/api/media/proxy/v2/')) return raw;
+  if (raw.includes(`${MEDIA_PROXY_PATH_PREFIX}/`) || raw.endsWith(MEDIA_PROXY_PATH_PREFIX)) {
+    return raw;
+  }
 
-  const pathMatch = raw.match(/\/api\/media\/proxy\/b\/([^/?#]+)/);
+  const pathMatch = raw.match(/\/api\/media\/proxy\/(?:v\d+\/)?b\/([^/?#]+)/);
   if (pathMatch?.[1]) {
     const path = `${MEDIA_PROXY_PATH_PREFIX}/${pathMatch[1]}`;
     if (raw.startsWith('http://') || raw.startsWith('https://')) {
