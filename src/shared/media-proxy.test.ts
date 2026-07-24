@@ -29,7 +29,7 @@ describe('media-proxy', () => {
     expect(shouldProxyExternalMedia('https://example.com/x.jpg')).toBe(false);
     expect(
       shouldProxyExternalMedia(
-        'https://app.example/api/media/proxy/v2/b/abc',
+        'https://app.example/api/media/proxy/v3/b/abc',
       ),
     ).toBe(false);
   });
@@ -50,12 +50,16 @@ describe('media-proxy', () => {
     expect(displayMediaUrl(null)).toBe('');
   });
 
-  it('upgrades legacy proxy URLs to v2', () => {
+  it('upgrades legacy proxy URLs to the current path prefix', () => {
     const token = encodeMediaProxyToken(
       'https://www.jambase.com/wp-content/uploads/a.jpg',
     );
     const legacy = `https://app.example/api/media/proxy/b/${token}`;
+    const v2 = `https://app.example/api/media/proxy/v2/b/${token}`;
     expect(upgradeLegacyMediaProxyUrl(legacy, 'https://app.example')).toBe(
+      `https://app.example${MEDIA_PROXY_PATH_PREFIX}/${token}`,
+    );
+    expect(upgradeLegacyMediaProxyUrl(v2, 'https://app.example')).toBe(
       `https://app.example${MEDIA_PROXY_PATH_PREFIX}/${token}`,
     );
   });

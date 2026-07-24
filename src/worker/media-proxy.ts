@@ -113,6 +113,88 @@ function headerImageContentType(raw: string | null): string | null {
   return ct;
 }
 
+/** Cap iOS / recent WKWebView often paints blue "?" for WebP/AVIF from CDNs. */
+const SAFE_RASTER_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif']);
+
+/**
+ * Do not advertise WebP/AVIF — Cloudflare Polish on JamBase will otherwise
+ * rewrite to WebP, which breaks show/artist cards in Capacitor iOS WKWebView.
+ */
+const UPSTREAM_ACCEPT_SAFE =
+  'image/jpeg,image/png,image/gif;q=0.9,*/*;q=0.1';
+const UPSTREAM_ACCEPT_JPEG_ONLY = 'image/jpeg';
+
+async function fetchUpstreamImage(
+  upstreamUrl: string,
+  accept: string,
+): Promise<{ res: Response; buf: Uint8Array } | { error: Response }> {
+  let upstreamRes: Response;
+  try {
+    upstreamRes = await fetch(upstreamUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        Accept: accept,
+        'Accept-Encoding': 'identity',
+        'User-Agent': UPSTREAM_UA,
+      },
+    });
+  } catch (err) {
+    console.error('media proxy fetch failed', upstreamUrl, err);
+    return {
+      error: new Response(JSON.stringify({ error: 'Upstream media fetch failed' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    };
+  }
+
+  if (!upstreamRes.ok) {
+    return {
+      error: new Response(
+        JSON.stringify({
+          error: 'Upstream media unavailable',
+          status: upstreamRes.status,
+        }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } },
+      ),
+    };
+  }
+
+  const contentLengthHeader = upstreamRes.headers.get('content-length');
+  if (contentLengthHeader) {
+    const len = Number(contentLengthHeader);
+    if (Number.isFinite(len) && len > MAX_UPSTREAM_BYTES) {
+      return {
+        error: new Response(JSON.stringify({ error: 'Upstream media too large' }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      };
+    }
+  }
+
+  const buf = new Uint8Array(await upstreamRes.arrayBuffer());
+  if (buf.byteLength === 0) {
+    return {
+      error: new Response(JSON.stringify({ error: 'Upstream media empty' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    };
+  }
+  if (buf.byteLength > MAX_UPSTREAM_BYTES) {
+    return {
+      error: new Response(JSON.stringify({ error: 'Upstream media too large' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    };
+  }
+
+  return { res: upstreamRes, buf };
+}
+
 /**
  * Same-origin proxy for JamBase / Unsplash images.
  * Capacitor iOS WKWebView often fails direct third-party image loads (blue "?" tile).
@@ -123,57 +205,36 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
     return c.json({ error: 'Invalid or disallowed media url' }, 400);
   }
 
-  let upstreamRes: Response;
-  try {
-    upstreamRes = await fetch(upstream.toString(), {
-      method: 'GET',
-      redirect: 'follow',
-      headers: {
-        // Prefer original raster formats; still sniff body in case Polish rewrites bytes.
-        Accept: 'image/png,image/jpeg,image/webp,image/gif,image/*;q=0.8,*/*;q=0.5',
-        'Accept-Encoding': 'identity',
-        'User-Agent': UPSTREAM_UA,
-      },
-    });
-  } catch (err) {
-    console.error('media proxy fetch failed', upstream.hostname, err);
-    return c.json({ error: 'Upstream media fetch failed' }, 502);
-  }
+  let fetched = await fetchUpstreamImage(upstream.toString(), UPSTREAM_ACCEPT_SAFE);
+  if ('error' in fetched) return fetched.error;
 
-  if (!upstreamRes.ok) {
-    return c.json(
-      { error: 'Upstream media unavailable', status: upstreamRes.status },
-      502,
+  let sniffed = sniffImageContentType(fetched.buf);
+  // Polish may still return WebP despite Accept; retry asking for JPEG only.
+  if (sniffed && !SAFE_RASTER_TYPES.has(sniffed)) {
+    const retry = await fetchUpstreamImage(
+      upstream.toString(),
+      UPSTREAM_ACCEPT_JPEG_ONLY,
     );
-  }
-
-  const contentLengthHeader = upstreamRes.headers.get('content-length');
-  if (contentLengthHeader) {
-    const len = Number(contentLengthHeader);
-    if (Number.isFinite(len) && len > MAX_UPSTREAM_BYTES) {
-      return c.json({ error: 'Upstream media too large' }, 502);
+    if (!('error' in retry)) {
+      const retrySniffed = sniffImageContentType(retry.buf);
+      if (retrySniffed && SAFE_RASTER_TYPES.has(retrySniffed)) {
+        fetched = retry;
+        sniffed = retrySniffed;
+      }
     }
   }
 
-  const buf = new Uint8Array(await upstreamRes.arrayBuffer());
-  if (buf.byteLength === 0) {
-    return c.json({ error: 'Upstream media empty' }, 502);
-  }
-  if (buf.byteLength > MAX_UPSTREAM_BYTES) {
-    return c.json({ error: 'Upstream media too large' }, 502);
-  }
-
-  const sniffed = sniffImageContentType(buf);
-  const declared = headerImageContentType(upstreamRes.headers.get('content-type'));
+  const declared = headerImageContentType(fetched.res.headers.get('content-type'));
   // Trust bytes only — CF Polish frequently mismatches extension/MIME.
   // Never fall back to an unverified declared type: WKWebView + nosniff rejects
   // JPEG bodies labeled as image/png (common on JamBase).
-  const contentType = sniffed;
+  const contentType = sniffed && SAFE_RASTER_TYPES.has(sniffed) ? sniffed : null;
   if (!contentType) {
     return c.json(
       {
-        error: 'Upstream response is not a recognizable image',
+        error: 'Upstream response is not a Cap-safe raster image',
         declaredContentType: declared,
+        sniffedContentType: sniffed,
       },
       502,
     );
@@ -181,18 +242,18 @@ export async function proxyExternalMedia(c: Context): Promise<Response> {
 
   const headers = new Headers();
   headers.set('Content-Type', contentType);
-  headers.set('Content-Length', String(buf.byteLength));
+  headers.set('Content-Length', String(fetched.buf.byteLength));
   headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-  // Prevent Cloudflare edge from reusing older wrong Content-Type responses.
+  // Prevent Cloudflare edge from reusing older wrong Content-Type / WebP responses.
   headers.set('CDN-Cache-Control', 'public, max-age=3600');
   headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('X-Media-Proxy-Version', '2');
+  headers.set('X-Media-Proxy-Version', '3');
   headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
   // capacitor:// and ionic:// WebViews load absolute https proxy URLs cross-origin.
   headers.set('Access-Control-Allow-Origin', '*');
   headers.set('Vary', 'Accept');
 
-  return new Response(buf, {
+  return new Response(fetched.buf, {
     status: 200,
     headers,
   });
