@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..58a1775 100644
+index 5dec305..96a23a6 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 @@ -41,6 +41,8 @@ class CameraController: NSObject {
@@ -11,7 +11,7 @@ index 5dec305..58a1775 100644
      private let saneMaxZoomFactor: CGFloat = 25.5
  
      // Track output preparation status
-@@ -192,30 +194,108 @@ extension CameraController {
+@@ -192,30 +194,69 @@ extension CameraController {
          }
      }
  
@@ -87,7 +87,7 @@ index 5dec305..58a1775 100644
          self.outputsPrepared = true
      }
  
-@@ -240,6 +301,11 @@ extension CameraController {
+@@ -240,6 +281,11 @@ extension CameraController {
                      throw CameraControllerError.captureSessionIsMissing
                  }
  
@@ -99,7 +99,7 @@ index 5dec305..58a1775 100644
                  // Prepare outputs
                  self.prepareOutputs()
  
-@@ -253,7 +319,19 @@ extension CameraController {
+@@ -253,7 +299,19 @@ extension CameraController {
                  // Configure device inputs
                  try self.configureDeviceInputs(cameraPosition: cameraPosition, deviceId: deviceId, disableAudio: disableAudio)
  
@@ -120,7 +120,7 @@ index 5dec305..58a1775 100644
                  if let dataOutput = self.dataOutput, captureSession.canAddOutput(dataOutput) {
                      captureSession.addOutput(dataOutput)
                      dataOutput.setSampleBufferDelegate(self, queue: DispatchQueue.main)
-@@ -280,11 +358,6 @@ extension CameraController {
+@@ -280,11 +338,6 @@ extension CameraController {
                          captureSession.addOutput(photoOutput)
                      }
  
@@ -132,7 +132,7 @@ index 5dec305..58a1775 100644
                      captureSession.commitConfiguration()
                  }
  
-@@ -312,6 +385,12 @@ extension CameraController {
+@@ -312,6 +365,12 @@ extension CameraController {
                  } else if captureSession.canSetSessionPreset(.hd1920x1080) {
                      targetPreset = .hd1920x1080
                  }
@@ -145,7 +145,7 @@ index 5dec305..58a1775 100644
              case "4:3":
                  if captureSession.canSetSessionPreset(.photo) {
                      targetPreset = .photo
-@@ -416,13 +501,18 @@ extension CameraController {
+@@ -416,13 +475,17 @@ extension CameraController {
              if self.audioDevice == nil {
                  self.audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
              }
@@ -170,7 +170,7 @@ index 5dec305..58a1775 100644
              }
          }
      }
-@@ -538,9 +544,9 @@
+@@ -454,9 +517,9 @@ extension CameraController {
              previewLayer.frame = frame
              previewLayer.videoGravity = .resizeAspectFill
          } else {
@@ -182,7 +182,7 @@ index 5dec305..58a1775 100644
          }
  
          // Insert layer immediately (only if new)
-@@ -1434,7 +1524,64 @@ extension CameraController {
+@@ -1434,7 +1497,49 @@ extension CameraController {
          self.firstFrameReadyCallback = nil
      }
  
@@ -232,7 +232,7 @@ index 5dec305..58a1775 100644
          guard let captureSession = self.captureSession, captureSession.isRunning else {
              throw CameraControllerError.captureSessionIsMissing
          }
-@@ -1446,6 +1593,8 @@ extension CameraController {
+@@ -1446,6 +1551,8 @@ extension CameraController {
              throw CameraControllerError.fileVideoOutputNotFound
          }
  
@@ -241,7 +241,7 @@ index 5dec305..58a1775 100644
          // cpcp_video_A6C01203 - portrait
          //
          if let connection = fileVideoOutput.connection(with: .video) {
-@@ -1463,6 +1612,20 @@ extension CameraController {
+@@ -1463,6 +1570,20 @@ extension CameraController {
              }
          }
  
@@ -262,7 +262,7 @@ index 5dec305..58a1775 100644
          let identifier = UUID()
          let randomIdentifier = identifier.uuidString.replacingOccurrences(of: "-", with: "")
          let finalIdentifier = String(randomIdentifier.prefix(8))
-@@ -1488,11 +1651,47 @@ extension CameraController {
+@@ -1488,11 +1609,46 @@ extension CameraController {
              return
          }
  
@@ -312,7 +312,7 @@ index 5dec305..58a1775 100644
      }
  }
  
-@@ -1839,11 +2038,19 @@ extension UIImage {
+@@ -1839,11 +1995,19 @@ extension UIImage {
  
  extension CameraController: AVCaptureFileOutputRecordingDelegate {
      func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
@@ -336,7 +336,7 @@ index 5dec305..58a1775 100644
      }
  }
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
-index d7a333f..b2d0744 100644
+index d7a333f..300370d 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 @@ -6,6 +6,17 @@ import CoreImage
@@ -404,7 +404,7 @@ index d7a333f..b2d0744 100644
          self.gridMode = call.getString("gridMode") ?? "none"
          self.positioning = call.getString("positioning") ?? "top"
  
-@@ -1139,11 +1162,20 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -1139,11 +1168,20 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
      }
  
      @objc func startRecordVideo(_ call: CAPPluginCall) {
@@ -430,7 +430,7 @@ index d7a333f..b2d0744 100644
          }
      }
  
-@@ -1159,7 +1191,11 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -1159,7 +1197,11 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
                  return
              }
  
@@ -443,7 +443,7 @@ index d7a333f..b2d0744 100644
          }
      }
  
-@@ -1737,6 +1737,7 @@
+@@ -1695,6 +1737,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
          // Update preview layer frame efficiently
          if let previewLayer = self.cameraController.previewLayer {
              previewLayer.frame = self.previewView.bounds
@@ -451,7 +451,7 @@ index d7a333f..b2d0744 100644
          }
  
          // Update grid overlay frame if it exists
-@@ -1742,8 +1789,10 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+@@ -1742,6 +1785,8 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
  
          if let width = call.getInt("width") { self.width = CGFloat(width) }
          if let height = call.getInt("height") { self.height = CGFloat(height) }
@@ -460,5 +460,3 @@ index d7a333f..b2d0744 100644
  
          DispatchQueue.main.async {
              // Direct update without animation for better performance
-             self.updateCameraFrame()
-             self.makeWebViewTransparent()
