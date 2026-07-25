@@ -18,6 +18,23 @@ export function utcYmdFromTimestamp(timestamp: string): string | null {
   return `${y}-${m}-${day}`;
 }
 
+/** Match SQLite's LOWER(TRIM(...)) legacy clip-key normalization. */
+function legacySqlText(value: string | null | undefined): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/^ +| +$/g, '').replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+}
+
+/** Legacy clip identity used by CLIP_SHOW_KEY_SQL when no stored event/show id exists. */
+export function computeLegacyClipShowKey(input: ShowIdInput): string | null {
+  const artist = legacySqlText(input.artist_name);
+  const venue = legacySqlText(input.venue_name);
+  const timestamp = typeof input.timestamp === 'string' ? input.timestamp : '';
+  if (!artist || !venue || !timestamp) return null;
+
+  const day = utcYmdFromTimestamp(timestamp);
+  return day ? `${artist}|${venue}|${day}` : null;
+}
+
 /**
  * Stable show key for grouping clips from the same concert.
  * Prefers JamBase event id; otherwise artist + venue + UTC capture date slug.

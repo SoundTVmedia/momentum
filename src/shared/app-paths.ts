@@ -1,5 +1,5 @@
 import { slugifyEntityName } from './jambase-slug';
-import { computeShowId } from './show-id';
+import { computeLegacyClipShowKey, computeShowId } from './show-id';
 import { resolveClipEventTitle } from './event-title';
 
 export type ShowMarkClipsInput = {
@@ -85,8 +85,7 @@ export function clipShowClipsPath(clip: ClipShowClipsInput): string {
   const showId =
     clip.show_id?.trim() ||
     clip.jambase_event_id?.trim() ||
-    computeShowId({
-      jambase_event_id: clip.jambase_event_id,
+    computeLegacyClipShowKey({
       artist_name: clip.artist_name,
       venue_name: clip.venue_name,
       timestamp: clip.timestamp,

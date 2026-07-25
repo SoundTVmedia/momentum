@@ -49,15 +49,19 @@ describe('clipShowClipsPath', () => {
     ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-20/clips');
   });
 
-  it('computes a date-aware show route when a legacy clip has no show id', () => {
+  it('uses the database legacy show key when a clip has no show id', () => {
     expect(
       clipShowClipsPath({
-        event_title: 'Phish at Madison Square Garden',
-        artist_name: 'Phish',
-        venue_name: 'Madison Square Garden',
-        timestamp: '2025-04-21T01:00:00.000Z',
+        event_title: 'The Beatles at Abbey Road Studios',
+        artist_name: 'The Beatles',
+        venue_name: 'Abbey Road Studios',
+        timestamp: '2026-07-25T19:00:00.000Z',
+        show_id: null,
+        jambase_event_id: null,
       }),
-    ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-21/clips');
+    ).toBe(
+      '/artists/the-beatles/shows/the%20beatles%7Cabbey%20road%20studios%7C2026-07-25/clips',
+    );
   });
 
   it('keeps the event-title route when a legacy clip cannot identify a show', () => {

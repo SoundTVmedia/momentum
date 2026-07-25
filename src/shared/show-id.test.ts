@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeShowId, utcYmdFromTimestamp } from './show-id';
+import { computeLegacyClipShowKey, computeShowId, utcYmdFromTimestamp } from './show-id';
 
 describe('show-id', () => {
   it('prefers jambase_event_id', () => {
@@ -56,6 +56,25 @@ describe('show-id', () => {
       }),
     ).toBeNull();
     expect(computeShowId({ artist_name: 'Phish', timestamp: '2025-04-20T00:00:00.000Z' })).toBeNull();
+  });
+
+  it('builds the legacy database key for clips without stored ids', () => {
+    expect(
+      computeLegacyClipShowKey({
+        artist_name: 'The Beatles',
+        venue_name: 'Abbey Road Studios',
+        timestamp: '2026-07-25T19:00:00.000Z',
+      }),
+    ).toBe('the beatles|abbey road studios|2026-07-25');
+  });
+
+  it('cannot build a legacy database key from incomplete clip identity', () => {
+    expect(
+      computeLegacyClipShowKey({
+        artist_name: 'The Beatles',
+        timestamp: '2026-07-25T19:00:00.000Z',
+      }),
+    ).toBeNull();
   });
 
   it('parses UTC calendar day', () => {
