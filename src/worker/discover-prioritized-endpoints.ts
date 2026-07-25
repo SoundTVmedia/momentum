@@ -500,8 +500,13 @@ export async function getShowClips(c: Context) {
   );
   const showId = c.req.param('showId');
   const sortBy = c.req.query('sort_by') || 'time_posted';
-  const page = parseInt(c.req.query('page') || '1');
-  const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50);
+  const requestedPage = Number.parseInt(c.req.query('page') || '1', 10);
+  const requestedLimit = Number.parseInt(c.req.query('limit') || '20', 10);
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const limit =
+    Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 50)
+      : 20;
   const offset = (page - 1) * limit;
 
   try {
@@ -532,17 +537,19 @@ export async function getShowClips(c: Context) {
     }
 
     query += ' LIMIT ? OFFSET ?';
-    bindings.push(String(limit), String(offset));
+    bindings.push(String(limit + 1), String(offset));
 
     const clips = await c.env.DB.prepare(query)
       .bind(...bindings)
       .all();
+    const rows = clips.results || [];
+    const hasMore = rows.length > limit;
 
     return c.json({
-      clips: clips.results || [],
+      clips: hasMore ? rows.slice(0, limit) : rows,
       page,
       limit,
-      hasMore: (clips.results || []).length === limit
+      hasMore,
     });
   } catch (error) {
     console.error('Get show clips error:', error);
