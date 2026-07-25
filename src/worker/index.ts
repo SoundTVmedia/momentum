@@ -81,6 +81,7 @@ import * as youtube from "./youtube-endpoints";
 import * as userRole from "./user-role-endpoints";
 import * as programApplications from "./program-application-endpoints";
 import * as superadminModeration from "./superadmin-moderation-endpoints";
+import { CLIP_SHOW_KEY_SQL } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -3872,10 +3873,11 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
   try {
     const previousShows = await c.env.DB.prepare(
       `SELECT 
-        clips.event_title,
-        clips.artist_name,
+        ${CLIP_SHOW_KEY_SQL} as show_id,
+        MAX(clips.event_title) as event_title,
+        MAX(clips.artist_name) as artist_name,
         MIN(clips.timestamp) as show_date,
-        clips.venue_name,
+        MAX(clips.venue_name) as venue_name,
         MAX(clips.location) as venue_location,
         MAX(CASE WHEN clips.jambase_event_id IS NOT NULL AND TRIM(clips.jambase_event_id) != '' THEN clips.jambase_event_id END) as jambase_event_id,
         MAX(CASE WHEN clips.jambase_venue_id IS NOT NULL AND TRIM(clips.jambase_venue_id) != '' THEN clips.jambase_venue_id END) as jambase_venue_id,
@@ -3889,7 +3891,7 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
       AND clips.is_draft = 0
       AND clips.event_title IS NOT NULL
       AND TRIM(clips.event_title) != ''
-      GROUP BY clips.event_title, clips.artist_name, clips.venue_name
+      GROUP BY ${CLIP_SHOW_KEY_SQL}
       ORDER BY show_date DESC
       LIMIT ?`
     )

@@ -9,6 +9,11 @@ export type ShowMarkClipsInput = {
   jambase_event_id?: string | null;
 };
 
+export type PastShowClipsInput = ShowMarkClipsInput & {
+  show_id?: string | null;
+  show_date?: string | null;
+};
+
 export function artistPath(name: string | null | undefined): string {
   const slug = slugifyEntityName(name);
   return slug ? `/artists/${slug}` : '/artists';
@@ -53,6 +58,20 @@ export function apiShowClipsPath(
   const id = typeof showId === 'string' ? showId.trim() : '';
   if (!artistSlug || !id) return '';
   return `/api/artists/${artistSlug}/shows/${encodeURIComponent(id)}/clips`;
+}
+
+/** Clips from one past-show card, including its date-aware fallback identity. */
+export function pastShowClipsPath(show: PastShowClipsInput): string {
+  const showId =
+    show.show_id?.trim() ||
+    show.jambase_event_id?.trim() ||
+    computeShowId({
+      jambase_event_id: show.jambase_event_id,
+      artist_name: show.artist_name,
+      venue_name: show.venue_name,
+      timestamp: show.show_date,
+    });
+  return showClipsPath(show.artist_name, showId);
 }
 
 /** All clips sharing the same JamBase-style event title. */

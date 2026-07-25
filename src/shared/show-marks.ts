@@ -64,6 +64,7 @@ export type PastShowMarkSource = {
   event_title: string;
   artist_name: string;
   show_date: string;
+  show_id?: string | null;
   venue_name?: string | null;
   venue_location?: string | null;
   jambase_event_id?: string | null;
@@ -77,6 +78,7 @@ export function pastShowSummaryToJamBaseEvent(
 ): Record<string, unknown> | null {
   const eventId =
     (typeof show.jambase_event_id === 'string' ? show.jambase_event_id.trim() : '') ||
+    (typeof show.show_id === 'string' ? show.show_id.trim() : '') ||
     computeShowId({
       jambase_event_id: show.jambase_event_id,
       artist_name: show.artist_name,

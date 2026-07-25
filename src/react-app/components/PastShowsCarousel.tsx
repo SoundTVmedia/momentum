@@ -8,7 +8,7 @@ import {
   EVENT_CAROUSEL_IMAGE_CLASS,
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
-import { eventClipsPath } from '@/shared/app-paths';
+import { pastShowClipsPath } from '@/shared/app-paths';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
@@ -17,6 +17,7 @@ export interface PastShowSummary {
   event_title: string;
   artist_name: string;
   show_date: string;
+  show_id?: string | null;
   venue_name?: string | null;
   venue_location?: string | null;
   jambase_event_id?: string | null;
@@ -59,7 +60,10 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
         const markEvent = pastShowSummaryToJamBaseEvent(show);
 
         return (
-          <HorizontalClipCarouselItem key={show.event_title} mobilePeek="event">
+          <HorizontalClipCarouselItem
+            key={show.show_id || `${show.event_title}-${show.show_date}`}
+            mobilePeek="event"
+          >
             <article className={`${EVENT_CAROUSEL_CARD_CLASS} glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden`}>
               <div className={`${EVENT_CAROUSEL_IMAGE_CLASS} group`}>
                 <ClipPosterImage
@@ -101,7 +105,7 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                   ) : null}
                   <button
                     type="button"
-                    onClick={() => navigate(eventClipsPath(show.event_title))}
+                    onClick={() => navigate(pastShowClipsPath(show))}
                     className="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-momentum-flare to-momentum-rose text-white text-sm font-semibold hover:scale-[1.02] transition-transform"
                   >
                     View Show Clips

@@ -23,6 +23,31 @@ describe('show-id', () => {
     ).toBe('taylor-swift-madison-square-garden-2025-04-20');
   });
 
+  it('groups clips from the same artist and venue on the same date', () => {
+    const show = {
+      artist_name: 'Phish',
+      venue_name: 'Madison Square Garden',
+    };
+
+    expect(computeShowId({ ...show, timestamp: '2025-04-20T01:00:00.000Z' })).toBe(
+      computeShowId({ ...show, timestamp: '2025-04-20T23:59:59.000Z' }),
+    );
+  });
+
+  it('separates consecutive shows by date for the same artist and venue', () => {
+    const show = {
+      artist_name: 'Phish',
+      venue_name: 'Madison Square Garden',
+    };
+
+    expect(computeShowId({ ...show, timestamp: '2025-04-20T01:00:00.000Z' })).toBe(
+      'phish-madison-square-garden-2025-04-20',
+    );
+    expect(computeShowId({ ...show, timestamp: '2025-04-21T01:00:00.000Z' })).toBe(
+      'phish-madison-square-garden-2025-04-21',
+    );
+  });
+
   it('returns null when required fields are missing', () => {
     expect(
       computeShowId({

@@ -3,6 +3,7 @@ import { resolveArtistNameForClipsQuery, resolveVenueNameForClipsQuery } from '.
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
+import { CLIP_SHOW_KEY_SQL } from './past-show-sql';
 
 /**
  * Get prioritized shows for discovery feed
@@ -512,7 +513,7 @@ export async function getShowClips(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       WHERE clips.artist_name = ?
-      AND clips.show_id = ?
+      AND ${CLIP_SHOW_KEY_SQL} = ?
       AND clips.is_hidden = 0
     `;
 
@@ -645,8 +646,9 @@ export async function getVenueArchive(c: Context) {
   try {
     let query = `
       SELECT 
-        clips.event_title,
-        clips.artist_name,
+        ${CLIP_SHOW_KEY_SQL} as show_id,
+        MAX(clips.event_title) as event_title,
+        MAX(clips.artist_name) as artist_name,
         MIN(clips.timestamp) as show_date,
         MAX(clips.venue_name) as venue_name,
         MAX(clips.location) as venue_location,
@@ -662,7 +664,7 @@ export async function getVenueArchive(c: Context) {
       AND clips.is_draft = 0
       AND clips.event_title IS NOT NULL
       AND TRIM(clips.event_title) != ''
-      GROUP BY clips.event_title, clips.artist_name
+      GROUP BY ${CLIP_SHOW_KEY_SQL}
     `;
 
     const bindings: any[] = [venueName];
