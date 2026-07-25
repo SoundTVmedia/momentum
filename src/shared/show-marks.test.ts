@@ -60,6 +60,17 @@ describe('pastShowSummaryToJamBaseEvent', () => {
     });
     expect(ev?.identifier).toBe('taylor-swift-madison-square-garden-2025-04-20');
   });
+
+  it('uses the grouped show id supplied by the past-shows API', () => {
+    const ev = pastShowSummaryToJamBaseEvent({
+      event_title: 'Phish at MSG',
+      artist_name: 'Phish',
+      show_date: '2025-04-20T01:00:00.000Z',
+      show_id: 'phish|madison square garden|2025-04-20',
+      venue_name: 'Madison Square Garden',
+    });
+    expect(ev?.identifier).toBe('phish|madison square garden|2025-04-20');
+  });
 });
 
 describe('upcomingGoingMarkEvents', () => {
