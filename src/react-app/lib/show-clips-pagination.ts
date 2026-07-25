@@ -19,6 +19,8 @@ export interface ShowClipsPage {
   hasMore: boolean;
 }
 
+type FetchAllShowClipsOptions = Omit<FetchShowClipsPageOptions, 'page'>;
+
 export async function fetchShowClipsPage({
   artistName,
   showId,
@@ -60,4 +62,19 @@ export function appendUniqueShowClips(
       return true;
     }),
   ];
+}
+
+export async function fetchAllShowClips(
+  options: FetchAllShowClipsOptions,
+): Promise<ClipWithUser[]> {
+  let clips: ClipWithUser[] = [];
+
+  for (let page = 1; ; page += 1) {
+    const result = await fetchShowClipsPage({ ...options, page });
+    clips = appendUniqueShowClips(clips, result.clips);
+
+    if (!result.hasMore || result.clips.length === 0) {
+      return clips;
+    }
+  }
 }

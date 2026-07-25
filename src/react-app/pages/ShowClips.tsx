@@ -11,8 +11,7 @@ import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { searchPhraseFromSlug, normalizedSlugFromRouteParam, titleCaseWords } from '@/shared/jambase-slug';
 import {
-  appendUniqueShowClips,
-  fetchShowClipsPage,
+  fetchAllShowClips,
   type ShowClipsSort,
 } from '@/react-app/lib/show-clips-pagination';
 
@@ -24,75 +23,47 @@ export default function ShowClipsPage() {
     : '';
   const [clips, setClips] = useState<ClipWithUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
   const [sortBy, setSortBy] = useState<ShowClipsSort>('time_posted');
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [showModalFeed, setShowModalFeed] = useState<ClipWithUser[] | null>(null);
   const fetchGenerationRef = useRef(0);
-  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
-    if (!artistName || !showId) return;
+    if (!artistName || !showId) {
+      setClips([]);
+      setLoading(false);
+      return;
+    }
 
     const generation = ++fetchGenerationRef.current;
     const controller = new AbortController();
     setClips([]);
-    setPage(1);
-    setHasMore(false);
-    loadingMoreRef.current = false;
-    setLoadingMore(false);
+    setSelectedClip(null);
+    setShowModalFeed(null);
     setLoading(true);
 
-    void fetchShowClipsPage({
+    void fetchAllShowClips({
       artistName,
       showId,
       sortBy,
-      page: 1,
       signal: controller.signal,
     })
-      .then((result) => {
-        if (generation !== fetchGenerationRef.current) return;
-        setClips(result.clips);
-        setHasMore(result.hasMore);
+      .then((allClips) => {
+        if (controller.signal.aborted || generation !== fetchGenerationRef.current) return;
+        setClips(allClips);
       })
       .catch((error) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (controller.signal.aborted || generation !== fetchGenerationRef.current) return;
         console.error('Failed to fetch show clips:', error);
       })
       .finally(() => {
-        if (generation === fetchGenerationRef.current) setLoading(false);
+        if (!controller.signal.aborted && generation === fetchGenerationRef.current) {
+          setLoading(false);
+        }
       });
 
     return () => controller.abort();
   }, [artistName, showId, sortBy]);
-
-  const loadMore = async () => {
-    if (!artistName || !showId || loading || !hasMore || loadingMoreRef.current) return;
-
-    const generation = fetchGenerationRef.current;
-    const nextPage = page + 1;
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    try {
-      const result = await fetchShowClipsPage({
-        artistName,
-        showId,
-        sortBy,
-        page: nextPage,
-      });
-      if (generation !== fetchGenerationRef.current) return;
-      setClips((current) => appendUniqueShowClips(current, result.clips));
-      setPage(nextPage);
-      setHasMore(result.hasMore);
-    } catch (error) {
-      console.error('Failed to fetch show clips:', error);
-    } finally {
-      loadingMoreRef.current = false;
-      if (generation === fetchGenerationRef.current) setLoadingMore(false);
-    }
-  };
 
   const showDate = clips.length > 0 && clips[0].timestamp 
     ? new Date(clips[0].timestamp).toLocaleDateString('en-US', {
@@ -198,60 +169,38 @@ export default function ShowClipsPage() {
             <p className="text-gray-400 text-lg">No clips found for this show</p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-              {clips.map((clip, index) => (
-                <div
-                  key={clipListItemKey(clip, index)}
-                  onClick={() => {
-                    setSelectedClip(clip);
-                    setShowModalFeed(clips.length > 1 ? clips : null);
-                  }}
-                  className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group"
-                >
-                  <div className="relative aspect-video">
-                    <ClipPosterImage
-                      clip={clip}
-                      alt="Concert moment"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    />
-                  </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+            {clips.map((clip, index) => (
+              <div
+                key={clipListItemKey(clip, index)}
+                onClick={() => {
+                  setSelectedClip(clip);
+                  setShowModalFeed(clips.length > 1 ? clips : null);
+                }}
+                className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group"
+              >
+                <div className="relative aspect-video">
+                  <ClipPosterImage
+                    clip={clip}
+                    alt="Concert moment"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                  />
+                </div>
 
-                  <div className="p-4">
-                    {clip.content_description && (
-                      <p className="text-gray-300 text-sm line-clamp-2 mb-2">
-                        {clip.content_description}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between text-sm text-gray-400">
-                      <span>{clip.likes_count} likes</span>
-                      <span>{clip.views_count} views</span>
-                    </div>
+                <div className="p-4">
+                  {clip.content_description && (
+                    <p className="text-gray-300 text-sm line-clamp-2 mb-2">
+                      {clip.content_description}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between text-sm text-gray-400">
+                    <span>{clip.likes_count} likes</span>
+                    <span>{clip.views_count} views</span>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {hasMore && (
-              <div className="flex justify-center pt-6">
-                <button
-                  type="button"
-                  onClick={() => void loadMore()}
-                  disabled={loadingMore}
-                  className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg text-white font-semibold transition-colors disabled:opacity-50"
-                >
-                  {loadingMore ? (
-                    <span className="flex items-center space-x-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Loading...</span>
-                    </span>
-                  ) : (
-                    'Load More'
-                  )}
-                </button>
               </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
       </div>
 
