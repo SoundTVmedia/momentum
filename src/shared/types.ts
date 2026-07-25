@@ -66,6 +66,7 @@ export const ClipSchema = z.object({
   jambase_artist_id: z.string().nullable().optional(),
   jambase_venue_id: z.string().nullable().optional(),
   jambase_event_id: z.string().nullable().optional(),
+  show_id: z.string().nullable().optional(),
   event_title: z.string().nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),

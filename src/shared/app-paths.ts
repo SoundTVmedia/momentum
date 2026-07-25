@@ -1,5 +1,6 @@
 import { slugifyEntityName } from './jambase-slug';
 import { computeShowId } from './show-id';
+import { resolveClipEventTitle } from './event-title';
 
 export type ShowMarkClipsInput = {
   event_title?: string | null;
@@ -12,6 +13,11 @@ export type ShowMarkClipsInput = {
 export type PastShowClipsInput = ShowMarkClipsInput & {
   show_id?: string | null;
   show_date?: string | null;
+};
+
+export type ClipShowClipsInput = ShowMarkClipsInput & {
+  show_id?: string | null;
+  timestamp?: string | null;
 };
 
 export function artistPath(name: string | null | undefined): string {
@@ -72,6 +78,25 @@ export function pastShowClipsPath(show: PastShowClipsInput): string {
       timestamp: show.show_date,
     });
   return showClipsPath(show.artist_name, showId);
+}
+
+/** The exact show for a clip, with a title-based fallback for legacy clip rows. */
+export function clipShowClipsPath(clip: ClipShowClipsInput): string {
+  const showId =
+    clip.show_id?.trim() ||
+    clip.jambase_event_id?.trim() ||
+    computeShowId({
+      jambase_event_id: clip.jambase_event_id,
+      artist_name: clip.artist_name,
+      venue_name: clip.venue_name,
+      timestamp: clip.timestamp,
+    });
+  if (clip.artist_name?.trim() && showId) {
+    return showClipsPath(clip.artist_name, showId);
+  }
+
+  const eventTitle = resolveClipEventTitle(clip);
+  return eventTitle ? eventClipsPath(eventTitle) : artistPath(clip.artist_name);
 }
 
 /** All clips sharing the same JamBase-style event title. */

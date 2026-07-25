@@ -50,7 +50,7 @@ import UserAvatar from './UserAvatar';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import {
   artistPath,
-  eventClipsPath,
+  clipShowClipsPath,
   genrePath,
   globalSongPath,
   songPath,
@@ -457,7 +457,7 @@ export default function ClipModal({
   const goEvent = () => {
     onClose();
     if (!eventTitle) return;
-    navigate(eventClipsPath(eventTitle));
+    navigate(clipShowClipsPath(clip));
   };
 
   const mobileVideoOverlay = (
