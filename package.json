@@ -61,6 +61,7 @@
   "scripts": {
     "build": "tsc -b && vite build",
     "build:worker": "ENABLE_CLOUDFLARE_VITE=1 npm run build",
+    "build:app": "DISABLE_CLOUDFLARE_VITE=1 npm run build",
     "deploy": "ENABLE_CLOUDFLARE_VITE=1 npm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "check": "ENABLE_CLOUDFLARE_VITE=1 tsc && vite build && wrangler deploy --dry-run",
@@ -73,7 +74,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cap:sync": "node scripts/apply-capgo-patch.mjs && node scripts/verify-ios-google-oauth.mjs && npm run build && npx cap sync",
+    "cap:sync": "node scripts/apply-capgo-patch.mjs && node scripts/verify-ios-google-oauth.mjs && npm run build:app && node scripts/verify-capacitor-web-dir.mjs && npx cap sync",
     "cap:add:ios": "npx cap add ios",
     "cap:add:android": "npx cap add android",
     "cap:open:ios": "npx cap open ios",
