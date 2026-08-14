@@ -46,7 +46,7 @@ Must validate on a **physical iPhone** (simulator camera/mic is insufficient).
 
 **Song ID (ShazamKit primary)**
 - `/upload` review identifies the clip once per capture: ShazamKit on-device (iOS 15+), Worker ACRCloud (`POST /api/clips/identify-music`) as fallback
-- Requires the `com.apple.developer.shazamkit` entitlement (`app.json → ios.entitlements`) and the ShazamKit app service enabled on the App ID — setup steps in `docs/shazamkit-setup.md`
+- Enable the ShazamKit **App Service** on the App ID (not an entitlements-file key) — setup steps in `docs/shazamkit-setup.md`
 - Rebuild the dev client after pulling this module: `npm run mobile:ios`
 
 **Deferred vs Capacitor (Phase 5+)**

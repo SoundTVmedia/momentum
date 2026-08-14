@@ -11,9 +11,10 @@ import ShazamKit
  * plugin writes it to a temp file, generates a Shazam signature from the
  * audio track with SHSignatureGenerator, and matches it via SHSession.
  *
- * Requires the com.apple.developer.shazamkit entitlement
- * (ios/App/App/App.entitlements) and the ShazamKit app service enabled on
- * the App ID in the Apple Developer portal.
+ * Requires the ShazamKit framework (linked via the pod) and the ShazamKit
+ * App Service enabled on the App ID in the Apple Developer portal.
+ * Do not add com.apple.developer.shazamkit to App.entitlements — it is not a
+ * real entitlement and breaks provisioning.
  */
 @objc(ShazamKitPlugin)
 public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -146,7 +147,7 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
         if let error {
             // Entitlement/network problems surface here (e.g. SHError 202
-            // matchAttemptFailed when com.apple.developer.shazamkit is missing).
+            // SHErrorCode.matchAttemptFailed when matching cannot complete.
             reject(
                 "Shazam match attempt failed: \(error.localizedDescription)",
                 "ERR_SHAZAMKIT_MATCH_FAILED"
