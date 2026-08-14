@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Feedback</string>
+	<string>Feedback</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -18,22 +18,6 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>Feedback uses the camera to record concert clips in the app.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Feedback uses the microphone to record concert audio and identify songs.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Feedback saves your concert clips to Photos so you keep a copy on your device.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Feedback may access your photo library when you choose clips to upload.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Feedback uses your location to match concert clips to nearby venues and JamBase shows.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Feedback uses your location to match concert clips to nearby venues and JamBase shows.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -45,6 +29,22 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Feedback uses the camera to record concert clips in the app.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Feedback uses your location to match concert clips to nearby venues and JamBase shows.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Feedback uses your location to match concert clips to nearby venues and shows.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Feedback uses the microphone to record concert audio and identify songs.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Feedback saves your concert clips to Photos so you keep a copy on your device.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Feedback may access your photo library when you choose clips to upload.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
