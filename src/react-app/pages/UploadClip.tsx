@@ -3115,7 +3115,7 @@ export default function UploadClip() {
               {showVenueAndShowFields && auddStatus === 'loading' && (
                 <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg flex items-center gap-2 text-violet-100 text-sm">
                   <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                  <span>Identifying song (ACRCloud)…</span>
+                  <span>Identifying song…</span>
                 </div>
               )}
               {showVenueAndShowFields && auddStatus === 'done' && (

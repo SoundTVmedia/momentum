@@ -12,6 +12,7 @@ import {
   headSliceLikelyValid,
   sliceHeadForIdentify,
 } from '@/react-app/utils/identifyAudioSample';
+import { identifyClipWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
 
 export function mergeSongTitleIntoCaption(current: string, title: string): string {
   const t = title.trim();
@@ -343,6 +344,15 @@ export async function identifyMusicForClip(
 
   const finish = (r: AudDIdentifyResult) =>
     mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(r));
+
+  // Primary provider: on-device ShazamKit (native iOS builds with the
+  // @feedback/shazamkit plugin). No-match/error falls through to the
+  // ACRCloud ladder below; null means ShazamKit could not attempt at all.
+  const shazamKit = await identifyClipWithShazamKit(video, audio ?? null);
+  if (shazamKit) {
+    if (shouldStopIdentifyPass(shazamKit)) return finish(shazamKit);
+    best = pickStrongerMatch(best, shazamKit);
+  }
 
   if (audio && audio.size >= 1024) {
     const mic = normalizeIdentifyResult(await identifyMusicWithAudD(audio));
