@@ -102,6 +102,39 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+async function recognizeShazamKitBlob(source: Blob): Promise<AudDIdentifyResult> {
+  const base64 = await blobToBase64(source);
+  const { match } = await withTimeout(
+    ShazamKit.recognizeAudio({
+      base64,
+      mimeType: source.type || 'audio/mp4',
+    }),
+    SHAZAMKIT_TIMEOUT_MS,
+  );
+  return shazamKitMatchToIdentifyResult(match);
+}
+
+/**
+ * Live mic segments (web MediaRecorder or native AAC): ShazamKit when the
+ * plugin is present, otherwise null so the caller can use the Worker ACR path.
+ */
+export async function identifyLiveAudioWithShazamKit(
+  audio: Blob,
+): Promise<AudDIdentifyResult | null> {
+  if (!isShazamKitIdentifyAvailable()) return null;
+  const source = pickShazamKitMicSource(audio);
+  if (!source) return null;
+  try {
+    return await recognizeShazamKitBlob(source);
+  } catch (err) {
+    console.warn('ShazamKit live identify failed', err);
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'ShazamKit recognition failed',
+    };
+  }
+}
+
 /**
  * Primary song ID pass: on-device ShazamKit on native iOS.
  * Returns null when ShazamKit is unavailable or no suitable audio source
@@ -124,15 +157,7 @@ export async function identifyClipWithShazamKit(
   if (!source || source.size < MIN_IDENTIFY_SAMPLE_BYTES) return null;
 
   try {
-    const base64 = await blobToBase64(source);
-    const { match } = await withTimeout(
-      ShazamKit.recognizeAudio({
-        base64,
-        mimeType: source.type || 'audio/mp4',
-      }),
-      SHAZAMKIT_TIMEOUT_MS,
-    );
-    return shazamKitMatchToIdentifyResult(match);
+    return await recognizeShazamKitBlob(source);
   } catch (err) {
     console.warn('ShazamKit identify failed', err);
     return {

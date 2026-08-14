@@ -91,3 +91,17 @@ describe('formPatchFromAcrMatch', () => {
     expect(patch).toEqual({});
   });
 });
+
+describe('resolveSongIdentifyAfterUpload guards', () => {
+  it('is skipped when song title already set or clip id missing', async () => {
+    const { resolveSongIdentifyAfterUpload } = await import('./identify-for-upload');
+    const video = new Blob([new Uint8Array(8192)], { type: 'video/mp4' });
+    expect(
+      await resolveSongIdentifyAfterUpload(
+        baseJob({ form: { ...baseJob().form, song_title: 'Already' }, clipId: 9 }),
+        video,
+      ),
+    ).toEqual({});
+    expect(await resolveSongIdentifyAfterUpload(baseJob({ clipId: null }), video)).toEqual({});
+  });
+});

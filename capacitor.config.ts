@@ -28,13 +28,12 @@ const config: CapacitorConfig = {
   appName: 'Feedback',
   webDir: 'dist',
   // Live Workers URL: WebView loads from deploy — JS updates without a new TestFlight build.
-  // App Store release with bundled dist/: comment out `url` and run `npm run cap:sync ios`.
-  // ShazamKit / other unreleased native+JS features: comment out `url`, build dist on that
-  // branch, then `npx cap sync ios` — otherwise the phone runs production JS that never
-  // calls the new native plugin.
+  // App Store / live-reload TestFlight: restore `url` and run `npm run cap:sync ios`.
+  // ShazamKit is on this branch only — keep `url` commented out so Xcode loads bundled
+  // `dist/` that actually calls the native plugin (production Workers JS does not).
   server: {
     androidScheme: 'https',
-    url: 'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev',
+    // url: 'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev',
   },
   // Baked into ios/App/App/capacitor.config.json at sync — used to gate native Google SDK vs browser OAuth.
   ...(googleIosClientId ? { googleIosOAuthClientId: googleIosClientId } : {}),
