@@ -375,7 +375,7 @@ export async function applyCaptureFocus(
   try {
     await track.applyConstraints({
       advanced: [{ pointsOfInterest: [{ x: nx, y: ny }] }],
-    } as MediaTrackConstraints);
+    } as unknown as MediaTrackConstraints);
     return true;
   } catch {
     return false;
