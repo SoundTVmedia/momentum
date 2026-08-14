@@ -32,6 +32,8 @@
 	<string>Feedback may access your photo library when you choose clips to upload.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Feedback uses your location to match concert clips to nearby venues and JamBase shows.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Feedback uses your location to match concert clips to nearby venues and JamBase shows.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
