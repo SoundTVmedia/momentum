@@ -27,7 +27,7 @@ export function isShazamKitIdentifyAvailable(): boolean {
 
 let loggedAvailability = false;
 
-/** One-shot console probe so device logs show whether the native plugin answers. */
+/** Console probe so Xcode/TestFlight logs show whether this binary has the 11s plugin. */
 export function logShazamKitAvailability(): void {
   if (loggedAvailability) return;
   loggedAvailability = true;
@@ -44,7 +44,19 @@ export function logShazamKitAvailability(): void {
     console.warn('[shazamkit] availability probe failed', err);
   }
   void ShazamKit.isSupported()
-    .then((r) => console.log('[shazamkit] isSupported', r))
+    .then((r) => {
+      const revision =
+        r && typeof r === 'object' && typeof r.pluginRevision === 'number'
+          ? r.pluginRevision
+          : null;
+      console.log(
+        '[shazamkit] isSupported',
+        r,
+        revision != null
+          ? `revision=${revision} maxSignatureSeconds=${r.maxSignatureSeconds ?? '?'}`
+          : 'legacy-binary (Archive from cursor/shazamkit-upload-identify-2ee4 after cap sync)',
+      );
+    })
     .catch((err) => console.warn('[shazamkit] isSupported failed', err));
 }
 
@@ -195,6 +207,7 @@ export async function identifyNativeFileWithShazamKit(
   const trimmed = path?.trim() ?? '';
   if (!trimmed) return null;
   if (!isShazamKitIdentifyAvailable()) return null;
+  logShazamKitAvailability();
   try {
     const { match } = await withTimeout(
       ShazamKit.recognizeFile({ path: trimmed }),

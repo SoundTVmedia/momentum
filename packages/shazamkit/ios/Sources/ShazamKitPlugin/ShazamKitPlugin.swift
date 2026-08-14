@@ -28,7 +28,13 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func isSupported(_ call: CAPPluginCall) {
         if #available(iOS 15.0, *) {
-            call.resolve(["supported": true])
+            call.resolve([
+                "supported": true,
+                // Lets JS/device logs prove the TestFlight binary includes the
+                // 11s catalog-safe plugin (older archives only return supported).
+                "maxSignatureSeconds": ShazamKitRecognizer.maxSignatureSeconds,
+                "pluginRevision": 2,
+            ])
         } else {
             call.resolve(["supported": false])
         }
@@ -64,7 +70,7 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
 final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     /// Catalog matching requires signatures longer than 1s and shorter than 12s
     /// (SHError 201 / signatureDurationInvalid). 11s stays inside that window.
-    private static let maxSignatureSeconds: Double = 11
+    static let maxSignatureSeconds: Double = 11
     private static let workQueue = DispatchQueue(
         label: "com.feedback.shazamkit",
         qos: .userInitiated

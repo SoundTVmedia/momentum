@@ -6,7 +6,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import type { ClipShowCandidate } from '@/shared/types';
 import { resolveClipEventTitle } from '@/shared/event-title';
-import { identifyLiveAudioWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
+import { identifyLiveAudioWithShazamKit, logShazamKitAvailability } from '@/react-app/utils/shazamKitIdentify';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clearCaptureShowSession,
@@ -1851,6 +1851,7 @@ export default function QuickRecordButton({
         lastLiveSongMatchRef.current = null;
         setLiveHudSong(null);
         liveShazamStoppedRef.current = false;
+        logShazamKitAvailability();
         void startNativeLiveAudioSegments((blob) => {
           if (blob.size > 0) {
             lastParallelAuddAudioBlobRef.current = blob;

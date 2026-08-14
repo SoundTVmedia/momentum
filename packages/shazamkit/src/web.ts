@@ -2,7 +2,11 @@ import { WebPlugin } from '@capacitor/core';
 import type { ShazamKitMatchPayload, ShazamKitPlugin } from './definitions';
 
 export class ShazamKitWeb extends WebPlugin implements ShazamKitPlugin {
-  async isSupported(): Promise<{ supported: boolean }> {
+  async isSupported(): Promise<{
+    supported: boolean;
+    maxSignatureSeconds?: number;
+    pluginRevision?: number;
+  }> {
     return { supported: false };
   }
 

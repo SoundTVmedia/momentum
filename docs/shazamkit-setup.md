@@ -85,6 +85,34 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
 - Manual / library uploads identify on the clip details (`UploadClip`) screen
   before Share via the same `identifyMusicForClip` ladder.
 
+### TestFlight / App Store (works in Xcode, fails when distributed)
+
+`npm run deploy` only updates **Worker JS**. It does **not** update the native
+plugin inside a TestFlight/App Store binary. Local Run uses whatever you just
+compiled; TestFlight keeps the last **Archive** until you upload a new build.
+
+1. Stay on `cursor/shazamkit-upload-identify-2ee4` (or merge it first).
+2. Deploy JS: `npm run deploy`
+3. Refresh native: `npx cap sync ios`
+4. Open **`ios/App/App.xcworkspace`** (not the `.xcodeproj` — that archive has
+   no CocoaPods / no ShazamKit plugin).
+5. **Product → Archive** (Release), then Distribute to TestFlight.
+6. On the phone: install the **new** TestFlight build, force-quit once.
+7. Confirm the **ShazamKit App Service** is on App ID `com.feedbacklive.app`,
+   then let Xcode regenerate the **App Store** distribution profile (delete the
+   old one in the developer portal if the archive was created before ShazamKit
+   was enabled).
+
+Safari → Develop → WebView on the TestFlight app should log:
+
+```text
+[shazamkit] isSupported {supported: true, maxSignatureSeconds: 11, pluginRevision: 2} revision=2
+```
+
+If you see `legacy-binary` or only `{supported: true}` with no
+`pluginRevision`, that TestFlight build is an older archive (15s signatures /
+no HUD). Re-archive from this branch.
+
 ### Troubleshooting: `objectVersion 70` / `pod install` fails
 
 CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode
