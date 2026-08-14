@@ -28,9 +28,10 @@ ShazamKit no-match or error.
 3. The Swift plugin (`ShazamKitPlugin.swift`) reads the audio track with
    `AVAssetReader` (first 11s), generates a signature with
    `SHSignatureGenerator`, and matches via `SHSession`.
-4. **Quick capture**: song ID does **not** run on the camera HUD. After the
-   clip is queued, the upload outbox runs ShazamKit then ACRCloud and patches
-   `song_title` onto the clip before (and again after) publish.
+4. **Quick capture HUD**: while recording, 8s mic segments run **ShazamKit
+   only** (no live ACR). A match shows as `♪ title` on the camera HUD and is
+   attached to the clip at enqueue. If live ID misses, the upload outbox runs
+   ShazamKit then ACRCloud and patches `song_title` as before.
 
 ### Capacitor build steps
 
@@ -75,13 +76,12 @@ is deployed. So to test ShazamKit on a physical iPhone:
 Also required at runtime: network access (Shazam catalog is remote) and the
 ShazamKit **App Service** enabled on `com.feedbacklive.app`.
 
-**Upload-time identify on this branch**
+**HUD + upload identify on this branch**
 
-- Camera HUD does not show a live song line (identify during capture was
-  unreliable: 15s signatures were rejected as SHError 201).
-- After quick-capture enqueue, the outbox runs ShazamKit→ACR before upload and
-  again after publish (PATCH `/api/clips/update-own`) so the clip gets a song
-  title attached at upload.
+- While recording, ShazamKit runs on ~8s AAC segments (signatures stay under
+  12s). A match appears on the camera HUD; ACR is not called during capture.
+- If live ShazamKit misses, the outbox runs ShazamKit→ACR before upload and
+  again after publish (PATCH `/api/clips/update-own`).
 - Manual / library uploads identify on the clip details (`UploadClip`) screen
   before Share via the same `identifyMusicForClip` ladder.
 
