@@ -1,10 +1,13 @@
 import { resolveClipDownloadUrl, type ClipPlaybackFields } from '@/shared/clip-playback';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
+  constrainIdentifyResultToShowArtist,
   identifyMusicForClip,
   normalizeIdentifyResult,
   type AudDIdentifyResult,
 } from '@/react-app/utils/auddIdentify';
+
+type ClipWithArtist = ClipPlaybackFields & { artist_name?: string | null };
 
 function absoluteClipMediaUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
@@ -36,7 +39,10 @@ type ServerIdentifyResponse = {
   acrcloudCode?: number;
 };
 
-async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIdentifyResult> {
+async function identifySongViaServer(
+  clip: ClipWithArtist,
+  expectedArtist?: string | null,
+): Promise<AudDIdentifyResult> {
   const clipId = clipNumericId(clip);
   const streamVideoId =
     typeof clip.stream_video_id === 'string' ? clip.stream_video_id.trim() : '';
@@ -44,9 +50,11 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
     return { status: 'error', message: 'Invalid clip' };
   }
 
+  const showArtist = expectedArtist?.trim() || clip.artist_name?.trim() || null;
   const payload: Record<string, unknown> = {};
   if (clipId != null) payload.clipId = clipId;
   if (streamVideoId) payload.streamVideoId = streamVideoId;
+  if (showArtist) payload.artist = showArtist;
 
   try {
     const res = await fetch('/api/clips/identify-own-song', {
@@ -96,7 +104,10 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
       typeof data.match.confidence === 'number' && Number.isFinite(data.match.confidence)
         ? data.match.confidence
         : undefined;
-    return { status: 'match', artist, title, message, confidence };
+    return constrainIdentifyResultToShowArtist(
+      { status: 'match', artist, title, message, confidence },
+      showArtist,
+    );
   } catch {
     return { status: 'error', message: 'Song lookup failed' };
   }
@@ -104,11 +115,15 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
 
 /** Re-run song ID on an uploaded clip: ShazamKit first, then ACRCloud. */
 export async function identifySongForUploadedClip(
-  clip: ClipPlaybackFields,
+  clip: ClipWithArtist,
+  options?: { expectedArtist?: string | null },
 ): Promise<AudDIdentifyResult> {
+  const expectedArtist = options?.expectedArtist ?? clip.artist_name ?? null;
   const blob = await fetchUploadedClipVideoBlob(clip);
   if (blob) {
-    return normalizeIdentifyResult(await identifyMusicForClip(blob));
+    return normalizeIdentifyResult(
+      await identifyMusicForClip(blob, { expectedArtist }),
+    );
   }
-  return identifySongViaServer(clip);
+  return identifySongViaServer(clip, expectedArtist);
 }

@@ -20,7 +20,7 @@ export async function getClipIdentifyMusicConfig(c: Context) {
     ...config,
     endpoints: {
       config: 'GET /api/clips/identify-music/config',
-      identify: 'POST /api/clips/identify-music (multipart field: file)',
+      identify: 'POST /api/clips/identify-music (multipart fields: file, optional artist)',
     },
     verify: config.acrcloud.ready
       ? `acrcloud.ready is true. Host=${config.acrcloud.host ?? '?'}. Keys are loaded; song ID uses ACRCloud. Code 1001 means "no match" for that audio, not necessarily a missing bucket.`
@@ -80,9 +80,12 @@ export async function postClipIdentifyMusic(c: Context) {
   const rawName =
     typeof (raw as { name?: unknown }).name === 'string' ? (raw as { name: string }).name : '';
   const filename = inferIdentifyFilename(blob, rawName);
+  const artistField = body.get('artist');
+  const expectedArtist =
+    typeof artistField === 'string' && artistField.trim() ? artistField.trim() : null;
 
   const started = Date.now();
-  const out = await recognizeMusic(c.env, blob, filename);
+  const out = await recognizeMusic(c.env, blob, filename, { expectedArtist });
   const elapsedMs = Date.now() - started;
   if (elapsedMs > 3000) {
     console.log(`[identify-music] recognizeMusic ${elapsedMs}ms bytes=${blob.size} file=${filename}`);

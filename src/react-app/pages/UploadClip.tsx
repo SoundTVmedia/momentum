@@ -1972,6 +1972,7 @@ export default function UploadClip() {
         await identifyMusicForClip(source, {
           live: liveHint,
           audio: captureAudio,
+          expectedArtist: formData.artist_name,
         }),
       );
       if (cancelled) return;
@@ -2032,6 +2033,7 @@ export default function UploadClip() {
     isPending,
     formData.video_blob,
     formData.video_file,
+    formData.artist_name,
     location.state,
     uploadSource,
     classifyResult?.content_feed,

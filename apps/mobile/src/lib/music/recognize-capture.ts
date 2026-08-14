@@ -4,6 +4,7 @@ import {
   ACR_MAX_SAMPLE_BYTES,
   MIN_IDENTIFY_SAMPLE_BYTES,
 } from '@shared/identify-music-limits';
+import { recognizedArtistMatchesShow } from '@shared/song-artist-match';
 import {
   errorOutcome,
   matchedOutcome,
@@ -30,7 +31,9 @@ export async function recognizeSongForCapture(input: {
   videoUri: string;
   fileSize: number;
   contentType: string;
+  expectedArtist?: string | null;
 }): Promise<MusicRecognitionOutcome> {
+  const expectedArtist = input.expectedArtist ?? null;
   const shazamKitAvailable = isShazamKitAvailable();
   let shazamKitStatus: 'no_match' | 'error' | null = null;
   let shazamKitError: string | null = null;
@@ -38,7 +41,9 @@ export async function recognizeSongForCapture(input: {
   if (shazamKitAvailable) {
     try {
       const match = await recognizeSongFromVideo(input.videoUri);
-      if (match) return matchedOutcome(match);
+      if (match && recognizedArtistMatchesShow(expectedArtist, match.artist)) {
+        return matchedOutcome(match);
+      }
       shazamKitStatus = 'no_match';
     } catch (err) {
       shazamKitStatus = 'error';
@@ -51,7 +56,7 @@ export async function recognizeSongForCapture(input: {
     return noMatchOutcome('shazamkit');
   }
 
-  const fallback = await identifyMusicViaWorker(input);
+  const fallback = await identifyMusicViaWorker(input, expectedArtist);
 
   if (fallback.status === 'matched') return fallback;
   if (fallback.status === 'no_match') {
@@ -70,11 +75,14 @@ export async function recognizeSongForCapture(input: {
  * header plus several seconds of audio, same strategy as the web client)
  * to the Worker's `/api/clips/identify-music` endpoint.
  */
-async function identifyMusicViaWorker(input: {
-  videoUri: string;
-  fileSize: number;
-  contentType: string;
-}): Promise<MusicRecognitionOutcome> {
+async function identifyMusicViaWorker(
+  input: {
+    videoUri: string;
+    fileSize: number;
+    contentType: string;
+  },
+  expectedArtist?: string | null,
+): Promise<MusicRecognitionOutcome> {
   if (input.fileSize > 0 && input.fileSize < MIN_IDENTIFY_SAMPLE_BYTES) {
     return noMatchOutcome('acrcloud');
   }
@@ -94,6 +102,7 @@ async function identifyMusicViaWorker(input: {
       type: input.contentType || 'video/mp4',
       // React Native FormData file part — not a DOM Blob.
     } as unknown as Blob);
+    if (expectedArtist?.trim()) formData.append('artist', expectedArtist.trim());
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), IDENTIFY_FETCH_TIMEOUT_MS);
@@ -132,7 +141,9 @@ async function identifyMusicViaWorker(input: {
     }
 
     const match = normalizeAcrCloudIdentifyMatch(data);
-    if (!match) return noMatchOutcome('acrcloud');
+    if (!match || !recognizedArtistMatchesShow(expectedArtist, match.artist)) {
+      return noMatchOutcome('acrcloud');
+    }
     return matchedOutcome(match);
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {

@@ -7,6 +7,7 @@ import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserG
 import type { ClipShowCandidate } from '@/shared/types';
 import { resolveClipEventTitle } from '@/shared/event-title';
 import { identifyLiveAudioWithShazamKit, logShazamKitAvailability } from '@/react-app/utils/shazamKitIdentify';
+import { recognizedArtistMatchesShow } from '@/shared/song-artist-match';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clearCaptureShowSession,
@@ -308,6 +309,18 @@ export default function QuickRecordButton({
     setHudIdentifiedSongTitle(null);
     lastLiveSongMatchRef.current = null;
   }, [showModal]);
+  useEffect(() => {
+    const expected =
+      captureResolvePreview.artistName?.trim() ||
+      captureResolveCandidateRef.current?.artist_name?.trim() ||
+      null;
+    if (!expected) return;
+    const snap = lastLiveSongMatchRef.current;
+    if (!snap || recognizedArtistMatchesShow(expected, snap.artist)) return;
+    lastLiveSongMatchRef.current = null;
+    setLiveHudSong(null);
+    setHudIdentifiedSongTitle(null);
+  }, [captureResolvePreview.artistName]);
   const captureHudSongLabel = resolveCaptureHudSongLabel({
     identifiedTitle: hudIdentifiedSongTitle,
     liveMatch: liveHudSong,
@@ -1792,10 +1805,16 @@ export default function QuickRecordButton({
     }
   };
 
+  const showArtistForSongId = () =>
+    captureResolvePreview.artistName?.trim() ||
+    captureResolveCandidateRef.current?.artist_name?.trim() ||
+    null;
+
   const applyLiveShazamMatch = (result: { artist?: string; title?: string } | null) => {
     const title = result?.title?.trim() ?? '';
     const artist = result?.artist?.trim() ?? '';
     if (!title && !artist) return;
+    if (!recognizedArtistMatchesShow(showArtistForSongId(), artist)) return;
     const snap = { title, artist };
     lastLiveSongMatchRef.current = snap;
     setLiveHudSong(snap);

@@ -850,7 +850,11 @@ export async function postIdentifyOwnClipSong(c: Context<{ Bindings: Env }>) {
     );
   }
 
-  const out = await recognizeMusic(c.env, sample.blob, sample.filename);
+  const bodyArtist = typeof body.artist === 'string' ? body.artist.trim() : '';
+  const clipArtist = typeof row.artist_name === 'string' ? row.artist_name.trim() : '';
+  const expectedArtist = bodyArtist || clipArtist || null;
+
+  const out = await recognizeMusic(c.env, sample.blob, sample.filename, { expectedArtist });
   if (!out.ok) {
     return c.json({
       ok: false,

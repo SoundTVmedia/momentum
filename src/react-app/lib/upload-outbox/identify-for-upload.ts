@@ -65,6 +65,7 @@ export async function resolveSongIdentifyForUploadJob(
       identifyMusicForClip(video, {
         audio: captureAudio ?? job.captureAudioBlob ?? null,
         nativeFilePath: job.nativeVideoUri ?? null,
+        expectedArtist: job.form.artist_name,
       }),
       SONG_IDENTIFY_TIMEOUT_MS,
       'Song identification timed out',
@@ -96,6 +97,7 @@ export async function resolveSongIdentifyAfterUpload(
       identifyMusicForClip(video, {
         audio: captureAudio ?? job.captureAudioBlob ?? null,
         nativeFilePath: job.nativeVideoUri ?? null,
+        expectedArtist: job.form.artist_name,
       }),
       POST_UPLOAD_SONG_IDENTIFY_TIMEOUT_MS,
       'Post-upload song identification timed out',

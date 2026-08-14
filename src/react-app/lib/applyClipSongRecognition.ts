@@ -73,7 +73,11 @@ export async function runClipSongRecognitionAndSave(input: {
   currentFields: AcrClipFieldSnapshot & ClipMetadataSaveFields;
   asSuperadmin?: boolean;
 }): Promise<ClipSongRecognitionOutcome> {
-  const result = normalizeIdentifyResult(await identifySongForUploadedClip(input.clip));
+  const result = normalizeIdentifyResult(
+    await identifySongForUploadedClip(input.clip, {
+      expectedArtist: input.currentFields.artist_name,
+    }),
+  );
 
   if (result.status === 'match') {
     const patch = acrMatchToClipFieldPatch(input.currentFields, result, {

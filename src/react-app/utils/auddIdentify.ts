@@ -13,6 +13,7 @@ import {
   sliceHeadForIdentify,
 } from '@/react-app/utils/identifyAudioSample';
 import { identifyClipWithShazamKit, identifyNativeFileWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
+import { recognizedArtistMatchesShow } from '@/shared/song-artist-match';
 
 export function mergeSongTitleIntoCaption(current: string, title: string): string {
   const t = title.trim();
@@ -54,28 +55,42 @@ export type AudDNavPrefill = {
 export type LiveSongSnapshot = { artist: string; title: string };
 
 /**
- * Prefer the post-capture identify pass; fall back to a stabilized live match when the final pass misses.
+ * Fingerprint APIs search the full catalog. Drop a hit whose credited artist
+ * is not the show/clip artist so we do not attach the wrong song.
  */
+export function constrainIdentifyResultToShowArtist(
+  result: AudDIdentifyResult,
+  expectedArtist?: string | null,
+): AudDIdentifyResult {
+  if (result.status !== 'match') return result;
+  if (recognizedArtistMatchesShow(expectedArtist, result.artist)) return result;
+  return { status: 'nomatch', message: null };
+}
+
+/** Prefer the post-capture identify pass; fall back to a live match for the same show artist. */
 export function mergeLiveAndFinalSongIdentify(
   live: LiveSongSnapshot | null | undefined,
   final: AudDIdentifyResult,
+  expectedArtist?: string | null,
 ): AudDIdentifyResult {
-  if (final.status === 'match') {
-    const artist = final.artist.trim();
-    const title = final.title.trim();
-    if (artist || title) return final;
+  const constrainedFinal = constrainIdentifyResultToShowArtist(final, expectedArtist);
+  if (constrainedFinal.status === 'match') {
+    const artist = constrainedFinal.artist.trim();
+    const title = constrainedFinal.title.trim();
+    if (artist || title) return constrainedFinal;
   }
-  if (final.status === 'nomatch' || final.status === 'skipped') {
-    return { ...final, message: null };
+  if (constrainedFinal.status === 'nomatch' || constrainedFinal.status === 'skipped') {
+    return { ...constrainedFinal, message: null };
   }
-  if (final.status === 'error' && !isFatalSongIdentifyError(final)) {
+  if (constrainedFinal.status === 'error' && !isFatalSongIdentifyError(constrainedFinal)) {
     return { status: 'nomatch', message: null };
   }
 
-  const snap = live
+  const liveFitsShow = live && recognizedArtistMatchesShow(expectedArtist, live.artist);
+  const snap = liveFitsShow
     ? { artist: live.artist.trim(), title: live.title.trim() }
     : { artist: '', title: '' };
-  if (!snap.artist && !snap.title) return final;
+  if (!snap.artist && !snap.title) return constrainedFinal;
 
   const message =
     snap.title && snap.artist
@@ -160,10 +175,14 @@ function identifyFilenameForBlob(blob: Blob): string {
 
 const IDENTIFY_FETCH_TIMEOUT_MS = 22_000;
 
-async function fetchIdentifyMusic(snippet: Blob): Promise<Response> {
+async function fetchIdentifyMusic(
+  snippet: Blob,
+  expectedArtist?: string | null,
+): Promise<Response> {
   const fd = new FormData();
   const fileName = identifyFilenameForBlob(snippet);
   fd.set('file', snippet, fileName);
+  if (expectedArtist?.trim()) fd.set('artist', expectedArtist.trim());
 
   const ac = new AbortController();
   const timer = window.setTimeout(() => ac.abort(), IDENTIFY_FETCH_TIMEOUT_MS);
@@ -315,9 +334,12 @@ export function shouldShowManualSongTitleEntry(
   return status !== 'loading' && status !== 'done';
 }
 
-async function tryIdentifyBlob(snippet: Blob | null): Promise<AudDIdentifyResult | null> {
+async function tryIdentifyBlob(
+  snippet: Blob | null,
+  expectedArtist?: string | null,
+): Promise<AudDIdentifyResult | null> {
   if (!snippet || snippet.size < MIN_SNIPPET_BYTES) return null;
-  return normalizeIdentifyResult(await postSnippetToIdentify(snippet));
+  return normalizeIdentifyResult(await postSnippetToIdentify(snippet, expectedArtist));
 }
 
 function shouldStopIdentifyPass(r: AudDIdentifyResult): boolean {
@@ -332,11 +354,17 @@ function shouldStopIdentifyPass(r: AudDIdentifyResult): boolean {
  */
 export async function identifyMusicForClip(
   video: Blob,
-  options?: { live?: LiveSongSnapshot | null; audio?: Blob | null; nativeFilePath?: string | null },
+  options?: {
+    live?: LiveSongSnapshot | null;
+    audio?: Blob | null;
+    nativeFilePath?: string | null;
+    expectedArtist?: string | null;
+  },
 ): Promise<AudDIdentifyResult> {
   const live = options?.live;
   const audio = options?.audio;
   const nativeFilePath = options?.nativeFilePath;
+  const expectedArtist = options?.expectedArtist ?? null;
 
   let best: AudDIdentifyResult = {
     status: 'skipped',
@@ -344,7 +372,7 @@ export async function identifyMusicForClip(
   };
 
   const finish = (r: AudDIdentifyResult) =>
-    mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(r));
+    mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(r), expectedArtist);
 
   // Primary: on-device ShazamKit (native iOS). Prefer the local recording path
   // so we do not base64 a 20–40MB movie. No-match / non-fatal error falls
@@ -353,31 +381,37 @@ export async function identifyMusicForClip(
     ? await identifyNativeFileWithShazamKit(nativeFilePath)
     : await identifyClipWithShazamKit(video, audio ?? null);
   if (shazamKit) {
-    if (shouldStopIdentifyPass(shazamKit)) return finish(shazamKit);
-    best = pickStrongerMatch(best, shazamKit);
+    const filtered = constrainIdentifyResultToShowArtist(shazamKit, expectedArtist);
+    if (shouldStopIdentifyPass(filtered)) return finish(filtered);
+    best = pickStrongerMatch(best, filtered);
   }
 
   if (audio && audio.size >= 1024) {
-    const mic = normalizeIdentifyResult(await identifyMusicWithAudD(audio));
+    const mic = constrainIdentifyResultToShowArtist(
+      normalizeIdentifyResult(await identifyMusicWithAudD(audio, expectedArtist)),
+      expectedArtist,
+    );
     best = pickStrongerMatch(best, mic);
     if (shouldStopIdentifyPass(mic)) return finish(mic);
   }
 
   const wav = await extractWavSnippetViaWebAudio(video);
   if (wav) {
-    const r = await tryIdentifyBlob(wav);
+    const r = await tryIdentifyBlob(wav, expectedArtist);
     if (r) {
-      best = pickStrongerMatch(best, r);
-      if (shouldStopIdentifyPass(r)) return finish(r);
+      const filtered = constrainIdentifyResultToShowArtist(r, expectedArtist);
+      best = pickStrongerMatch(best, filtered);
+      if (shouldStopIdentifyPass(filtered)) return finish(filtered);
     }
   }
 
   const mid = await extractMediaSnippetForAudDWithReason(video);
   if (mid.blob && mid.blob.size >= MIN_SNIPPET_BYTES) {
-    const r = await tryIdentifyBlob(mid.blob);
+    const r = await tryIdentifyBlob(mid.blob, expectedArtist);
     if (r) {
-      best = pickStrongerMatch(best, r);
-      if (shouldStopIdentifyPass(r)) return finish(r);
+      const filtered = constrainIdentifyResultToShowArtist(r, expectedArtist);
+      best = pickStrongerMatch(best, filtered);
+      if (shouldStopIdentifyPass(filtered)) return finish(filtered);
     }
   }
 
@@ -388,33 +422,38 @@ export async function identifyMusicForClip(
     startBlob.size >= MIN_SNIPPET_BYTES &&
     (!mid.blob || startBlob.size !== mid.blob.size)
   ) {
-    const r = await tryIdentifyBlob(startBlob);
+    const r = await tryIdentifyBlob(startBlob, expectedArtist);
     if (r) {
-      best = pickStrongerMatch(best, r);
-      if (shouldStopIdentifyPass(r)) return finish(r);
+      const filtered = constrainIdentifyResultToShowArtist(r, expectedArtist);
+      best = pickStrongerMatch(best, filtered);
+      if (shouldStopIdentifyPass(filtered)) return finish(filtered);
     }
   }
 
   const head = sliceHeadForIdentify(video);
   if (head && headSliceLikelyValid(video, head)) {
-    const r = await tryIdentifyBlob(head);
+    const r = await tryIdentifyBlob(head, expectedArtist);
     if (r) {
-      best = pickStrongerMatch(best, r);
-      if (shouldStopIdentifyPass(r)) return finish(r);
+      const filtered = constrainIdentifyResultToShowArtist(r, expectedArtist);
+      best = pickStrongerMatch(best, filtered);
+      if (shouldStopIdentifyPass(filtered)) return finish(filtered);
     }
   }
 
   if (video.size >= MIN_SNIPPET_BYTES && video.size <= ACR_MAX_SAMPLE_BYTES) {
-    const r = await tryIdentifyBlob(video);
+    const r = await tryIdentifyBlob(video, expectedArtist);
     if (r) {
-      best = pickStrongerMatch(best, r);
+      best = pickStrongerMatch(best, constrainIdentifyResultToShowArtist(r, expectedArtist));
     }
   }
 
   return finish(best);
 }
 
-export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyResult> {
+export async function identifyMusicWithAudD(
+  source: Blob,
+  expectedArtist?: string | null,
+): Promise<AudDIdentifyResult> {
   const { snippet, extractFailure } = await resolveSnippetForIdentify(source);
   if (!snippet || snippet.size < MIN_SNIPPET_BYTES) {
     const extractHint = skippedMessageForExtractFailure(extractFailure);
@@ -426,10 +465,13 @@ export async function identifyMusicWithAudD(source: Blob): Promise<AudDIdentifyR
           : 'Could not capture enough audio from this clip for song ID (record at least 5s with clear music from the speakers).',
     };
   }
-  return postSnippetToIdentify(snippet);
+  return postSnippetToIdentify(snippet, expectedArtist);
 }
 
-async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult> {
+async function postSnippetToIdentify(
+  snippet: Blob,
+  expectedArtist?: string | null,
+): Promise<AudDIdentifyResult> {
   if (snippet.size < MIN_SNIPPET_BYTES) {
     return {
       status: 'skipped',
@@ -443,7 +485,7 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
       : snippet;
 
   try {
-    const res = await fetchIdentifyMusic(uploadBlob);
+    const res = await fetchIdentifyMusic(uploadBlob, expectedArtist);
     const data = (await res.json()) as {
       ok?: boolean;
       skipped?: boolean;
@@ -505,7 +547,10 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
       typeof data.match.confidence === 'number' && Number.isFinite(data.match.confidence)
         ? data.match.confidence
         : undefined;
-    return { status: 'match', artist, title, message, confidence };
+    return constrainIdentifyResultToShowArtist(
+      { status: 'match', artist, title, message, confidence },
+      expectedArtist,
+    );
   } catch (e) {
     const rec = e as { message?: string; errorMessage?: string; name?: string } | null;
     const detail =

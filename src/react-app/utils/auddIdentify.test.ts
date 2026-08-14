@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isFatalSongIdentifyError, normalizeIdentifyResult } from './auddIdentify';
+import {
+  constrainIdentifyResultToShowArtist,
+  isFatalSongIdentifyError,
+  mergeLiveAndFinalSongIdentify,
+  normalizeIdentifyResult,
+} from './auddIdentify';
 
 describe('normalizeIdentifyResult', () => {
   it('clears message for nomatch and skipped', () => {
@@ -8,7 +13,7 @@ describe('normalizeIdentifyResult', () => {
     ).toEqual({ status: 'nomatch', message: null });
     expect(
       normalizeIdentifyResult({ status: 'skipped', message: 'Could not extract' }),
-    ).toEqual({ status: 'skipped', message: null });
+    ).toEqual({ status: 'skipped', message: 'Could not extract' });
   });
 
   it('maps legacy no-match errors to nomatch without message', () => {
@@ -55,5 +60,54 @@ describe('isFatalSongIdentifyError', () => {
         message: 'Too many song lookups — wait a moment',
       }),
     ).toBe(true);
+  });
+});
+
+describe('constrainIdentifyResultToShowArtist', () => {
+  const paulWallHit = {
+    status: 'match' as const,
+    artist: 'Paul Wall feat. Chamillionaire',
+    title: "Sittin' Sidewayz",
+    message: "Identified: Sittin' Sidewayz — Paul Wall feat. Chamillionaire",
+  };
+
+  it('keeps a match for the show artist, including featured guests', () => {
+    expect(constrainIdentifyResultToShowArtist(paulWallHit, 'Paul Wall').status).toBe('match');
+  });
+
+  it('drops a match for a different artist', () => {
+    expect(
+      constrainIdentifyResultToShowArtist(
+        { ...paulWallHit, artist: 'Drake', title: 'Started From the Bottom', message: null },
+        'Paul Wall',
+      ),
+    ).toEqual({ status: 'nomatch', message: null });
+  });
+
+  it('does not filter when the clip has no show artist', () => {
+    expect(constrainIdentifyResultToShowArtist(paulWallHit, '').status).toBe('match');
+  });
+});
+
+describe('mergeLiveAndFinalSongIdentify', () => {
+  it('does not fall back to a live hit for the wrong artist', () => {
+    const merged = mergeLiveAndFinalSongIdentify(
+      { artist: 'Drake', title: 'Started From the Bottom' },
+      { status: 'error', message: 'Song ID is not configured. Set ACRCLOUD_HOST' },
+      'Paul Wall',
+    );
+    expect(merged.status).toBe('error');
+  });
+
+  it('keeps a live hit for the show artist when the final pass is a fatal error', () => {
+    const merged = mergeLiveAndFinalSongIdentify(
+      { artist: 'Paul Wall', title: "Sittin' Sidewayz" },
+      { status: 'error', message: 'Song ID is not configured. Set ACRCLOUD_HOST' },
+      'Paul Wall',
+    );
+    expect(merged.status).toBe('match');
+    if (merged.status === 'match') {
+      expect(merged.title).toBe("Sittin' Sidewayz");
+    }
   });
 });
