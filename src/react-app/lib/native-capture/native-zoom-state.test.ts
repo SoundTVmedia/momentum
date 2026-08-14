@@ -73,6 +73,8 @@ describe('readNativeZoomState', () => {
 });
 
 describe('setNativeCaptureZoom', () => {
+  const pinch = { ramp: true, autoFocus: false, continuous: true } as const;
+
   beforeEach(() => {
     cameraPreview.setZoom.mockClear();
     cameraPreview.setZoom.mockResolvedValue(undefined);
@@ -85,13 +87,16 @@ describe('setNativeCaptureZoom', () => {
     const burst = Array.from({ length: 200 }, (_, i) => 1 + i * 0.01);
 
     burst.forEach((level) => {
-      void setNativeCaptureZoom(level, { ramp: false });
+      void setNativeCaptureZoom(level, pinch);
     });
     await flushNativeCaptureZoom();
 
     expect(cameraPreview.setZoom.mock.calls.length).toBeLessThanOrEqual(2);
     const applied = cameraPreview.setZoom.mock.calls.map(([arg]) => arg.level);
     expect(applied[applied.length - 1]).toBe(burst[burst.length - 1]);
+    expect(cameraPreview.setZoom).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ramp: true, autoFocus: false }),
+    );
   });
 
   it('never runs two zoom calls against the device at once', async () => {
@@ -125,40 +130,40 @@ describe('setNativeCaptureZoom', () => {
   });
 
   it('honours an explicit autoFocus:false so pinch does not hunt focus', async () => {
-    void setNativeCaptureZoom(2, { ramp: false, autoFocus: false });
+    void setNativeCaptureZoom(2, pinch);
     await flushNativeCaptureZoom();
 
     expect(cameraPreview.setZoom).toHaveBeenCalledWith(
-      expect.objectContaining({ level: 2, autoFocus: false }),
+      expect.objectContaining({ level: 2, autoFocus: false, ramp: true }),
     );
   });
 
   it('does not send a pinch update more often than NATIVE_ZOOM_MIN_INTERVAL_MS', async () => {
     vi.useFakeTimers();
     try {
-      void setNativeCaptureZoom(1, { ramp: false });
+      void setNativeCaptureZoom(1, pinch);
       await vi.advanceTimersByTimeAsync(0);
       expect(cameraPreview.setZoom).toHaveBeenCalledTimes(1);
       expect(cameraPreview.setZoom).toHaveBeenLastCalledWith(
-        expect.objectContaining({ level: 1, ramp: false }),
+        expect.objectContaining({ level: 1, ramp: true }),
       );
 
-      void setNativeCaptureZoom(1.5, { ramp: false });
-      void setNativeCaptureZoom(2, { ramp: false });
+      void setNativeCaptureZoom(1.5, pinch);
+      void setNativeCaptureZoom(2, pinch);
       await vi.advanceTimersByTimeAsync(NATIVE_ZOOM_MIN_INTERVAL_MS - 1);
       expect(cameraPreview.setZoom).toHaveBeenCalledTimes(1);
 
       await vi.advanceTimersByTimeAsync(1);
       expect(cameraPreview.setZoom).toHaveBeenCalledTimes(2);
       expect(cameraPreview.setZoom).toHaveBeenLastCalledWith(
-        expect.objectContaining({ level: 2, ramp: false }),
+        expect.objectContaining({ level: 2, ramp: true }),
       );
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('caps a 12s pinch at about 12 Hz instead of one call per touchmove', async () => {
+  it('caps a 12s pinch at about 20 Hz instead of one call per touchmove', async () => {
     vi.useFakeTimers();
     try {
       const touchMoveMs = 16;
@@ -166,7 +171,7 @@ describe('setNativeCaptureZoom', () => {
       let level = 1;
       for (let t = 0; t < clipMs; t += touchMoveMs) {
         level = 1 + (t / clipMs) * 2;
-        void setNativeCaptureZoom(level, { ramp: false });
+        void setNativeCaptureZoom(level, pinch);
         await vi.advanceTimersByTimeAsync(touchMoveMs);
       }
       await flushNativeCaptureZoom();
@@ -176,6 +181,7 @@ describe('setNativeCaptureZoom', () => {
       expect(cameraPreview.setZoom.mock.calls.length).toBeGreaterThan(clipMs / 200);
       const applied = cameraPreview.setZoom.mock.calls.map(([arg]) => arg.level);
       expect(applied[applied.length - 1]).toBeCloseTo(level, 5);
+      expect(cameraPreview.setZoom.mock.calls.every(([arg]) => arg.ramp === true)).toBe(true);
     } finally {
       vi.useRealTimers();
     }
