@@ -50,6 +50,32 @@ does not treat that key as a real entitlement, and Xcode will refuse to include
 it in the provisioning profile. Enable the **ShazamKit App Service** on the
 App ID instead (see below).
 
+### Critical: `server.url` vs ShazamKit branch
+
+`capacitor.config.ts` sets `server.url` to the live Workers app. That means the
+Xcode/TestFlight WebView loads **production JS from the Worker**, not the
+`dist/` you just built. ShazamKit lives on this feature branch and is **not**
+on `main` / production yet, so a device run can include the native plugin but
+never call it — song ID skips straight to ACRCloud (or fails).
+
+To test ShazamKit from Xcode on a physical iPhone:
+
+1. On this branch, comment out `server.url` in `capacitor.config.ts`
+   (leave `androidScheme: 'https'`).
+2. Build the web bundle that includes ShazamKit:
+   `ENABLE_CLOUDFLARE_VITE=1 npm run build`
+3. Sync into iOS: `npx cap sync ios`
+4. Run from `ios/App/App.xcworkspace` on a **physical** iPhone (iOS 15+).
+5. Confirm in Safari → Develop → [your iPhone] → the WebView console that
+   you are **not** on `*.workers.dev`, and that a capture logs either a
+   ShazamKit match or `ShazamKit identify failed …` (not silence).
+
+When finished testing, restore `server.url` before shipping a live-reload
+TestFlight build.
+
+Also required at runtime: network access (Shazam catalog is remote) and the
+ShazamKit **App Service** enabled on `com.feedbacklive.app`.
+
 ## RN app (`apps/mobile`) — how it works
 
 1. Capture records an MP4 and writes a `CaptureHandoff` (unchanged).

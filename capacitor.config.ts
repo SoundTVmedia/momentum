@@ -29,6 +29,9 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   // Live Workers URL: WebView loads from deploy — JS updates without a new TestFlight build.
   // App Store release with bundled dist/: comment out `url` and run `npm run cap:sync ios`.
+  // ShazamKit / other unreleased native+JS features: comment out `url`, build dist on that
+  // branch, then `npx cap sync ios` — otherwise the phone runs production JS that never
+  // calls the new native plugin.
   server: {
     androidScheme: 'https',
     url: 'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev',
