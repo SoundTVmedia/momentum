@@ -85,13 +85,13 @@ seg-1.ts`;
     ]);
   });
 
-  it('prefers uploaded JPEG poster over stream fields', () => {
+  it('prefers a Stream still from the video over an uploaded JPEG', () => {
     expect(
       resolveClipPosterUrl({
         thumbnail_url: '/api/files/clips/user/thumb.jpg',
         stream_video_id: UID,
       }),
-    ).toBe('/api/files/clips/user/thumb.jpg');
+    ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=1s&height=720`);
   });
 
   it('skips HLS stream_thumbnail_url and uses Stream still frame at 1s', () => {
@@ -103,20 +103,28 @@ seg-1.ts`;
     ).toBe(`https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=1s&height=720`);
   });
 
-  it('lists poster candidates: upload JPEG then stream times only', () => {
+  it('lists poster candidates: Stream stills from the video, then uploaded JPEG', () => {
     expect(
       resolveClipPosterCandidates({
         thumbnail_url: '/api/files/clips/user/thumb.jpg',
         stream_video_id: UID,
       }),
     ).toEqual([
-      '/api/files/clips/user/thumb.jpg',
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=1s&height=720`,
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=3s&height=720`,
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=5s&height=720`,
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=8s&height=720`,
       `https://videodelivery.net/${UID}/thumbnails/thumbnail.jpg?time=12s&height=720`,
+      '/api/files/clips/user/thumb.jpg',
     ]);
+  });
+
+  it('uses the uploaded JPEG when the clip has no Stream id yet', () => {
+    expect(
+      resolveClipPosterUrl({
+        thumbnail_url: '/api/files/clips/user/thumb.jpg',
+      }),
+    ).toBe('/api/files/clips/user/thumb.jpg');
   });
 
   it('returns empty string when no clip poster sources exist', () => {

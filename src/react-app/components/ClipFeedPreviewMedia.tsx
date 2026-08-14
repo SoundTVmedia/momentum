@@ -46,6 +46,7 @@ export default function ClipFeedPreviewMedia({
   stream_thumbnail_url,
   video_url,
   thumbnail_url,
+  r2_raw_key,
   playbackUrl,
   fallbackUrl,
   posterUrl,
@@ -60,6 +61,7 @@ export default function ClipFeedPreviewMedia({
     stream_thumbnail_url,
     video_url: video_url ?? fallbackUrl,
     thumbnail_url: thumbnail_url ?? posterUrl,
+    r2_raw_key,
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
