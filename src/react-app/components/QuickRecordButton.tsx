@@ -1394,8 +1394,8 @@ export default function QuickRecordButton({
       if (nativeCaptureActiveRef.current) {
         if (!zoomRange) return;
         const target = clampCameraZoom(next, zoomRange);
-        // Continuous pinch: refocusing on every step makes the lens hunt the whole gesture.
-        await setNativeCaptureZoom(target, { ramp: false, autoFocus: false });
+        // Continuous pinch: ramp on-device so 20 Hz targets interpolate instead of jumping.
+        await setNativeCaptureZoom(target, { ramp: true, autoFocus: false, continuous: true });
         zoomLevelRef.current = target;
         setZoomLevel(target);
         return;
@@ -1481,7 +1481,8 @@ export default function QuickRecordButton({
       touchPairDistance(e.touches),
       zoomRange,
     );
-    if (Math.abs(next - lastPinchApplyRef.current) < 0.04) return;
+    const minDelta = nativeCaptureActiveRef.current ? 0.01 : 0.04;
+    if (Math.abs(next - lastPinchApplyRef.current) < minDelta) return;
     lastPinchApplyRef.current = next;
     void applyZoomInstant(next);
   };

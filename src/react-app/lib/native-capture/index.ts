@@ -407,14 +407,19 @@ export async function readNativeZoomState(): Promise<NativeZoomState | null> {
   }
 }
 
-type NativeZoomRequest = { level: number; opts?: { ramp?: boolean; autoFocus?: boolean } };
+type NativeZoomOpts = { ramp?: boolean; autoFocus?: boolean; continuous?: boolean };
+type NativeZoomRequest = { level: number; opts?: NativeZoomOpts };
 
 /**
- * Pinch is ~60 touchmoves/s. Native setZoom returns in a few ms, so in-flight
- * coalescing never trips and the bridge floods (~100 calls per clip).
- * Pinch is rate-limited to ~12 Hz; discrete stops still go immediately.
+ * Pinch is ~60 touchmoves/s. Instant setZoom at that rate floods the bridge
+ * and looks steppy. Continuous pinch keeps the newest target, ramps on the
+ * device (~20 Hz), and discrete stops still go immediately.
  */
-export const NATIVE_ZOOM_MIN_INTERVAL_MS = 80;
+export const NATIVE_ZOOM_MIN_INTERVAL_MS = 50;
+
+function isContinuousZoom(opts?: NativeZoomOpts): boolean {
+  return opts?.continuous === true || opts?.ramp === false;
+}
 
 let zoomApplyInFlight = false;
 let queuedZoomRequest: NativeZoomRequest | null = null;
@@ -461,7 +466,7 @@ async function sendQueuedZoom(): Promise<void> {
 function drainQueuedZoom(force: boolean): Promise<void> {
   const run = async (): Promise<void> => {
     if (!queuedZoomRequest || !previewRunning) return;
-    if (!force && queuedZoomRequest.opts?.ramp === false) {
+    if (!force && isContinuousZoom(queuedZoomRequest.opts)) {
       const wait = pinchDelayMs();
       if (wait > 0) {
         scheduleZoomFlush();
@@ -470,7 +475,7 @@ function drainQueuedZoom(force: boolean): Promise<void> {
     }
     await sendQueuedZoom();
     if (!queuedZoomRequest || !previewRunning) return;
-    if (!force && queuedZoomRequest.opts?.ramp === false) {
+    if (!force && isContinuousZoom(queuedZoomRequest.opts)) {
       scheduleZoomFlush();
       return;
     }
@@ -502,15 +507,16 @@ export async function flushNativeCaptureZoom(): Promise<void> {
 
 /**
  * Discrete stops (`ramp: true`, the default) go immediately.
- * Pinch (`ramp: false`) keeps only the newest target and sends at most ~12 Hz.
+ * Pinch (`continuous: true`) keeps only the newest target, ramps on-device,
+ * and sends at most ~20 Hz so the preview interpolates instead of jumping.
  */
 export async function setNativeCaptureZoom(
   level: number,
-  opts?: { ramp?: boolean; autoFocus?: boolean },
+  opts?: NativeZoomOpts,
 ): Promise<void> {
   if (!previewRunning) return;
   queuedZoomRequest = { level, opts };
-  if (opts?.ramp === false) {
+  if (isContinuousZoom(opts)) {
     scheduleZoomFlush();
     return;
   }
