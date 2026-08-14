@@ -46,6 +46,33 @@ The `com.apple.developer.shazamkit` entitlement is committed in
 lowercase "kit" is required). `Podfile.lock` updates on the next `pod install`
 on macOS.
 
+### Troubleshooting: `objectVersion 70` / `pod install` fails
+
+CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode
+project `objectVersion = 70` (it does map `56` and `77`). CocoaPods copies the
+**App** project’s object version when generating `Pods.xcodeproj`, so if Xcode
+left yours at 70, `pod install` dies with:
+
+```text
+ArgumentError - [Xcodeproj] Unable to find compatibility version string for object version `70`.
+```
+
+`ios/App/Podfile` patches the missing mapping and rewrites `70 → 56` on disk
+before install. Pull that Podfile, then sync again.
+
+**Immediate unblock (no pull):**
+
+```bash
+# Quit Xcode first so it does not rewrite the file
+sed -i '' 's/objectVersion = 70;/objectVersion = 56;/' ios/App/App.xcodeproj/project.pbxproj
+grep objectVersion ios/App/App.xcodeproj/project.pbxproj | head -1   # expect 56
+cd ios/App && pod install && cd ../..
+# or: npx cap sync ios
+```
+
+Also: prefer **New Group** over **New Folder** in Xcode, and set Project Format
+to Xcode 14 (or Xcode 16 → objectVersion 77) so it does not keep saving as 70.
+
 ## RN app (`apps/mobile`) — how it works
 
 1. Capture records an MP4 and writes a `CaptureHandoff` (unchanged).
