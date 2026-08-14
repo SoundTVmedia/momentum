@@ -17,8 +17,7 @@ export interface ShazamKitPlugin {
   /**
    * Recognize a song from a base64-encoded audio/video payload (wav, m4a,
    * mp4…). Resolves `{ match: null }` on a clean catalog no-match; rejects on
-   * unsupported platform, malformed audio, or a failed match attempt (e.g.
-   * missing com.apple.developer.shazamkit entitlement).
+   * unsupported platform, malformed audio, or a failed match attempt.
    */
   recognizeAudio(options: {
     base64: string;

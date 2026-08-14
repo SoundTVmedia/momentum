@@ -24,8 +24,7 @@ export function isShazamKitAvailable(): boolean {
 /**
  * Recognize the song in a recorded local video/audio file via ShazamKit.
  * Resolves the normalized match, or null on a clean no-match. Throws on
- * unavailable platform, unreadable file, or a failed match attempt
- * (e.g. missing com.apple.developer.shazamkit entitlement).
+ * unavailable platform, unreadable file, or a failed match attempt.
  */
 export async function recognizeSongFromVideo(
   fileUri: string,

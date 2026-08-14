@@ -7,9 +7,10 @@ import ShazamKit
  *
  * Reads the audio track of a local video/audio file, generates a Shazam
  * signature with SHSignatureGenerator, and matches it against the Shazam
- * catalog via SHSession. Requires the com.apple.developer.shazamkit
- * entitlement (configured in app.json → ios.entitlements) and an App ID
- * with the ShazamKit app service enabled in the Apple Developer portal.
+ * catalog via SHSession. Link the ShazamKit framework and enable the
+ * ShazamKit App Service on the App ID in the Apple Developer portal.
+ * Do not add com.apple.developer.shazamkit to entitlements — it is not a
+ * real entitlement and breaks provisioning.
  *
  * Resolution contract (mirrors index.ts):
  *  - match        → dictionary with normalized metadata
@@ -125,8 +126,7 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
 
   func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
     if let error {
-      // Entitlement/network problems surface here (e.g. SHError 202
-      // matchAttemptFailed when com.apple.developer.shazamkit is missing).
+      // Network / catalog problems surface here (e.g. SHError 202).
       reject(
         "ERR_SHAZAMKIT_MATCH_FAILED",
         "Shazam match attempt failed: \(error.localizedDescription)"

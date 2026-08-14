@@ -18,9 +18,6 @@
       "bundleIdentifier": "com.feedbacklive.app.rn",
       "buildNumber": "1",
       "usesAppleSignIn": true,
-      "entitlements": {
-        "com.apple.developer.shazamkit": true
-      },
       "infoPlist": {
         "CFBundleDisplayName": "Feedback RN",
         "NSCameraUsageDescription": "Feedback uses the camera to record concert clips in the app.",
