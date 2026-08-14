@@ -1,0 +1,28 @@
+{
+  "name": "@feedback/shazamkit",
+  "version": "0.1.0",
+  "description": "On-device ShazamKit song recognition for captured clips on native iOS",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "FeedbackShazamKit.podspec",
+    "dist/",
+    "ios/"
+  ],
+  "peerDependencies": {
+    "@capacitor/core": ">=7.0.0"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  }
+}
