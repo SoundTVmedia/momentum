@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..9d4d3f9 100644
+index 5dec305..59fadfc 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 @@ -41,6 +41,8 @@ class CameraController: NSObject {
@@ -241,7 +241,7 @@ index 5dec305..9d4d3f9 100644
          // cpcp_video_A6C01203 - portrait
          //
          if let connection = fileVideoOutput.connection(with: .video) {
-+            // ==== REMOVED_MARKER ====
++            // ==== FEEDBACK STABILIZATION PATCH ====
 +            // AVFoundation leaves preferredVideoStabilizationMode at .off. Set it here rather
 +            // than where the output is added: the connection does not exist until the output is
 +            // wired into a running session, so an earlier assignment is silently discarded.
@@ -262,7 +262,7 @@ index 5dec305..9d4d3f9 100644
 +            } else {
 +                print("[CameraPreview] Video stabilization unsupported on this connection")
 +            }
-+            // ==== END REMOVED_MARKER ====
++            // ==== END FEEDBACK STABILIZATION PATCH ====
              switch UIDevice.current.orientation {
              case .landscapeRight:
                  connection.videoOrientation = .landscapeLeft
