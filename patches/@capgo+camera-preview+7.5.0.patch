@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..6f6c090 100644
+index 5dec305..5c50eb4 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 @@ -41,6 +41,8 @@ class CameraController: NSObject {
@@ -99,7 +99,17 @@ index 5dec305..6f6c090 100644
                  // Prepare outputs
                  self.prepareOutputs()
  
-@@ -253,7 +299,22 @@ extension CameraController {
+@@ -249,11 +295,32 @@ extension CameraController {
+                 // Set aspect ratio preset and remember requested ratio
+                 self.requestedAspectRatio = aspectRatio
+                 self.configureSessionPreset(for: aspectRatio)
++                if cameraMode {
++                    // Full-bleed start passes no aspectRatio, so configureSessionPreset leaves
++                    // .photo. Video stabilization cannot activate on the photo preset — that is
++                    // why preferred=.auto still reported active=.off for the whole recording.
++                    self.applyVideoRecordingPreset()
++                }
+ 
                  // Configure device inputs
                  try self.configureDeviceInputs(cameraPosition: cameraPosition, deviceId: deviceId, disableAudio: disableAudio)
  
@@ -123,7 +133,15 @@ index 5dec305..6f6c090 100644
                  if let dataOutput = self.dataOutput, captureSession.canAddOutput(dataOutput) {
                      captureSession.addOutput(dataOutput)
                      dataOutput.setSampleBufferDelegate(self, queue: DispatchQueue.main)
-@@ -280,11 +341,6 @@ extension CameraController {
+@@ -266,6 +333,7 @@ extension CameraController {
+ 
+                 // Start the session
+                 captureSession.startRunning()
++                self.applyFeedbackVideoStabilization(reason: "running")
+ 
+                 // Defer adding photo/video outputs to avoid blocking
+                 // These aren't needed immediately for preview
+@@ -280,11 +348,6 @@ extension CameraController {
                          captureSession.addOutput(photoOutput)
                      }
  
@@ -135,7 +153,7 @@ index 5dec305..6f6c090 100644
                      captureSession.commitConfiguration()
                  }
  
-@@ -312,6 +368,12 @@ extension CameraController {
+@@ -312,6 +375,12 @@ extension CameraController {
                  } else if captureSession.canSetSessionPreset(.hd1920x1080) {
                      targetPreset = .hd1920x1080
                  }
@@ -148,7 +166,28 @@ index 5dec305..6f6c090 100644
              case "4:3":
                  if captureSession.canSetSessionPreset(.photo) {
                      targetPreset = .photo
-@@ -416,13 +478,17 @@ extension CameraController {
+@@ -336,6 +405,20 @@ extension CameraController {
+         }
+     }
+ 
++    /// Movie recording + stabilization need a video preset. `.photo` is the plugin default when
++    /// no aspectRatio is passed (our full-bleed start path) and it silently refuses to stabilize.
++    private func applyVideoRecordingPreset() {
++        guard let captureSession = self.captureSession else { return }
++        let candidates: [AVCaptureSession.Preset] = [.hd1920x1080, .high, .hd1280x720]
++        let chosen = candidates.first { captureSession.canSetSessionPreset($0) }
++        if let chosen = chosen {
++            captureSession.sessionPreset = chosen
++            print("[CameraPreview] Video recording preset=\(chosen.rawValue)")
++        } else {
++            print("[CameraPreview] Video recording preset unchanged=\(captureSession.sessionPreset.rawValue)")
++        }
++    }
++
+     private func setInitialZoom(level: Float?) {
+         let device = (currentCameraPosition == .rear) ? rearCamera : frontCamera
+         guard let device = device else {
+@@ -416,13 +499,17 @@ extension CameraController {
              if self.audioDevice == nil {
                  self.audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
              }
@@ -173,7 +212,7 @@ index 5dec305..6f6c090 100644
              }
          }
      }
-@@ -454,9 +520,9 @@ extension CameraController {
+@@ -454,9 +541,9 @@ extension CameraController {
              previewLayer.frame = frame
              previewLayer.videoGravity = .resizeAspectFill
          } else {
@@ -185,7 +224,7 @@ index 5dec305..6f6c090 100644
          }
  
          // Insert layer immediately (only if new)
-@@ -1434,7 +1500,82 @@ extension CameraController {
+@@ -1434,7 +1521,85 @@ extension CameraController {
          self.firstFrameReadyCallback = nil
      }
  
@@ -199,12 +238,12 @@ index 5dec305..6f6c090 100644
 +    /// Apple: do not change preferredVideoStabilizationMode while recording. Set it when the
 +    /// movie output is added (prepare), then only log at record start/stop.
 +    private func applyFeedbackVideoStabilization(reason: String, logOnly: Bool = false) {
-+        guard let connection = self.fileVideoOutput?.connection(with: .video) else {
-+            print("[CameraPreview] Stab \(reason): no video connection")
-+            return
++        let preset = self.captureSession?.sessionPreset.rawValue ?? "nil"
++        let connections: [AVCaptureConnection] = (self.captureSession?.outputs ?? []).compactMap {
++            $0.connection(with: .video)
 +        }
-+        if !connection.isVideoStabilizationSupported {
-+            print("[CameraPreview] Stab \(reason): unsupported on connection")
++        if connections.isEmpty {
++            print("[CameraPreview] Stab \(reason): no video connection preset=\(preset)")
 +            return
 +        }
 +
@@ -216,16 +255,19 @@ index 5dec305..6f6c090 100644
 +        let cinematic = device?.activeFormat.isVideoStabilizationModeSupported(.cinematic) ?? false
 +        let standard = device?.activeFormat.isVideoStabilizationModeSupported(.standard) ?? false
 +        let auto = device?.activeFormat.isVideoStabilizationModeSupported(.auto) ?? false
-+        print("[CameraPreview] Stab probe \(reason) device=\(device?.localizedName ?? "nil") cinematic=\(cinematic) standard=\(standard) auto=\(auto)")
++        print("[CameraPreview] Stab probe \(reason) device=\(device?.localizedName ?? "nil") preset=\(preset) cinematic=\(cinematic) standard=\(standard) auto=\(auto) connections=\(connections.count)")
 +
-+        if !logOnly {
-+            let ladder: [AVCaptureVideoStabilizationMode] = [.cinematic, .standard, .auto]
-+            let mode = ladder.first { candidate in
-+                device?.activeFormat.isVideoStabilizationModeSupported(candidate) ?? false
-+            } ?? .auto
-+            connection.preferredVideoStabilizationMode = mode
++        let ladder: [AVCaptureVideoStabilizationMode] = [.cinematic, .standard, .auto]
++        let mode = ladder.first { candidate in
++            device?.activeFormat.isVideoStabilizationModeSupported(candidate) ?? false
++        } ?? .auto
++
++        for connection in connections where connection.isVideoStabilizationSupported {
++            if !logOnly {
++                connection.preferredVideoStabilizationMode = mode
++            }
++            print("[CameraPreview] Stab \(reason): preferred=\(connection.preferredVideoStabilizationMode.rawValue) active=\(connection.activeVideoStabilizationMode.rawValue) supported=\(connection.isVideoStabilizationSupported)")
 +        }
-+        print("[CameraPreview] Stab \(reason): preferred=\(connection.preferredVideoStabilizationMode.rawValue) active=\(connection.activeVideoStabilizationMode.rawValue)")
 +    }
 +
 +    func ensureMovieFileAudioForRecording() {
@@ -268,7 +310,7 @@ index 5dec305..6f6c090 100644
          guard let captureSession = self.captureSession, captureSession.isRunning else {
              throw CameraControllerError.captureSessionIsMissing
          }
-@@ -1446,9 +1587,14 @@ extension CameraController {
+@@ -1446,9 +1611,14 @@ extension CameraController {
              throw CameraControllerError.fileVideoOutputNotFound
          }
  
@@ -283,7 +325,7 @@ index 5dec305..6f6c090 100644
              switch UIDevice.current.orientation {
              case .landscapeRight:
                  connection.videoOrientation = .landscapeLeft
-@@ -1463,6 +1609,20 @@ extension CameraController {
+@@ -1463,6 +1633,20 @@ extension CameraController {
              }
          }
  
@@ -304,7 +346,7 @@ index 5dec305..6f6c090 100644
          let identifier = UUID()
          let randomIdentifier = identifier.uuidString.replacingOccurrences(of: "-", with: "")
          let finalIdentifier = String(randomIdentifier.prefix(8))
-@@ -1488,11 +1648,47 @@ extension CameraController {
+@@ -1488,11 +1672,47 @@ extension CameraController {
              return
          }
  
@@ -324,14 +366,14 @@ index 5dec305..6f6c090 100644
 +        self.stopRecordingCompletion = completion
          fileVideoOutput.stopRecording()
 +    }
-+
+ 
+-        // Return the video file URL in the completion handler
+-        completion(self.videoFileURL, nil)
 +    private func recordedMovieAudioTrackCount(at url: URL) -> Int {
 +        let asset = AVURLAsset(url: url)
 +        return asset.tracks(withMediaType: .audio).count
 +    }
- 
--        // Return the video file URL in the completion handler
--        completion(self.videoFileURL, nil)
++
 +    /// AVAsset often reports 0 audio tracks immediately after didFinishRecordingTo while the MP4 moov atom is still being written.
 +    private func finalizeRecordedMovieAudio(at url: URL, attempt: Int = 0, completion: @escaping () -> Void) {
 +        let audioCount = self.recordedMovieAudioTrackCount(at: url)
@@ -355,7 +397,7 @@ index 5dec305..6f6c090 100644
      }
  }
  
-@@ -1839,11 +2035,19 @@ extension UIImage {
+@@ -1839,11 +2059,19 @@ extension UIImage {
  
  extension CameraController: AVCaptureFileOutputRecordingDelegate {
      func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
