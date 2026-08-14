@@ -346,9 +346,9 @@ export async function identifyMusicForClip(
   const finish = (r: AudDIdentifyResult) =>
     mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(r));
 
-  // Primary provider: on-device ShazamKit (native iOS builds with the
-  // @feedback/shazamkit plugin). Prefer the local recording path so we do not
-  // base64 a 20–40MB movie. No-match/error falls through to ACRCloud.
+  // Primary: on-device ShazamKit (native iOS). Prefer the local recording path
+  // so we do not base64 a 20–40MB movie. No-match / non-fatal error falls
+  // through to ACRCloud (Worker /api/clips/identify-music).
   const shazamKit = nativeFilePath
     ? await identifyNativeFileWithShazamKit(nativeFilePath)
     : await identifyClipWithShazamKit(video, audio ?? null);

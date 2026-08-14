@@ -43,9 +43,9 @@ public class FeedbackShazamKitModule: Module {
 
 @available(iOS 15.0, *)
 final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
-  /// Seconds of audio fed into the signature. Shazam matches reliably on
-  /// ~10-15s; capping keeps signature generation fast for 60s clips.
-  private static let maxSignatureSeconds: Double = 15
+  /// Catalog matching requires signatures longer than 1s and shorter than 12s
+  /// (SHError 201 / signatureDurationInvalid). 11s stays inside that window.
+  private static let maxSignatureSeconds: Double = 11
   private static let workQueue = DispatchQueue(
     label: "com.feedbacklive.shazamkit",
     qos: .userInitiated
@@ -126,14 +126,33 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
 
   func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
     if let error {
-      // Network / catalog problems surface here (e.g. SHError 202).
-      reject(
-        "ERR_SHAZAMKIT_MATCH_FAILED",
-        "Shazam match attempt failed: \(error.localizedDescription)"
-      )
+      reject(Self.matchFailureCode(error), Self.matchFailureMessage(error))
       return
     }
     resolve(nil)
+  }
+
+  /// SHError 201 is a bad signature (do not retry as a transient 202).
+  private static func matchFailureCode(_ error: Error) -> String {
+    switch (error as NSError).code {
+    case 201:
+      return "ERR_SHAZAMKIT_SIGNATURE_DURATION"
+    case 200:
+      return "ERR_SHAZAMKIT_SIGNATURE"
+    default:
+      return "ERR_SHAZAMKIT_MATCH_FAILED"
+    }
+  }
+
+  private static func matchFailureMessage(_ error: Error) -> String {
+    switch (error as NSError).code {
+    case 201:
+      return "Shazam signature duration is invalid (must be 1–12s): \(error.localizedDescription)"
+    case 200:
+      return "Shazam signature is invalid: \(error.localizedDescription)"
+    default:
+      return "Shazam match attempt failed: \(error.localizedDescription)"
+    }
   }
 
   // MARK: - Resolution plumbing
@@ -244,10 +263,15 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
 
     let generator = SHSignatureGenerator()
     var appendedFrames: AVAudioFrameCount = 0
+    let maxFrames = AVAudioFrameCount(sampleRate * maxSignatureSeconds)
 
     while let sampleBuffer = output.copyNextSampleBuffer() {
       guard let pcmBuffer = pcmBuffer(from: sampleBuffer, format: format) else {
         continue
+      }
+      if appendedFrames >= maxFrames { break }
+      if appendedFrames + pcmBuffer.frameLength > maxFrames {
+        pcmBuffer.frameLength = maxFrames - appendedFrames
       }
       try generator.append(pcmBuffer, at: nil)
       appendedFrames += pcmBuffer.frameLength

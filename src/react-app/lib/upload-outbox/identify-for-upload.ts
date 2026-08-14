@@ -29,7 +29,7 @@ export function uploadJobNeedsSongIdentify(job: UploadOutboxJob): boolean {
   if (job.uploadMethod !== 'file') return false;
   if (isPrePostContentFeed(job.contentFeed)) return false;
   if (job.form.song_title?.trim()) return false;
-  // Default: run ACR at upload time when caption left no song title.
+  // Default: ShazamKit first, then ACRCloud, when the clip has no song title yet.
   return job.songIdentifyPending !== false;
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canSendVideoDirectly,
+  isTransientShazamKitMatchFailure,
   pickShazamKitMicSource,
   shazamKitMatchToIdentifyResult,
   SHAZAMKIT_MAX_DIRECT_BYTES,
@@ -102,6 +103,38 @@ describe('canSendVideoDirectly', () => {
     );
     expect(
       canSendVideoDirectly(blobOfSize(MAX_IDENTIFY_UPLOAD_BYTES + 1, 'video/mp4')),
+    ).toBe(false);
+  });
+});
+
+describe('isTransientShazamKitMatchFailure', () => {
+  it('retries SHError 202 / ERR_SHAZAMKIT_MATCH_FAILED', () => {
+    expect(
+      isTransientShazamKitMatchFailure({
+        code: 'ERR_SHAZAMKIT_MATCH_FAILED',
+        message: 'Shazam match attempt failed: The operation couldn’t be completed. (com.apple.ShazamKit error 202.)',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not retry SHError 201 signature-duration failures', () => {
+    expect(
+      isTransientShazamKitMatchFailure({
+        code: 'ERR_SHAZAMKIT_SIGNATURE_DURATION',
+        message: 'Shazam signature duration is invalid (must be 1–12s)',
+      }),
+    ).toBe(false);
+    expect(
+      isTransientShazamKitMatchFailure({
+        code: 'ERR_SHAZAMKIT_MATCH_FAILED',
+        message:
+          'Shazam match attempt failed: The operation couldn’t be completed. (com.apple.ShazamKit error 201.)',
+      }),
+    ).toBe(false);
+    expect(
+      isTransientShazamKitMatchFailure(
+        new Error('Signature(ID:abc, Duration:14.998980) is invalid and cannot be matched'),
+      ),
     ).toBe(false);
   });
 });

@@ -124,10 +124,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function isTransientShazamKitMatchFailure(err: unknown): boolean {
-  const code = (err as { code?: string } | null)?.code ?? '';
-  const message = err instanceof Error ? err.message : String((err as { message?: string } | null)?.message ?? '');
-  // SHError 202 (matchAttemptFailed) — Apple docs: often transient, retry the match.
+/**
+ * SHError 202 (matchAttemptFailed) is often transient and worth one retry.
+ * SHError 201 (signatureDurationInvalid) is not — retrying the same signature fails again.
+ */
+export function isTransientShazamKitMatchFailure(err: unknown): boolean {
+  const rec = err as { code?: string; message?: string; errorMessage?: string } | null;
+  const code = rec?.code ?? '';
+  const message =
+    err instanceof Error
+      ? err.message
+      : String(rec?.errorMessage ?? rec?.message ?? '');
+  if (
+    code === 'ERR_SHAZAMKIT_SIGNATURE_DURATION' ||
+    code === 'ERR_SHAZAMKIT_SIGNATURE' ||
+    /error 201|signatureDurationInvalid|signature duration|invalid and cannot be matched/i.test(
+      message,
+    )
+  ) {
+    return false;
+  }
   return code === 'ERR_SHAZAMKIT_MATCH_FAILED' || /error 202|match attempt failed/i.test(message);
 }
 

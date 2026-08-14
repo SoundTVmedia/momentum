@@ -6,14 +6,6 @@ import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import type { ClipShowCandidate } from '@/shared/types';
 import { resolveClipEventTitle } from '@/shared/event-title';
-import {
-  identifyMusicWithAudD,
-  auddSourceKey,
-  auddPrefillFromLiveMatch,
-} from '@/react-app/utils/auddIdentify';
-import { identifyLiveAudioWithShazamKit, identifyNativeFileWithShazamKit, logShazamKitAvailability } from '@/react-app/utils/shazamKitIdentify';
-import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
-import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clearCaptureShowSession,
@@ -60,7 +52,6 @@ import {
   scheduleNativeCaptureFullScreenPreview,
   startNativeVideoRecording,
   stopNativeVideoRecording,
-  startNativeLiveAudioSegments,
   stopNativeLiveAudioSegments,
   setNativeCaptureZoom,
   setNativeCaptureFocus,
@@ -77,10 +68,6 @@ import {
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
-import {
-  isHudSongIdentifyPending,
-  resolveCaptureHudSongLabel,
-} from '@/react-app/lib/capture-hud-song';
 import { clearCaptureHandoffBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
 import {
   blobSourceKey,
@@ -92,16 +79,7 @@ import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/c
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
-/** Parallel mic track for song ID — runs with main recording (stopped when recording ends). */
-/**
- * Live ID: one complete mic recording per segment (not MediaRecorder timeslices — those are
- * often invalid WebM fragments and ACR returns 2004).
- */
-const LIVE_AUDD_SEGMENT_MS = 5_000;
-/** After stop, wait briefly for the in-flight segment identify before caption screen. */
-const LIVE_AUDD_STOP_WAIT_MS = 4_000;
-/** ACRCloud often rejects tiny/incomplete WebM (2004); align with worker MIN_WEBM_BYTES. */
-const MIN_LIVE_AUDD_CHUNK_BYTES = 4096;
+/** Parallel mic track for song ID — captured with the clip and identified at upload. */
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -127,8 +105,6 @@ interface QuickRecordButtonProps {
   captureLaunchGeoResolved?: boolean;
   /** When true, do not call getUserMedia until launch-time geolocation has finished (location before camera/mic). */
   deferCameraUntilLaunchGeo?: boolean;
-  /** Optional setlist / venue / time priors for live on-screen song ID (see `LiveSongStabilizer`). */
-  liveSongPriors?: SongPrior[];
 }
 
 export default function QuickRecordButton({
@@ -143,15 +119,12 @@ export default function QuickRecordButton({
   captureLaunchGeoResolved = false,
   deferCameraUntilLaunchGeo = false,
   onAfterCaptureNavigate,
-  /** Optional setlist / venue / time-window hints — reduces confirmation streak when AudD agrees. */
-  liveSongPriors,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
   const {
     enqueue: enqueueClipUpload,
     activeCount: clipUploadsInFlight,
-    jobs: clipUploadJobs,
   } = useClipUploadQueue();
   const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const lastGeoRef = useRef<{
@@ -190,15 +163,9 @@ export default function QuickRecordButton({
   const lastParallelAuddAudioBlobRef = useRef<Blob | null>(null);
   /** Stops parallel AudD-only mic capture after MAX_AUDD_PARALLEL_RECORD_MS so the API never receives a >25s snippet. */
   const auddParallelCapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const liveAuddRecorderRef = useRef<MediaRecorder | null>(null);
-  const liveAuddSegmentChunksRef = useRef<Blob[]>([]);
-  const liveAuddSegmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const liveAuddInFlightRef = useRef(false);
-  const liveAuddStoppedRef = useRef(true);
   const liveAuddAudioMimeRef = useRef('audio/webm');
   /** Set true for whole record tap so preview→record effect cleanup does not stop the live mic pipeline. */
   const isRecordingRef = useRef(false);
-  const liveStabilizerRef = useRef(new LiveSongStabilizer());
   const nativeCaptureActiveRef = useRef(false);
   /** True while finishing a native clip (persist + navigate) — blocks unmount cleanup. */
   const nativeCaptureFinishingRef = useRef(false);
@@ -208,13 +175,6 @@ export default function QuickRecordButton({
   const prevIsOpenRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
-  /** Stabilized song/artist used as caption prefill fallback and camera HUD song line. */
-  const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
-  /** Live stabilized match rendered on the camera HUD while recording. */
-  const [liveHudSong, setLiveHudSong] = useState<{ artist: string; title: string } | null>(null);
-  /** Last quick-capture outbox job — its song ID result feeds the HUD song line. */
-  const [hudSongJobId, setHudSongJobId] = useState<string | null>(null);
-  const [hudIdentifiedSongTitle, setHudIdentifiedSongTitle] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -316,28 +276,6 @@ export default function QuickRecordButton({
       notice: null,
     });
   }, []);
-
-  /** HUD song line follows the queued quick-capture job — the outbox patches
-   *  form.song_title when ShazamKit/ACR identify resolves during upload. */
-  const hudTrackedJob = hudSongJobId
-    ? clipUploadJobs.find((j) => j.id === hudSongJobId) ?? null
-    : null;
-  const hudTrackedSongTitle = hudTrackedJob?.form.song_title ?? '';
-  useEffect(() => {
-    const title = hudTrackedSongTitle.trim();
-    if (title) setHudIdentifiedSongTitle(title);
-  }, [hudTrackedSongTitle]);
-  useEffect(() => {
-    if (showModal) return;
-    setLiveHudSong(null);
-    setHudSongJobId(null);
-    setHudIdentifiedSongTitle(null);
-  }, [showModal]);
-  const captureHudSongLabel = resolveCaptureHudSongLabel({
-    identifiedTitle: hudIdentifiedSongTitle,
-    liveMatch: liveHudSong,
-    identifyPending: isHudSongIdentifyPending(hudTrackedJob, hudIdentifiedSongTitle),
-  });
 
   useEffect(() => {
     coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
@@ -787,10 +725,6 @@ export default function QuickRecordButton({
       country: lastGeoRef.current?.country ?? null,
     };
   }, [showModal, isRecording, coordsForNearbyVenues]);
-
-  useEffect(() => {
-    liveStabilizerRef.current.setPriors(liveSongPriors);
-  }, [liveSongPriors]);
 
   /** Use coordinates we already have (launch tap). Does not call geolocation again. */
   const syncLastGeoFromNearbyCoordsRef = () => {
@@ -1742,9 +1676,9 @@ export default function QuickRecordButton({
     }
   };
 
-  /** Stop camera, mic, recorders, and live ID — call when capture ends or modal closes. */
+  /** Stop camera, mic, and recorders — call when capture ends or modal closes. */
   const releaseAllCaptureResources = () => {
-    stopLiveAuddPipeline();
+    void stopNativeLiveAudioSegments();
     clearAuddParallelCapTimer();
 
     if (nativeCaptureActiveRef.current) {
@@ -1794,7 +1728,6 @@ export default function QuickRecordButton({
     setPreviewStream(null);
     setHasPermission(false);
     setCameraReady(false);
-    liveAuddStoppedRef.current = true;
   };
 
   const finalizeParallelAuddRecorderOnly = (ar: MediaRecorder) => {
@@ -1812,237 +1745,6 @@ export default function QuickRecordButton({
     lastParallelAuddAudioBlobRef.current =
       chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
   };
-
-  const clearLiveAuddSegmentTimer = () => {
-    if (liveAuddSegmentTimerRef.current != null) {
-      clearTimeout(liveAuddSegmentTimerRef.current);
-      liveAuddSegmentTimerRef.current = null;
-    }
-  };
-
-  const resetLiveSongIdentification = () => {
-    liveStabilizerRef.current.reset();
-    lastLiveSongMatchRef.current = null;
-    setLiveHudSong(null);
-  };
-
-  const waitForLiveAuddInFlight = async (maxMs: number): Promise<void> => {
-    const deadline = Date.now() + maxMs;
-    while (liveAuddInFlightRef.current && Date.now() < deadline) {
-      await new Promise((r) => window.setTimeout(r, 80));
-    }
-  };
-
-  const finalizeCurrentLiveAuddSegment = async (): Promise<void> => {
-    liveAuddStoppedRef.current = true;
-    clearLiveAuddSegmentTimer();
-
-    const rec = liveAuddRecorderRef.current;
-    if (rec && (rec.state === 'recording' || rec.state === 'paused')) {
-      if (typeof rec.requestData === 'function') {
-        try {
-          rec.requestData();
-        } catch {
-          /* ignore */
-        }
-      }
-      try {
-        rec.stop();
-      } catch {
-        /* ignore */
-      }
-      if (liveAuddRecorderRef.current === rec) {
-        liveAuddRecorderRef.current = null;
-      }
-      await waitForLiveAuddInFlight(LIVE_AUDD_STOP_WAIT_MS);
-    }
-  };
-
-  const stopLiveAuddRecorder = () => {
-    liveAuddStoppedRef.current = true;
-    clearLiveAuddSegmentTimer();
-    liveAuddSegmentChunksRef.current = [];
-    const lr = liveAuddRecorderRef.current;
-    liveAuddRecorderRef.current = null;
-    if (lr && (lr.state === 'recording' || lr.state === 'paused')) {
-      try {
-        if (lr.state === 'recording' && typeof lr.requestData === 'function') {
-          try {
-            lr.requestData();
-          } catch {
-            /* ignore */
-          }
-        }
-      } catch {
-        /* ignore */
-      }
-      try {
-        lr.stop();
-      } catch {
-        /* ignore */
-      }
-      try {
-        lr.stream.getTracks().forEach((track) => track.stop());
-      } catch {
-        /* ignore */
-      }
-    }
-    liveAuddInFlightRef.current = false;
-  };
-
-  const stopLiveAuddPipeline = () => {
-    stopLiveAuddRecorder();
-    void stopNativeLiveAudioSegments();
-    resetLiveSongIdentification();
-  };
-
-  const applyLiveSongDisplayed = (displayed: { artist: string; title: string } | null) => {
-    if (!displayed || (!displayed.artist && !displayed.title)) return;
-    lastLiveSongMatchRef.current = displayed;
-    setLiveHudSong(displayed);
-  };
-
-  const identifyLiveSegmentBlob = (blob: Blob) => {
-    if (liveAuddStoppedRef.current) return;
-    if (blob.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
-
-    // ShazamKit must not block the HUD: a 20s catalog round-trip used to
-    // starve ACR and drop later mic segments (liveAuddInFlightRef).
-    void identifyLiveAudioWithShazamKit(blob).then((shazam) => {
-      if (liveAuddStoppedRef.current || shazam?.status !== 'match') return;
-      const { displayed } = liveStabilizerRef.current.observe(shazam);
-      applyLiveSongDisplayed(displayed);
-    });
-
-    if (liveAuddInFlightRef.current) return;
-    liveAuddInFlightRef.current = true;
-    void (async () => {
-      try {
-        const r = await identifyMusicWithAudD(blob);
-        if (liveAuddStoppedRef.current) return;
-        const { displayed } = liveStabilizerRef.current.observe(r);
-        applyLiveSongDisplayed(displayed);
-      } finally {
-        liveAuddInFlightRef.current = false;
-      }
-    })();
-  };
-
-  const beginLiveAuddSegment = (stream: MediaStream, audioMime: string) => {
-    if (liveAuddStoppedRef.current) return;
-
-    const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
-    if (liveTracks.length === 0) return;
-
-    clearLiveAuddSegmentTimer();
-    liveAuddSegmentChunksRef.current = [];
-
-    try {
-      const liveIdStream = new MediaStream(liveTracks.map((t) => t.clone()));
-      const liveRec = new MediaRecorder(liveIdStream, {
-        mimeType: audioMime,
-        audioBitsPerSecond: 96_000,
-      });
-      liveAuddAudioMimeRef.current = liveRec.mimeType || audioMime;
-
-      liveRec.ondataavailable = (event) => {
-        if (event.data.size > 0) liveAuddSegmentChunksRef.current.push(event.data);
-      };
-
-      liveRec.onstop = () => {
-        try {
-          liveIdStream.getTracks().forEach((t) => t.stop());
-        } catch {
-          /* ignore */
-        }
-        const chunks = liveAuddSegmentChunksRef.current;
-        liveAuddSegmentChunksRef.current = [];
-        const outMime =
-          liveRec.mimeType && liveRec.mimeType.length > 0
-            ? liveRec.mimeType
-            : liveAuddAudioMimeRef.current;
-        const blob = chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
-        if (blob) identifyLiveSegmentBlob(blob);
-        if (!liveAuddStoppedRef.current) {
-          beginLiveAuddSegment(stream, audioMime);
-        }
-      };
-
-      liveAuddRecorderRef.current = liveRec;
-      liveRec.start();
-
-      liveAuddSegmentTimerRef.current = setTimeout(() => {
-        liveAuddSegmentTimerRef.current = null;
-        const rec = liveAuddRecorderRef.current;
-        if (!rec || rec !== liveRec || liveAuddStoppedRef.current) return;
-        if (rec.state !== 'recording' && rec.state !== 'paused') return;
-        if (typeof rec.requestData === 'function') {
-          try {
-            rec.requestData();
-          } catch {
-            /* ignore */
-          }
-        }
-        try {
-          rec.stop();
-        } catch {
-          /* ignore */
-        }
-        if (liveAuddRecorderRef.current === liveRec) {
-          liveAuddRecorderRef.current = null;
-        }
-      }, LIVE_AUDD_SEGMENT_MS);
-    } catch (e) {
-      console.warn('QuickRecordButton: live song segment failed', e);
-    }
-  };
-
-  /** Live song ID from mic — starts when preview has audio (before REC) and during capture. */
-  const startLiveSongPipeline = (stream: MediaStream): boolean => {
-    if (!audioEnabled) return false;
-    if (
-      !liveAuddStoppedRef.current &&
-      (liveAuddRecorderRef.current || liveAuddSegmentTimerRef.current)
-    ) {
-      return true;
-    }
-
-    const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
-    if (liveTracks.length === 0) return false;
-
-    const audioMime = pickAudioRecorderMime();
-    if (!audioMime) return false;
-
-    try {
-      liveAuddStoppedRef.current = false;
-      beginLiveAuddSegment(stream, audioMime);
-      return true;
-    } catch (e) {
-      console.warn('QuickRecordButton: live song pipeline failed', e);
-      return false;
-    }
-  };
-
-  /** Start live song ID as soon as camera preview has mic (before user taps record). */
-  useEffect(() => {
-    if (!showModal || !hasPermission || !cameraReady || isRecording) return;
-
-    // Native iOS uses Capgo camera-preview behind the webview. Starting a separate mic
-    // capture (AVAudioSession) during preview triggers the microphone permission sheet and
-    // can interrupt the camera session / make the home feed show through the webview.
-    if (nativeCaptureActiveRef.current) {
-      return;
-    }
-
-    const stream = streamRef.current;
-    if (!stream || !audioEnabled || stream.getAudioTracks().length === 0) return;
-    startLiveSongPipeline(stream);
-    return () => {
-      if (!isRecordingRef.current) {
-        stopLiveAuddRecorder();
-      }
-    };
-  }, [showModal, hasPermission, cameraReady, isRecording, previewStream, audioEnabled]);
 
   const startRecording = async () => {
     // Only start if camera is ready
@@ -2075,18 +1777,6 @@ export default function QuickRecordButton({
         setRecordingElapsedSeconds(0);
         lastParallelAuddAudioBlobRef.current = null;
         auddParallelAudioChunksRef.current = [];
-        liveAuddStoppedRef.current = false;
-        logShazamKitAvailability();
-        // Capgo owns the camera mic; emit rolling AAC segments for live HUD song ID.
-        void startNativeLiveAudioSegments((blob) => {
-          if (blob.size > 0) {
-            lastParallelAuddAudioBlobRef.current = blob;
-            auddParallelAudioChunksRef.current.push(blob);
-          }
-          identifyLiveSegmentBlob(blob);
-        }).catch((err) => {
-          console.warn('QuickRecordButton: native live audio segments failed', err);
-        });
         timerRef.current = setInterval(() => {
           recordingSecondsRef.current += 1;
           const t = recordingSecondsRef.current;
@@ -2197,8 +1887,6 @@ export default function QuickRecordButton({
               };
               ar.start();
               auddParallelAudioRecorderRef.current = ar;
-
-              startLiveSongPipeline(stream);
             }
           }
         } catch (e) {
@@ -2221,7 +1909,7 @@ export default function QuickRecordButton({
     } catch (err) {
       console.error('Recording failed:', err);
       isRecordingRef.current = false;
-      stopLiveAuddPipeline();
+      void stopNativeLiveAudioSegments();
     }
   };
 
@@ -2233,9 +1921,7 @@ export default function QuickRecordButton({
       setIsFinishingRecording(true);
       void (async () => {
         try {
-          liveAuddStoppedRef.current = true;
           await stopNativeLiveAudioSegments();
-          await waitForLiveAuddInFlight(LIVE_AUDD_STOP_WAIT_MS);
           const stopped = await stopNativeVideoRecording();
           const videoFilePath = stopped.videoFilePath;
           isRecordingRef.current = false;
@@ -2244,26 +1930,13 @@ export default function QuickRecordButton({
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          const pendingShazamKit = identifyNativeFileWithShazamKit(videoFilePath);
-          void pendingShazamKit.then((result) => {
-            if (result?.status !== 'match') return;
-            const title = result.title?.trim() ?? '';
-            const artist = result.artist?.trim() ?? '';
-            if (title) setHudIdentifiedSongTitle(title);
-            if (title || artist) {
-              lastLiveSongMatchRef.current = { title, artist };
-              applyLiveSongDisplayed({ title, artist });
-            }
-          });
           await handleRecordingComplete(null, {
             nativeVideoPath: videoFilePath,
             nativeAudioTrackCount: stopped.audioTrackCount,
             skipWebAuddRecorder: true,
-            pendingShazamKit,
           });
         } catch (err) {
           console.error('Native stop recording failed:', err);
-          liveAuddStoppedRef.current = true;
           void stopNativeLiveAudioSegments();
           isRecordingRef.current = false;
           setIsRecording(false);
@@ -2293,8 +1966,6 @@ export default function QuickRecordButton({
 
     void (async () => {
       setIsFinishingRecording(true);
-      await finalizeCurrentLiveAuddSegment();
-
       clearAuddParallelCapTimer();
 
       const ar = auddParallelAudioRecorderRef.current;
@@ -2348,7 +2019,6 @@ export default function QuickRecordButton({
       nativeVideoPath?: string;
       nativeAudioTrackCount?: number;
       webStreamHadAudio?: boolean;
-      pendingShazamKit?: Promise<import('@/react-app/utils/auddIdentify').AudDIdentifyResult | null>;
     },
   ) => {
     const skipWebAuddRecorder = Boolean(opts?.skipWebAuddRecorder || opts?.skipAudd);
@@ -2421,8 +2091,6 @@ export default function QuickRecordButton({
       const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
 
-      // Live song match is attached if available; full song ID can continue in the upload queue.
-
       const at = recordingStartedAtRef.current || new Date().toISOString();
       let geo =
         clipGeoAtRecordingStartRef.current ?? snapshotClipGeoForUpload();
@@ -2443,14 +2111,6 @@ export default function QuickRecordButton({
         }
       }
       clipGeoAtRecordingStartRef.current = null;
-
-      const sourceKey = blob?.size
-        ? auddSourceKey(blob)
-        : `native:${opts?.nativeVideoPath ?? at}`;
-      const auddPrefill = auddPrefillFromLiveMatch(
-        sourceKey,
-        lastLiveSongMatchRef.current,
-      );
 
       const sticky =
         loadStickyCaptureShowSession({
@@ -2499,27 +2159,8 @@ export default function QuickRecordButton({
       const artist_name = prefetchShow?.artist_name?.trim() ?? '';
       const venue_name = prefetchShow?.venue_name?.trim() ?? '';
       const locationLine = prefetchShow?.location?.trim() ?? '';
-      let song_title =
-        auddPrefill.status === 'done' && auddPrefill.title.trim()
-          ? auddPrefill.title.trim()
-          : '';
-      if (!song_title && opts?.pendingShazamKit) {
-        try {
-          const nativeMatch = await opts.pendingShazamKit;
-          if (nativeMatch?.status === 'match' && nativeMatch.title?.trim()) {
-            song_title = nativeMatch.title.trim();
-            if (nativeMatch.artist?.trim() || song_title) {
-              lastLiveSongMatchRef.current = {
-                title: song_title,
-                artist: nativeMatch.artist?.trim() ?? '',
-              };
-            }
-            setHudIdentifiedSongTitle(song_title);
-          }
-        } catch (err) {
-          console.warn('QuickRecordButton: native file ShazamKit failed', err);
-        }
-      }
+      // Song ID runs at upload (ShazamKit then ACRCloud), not on the camera HUD.
+      const song_title = '';
       const jambaseLink = prefetchShow
         ? {
             event: prefetchShow.jambase_event_id,
@@ -2598,11 +2239,6 @@ export default function QuickRecordButton({
         );
       }
 
-      // HUD song line follows this clip's song ID (live match now, or the
-      // ShazamKit/ACR result patched onto the outbox job during upload).
-      setHudSongJobId(jobId);
-      setHudIdentifiedSongTitle(song_title || null);
-
       // Same Photos/gallery persist as the old caption handoff — do not wait for upload.
       void saveClipToDeviceGallery(uploadBlob, fileName, {
         sourceKey: blobSourceKey(uploadBlob),
@@ -2628,8 +2264,6 @@ export default function QuickRecordButton({
       setIsFinishingRecording(false);
       recordingSecondsRef.current = 0;
       setRecordingElapsedSeconds(0);
-      lastLiveSongMatchRef.current = null;
-      setLiveHudSong(null);
       webCaptureHadAudioRef.current = false;
     } catch (e) {
       console.error('QuickRecordButton: recording complete failed', e);
@@ -2998,12 +2632,6 @@ export default function QuickRecordButton({
                 ) : null}
                 </>
               )}
-              {captureHudSongLabel ? (
-                <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5 pt-0.5">
-                  <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
-                  <span className="truncate">{captureHudSongLabel}</span>
-                </p>
-              ) : null}
             </div>
           </div>
         </div>
@@ -3024,11 +2652,6 @@ export default function QuickRecordButton({
             {captureResolvePreview.eventTitle ? (
               <p className="truncate text-[11px] font-semibold text-white/90">
                 {captureResolvePreview.eventTitle}
-              </p>
-            ) : null}
-            {captureHudSongLabel ? (
-              <p className="truncate text-[10px] font-medium text-momentum-flare/95">
-                {captureHudSongLabel}
               </p>
             ) : null}
             {clipUploadsInFlight > 0 ? (
