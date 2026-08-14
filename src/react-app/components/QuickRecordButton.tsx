@@ -1512,6 +1512,13 @@ export default function QuickRecordButton({
   );
 
   const applyTapToFocus = useCallback((x: number, y: number) => {
+    if (nativeCaptureActiveRef.current) {
+      // Capgo's setFocus draws its own native iOS-style focus indicator —
+      // showing the web reticle too puts two boxes on screen.
+      void setNativeCaptureFocus(x, y);
+      return;
+    }
+
     if (focusReticleTimerRef.current) {
       clearTimeout(focusReticleTimerRef.current);
     }
@@ -1521,10 +1528,6 @@ export default function QuickRecordButton({
       setFocusReticle((current) => (current?.token === token ? null : current));
     }, 850);
 
-    if (nativeCaptureActiveRef.current) {
-      void setNativeCaptureFocus(x, y);
-      return;
-    }
     const track = streamRef.current?.getVideoTracks()[0];
     if (track) void applyCaptureFocus(track, x, y);
   }, []);
