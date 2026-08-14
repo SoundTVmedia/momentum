@@ -52,15 +52,16 @@ App ID instead (see below).
 
 ### Critical: `server.url` vs ShazamKit branch
 
-`capacitor.config.ts` sets `server.url` to the live Workers app. That means the
-Xcode/TestFlight WebView loads **production JS from the Worker**, not the
-`dist/` you just built. ShazamKit lives on this feature branch and is **not**
-on `main` / production yet, so a device run can include the native plugin but
-never call it — song ID skips straight to ACRCloud (or fails).
+`capacitor.config.ts` normally can set `server.url` to the live Workers app.
+On this ShazamKit branch that `url` is **commented out** so Xcode loads the
+bundled `dist/` that calls the native plugin. If you re-enable `server.url`,
+the WebView loads **production JS from the Worker**, which does not include
+ShazamKit yet — the native plugin sits idle and song ID falls through to
+ACRCloud (or fails).
 
 To test ShazamKit from Xcode on a physical iPhone:
 
-1. On this branch, comment out `server.url` in `capacitor.config.ts`
+1. Keep `server.url` commented out in `capacitor.config.ts`
    (leave `androidScheme: 'https'`).
 2. Build the web bundle that includes ShazamKit:
    `ENABLE_CLOUDFLARE_VITE=1 npm run build`
@@ -70,12 +71,23 @@ To test ShazamKit from Xcode on a physical iPhone:
    you are **not** on `*.workers.dev`, and that a capture logs either a
    ShazamKit match or `ShazamKit identify failed …` (not silence).
 
-When finished testing, restore `server.url` before shipping a live-reload
-TestFlight build.
+When finished testing, restore `server.url` only after ShazamKit JS is
+deployed to the Worker (or before shipping a live-reload TestFlight build
+that does not need this branch’s JS).
 
 Also required at runtime: network access (Shazam catalog is remote) and the
 ShazamKit **App Service** enabled on `com.feedbacklive.app`.
 
+**HUD + upload behavior on this branch**
+
+- While recording (native Capgo + AAC segments, or web MediaRecorder), live
+  mic chunks run **ShazamKit first**, then Worker ACR — the song line appears
+  next to venue/show details on the camera HUD.
+- After quick-capture enqueue, if there is still no title, the outbox runs
+  ShazamKit→ACR before upload and again after publish (PATCH `/api/clips/update-own`)
+  so the clip gets a song title even when live ID missed.
+- Manual / library uploads identify on the clip details (`UploadClip`) screen
+  before Share via the same `identifyMusicForClip` ladder.
 ### Troubleshooting: `objectVersion 70` / `pod install` fails
 
 CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode

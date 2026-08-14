@@ -28,6 +28,7 @@ import { deleteOutboxJob } from './idb';
 import { withUploadBackoff } from './upload-retry';
 import { uploadFetch } from './upload-fetch';
 import {
+  resolveSongIdentifyAfterUpload,
   resolveSongIdentifyForUploadJob,
   uploadJobNeedsSongIdentify,
 } from './identify-for-upload';
@@ -74,8 +75,10 @@ async function enrichJobWithAcrIfNeeded(
     onPatch({ status: 'classifying', progress: Math.max(current.progress, 2), error: null });
     const formPatch = await resolveSongIdentifyForUploadJob(current, video, captureAudio);
     current = applyFormPatch(current, formPatch);
+    // Keep songIdentifyPending true when still empty so the camera HUD stays on
+    // "Identifying song…" through upload until the post-publish pass finishes.
     onPatch({
-      songIdentifyPending: false,
+      songIdentifyPending: !current.form.song_title?.trim(),
       ...(Object.keys(formPatch).length > 0 ? { form: current.form } : {}),
     });
   }
@@ -151,6 +154,7 @@ async function runFileUploadJob(
         sessionId = init.sessionId;
         uploadMode = init.uploadMode;
         partUrls = init.partUrls ?? null;
+        jobForUpload = { ...jobForUpload, clipId: init.clipId ?? jobForUpload.clipId };
         onPatch({
           sessionId,
           clipId: init.clipId,
@@ -189,6 +193,30 @@ async function runFileUploadJob(
 
       onPatch({ status: 'processing', progress: 92 });
       await pollUploadUntilPublished(sessionId!, (pct) => onPatch({ progress: pct }), signal);
+
+      if (!jobForUpload.form.song_title?.trim()) {
+        onPatch({
+          status: 'processing',
+          progress: 96,
+          songIdentifyPending: true,
+          clipId: jobForUpload.clipId ?? job.clipId,
+        });
+        const afterPatch = await resolveSongIdentifyAfterUpload(
+          {
+            ...jobForUpload,
+            clipId: jobForUpload.clipId ?? job.clipId,
+          },
+          blobs.video,
+          blobs.captureAudio ?? job.captureAudioBlob,
+        );
+        jobForUpload = applyFormPatch(jobForUpload, afterPatch);
+        onPatch({
+          songIdentifyPending: false,
+          ...(Object.keys(afterPatch).length > 0 ? { form: jobForUpload.form } : {}),
+        });
+      } else {
+        onPatch({ songIdentifyPending: false });
+      }
       return;
     } catch (err) {
       if (err instanceof UploadSessionInvalidError && attempt === 0) {

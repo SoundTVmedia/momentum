@@ -11,6 +11,7 @@ import {
   auddSourceKey,
   auddPrefillFromLiveMatch,
 } from '@/react-app/utils/auddIdentify';
+import { identifyLiveAudioWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
@@ -59,6 +60,8 @@ import {
   scheduleNativeCaptureFullScreenPreview,
   startNativeVideoRecording,
   stopNativeVideoRecording,
+  startNativeLiveAudioSegments,
+  stopNativeLiveAudioSegments,
   setNativeCaptureZoom,
   setNativeCaptureFocus,
   beginNativeCapturePinchZoom,
@@ -1886,6 +1889,7 @@ export default function QuickRecordButton({
 
   const stopLiveAuddPipeline = () => {
     stopLiveAuddRecorder();
+    void stopNativeLiveAudioSegments();
     resetLiveSongIdentification();
   };
 
@@ -1902,7 +1906,12 @@ export default function QuickRecordButton({
     liveAuddInFlightRef.current = true;
     void (async () => {
       try {
-        const r = await identifyMusicWithAudD(blob);
+        // Prefer on-device ShazamKit for the camera HUD; fall back to Worker ACR.
+        const shazam = await identifyLiveAudioWithShazamKit(blob);
+        const r =
+          shazam?.status === 'match'
+            ? shazam
+            : await identifyMusicWithAudD(blob);
         if (liveAuddStoppedRef.current) return;
         const { displayed } = liveStabilizerRef.current.observe(r);
         applyLiveSongDisplayed(displayed);
@@ -2057,6 +2066,20 @@ export default function QuickRecordButton({
         setIsRecording(true);
         recordingSecondsRef.current = 0;
         setRecordingElapsedSeconds(0);
+        lastParallelAuddAudioBlobRef.current = null;
+        auddParallelAudioChunksRef.current = [];
+        liveAuddStoppedRef.current = false;
+        // Capgo owns the camera mic; emit rolling AAC segments for live HUD song ID.
+        void startNativeLiveAudioSegments((blob) => {
+          if (liveAuddStoppedRef.current) return;
+          if (blob.size > 0) {
+            lastParallelAuddAudioBlobRef.current = blob;
+            auddParallelAudioChunksRef.current.push(blob);
+          }
+          identifyLiveSegmentBlob(blob);
+        }).catch((err) => {
+          console.warn('QuickRecordButton: native live audio segments failed', err);
+        });
         timerRef.current = setInterval(() => {
           recordingSecondsRef.current += 1;
           const t = recordingSecondsRef.current;
@@ -2072,6 +2095,7 @@ export default function QuickRecordButton({
         console.error('Native recording failed:', err);
         isRecordingRef.current = false;
         setIsRecording(false);
+        void stopNativeLiveAudioSegments();
         const msg = err instanceof Error ? err.message : String(err);
         setCameraError(
           /preview is not running/i.test(msg)
@@ -2202,6 +2226,9 @@ export default function QuickRecordButton({
       setIsFinishingRecording(true);
       void (async () => {
         try {
+          liveAuddStoppedRef.current = true;
+          await stopNativeLiveAudioSegments();
+          await waitForLiveAuddInFlight(LIVE_AUDD_STOP_WAIT_MS);
           const stopped = await stopNativeVideoRecording();
           const videoFilePath = stopped.videoFilePath;
           isRecordingRef.current = false;
@@ -2211,13 +2238,17 @@ export default function QuickRecordButton({
             timerRef.current = null;
           }
           // Finalize + enqueue in place; keep the camera open for the next clip.
+          // skipWebAuddRecorder: native has no web MediaRecorder parallel track, but
+          // lastParallelAuddAudioBlobRef may hold a native AAC segment for ShazamKit.
           await handleRecordingComplete(null, {
             nativeVideoPath: videoFilePath,
             nativeAudioTrackCount: stopped.audioTrackCount,
-            skipAudd: true,
+            skipWebAuddRecorder: true,
           });
         } catch (err) {
           console.error('Native stop recording failed:', err);
+          liveAuddStoppedRef.current = true;
+          void stopNativeLiveAudioSegments();
           isRecordingRef.current = false;
           setIsRecording(false);
           if (timerRef.current) {
@@ -2294,12 +2325,16 @@ export default function QuickRecordButton({
   const handleRecordingComplete = async (
     blob: Blob | null,
     opts?: {
+      /** Skip waiting on the web MediaRecorder parallel mic track (native capture). */
+      skipWebAuddRecorder?: boolean;
+      /** @deprecated use skipWebAuddRecorder */
       skipAudd?: boolean;
       nativeVideoPath?: string;
       nativeAudioTrackCount?: number;
       webStreamHadAudio?: boolean;
     },
   ) => {
+    const skipWebAuddRecorder = Boolean(opts?.skipWebAuddRecorder || opts?.skipAudd);
     const pathFirstNative =
       shouldUseNativeIosCapture() &&
       Boolean(opts?.nativeVideoPath?.trim()) &&
@@ -2324,7 +2359,7 @@ export default function QuickRecordButton({
       }
       const par = auddParallelAudioRecorderRef.current;
       if (
-        !opts?.skipAudd &&
+        !skipWebAuddRecorder &&
         par &&
         (par.state === 'recording' || par.state === 'paused')
       ) {
@@ -2341,7 +2376,7 @@ export default function QuickRecordButton({
           par.stop();
         });
       } else if (
-        !opts?.skipAudd &&
+        !skipWebAuddRecorder &&
         !lastParallelAuddAudioBlobRef.current &&
         auddParallelAudioChunksRef.current.length > 0
       ) {
@@ -2353,9 +2388,20 @@ export default function QuickRecordButton({
           type: outMime,
         });
         auddParallelAudioChunksRef.current = [];
+      } else if (
+        skipWebAuddRecorder &&
+        !lastParallelAuddAudioBlobRef.current &&
+        auddParallelAudioChunksRef.current.length > 0
+      ) {
+        // Native AAC segments — prefer the largest recent chunk for ShazamKit.
+        const chunks = auddParallelAudioChunksRef.current;
+        auddParallelAudioChunksRef.current = [];
+        lastParallelAuddAudioBlobRef.current = chunks.reduce((best, cur) =>
+          cur.size > best.size ? cur : best,
+        );
       }
 
-      const captureAudioBlob = opts?.skipAudd ? null : lastParallelAuddAudioBlobRef.current;
+      const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
 
       // Live song match is attached if available; full song ID can continue in the upload queue.

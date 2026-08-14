@@ -1919,8 +1919,10 @@ export default function UploadClip() {
   ]);
 
   /**
-   * Authoritative song ID on the clip details screen (ACRCloud/AudD).
-   * Uses parallel mic audio from capture when available, then a video snippet; merges live preview matches.
+   * Authoritative song ID on the clip details screen (ShazamKit primary on
+   * native iOS, ACRCloud/AudD fallback). Runs for library / manual uploads
+   * before Share. Uses parallel mic audio from in-app capture when available,
+   * then a video snippet; merges live preview matches.
    */
   useEffect(() => {
     if (!showCaptionScreen || !user || isPending) return;
