@@ -350,3 +350,34 @@ export function zoomFromPinchScale(
   const ratio = currentDistance / startDistance;
   return clampCameraZoom(startZoom * ratio, range);
 }
+
+/** Map a tap on the preview element to Capgo `setFocus` coordinates (0–1). */
+export function normalizePreviewTap(
+  clientX: number,
+  clientY: number,
+  rect: { left: number; top: number; width: number; height: number },
+): { x: number; y: number } {
+  if (!(rect.width > 0) || !(rect.height > 0)) return { x: 0.5, y: 0.5 };
+  return {
+    x: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
+    y: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
+  };
+}
+
+/** Web getUserMedia tap-to-focus when the UA exposes pointsOfInterest. */
+export async function applyCaptureFocus(
+  track: MediaStreamTrack,
+  x: number,
+  y: number,
+): Promise<boolean> {
+  const nx = Math.min(1, Math.max(0, x));
+  const ny = Math.min(1, Math.max(0, y));
+  try {
+    await track.applyConstraints({
+      advanced: [{ pointsOfInterest: [{ x: nx, y: ny }] }],
+    } as MediaTrackConstraints);
+    return true;
+  } catch {
+    return false;
+  }
+}

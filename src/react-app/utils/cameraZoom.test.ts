@@ -8,6 +8,7 @@ import {
   decomposeCaptureZoom,
   formatCameraZoomLabel,
   mergeNativeZoomPresets,
+  normalizePreviewTap,
   zoomFromPinchScale,
 } from './cameraZoom';
 
@@ -132,5 +133,20 @@ describe('zoomFromPinchScale', () => {
     expect(zoomFromPinchScale(1, 100, 200, range)).toBe(2);
     expect(zoomFromPinchScale(2, 100, 200, range)).toBe(3);
     expect(zoomFromPinchScale(2, 200, 400, range)).toBe(3);
+  });
+});
+
+describe('normalizePreviewTap', () => {
+  it('maps client coordinates into the 0–1 preview square', () => {
+    const rect = { left: 10, top: 20, width: 100, height: 200 };
+    expect(normalizePreviewTap(10, 20, rect)).toEqual({ x: 0, y: 0 });
+    expect(normalizePreviewTap(60, 120, rect)).toEqual({ x: 0.5, y: 0.5 });
+    expect(normalizePreviewTap(110, 220, rect)).toEqual({ x: 1, y: 1 });
+  });
+
+  it('clamps taps that land outside the preview', () => {
+    const rect = { left: 0, top: 0, width: 100, height: 100 };
+    expect(normalizePreviewTap(-10, 50, rect)).toEqual({ x: 0, y: 0.5 });
+    expect(normalizePreviewTap(150, 150, rect)).toEqual({ x: 1, y: 1 });
   });
 });

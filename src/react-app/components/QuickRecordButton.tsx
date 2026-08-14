@@ -35,6 +35,8 @@ import {
   readCurrentCameraZoom,
   touchPairDistance,
   zoomFromPinchScale,
+  normalizePreviewTap,
+  applyCaptureFocus,
   type CameraZoomRange,
 } from '@/react-app/utils/cameraZoom';
 import {
@@ -58,6 +60,7 @@ import {
   startNativeVideoRecording,
   stopNativeVideoRecording,
   setNativeCaptureZoom,
+  setNativeCaptureFocus,
   beginNativeCapturePinchZoom,
   flushNativeCaptureZoom,
   flipNativeCamera,
@@ -223,6 +226,16 @@ export default function QuickRecordButton({
   const zoomAnimCancelRef = useRef<(() => void) | null>(null);
   const pinchZoomRef = useRef<{ dist: number; zoom: number } | null>(null);
   const lastPinchApplyRef = useRef(0);
+  const tapCandidateRef = useRef<{
+    x: number;
+    y: number;
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+  const [focusReticle, setFocusReticle] = useState<{ x: number; y: number; token: number } | null>(
+    null,
+  );
+  const focusReticleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Dedupe primed adoption within one mount; do not use MediaStream.id (often empty / unstable). */
   const lastAdoptedPrimedRef = useRef<MediaStream | null>(null);
   /** GPS used for lastGeoRef + upload `captureGeo`; JamBase tagging runs on the upload screen only. */
@@ -1460,38 +1473,99 @@ export default function QuickRecordButton({
     [zoomRange, hardwareZoomRange],
   );
 
-  const handlePreviewTouchStart = (e: React.TouchEvent) => {
-    if (!zoomRange || e.touches.length !== 2) return;
-    pinchZoomRef.current = {
-      dist: touchPairDistance(e.touches),
-      zoom: zoomLevel,
-    };
-    lastPinchApplyRef.current = zoomLevel;
-    if (nativeCaptureActiveRef.current) {
-      beginNativeCapturePinchZoom();
+  const applyTapToFocus = useCallback((x: number, y: number) => {
+    if (focusReticleTimerRef.current) {
+      clearTimeout(focusReticleTimerRef.current);
     }
+    const token = Date.now();
+    setFocusReticle({ x, y, token });
+    focusReticleTimerRef.current = setTimeout(() => {
+      setFocusReticle((current) => (current?.token === token ? null : current));
+    }, 850);
+
+    if (nativeCaptureActiveRef.current) {
+      void setNativeCaptureFocus(x, y);
+      return;
+    }
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (track) void applyCaptureFocus(track, x, y);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (focusReticleTimerRef.current) clearTimeout(focusReticleTimerRef.current);
+    };
+  }, []);
+
+  const handlePreviewTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length >= 2) {
+      tapCandidateRef.current = null;
+      if (!zoomRange) return;
+      pinchZoomRef.current = {
+        dist: touchPairDistance(e.touches),
+        zoom: zoomLevel,
+      };
+      lastPinchApplyRef.current = zoomLevel;
+      if (nativeCaptureActiveRef.current) {
+        beginNativeCapturePinchZoom();
+      }
+      return;
+    }
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const { x, y } = normalizePreviewTap(touch.clientX, touch.clientY, rect);
+    tapCandidateRef.current = {
+      x,
+      y,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    };
   };
 
   const handlePreviewTouchMove = (e: React.TouchEvent) => {
-    if (!zoomRange || !pinchZoomRef.current || e.touches.length !== 2) return;
-    e.preventDefault();
-    const next = zoomFromPinchScale(
-      pinchZoomRef.current.zoom,
-      pinchZoomRef.current.dist,
-      touchPairDistance(e.touches),
-      zoomRange,
-    );
-    const minDelta = nativeCaptureActiveRef.current ? 0.01 : 0.04;
-    if (Math.abs(next - lastPinchApplyRef.current) < minDelta) return;
-    lastPinchApplyRef.current = next;
-    void applyZoomInstant(next);
+    if (e.touches.length >= 2) {
+      tapCandidateRef.current = null;
+      if (!zoomRange || !pinchZoomRef.current) return;
+      e.preventDefault();
+      const next = zoomFromPinchScale(
+        pinchZoomRef.current.zoom,
+        pinchZoomRef.current.dist,
+        touchPairDistance(e.touches),
+        zoomRange,
+      );
+      const minDelta = nativeCaptureActiveRef.current ? 0.01 : 0.04;
+      if (Math.abs(next - lastPinchApplyRef.current) < minDelta) return;
+      lastPinchApplyRef.current = next;
+      void applyZoomInstant(next);
+      return;
+    }
+    const tap = tapCandidateRef.current;
+    if (!tap || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const dx = touch.clientX - tap.clientX;
+    const dy = touch.clientY - tap.clientY;
+    if (dx * dx + dy * dy > 14 * 14) {
+      tapCandidateRef.current = null;
+    }
   };
 
-  const handlePreviewTouchEnd = () => {
+  const handlePreviewTouchEnd = (e: React.TouchEvent) => {
+    const wasPinch = pinchZoomRef.current != null;
     pinchZoomRef.current = null;
     if (nativeCaptureActiveRef.current) {
       void flushNativeCaptureZoom();
     }
+    if (wasPinch || e.touches.length > 0) {
+      tapCandidateRef.current = null;
+      return;
+    }
+    const tap = tapCandidateRef.current;
+    tapCandidateRef.current = null;
+    if (!tap || !cameraReady) return;
+    void applyTapToFocus(tap.x, tap.y);
   };
 
   const zoomControlsVisible = hasPermission && cameraReady && zoomPresets.length >= 2;
@@ -2984,6 +3058,14 @@ export default function QuickRecordButton({
                 transition: 'transform 0.12s ease-out',
               }}
             />
+            {focusReticle && (
+              <div
+                key={focusReticle.token}
+                className="capture-focus-reticle"
+                style={{ left: `${focusReticle.x * 100}%`, top: `${focusReticle.y * 100}%` }}
+                aria-hidden
+              />
+            )}
             {previewTapToStart && previewStream && !cameraReady && (
               <button
                 type="button"
