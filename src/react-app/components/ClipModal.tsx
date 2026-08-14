@@ -318,13 +318,14 @@ export default function ClipModal({
     </button>
   ) : null;
 
-  const superadminSongRecognition = isSuperAdmin && !isOwnClip ? (
+  const canIdentifySong = isOwnClip || isSuperAdmin;
+  const songIdentifyControl = canIdentifySong ? (
     <ClipSongRecognitionControl
       clip={clip}
       currentFields={metadataFieldsFromClip(clip)}
-      asSuperadmin
+      asSuperadmin={isSuperAdmin && !isOwnClip}
       onSaved={handleClipSaved}
-      className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-3"
+      variant="inline"
     />
   ) : null;
 
@@ -557,8 +558,8 @@ export default function ClipModal({
               <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
             </button>
           ) : null}
-          {superadminSongRecognition ? (
-            <div className="mt-3">{superadminSongRecognition}</div>
+          {songIdentifyControl ? (
+            <div className={clip.song_title?.trim() ? 'mt-1' : 'mt-0.5'}>{songIdentifyControl}</div>
           ) : null}
           {clip.venue_name ? (
             <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
@@ -822,9 +823,6 @@ export default function ClipModal({
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
               {editClipButton ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
-              {superadminSongRecognition ? (
-                <div className="mb-3">{superadminSongRecognition}</div>
-              ) : null}
               <div className="mb-3 flex items-center space-x-3">
                 <UserAvatar
                   imageUrl={clip.user_avatar}
@@ -880,6 +878,7 @@ export default function ClipModal({
                     </span>
                   </button>
                 ) : null}
+                {songIdentifyControl}
                 {clip.genre_name?.trim() ? (
                   <button
                     type="button"

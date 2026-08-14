@@ -102,7 +102,7 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
   }
 }
 
-/** Run ACR on an uploaded clip (browser snippet first, Worker fallback). */
+/** Re-run song ID on an uploaded clip: ShazamKit first, then ACRCloud. */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
 ): Promise<AudDIdentifyResult> {
