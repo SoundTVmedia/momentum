@@ -413,9 +413,9 @@ type NativeZoomRequest = { level: number; opts?: NativeZoomOpts };
 /**
  * Pinch is ~60 touchmoves/s. Instant setZoom at that rate floods the bridge
  * and looks steppy. Continuous pinch keeps the newest target, ramps on the
- * device (~20 Hz), and discrete stops still go immediately.
+ * device (~30 Hz), and discrete stops still go immediately.
  */
-export const NATIVE_ZOOM_MIN_INTERVAL_MS = 50;
+export const NATIVE_ZOOM_MIN_INTERVAL_MS = 32;
 
 function isContinuousZoom(opts?: NativeZoomOpts): boolean {
   return opts?.continuous === true || opts?.ramp === false;
@@ -508,7 +508,7 @@ export async function flushNativeCaptureZoom(): Promise<void> {
 /**
  * Discrete stops (`ramp: true`, the default) go immediately.
  * Pinch (`continuous: true`) keeps only the newest target, ramps on-device,
- * and sends at most ~20 Hz so the preview interpolates instead of jumping.
+ * and sends at most ~30 Hz so the preview interpolates instead of jumping.
  */
 export async function setNativeCaptureZoom(
   level: number,

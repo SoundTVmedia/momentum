@@ -31,7 +31,8 @@ function patchLooksApplied() {
     controllerSrc.includes('Full-bleed explicit size') &&
     controllerSrc.includes('previewLayer.videoGravity = .resizeAspectFill') &&
     controllerSrc.includes('movieFragmentInterval = CMTime.invalid') &&
-    controllerSrc.includes('FEEDBACK STABILIZATION PATCH')
+    controllerSrc.includes('FEEDBACK STABILIZATION PATCH') &&
+    controllerSrc.includes('FEEDBACK PINCH RAMP PATCH')
   );
 }
 

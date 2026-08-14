@@ -1407,7 +1407,7 @@ export default function QuickRecordButton({
       if (nativeCaptureActiveRef.current) {
         if (!zoomRange) return;
         const target = clampCameraZoom(next, zoomRange);
-        // Continuous pinch: ramp on-device so 20 Hz targets interpolate instead of jumping.
+        // Continuous pinch: ramp on-device so ~30 Hz targets interpolate instead of jumping.
         await setNativeCaptureZoom(target, { ramp: true, autoFocus: false, continuous: true });
         zoomLevelRef.current = target;
         setZoomLevel(target);
@@ -1474,6 +1474,12 @@ export default function QuickRecordButton({
   );
 
   const applyTapToFocus = useCallback((x: number, y: number) => {
+    if (nativeCaptureActiveRef.current) {
+      // Native preview already draws Apple's yellow focus square. Skip the
+      // WebView reticle so the two boxes are not stacked.
+      void setNativeCaptureFocus(x, y);
+      return;
+    }
     if (focusReticleTimerRef.current) {
       clearTimeout(focusReticleTimerRef.current);
     }
@@ -1483,10 +1489,6 @@ export default function QuickRecordButton({
       setFocusReticle((current) => (current?.token === token ? null : current));
     }, 850);
 
-    if (nativeCaptureActiveRef.current) {
-      void setNativeCaptureFocus(x, y);
-      return;
-    }
     const track = streamRef.current?.getVideoTracks()[0];
     if (track) void applyCaptureFocus(track, x, y);
   }, []);

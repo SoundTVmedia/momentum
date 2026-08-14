@@ -84,6 +84,10 @@ describe('setNativeCaptureZoom', () => {
     beginNativeCapturePinchZoom();
   });
 
+  it('targets ~30 Hz for continuous pinch', () => {
+    expect(NATIVE_ZOOM_MIN_INTERVAL_MS).toBe(32);
+  });
+
   it('collapses a burst of pinch updates to the first and last target', async () => {
     // Device logs showed ~100 setZoom calls per clip because native setZoom returns
     // faster than the next touchmove, so in-flight coalescing never tripped.
@@ -166,7 +170,7 @@ describe('setNativeCaptureZoom', () => {
     }
   });
 
-  it('caps a 12s pinch at about 20 Hz instead of one call per touchmove', async () => {
+  it('caps a 12s pinch at about 30 Hz instead of one call per touchmove', async () => {
     vi.useFakeTimers();
     try {
       const touchMoveMs = 16;
@@ -203,5 +207,18 @@ describe('setNativeCaptureFocus', () => {
 
     await setNativeCaptureFocus(-0.2, 1.4);
     expect(cameraPreview.setFocus).toHaveBeenLastCalledWith({ x: 0, y: 1 });
+  });
+});
+
+describe('capgo pinch ramp patch', () => {
+  it('keeps a velocity-matched native zoom ramp', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const patch = readFileSync(
+      resolve(process.cwd(), 'patches/@capgo+camera-preview+7.5.0.patch'),
+      'utf8',
+    );
+    expect(patch).toContain('FEEDBACK PINCH RAMP PATCH');
+    expect(patch).toContain('octaves / 0.04');
   });
 });
