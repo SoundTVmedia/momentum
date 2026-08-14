@@ -31,6 +31,7 @@ let readNativeZoomState: NativeCapture['readNativeZoomState'];
 let setNativeCaptureZoom: NativeCapture['setNativeCaptureZoom'];
 let beginNativeCapturePinchZoom: NativeCapture['beginNativeCapturePinchZoom'];
 let flushNativeCaptureZoom: NativeCapture['flushNativeCaptureZoom'];
+let forceStopNativeCaptureSession: NativeCapture['forceStopNativeCaptureSession'];
 
 describe('readNativeZoomState', () => {
   beforeAll(async () => {
@@ -39,6 +40,7 @@ describe('readNativeZoomState', () => {
     setNativeCaptureZoom = mod.setNativeCaptureZoom;
     beginNativeCapturePinchZoom = mod.beginNativeCapturePinchZoom;
     flushNativeCaptureZoom = mod.flushNativeCaptureZoom;
+    forceStopNativeCaptureSession = mod.forceStopNativeCaptureSession;
     // Preview must be running before the plugin will report zoom.
     await mod.startNativeCapturePreview({ facing: 'rear' });
   }, 20_000);
@@ -69,6 +71,28 @@ describe('readNativeZoomState', () => {
     cameraPreview.getZoom.mockRejectedValue(new Error('Camera not initialized'));
 
     await expect(readNativeZoomState()).resolves.toBeNull();
+  });
+
+  it('coalesces overlapping zoom reads onto one bridge round-trip', async () => {
+    cameraPreview.getZoom.mockClear();
+    cameraPreview.getZoomButtonValues.mockClear();
+    cameraPreview.getZoomButtonValues.mockResolvedValue({ values: [0.5, 1, 3] });
+    let release: ((value: { min: number; max: number; current: number }) => void) | undefined;
+    cameraPreview.getZoom.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    const first = readNativeZoomState();
+    const second = readNativeZoomState();
+    expect(cameraPreview.getZoom).toHaveBeenCalledTimes(1);
+
+    release?.({ min: 0.5, max: 25.5, current: 1 });
+    await Promise.all([first, second]);
+    expect(cameraPreview.getZoom).toHaveBeenCalledTimes(1);
+    expect(cameraPreview.getZoomButtonValues).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -179,5 +203,31 @@ describe('setNativeCaptureZoom', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('forceStopNativeCaptureSession', () => {
+  it('does not call CameraPreview.stop twice when teardown races', async () => {
+    cameraPreview.stop.mockClear();
+    let releaseStop: (() => void) | undefined;
+    cameraPreview.stop.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseStop = resolve;
+        }),
+    );
+
+    const first = forceStopNativeCaptureSession();
+    const second = forceStopNativeCaptureSession();
+    expect(cameraPreview.stop).toHaveBeenCalledTimes(1);
+
+    releaseStop?.();
+    await Promise.all([first, second]);
+    expect(cameraPreview.stop).toHaveBeenCalledTimes(1);
+
+    cameraPreview.stop.mockClear();
+    cameraPreview.stop.mockResolvedValue(undefined);
+    await forceStopNativeCaptureSession();
+    expect(cameraPreview.stop).not.toHaveBeenCalled();
   });
 });

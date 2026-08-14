@@ -25,6 +25,9 @@ export type NativeZoomState = {
 };
 
 let previewRunning = false;
+/** True after CameraPreview.start resolves until a matching stop — independent of JS previewRunning. */
+let pluginSessionActive = false;
+let stopSessionPromise: Promise<boolean> | null = null;
 let previewAudioEnabled = false;
 let recordingActive = false;
 let startPreviewPromise: Promise<void> | null = null;
@@ -130,6 +133,7 @@ async function runCameraPreviewStart(
     enableAudio?: boolean;
   };
   await CameraPreview.start(startOpts);
+  pluginSessionActive = true;
   if (generation !== previewStartGeneration) {
     await forceStopNativeCaptureSession();
     return;
@@ -245,7 +249,7 @@ export async function startNativeCapturePreview(opts?: {
   const withAudio = opts?.withAudio !== false;
 
   // Always tear down the prior session — partial reuse breaks mic muxing on clip 2+.
-  if (previewRunning || startPreviewPromise) {
+  if (previewRunning || startPreviewPromise || stopSessionPromise) {
     await stopNativeCaptureSession();
     await settleNativeCaptureSession(900);
   }
@@ -273,6 +277,7 @@ export async function startNativeCapturePreview(opts?: {
       if (generation !== previewStartGeneration) return;
       const message = err instanceof Error ? err.message : String(err);
       if (/already started/i.test(message)) {
+        pluginSessionActive = false;
         try {
           await CameraPreview.stop();
         } catch {
@@ -346,32 +351,43 @@ export async function forceStopNativeCaptureSession(opts?: {
   /** Switch to playback category for feed/caption video — omit when handing off to the next clip. */
   restorePlayback?: boolean;
 }): Promise<void> {
-  const wasPreviewRunning = previewRunning;
-  invalidateNativeCapturePreview();
-  if (recordingActive) {
-    try {
-      await CameraPreview.stopRecordVideo();
-    } catch {
-      /* ignore */
-    }
-    recordingActive = false;
+  if (!stopSessionPromise) {
+    stopSessionPromise = (async () => {
+      const wasPreviewRunning = previewRunning;
+      invalidateNativeCapturePreview();
+      if (recordingActive) {
+        try {
+          await CameraPreview.stopRecordVideo();
+        } catch {
+          /* ignore */
+        }
+        recordingActive = false;
+      }
+      previewRunning = false;
+      previewAudioEnabled = false;
+      previewRecordingReadyAt = 0;
+      queuedZoomRequest = null;
+      lastZoomSentAt = null;
+      clearZoomFlushTimer();
+      if (previewLayoutTimer) {
+        clearTimeout(previewLayoutTimer);
+        previewLayoutTimer = null;
+      }
+      lastPreviewLayoutKey = '';
+      if (pluginSessionActive) {
+        pluginSessionActive = false;
+        try {
+          await CameraPreview.stop();
+        } catch {
+          /* not initialized / already stopped */
+        }
+      }
+      return wasPreviewRunning;
+    })().finally(() => {
+      stopSessionPromise = null;
+    });
   }
-  previewRunning = false;
-  previewAudioEnabled = false;
-  previewRecordingReadyAt = 0;
-  queuedZoomRequest = null;
-  lastZoomSentAt = null;
-  clearZoomFlushTimer();
-  if (previewLayoutTimer) {
-    clearTimeout(previewLayoutTimer);
-    previewLayoutTimer = null;
-  }
-  lastPreviewLayoutKey = '';
-  try {
-    await CameraPreview.stop();
-  } catch {
-    /* not initialized / already stopped */
-  }
+  const wasPreviewRunning = await stopSessionPromise;
   if (opts?.restorePlayback && wasPreviewRunning) {
     await restoreNativeMediaPlaybackAudio();
   }
@@ -387,24 +403,32 @@ export function isNativeCapturePreviewRunning(): boolean {
   return previewRunning;
 }
 
+let zoomStateInflight: Promise<NativeZoomState | null> | null = null;
+
 export async function readNativeZoomState(): Promise<NativeZoomState | null> {
   if (!previewRunning) return null;
-  try {
-    const zoom = await CameraPreview.getZoom();
-    // Lens stops are an enhancement — a device that cannot report them still gets app stops.
-    const nativeValues = await CameraPreview.getZoomButtonValues()
-      .then((buttons) => buttons.values ?? [])
-      .catch(() => [] as number[]);
-    return {
-      min: zoom.min,
-      max: zoom.max,
-      current: zoom.current,
-      presets: mergeNativeZoomPresets(nativeValues, { min: zoom.min, max: zoom.max }),
-    };
-  } catch (err) {
-    console.warn('readNativeZoomState:', err);
-    return null;
-  }
+  if (zoomStateInflight) return zoomStateInflight;
+  zoomStateInflight = (async () => {
+    try {
+      const zoom = await CameraPreview.getZoom();
+      // Lens stops are an enhancement — a device that cannot report them still gets app stops.
+      const nativeValues = await CameraPreview.getZoomButtonValues()
+        .then((buttons) => buttons.values ?? [])
+        .catch(() => [] as number[]);
+      return {
+        min: zoom.min,
+        max: zoom.max,
+        current: zoom.current,
+        presets: mergeNativeZoomPresets(nativeValues, { min: zoom.min, max: zoom.max }),
+      };
+    } catch (err) {
+      console.warn('readNativeZoomState:', err);
+      return null;
+    }
+  })().finally(() => {
+    zoomStateInflight = null;
+  });
+  return zoomStateInflight;
 }
 
 type NativeZoomRequest = { level: number; opts?: { ramp?: boolean; autoFocus?: boolean } };
@@ -857,7 +881,7 @@ function nativeVideoFileCandidates(
   return candidates;
 }
 
-/** Wait until AVCaptureMovieFileOutput finishes writing (size stable). */
+/** Return as soon as the muxed file exists — stopRecordVideo already waited for the writer. */
 async function waitForNativeVideoFileReady(filePath: string, maxMs = 8000): Promise<void> {
   if (!shouldUseNativeIosCapture()) {
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -871,9 +895,6 @@ async function waitForNativeVideoFileReady(filePath: string, maxMs = 8000): Prom
   }
 
   const started = Date.now();
-  let lastSize = -1;
-  let stableAt = 0;
-
   while (Date.now() - started < maxMs) {
     for (const candidate of statCandidates) {
       try {
@@ -881,15 +902,7 @@ async function waitForNativeVideoFileReady(filePath: string, maxMs = 8000): Prom
           path: candidate.path,
           directory: candidate.directory!,
         });
-        const size = stat.size ?? 0;
-        if (size > 1024) {
-          if (size === lastSize) {
-            if (Date.now() - stableAt >= 350) return;
-          } else {
-            lastSize = size;
-            stableAt = Date.now();
-          }
-        }
+        if ((stat.size ?? 0) > 1024) return;
       } catch {
         /* file not ready yet */
       }
