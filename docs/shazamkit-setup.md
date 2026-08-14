@@ -50,30 +50,27 @@ does not treat that key as a real entitlement, and Xcode will refuse to include
 it in the provisioning profile. Enable the **ShazamKit App Service** on the
 App ID instead (see below).
 
-### Critical: `server.url` vs ShazamKit branch
+### Critical: `server.url` and ShazamKit JS
 
-`capacitor.config.ts` normally can set `server.url` to the live Workers app.
-On this ShazamKit branch that `url` is **commented out** so Xcode loads the
-bundled `dist/` that calls the native plugin. If you re-enable `server.url`,
-the WebView loads **production JS from the Worker**, which does not include
-ShazamKit yet — the native plugin sits idle and song ID falls through to
-ACRCloud (or fails).
+`capacitor.config.ts` sets `server.url` to the live Workers app, and **must
+stay set**: every API call in the app is a relative `/api/*` fetch served by
+that Worker. Commenting out `server.url` makes the WebView load from
+`capacitor://localhost`, where those fetches have no backend — login, feeds,
+and uploads all break.
 
-To test ShazamKit from Xcode on a physical iPhone:
+The native ShazamKit plugin only runs when the **JS loaded by the WebView**
+calls it. Production JS on the Worker gains ShazamKit only when this branch
+is deployed. So to test ShazamKit on a physical iPhone:
 
-1. Keep `server.url` commented out in `capacitor.config.ts`
-   (leave `androidScheme: 'https'`).
-2. Build the web bundle that includes ShazamKit:
-   `ENABLE_CLOUDFLARE_VITE=1 npm run build`
-3. Sync into iOS: `npx cap sync ios`
-4. Run from `ios/App/App.xcworkspace` on a **physical** iPhone (iOS 15+).
-5. Confirm in Safari → Develop → [your iPhone] → the WebView console that
-   you are **not** on `*.workers.dev`, and that a capture logs either a
-   ShazamKit match or `ShazamKit identify failed …` (not silence).
-
-When finished testing, restore `server.url` only after ShazamKit JS is
-deployed to the Worker (or before shipping a live-reload TestFlight build
-that does not need this branch’s JS).
+1. Keep `server.url` set (do not comment it out).
+2. Deploy this branch's Worker so the WebView JS includes ShazamKit:
+   `npm run deploy` (from this branch, on a machine with Cloudflare auth).
+3. Build/refresh the native app so the plugin is in the binary:
+   `npx cap sync ios`, then run from `ios/App/App.xcworkspace`
+   on a **physical** iPhone (iOS 15+).
+4. Force-quit and reopen the app so the WebView pulls the fresh Worker JS.
+5. In Safari → Develop → [your iPhone] → WebView console, a capture logs
+   either a ShazamKit match or `ShazamKit identify failed …` (not silence).
 
 Also required at runtime: network access (Shazam catalog is remote) and the
 ShazamKit **App Service** enabled on `com.feedbacklive.app`.
