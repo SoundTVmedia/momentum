@@ -102,16 +102,38 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-async function recognizeShazamKitBlob(source: Blob): Promise<AudDIdentifyResult> {
+function isTransientShazamKitMatchFailure(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code ?? '';
+  const message = err instanceof Error ? err.message : String((err as { message?: string } | null)?.message ?? '');
+  // SHError 202 (matchAttemptFailed) — Apple docs: often transient, retry the match.
+  return code === 'ERR_SHAZAMKIT_MATCH_FAILED' || /error 202|match attempt failed/i.test(message);
+}
+
+async function recognizeShazamKitBlob(
+  source: Blob,
+  options?: { retryOnMatchFailure?: boolean },
+): Promise<AudDIdentifyResult> {
   const base64 = await blobToBase64(source);
-  const { match } = await withTimeout(
-    ShazamKit.recognizeAudio({
-      base64,
-      mimeType: source.type || 'audio/mp4',
-    }),
-    SHAZAMKIT_TIMEOUT_MS,
-  );
-  return shazamKitMatchToIdentifyResult(match);
+  const attempt = async () => {
+    const { match } = await withTimeout(
+      ShazamKit.recognizeAudio({
+        base64,
+        mimeType: source.type || 'audio/mp4',
+      }),
+      SHAZAMKIT_TIMEOUT_MS,
+    );
+    return shazamKitMatchToIdentifyResult(match);
+  };
+
+  try {
+    return await attempt();
+  } catch (err) {
+    if (!options?.retryOnMatchFailure || !isTransientShazamKitMatchFailure(err)) {
+      throw err;
+    }
+    await new Promise((r) => window.setTimeout(r, 1_200));
+    return attempt();
+  }
 }
 
 /**
@@ -157,7 +179,7 @@ export async function identifyClipWithShazamKit(
   if (!source || source.size < MIN_IDENTIFY_SAMPLE_BYTES) return null;
 
   try {
-    return await recognizeShazamKitBlob(source);
+    return await recognizeShazamKitBlob(source, { retryOnMatchFailure: true });
   } catch (err) {
     console.warn('ShazamKit identify failed', err);
     return {
