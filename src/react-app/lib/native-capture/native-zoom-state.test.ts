@@ -14,6 +14,7 @@ const { cameraPreview } = vi.hoisted(() => ({
     getZoom: vi.fn(),
     getZoomButtonValues: vi.fn(),
     setZoom: vi.fn().mockResolvedValue(undefined),
+    setFocus: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -29,6 +30,7 @@ vi.mock('@feedback/native-audio-capture', () => ({
 type NativeCapture = typeof import('@/react-app/lib/native-capture');
 let readNativeZoomState: NativeCapture['readNativeZoomState'];
 let setNativeCaptureZoom: NativeCapture['setNativeCaptureZoom'];
+let setNativeCaptureFocus: NativeCapture['setNativeCaptureFocus'];
 let beginNativeCapturePinchZoom: NativeCapture['beginNativeCapturePinchZoom'];
 let flushNativeCaptureZoom: NativeCapture['flushNativeCaptureZoom'];
 
@@ -37,6 +39,7 @@ describe('readNativeZoomState', () => {
     const mod = await import('@/react-app/lib/native-capture');
     readNativeZoomState = mod.readNativeZoomState;
     setNativeCaptureZoom = mod.setNativeCaptureZoom;
+    setNativeCaptureFocus = mod.setNativeCaptureFocus;
     beginNativeCapturePinchZoom = mod.beginNativeCapturePinchZoom;
     flushNativeCaptureZoom = mod.flushNativeCaptureZoom;
     // Preview must be running before the plugin will report zoom.
@@ -185,5 +188,20 @@ describe('setNativeCaptureZoom', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('setNativeCaptureFocus', () => {
+  beforeEach(() => {
+    cameraPreview.setFocus.mockClear();
+    cameraPreview.setFocus.mockResolvedValue(undefined);
+  });
+
+  it('sends clamped 0–1 coordinates to the plugin', async () => {
+    await setNativeCaptureFocus(0.25, 0.75);
+    expect(cameraPreview.setFocus).toHaveBeenCalledWith({ x: 0.25, y: 0.75 });
+
+    await setNativeCaptureFocus(-0.2, 1.4);
+    expect(cameraPreview.setFocus).toHaveBeenLastCalledWith({ x: 0, y: 1 });
   });
 });

@@ -162,6 +162,37 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   background-color: transparent !important;
 }
 
+.capture-focus-reticle {
+  position: absolute;
+  z-index: 10;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: capture-focus-reticle 0.85s ease-out forwards;
+}
+
+@keyframes capture-focus-reticle {
+  0% {
+    transform: translate(-50%, -50%) scale(1.28);
+    opacity: 1;
+  }
+  18% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 

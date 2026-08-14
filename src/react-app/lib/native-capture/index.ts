@@ -524,6 +524,18 @@ export async function setNativeCaptureZoom(
   await drainQueuedZoom(true);
 }
 
+/** Tap-to-focus. `x`/`y` are normalized preview coordinates (0–1). */
+export async function setNativeCaptureFocus(x: number, y: number): Promise<void> {
+  if (!previewRunning) return;
+  const nx = Math.min(1, Math.max(0, x));
+  const ny = Math.min(1, Math.max(0, y));
+  try {
+    await CameraPreview.setFocus({ x: nx, y: ny });
+  } catch (err) {
+    console.warn('setNativeCaptureFocus:', err);
+  }
+}
+
 export async function flipNativeCamera(): Promise<void> {
   if (!previewRunning || recordingActive) return;
   await CameraPreview.flip();
