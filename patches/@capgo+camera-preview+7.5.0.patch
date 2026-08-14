@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..96a23a6 100644
+index 5dec305..9d4d3f9 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 @@ -41,6 +41,8 @@ class CameraController: NSObject {
@@ -232,7 +232,7 @@ index 5dec305..96a23a6 100644
          guard let captureSession = self.captureSession, captureSession.isRunning else {
              throw CameraControllerError.captureSessionIsMissing
          }
-@@ -1446,6 +1551,8 @@ extension CameraController {
+@@ -1446,9 +1551,33 @@ extension CameraController {
              throw CameraControllerError.fileVideoOutputNotFound
          }
  
@@ -241,7 +241,32 @@ index 5dec305..96a23a6 100644
          // cpcp_video_A6C01203 - portrait
          //
          if let connection = fileVideoOutput.connection(with: .video) {
-@@ -1463,6 +1570,20 @@ extension CameraController {
++            // ==== REMOVED_MARKER ====
++            // AVFoundation leaves preferredVideoStabilizationMode at .off. Set it here rather
++            // than where the output is added: the connection does not exist until the output is
++            // wired into a running session, so an earlier assignment is silently discarded.
++            // .cinematicExtended is deliberately not in the ladder — its preview latency makes
++            // framing a live show harder, which costs more than the extra smoothing gains.
++            if connection.isVideoStabilizationSupported {
++                let device = (currentCameraPosition == .rear) ? rearCamera : frontCamera
++                let ladder: [AVCaptureVideoStabilizationMode] = [.cinematic, .standard]
++                let supported = ladder.first { mode in
++                    device?.activeFormat.isVideoStabilizationModeSupported(mode) ?? false
++                }
++                if let mode = supported {
++                    connection.preferredVideoStabilizationMode = mode
++                    print("[CameraPreview] Video stabilization enabled: \(mode.rawValue)")
++                } else {
++                    print("[CameraPreview] Video stabilization: no ladder mode supported by active format")
++                }
++            } else {
++                print("[CameraPreview] Video stabilization unsupported on this connection")
++            }
++            // ==== END REMOVED_MARKER ====
+             switch UIDevice.current.orientation {
+             case .landscapeRight:
+                 connection.videoOrientation = .landscapeLeft
+@@ -1463,6 +1592,20 @@ extension CameraController {
              }
          }
  
@@ -262,7 +287,7 @@ index 5dec305..96a23a6 100644
          let identifier = UUID()
          let randomIdentifier = identifier.uuidString.replacingOccurrences(of: "-", with: "")
          let finalIdentifier = String(randomIdentifier.prefix(8))
-@@ -1488,11 +1609,46 @@ extension CameraController {
+@@ -1488,11 +1631,46 @@ extension CameraController {
              return
          }
  
@@ -312,7 +337,7 @@ index 5dec305..96a23a6 100644
      }
  }
  
-@@ -1839,11 +1995,19 @@ extension UIImage {
+@@ -1839,11 +2017,19 @@ extension UIImage {
  
  extension CameraController: AVCaptureFileOutputRecordingDelegate {
      func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
