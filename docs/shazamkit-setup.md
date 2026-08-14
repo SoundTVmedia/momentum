@@ -49,25 +49,29 @@ on macOS.
 ### Troubleshooting: `objectVersion 70` / `pod install` fails
 
 CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode
-project `objectVersion = 70` (it does map `56` and `77`). If `npx cap sync ios`
-dies with:
+project `objectVersion = 70` (it does map `56` and `77`). CocoaPods copies the
+**App** project’s object version when generating `Pods.xcodeproj`, so if Xcode
+left yours at 70, `pod install` dies with:
 
 ```text
 ArgumentError - [Xcodeproj] Unable to find compatibility version string for object version `70`.
 ```
 
-then Xcode bumped `ios/App/App.xcodeproj/project.pbxproj` to format 70 — commonly
-after **New Folder** / a `PBXFileSystemSynchronizedRootGroup` (the stub
-`FeedbackAppTests` target used that and is removed from this project).
+`ios/App/Podfile` patches the missing mapping and rewrites `70 → 56` on disk
+before install. Pull that Podfile, then sync again.
 
-On your Mac:
+**Immediate unblock (no pull):**
 
-1. Pull this fix, or set `objectVersion = 56;` near the top of `project.pbxproj`
-   (not `70`).
-2. In Xcode → select the **App** project (blue icon) → File inspector →
-   **Project Format** → an older format (e.g. Xcode 14). Decline upgrades to 70.
-3. Prefer **New Group**, not **New Folder**, in the project navigator.
-4. Re-run `npx cap sync ios` (or `cd ios/App && pod install`).
+```bash
+# Quit Xcode first so it does not rewrite the file
+sed -i '' 's/objectVersion = 70;/objectVersion = 56;/' ios/App/App.xcodeproj/project.pbxproj
+grep objectVersion ios/App/App.xcodeproj/project.pbxproj | head -1   # expect 56
+cd ios/App && pod install && cd ../..
+# or: npx cap sync ios
+```
+
+Also: prefer **New Group** over **New Folder** in Xcode, and set Project Format
+to Xcode 14 (or Xcode 16 → objectVersion 77) so it does not keep saving as 70.
 
 ## RN app (`apps/mobile`) — how it works
 
