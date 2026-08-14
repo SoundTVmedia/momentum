@@ -42,8 +42,9 @@ npx cap sync ios           # copies web assets + refreshes pods
 
 The `com.apple.developer.shazamkit` entitlement is committed in
 `ios/App/App/App.entitlements`, and the pod is registered in `ios/App/Podfile`
-(`FeedbackShazamKit`). `Podfile.lock` updates on the next `pod install` on
-macOS.
+(`FeedbackShazamkit` — the name Capacitor derives from `@feedback/shazamkit`;
+lowercase "kit" is required). `Podfile.lock` updates on the next `pod install`
+on macOS.
 
 ## RN app (`apps/mobile`) — how it works
 
