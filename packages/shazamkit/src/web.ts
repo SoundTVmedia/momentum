@@ -9,4 +9,8 @@ export class ShazamKitWeb extends WebPlugin implements ShazamKitPlugin {
   async recognizeAudio(): Promise<{ match: ShazamKitMatchPayload | null }> {
     throw this.unavailable('ShazamKit is only available on native iOS.');
   }
+
+  async recognizeFile(): Promise<{ match: ShazamKitMatchPayload | null }> {
+    throw this.unavailable('ShazamKit is only available on native iOS.');
+  }
 }

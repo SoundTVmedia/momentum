@@ -23,6 +23,7 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isSupported", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "recognizeAudio", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "recognizeFile", returnType: CAPPluginReturnPromise),
     ]
 
     @objc func isSupported(_ call: CAPPluginCall) {
@@ -44,6 +45,18 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         let mimeType = call.getString("mimeType") ?? ""
         ShazamKitRecognizer.recognize(base64: base64, mimeType: mimeType, call: call)
+    }
+
+    @objc func recognizeFile(_ call: CAPPluginCall) {
+        guard #available(iOS 15.0, *) else {
+            call.reject("ShazamKit requires iOS 15 or later.", "ERR_SHAZAMKIT_UNAVAILABLE")
+            return
+        }
+        guard let path = call.getString("path"), !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            call.reject("Missing audio file path.", "ERR_SHAZAMKIT_BAD_FILE")
+            return
+        }
+        ShazamKitRecognizer.recognizeFile(path: path, call: call)
     }
 }
 
@@ -78,6 +91,16 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         }
     }
 
+    static func recognizeFile(path: String, call: CAPPluginCall) {
+        let recognizer = ShazamKitRecognizer(call: call)
+        activeLock.lock()
+        active.append(recognizer)
+        activeLock.unlock()
+        workQueue.async {
+            recognizer.runFile(path: path)
+        }
+    }
+
     private func run(base64: String, mimeType: String) {
         guard let data = Data(base64Encoded: base64, options: [.ignoreUnknownCharacters]),
               !data.isEmpty
@@ -99,7 +122,19 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             return
         }
         tempFileURL = url
+        matchFile(at: url)
+    }
 
+    private func runFile(path: String) {
+        let url = Self.fileURL(from: path)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
+            return
+        }
+        matchFile(at: url)
+    }
+
+    private func matchFile(at url: URL) {
         let signature: SHSignature
         do {
             signature = try Self.makeSignature(for: url)
@@ -118,6 +153,14 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         session.delegate = self
         self.session = session
         session.match(signature)
+    }
+
+    private static func fileURL(from path: String) -> URL {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("file:"), let url = URL(string: trimmed) {
+            return url
+        }
+        return URL(fileURLWithPath: trimmed)
     }
 
     // MARK: - SHSessionDelegate

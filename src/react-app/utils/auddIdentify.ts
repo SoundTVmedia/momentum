@@ -12,7 +12,7 @@ import {
   headSliceLikelyValid,
   sliceHeadForIdentify,
 } from '@/react-app/utils/identifyAudioSample';
-import { identifyClipWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
+import { identifyClipWithShazamKit, identifyNativeFileWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
 
 export function mergeSongTitleIntoCaption(current: string, title: string): string {
   const t = title.trim();
@@ -332,10 +332,11 @@ function shouldStopIdentifyPass(r: AudDIdentifyResult): boolean {
  */
 export async function identifyMusicForClip(
   video: Blob,
-  options?: { live?: LiveSongSnapshot | null; audio?: Blob | null },
+  options?: { live?: LiveSongSnapshot | null; audio?: Blob | null; nativeFilePath?: string | null },
 ): Promise<AudDIdentifyResult> {
   const live = options?.live;
   const audio = options?.audio;
+  const nativeFilePath = options?.nativeFilePath;
 
   let best: AudDIdentifyResult = {
     status: 'skipped',
@@ -346,9 +347,11 @@ export async function identifyMusicForClip(
     mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(r));
 
   // Primary provider: on-device ShazamKit (native iOS builds with the
-  // @feedback/shazamkit plugin). No-match/error falls through to the
-  // ACRCloud ladder below; null means ShazamKit could not attempt at all.
-  const shazamKit = await identifyClipWithShazamKit(video, audio ?? null);
+  // @feedback/shazamkit plugin). Prefer the local recording path so we do not
+  // base64 a 20–40MB movie. No-match/error falls through to ACRCloud.
+  const shazamKit = nativeFilePath
+    ? await identifyNativeFileWithShazamKit(nativeFilePath)
+    : await identifyClipWithShazamKit(video, audio ?? null);
   if (shazamKit) {
     if (shouldStopIdentifyPass(shazamKit)) return finish(shazamKit);
     best = pickStrongerMatch(best, shazamKit);
@@ -504,8 +507,17 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
         : undefined;
     return { status: 'match', artist, title, message, confidence };
   } catch (e) {
-    console.error('Song identify', e);
-    if (e instanceof DOMException && e.name === 'AbortError') {
+    const rec = e as { message?: string; errorMessage?: string; name?: string } | null;
+    const detail =
+      e instanceof Error
+        ? e.message
+        : typeof rec?.errorMessage === 'string'
+          ? rec.errorMessage
+          : typeof rec?.message === 'string'
+            ? rec.message
+            : rec?.name ?? String(e);
+    console.error('Song identify', detail);
+    if ((e instanceof DOMException && e.name === 'AbortError') || rec?.name === 'AbortError') {
       return {
         status: 'error',
         message: 'Song lookup timed out — try again or enter the song manually.',

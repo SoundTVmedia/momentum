@@ -13,17 +13,39 @@ export const SHAZAMKIT_MAX_DIRECT_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
 const SHAZAMKIT_TIMEOUT_MS = 20_000;
 
 /**
- * True on native iOS builds that ship the @feedback/shazamkit plugin.
- * Web, Android, and older TestFlight binaries return false (ACRCloud path).
+ * True on native iOS. Do not gate on Capacitor.isPluginAvailable('ShazamKit') —
+ * custom local plugins are often missing from that map when the WebView is
+ * loaded from server.url, which silently skipped every recognizeAudio call.
  */
 export function isShazamKitIdentifyAvailable(): boolean {
   try {
-    return (
-      Capacitor.getPlatform() === 'ios' && Capacitor.isPluginAvailable('ShazamKit')
-    );
+    return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
   } catch {
     return false;
   }
+}
+
+let loggedAvailability = false;
+
+/** One-shot console probe so device logs show whether the native plugin answers. */
+export function logShazamKitAvailability(): void {
+  if (loggedAvailability) return;
+  loggedAvailability = true;
+  try {
+    console.log(
+      '[shazamkit] native=',
+      Capacitor.isNativePlatform(),
+      'platform=',
+      Capacitor.getPlatform(),
+      'isPluginAvailable=',
+      Capacitor.isPluginAvailable('ShazamKit'),
+    );
+  } catch (err) {
+    console.warn('[shazamkit] availability probe failed', err);
+  }
+  void ShazamKit.isSupported()
+    .then((r) => console.log('[shazamkit] isSupported', r))
+    .catch((err) => console.warn('[shazamkit] isSupported failed', err));
 }
 
 /** Map the native plugin match payload onto the existing identify result shape. */
@@ -136,6 +158,52 @@ async function recognizeShazamKitBlob(
   }
 }
 
+function describeUnknownError(err: unknown): string {
+  if (err instanceof Error && err.message.trim()) return err.message;
+  const rec = err as { message?: string; errorMessage?: string; code?: string } | null;
+  const msg = rec?.errorMessage || rec?.message || rec?.code;
+  if (typeof msg === 'string' && msg.trim()) return msg;
+  try {
+    return JSON.stringify(err) || 'ShazamKit recognition failed';
+  } catch {
+    return 'ShazamKit recognition failed';
+  }
+}
+
+/**
+ * Identify from a native file path (Capgo recording) — avoids base64 of a 20–40MB movie.
+ */
+export async function identifyNativeFileWithShazamKit(
+  path: string | null | undefined,
+): Promise<AudDIdentifyResult | null> {
+  const trimmed = path?.trim() ?? '';
+  if (!trimmed) return null;
+  if (!isShazamKitIdentifyAvailable()) return null;
+  try {
+    const { match } = await withTimeout(
+      ShazamKit.recognizeFile({ path: trimmed }),
+      SHAZAMKIT_TIMEOUT_MS,
+    );
+    return shazamKitMatchToIdentifyResult(match);
+  } catch (err) {
+    if (isTransientShazamKitMatchFailure(err)) {
+      try {
+        await new Promise((r) => window.setTimeout(r, 1_200));
+        const { match } = await withTimeout(
+          ShazamKit.recognizeFile({ path: trimmed }),
+          SHAZAMKIT_TIMEOUT_MS,
+        );
+        return shazamKitMatchToIdentifyResult(match);
+      } catch (retryErr) {
+        console.warn('ShazamKit file identify failed', describeUnknownError(retryErr));
+        return { status: 'error', message: describeUnknownError(retryErr) };
+      }
+    }
+    console.warn('ShazamKit file identify failed', describeUnknownError(err));
+    return { status: 'error', message: describeUnknownError(err) };
+  }
+}
+
 /**
  * Live mic segments (web MediaRecorder or native AAC): ShazamKit when the
  * plugin is present, otherwise null so the caller can use the Worker ACR path.
@@ -149,10 +217,10 @@ export async function identifyLiveAudioWithShazamKit(
   try {
     return await recognizeShazamKitBlob(source);
   } catch (err) {
-    console.warn('ShazamKit live identify failed', err);
+    console.warn('ShazamKit live identify failed', describeUnknownError(err));
     return {
       status: 'error',
-      message: err instanceof Error ? err.message : 'ShazamKit recognition failed',
+      message: describeUnknownError(err),
     };
   }
 }
@@ -181,10 +249,10 @@ export async function identifyClipWithShazamKit(
   try {
     return await recognizeShazamKitBlob(source, { retryOnMatchFailure: true });
   } catch (err) {
-    console.warn('ShazamKit identify failed', err);
+    console.warn('ShazamKit identify failed', describeUnknownError(err));
     return {
       status: 'error',
-      message: err instanceof Error ? err.message : 'ShazamKit recognition failed',
+      message: describeUnknownError(err),
     };
   }
 }

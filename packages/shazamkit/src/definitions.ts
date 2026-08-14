@@ -23,4 +23,11 @@ export interface ShazamKitPlugin {
     base64: string;
     mimeType?: string;
   }): Promise<{ match: ShazamKitMatchPayload | null }>;
+  /**
+   * Recognize a song from a local file path (file:// or absolute). Used for
+   * native Capgo recordings so we do not have to base64 a 20–40MB movie.
+   */
+  recognizeFile(options: {
+    path: string;
+  }): Promise<{ match: ShazamKitMatchPayload | null }>;
 }

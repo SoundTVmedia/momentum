@@ -11,7 +11,7 @@ import {
   auddSourceKey,
   auddPrefillFromLiveMatch,
 } from '@/react-app/utils/auddIdentify';
-import { identifyLiveAudioWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
+import { identifyLiveAudioWithShazamKit, identifyNativeFileWithShazamKit, logShazamKitAvailability } from '@/react-app/utils/shazamKitIdentify';
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
@@ -1905,16 +1905,20 @@ export default function QuickRecordButton({
   const identifyLiveSegmentBlob = (blob: Blob) => {
     if (liveAuddStoppedRef.current) return;
     if (blob.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
+
+    // ShazamKit must not block the HUD: a 20s catalog round-trip used to
+    // starve ACR and drop later mic segments (liveAuddInFlightRef).
+    void identifyLiveAudioWithShazamKit(blob).then((shazam) => {
+      if (liveAuddStoppedRef.current || shazam?.status !== 'match') return;
+      const { displayed } = liveStabilizerRef.current.observe(shazam);
+      applyLiveSongDisplayed(displayed);
+    });
+
     if (liveAuddInFlightRef.current) return;
     liveAuddInFlightRef.current = true;
     void (async () => {
       try {
-        // Prefer on-device ShazamKit for the camera HUD; fall back to Worker ACR.
-        const shazam = await identifyLiveAudioWithShazamKit(blob);
-        const r =
-          shazam?.status === 'match'
-            ? shazam
-            : await identifyMusicWithAudD(blob);
+        const r = await identifyMusicWithAudD(blob);
         if (liveAuddStoppedRef.current) return;
         const { displayed } = liveStabilizerRef.current.observe(r);
         applyLiveSongDisplayed(displayed);
@@ -2072,9 +2076,9 @@ export default function QuickRecordButton({
         lastParallelAuddAudioBlobRef.current = null;
         auddParallelAudioChunksRef.current = [];
         liveAuddStoppedRef.current = false;
+        logShazamKitAvailability();
         // Capgo owns the camera mic; emit rolling AAC segments for live HUD song ID.
         void startNativeLiveAudioSegments((blob) => {
-          if (liveAuddStoppedRef.current) return;
           if (blob.size > 0) {
             lastParallelAuddAudioBlobRef.current = blob;
             auddParallelAudioChunksRef.current.push(blob);
@@ -2240,13 +2244,22 @@ export default function QuickRecordButton({
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          // Finalize + enqueue in place; keep the camera open for the next clip.
-          // skipWebAuddRecorder: native has no web MediaRecorder parallel track, but
-          // lastParallelAuddAudioBlobRef may hold a native AAC segment for ShazamKit.
+          const pendingShazamKit = identifyNativeFileWithShazamKit(videoFilePath);
+          void pendingShazamKit.then((result) => {
+            if (result?.status !== 'match') return;
+            const title = result.title?.trim() ?? '';
+            const artist = result.artist?.trim() ?? '';
+            if (title) setHudIdentifiedSongTitle(title);
+            if (title || artist) {
+              lastLiveSongMatchRef.current = { title, artist };
+              applyLiveSongDisplayed({ title, artist });
+            }
+          });
           await handleRecordingComplete(null, {
             nativeVideoPath: videoFilePath,
             nativeAudioTrackCount: stopped.audioTrackCount,
             skipWebAuddRecorder: true,
+            pendingShazamKit,
           });
         } catch (err) {
           console.error('Native stop recording failed:', err);
@@ -2335,6 +2348,7 @@ export default function QuickRecordButton({
       nativeVideoPath?: string;
       nativeAudioTrackCount?: number;
       webStreamHadAudio?: boolean;
+      pendingShazamKit?: Promise<import('@/react-app/utils/auddIdentify').AudDIdentifyResult | null>;
     },
   ) => {
     const skipWebAuddRecorder = Boolean(opts?.skipWebAuddRecorder || opts?.skipAudd);
@@ -2485,10 +2499,27 @@ export default function QuickRecordButton({
       const artist_name = prefetchShow?.artist_name?.trim() ?? '';
       const venue_name = prefetchShow?.venue_name?.trim() ?? '';
       const locationLine = prefetchShow?.location?.trim() ?? '';
-      const song_title =
+      let song_title =
         auddPrefill.status === 'done' && auddPrefill.title.trim()
           ? auddPrefill.title.trim()
           : '';
+      if (!song_title && opts?.pendingShazamKit) {
+        try {
+          const nativeMatch = await opts.pendingShazamKit;
+          if (nativeMatch?.status === 'match' && nativeMatch.title?.trim()) {
+            song_title = nativeMatch.title.trim();
+            if (nativeMatch.artist?.trim() || song_title) {
+              lastLiveSongMatchRef.current = {
+                title: song_title,
+                artist: nativeMatch.artist?.trim() ?? '',
+              };
+            }
+            setHudIdentifiedSongTitle(song_title);
+          }
+        } catch (err) {
+          console.warn('QuickRecordButton: native file ShazamKit failed', err);
+        }
+      }
       const jambaseLink = prefetchShow
         ? {
             event: prefetchShow.jambase_event_id,
@@ -2554,6 +2585,7 @@ export default function QuickRecordButton({
             video_resolution_w: videoResolution.width,
             video_resolution_h: videoResolution.height,
           },
+          nativeVideoUri,
         },
         null,
         { nativeVideoUri },

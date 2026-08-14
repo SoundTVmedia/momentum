@@ -13,7 +13,7 @@ import { mergeNativeZoomPresets } from '@/react-app/utils/cameraZoom';
 import { getNativePlatform, isNativeApp } from '@/react-app/lib/native-bridge';
 
 export const NATIVE_CAPTURE_MAX_SECONDS = 60;
-export const NATIVE_LIVE_AUDD_SEGMENT_MS = 5_000;
+export const NATIVE_LIVE_AUDD_SEGMENT_MS = 10_000;
 
 export type NativeCaptureFacing = 'rear' | 'front';
 
