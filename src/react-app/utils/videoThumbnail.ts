@@ -29,10 +29,16 @@ function canvasSampleMeanLuminance(ctx: CanvasRenderingContext2D, w: number, h: 
   return n > 0 ? sum / n : 0;
 }
 
+/** Mean 8-bit luminance below this is treated as an encoder-black / undecoded frame. */
+export const BLACK_FRAME_MAX_MEAN_LUMINANCE = 16;
+
+export function meanLuminanceLooksBlack(mean: number): boolean {
+  return mean < BLACK_FRAME_MAX_MEAN_LUMINANCE;
+}
+
 /** True if frame is almost certainly an encoder black / undecoded first frame. */
 function isLikelyBlackFrame(ctx: CanvasRenderingContext2D, w: number, h: number): boolean {
-  const mean = canvasSampleMeanLuminance(ctx, w, h);
-  return mean < 10;
+  return meanLuminanceLooksBlack(canvasSampleMeanLuminance(ctx, w, h));
 }
 
 function clampSeek(t: number, duration: number): number {
@@ -169,9 +175,12 @@ async function paintBestVideoFrameDataUrl(
 
     const dataUrl = canvas.toDataURL('image/jpeg', quality);
     if (!dataUrl) continue;
-    bestDataUrl = dataUrl;
 
     const black = isLikelyBlackFrame(ctx, cw, ch);
+    if (black && explicitSeek === undefined) {
+      continue;
+    }
+    bestDataUrl = dataUrl;
     if (explicitSeek !== undefined || !black) {
       break;
     }

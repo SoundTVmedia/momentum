@@ -67,7 +67,11 @@ function isUsablePosterImageUrl(url: string | null | undefined): boolean {
   return true;
 }
 
-/** Ordered poster URLs to try — uploaded JPEG first, then Stream frames at several times. */
+/**
+ * Ordered poster URLs to try. Stream stills (from the transcoded video) come first so a
+ * black t=0 JPEG uploaded at capture time cannot hide a real frame. Local JPEGs are next
+ * for clips that are still processing.
+ */
 export function resolveClipPosterCandidates(clip: ClipPlaybackFields): string[] {
   const out: string[] = [];
   const add = (url: string | null | undefined) => {
@@ -75,15 +79,15 @@ export function resolveClipPosterCandidates(clip: ClipPlaybackFields): string[] 
     if (u && !out.includes(u)) out.push(u);
   };
 
-  if (isUsablePosterImageUrl(clip.thumbnail_url)) {
-    add(clip.thumbnail_url);
-  }
-
   const streamId = streamVideoIdFromClip(clip);
   if (streamId) {
     for (const time of STREAM_POSTER_SEEK_TIMES) {
       add(streamThumbnailUrl(streamId, { time, height: 720 }));
     }
+  }
+
+  if (isUsablePosterImageUrl(clip.thumbnail_url)) {
+    add(clip.thumbnail_url);
   }
 
   if (isUsablePosterImageUrl(clip.stream_thumbnail_url)) {

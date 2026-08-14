@@ -4,7 +4,10 @@ import {
   resolveClipPosterCandidates,
   resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
-import { captureVideoFrameDataUrl } from '@/react-app/utils/videoThumbnail';
+import {
+  captureVideoFrameDataUrl,
+  meanLuminanceLooksBlack,
+} from '@/react-app/utils/videoThumbnail';
 
 function sampleMeanLuminance(data: Uint8ClampedArray, width: number, height: number): number {
   const target = 4096;
@@ -41,9 +44,10 @@ export function isLikelyBlackPosterImage(img: HTMLImageElement): boolean {
   try {
     ctx.drawImage(img, 0, 0, w, h);
     const data = ctx.getImageData(0, 0, w, h);
-    return sampleMeanLuminance(data.data, w, h) < 10;
+    return meanLuminanceLooksBlack(sampleMeanLuminance(data.data, w, h));
   } catch {
-    return false;
+    // Tainted / unreadable canvas — do not keep a poster we cannot verify.
+    return true;
   }
 }
 

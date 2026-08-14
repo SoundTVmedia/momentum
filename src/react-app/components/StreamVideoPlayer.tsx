@@ -74,6 +74,7 @@ function StreamVideoPlayer(
   stream_thumbnail_url,
   video_url,
   thumbnail_url,
+  r2_raw_key,
   streamVideoId,
   playbackUrl,
   fallbackUrl,
@@ -115,6 +116,7 @@ function StreamVideoPlayer(
     stream_thumbnail_url,
     video_url: video_url ?? fallbackUrl,
     thumbnail_url,
+    r2_raw_key,
   };
 
   const resolvedModal = resolveModalPlaybackSource(clipFields);
@@ -139,6 +141,7 @@ function StreamVideoPlayer(
     video_url,
     fallbackUrl,
     thumbnail_url,
+    r2_raw_key,
   ]);
 
   const videoSrc = playbackSrc;

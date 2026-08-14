@@ -184,11 +184,12 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
       [clip.artist_name, clip.venue_name].filter(Boolean).join(' @ ') || 'Concert Clip';
     const videoDetails = await streamService.uploadFromUrl(sourceUrl, { name: label });
 
-    const thumbnailUrl =
-      clip.thumbnail_url?.trim() ||
-      streamService.getThumbnailUrl(videoDetails.uid, { time: '1s', height: 720 });
+    const streamPoster = streamService.getThumbnailUrl(videoDetails.uid, {
+      time: '1s',
+      height: 720,
+    });
+    const thumbnailUrl = clip.thumbnail_url?.trim() || streamPoster;
     const videoUrl = videoDetails.mp4Url || videoDetails.playbackUrl;
-    const posterUrl = clip.thumbnail_url?.trim() || thumbnailUrl;
 
     await env.DB
       .prepare(
@@ -209,9 +210,9 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
       .bind(
         videoDetails.uid,
         videoDetails.playbackUrl,
-        posterUrl,
+        streamPoster,
         videoUrl,
-        posterUrl,
+        thumbnailUrl,
         videoDetails.status,
         videoDetails.duration,
         clipId,

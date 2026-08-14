@@ -20,19 +20,45 @@ type ClipModalMaximizedVideoProps = {
   overlay?: ReactNode;
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
   onViewsCountChange?: (viewsCount: number) => void;
+  /** Fill the modal pane edge-to-edge (mobile player). Desktop keeps letterboxed contain. */
+  coverViewport?: boolean;
 };
 
-/** Fills the modal player; landscape / 16:9 clips span full width, portrait clips span full height. */
+/** Fills the modal player. Mobile uses coverViewport (edge-to-edge). Desktop letterboxes. */
 const ClipModalMaximizedVideo = forwardRef<
   StreamVideoPlayerHandle,
   ClipModalMaximizedVideoProps
 >(function ClipModalMaximizedVideo(
-  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange },
+  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange, coverViewport = false },
   ref,
 ) {
   const clipId = clipNumericId(clip);
   const fullWidth = clipModalPrefersFullWidth(clip);
   const ratioStr = clipDisplayAspectRatio(clip) ?? clipModalFallbackAspectRatio(clip);
+
+  if (coverViewport) {
+    return (
+      <div className="absolute inset-0 overflow-hidden bg-black" {...swipeHandlers}>
+        <StreamVideoPlayer
+          ref={ref}
+          stream_video_id={clip.stream_video_id}
+          stream_playback_url={clip.stream_playback_url}
+          stream_thumbnail_url={clip.stream_thumbnail_url}
+          video_url={clip.video_url}
+          thumbnail_url={clip.thumbnail_url}
+          autoPlay
+          loop
+          controlsPlacement="hidden"
+          videoObjectFit="cover"
+          onPlaybackStateChange={onPlaybackStateChange}
+          clipId={clipId}
+          onViewsCountChange={onViewsCountChange}
+          className="absolute inset-0 h-full w-full"
+        />
+        {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}
+      </div>
+    );
+  }
 
   return (
     <div
