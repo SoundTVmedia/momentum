@@ -30,7 +30,8 @@ function patchLooksApplied() {
     pluginSrc.includes('Honor explicit dimensions from setPreviewSize') &&
     controllerSrc.includes('Full-bleed explicit size') &&
     controllerSrc.includes('previewLayer.videoGravity = .resizeAspectFill') &&
-    controllerSrc.includes('movieFragmentInterval = CMTime.invalid')
+    controllerSrc.includes('movieFragmentInterval = CMTime.invalid') &&
+    controllerSrc.includes('FEEDBACK STABILIZATION PATCH')
   );
 }
 
@@ -39,10 +40,9 @@ if (patchLooksApplied()) {
 }
 
 try {
-  execSync('npx patch-package @capgo/camera-preview', {
-    cwd: root,
-    stdio: 'pipe',
-  });
+  // No package argument: `patch-package <name>` *creates* a patch from node_modules, which
+  // silently rewrites this patch file with whatever happens to be installed.
+  execSync('npx patch-package', { cwd: root, stdio: 'pipe' });
 } catch {
   execSync(`patch -p1 -i "${patchPath}"`, { cwd: root, stdio: 'inherit' });
 }

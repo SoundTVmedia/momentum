@@ -58,6 +58,8 @@ import {
   startNativeVideoRecording,
   stopNativeVideoRecording,
   setNativeCaptureZoom,
+  beginNativeCapturePinchZoom,
+  flushNativeCaptureZoom,
   flipNativeCamera,
   readNativeZoomState,
   assertCaptureBlobHasAudio,
@@ -1392,7 +1394,8 @@ export default function QuickRecordButton({
       if (nativeCaptureActiveRef.current) {
         if (!zoomRange) return;
         const target = clampCameraZoom(next, zoomRange);
-        await setNativeCaptureZoom(target, { ramp: false });
+        // Continuous pinch: refocusing on every step makes the lens hunt the whole gesture.
+        await setNativeCaptureZoom(target, { ramp: false, autoFocus: false });
         zoomLevelRef.current = target;
         setZoomLevel(target);
         return;
@@ -1464,6 +1467,9 @@ export default function QuickRecordButton({
       zoom: zoomLevel,
     };
     lastPinchApplyRef.current = zoomLevel;
+    if (nativeCaptureActiveRef.current) {
+      beginNativeCapturePinchZoom();
+    }
   };
 
   const handlePreviewTouchMove = (e: React.TouchEvent) => {
@@ -1482,6 +1488,9 @@ export default function QuickRecordButton({
 
   const handlePreviewTouchEnd = () => {
     pinchZoomRef.current = null;
+    if (nativeCaptureActiveRef.current) {
+      void flushNativeCaptureZoom();
+    }
   };
 
   const zoomControlsVisible = hasPermission && cameraReady && zoomPresets.length >= 2;

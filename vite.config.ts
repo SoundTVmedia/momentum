@@ -6,7 +6,15 @@ import { mochaPlugins } from "@getmocha/vite-plugins";
 
 const isLinux = process.platform === "linux";
 const enableCloudflareByEnv = process.env.ENABLE_CLOUDFLARE_VITE === "1";
-const shouldEnableCloudflarePlugin = isLinux || enableCloudflareByEnv;
+/**
+ * The Cloudflare plugin emits the Worker layout (`dist/client/index.html` plus a Worker
+ * bundle) instead of a plain SPA at `dist/index.html`. Capacitor's `webDir` needs the SPA
+ * layout, and `cap sync` copies a webDir with no entry point without failing. `build:app`
+ * sets this so the native bundle builds identically on macOS and Linux/CI.
+ */
+const disableCloudflareByEnv = process.env.DISABLE_CLOUDFLARE_VITE === "1";
+const shouldEnableCloudflarePlugin =
+  !disableCloudflareByEnv && (isLinux || enableCloudflareByEnv);
 
 /**
  * Without the Cloudflare Vite plugin, the React dev server has no Worker — `/api/*` would

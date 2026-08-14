@@ -9,7 +9,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { NativeAudioCapture } from '@feedback/native-audio-capture';
 import { deviceIsPortraitViewport } from '@/react-app/utils/cameraPreview';
-import { buildCaptureZoomPresets, captureZoomRange } from '@/react-app/utils/cameraZoom';
+import { mergeNativeZoomPresets } from '@/react-app/utils/cameraZoom';
 import { getNativePlatform, isNativeApp } from '@/react-app/lib/native-bridge';
 
 export const NATIVE_CAPTURE_MAX_SECONDS = 60;
@@ -359,6 +359,9 @@ export async function forceStopNativeCaptureSession(opts?: {
   previewRunning = false;
   previewAudioEnabled = false;
   previewRecordingReadyAt = 0;
+  queuedZoomRequest = null;
+  lastZoomSentAt = null;
+  clearZoomFlushTimer();
   if (previewLayoutTimer) {
     clearTimeout(previewLayoutTimer);
     previewLayoutTimer = null;
@@ -387,18 +390,16 @@ export function isNativeCapturePreviewRunning(): boolean {
 export async function readNativeZoomState(): Promise<NativeZoomState | null> {
   if (!previewRunning) return null;
   try {
-    const [zoom, buttons] = await Promise.all([
-      CameraPreview.getZoom(),
-      CameraPreview.getZoomButtonValues(),
-    ]);
-    const range = captureZoomRange({ min: zoom.min, max: zoom.max });
-    const presets =
-      buttons.values.length >= 2 ? buttons.values : buildCaptureZoomPresets(range);
+    const zoom = await CameraPreview.getZoom();
+    // Lens stops are an enhancement — a device that cannot report them still gets app stops.
+    const nativeValues = await CameraPreview.getZoomButtonValues()
+      .then((buttons) => buttons.values ?? [])
+      .catch(() => [] as number[]);
     return {
       min: zoom.min,
       max: zoom.max,
       current: zoom.current,
-      presets: presets.length >= 2 ? presets : [range.min, Math.min(1, range.max), range.max],
+      presets: mergeNativeZoomPresets(nativeValues, { min: zoom.min, max: zoom.max }),
     };
   } catch (err) {
     console.warn('readNativeZoomState:', err);
@@ -406,17 +407,115 @@ export async function readNativeZoomState(): Promise<NativeZoomState | null> {
   }
 }
 
-export async function setNativeCaptureZoom(
-  level: number,
-  opts?: { ramp?: boolean; autoFocus?: boolean },
-): Promise<void> {
-  if (!previewRunning) return;
+type NativeZoomRequest = { level: number; opts?: { ramp?: boolean; autoFocus?: boolean } };
+
+/**
+ * Pinch is ~60 touchmoves/s. Native setZoom returns in a few ms, so in-flight
+ * coalescing never trips and the bridge floods (~100 calls per clip).
+ * Pinch is rate-limited to ~12 Hz; discrete stops still go immediately.
+ */
+export const NATIVE_ZOOM_MIN_INTERVAL_MS = 80;
+
+let zoomApplyInFlight = false;
+let queuedZoomRequest: NativeZoomRequest | null = null;
+let zoomFlushTimer: ReturnType<typeof setTimeout> | null = null;
+let lastZoomSentAt: number | null = null;
+let zoomDrain: Promise<void> = Promise.resolve();
+
+async function applyNativeZoomRequest({ level, opts }: NativeZoomRequest): Promise<void> {
   await CameraPreview.setZoom({
     level,
     ramp: opts?.ramp ?? true,
     // Skip refocus while recording — avoids hunt; zoom is allowed (movieFragmentInterval fix).
     autoFocus: opts?.autoFocus ?? !recordingActive,
   });
+}
+
+function clearZoomFlushTimer(): void {
+  if (!zoomFlushTimer) return;
+  clearTimeout(zoomFlushTimer);
+  zoomFlushTimer = null;
+}
+
+function pinchDelayMs(): number {
+  if (lastZoomSentAt == null) return 0;
+  const elapsed = Date.now() - lastZoomSentAt;
+  if (elapsed < 0) return 0;
+  return Math.max(0, NATIVE_ZOOM_MIN_INTERVAL_MS - elapsed);
+}
+
+async function sendQueuedZoom(): Promise<void> {
+  if (zoomApplyInFlight || !queuedZoomRequest || !previewRunning) return;
+  const next = queuedZoomRequest;
+  queuedZoomRequest = null;
+  clearZoomFlushTimer();
+  zoomApplyInFlight = true;
+  lastZoomSentAt = Date.now();
+  try {
+    await applyNativeZoomRequest(next);
+  } finally {
+    zoomApplyInFlight = false;
+  }
+}
+
+function drainQueuedZoom(force: boolean): Promise<void> {
+  const run = async (): Promise<void> => {
+    if (!queuedZoomRequest || !previewRunning) return;
+    if (!force && queuedZoomRequest.opts?.ramp === false) {
+      const wait = pinchDelayMs();
+      if (wait > 0) {
+        scheduleZoomFlush();
+        return;
+      }
+    }
+    await sendQueuedZoom();
+    if (!queuedZoomRequest || !previewRunning) return;
+    if (!force && queuedZoomRequest.opts?.ramp === false) {
+      scheduleZoomFlush();
+      return;
+    }
+    await sendQueuedZoom();
+  };
+  zoomDrain = zoomDrain.then(run, run);
+  return zoomDrain;
+}
+
+function scheduleZoomFlush(): void {
+  if (zoomFlushTimer) return;
+  const wait = pinchDelayMs();
+  zoomFlushTimer = setTimeout(() => {
+    zoomFlushTimer = null;
+    void drainQueuedZoom(false);
+  }, wait);
+}
+
+/** First sample of a new pinch gesture may cross the bridge immediately. */
+export function beginNativeCapturePinchZoom(): void {
+  lastZoomSentAt = null;
+}
+
+/** Push the pending pinch target now so touchend is not delayed by the throttle. */
+export async function flushNativeCaptureZoom(): Promise<void> {
+  clearZoomFlushTimer();
+  await drainQueuedZoom(true);
+}
+
+/**
+ * Discrete stops (`ramp: true`, the default) go immediately.
+ * Pinch (`ramp: false`) keeps only the newest target and sends at most ~12 Hz.
+ */
+export async function setNativeCaptureZoom(
+  level: number,
+  opts?: { ramp?: boolean; autoFocus?: boolean },
+): Promise<void> {
+  if (!previewRunning) return;
+  queuedZoomRequest = { level, opts };
+  if (opts?.ramp === false) {
+    scheduleZoomFlush();
+    return;
+  }
+  clearZoomFlushTimer();
+  await drainQueuedZoom(true);
 }
 
 export async function flipNativeCamera(): Promise<void> {
