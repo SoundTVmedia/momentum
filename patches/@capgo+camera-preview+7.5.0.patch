@@ -1,5 +1,5 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-index 5dec305..5c50eb4 100644
+index 5dec305..f7ce5d3 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 @@ -41,6 +41,8 @@ class CameraController: NSObject {
@@ -224,7 +224,26 @@ index 5dec305..5c50eb4 100644
          }
  
          // Insert layer immediately (only if new)
-@@ -1434,7 +1521,85 @@ extension CameraController {
+@@ -1110,8 +1197,16 @@ extension CameraController {
+             try device.lockForConfiguration()
+ 
+             if ramp {
+-                // Use a very fast ramp rate for immediate response
+-                device.ramp(toVideoZoomFactor: zoomLevel, withRate: 8.0)
++                // FEEDBACK PINCH RAMP PATCH
++                // AVFoundation rate is powers of two per second. A fixed rate of 8
++                // finishes typical pinch steps in ~15ms, then the lens sits still
++                // until the next JS target — that looks steppy. Size the ramp to
++                // span ~one pinch interval so the preview stays in motion.
++                let current = max(device.videoZoomFactor, CGFloat(0.01))
++                let target = max(zoomLevel, CGFloat(0.01))
++                let octaves = abs(log2(Double(target / current)))
++                let rate = min(24.0, max(2.0, octaves / 0.04))
++                device.ramp(toVideoZoomFactor: zoomLevel, withRate: Float(rate))
+             } else {
+                 device.videoZoomFactor = zoomLevel
+             }
+@@ -1434,7 +1529,85 @@ extension CameraController {
          self.firstFrameReadyCallback = nil
      }
  
@@ -310,7 +329,7 @@ index 5dec305..5c50eb4 100644
          guard let captureSession = self.captureSession, captureSession.isRunning else {
              throw CameraControllerError.captureSessionIsMissing
          }
-@@ -1446,9 +1611,14 @@ extension CameraController {
+@@ -1446,9 +1619,14 @@ extension CameraController {
              throw CameraControllerError.fileVideoOutputNotFound
          }
  
@@ -325,7 +344,7 @@ index 5dec305..5c50eb4 100644
              switch UIDevice.current.orientation {
              case .landscapeRight:
                  connection.videoOrientation = .landscapeLeft
-@@ -1463,6 +1633,20 @@ extension CameraController {
+@@ -1463,6 +1641,20 @@ extension CameraController {
              }
          }
  
@@ -346,7 +365,7 @@ index 5dec305..5c50eb4 100644
          let identifier = UUID()
          let randomIdentifier = identifier.uuidString.replacingOccurrences(of: "-", with: "")
          let finalIdentifier = String(randomIdentifier.prefix(8))
-@@ -1488,11 +1672,47 @@ extension CameraController {
+@@ -1488,11 +1680,47 @@ extension CameraController {
              return
          }
  
@@ -397,7 +416,7 @@ index 5dec305..5c50eb4 100644
      }
  }
  
-@@ -1839,11 +2059,19 @@ extension UIImage {
+@@ -1839,11 +2067,19 @@ extension UIImage {
  
  extension CameraController: AVCaptureFileOutputRecordingDelegate {
      func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
