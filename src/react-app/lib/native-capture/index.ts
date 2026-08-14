@@ -359,6 +359,7 @@ export async function forceStopNativeCaptureSession(opts?: {
   previewRunning = false;
   previewAudioEnabled = false;
   previewRecordingReadyAt = 0;
+  queuedZoomRequest = null;
   if (previewLayoutTimer) {
     clearTimeout(previewLayoutTimer);
     previewLayoutTimer = null;
@@ -404,17 +405,48 @@ export async function readNativeZoomState(): Promise<NativeZoomState | null> {
   }
 }
 
-export async function setNativeCaptureZoom(
-  level: number,
-  opts?: { ramp?: boolean; autoFocus?: boolean },
-): Promise<void> {
-  if (!previewRunning) return;
+type NativeZoomRequest = { level: number; opts?: { ramp?: boolean; autoFocus?: boolean } };
+
+let zoomApplyInFlight = false;
+let queuedZoomRequest: NativeZoomRequest | null = null;
+
+async function applyNativeZoomRequest({ level, opts }: NativeZoomRequest): Promise<void> {
   await CameraPreview.setZoom({
     level,
     ramp: opts?.ramp ?? true,
     // Skip refocus while recording — avoids hunt; zoom is allowed (movieFragmentInterval fix).
     autoFocus: opts?.autoFocus ?? !recordingActive,
   });
+}
+
+/**
+ * Applies the newest zoom target, dropping anything superseded while a call is in flight.
+ * A pinch emits a touchmove per frame, and awaiting none of them let ~270 setZoom round-trips
+ * pile onto the bridge in one observed session, each taking the device configuration lock.
+ */
+export async function setNativeCaptureZoom(
+  level: number,
+  opts?: { ramp?: boolean; autoFocus?: boolean },
+): Promise<void> {
+  if (!previewRunning) return;
+
+  if (zoomApplyInFlight) {
+    queuedZoomRequest = { level, opts };
+    return;
+  }
+
+  zoomApplyInFlight = true;
+  try {
+    await applyNativeZoomRequest({ level, opts });
+    while (queuedZoomRequest && previewRunning) {
+      const next = queuedZoomRequest;
+      queuedZoomRequest = null;
+      await applyNativeZoomRequest(next);
+    }
+  } finally {
+    zoomApplyInFlight = false;
+    queuedZoomRequest = null;
+  }
 }
 
 export async function flipNativeCamera(): Promise<void> {

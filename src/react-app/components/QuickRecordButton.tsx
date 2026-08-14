@@ -1392,7 +1392,8 @@ export default function QuickRecordButton({
       if (nativeCaptureActiveRef.current) {
         if (!zoomRange) return;
         const target = clampCameraZoom(next, zoomRange);
-        await setNativeCaptureZoom(target, { ramp: false });
+        // Continuous pinch: refocusing on every step makes the lens hunt the whole gesture.
+        await setNativeCaptureZoom(target, { ramp: false, autoFocus: false });
         zoomLevelRef.current = target;
         setZoomLevel(target);
         return;
