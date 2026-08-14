@@ -9,7 +9,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { NativeAudioCapture } from '@feedback/native-audio-capture';
 import { deviceIsPortraitViewport } from '@/react-app/utils/cameraPreview';
-import { buildCaptureZoomPresets, captureZoomRange } from '@/react-app/utils/cameraZoom';
+import { mergeNativeZoomPresets } from '@/react-app/utils/cameraZoom';
 import { getNativePlatform, isNativeApp } from '@/react-app/lib/native-bridge';
 
 export const NATIVE_CAPTURE_MAX_SECONDS = 60;
@@ -387,18 +387,16 @@ export function isNativeCapturePreviewRunning(): boolean {
 export async function readNativeZoomState(): Promise<NativeZoomState | null> {
   if (!previewRunning) return null;
   try {
-    const [zoom, buttons] = await Promise.all([
-      CameraPreview.getZoom(),
-      CameraPreview.getZoomButtonValues(),
-    ]);
-    const range = captureZoomRange({ min: zoom.min, max: zoom.max });
-    const presets =
-      buttons.values.length >= 2 ? buttons.values : buildCaptureZoomPresets(range);
+    const zoom = await CameraPreview.getZoom();
+    // Lens stops are an enhancement — a device that cannot report them still gets app stops.
+    const nativeValues = await CameraPreview.getZoomButtonValues()
+      .then((buttons) => buttons.values ?? [])
+      .catch(() => [] as number[]);
     return {
       min: zoom.min,
       max: zoom.max,
       current: zoom.current,
-      presets: presets.length >= 2 ? presets : [range.min, Math.min(1, range.max), range.max],
+      presets: mergeNativeZoomPresets(nativeValues, { min: zoom.min, max: zoom.max }),
     };
   } catch (err) {
     console.warn('readNativeZoomState:', err);

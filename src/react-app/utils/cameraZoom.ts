@@ -77,6 +77,38 @@ export function buildCaptureZoomPresets(range: CameraZoomRange): number[] {
   return [...new Set(presets)].sort((a, b) => a - b);
 }
 
+/** Two stops closer than this read as one selection in the zoom toolbar. */
+const ZOOM_PRESET_MIN_SEPARATION = 0.08;
+
+/**
+ * Union of the device's real lens stops and the app's canonical stops.
+ *
+ * Native values come from `getZoomButtonValues()` and map to physical lenses, so tapping one
+ * switches optics rather than cropping. They win ties and may sit above
+ * {@link APP_MAX_CAMERA_ZOOM} — a telephoto stop is optical reach, not a digital crop.
+ * The plugin gates its 2× stop on a hardcoded model list ending at iPhone 16 Pro, so newer
+ * Pro devices report no 2×; the canonical stops fill those gaps, still capped at 3×.
+ */
+export function mergeNativeZoomPresets(
+  nativeValues: readonly number[],
+  hardware: CameraZoomRange,
+): number[] {
+  const merged: number[] = [];
+
+  const add = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) return;
+    const stop = Math.round(value * 100) / 100;
+    if (stop < hardware.min - 0.05 || stop > hardware.max + 0.05) return;
+    if (merged.some((existing) => Math.abs(existing - stop) < ZOOM_PRESET_MIN_SEPARATION)) return;
+    merged.push(stop);
+  };
+
+  nativeValues.forEach(add);
+  buildCaptureZoomPresets(captureZoomRange(hardware)).forEach(add);
+
+  return merged.sort((a, b) => a - b);
+}
+
 /** iPhone-style preset stops within the device zoom range. */
 export function buildCameraZoomPresets(range: CameraZoomRange): number[] {
   const fromCapture = buildCaptureZoomPresets(range);

@@ -7,6 +7,7 @@ import {
   clampCameraZoom,
   decomposeCaptureZoom,
   formatCameraZoomLabel,
+  mergeNativeZoomPresets,
   zoomFromPinchScale,
 } from './cameraZoom';
 
@@ -55,6 +56,42 @@ describe('buildCaptureZoomPresets', () => {
     const presets = buildCaptureZoomPresets(captureZoomRange({ min: 0.5, max: 15 }));
     expect(presets).toEqual([0.5, 1, 2, 3]);
     expect(Math.max(...presets)).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('mergeNativeZoomPresets', () => {
+  const triple = { min: 0.5, max: 25.5 };
+
+  it('restores the 2× stop when the plugin device list omits it', () => {
+    // iPhone 17 Pro: the plugin only reports optical 2× for models up to iPhone 16 Pro.
+    expect(mergeNativeZoomPresets([0.5, 1, 3], triple)).toEqual([0.5, 1, 2, 3]);
+  });
+
+  it('keeps a telephoto stop above the app zoom cap', () => {
+    expect(mergeNativeZoomPresets([0.5, 1, 2, 5], triple)).toEqual([0.5, 1, 2, 3, 5]);
+  });
+
+  it('prefers the exact lens value over the nearby app stop', () => {
+    expect(mergeNativeZoomPresets([1, 2.04], { min: 1, max: 25.5 })).toEqual([1, 2.04, 3]);
+  });
+
+  it('falls back to app stops when the device reports no lens values', () => {
+    expect(mergeNativeZoomPresets([], { min: 1, max: 10 })).toEqual([1, 2, 3]);
+  });
+
+  it('drops stops the hardware cannot reach', () => {
+    expect(mergeNativeZoomPresets([1], { min: 1, max: 2 })).toEqual([1, 2]);
+  });
+
+  it('ignores unusable values from the bridge', () => {
+    expect(mergeNativeZoomPresets([0, -1, Number.NaN, 1], { min: 1, max: 3 })).toEqual([1, 2, 3]);
+  });
+
+  it('never returns stops closer together than the toolbar can distinguish', () => {
+    const presets = mergeNativeZoomPresets([0.5, 0.52, 1, 1.03, 2], triple);
+    presets.slice(1).forEach((stop, i) => {
+      expect(stop - presets[i]).toBeGreaterThanOrEqual(0.08);
+    });
   });
 });
 
