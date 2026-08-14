@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -15,9 +15,17 @@ import {
   enqueueCaptureUpload,
   readCaptureHandoff,
   runOutboxJob,
+  saveCaptureRecognition,
   type CaptureHandoff,
 } from '@/src/lib/upload/outbox';
 import { formFieldsFromCandidate } from '@/src/lib/capture/show-match';
+import {
+  applyRecognitionPrefill,
+  errorOutcome,
+  recognitionStatusText,
+  type MusicRecognitionOutcome,
+} from '@/src/lib/music/recognition';
+import { recognizeSongForCapture } from '@/src/lib/music/recognize-capture';
 import type { UploadFormFields } from '@/src/lib/upload/multipart';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 
@@ -39,6 +47,9 @@ export default function UploadReviewScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recognition, setRecognition] = useState<MusicRecognitionOutcome | null>(null);
+  const [recognizing, setRecognizing] = useState(false);
+  const recognitionRequested = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,14 +57,21 @@ export default function UploadReviewScreen() {
       const pending = await readCaptureHandoff();
       if (!cancelled) {
         setHandoff(pending);
-        if (pending?.showCandidate) {
-          const prefill = formFieldsFromCandidate(pending.showCandidate);
-          setForm((prev) => ({
-            ...prev,
-            artist_name: prev.artist_name || prefill.artist_name,
-            venue_name: prev.venue_name || prefill.venue_name,
-            location: prev.location || prefill.location,
-          }));
+        const storedRecognition = pending?.musicRecognition ?? null;
+        if (storedRecognition) setRecognition(storedRecognition);
+        if (pending?.showCandidate || storedRecognition?.match) {
+          const prefill = formFieldsFromCandidate(pending?.showCandidate);
+          setForm((prev) =>
+            applyRecognitionPrefill(
+              {
+                ...prev,
+                artist_name: prev.artist_name || prefill.artist_name,
+                venue_name: prev.venue_name || prefill.venue_name,
+                location: prev.location || prefill.location,
+              },
+              storedRecognition?.match ?? null,
+            ),
+          );
         }
         setLoading(false);
       }
@@ -62,6 +80,29 @@ export default function UploadReviewScreen() {
       cancelled = true;
     };
   }, []);
+
+  /** ShazamKit-first song ID; failures never block sharing. */
+  const runRecognition = useCallback(async (pending: CaptureHandoff) => {
+    setRecognizing(true);
+    try {
+      const outcome = await recognizeSongForCapture(pending);
+      await saveCaptureRecognition(pending.videoUri, outcome).catch(() => undefined);
+      setRecognition(outcome);
+      setForm((prev) => applyRecognitionPrefill(prev, outcome.match));
+    } catch {
+      setRecognition(errorOutcome(null, 'Song ID failed. You can still share.'));
+    } finally {
+      setRecognizing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loading || !handoff || recognitionRequested.current) return;
+    recognitionRequested.current = true;
+    // Recognition already ran for this capture (stored with the handoff).
+    if (handoff.musicRecognition) return;
+    void runRecognition(handoff);
+  }, [loading, handoff, runRecognition]);
 
   const player = useVideoPlayer(handoff?.videoUri ?? null, (instance) => {
     instance.loop = true;
@@ -132,6 +173,11 @@ export default function UploadReviewScreen() {
           value={form.song_title}
           onChange={(song_title) => setForm((f) => ({ ...f, song_title }))}
         />
+        <SongRecognitionStatus
+          recognition={recognition}
+          recognizing={recognizing}
+          onRetry={() => void runRecognition(handoff)}
+        />
         <Field
           label="Caption"
           value={form.content_description}
@@ -154,6 +200,39 @@ export default function UploadReviewScreen() {
           </Pressable>
         </View>
       </View>
+    </View>
+  );
+}
+
+function SongRecognitionStatus({
+  recognition,
+  recognizing,
+  onRetry,
+}: {
+  recognition: MusicRecognitionOutcome | null;
+  recognizing: boolean;
+  onRetry: () => void;
+}) {
+  const statusText = recognitionStatusText(recognition, recognizing);
+  if (!statusText) return null;
+  const failed = !recognizing && recognition?.status === 'error';
+  return (
+    <View style={styles.songStatusRow}>
+      {recognizing ? <ActivityIndicator color={colors.ember} size="small" /> : null}
+      <Text
+        style={[
+          styles.songStatusText,
+          recognition?.status === 'matched' && !recognizing && styles.songStatusMatched,
+        ]}
+        numberOfLines={2}
+      >
+        {statusText}
+      </Text>
+      {failed ? (
+        <Pressable onPress={onRetry} hitSlop={8}>
+          <Text style={styles.songStatusRetry}>Retry</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -216,6 +295,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   inputMultiline: { minHeight: 72, textAlignVertical: 'top' },
+  songStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    minHeight: 20,
+  },
+  songStatusText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
+    flexShrink: 1,
+  },
+  songStatusMatched: { color: colors.ember },
+  songStatusRetry: {
+    color: colors.flare,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
   primary: {
     flex: 1,

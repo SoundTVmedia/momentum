@@ -34,6 +34,7 @@
     "expo-status-bar": "~57.0.0",
     "expo-video": "~57.0.0",
     "feedback-audio-session": "file:./modules/feedback-audio-session",
+    "feedback-shazamkit": "file:./modules/feedback-shazamkit",
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-safe-area-context": "~5.7.0",
