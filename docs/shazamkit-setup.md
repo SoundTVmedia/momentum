@@ -24,10 +24,14 @@ ShazamKit no-match or error.
    else the whole video when small — then sends it base64 to the
    `packages/shazamkit` plugin.
 3. The Swift plugin (`ShazamKitPlugin.swift`) writes the payload to a temp
-   file, reads the **first 12 seconds** of the audio track with `AVAssetReader`,
-   generates a signature with `SHSignatureGenerator`, and matches via `SHSession`.
-   The same 12s cap applies to ACRCloud (Worker `identify-own-song`, upload
-   identify, and browser snippets) — see `IDENTIFY_SAMPLE_SECONDS` in
+   file (sniffing WAV/MP4/M4A magic bytes so a WAV is never saved as `.m4a`).
+   It prefers `AVAudioFile` for WAV/M4A, then decodes video/MP4 audio with
+   `AVAssetReader` using **interleaved 16-bit PCM** at the source rate — not
+   float32/mono/44.1 kHz and not a `reader.timeRange`, both of which threw
+   `Invalid sample cursor` (`ERR_SHAZAMKIT_BAD_FILE`) on Capgo recordings,
+   HUD AAC segments, and clip-player WAVs. WebM/Opus is skipped (iOS cannot
+   decode it); ACRCloud remains the fallback. The same 12s cap applies to
+   ACRCloud — see `IDENTIFY_SAMPLE_SECONDS` in
    `src/shared/identify-music-limits.ts`.
 4. **Quick capture HUD**: clips recorded with the quick record button show the
    song name on the camera HUD next to the venue/show data — the stabilized

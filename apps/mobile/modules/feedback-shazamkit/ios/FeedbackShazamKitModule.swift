@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import AVFoundation
+import CoreMedia
 import ShazamKit
 
 /**
@@ -176,13 +177,44 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
   }
 
   private static func makeSignature(for url: URL) throws -> SHSignature {
-    let asset = AVURLAsset(url: url)
-    guard let track = asset.tracks(withMediaType: .audio).first else {
+    do {
+      return try signatureFromAudioFile(url)
+    } catch let error as RecognizerError {
+      throw error
+    } catch {
+      return try signatureFromAssetReader(url)
+    }
+  }
+
+  private static func signatureFromAudioFile(_ url: URL) throws -> SHSignature {
+    let file = try AVAudioFile(forReading: url)
+    let inFormat = file.processingFormat
+    let maxFrames = AVAudioFrameCount(inFormat.sampleRate * maxSignatureSeconds)
+    let framesToRead = min(maxFrames, AVAudioFrameCount(file.length))
+    guard framesToRead >= AVAudioFrameCount(inFormat.sampleRate) else {
       throw RecognizerError(
         code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK",
-        message: "The recording has no readable audio track."
+        message: "The recording's audio track was too short for song recognition."
       )
     }
+    guard let input = AVAudioPCMBuffer(pcmFormat: inFormat, frameCapacity: framesToRead) else {
+      throw RecognizerError(
+        code: "ERR_SHAZAMKIT_SIGNATURE",
+        message: "Could not allocate an audio buffer for signature generation."
+      )
+    }
+    try file.read(into: input, frameCount: framesToRead)
+    let generator = SHSignatureGenerator()
+    if let converted = convertForSignature(input) {
+      try generator.append(converted, at: nil)
+    } else {
+      try generator.append(input, at: nil)
+    }
+    return generator.signature()
+  }
+
+  private static func signatureFromAssetReader(_ url: URL) throws -> SHSignature {
+    let (asset, track) = try loadAudioTrack(url: url)
 
     let reader: AVAssetReader
     do {
@@ -194,43 +226,37 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
       )
     }
 
-    let sampleRate: Double = 44_100
-        let outputSettings: [String: Any] = [
-          AVFormatIDKey: kAudioFormatLinearPCM,
-          AVSampleRateKey: sampleRate,
-          AVNumberOfChannelsKey: 1,
-          AVLinearPCMBitDepthKey: 32,
-          AVLinearPCMIsFloatKey: true,
-          AVLinearPCMIsBigEndianKey: false,
-          AVLinearPCMIsNonInterleaved: true,
-        ]
-        let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
-        output.alwaysCopiesSampleData = true
-    guard reader.canAdd(output) else {
+    // Interleaved Int16 at the source rate/channels. Do not force float32/mono/44.1k
+    // or set reader.timeRange — that combination yields "Invalid sample cursor".
+    let outputSettingsCandidates: [[String: Any]] = [
+      [
+        AVFormatIDKey: Int(kAudioFormatLinearPCM),
+        AVLinearPCMBitDepthKey: 16,
+        AVLinearPCMIsBigEndianKey: false,
+        AVLinearPCMIsFloatKey: false,
+        AVLinearPCMIsNonInterleaved: false,
+      ],
+      [
+        AVFormatIDKey: Int(kAudioFormatLinearPCM),
+      ],
+    ]
+
+    var output: AVAssetReaderTrackOutput?
+    for settings in outputSettingsCandidates {
+      let candidate = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
+      candidate.alwaysCopiesSampleData = true
+      if reader.canAdd(candidate) {
+        output = candidate
+        break
+      }
+    }
+    guard let output else {
       throw RecognizerError(
         code: "ERR_SHAZAMKIT_BAD_FILE",
         message: "Could not decode the recording's audio track."
       )
     }
     reader.add(output)
-    reader.timeRange = CMTimeRange(
-      start: .zero,
-      duration: CMTime(seconds: maxSignatureSeconds, preferredTimescale: 600)
-    )
-
-    guard
-      let format = AVAudioFormat(
-        commonFormat: .pcmFormatFloat32,
-        sampleRate: sampleRate,
-        channels: 1,
-        interleaved: false
-      )
-    else {
-      throw RecognizerError(
-        code: "ERR_SHAZAMKIT_SIGNATURE",
-        message: "Could not prepare the audio format for signature generation."
-      )
-    }
 
     guard reader.startReading() else {
       throw RecognizerError(
@@ -242,39 +268,118 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
     }
 
     let generator = SHSignatureGenerator()
-    var appendedFrames: AVAudioFrameCount = 0
+    var appendedSeconds: Double = 0
 
     while let sampleBuffer = output.copyNextSampleBuffer() {
-      guard let pcmBuffer = pcmBuffer(from: sampleBuffer, format: format) else {
-        continue
-      }
-      try generator.append(pcmBuffer, at: nil)
-      appendedFrames += pcmBuffer.frameLength
+      if appendedSeconds >= maxSignatureSeconds { break }
+      guard let pcm = pcmBuffer(from: sampleBuffer) else { continue }
+      let rate = pcm.format.sampleRate
+      guard rate > 0 else { continue }
+      let toAppend = convertForSignature(pcm) ?? pcm
+      try generator.append(toAppend, at: nil)
+      appendedSeconds += Double(pcm.frameLength) / rate
     }
 
-        if appendedFrames >= AVAudioFrameCount(sampleRate) {
-          return try generator.signature()
-        }
+    if appendedSeconds >= 1 {
+      return try generator.signature()
+    }
 
-        if reader.status == .failed {
-          throw RecognizerError(
-            code: "ERR_SHAZAMKIT_BAD_FILE",
-            message: reader.error.map {
-              "Reading the recording failed: \($0.localizedDescription)"
-            } ?? "Reading the recording failed."
-          )
-        }
+    if reader.status == .failed {
+      throw RecognizerError(
+        code: "ERR_SHAZAMKIT_BAD_FILE",
+        message: reader.error.map {
+          "Reading the recording failed: \($0.localizedDescription)"
+        } ?? "Reading the recording failed."
+      )
+    }
 
-        throw RecognizerError(
-          code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK",
-          message: "The recording's audio track was too short for song recognition."
-        )
+    throw RecognizerError(
+      code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK",
+      message: "The recording's audio track was too short for song recognition."
+    )
   }
 
-  private static func pcmBuffer(
-    from sampleBuffer: CMSampleBuffer,
-    format: AVAudioFormat
-  ) -> AVAudioPCMBuffer? {
+  private static func loadAudioTrack(url: URL) throws -> (AVURLAsset, AVAssetTrack) {
+    let asset = AVURLAsset(url: url)
+    let lock = DispatchSemaphore(value: 0)
+    var nsError: NSError?
+    var status: AVKeyValueStatus = .unknown
+    asset.loadValuesAsynchronously(forKeys: ["tracks"]) {
+      status = asset.statusOfValue(forKey: "tracks", error: &nsError)
+      lock.signal()
+    }
+    if lock.wait(timeout: .now() + 20) == .timedOut {
+      throw RecognizerError(
+        code: "ERR_SHAZAMKIT_BAD_FILE",
+        message: "Timed out loading the recording audio track."
+      )
+    }
+    if status == .failed {
+      throw RecognizerError(
+        code: "ERR_SHAZAMKIT_BAD_FILE",
+        message: nsError.map {
+          "Could not load audio tracks: \($0.localizedDescription)"
+        } ?? "Could not load audio tracks."
+      )
+    }
+    guard let track = asset.tracks(withMediaType: .audio).first else {
+      throw RecognizerError(
+        code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK",
+        message: "The recording has no readable audio track."
+      )
+    }
+    return (asset, track)
+  }
+
+  private static func signatureFormat() -> AVAudioFormat? {
+    AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: 44_100,
+      channels: 1,
+      interleaved: false
+    )
+  }
+
+  private static func convertForSignature(_ input: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+    let inFormat = input.format
+    guard let outFormat = signatureFormat() else { return nil }
+    if inFormat.commonFormat == .pcmFormatFloat32
+      && inFormat.sampleRate == outFormat.sampleRate
+      && inFormat.channelCount == outFormat.channelCount
+      && !inFormat.isInterleaved
+    {
+      return input
+    }
+    guard let converter = AVAudioConverter(from: inFormat, to: outFormat) else {
+      return nil
+    }
+    let ratio = outFormat.sampleRate / inFormat.sampleRate
+    let outFrames = AVAudioFrameCount(Double(input.frameLength) * ratio) + 256
+    guard let converted = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: outFrames) else {
+      return nil
+    }
+    var converterError: NSError?
+    var consumed = false
+    converter.convert(to: converted, error: &converterError) { _, status in
+      if consumed {
+        status.pointee = .noDataNow
+        return nil
+      }
+      consumed = true
+      status.pointee = .haveData
+      return input
+    }
+    if converterError != nil { return nil }
+    return converted
+  }
+
+  private static func pcmBuffer(from sampleBuffer: CMSampleBuffer) -> AVAudioPCMBuffer? {
+    guard let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+      return nil
+    }
+    guard let format = AVAudioFormat(cmAudioFormatDescription: formatDesc) else {
+      return nil
+    }
     let frameCount = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
     guard frameCount > 0,
       let pcmBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)

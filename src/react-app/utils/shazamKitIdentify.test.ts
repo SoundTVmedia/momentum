@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canSendVideoDirectly,
+  isShazamKitDecodableOnIos,
   pickShazamKitMicSource,
   shazamKitMatchToIdentifyResult,
   SHAZAMKIT_MAX_DIRECT_BYTES,
@@ -90,12 +91,28 @@ describe('pickShazamKitMicSource', () => {
       pickShazamKitMicSource(blobOfSize(SHAZAMKIT_MAX_DIRECT_BYTES + 1, 'audio/mp4')),
     ).toBeNull();
     expect(pickShazamKitMicSource(blobOfSize(MIN_IDENTIFY_SAMPLE_BYTES * 2, 'video/mp4'))).toBeNull();
+    expect(
+      pickShazamKitMicSource(blobOfSize(MIN_IDENTIFY_SAMPLE_BYTES * 2, 'audio/webm;codecs=opus')),
+    ).toBeNull();
     expect(pickShazamKitMicSource(null)).toBeNull();
   });
 });
 
+describe('isShazamKitDecodableOnIos', () => {
+  it('accepts WAV / AAC / MP4 and rejects WebM / Opus / Ogg', () => {
+    expect(isShazamKitDecodableOnIos('audio/wav')).toBe(true);
+    expect(isShazamKitDecodableOnIos('audio/mp4')).toBe(true);
+    expect(isShazamKitDecodableOnIos('audio/aac')).toBe(true);
+    expect(isShazamKitDecodableOnIos('video/mp4')).toBe(true);
+    expect(isShazamKitDecodableOnIos('')).toBe(true);
+    expect(isShazamKitDecodableOnIos('audio/webm;codecs=opus')).toBe(false);
+    expect(isShazamKitDecodableOnIos('video/webm')).toBe(false);
+    expect(isShazamKitDecodableOnIos('audio/ogg')).toBe(false);
+  });
+});
+
 describe('canSendVideoDirectly', () => {
-  it('allows only bridge-sized videos', () => {
+  it('allows only bridge-sized videos that iOS can decode', () => {
     expect(canSendVideoDirectly(blobOfSize(MIN_IDENTIFY_SAMPLE_BYTES, 'video/mp4'))).toBe(true);
     expect(canSendVideoDirectly(blobOfSize(MIN_IDENTIFY_SAMPLE_BYTES - 1, 'video/mp4'))).toBe(
       false,
@@ -103,5 +120,6 @@ describe('canSendVideoDirectly', () => {
     expect(
       canSendVideoDirectly(blobOfSize(MAX_IDENTIFY_UPLOAD_BYTES + 1, 'video/mp4')),
     ).toBe(false);
+    expect(canSendVideoDirectly(blobOfSize(MIN_IDENTIFY_SAMPLE_BYTES, 'video/webm'))).toBe(false);
   });
 });

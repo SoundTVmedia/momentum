@@ -77,6 +77,7 @@ export function pickShazamKitMicSource(audio: Blob | null | undefined): Blob | n
   if (
     audio &&
     audio.type.startsWith('audio/') &&
+    isShazamKitDecodableOnIos(audio.type) &&
     audio.size >= MIN_IDENTIFY_SAMPLE_BYTES &&
     audio.size <= SHAZAMKIT_MAX_DIRECT_BYTES
   ) {
@@ -85,10 +86,22 @@ export function pickShazamKitMicSource(audio: Blob | null | undefined): Blob | n
   return null;
 }
 
+/**
+ * AVFoundation cannot decode WebM/Opus/Ogg. Sending those to the native
+ * plugin always failed with ERR_SHAZAMKIT_BAD_FILE.
+ */
+export function isShazamKitDecodableOnIos(mimeType: string | null | undefined): boolean {
+  const t = (mimeType ?? '').toLowerCase();
+  if (!t) return true;
+  return !/webm|matroska|\bopus\b|\bogg\b/.test(t);
+}
+
 /** Whole-video bridge transfer is a last resort — only for small clips. */
 export function canSendVideoDirectly(video: Blob): boolean {
   return (
-    video.size >= MIN_IDENTIFY_SAMPLE_BYTES && video.size <= SHAZAMKIT_MAX_DIRECT_BYTES
+    video.size >= MIN_IDENTIFY_SAMPLE_BYTES &&
+    video.size <= SHAZAMKIT_MAX_DIRECT_BYTES &&
+    isShazamKitDecodableOnIos(video.type)
   );
 }
 
@@ -212,8 +225,11 @@ export async function identifyLiveAudioWithShazamKit(
   audio: Blob,
 ): Promise<AudDIdentifyResult | null> {
   if (!isShazamKitIdentifyAvailable()) return null;
-  const source = pickShazamKitMicSource(audio);
+  if (!isShazamKitDecodableOnIos(audio.type)) return null;
+  let source = pickShazamKitMicSource(audio);
   if (!source) return null;
+  const wav = await extractWavSnippetViaWebAudio(source);
+  if (wav) source = wav;
   try {
     return await recognizeShazamKitBlob(source);
   } catch (err) {
