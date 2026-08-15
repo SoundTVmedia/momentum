@@ -78,7 +78,6 @@ export default function ClipSongRecognitionControl({
       <button
         type="button"
         onClick={(e: MouseEvent<HTMLButtonElement>) => void handleRun(e)}
-        onTouchEnd={(e) => void handleRun(e)}
         onPointerDown={stopGesture}
         onTouchStart={stopGesture}
         disabled={status === 'loading'}

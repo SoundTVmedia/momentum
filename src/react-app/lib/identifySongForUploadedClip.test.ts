@@ -16,8 +16,18 @@ describe('clipPlayerShazamKitMediaUrl', () => {
     );
   });
 
-  it('returns null when the clip has no Stream id', () => {
-    expect(clipPlayerShazamKitMediaUrl(clip({ video_url: 'https://cdn.example.com/clip.mp4' }))).toBeNull();
+  it('falls back to a published progressive video_url when Stream is missing', () => {
+    expect(clipPlayerShazamKitMediaUrl(clip({ video_url: 'https://cdn.example.com/clip.mp4' }))).toBe(
+      'https://cdn.example.com/clip.mp4',
+    );
+  });
+
+  it('falls back to the R2 file path when video_url is still a placeholder', () => {
+    expect(
+      clipPlayerShazamKitMediaUrl(
+        clip({ video_url: 'pending:upload', r2_raw_key: 'clips/user/video/abc.mp4' }),
+      ),
+    ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 });
 

@@ -821,7 +821,12 @@ async function readClipVideoSampleForIdentify(
     }
   }
 
-  const videoUrl = typeof row.video_url === 'string' ? row.video_url.trim() : '';
+  const videoUrlRaw = typeof row.video_url === 'string' ? row.video_url.trim() : '';
+  const publicBase = (env.PUBLIC_APP_URL ?? '').replace(/\/$/, '');
+  const videoUrl =
+    videoUrlRaw && !/^https?:\/\//i.test(videoUrlRaw) && publicBase
+      ? `${publicBase}${videoUrlRaw.startsWith('/') ? '' : '/'}${videoUrlRaw}`
+      : videoUrlRaw;
   if (!streamId && videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
     const fileSize = await headContentLength(videoUrl);
     const max = identifySampleByteLength({

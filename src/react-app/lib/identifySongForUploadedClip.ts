@@ -6,8 +6,7 @@ import {
 } from '@/react-app/utils/auddIdentify';
 import { identifyNativeFileWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
 import {
-  streamMp4Url,
-  streamVideoIdFromClip,
+  resolveClipDownloadUrl,
   type ClipPlaybackFields,
 } from '@/shared/clip-playback';
 
@@ -22,10 +21,19 @@ type ServerIdentifyResponse = {
 
 const SERVER_IDENTIFY_TIMEOUT_MS = 55_000;
 
-/** Progressive Stream MP4 for native ShazamKit (faststart; no WebAudio Range). */
+function absoluteMediaUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  if (typeof window === 'undefined' || !window.location?.origin) return url;
+  return new URL(url, window.location.origin).href;
+}
+
+/**
+ * Best progressive MP4 for native ShazamKit: Stream first, else published
+ * `/api/files/…` or `video_url`. Untitled clips often have no Stream id yet.
+ */
 export function clipPlayerShazamKitMediaUrl(clip: ClipPlaybackFields): string | null {
-  const streamId = streamVideoIdFromClip(clip);
-  return streamId ? streamMp4Url(streamId) : null;
+  const raw = resolveClipDownloadUrl(clip);
+  return raw ? absoluteMediaUrl(raw) : null;
 }
 
 async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIdentifyResult> {
@@ -52,6 +60,11 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
       body: JSON.stringify(payload),
     });
     const data = (await res.json()) as ServerIdentifyResponse;
+    console.log(
+      '[identify] clip-player worker',
+      res.status,
+      data.ok === false ? data.error : data.match?.title || data.message || (data.skipped ? 'skipped' : 'ok'),
+    );
 
     if (data.skipped) {
       return normalizeIdentifyResult({
@@ -96,6 +109,7 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
     const aborted =
       (err instanceof DOMException && err.name === 'AbortError') ||
       (err instanceof Error && /abort/i.test(err.name + err.message));
+    console.warn('[identify] clip-player worker failed', err);
     return {
       status: 'error',
       message: aborted ? 'Song identification timed out. Try again.' : 'Song lookup failed',
@@ -119,7 +133,17 @@ export async function identifySongForUploadedClip(
 ): Promise<AudDIdentifyResult> {
   const clipId = clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown';
   const mediaUrl = clipPlayerShazamKitMediaUrl(clip);
-  console.log('[identify] clip-player start', clipId, mediaUrl ?? 'no-stream-url');
+  console.log(
+    '[identify] clip-player start',
+    clipId,
+    mediaUrl ?? 'no-media-url',
+    'stream=',
+    clip.stream_video_id ?? '',
+    'video=',
+    clip.video_url ?? '',
+    'r2=',
+    clip.r2_raw_key ?? '',
+  );
 
   if (mediaUrl) {
     const localPath = await downloadRemoteMediaToCache(mediaUrl, `clip-${clipId}.mp4`);

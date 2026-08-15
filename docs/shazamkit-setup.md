@@ -91,9 +91,10 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
 - Manual / library uploads identify on the clip details (`UploadClip`) screen
   before Share via the same `identifyMusicForClip` ladder.
 - **Clip-player Tap to identify** (untitled clips only): native-download the
-  Cloudflare Stream MP4 into cache, then `ShazamKit.recognizeFile` on that
-  local file — the same plugin call as capture. Do **not** Range-fetch Capgo
-  MP4s into WebAudio (`decodeAudioData` can hang in WKWebView). If ShazamKit
+  Stream MP4 when present, otherwise the published `/api/files/…` or
+  `video_url` (many untitled clips have no Stream id yet), then
+  `ShazamKit.recognizeFile` on that local file — the same plugin call as
+  capture. Do **not** Range-fetch Capgo MP4s into WebAudio. If ShazamKit
   misses, `POST /api/clips/identify-own-song` (ACRCloud) still runs.
   **The phone loads JS from `server.url`. `git pull` + Xcode rebuild is not
   enough — run `npm run deploy` from this branch**, then force-quit the app.
