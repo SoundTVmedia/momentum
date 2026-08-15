@@ -6,8 +6,6 @@ import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import type { ClipShowCandidate } from '@/shared/types';
 import { resolveClipEventTitle } from '@/shared/event-title';
-import { identifyLiveAudioWithShazamKit, logShazamKitAvailability } from '@/react-app/utils/shazamKitIdentify';
-import { recognizedArtistMatchesShow } from '@/shared/song-artist-match';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clearCaptureShowSession,
@@ -54,8 +52,6 @@ import {
   scheduleNativeCaptureFullScreenPreview,
   startNativeVideoRecording,
   stopNativeVideoRecording,
-  startNativeLiveAudioSegments,
-  stopNativeLiveAudioSegments,
   setNativeCaptureZoom,
   setNativeCaptureFocus,
   beginNativeCapturePinchZoom,
@@ -71,10 +67,6 @@ import {
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
-import {
-  isHudSongIdentifyPending,
-  resolveCaptureHudSongLabel,
-} from '@/react-app/lib/capture-hud-song';
 import { clearCaptureHandoffBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
 import {
   blobSourceKey,
@@ -86,10 +78,6 @@ import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/c
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
-/** Live ShazamKit HUD: ~8s AAC segments stay inside the 1–12s catalog window. */
-const LIVE_SHAZAM_SEGMENT_MS = 8_000;
-/** Brief wait so an in-flight live match can still prefill song_title at enqueue. */
-const LIVE_SHAZAM_STOP_WAIT_MS = 2_500;
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -135,7 +123,6 @@ export default function QuickRecordButton({
   const {
     enqueue: enqueueClipUpload,
     activeCount: clipUploadsInFlight,
-    jobs: clipUploadJobs,
   } = useClipUploadQueue();
   const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const lastGeoRef = useRef<{
@@ -186,12 +173,6 @@ export default function QuickRecordButton({
   const prevIsOpenRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
-  const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
-  const liveShazamInFlightRef = useRef(false);
-  const liveShazamStoppedRef = useRef(true);
-  const [liveHudSong, setLiveHudSong] = useState<{ artist: string; title: string } | null>(null);
-  const [hudSongJobId, setHudSongJobId] = useState<string | null>(null);
-  const [hudIdentifiedSongTitle, setHudIdentifiedSongTitle] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -293,41 +274,6 @@ export default function QuickRecordButton({
       notice: null,
     });
   }, []);
-
-  const hudTrackedJob = hudSongJobId
-    ? clipUploadJobs.find((j) => j.id === hudSongJobId) ?? null
-    : null;
-  const hudTrackedSongTitle = hudTrackedJob?.form.song_title ?? '';
-  useEffect(() => {
-    const title = hudTrackedSongTitle.trim();
-    if (title) setHudIdentifiedSongTitle(title);
-  }, [hudTrackedSongTitle]);
-  useEffect(() => {
-    if (showModal) return;
-    setLiveHudSong(null);
-    setHudSongJobId(null);
-    setHudIdentifiedSongTitle(null);
-    lastLiveSongMatchRef.current = null;
-  }, [showModal]);
-  useEffect(() => {
-    const expected =
-      captureResolvePreview.artistName?.trim() ||
-      captureResolveCandidateRef.current?.artist_name?.trim() ||
-      null;
-    if (!expected) return;
-    const snap = lastLiveSongMatchRef.current;
-    if (!snap || recognizedArtistMatchesShow(expected, snap.artist)) return;
-    lastLiveSongMatchRef.current = null;
-    setLiveHudSong(null);
-    setHudIdentifiedSongTitle(null);
-  }, [captureResolvePreview.artistName]);
-  const captureHudSongLabel = resolveCaptureHudSongLabel({
-    identifiedTitle: hudIdentifiedSongTitle,
-    liveMatch: liveHudSong,
-    identifyPending:
-      (isRecording && !liveHudSong && !hudIdentifiedSongTitle) ||
-      isHudSongIdentifyPending(hudTrackedJob, hudIdentifiedSongTitle),
-  });
 
   useEffect(() => {
     coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
@@ -1730,7 +1676,6 @@ export default function QuickRecordButton({
 
   /** Stop camera, mic, and recorders — call when capture ends or modal closes. */
   const releaseAllCaptureResources = () => {
-    void stopNativeLiveAudioSegments();
     clearAuddParallelCapTimer();
 
     if (nativeCaptureActiveRef.current) {
@@ -1798,44 +1743,6 @@ export default function QuickRecordButton({
       chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
   };
 
-  const waitForLiveShazamInFlight = async (maxMs: number): Promise<void> => {
-    const deadline = Date.now() + maxMs;
-    while (liveShazamInFlightRef.current && Date.now() < deadline) {
-      await new Promise((r) => window.setTimeout(r, 80));
-    }
-  };
-
-  const showArtistForSongId = () =>
-    captureResolvePreview.artistName?.trim() ||
-    captureResolveCandidateRef.current?.artist_name?.trim() ||
-    null;
-
-  const applyLiveShazamMatch = (result: { artist?: string; title?: string } | null) => {
-    const title = result?.title?.trim() ?? '';
-    const artist = result?.artist?.trim() ?? '';
-    if (!title && !artist) return;
-    if (!recognizedArtistMatchesShow(showArtistForSongId(), artist)) return;
-    const snap = { title, artist };
-    lastLiveSongMatchRef.current = snap;
-    setLiveHudSong(snap);
-    if (title) setHudIdentifiedSongTitle(title);
-  };
-
-  const identifyLiveShazamSegment = (blob: Blob) => {
-    if (liveShazamStoppedRef.current) return;
-    if (lastLiveSongMatchRef.current) return;
-    if (liveShazamInFlightRef.current) return;
-    liveShazamInFlightRef.current = true;
-    void identifyLiveAudioWithShazamKit(blob)
-      .then((result) => {
-        if (result?.status !== 'match') return;
-        applyLiveShazamMatch(result);
-      })
-      .finally(() => {
-        liveShazamInFlightRef.current = false;
-      });
-  };
-
   const startRecording = async () => {
     // Only start if camera is ready
     if (
@@ -1867,19 +1774,6 @@ export default function QuickRecordButton({
         setRecordingElapsedSeconds(0);
         lastParallelAuddAudioBlobRef.current = null;
         auddParallelAudioChunksRef.current = [];
-        lastLiveSongMatchRef.current = null;
-        setLiveHudSong(null);
-        liveShazamStoppedRef.current = false;
-        logShazamKitAvailability();
-        void startNativeLiveAudioSegments((blob) => {
-          if (blob.size > 0) {
-            lastParallelAuddAudioBlobRef.current = blob;
-            auddParallelAudioChunksRef.current.push(blob);
-          }
-          identifyLiveShazamSegment(blob);
-        }, LIVE_SHAZAM_SEGMENT_MS).catch((err) => {
-          console.warn('QuickRecordButton: live ShazamKit audio failed', err);
-        });
         timerRef.current = setInterval(() => {
           recordingSecondsRef.current += 1;
           const t = recordingSecondsRef.current;
@@ -1895,7 +1789,6 @@ export default function QuickRecordButton({
         console.error('Native recording failed:', err);
         isRecordingRef.current = false;
         setIsRecording(false);
-        void stopNativeLiveAudioSegments();
         const msg = err instanceof Error ? err.message : String(err);
         setCameraError(
           /preview is not running/i.test(msg)
@@ -2012,7 +1905,6 @@ export default function QuickRecordButton({
     } catch (err) {
       console.error('Recording failed:', err);
       isRecordingRef.current = false;
-      void stopNativeLiveAudioSegments();
     }
   };
 
@@ -2024,9 +1916,6 @@ export default function QuickRecordButton({
       setIsFinishingRecording(true);
       void (async () => {
         try {
-          liveShazamStoppedRef.current = true;
-          await stopNativeLiveAudioSegments();
-          await waitForLiveShazamInFlight(LIVE_SHAZAM_STOP_WAIT_MS);
           const stopped = await stopNativeVideoRecording();
           const videoFilePath = stopped.videoFilePath;
           isRecordingRef.current = false;
@@ -2042,8 +1931,6 @@ export default function QuickRecordButton({
           });
         } catch (err) {
           console.error('Native stop recording failed:', err);
-          liveShazamStoppedRef.current = true;
-          void stopNativeLiveAudioSegments();
           isRecordingRef.current = false;
           setIsRecording(false);
           if (timerRef.current) {
@@ -2262,12 +2149,10 @@ export default function QuickRecordButton({
         });
       }
 
-      const liveSong = lastLiveSongMatchRef.current;
-      const artist_name =
-        prefetchShow?.artist_name?.trim() || liveSong?.artist?.trim() || '';
+      const artist_name = prefetchShow?.artist_name?.trim() || '';
       const venue_name = prefetchShow?.venue_name?.trim() ?? '';
       const locationLine = prefetchShow?.location?.trim() ?? '';
-      const song_title = liveSong?.title?.trim() ?? '';
+      const song_title = '';
       const jambaseLink = prefetchShow
         ? {
             event: prefetchShow.jambase_event_id,
@@ -2306,7 +2191,7 @@ export default function QuickRecordButton({
           classificationId: classification.classificationId,
           contentFeed: classification.contentFeed,
           classificationPending: classification.classificationPending,
-          songIdentifyPending: !song_title,
+          songIdentifyPending: true,
           captureAudioBlob,
           form: {
             artist_name,
@@ -2346,9 +2231,6 @@ export default function QuickRecordButton({
         );
       }
 
-      setHudSongJobId(jobId);
-      setHudIdentifiedSongTitle(song_title || null);
-
       // Same Photos/gallery persist as the old caption handoff — do not wait for upload.
       void saveClipToDeviceGallery(uploadBlob, fileName, {
         sourceKey: blobSourceKey(uploadBlob),
@@ -2374,7 +2256,6 @@ export default function QuickRecordButton({
       setIsFinishingRecording(false);
       recordingSecondsRef.current = 0;
       setRecordingElapsedSeconds(0);
-      lastLiveSongMatchRef.current = null;
       webCaptureHadAudioRef.current = false;
     } catch (e) {
       console.error('QuickRecordButton: recording complete failed', e);
@@ -2743,12 +2624,6 @@ export default function QuickRecordButton({
                 ) : null}
                 </>
               )}
-              {captureHudSongLabel ? (
-                <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5 pt-0.5">
-                  <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
-                  <span className="truncate">{captureHudSongLabel}</span>
-                </p>
-              ) : null}
             </div>
           </div>
         </div>
@@ -2769,11 +2644,6 @@ export default function QuickRecordButton({
             {captureResolvePreview.eventTitle ? (
               <p className="truncate text-[11px] font-semibold text-white/90">
                 {captureResolvePreview.eventTitle}
-              </p>
-            ) : null}
-            {captureHudSongLabel ? (
-              <p className="truncate text-[10px] font-medium text-momentum-flare/95">
-                {captureHudSongLabel}
               </p>
             ) : null}
             {clipUploadsInFlight > 0 ? (

@@ -8,6 +8,7 @@ import { MAIN_FEED_CLIP_SQL } from '../shared/content-feed';
 import {
   buildHashtagsForClipBody,
   genreFieldsFromBody,
+  songCreditForClipUpdate,
   songFieldsFromBody,
 } from './clip-tag-fields';
 import { computeShowId } from '../shared/show-id';
@@ -506,6 +507,8 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
 
   const existingRow = existing as Record<string, unknown>;
+  const { recognized_song_title, recognized_song_artist, song_title_forced } =
+    songCreditForClipUpdate(body, existingRow);
   const resolvedArtist =
     artist_name ??
     (typeof existingRow.artist_name === 'string' ? existingRow.artist_name : null);
@@ -535,6 +538,9 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       hashtags = ?,
       song_title = ?,
       song_slug = ?,
+      recognized_song_title = ?,
+      recognized_song_artist = ?,
+      song_title_forced = ?,
       genre_name = ?,
       genre_slug = ?,
       show_id = ?,
@@ -550,6 +556,9 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       hashtagsJson,
       song_title,
       song_slug,
+      recognized_song_title,
+      recognized_song_artist,
+      song_title_forced,
       genre_name,
       genre_slug,
       showId,
@@ -850,11 +859,7 @@ export async function postIdentifyOwnClipSong(c: Context<{ Bindings: Env }>) {
     );
   }
 
-  const bodyArtist = typeof body.artist === 'string' ? body.artist.trim() : '';
-  const clipArtist = typeof row.artist_name === 'string' ? row.artist_name.trim() : '';
-  const expectedArtist = bodyArtist || clipArtist || null;
-
-  const out = await recognizeMusic(c.env, sample.blob, sample.filename, { expectedArtist });
+  const out = await recognizeMusic(c.env, sample.blob, sample.filename);
   if (!out.ok) {
     return c.json({
       ok: false,
@@ -944,6 +949,8 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
   const { song_title, song_slug } = songFieldsFromBody(body);
   const { genre_name, genre_slug } = genreFieldsFromBody(body);
   const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
+  const { recognized_song_title, recognized_song_artist, song_title_forced } =
+    songCreditForClipUpdate(body, row);
   const jambase_event_id = trimOrNull(body.jambase_event_id);
   const jambase_artist_id = trimOrNull(body.jambase_artist_id);
   const jambase_venue_id = trimOrNull(body.jambase_venue_id);
@@ -979,6 +986,9 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
       hashtags = ?,
       song_title = ?,
       song_slug = ?,
+      recognized_song_title = ?,
+      recognized_song_artist = ?,
+      song_title_forced = ?,
       genre_name = ?,
       genre_slug = ?,
       jambase_event_id = ?,
@@ -997,6 +1007,9 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
       hashtagsJson,
       song_title,
       song_slug,
+      recognized_song_title,
+      recognized_song_artist,
+      song_title_forced,
       genre_name,
       genre_slug,
       jambase_event_id,

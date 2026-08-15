@@ -1972,7 +1972,6 @@ export default function UploadClip() {
         await identifyMusicForClip(source, {
           live: liveHint,
           audio: captureAudio,
-          expectedArtist: formData.artist_name,
         }),
       );
       if (cancelled) return;

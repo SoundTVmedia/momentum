@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  constrainIdentifyResultToShowArtist,
   isFatalSongIdentifyError,
   mergeLiveAndFinalSongIdentify,
   normalizeIdentifyResult,
@@ -63,47 +62,11 @@ describe('isFatalSongIdentifyError', () => {
   });
 });
 
-describe('constrainIdentifyResultToShowArtist', () => {
-  const paulWallHit = {
-    status: 'match' as const,
-    artist: 'Paul Wall feat. Chamillionaire',
-    title: "Sittin' Sidewayz",
-    message: "Identified: Sittin' Sidewayz — Paul Wall feat. Chamillionaire",
-  };
-
-  it('keeps a match for the show artist, including featured guests', () => {
-    expect(constrainIdentifyResultToShowArtist(paulWallHit, 'Paul Wall').status).toBe('match');
-  });
-
-  it('drops a match for a different artist', () => {
-    expect(
-      constrainIdentifyResultToShowArtist(
-        { ...paulWallHit, artist: 'Drake', title: 'Started From the Bottom', message: null },
-        'Paul Wall',
-      ),
-    ).toEqual({ status: 'nomatch', message: null });
-  });
-
-  it('does not filter when the clip has no show artist', () => {
-    expect(constrainIdentifyResultToShowArtist(paulWallHit, '').status).toBe('match');
-  });
-});
-
 describe('mergeLiveAndFinalSongIdentify', () => {
-  it('does not fall back to a live hit for the wrong artist', () => {
-    const merged = mergeLiveAndFinalSongIdentify(
-      { artist: 'Drake', title: 'Started From the Bottom' },
-      { status: 'error', message: 'Song ID is not configured. Set ACRCLOUD_HOST' },
-      'Paul Wall',
-    );
-    expect(merged.status).toBe('error');
-  });
-
-  it('keeps a live hit for the show artist when the final pass is a fatal error', () => {
+  it('keeps a live hit when the final pass is a fatal error', () => {
     const merged = mergeLiveAndFinalSongIdentify(
       { artist: 'Paul Wall', title: "Sittin' Sidewayz" },
       { status: 'error', message: 'Song ID is not configured. Set ACRCLOUD_HOST' },
-      'Paul Wall',
     );
     expect(merged.status).toBe('match');
     if (merged.status === 'match') {

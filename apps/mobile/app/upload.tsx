@@ -85,10 +85,7 @@ export default function UploadReviewScreen() {
   const runRecognition = useCallback(async (pending: CaptureHandoff) => {
     setRecognizing(true);
     try {
-      const outcome = await recognizeSongForCapture({
-        ...pending,
-        expectedArtist: pending.showCandidate?.artist_name,
-      });
+      const outcome = await recognizeSongForCapture(pending);
       await saveCaptureRecognition(pending.videoUri, outcome).catch(() => undefined);
       setRecognition(outcome);
       setForm((prev) => applyRecognitionPrefill(prev, outcome.match));

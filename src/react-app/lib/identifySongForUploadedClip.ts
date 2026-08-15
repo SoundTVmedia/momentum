@@ -1,8 +1,13 @@
+import { ACR_MAX_SAMPLE_BYTES } from '@/shared/identify-music-limits';
 import { resolveClipDownloadUrl, type ClipPlaybackFields } from '@/shared/clip-playback';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
-  constrainIdentifyResultToShowArtist,
+  identifyClipWithShazamKit,
+  isShazamKitIdentifyAvailable,
+} from '@/react-app/utils/shazamKitIdentify';
+import {
   identifyMusicForClip,
+  isFatalSongIdentifyError,
   normalizeIdentifyResult,
   type AudDIdentifyResult,
 } from '@/react-app/utils/auddIdentify';
@@ -15,14 +20,27 @@ function absoluteClipMediaUrl(url: string): string {
   return new URL(url, window.location.origin).href;
 }
 
-export async function fetchUploadedClipVideoBlob(
+function identifyFetchInit(url: string): RequestInit {
+  const absolute = absoluteClipMediaUrl(url);
+  const sameOrigin =
+    absolute.startsWith('/') ||
+    (typeof window !== 'undefined' && absolute.startsWith(window.location.origin));
+  return {
+    credentials: sameOrigin ? 'include' : 'omit',
+    headers: { Range: `bytes=0-${ACR_MAX_SAMPLE_BYTES - 1}` },
+    cache: 'no-store',
+  };
+}
+
+/** Short MP4/R2 head — enough for ShazamKit without downloading the whole clip. */
+export async function fetchClipIdentifySample(
   clip: ClipPlaybackFields,
 ): Promise<Blob | null> {
   const url = resolveClipDownloadUrl(clip);
   if (!url) return null;
   try {
-    const res = await fetch(absoluteClipMediaUrl(url), { credentials: 'include' });
-    if (!res.ok) return null;
+    const res = await fetch(absoluteClipMediaUrl(url), identifyFetchInit(url));
+    if (!res.ok && res.status !== 206) return null;
     const blob = await res.blob();
     return blob.size > 0 ? blob : null;
   } catch {
@@ -39,10 +57,7 @@ type ServerIdentifyResponse = {
   acrcloudCode?: number;
 };
 
-async function identifySongViaServer(
-  clip: ClipWithArtist,
-  expectedArtist?: string | null,
-): Promise<AudDIdentifyResult> {
+async function identifySongViaServer(clip: ClipWithArtist): Promise<AudDIdentifyResult> {
   const clipId = clipNumericId(clip);
   const streamVideoId =
     typeof clip.stream_video_id === 'string' ? clip.stream_video_id.trim() : '';
@@ -50,11 +65,9 @@ async function identifySongViaServer(
     return { status: 'error', message: 'Invalid clip' };
   }
 
-  const showArtist = expectedArtist?.trim() || clip.artist_name?.trim() || null;
   const payload: Record<string, unknown> = {};
   if (clipId != null) payload.clipId = clipId;
   if (streamVideoId) payload.streamVideoId = streamVideoId;
-  if (showArtist) payload.artist = showArtist;
 
   try {
     const res = await fetch('/api/clips/identify-own-song', {
@@ -104,26 +117,47 @@ async function identifySongViaServer(
       typeof data.match.confidence === 'number' && Number.isFinite(data.match.confidence)
         ? data.match.confidence
         : undefined;
-    return constrainIdentifyResultToShowArtist(
-      { status: 'match', artist, title, message, confidence },
-      showArtist,
-    );
+    return { status: 'match', artist, title, message, confidence };
   } catch {
     return { status: 'error', message: 'Song lookup failed' };
   }
 }
 
-/** Re-run song ID on an uploaded clip: ShazamKit first, then ACRCloud. */
+function isUsableMatch(result: AudDIdentifyResult): boolean {
+  return result.status === 'match';
+}
+
+/**
+ * Re-run song ID on an uploaded clip: ShazamKit on a short sample, then
+ * Worker ACRCloud. Always fall through to ACR when Shazam misses — do not
+ * treat a downloaded blob as a reason to skip the server path.
+ */
 export async function identifySongForUploadedClip(
   clip: ClipWithArtist,
-  options?: { expectedArtist?: string | null },
 ): Promise<AudDIdentifyResult> {
-  const expectedArtist = options?.expectedArtist ?? clip.artist_name ?? null;
-  const blob = await fetchUploadedClipVideoBlob(clip);
-  if (blob) {
-    return normalizeIdentifyResult(
-      await identifyMusicForClip(blob, { expectedArtist }),
-    );
+  const sample = await fetchClipIdentifySample(clip);
+
+  if (sample && isShazamKitIdentifyAvailable()) {
+    try {
+      const shazam = await identifyClipWithShazamKit(sample);
+      if (shazam && isUsableMatch(normalizeIdentifyResult(shazam))) {
+        return normalizeIdentifyResult(shazam);
+      }
+    } catch (err) {
+      console.warn('identifySongForUploadedClip: ShazamKit sample failed', err);
+    }
   }
-  return identifySongViaServer(clip, expectedArtist);
+
+  const server = await identifySongViaServer(clip);
+  if (isUsableMatch(server)) return server;
+  if (server.status === 'error' && isFatalSongIdentifyError(server)) return server;
+
+  if (sample) {
+    const client = normalizeIdentifyResult(await identifyMusicForClip(sample));
+    if (isUsableMatch(client)) return client;
+    if (client.status === 'error' && isFatalSongIdentifyError(client)) return client;
+    if (server.status === 'nomatch' || server.status === 'skipped') return client;
+  }
+
+  return server;
 }

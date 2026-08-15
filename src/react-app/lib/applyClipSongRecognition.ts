@@ -1,6 +1,7 @@
 import { acrMatchToClipFieldPatch, type AcrClipFieldSnapshot } from '@/react-app/lib/acrClipFieldPatch';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { identifySongForUploadedClip } from '@/react-app/lib/identifySongForUploadedClip';
+import { songCreditFromIdentifyMatch, songTitlesMatch } from '@/shared/clip-song-credit';
 import type { ClipPlaybackFields } from '@/shared/clip-playback';
 import type { ClipWithUser } from '@/shared/types';
 import {
@@ -17,6 +18,9 @@ export type ClipMetadataSaveFields = {
   hashtags: string;
   song_title: string;
   genre_name: string;
+  recognized_song_title?: string | null;
+  recognized_song_artist?: string | null;
+  song_title_forced?: number;
   /** Superadmin: explicit show title override. */
   event_title?: string;
   jambase_event_id?: string | null;
@@ -65,7 +69,14 @@ export async function saveClipMetadataFields(
 }
 
 export type ClipSongRecognitionOutcome =
-  | { status: 'match'; message: string; updated: ClipWithUser; result: AudDIdentifyResult }
+  | {
+      status: 'match';
+      message: string;
+      updated: ClipWithUser;
+      result: AudDIdentifyResult;
+      previousTitle: string;
+      titleDiscrepancy: boolean;
+    }
   | { status: 'nomatch' | 'skipped' | 'error'; message: string; result: AudDIdentifyResult };
 
 export async function runClipSongRecognitionAndSave(input: {
@@ -73,16 +84,14 @@ export async function runClipSongRecognitionAndSave(input: {
   currentFields: AcrClipFieldSnapshot & ClipMetadataSaveFields;
   asSuperadmin?: boolean;
 }): Promise<ClipSongRecognitionOutcome> {
-  const result = normalizeIdentifyResult(
-    await identifySongForUploadedClip(input.clip, {
-      expectedArtist: input.currentFields.artist_name,
-    }),
-  );
+  const result = normalizeIdentifyResult(await identifySongForUploadedClip(input.clip));
 
   if (result.status === 'match') {
+    const previousTitle = input.currentFields.song_title?.trim() ?? '';
     const patch = acrMatchToClipFieldPatch(input.currentFields, result, {
       overwriteSongTitle: true,
     });
+    const credit = songCreditFromIdentifyMatch(result);
     const nextFields: ClipMetadataSaveFields = {
       artist_name: patch.artist_name ?? input.currentFields.artist_name ?? '',
       venue_name: input.currentFields.venue_name ?? '',
@@ -95,15 +104,21 @@ export async function runClipSongRecognitionAndSave(input: {
       jambase_event_id: input.currentFields.jambase_event_id,
       jambase_artist_id: input.currentFields.jambase_artist_id,
       jambase_venue_id: input.currentFields.jambase_venue_id,
+      recognized_song_title: credit.recognized_song_title,
+      recognized_song_artist: credit.recognized_song_artist,
+      song_title_forced: 0,
     };
     const updated = await saveClipMetadataFields(input.clip, nextFields, {
       asSuperadmin: input.asSuperadmin,
     });
+    const recognizedTitle = result.title.trim();
     return {
       status: 'match',
       message: result.message?.trim() || 'Song recognized and saved.',
       updated,
       result,
+      previousTitle,
+      titleDiscrepancy: Boolean(previousTitle) && !songTitlesMatch(previousTitle, recognizedTitle),
     };
   }
 
