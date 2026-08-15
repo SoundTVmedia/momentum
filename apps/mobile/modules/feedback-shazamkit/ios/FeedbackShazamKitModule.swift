@@ -43,9 +43,8 @@ public class FeedbackShazamKitModule: Module {
 
 @available(iOS 15.0, *)
 final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
-  /// Seconds of audio fed into the signature. Shazam matches reliably on
-  /// ~10-15s; capping keeps signature generation fast for 60s clips.
-  private static let maxSignatureSeconds: Double = 15
+  /// Seconds of audio fed into the signature. Shared 12s cap with ACRCloud.
+  private static let maxSignatureSeconds: Double = 12
   private static let workQueue = DispatchQueue(
     label: "com.feedbacklive.shazamkit",
     qos: .userInitiated

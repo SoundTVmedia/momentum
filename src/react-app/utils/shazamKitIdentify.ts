@@ -238,6 +238,10 @@ export async function identifyClipWithShazamKit(
   if (!isShazamKitIdentifyAvailable()) return null;
 
   let source = pickShazamKitMicSource(audio);
+  if (source) {
+    const wav = await extractWavSnippetViaWebAudio(source);
+    if (wav) source = wav;
+  }
   if (!source) {
     source = await extractWavSnippetViaWebAudio(video);
   }

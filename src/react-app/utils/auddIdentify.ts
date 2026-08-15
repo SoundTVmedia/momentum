@@ -202,6 +202,8 @@ async function resolveSnippetForIdentify(source: Blob): Promise<{
   extractFailure?: ExtractSnippetFailure;
 }> {
   if (source.type.startsWith('audio/') && source.size >= MIN_SNIPPET_BYTES) {
+    const wav = await extractWavSnippetViaWebAudio(source);
+    if (wav && wav.size >= MIN_SNIPPET_BYTES) return { snippet: wav };
     if (source.size <= ACR_MAX_SAMPLE_BYTES) return { snippet: source };
     const head = sliceHeadForIdentify(source);
     return head ? { snippet: head } : { snippet: source.slice(0, ACR_MAX_SAMPLE_BYTES) };
@@ -358,7 +360,8 @@ export async function identifyMusicForClip(
   }
 
   if (audio && audio.size >= 1024) {
-    const mic = normalizeIdentifyResult(await identifyMusicWithAudD(audio));
+    const capped = (await extractWavSnippetViaWebAudio(audio)) ?? audio;
+    const mic = normalizeIdentifyResult(await identifyMusicWithAudD(capped));
     best = pickStrongerMatch(best, mic);
     if (shouldStopIdentifyPass(mic)) return finish(mic);
   }

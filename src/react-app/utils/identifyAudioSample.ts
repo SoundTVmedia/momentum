@@ -1,12 +1,13 @@
 import {
-  ACR_MAX_SAMPLE_BYTES,
+  IDENTIFY_SAMPLE_SECONDS,
   MIN_IDENTIFY_SAMPLE_BYTES,
+  identifySampleByteLength,
 } from '@/shared/identify-music-limits';
 
-/** First N bytes of a large WebM/MP4 usually include the mux header + several seconds of audio. */
+/** First N bytes of a large WebM/MP4 usually include the mux header + ~12s of audio. */
 export function sliceHeadForIdentify(
   source: Blob,
-  maxBytes: number = ACR_MAX_SAMPLE_BYTES,
+  maxBytes: number = identifySampleByteLength(),
 ): Blob | null {
   if (source.size < MIN_IDENTIFY_SAMPLE_BYTES) return null;
   if (source.size <= maxBytes) return source;
@@ -25,7 +26,7 @@ export function headSliceLikelyValid(source: Blob, head: Blob): boolean {
 const MAX_WEB_AUDIO_DECODE_BYTES = 22 * 1024 * 1024;
 
 /**
- * Decode via Web Audio and export a short mono WAV (reliable when captureStream fails on large files).
+ * Decode via Web Audio and export a ≤12s mono WAV (reliable when captureStream fails on large files).
  * Only used under ~22MB to avoid mobile OOM.
  */
 export async function extractWavSnippetViaWebAudio(blob: Blob): Promise<Blob | null> {
@@ -38,7 +39,7 @@ export async function extractWavSnippetViaWebAudio(blob: Blob): Promise<Blob | n
     ctx = new AudioContext();
     const ab = await blob.arrayBuffer();
     const decoded = await ctx.decodeAudioData(ab.slice(0));
-    const maxSec = 14;
+    const maxSec = IDENTIFY_SAMPLE_SECONDS;
     const duration = decoded.duration;
     if (!Number.isFinite(duration) || duration <= 0) return null;
 

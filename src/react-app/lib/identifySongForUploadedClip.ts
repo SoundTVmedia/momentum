@@ -1,4 +1,5 @@
 import { resolveClipDownloadUrl, type ClipPlaybackFields } from '@/shared/clip-playback';
+import { identifySampleByteLength } from '@/shared/identify-music-limits';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
   identifyMusicForClip,
@@ -17,9 +18,13 @@ export async function fetchUploadedClipVideoBlob(
 ): Promise<Blob | null> {
   const url = resolveClipDownloadUrl(clip);
   if (!url) return null;
+  const maxBytes = identifySampleByteLength();
   try {
-    const res = await fetch(absoluteClipMediaUrl(url), { credentials: 'include' });
-    if (!res.ok) return null;
+    const res = await fetch(absoluteClipMediaUrl(url), {
+      credentials: 'include',
+      headers: { Range: `bytes=0-${maxBytes - 1}` },
+    });
+    if (!res.ok && res.status !== 206) return null;
     const blob = await res.blob();
     return blob.size > 0 ? blob : null;
   } catch {
@@ -102,7 +107,7 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
   }
 }
 
-/** Run ACR on an uploaded clip (browser snippet first, Worker fallback). */
+/** Run ACR on an uploaded clip (browser 12s snippet first, Worker 12s sample fallback). */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
 ): Promise<AudDIdentifyResult> {

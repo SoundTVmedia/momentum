@@ -20,12 +20,15 @@ ShazamKit no-match or error.
    (`src/react-app/utils/shazamKitIdentify.ts`); no-match/error falls through
    to the existing ACRCloud ladder.
 2. The WebView picks the cheapest audio source for the Capacitor bridge:
-   parallel mic capture (AAC), else a ≤14s mono WAV extracted with WebAudio,
+   parallel mic capture (AAC), else a ≤12s mono WAV extracted with WebAudio,
    else the whole video when small — then sends it base64 to the
    `packages/shazamkit` plugin.
 3. The Swift plugin (`ShazamKitPlugin.swift`) writes the payload to a temp
-   file, reads the audio track with `AVAssetReader`, generates a signature
-   with `SHSignatureGenerator`, and matches via `SHSession`.
+   file, reads the **first 12 seconds** of the audio track with `AVAssetReader`,
+   generates a signature with `SHSignatureGenerator`, and matches via `SHSession`.
+   The same 12s cap applies to ACRCloud (Worker `identify-own-song`, upload
+   identify, and browser snippets) — see `IDENTIFY_SAMPLE_SECONDS` in
+   `src/shared/identify-music-limits.ts`.
 4. **Quick capture HUD**: clips recorded with the quick record button show the
    song name on the camera HUD next to the venue/show data — the stabilized
    live match while recording, then "Identifying song…", then the
@@ -119,7 +122,7 @@ to Xcode 14 (or Xcode 16 → objectVersion 77) so it does not keep saving as 70.
    (`apps/mobile/src/lib/music/recognize-capture.ts`) and stores the outcome on
    the handoff (`musicRecognition`), so remounting the screen doesn't re-run it.
 3. On iOS the native module `apps/mobile/modules/feedback-shazamkit` reads the
-   clip's audio track with `AVAssetReader`, feeds up to 15s of PCM into
+   clip's audio track with `AVAssetReader`, feeds up to 12s of PCM into
    `SHSignatureGenerator`, and matches the signature via `SHSession`.
 4. A match prefills the **Song** and **Artist** fields — only when they are
    still empty; user-edited values are never overwritten.

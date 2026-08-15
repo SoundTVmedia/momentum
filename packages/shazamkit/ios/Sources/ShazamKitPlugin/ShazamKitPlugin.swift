@@ -62,8 +62,8 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
 @available(iOS 15.0, *)
 final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
-    /// Seconds of audio fed into the signature — Shazam matches reliably on ~10-15s.
-    private static let maxSignatureSeconds: Double = 15
+    /// Seconds of audio fed into the signature — 12s cap shared with ACRCloud.
+    private static let maxSignatureSeconds: Double = 12
     private static let workQueue = DispatchQueue(
         label: "com.feedback.shazamkit",
         qos: .userInitiated

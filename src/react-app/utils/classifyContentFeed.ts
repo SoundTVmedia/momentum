@@ -7,7 +7,7 @@ import {
   headSliceLikelyValid,
   sliceHeadForIdentify,
 } from '@/react-app/utils/identifyAudioSample';
-import { ACR_MAX_SAMPLE_BYTES } from '@/shared/identify-music-limits';
+import { identifySampleByteLength } from '@/shared/identify-music-limits';
 import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   type ContentFeedClassification,
@@ -22,21 +22,22 @@ async function audioBlobForClassify(
   captureAudio?: Blob | null,
 ): Promise<Blob | null> {
   if (captureAudio && captureAudio.size > 0) {
-    return captureAudio;
+    return (await extractWavSnippetViaWebAudio(captureAudio)) ?? captureAudio;
   }
-
-  const head = sliceHeadForIdentify(video, ACR_MAX_SAMPLE_BYTES);
-  if (head && headSliceLikelyValid(video, head)) {
-    return head;
-  }
-
-  const extracted = await extractMediaSnippetForAudDWithReason(video);
-  if (extracted.blob) return extracted.blob;
 
   const wav = await extractWavSnippetViaWebAudio(video);
   if (wav) return wav;
 
-  if (video.size > 0 && video.size <= ACR_MAX_SAMPLE_BYTES) {
+  const extracted = await extractMediaSnippetForAudDWithReason(video);
+  if (extracted.blob) return extracted.blob;
+
+  const head = sliceHeadForIdentify(video);
+  if (head && headSliceLikelyValid(video, head)) {
+    return head;
+  }
+
+  const maxBytes = identifySampleByteLength();
+  if (video.size > 0 && video.size <= maxBytes) {
     return video;
   }
 

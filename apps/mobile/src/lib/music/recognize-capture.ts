@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { apiFetch } from '@/src/lib/api/client';
 import {
-  ACR_MAX_SAMPLE_BYTES,
+  identifySampleByteLength,
   MIN_IDENTIFY_SAMPLE_BYTES,
 } from '@shared/identify-music-limits';
 import {
@@ -66,9 +66,9 @@ export async function recognizeSongForCapture(input: {
 }
 
 /**
- * ACRCloud fallback: post the head of the recorded file (first ~5MB — mux
- * header plus several seconds of audio, same strategy as the web client)
- * to the Worker's `/api/clips/identify-music` endpoint.
+ * ACRCloud fallback: post the first ~12s of the recorded file (byte-scaled
+ * head, same budget as the Worker superadmin path) to
+ * `/api/clips/identify-music`.
  */
 async function identifyMusicViaWorker(input: {
   videoUri: string;
@@ -79,11 +79,12 @@ async function identifyMusicViaWorker(input: {
     return noMatchOutcome('acrcloud');
   }
 
+  const sampleBytes = identifySampleByteLength({ fileSize: input.fileSize });
   let snippetUri: string | null = null;
   try {
     let uploadUri = input.videoUri;
-    if (input.fileSize > ACR_MAX_SAMPLE_BYTES) {
-      snippetUri = await writeHeadSnippet(input.videoUri);
+    if (input.fileSize > sampleBytes) {
+      snippetUri = await writeHeadSnippet(input.videoUri, sampleBytes);
       uploadUri = snippetUri;
     }
 
@@ -149,12 +150,12 @@ async function identifyMusicViaWorker(input: {
   }
 }
 
-/** Copy the first ACR_MAX_SAMPLE_BYTES of the recording into a temp file. */
-async function writeHeadSnippet(videoUri: string): Promise<string> {
+/** Copy the first `length` bytes of the recording into a temp file (~12s). */
+async function writeHeadSnippet(videoUri: string, length: number): Promise<string> {
   const base64 = await FileSystem.readAsStringAsync(videoUri, {
     encoding: FileSystem.EncodingType.Base64,
     position: 0,
-    length: ACR_MAX_SAMPLE_BYTES,
+    length,
   });
   const dir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
   if (!dir) {
