@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canSendVideoDirectly,
   isShazamKitDecodableOnIos,
+  isTransientShazamKitMatchFailure,
   pickShazamKitMicSource,
   shazamKitMatchToIdentifyResult,
   SHAZAMKIT_MAX_DIRECT_BYTES,
@@ -108,6 +109,29 @@ describe('isShazamKitDecodableOnIos', () => {
     expect(isShazamKitDecodableOnIos('audio/webm;codecs=opus')).toBe(false);
     expect(isShazamKitDecodableOnIos('video/webm')).toBe(false);
     expect(isShazamKitDecodableOnIos('audio/ogg')).toBe(false);
+  });
+});
+
+describe('isTransientShazamKitMatchFailure', () => {
+  it('retries only SHError 202, not invalid-signature 201', () => {
+    expect(
+      isTransientShazamKitMatchFailure({
+        code: 'ERR_SHAZAMKIT_MATCH_FAILED',
+        message: 'Shazam match attempt failed: (com.apple.ShazamKit error 202.)',
+      }),
+    ).toBe(true);
+    expect(
+      isTransientShazamKitMatchFailure({
+        code: 'ERR_SHAZAMKIT_MATCH_FAILED',
+        message: 'Shazam match attempt failed: (com.apple.ShazamKit error 201.)',
+      }),
+    ).toBe(false);
+    expect(
+      isTransientShazamKitMatchFailure({
+        code: 'ERR_SHAZAMKIT_BAD_FILE',
+        message: 'Could not load audio tracks: Cannot Open',
+      }),
+    ).toBe(false);
   });
 });
 

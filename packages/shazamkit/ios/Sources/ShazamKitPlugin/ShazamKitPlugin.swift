@@ -63,11 +63,11 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
 @available(iOS 15.0, *)
 final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
-    /// Seconds of audio fed into the signature — 12s cap shared with ACRCloud.
     private static let maxSignatureSeconds: Double = 12
+    private static let signatureAppendCapSeconds: Double = maxSignatureSeconds - 0.5
     private static let workQueue = DispatchQueue(
         label: "com.feedback.shazamkit",
-        qos: .userInitiated
+        qos: .default
     )
     /// Keeps recognizers (SHSession delegates) alive until the call settles.
     private static var active: [ShazamKitRecognizer] = []
@@ -293,21 +293,25 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     }
 
     private static func makeSignature(for url: URL) throws -> SHSignature {
-        do {
-            return try signatureFromAudioFile(url)
-        } catch let error as RecognizerError {
-            throw error
-        } catch {
-            // AVAudioFile cannot open most video MP4s — decode the audio track instead.
-            return try signatureFromAssetReader(url)
+        let ext = url.pathExtension.lowercased()
+        let isVideoContainer = ext == "mp4" || ext == "mov" || ext == "m4v"
+        if !isVideoContainer {
+            do {
+                return try signatureFromAudioFile(url)
+            } catch let error as RecognizerError {
+                throw error
+            } catch {
+                return try signatureFromAssetReader(url)
+            }
         }
+        return try signatureFromAssetReader(url)
     }
 
     /// WAV / CAF / M4A (and some AAC-in-MP4) via AVAudioFile.
     private static func signatureFromAudioFile(_ url: URL) throws -> SHSignature {
         let file = try AVAudioFile(forReading: url)
         let inFormat = file.processingFormat
-        let maxFrames = AVAudioFrameCount(inFormat.sampleRate * maxSignatureSeconds)
+        let maxFrames = AVAudioFrameCount(inFormat.sampleRate * signatureAppendCapSeconds)
         let framesToRead = min(maxFrames, AVAudioFrameCount(file.length))
         guard framesToRead >= AVAudioFrameCount(inFormat.sampleRate) else {
             throw RecognizerError(
@@ -324,11 +328,19 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         try file.read(into: input, frameCount: framesToRead)
 
         let generator = SHSignatureGenerator()
-        if let converted = convertForSignature(input) {
-            try generator.append(converted, at: nil)
-        } else {
-            try generator.append(input, at: nil)
+        var converter: AVAudioConverter?
+        var converterInFormat: AVAudioFormat?
+        guard let toAppend = convertForSignature(
+            input,
+            converter: &converter,
+            converterInFormat: &converterInFormat
+        ) else {
+            throw RecognizerError(
+                code: "ERR_SHAZAMKIT_SIGNATURE",
+                message: "Could not convert the clip audio for signature generation."
+            )
         }
+        try generator.append(toAppend, at: nil)
         return generator.signature()
     }
 
@@ -389,15 +401,29 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
 
         let generator = SHSignatureGenerator()
         var appendedSeconds: Double = 0
+        var converter: AVAudioConverter?
+        var converterInFormat: AVAudioFormat?
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
-            if appendedSeconds >= maxSignatureSeconds { break }
             guard let pcm = pcmBuffer(from: sampleBuffer) else { continue }
             let rate = pcm.format.sampleRate
             guard rate > 0 else { continue }
-            let toAppend = convertForSignature(pcm) ?? pcm
-            try generator.append(toAppend, at: nil)
-            appendedSeconds += Double(pcm.frameLength) / rate
+            let chunkSeconds = Double(pcm.frameLength) / rate
+            // Never exceed 12s — ShazamKit rejects Duration > 12 as error 201.
+            if appendedSeconds + chunkSeconds > signatureAppendCapSeconds { break }
+            guard let toAppend = convertForSignature(
+                pcm,
+                converter: &converter,
+                converterInFormat: &converterInFormat
+            ) else {
+                continue
+            }
+            do {
+                try generator.append(toAppend, at: nil)
+                appendedSeconds += chunkSeconds
+            } catch {
+                break
+            }
         }
 
         if appendedSeconds >= 1 {
@@ -460,19 +486,30 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         )
     }
 
-    private static func convertForSignature(_ input: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+    private static func formatsCompatible(_ a: AVAudioFormat, _ b: AVAudioFormat) -> Bool {
+        a.sampleRate == b.sampleRate
+            && a.channelCount == b.channelCount
+            && a.commonFormat == b.commonFormat
+            && a.isInterleaved == b.isInterleaved
+    }
+
+    private static func convertForSignature(
+        _ input: AVAudioPCMBuffer,
+        converter: inout AVAudioConverter?,
+        converterInFormat: inout AVAudioFormat?
+    ) -> AVAudioPCMBuffer? {
         let inFormat = input.format
         guard let outFormat = signatureFormat() else { return nil }
-        if inFormat.commonFormat == .pcmFormatFloat32
-            && inFormat.sampleRate == outFormat.sampleRate
-            && inFormat.channelCount == outFormat.channelCount
-            && !inFormat.isInterleaved
-        {
+        if formatsCompatible(inFormat, outFormat) {
             return input
         }
-        guard let converter = AVAudioConverter(from: inFormat, to: outFormat) else {
-            return nil
+        let needsNewConverter =
+            converter == nil || converterInFormat.map { !formatsCompatible($0, inFormat) } ?? true
+        if needsNewConverter {
+            converter = AVAudioConverter(from: inFormat, to: outFormat)
+            converterInFormat = inFormat
         }
+        guard let converter else { return nil }
         let ratio = outFormat.sampleRate / inFormat.sampleRate
         let outFrames = AVAudioFrameCount(Double(input.frameLength) * ratio) + 256
         guard let converted = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: outFrames) else {

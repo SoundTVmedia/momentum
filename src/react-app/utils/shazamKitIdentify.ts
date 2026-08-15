@@ -137,11 +137,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function isTransientShazamKitMatchFailure(err: unknown): boolean {
-  const code = (err as { code?: string } | null)?.code ?? '';
-  const message = err instanceof Error ? err.message : String((err as { message?: string } | null)?.message ?? '');
-  // SHError 202 (matchAttemptFailed) — Apple docs: often transient, retry the match.
-  return code === 'ERR_SHAZAMKIT_MATCH_FAILED' || /error 202|match attempt failed/i.test(message);
+export function isTransientShazamKitMatchFailure(err: unknown): boolean {
+  const rec = err as { message?: string; errorMessage?: string } | null;
+  const message = [err instanceof Error ? err.message : '', rec?.message, rec?.errorMessage]
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .join(' ');
+  // SHError 202 (matchAttemptFailed) is often transient. SHError 201 is an
+  // invalid signature — retrying the same file cannot succeed.
+  return /error 202/i.test(message);
 }
 
 async function recognizeShazamKitBlob(
