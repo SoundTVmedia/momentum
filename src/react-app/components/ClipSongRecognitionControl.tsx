@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type MouseEvent, type SyntheticEvent } from 'react';
 import { Disc3, Loader2 } from 'lucide-react';
 import type { AcrClipFieldSnapshot } from '@/react-app/lib/acrClipFieldPatch';
 import {
@@ -33,7 +33,13 @@ export default function ClipSongRecognitionControl({
   >('idle');
   const [message, setMessage] = useState<string | null>(null);
 
-  const handleRun = async () => {
+  const stopGesture = (e: SyntheticEvent) => {
+    e.stopPropagation();
+  };
+
+  const handleRun = async (e?: MouseEvent<HTMLButtonElement>) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     setStatus('loading');
     setMessage(null);
     try {
@@ -57,14 +63,20 @@ export default function ClipSongRecognitionControl({
   };
 
   return (
-    <div className={className}>
+    <div
+      className={`relative z-20 pointer-events-auto ${className}`.trim()}
+      onPointerDown={stopGesture}
+      onTouchStart={stopGesture}
+    >
       <button
         type="button"
-        onClick={() => void handleRun()}
+        onClick={(e) => void handleRun(e)}
+        onPointerDown={stopGesture}
+        onTouchStart={stopGesture}
         disabled={status === 'loading'}
         className={
           buttonClassName ||
-          'inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-xs font-semibold text-violet-100 transition-colors hover:bg-violet-500/20 disabled:opacity-50'
+          'relative z-20 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-2 text-xs font-semibold text-violet-100 transition-colors hover:bg-violet-500/20 disabled:opacity-50'
         }
       >
         {status === 'loading' ? (

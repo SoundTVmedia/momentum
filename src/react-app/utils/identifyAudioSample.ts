@@ -24,6 +24,24 @@ export function headSliceLikelyValid(source: Blob, head: Blob): boolean {
 }
 
 const MAX_WEB_AUDIO_DECODE_BYTES = 22 * 1024 * 1024;
+/** WKWebView can hang on truncated MP4 instead of rejecting decodeAudioData. */
+export const WEB_AUDIO_DECODE_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 
 /**
  * Decode via Web Audio and export a ≤11s mono WAV (reliable when captureStream fails on large files).
@@ -38,7 +56,11 @@ export async function extractWavSnippetViaWebAudio(blob: Blob): Promise<Blob | n
   try {
     ctx = new AudioContext();
     const ab = await blob.arrayBuffer();
-    const decoded = await ctx.decodeAudioData(ab.slice(0));
+    const decoded = await withTimeout(
+      ctx.decodeAudioData(ab.slice(0)),
+      WEB_AUDIO_DECODE_TIMEOUT_MS,
+      'decodeAudioData timed out',
+    );
     const maxSec = IDENTIFY_SAMPLE_SECONDS;
     const duration = decoded.duration;
     if (!Number.isFinite(duration) || duration <= 0) return null;

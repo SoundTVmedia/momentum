@@ -90,6 +90,12 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
   so the clip gets a song title even when live ID missed.
 - Manual / library uploads identify on the clip details (`UploadClip`) screen
   before Share via the same `identifyMusicForClip` ladder.
+- **Clip-player Tap to identify** does **not** Range-fetch the published MP4
+  into WebAudio/ShazamKit. A start-Range of a Capgo recording often has no
+  `moov` atom, and WKWebView `decodeAudioData` can hang (Identifying… forever,
+  zero native plugin logs). The button POSTs `/api/clips/identify-own-song`;
+  the Worker samples Cloudflare Stream (faststart) first, then ACRCloud
+  (≤11s). Native rebuild is not required for this JS/Worker path.
 ### Troubleshooting: `objectVersion 70` / `pod install` fails
 
 CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode

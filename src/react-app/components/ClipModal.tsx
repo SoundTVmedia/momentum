@@ -326,7 +326,7 @@ export default function ClipModal({
         asSuperadmin={isSuperAdmin && !isOwnClip}
         onSaved={handleClipSaved}
         idleLabel="Tap to identify"
-        buttonClassName="inline-flex items-center gap-1.5 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
+        buttonClassName="relative z-20 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
       />
     ) : null;
 
@@ -559,7 +559,13 @@ export default function ClipModal({
               <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
             </button>
           ) : playerSongIdentify ? (
-            <div className="mt-1">{playerSongIdentify}</div>
+            <div
+              className="relative z-20 mt-1 pointer-events-auto"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
+              {playerSongIdentify}
+            </div>
           ) : null}
           {clip.venue_name ? (
             <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
@@ -878,7 +884,13 @@ export default function ClipModal({
                     </span>
                   </button>
                 ) : playerSongIdentify ? (
-                  <div>{playerSongIdentify}</div>
+                  <div
+                    className="relative z-20 pointer-events-auto"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                  >
+                    {playerSongIdentify}
+                  </div>
                 ) : null}
                 {clip.genre_name?.trim() ? (
                   <button

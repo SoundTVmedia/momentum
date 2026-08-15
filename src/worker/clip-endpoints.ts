@@ -802,10 +802,11 @@ async function readClipVideoSampleForIdentify(
     });
     const blob = await fetchRangeBlob(url, max);
     if (blob) return { blob, filename: 'clip.mp4' };
+    // Prefer Stream over a start-Range of Capgo R2 (moov is often at EOF).
   }
 
   const r2Key = typeof row.r2_raw_key === 'string' ? row.r2_raw_key.trim() : '';
-  if (r2Key) {
+  if (!streamId && r2Key) {
     try {
       const max = identifySampleByteLength({ durationSeconds, maxBytes: ACR_MAX_SAMPLE_BYTES });
       const obj = await env.R2_BUCKET.get(r2Key, { range: { offset: 0, length: max } });
@@ -821,7 +822,7 @@ async function readClipVideoSampleForIdentify(
   }
 
   const videoUrl = typeof row.video_url === 'string' ? row.video_url.trim() : '';
-  if (videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
+  if (!streamId && videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
     const fileSize = await headContentLength(videoUrl);
     const max = identifySampleByteLength({
       fileSize,

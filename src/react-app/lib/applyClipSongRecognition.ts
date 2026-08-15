@@ -68,12 +68,36 @@ export type ClipSongRecognitionOutcome =
   | { status: 'match'; message: string; updated: ClipWithUser; result: AudDIdentifyResult }
   | { status: 'nomatch' | 'skipped' | 'error'; message: string; result: AudDIdentifyResult };
 
+const CLIP_PLAYER_IDENTIFY_TIMEOUT_MS = 60_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 export async function runClipSongRecognitionAndSave(input: {
   clip: ClipPlaybackFields;
   currentFields: AcrClipFieldSnapshot & ClipMetadataSaveFields;
   asSuperadmin?: boolean;
 }): Promise<ClipSongRecognitionOutcome> {
-  const result = normalizeIdentifyResult(await identifySongForUploadedClip(input.clip));
+  const result = normalizeIdentifyResult(
+    await withTimeout(
+      identifySongForUploadedClip(input.clip),
+      CLIP_PLAYER_IDENTIFY_TIMEOUT_MS,
+      'Song identification timed out. Try again.',
+    ),
+  );
 
   if (result.status === 'match') {
     const patch = acrMatchToClipFieldPatch(input.currentFields, result, {

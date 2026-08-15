@@ -1,41 +1,9 @@
-import { resolveClipDownloadUrl, type ClipPlaybackFields } from '@/shared/clip-playback';
-import { identifySampleByteLength } from '@/shared/identify-music-limits';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
   normalizeIdentifyResult,
   type AudDIdentifyResult,
 } from '@/react-app/utils/auddIdentify';
-import { extractWavSnippetViaWebAudio } from '@/react-app/utils/identifyAudioSample';
-import {
-  identifyClipWithShazamKit,
-  isShazamKitIdentifyAvailable,
-} from '@/react-app/utils/shazamKitIdentify';
-
-function absoluteClipMediaUrl(url: string): string {
-  if (/^https?:\/\//i.test(url)) return url;
-  if (typeof window === 'undefined') return url;
-  return new URL(url, window.location.origin).href;
-}
-
-/** Fetch ≤11s of the published clip for a client ShazamKit WAV extract. */
-export async function fetchUploadedClipVideoBlob(
-  clip: ClipPlaybackFields,
-): Promise<Blob | null> {
-  const url = resolveClipDownloadUrl(clip);
-  if (!url) return null;
-  const maxBytes = identifySampleByteLength();
-  try {
-    const res = await fetch(absoluteClipMediaUrl(url), {
-      credentials: 'include',
-      headers: { Range: `bytes=0-${maxBytes - 1}` },
-    });
-    if (!res.ok && res.status !== 206) return null;
-    const blob = await res.blob();
-    return blob.size > 0 ? blob : null;
-  } catch {
-    return null;
-  }
-}
+import type { ClipPlaybackFields } from '@/shared/clip-playback';
 
 type ServerIdentifyResponse = {
   ok?: boolean;
@@ -45,6 +13,8 @@ type ServerIdentifyResponse = {
   message?: string;
   acrcloudCode?: number;
 };
+
+const SERVER_IDENTIFY_TIMEOUT_MS = 55_000;
 
 async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIdentifyResult> {
   const clipId = clipNumericId(clip);
@@ -58,12 +28,15 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
   if (clipId != null) payload.clipId = clipId;
   if (streamVideoId) payload.streamVideoId = streamVideoId;
 
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), SERVER_IDENTIFY_TIMEOUT_MS);
   try {
     const res = await fetch('/api/clips/identify-own-song', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       cache: 'no-store',
+      signal: ctrl.signal,
       body: JSON.stringify(payload),
     });
     const data = (await res.json()) as ServerIdentifyResponse;
@@ -107,27 +80,34 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
         ? data.match.confidence
         : undefined;
     return { status: 'match', artist, title, message, confidence };
-  } catch {
-    return { status: 'error', message: 'Song lookup failed' };
+  } catch (err) {
+    const aborted =
+      (err instanceof DOMException && err.name === 'AbortError') ||
+      (err instanceof Error && /abort/i.test(err.name + err.message));
+    return {
+      status: 'error',
+      message: aborted ? 'Song identification timed out. Try again.' : 'Song lookup failed',
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
 /**
- * Clip-player / edit-modal song ID: ShazamKit on a complete ≤11s WAV when
- * WebAudio can decode the published file, else Worker ACRCloud (also ≤11s).
+ * Clip-player / edit-modal song ID for a published clip.
+ *
+ * Do not Range-fetch the MP4 and decode it in WebAudio here. Capgo recordings
+ * keep `moov` at the end, so a start-Range of ~11s often cannot decode — and
+ * WKWebView `decodeAudioData` can hang instead of rejecting. That left the
+ * player on "Identifying…" with zero native ShazamKit logs. The Worker uses
+ * Cloudflare Stream (faststart) first, then ACRCloud, with an ≤11s sample.
  */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
 ): Promise<AudDIdentifyResult> {
-  const blob = await fetchUploadedClipVideoBlob(clip);
-  if (blob && isShazamKitIdentifyAvailable()) {
-    const wav = await extractWavSnippetViaWebAudio(blob);
-    if (wav) {
-      const shazam = await identifyClipWithShazamKit(wav);
-      if (shazam?.status === 'match') {
-        return normalizeIdentifyResult(shazam);
-      }
-    }
-  }
+  console.log(
+    '[identify] clip-player via worker',
+    clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown',
+  );
   return identifySongViaServer(clip);
 }
