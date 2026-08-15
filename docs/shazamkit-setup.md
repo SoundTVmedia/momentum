@@ -97,8 +97,8 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
   WebAudio (`decodeAudioData` can hang in WKWebView). If ShazamKit misses,
   the Worker ACRCloud path (`POST /api/clips/identify-own-song`) still runs.
   Native rebuild is required for HTTPS `recognizeFile`; Worker JS must include
-  this branch. The button stays visible for the owner/superadmin even after a
-  song title is saved.
+  this branch. The player button only appears when `song_title` is empty
+  (upload miss). Owners can still change the song from **Edit clip**.
 ### Troubleshooting: `objectVersion 70` / `pod install` fails
 
 CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode
