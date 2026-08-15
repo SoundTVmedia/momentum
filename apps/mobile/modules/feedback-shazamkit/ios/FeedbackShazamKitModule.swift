@@ -281,7 +281,7 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
     }
 
     if appendedSeconds >= 1 {
-      return try generator.signature()
+      return generator.signature()
     }
 
     if reader.status == .failed {
@@ -377,9 +377,7 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
     guard let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer) else {
       return nil
     }
-    guard let format = AVAudioFormat(cmAudioFormatDescription: formatDesc) else {
-      return nil
-    }
+    let format = AVAudioFormat(cmAudioFormatDescription: formatDesc)
     let frameCount = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
     guard frameCount > 0,
       let pcmBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)
