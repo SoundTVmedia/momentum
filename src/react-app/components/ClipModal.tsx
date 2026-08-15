@@ -16,7 +16,6 @@ import {
   VolumeX,
   ChevronLeft,
   ChevronRight,
-  Disc3,
   Radio,
   Pencil,
   Eye,
@@ -44,8 +43,7 @@ import ClipModalBuyTickets from './ClipModalBuyTickets';
 import ClipModalTicketSheet from './ClipModalTicketSheet';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
-import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
-import { metadataFieldsFromClip } from '@/react-app/lib/clipFormFields';
+import ClipSongDetails from '@/react-app/components/ClipSongDetails';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import {
@@ -318,15 +316,7 @@ export default function ClipModal({
     </button>
   ) : null;
 
-  const superadminSongRecognition = isSuperAdmin && !isOwnClip ? (
-    <ClipSongRecognitionControl
-      clip={clip}
-      currentFields={metadataFieldsFromClip(clip)}
-      asSuperadmin
-      onSaved={handleClipSaved}
-      className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-3"
-    />
-  ) : null;
+  const canIdentifySong = isOwnClip || isSuperAdmin;
 
   const downloadClipButton = canDownloadClip ? (
     <button
@@ -547,19 +537,15 @@ export default function ClipModal({
               <p className="fb-clip-artist-name text-base font-semibold">{clip.artist_name}</p>
             </button>
           ) : null}
-          {clip.song_title?.trim() ? (
-            <button
-              type="button"
-              onClick={goSong}
-              className="mt-0.5 flex min-w-0 max-w-full items-center gap-1.5 text-left"
-            >
-              <Disc3 className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
-              <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
-            </button>
-          ) : null}
-          {superadminSongRecognition ? (
-            <div className="mt-3">{superadminSongRecognition}</div>
-          ) : null}
+          <div className="mt-0.5">
+            <ClipSongDetails
+              clip={clip}
+              canEdit={canIdentifySong}
+              asSuperadmin={isSuperAdmin && !isOwnClip}
+              onSaved={handleClipSaved}
+              onGoSong={clip.song_title?.trim() ? goSong : undefined}
+            />
+          </div>
           {clip.venue_name ? (
             <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
               <p className="fb-clip-venue text-sm">{clip.venue_name}</p>
@@ -822,9 +808,6 @@ export default function ClipModal({
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
               {editClipButton ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
-              {superadminSongRecognition ? (
-                <div className="mb-3">{superadminSongRecognition}</div>
-              ) : null}
               <div className="mb-3 flex items-center space-x-3">
                 <UserAvatar
                   imageUrl={clip.user_avatar}
@@ -868,18 +851,14 @@ export default function ClipModal({
                     <span className="truncate text-sm font-bold text-white">{clip.artist_name}</span>
                   </button>
                 ) : null}
-                {clip.song_title?.trim() ? (
-                  <button
-                    type="button"
-                    onClick={goSong}
-                    className="flex min-w-0 items-center space-x-2 text-left transition-opacity hover:opacity-80"
-                  >
-                    <Disc3 className="h-4 w-4 shrink-0 text-gray-400" />
-                    <span className="truncate text-base font-semibold text-momentum-flare/90">
-                      {clip.song_title}
-                    </span>
-                  </button>
-                ) : null}
+                <ClipSongDetails
+                  clip={clip}
+                  canEdit={canIdentifySong}
+                  asSuperadmin={isSuperAdmin && !isOwnClip}
+                  onSaved={handleClipSaved}
+                  onGoSong={clip.song_title?.trim() ? goSong : undefined}
+                  variant="sheet"
+                />
                 {clip.genre_name?.trim() ? (
                   <button
                     type="button"

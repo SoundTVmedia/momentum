@@ -28,7 +28,13 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func isSupported(_ call: CAPPluginCall) {
         if #available(iOS 15.0, *) {
-            call.resolve(["supported": true])
+            call.resolve([
+                "supported": true,
+                // Lets JS/device logs prove the TestFlight binary includes the
+                // 11s catalog-safe plugin (older archives only return supported).
+                "maxSignatureSeconds": ShazamKitRecognizer.maxSignatureSeconds,
+                "pluginRevision": 2,
+            ])
         } else {
             call.resolve(["supported": false])
         }
@@ -62,8 +68,9 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
 @available(iOS 15.0, *)
 final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
-    /// Seconds of audio fed into the signature — Shazam matches reliably on ~10-15s.
-    private static let maxSignatureSeconds: Double = 15
+    /// Catalog matching requires signatures longer than 1s and shorter than 12s
+    /// (SHError 201 / signatureDurationInvalid). 11s stays inside that window.
+    static let maxSignatureSeconds: Double = 11
     private static let workQueue = DispatchQueue(
         label: "com.feedback.shazamkit",
         qos: .userInitiated
@@ -189,15 +196,34 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
 
     func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
         if let error {
-            // Entitlement/network problems surface here (e.g. SHError 202
-            // SHErrorCode.matchAttemptFailed when matching cannot complete.
-            reject(
-                "Shazam match attempt failed: \(error.localizedDescription)",
-                "ERR_SHAZAMKIT_MATCH_FAILED"
-            )
+            reject(Self.matchFailureMessage(error), Self.matchFailureCode(error))
             return
         }
         resolve(["match": NSNull()])
+    }
+
+    /// SHError 201 is a bad signature (do not retry as a transient 202).
+    private static func matchFailureCode(_ error: Error) -> String {
+        switch (error as NSError).code {
+        case 201:
+            return "ERR_SHAZAMKIT_SIGNATURE_DURATION"
+        case 200:
+            return "ERR_SHAZAMKIT_SIGNATURE"
+        default:
+            return "ERR_SHAZAMKIT_MATCH_FAILED"
+        }
+    }
+
+    private static func matchFailureMessage(_ error: Error) -> String {
+        let nsError = error as NSError
+        switch nsError.code {
+        case 201:
+            return "Shazam signature duration is invalid (must be 1–12s): \(error.localizedDescription)"
+        case 200:
+            return "Shazam signature is invalid: \(error.localizedDescription)"
+        default:
+            return "Shazam match attempt failed: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Resolution plumbing
@@ -310,10 +336,15 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
 
         let generator = SHSignatureGenerator()
         var appendedFrames: AVAudioFrameCount = 0
+        let maxFrames = AVAudioFrameCount(sampleRate * maxSignatureSeconds)
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
             guard let pcmBuffer = pcmBuffer(from: sampleBuffer, format: format) else {
                 continue
+            }
+            if appendedFrames >= maxFrames { break }
+            if appendedFrames + pcmBuffer.frameLength > maxFrames {
+                pcmBuffer.frameLength = maxFrames - appendedFrames
             }
             try generator.append(pcmBuffer, at: nil)
             appendedFrames += pcmBuffer.frameLength

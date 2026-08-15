@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isFatalSongIdentifyError, normalizeIdentifyResult } from './auddIdentify';
+import {
+  isFatalSongIdentifyError,
+  mergeLiveAndFinalSongIdentify,
+  normalizeIdentifyResult,
+} from './auddIdentify';
 
 describe('normalizeIdentifyResult', () => {
   it('clears message for nomatch and skipped', () => {
@@ -8,7 +12,7 @@ describe('normalizeIdentifyResult', () => {
     ).toEqual({ status: 'nomatch', message: null });
     expect(
       normalizeIdentifyResult({ status: 'skipped', message: 'Could not extract' }),
-    ).toEqual({ status: 'skipped', message: null });
+    ).toEqual({ status: 'skipped', message: 'Could not extract' });
   });
 
   it('maps legacy no-match errors to nomatch without message', () => {
@@ -55,5 +59,18 @@ describe('isFatalSongIdentifyError', () => {
         message: 'Too many song lookups — wait a moment',
       }),
     ).toBe(true);
+  });
+});
+
+describe('mergeLiveAndFinalSongIdentify', () => {
+  it('keeps a live hit when the final pass is a fatal error', () => {
+    const merged = mergeLiveAndFinalSongIdentify(
+      { artist: 'Paul Wall', title: "Sittin' Sidewayz" },
+      { status: 'error', message: 'Song ID is not configured. Set ACRCLOUD_HOST' },
+    );
+    expect(merged.status).toBe('match');
+    if (merged.status === 'match') {
+      expect(merged.title).toBe("Sittin' Sidewayz");
+    }
   });
 });

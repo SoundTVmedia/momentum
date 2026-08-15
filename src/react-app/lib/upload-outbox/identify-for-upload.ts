@@ -2,6 +2,7 @@ import { acrMatchToClipFieldPatch } from '@/react-app/lib/acrClipFieldPatch';
 import { saveClipMetadataFields } from '@/react-app/lib/applyClipSongRecognition';
 import type { ClipUploadFormFields } from '@/react-app/lib/processClipUpload';
 import { identifyMusicForClip } from '@/react-app/utils/auddIdentify';
+import { songCreditFromIdentifyMatch } from '@/shared/clip-song-credit';
 import { isPrePostContentFeed } from '@/shared/pre-post-clip';
 import type { ContentFeedClassification } from '@/shared/content-feed';
 import type { UploadOutboxJob } from './types';
@@ -29,7 +30,7 @@ export function uploadJobNeedsSongIdentify(job: UploadOutboxJob): boolean {
   if (job.uploadMethod !== 'file') return false;
   if (isPrePostContentFeed(job.contentFeed)) return false;
   if (job.form.song_title?.trim()) return false;
-  // Default: run ACR at upload time when caption left no song title.
+  // Default: ShazamKit first, then ACRCloud, when the clip has no song title yet.
   return job.songIdentifyPending !== false;
 }
 
@@ -107,6 +108,7 @@ export async function resolveSongIdentifyAfterUpload(
     });
     if (!formPatch.song_title?.trim()) return {};
 
+    const credit = songCreditFromIdentifyMatch(result);
     const nextForm = { ...job.form, ...formPatch };
     await saveClipMetadataFields(
       { id: job.clipId } as Parameters<typeof saveClipMetadataFields>[0],
@@ -118,6 +120,9 @@ export async function resolveSongIdentifyAfterUpload(
         hashtags: nextForm.hashtags ?? '',
         song_title: nextForm.song_title ?? '',
         genre_name: nextForm.genre_name ?? '',
+        recognized_song_title: credit.recognized_song_title,
+        recognized_song_artist: credit.recognized_song_artist,
+        song_title_forced: 0,
       },
     );
     return formPatch;

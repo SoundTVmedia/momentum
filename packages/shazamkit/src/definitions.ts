@@ -12,8 +12,16 @@ export type ShazamKitMatchPayload = {
 };
 
 export interface ShazamKitPlugin {
-  /** True on iOS 15+ builds that include the native plugin. */
-  isSupported(): Promise<{ supported: boolean }>;
+  /**
+   * True on iOS 15+ builds that include the native plugin.
+   * `maxSignatureSeconds` / `pluginRevision` are present on the 11s-cap
+   * plugin; older TestFlight binaries only return `{ supported }`.
+   */
+  isSupported(): Promise<{
+    supported: boolean;
+    maxSignatureSeconds?: number;
+    pluginRevision?: number;
+  }>;
   /**
    * Recognize a song from a base64-encoded audio/video payload (wav, m4a,
    * mp4…). Resolves `{ match: null }` on a clean catalog no-match; rejects on

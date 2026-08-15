@@ -3,6 +3,7 @@ import {
   ACR_MAX_SAMPLE_BYTES,
   MIN_IDENTIFY_SAMPLE_BYTES,
 } from '../shared/identify-music-limits';
+import { recognizedArtistMatchesShow } from '../shared/song-artist-match';
 
 const IDENTIFY_PATH = '/v1/identify';
 const MAX_SAMPLE_BYTES = ACR_MAX_SAMPLE_BYTES;
@@ -146,23 +147,21 @@ function shouldSkipFragmentedWebm(bytes: Uint8Array, filename: string): boolean 
   return false;
 }
 
-function parseMatch(json: Record<string, unknown>): AcrCloudRecognizeResult | null {
-  const metadata = json.metadata;
-  if (!metadata || typeof metadata !== 'object') return null;
-  const music = (metadata as { music?: unknown }).music;
-  if (!Array.isArray(music) || music.length === 0) return null;
-
-  const top = music[0];
-  if (!top || typeof top !== 'object') return null;
-  const m = top as Record<string, unknown>;
-
-  const title = typeof m.title === 'string' ? m.title.trim() : '';
-  let artist = '';
+function artistCreditFromAcrMusicItem(m: Record<string, unknown>): string {
   const artists = m.artists;
-  if (Array.isArray(artists) && artists[0] && typeof artists[0] === 'object') {
-    const name = (artists[0] as { name?: unknown }).name;
-    if (typeof name === 'string') artist = name.trim();
-  }
+  if (!Array.isArray(artists)) return '';
+  const names = artists
+    .map((entry) =>
+      entry && typeof entry === 'object' ? (entry as { name?: unknown }).name : null,
+    )
+    .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+    .map((name) => name.trim());
+  return names.join(', ');
+}
+
+function musicItemToMatch(m: Record<string, unknown>): AcrCloudRecognizeResult | null {
+  const title = typeof m.title === 'string' ? m.title.trim() : '';
+  const artist = artistCreditFromAcrMusicItem(m);
   if (!title && !artist) return null;
 
   let album: string | null = null;
@@ -187,6 +186,51 @@ function parseMatch(json: Record<string, unknown>): AcrCloudRecognizeResult | nu
   return { artist, title, album, confidence, isrc };
 }
 
+export type AcrCloudMatchSelection = {
+  match: AcrCloudRecognizeResult | null;
+  candidateCount: number;
+  artistFiltered: boolean;
+};
+
+/** Pick the first catalog hit, or the first hit credited to the show artist. */
+export function selectAcrCloudMatch(
+  json: Record<string, unknown>,
+  expectedArtist?: string | null,
+): AcrCloudMatchSelection {
+  const metadata = json.metadata;
+  if (!metadata || typeof metadata !== 'object') {
+    return { match: null, candidateCount: 0, artistFiltered: false };
+  }
+  const music = (metadata as { music?: unknown }).music;
+  if (!Array.isArray(music) || music.length === 0) {
+    return { match: null, candidateCount: 0, artistFiltered: false };
+  }
+
+  const candidates: AcrCloudRecognizeResult[] = [];
+  for (const item of music) {
+    if (!item || typeof item !== 'object') continue;
+    const parsed = musicItemToMatch(item as Record<string, unknown>);
+    if (parsed) candidates.push(parsed);
+  }
+  if (candidates.length === 0) {
+    return { match: null, candidateCount: 0, artistFiltered: false };
+  }
+
+  if (!expectedArtist?.trim()) {
+    return { match: candidates[0], candidateCount: candidates.length, artistFiltered: false };
+  }
+
+  const match =
+    candidates.find((candidate) =>
+      recognizedArtistMatchesShow(expectedArtist, candidate.artist),
+    ) ?? null;
+  return {
+    match,
+    candidateCount: candidates.length,
+    artistFiltered: match == null,
+  };
+}
+
 /**
  * [ACRCloud Identification API](https://docs.acrcloud.com/reference/identification-api/identification-api) — multipart audio upload.
  */
@@ -194,6 +238,7 @@ export async function recognizeMusicWithAcrCloud(
   config: AcrCloudConfig,
   file: File | Blob,
   filename: string,
+  options?: { expectedArtist?: string | null },
 ): Promise<AcrCloudRecognizeResponse> {
   const host = normalizeHost(config.host);
   const accessKey = config.accessKey.trim();
@@ -307,13 +352,25 @@ export async function recognizeMusicWithAcrCloud(
     };
   }
 
-  const match = parseMatch(json);
-  if (!match) {
+  const selected = selectAcrCloudMatch(json, options?.expectedArtist);
+  if (!selected.match) {
+    if (selected.artistFiltered) {
+      console.log(
+        `[ACRCloud] dropped ${selected.candidateCount} hit(s) that were not ${options?.expectedArtist ?? 'the show artist'} file=${safeName}`,
+      );
+      return {
+        ok: true,
+        match: null,
+        status: 'no_match',
+        skippedReason: 'artist_mismatch',
+        acrcloudCode: statusCode,
+      };
+    }
     console.warn(
       `[ACRCloud] code=${statusCode ?? 0} but empty metadata.music bytes=${sampleBytes} file=${safeName}`,
     );
     return { ok: true, match: null, status: 'no_match', acrcloudCode: statusCode };
   }
 
-  return { ok: true, match };
+  return { ok: true, match: selected.match };
 }

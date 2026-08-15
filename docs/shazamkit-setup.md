@@ -19,18 +19,19 @@ ShazamKit no-match or error.
    clips. ShazamKit now runs first there
    (`src/react-app/utils/shazamKitIdentify.ts`); no-match/error falls through
    to the existing ACRCloud ladder.
-2. The WebView picks the cheapest audio source for the Capacitor bridge:
-   parallel mic capture (AAC), else a ≤14s mono WAV extracted with WebAudio,
-   else the whole video when small — then sends it base64 to the
-   `packages/shazamkit` plugin.
-3. The Swift plugin (`ShazamKitPlugin.swift`) writes the payload to a temp
-   file, reads the audio track with `AVAssetReader`, generates a signature
-   with `SHSignatureGenerator`, and matches via `SHSession`.
-4. **Quick capture HUD**: clips recorded with the quick record button show the
-   song name on the camera HUD next to the venue/show data — the stabilized
-   live match while recording, then "Identifying song…", then the
-   ShazamKit/ACR title once the queued upload's song ID resolves
-   (`src/react-app/lib/capture-hud-song.ts`).
+2. Native iOS quick-capture uses `ShazamKit.recognizeFile({ path })` on the
+   recorded MP4 (muxed audio track) so the WebView never base64s a 20–40MB
+   movie. Other paths pick the cheapest audio source for the Capacitor bridge:
+   parallel mic capture (AAC), else an 11s mono WAV extracted with WebAudio
+   (Shazam catalog signatures must be **>1s and <12s** — SHError 201 if
+   longer), else the whole video when small.
+3. The Swift plugin (`ShazamKitPlugin.swift`) reads the audio track with
+   `AVAssetReader` (first 11s), generates a signature with
+   `SHSignatureGenerator`, and matches via `SHSession`.
+4. **Quick capture HUD**: while recording, 8s mic segments run **ShazamKit
+   only** (no live ACR). A match shows as `♪ title` on the camera HUD and is
+   attached to the clip at enqueue. If live ID misses, the upload outbox runs
+   ShazamKit then ACRCloud and patches `song_title` as before.
 
 ### Capacitor build steps
 
@@ -75,16 +76,43 @@ is deployed. So to test ShazamKit on a physical iPhone:
 Also required at runtime: network access (Shazam catalog is remote) and the
 ShazamKit **App Service** enabled on `com.feedbacklive.app`.
 
-**HUD + upload behavior on this branch**
+**HUD + upload identify on this branch**
 
-- While recording (native Capgo + AAC segments, or web MediaRecorder), live
-  mic chunks run **ShazamKit first**, then Worker ACR — the song line appears
-  next to venue/show details on the camera HUD.
-- After quick-capture enqueue, if there is still no title, the outbox runs
-  ShazamKit→ACR before upload and again after publish (PATCH `/api/clips/update-own`)
-  so the clip gets a song title even when live ID missed.
+- While recording, ShazamKit runs on ~8s AAC segments (signatures stay under
+  12s). A match appears on the camera HUD; ACR is not called during capture.
+- If live ShazamKit misses, the outbox runs ShazamKit→ACR before upload and
+  again after publish (PATCH `/api/clips/update-own`).
 - Manual / library uploads identify on the clip details (`UploadClip`) screen
   before Share via the same `identifyMusicForClip` ladder.
+
+### TestFlight / App Store (works in Xcode, fails when distributed)
+
+`npm run deploy` only updates **Worker JS**. It does **not** update the native
+plugin inside a TestFlight/App Store binary. Local Run uses whatever you just
+compiled; TestFlight keeps the last **Archive** until you upload a new build.
+
+1. Stay on `cursor/shazamkit-upload-identify-2ee4` (or merge it first).
+2. Deploy JS: `npm run deploy`
+3. Refresh native: `npx cap sync ios`
+4. Open **`ios/App/App.xcworkspace`** (not the `.xcodeproj` — that archive has
+   no CocoaPods / no ShazamKit plugin).
+5. **Product → Archive** (Release), then Distribute to TestFlight.
+6. On the phone: install the **new** TestFlight build, force-quit once.
+7. Confirm the **ShazamKit App Service** is on App ID `com.feedbacklive.app`,
+   then let Xcode regenerate the **App Store** distribution profile (delete the
+   old one in the developer portal if the archive was created before ShazamKit
+   was enabled).
+
+Safari → Develop → WebView on the TestFlight app should log:
+
+```text
+[shazamkit] isSupported {supported: true, maxSignatureSeconds: 11, pluginRevision: 2} revision=2
+```
+
+If you see `legacy-binary` or only `{supported: true}` with no
+`pluginRevision`, that TestFlight build is an older archive (15s signatures /
+no HUD). Re-archive from this branch.
+
 ### Troubleshooting: `objectVersion 70` / `pod install` fails
 
 CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode
@@ -119,7 +147,7 @@ to Xcode 14 (or Xcode 16 → objectVersion 77) so it does not keep saving as 70.
    (`apps/mobile/src/lib/music/recognize-capture.ts`) and stores the outcome on
    the handoff (`musicRecognition`), so remounting the screen doesn't re-run it.
 3. On iOS the native module `apps/mobile/modules/feedback-shazamkit` reads the
-   clip's audio track with `AVAssetReader`, feeds up to 15s of PCM into
+   clip's audio track with `AVAssetReader`, feeds up to 11s of PCM into
    `SHSignatureGenerator`, and matches the signature via `SHSession`.
 4. A match prefills the **Song** and **Artist** fields — only when they are
    still empty; user-edited values are never overwritten.
@@ -203,6 +231,7 @@ plugin), which the JS layers convert into non-blocking states:
 | `ERR_SHAZAMKIT_BAD_FILE` / `ERR_SHAZAMKIT_FILE_NOT_FOUND` | Malformed or missing recording |
 | `ERR_SHAZAMKIT_NO_AUDIO_TRACK` | No/too-short audio track |
 | `ERR_SHAZAMKIT_SIGNATURE` | Signature generation failed |
+| `ERR_SHAZAMKIT_SIGNATURE_DURATION` | Signature longer than 12s (SHError 201) — not retried |
 | `ERR_SHAZAMKIT_MATCH_FAILED` | Match attempt failed (network, or SHError 202) |
 
 A clean catalog no-match resolves `null` (not an error).

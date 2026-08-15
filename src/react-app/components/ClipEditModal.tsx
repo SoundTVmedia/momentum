@@ -9,6 +9,7 @@ import { saveClipMetadataFields } from '@/react-app/lib/applyClipSongRecognition
 import { hashtagsToInput } from '@/react-app/lib/clipFormFields';
 import { useJamBase } from '@/react-app/hooks/useJamBase';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
+import { clipShowsOpenerBadge, songTitlesMatch } from '@/shared/clip-song-credit';
 
 type EditableClip = ClipWithUser | DashboardGridClip;
 
@@ -58,6 +59,7 @@ export default function ClipEditModal({
   const [venueSearchPending, setVenueSearchPending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forceTitle, setForceTitle] = useState(false);
 
   const debouncedArtistSearch = useDebounce(artistSearch, 300);
   const debouncedVenueSearch = useDebounce(venueSearch, 300);
@@ -81,6 +83,7 @@ export default function ClipEditModal({
     setShowArtistSuggestions(false);
     setShowVenueSuggestions(false);
     setError(null);
+    setForceTitle(false);
   }, [clip]);
 
   useEffect(() => {
@@ -203,6 +206,21 @@ export default function ClipEditModal({
     }
     setSubmitting(true);
     setError(null);
+    const recognizedTitle = readClipString(clip, 'recognized_song_title');
+    const recognizedArtist = readClipString(clip, 'recognized_song_artist');
+    if (
+      !forceTitle &&
+      recognizedTitle &&
+      songTitle.trim() &&
+      !songTitlesMatch(songTitle, recognizedTitle)
+    ) {
+      setError(
+        `We identified “${recognizedTitle}”${recognizedArtist ? ` — ${recognizedArtist}` : ''}. Save again to keep your title, or change it back to the identified name.`,
+      );
+      setForceTitle(true);
+      setSubmitting(false);
+      return;
+    }
     try {
       const updated = await saveClipMetadataFields(
         clip,
@@ -214,6 +232,9 @@ export default function ClipEditModal({
           hashtags,
           song_title: songTitle,
           genre_name: genreName,
+          recognized_song_title: recognizedTitle || null,
+          recognized_song_artist: recognizedArtist || null,
+          song_title_forced: forceTitle ? 1 : 0,
           ...(asSuperadmin
             ? {
                 event_title: eventTitle,
@@ -434,11 +455,22 @@ export default function ClipEditModal({
               id="edit-song"
               type="text"
               value={songTitle}
-              onChange={(e) => setSongTitle(e.target.value)}
+              onChange={(e) => {
+                setSongTitle(e.target.value);
+                setForceTitle(false);
+              }}
               className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-flare focus:outline-none"
               placeholder="What song was playing?"
               maxLength={200}
             />
+            {clipShowsOpenerBadge({
+              artist_name: artistName,
+              recognized_song_artist: readClipString(clip, 'recognized_song_artist'),
+            }) ? (
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-200/90">
+                Opener — this fingerprint is not the headliner
+              </p>
+            ) : null}
             <ClipSongRecognitionControl
               className="mt-2"
               clip={clip}

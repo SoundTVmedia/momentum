@@ -2,10 +2,9 @@
  * Song line for the quick-capture camera HUD, shown with the venue/show data.
  *
  * Sources, in priority order:
- * 1. Identified title for the just-queued clip (ShazamKit primary / ACRCloud
- *    fallback — patched onto the outbox job while it uploads).
+ * 1. Identified title (live ShazamKit match, or upload ShazamKit/ACR patch).
  * 2. Stabilized live match while recording.
- * 3. A pending state while the queued clip's song ID is still running.
+ * 3. Pending while ShazamKit is listening, or the queued clip's upload ID is running.
  */
 export type CaptureHudLiveMatch = { artist: string; title: string };
 

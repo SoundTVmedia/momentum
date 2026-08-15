@@ -53,9 +53,7 @@ export type AudDNavPrefill = {
 
 export type LiveSongSnapshot = { artist: string; title: string };
 
-/**
- * Prefer the post-capture identify pass; fall back to a stabilized live match when the final pass misses.
- */
+/** Prefer the post-capture identify pass; fall back to a live match when the final pass fails hard. */
 export function mergeLiveAndFinalSongIdentify(
   live: LiveSongSnapshot | null | undefined,
   final: AudDIdentifyResult,
@@ -332,7 +330,11 @@ function shouldStopIdentifyPass(r: AudDIdentifyResult): boolean {
  */
 export async function identifyMusicForClip(
   video: Blob,
-  options?: { live?: LiveSongSnapshot | null; audio?: Blob | null; nativeFilePath?: string | null },
+  options?: {
+    live?: LiveSongSnapshot | null;
+    audio?: Blob | null;
+    nativeFilePath?: string | null;
+  },
 ): Promise<AudDIdentifyResult> {
   const live = options?.live;
   const audio = options?.audio;
@@ -346,9 +348,9 @@ export async function identifyMusicForClip(
   const finish = (r: AudDIdentifyResult) =>
     mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(r));
 
-  // Primary provider: on-device ShazamKit (native iOS builds with the
-  // @feedback/shazamkit plugin). Prefer the local recording path so we do not
-  // base64 a 20–40MB movie. No-match/error falls through to ACRCloud.
+  // Primary: on-device ShazamKit (native iOS). Prefer the local recording path
+  // so we do not base64 a 20–40MB movie. No-match / non-fatal error falls
+  // through to ACRCloud (Worker /api/clips/identify-music).
   const shazamKit = nativeFilePath
     ? await identifyNativeFileWithShazamKit(nativeFilePath)
     : await identifyClipWithShazamKit(video, audio ?? null);

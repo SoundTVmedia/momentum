@@ -2032,6 +2032,7 @@ export default function UploadClip() {
     isPending,
     formData.video_blob,
     formData.video_file,
+    formData.artist_name,
     location.state,
     uploadSource,
     classifyResult?.content_feed,

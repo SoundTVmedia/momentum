@@ -27,7 +27,7 @@ export function isShazamKitIdentifyAvailable(): boolean {
 
 let loggedAvailability = false;
 
-/** One-shot console probe so device logs show whether the native plugin answers. */
+/** Console probe so Xcode/TestFlight logs show whether this binary has the 11s plugin. */
 export function logShazamKitAvailability(): void {
   if (loggedAvailability) return;
   loggedAvailability = true;
@@ -44,7 +44,19 @@ export function logShazamKitAvailability(): void {
     console.warn('[shazamkit] availability probe failed', err);
   }
   void ShazamKit.isSupported()
-    .then((r) => console.log('[shazamkit] isSupported', r))
+    .then((r) => {
+      const revision =
+        r && typeof r === 'object' && typeof r.pluginRevision === 'number'
+          ? r.pluginRevision
+          : null;
+      console.log(
+        '[shazamkit] isSupported',
+        r,
+        revision != null
+          ? `revision=${revision} maxSignatureSeconds=${r.maxSignatureSeconds ?? '?'}`
+          : 'legacy-binary (Archive from cursor/shazamkit-upload-identify-2ee4 after cap sync)',
+      );
+    })
     .catch((err) => console.warn('[shazamkit] isSupported failed', err));
 }
 
@@ -124,10 +136,26 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-function isTransientShazamKitMatchFailure(err: unknown): boolean {
-  const code = (err as { code?: string } | null)?.code ?? '';
-  const message = err instanceof Error ? err.message : String((err as { message?: string } | null)?.message ?? '');
-  // SHError 202 (matchAttemptFailed) — Apple docs: often transient, retry the match.
+/**
+ * SHError 202 (matchAttemptFailed) is often transient and worth one retry.
+ * SHError 201 (signatureDurationInvalid) is not — retrying the same signature fails again.
+ */
+export function isTransientShazamKitMatchFailure(err: unknown): boolean {
+  const rec = err as { code?: string; message?: string; errorMessage?: string } | null;
+  const code = rec?.code ?? '';
+  const message =
+    err instanceof Error
+      ? err.message
+      : String(rec?.errorMessage ?? rec?.message ?? '');
+  if (
+    code === 'ERR_SHAZAMKIT_SIGNATURE_DURATION' ||
+    code === 'ERR_SHAZAMKIT_SIGNATURE' ||
+    /error 201|signatureDurationInvalid|signature duration|invalid and cannot be matched/i.test(
+      message,
+    )
+  ) {
+    return false;
+  }
   return code === 'ERR_SHAZAMKIT_MATCH_FAILED' || /error 202|match attempt failed/i.test(message);
 }
 
@@ -179,6 +207,7 @@ export async function identifyNativeFileWithShazamKit(
   const trimmed = path?.trim() ?? '';
   if (!trimmed) return null;
   if (!isShazamKitIdentifyAvailable()) return null;
+  logShazamKitAvailability();
   try {
     const { match } = await withTimeout(
       ShazamKit.recognizeFile({ path: trimmed }),

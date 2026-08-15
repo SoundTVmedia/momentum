@@ -75,8 +75,8 @@ async function enrichJobWithAcrIfNeeded(
     onPatch({ status: 'classifying', progress: Math.max(current.progress, 2), error: null });
     const formPatch = await resolveSongIdentifyForUploadJob(current, video, captureAudio);
     current = applyFormPatch(current, formPatch);
-    // Keep songIdentifyPending true when still empty so the camera HUD stays on
-    // "Identifying song…" through upload until the post-publish pass finishes.
+    // Keep songIdentifyPending true when still empty so the post-publish pass
+    // can still attach a song title if the pre-upload identify missed.
     onPatch({
       songIdentifyPending: !current.form.song_title?.trim(),
       ...(Object.keys(formPatch).length > 0 ? { form: current.form } : {}),

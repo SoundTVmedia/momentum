@@ -107,6 +107,7 @@ export async function recognizeMusic(
   env: RecognizeEnv,
   file: File | Blob,
   filename: string,
+  options?: { expectedArtist?: string | null },
 ): Promise<MusicRecognizeResponse> {
   const acr = acrConfigFromEnv(env);
 
@@ -119,7 +120,7 @@ export async function recognizeMusic(
     };
   }
 
-  const out = await recognizeMusicWithAcrCloud(acr, file, filename);
+  const out = await recognizeMusicWithAcrCloud(acr, file, filename, options);
 
   if (!out.ok) {
     return {

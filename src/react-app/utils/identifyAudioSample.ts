@@ -38,7 +38,8 @@ export async function extractWavSnippetViaWebAudio(blob: Blob): Promise<Blob | n
     ctx = new AudioContext();
     const ab = await blob.arrayBuffer();
     const decoded = await ctx.decodeAudioData(ab.slice(0));
-    const maxSec = 14;
+    // Shazam catalog signatures must be >1s and <12s (SHError 201). ACR is fine with 11s too.
+    const maxSec = 11;
     const duration = decoded.duration;
     if (!Number.isFinite(duration) || duration <= 0) return null;
 

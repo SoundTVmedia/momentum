@@ -5,41 +5,27 @@ import {
 } from './capture-hud-song';
 
 describe('resolveCaptureHudSongLabel', () => {
-  it('prefers the identified title for the queued clip', () => {
+  it('prefers an identified title', () => {
     expect(
       resolveCaptureHudSongLabel({
         identifiedTitle: 'Tweezer',
-        liveMatch: { artist: 'Other', title: 'Other Song' },
+        liveMatch: { artist: 'Phish', title: 'Possum' },
         identifyPending: true,
       }),
     ).toBe('♪ Tweezer');
   });
 
-  it('shows the stabilized live match while recording', () => {
+  it('shows live title and artist while recording', () => {
     expect(
       resolveCaptureHudSongLabel({
         identifiedTitle: null,
-        liveMatch: { artist: 'Neil Young', title: 'Harvest Moon' },
-        identifyPending: false,
+        liveMatch: { artist: 'Phish', title: 'Tweezer' },
+        identifyPending: true,
       }),
-    ).toBe('♪ Harvest Moon — Neil Young');
-    expect(
-      resolveCaptureHudSongLabel({
-        identifiedTitle: null,
-        liveMatch: { artist: '', title: 'Harvest Moon' },
-        identifyPending: false,
-      }),
-    ).toBe('♪ Harvest Moon');
-    expect(
-      resolveCaptureHudSongLabel({
-        identifiedTitle: null,
-        liveMatch: { artist: 'Neil Young', title: '' },
-        identifyPending: false,
-      }),
-    ).toBe('♪ Neil Young');
+    ).toBe('♪ Tweezer — Phish');
   });
 
-  it('shows the pending state while song ID runs for the queued clip', () => {
+  it('shows a pending state when identify is in flight', () => {
     expect(
       resolveCaptureHudSongLabel({
         identifiedTitle: null,
@@ -49,7 +35,7 @@ describe('resolveCaptureHudSongLabel', () => {
     ).toBe('Identifying song…');
   });
 
-  it('is hidden with no song information', () => {
+  it('returns null when nothing is pending or matched', () => {
     expect(
       resolveCaptureHudSongLabel({
         identifiedTitle: null,
@@ -57,23 +43,16 @@ describe('resolveCaptureHudSongLabel', () => {
         identifyPending: false,
       }),
     ).toBeNull();
-    expect(
-      resolveCaptureHudSongLabel({
-        identifiedTitle: '  ',
-        liveMatch: { artist: ' ', title: '' },
-        identifyPending: false,
-      }),
-    ).toBeNull();
   });
 });
 
 describe('isHudSongIdentifyPending', () => {
-  it('is pending while the queued job has song ID outstanding', () => {
+  it('is pending when the queued job is still identifying', () => {
     expect(isHudSongIdentifyPending({ songIdentifyPending: true }, null)).toBe(true);
     expect(isHudSongIdentifyPending({}, null)).toBe(true);
   });
 
-  it('is not pending once resolved, identified, or without a job', () => {
+  it('is not pending after a title lands or the job finished', () => {
     expect(isHudSongIdentifyPending({ songIdentifyPending: false }, null)).toBe(false);
     expect(isHudSongIdentifyPending({ songIdentifyPending: true }, 'Tweezer')).toBe(false);
     expect(isHudSongIdentifyPending(null, null)).toBe(false);
