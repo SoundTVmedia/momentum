@@ -2,10 +2,14 @@ import { resolveClipDownloadUrl, type ClipPlaybackFields } from '@/shared/clip-p
 import { identifySampleByteLength } from '@/shared/identify-music-limits';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
-  identifyMusicForClip,
   normalizeIdentifyResult,
   type AudDIdentifyResult,
 } from '@/react-app/utils/auddIdentify';
+import { extractWavSnippetViaWebAudio } from '@/react-app/utils/identifyAudioSample';
+import {
+  identifyClipWithShazamKit,
+  isShazamKitIdentifyAvailable,
+} from '@/react-app/utils/shazamKitIdentify';
 
 function absoluteClipMediaUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
@@ -107,13 +111,19 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
   }
 }
 
-/** Run ACR on an uploaded clip (browser 12s snippet first, Worker 12s sample fallback). */
+/** Uploaded-clip song ID: ShazamKit only on a complete 12s WAV, else Worker ACRCloud. */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
 ): Promise<AudDIdentifyResult> {
   const blob = await fetchUploadedClipVideoBlob(clip);
-  if (blob) {
-    return normalizeIdentifyResult(await identifyMusicForClip(blob));
+  if (blob && isShazamKitIdentifyAvailable()) {
+    const wav = await extractWavSnippetViaWebAudio(blob);
+    if (wav) {
+      const shazam = await identifyClipWithShazamKit(wav);
+      if (shazam?.status === 'match') {
+        return normalizeIdentifyResult(shazam);
+      }
+    }
   }
   return identifySongViaServer(clip);
 }

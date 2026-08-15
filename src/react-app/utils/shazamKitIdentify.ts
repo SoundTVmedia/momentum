@@ -245,7 +245,7 @@ export async function identifyClipWithShazamKit(
   if (!source) {
     source = await extractWavSnippetViaWebAudio(video);
   }
-  if (!source && canSendVideoDirectly(video)) {
+  if (!source && canSendVideoDirectly(video) && video.type.toLowerCase().startsWith('audio/')) {
     source = video;
   }
   if (!source || source.size < MIN_IDENTIFY_SAMPLE_BYTES) return null;

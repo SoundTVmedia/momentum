@@ -195,17 +195,17 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
     }
 
     let sampleRate: Double = 44_100
-    let outputSettings: [String: Any] = [
-      AVFormatIDKey: kAudioFormatLinearPCM,
-      AVSampleRateKey: sampleRate,
-      AVNumberOfChannelsKey: 1,
-      AVLinearPCMBitDepthKey: 32,
-      AVLinearPCMIsFloatKey: true,
-      AVLinearPCMIsBigEndianKey: false,
-      AVLinearPCMIsNonInterleaved: false,
-    ]
-    let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
-    output.alwaysCopiesSampleData = false
+        let outputSettings: [String: Any] = [
+          AVFormatIDKey: kAudioFormatLinearPCM,
+          AVSampleRateKey: sampleRate,
+          AVNumberOfChannelsKey: 1,
+          AVLinearPCMBitDepthKey: 32,
+          AVLinearPCMIsFloatKey: true,
+          AVLinearPCMIsBigEndianKey: false,
+          AVLinearPCMIsNonInterleaved: true,
+        ]
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: outputSettings)
+        output.alwaysCopiesSampleData = true
     guard reader.canAdd(output) else {
       throw RecognizerError(
         code: "ERR_SHAZAMKIT_BAD_FILE",
@@ -252,24 +252,23 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
       appendedFrames += pcmBuffer.frameLength
     }
 
-    if reader.status == .failed {
-      throw RecognizerError(
-        code: "ERR_SHAZAMKIT_BAD_FILE",
-        message: reader.error.map {
-          "Reading the recording failed: \($0.localizedDescription)"
-        } ?? "Reading the recording failed."
-      )
-    }
+        if appendedFrames >= AVAudioFrameCount(sampleRate) {
+          return try generator.signature()
+        }
 
-    // Require ~1s of audio; Shazam cannot match shorter fragments.
-    guard appendedFrames >= AVAudioFrameCount(sampleRate) else {
-      throw RecognizerError(
-        code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK",
-        message: "The recording's audio track was too short for song recognition."
-      )
-    }
+        if reader.status == .failed {
+          throw RecognizerError(
+            code: "ERR_SHAZAMKIT_BAD_FILE",
+            message: reader.error.map {
+              "Reading the recording failed: \($0.localizedDescription)"
+            } ?? "Reading the recording failed."
+          )
+        }
 
-    return generator.signature()
+        throw RecognizerError(
+          code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK",
+          message: "The recording's audio track was too short for song recognition."
+        )
   }
 
   private static func pcmBuffer(
