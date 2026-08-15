@@ -9,9 +9,10 @@ export const MAX_IDENTIFY_UPLOAD_BYTES = 12 * 1024 * 1024;
 
 /**
  * Max audio duration sent to ShazamKit or ACRCloud on every identify path
- * (capture, upload outbox, caption screen, superadmin re-identify).
+ * (capture, upload outbox, caption screen, clip-player tap-to-identify).
+ * Apple's SHSignature max is 12.000s; stay at 11s so we cannot overshoot.
  */
-export const IDENTIFY_SAMPLE_SECONDS = 12;
+export const IDENTIFY_SAMPLE_SECONDS = 11;
 
 /**
  * Bytes of muxed A/V that typically cover {@link IDENTIFY_SAMPLE_SECONDS}
@@ -24,7 +25,7 @@ function finitePositive(value: unknown): number | null {
 }
 
 /**
- * Byte length of a ~12s sample taken from the start of a muxed video/audio file.
+ * Byte length of a ~11s sample taken from the start of a muxed video/audio file.
  * When size + duration are known, scales to {@link IDENTIFY_SAMPLE_SECONDS} with
  * 15% mux-header headroom; otherwise uses {@link IDENTIFY_SAMPLE_BYTES_PER_SECOND}.
  * Always capped at `maxBytes` (ACRCloud 5MB by default).

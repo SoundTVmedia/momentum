@@ -1,9 +1,41 @@
-import type { ClipPlaybackFields } from '@/shared/clip-playback';
+import { resolveClipDownloadUrl, type ClipPlaybackFields } from '@/shared/clip-playback';
+import { identifySampleByteLength } from '@/shared/identify-music-limits';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
   normalizeIdentifyResult,
   type AudDIdentifyResult,
 } from '@/react-app/utils/auddIdentify';
+import { extractWavSnippetViaWebAudio } from '@/react-app/utils/identifyAudioSample';
+import {
+  identifyClipWithShazamKit,
+  isShazamKitIdentifyAvailable,
+} from '@/react-app/utils/shazamKitIdentify';
+
+function absoluteClipMediaUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  if (typeof window === 'undefined') return url;
+  return new URL(url, window.location.origin).href;
+}
+
+/** Fetch ≤11s of the published clip for a client ShazamKit WAV extract. */
+export async function fetchUploadedClipVideoBlob(
+  clip: ClipPlaybackFields,
+): Promise<Blob | null> {
+  const url = resolveClipDownloadUrl(clip);
+  if (!url) return null;
+  const maxBytes = identifySampleByteLength();
+  try {
+    const res = await fetch(absoluteClipMediaUrl(url), {
+      credentials: 'include',
+      headers: { Range: `bytes=0-${maxBytes - 1}` },
+    });
+    if (!res.ok && res.status !== 206) return null;
+    const blob = await res.blob();
+    return blob.size > 0 ? blob : null;
+  } catch {
+    return null;
+  }
+}
 
 type ServerIdentifyResponse = {
   ok?: boolean;
@@ -80,14 +112,22 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
   }
 }
 
-/** Uploaded-clip song ID runs on the Worker.
-
-Capgo MP4s keep `moov` at the end, so a client Range of the first ~5MB cannot
-be opened by AVFoundation (`Cannot Open`) or WebAudio. Device ShazamKit still
-runs on the local file at capture/upload time via `recognizeFile`.
-*/
+/**
+ * Clip-player / edit-modal song ID: ShazamKit on a complete ≤11s WAV when
+ * WebAudio can decode the published file, else Worker ACRCloud (also ≤11s).
+ */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
 ): Promise<AudDIdentifyResult> {
+  const blob = await fetchUploadedClipVideoBlob(clip);
+  if (blob && isShazamKitIdentifyAvailable()) {
+    const wav = await extractWavSnippetViaWebAudio(blob);
+    if (wav) {
+      const shazam = await identifyClipWithShazamKit(wav);
+      if (shazam?.status === 'match') {
+        return normalizeIdentifyResult(shazam);
+      }
+    }
+  }
   return identifySongViaServer(clip);
 }

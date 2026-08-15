@@ -1,7 +1,7 @@
 import { IDENTIFY_SAMPLE_SECONDS } from '@/shared/identify-music-limits';
 
 const SNIPPET_MS = IDENTIFY_SAMPLE_SECONDS * 1000;
-/** Prefer a full 12s sample when the clip is long enough. */
+/** Prefer a full 11s sample when the clip is long enough. */
 const PREFERRED_RECORD_MS = IDENTIFY_SAMPLE_SECONDS * 1000;
 const MIN_RECORD_MS = 3_000;
 

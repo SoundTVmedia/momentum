@@ -15,6 +15,8 @@ type ClipSongRecognitionControlProps = {
   onSaved?: (updated: ClipWithUser) => void;
   className?: string;
   buttonClassName?: string;
+  /** Idle button label. Clip player uses "Tap to identify". */
+  idleLabel?: string;
 };
 
 export default function ClipSongRecognitionControl({
@@ -24,6 +26,7 @@ export default function ClipSongRecognitionControl({
   onSaved,
   className = '',
   buttonClassName = '',
+  idleLabel = 'Tap to identify',
 }: ClipSongRecognitionControlProps) {
   const [status, setStatus] = useState<
     'idle' | 'loading' | 'done' | 'nomatch' | 'skipped' | 'error'
@@ -72,12 +75,12 @@ export default function ClipSongRecognitionControl({
         ) : (
           <>
             <Disc3 className="h-3.5 w-3.5" aria-hidden />
-            Run song recognition
+            {idleLabel}
           </>
         )}
       </button>
       {status === 'loading' ? (
-        <p className="mt-2 text-xs text-violet-200/90">Listening to this clip with ACRCloud…</p>
+        <p className="mt-2 text-xs text-violet-200/90">Listening for a song in this clip…</p>
       ) : null}
       {status === 'done' && message ? (
         <p className="mt-2 text-xs text-emerald-300">{message}</p>

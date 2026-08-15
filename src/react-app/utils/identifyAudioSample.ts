@@ -4,7 +4,7 @@ import {
   identifySampleByteLength,
 } from '@/shared/identify-music-limits';
 
-/** First N bytes of a large WebM/MP4 usually include the mux header + ~12s of audio. */
+/** First N bytes of a large WebM/MP4 usually include the mux header + ~11s of audio. */
 export function sliceHeadForIdentify(
   source: Blob,
   maxBytes: number = identifySampleByteLength(),
@@ -26,7 +26,7 @@ export function headSliceLikelyValid(source: Blob, head: Blob): boolean {
 const MAX_WEB_AUDIO_DECODE_BYTES = 22 * 1024 * 1024;
 
 /**
- * Decode via Web Audio and export a ≤12s mono WAV (reliable when captureStream fails on large files).
+ * Decode via Web Audio and export a ≤11s mono WAV (reliable when captureStream fails on large files).
  * Only used under ~22MB to avoid mobile OOM.
  */
 export async function extractWavSnippetViaWebAudio(blob: Blob): Promise<Blob | null> {

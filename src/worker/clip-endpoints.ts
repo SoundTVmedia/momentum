@@ -784,7 +784,7 @@ async function fetchRangeBlob(
   }
 }
 
-/** First ~12s of the uploaded clip (byte-scaled from duration when known). */
+/** First ~11s of the uploaded clip (byte-scaled from duration when known). */
 async function readClipVideoSampleForIdentify(
   env: Env,
   row: Record<string, unknown>,
@@ -837,7 +837,7 @@ async function readClipVideoSampleForIdentify(
   return null;
 }
 
-/** POST JSON — owner or superadmin re-runs song ID on an uploaded clip (~12s sample). */
+/** POST JSON — owner or superadmin re-runs song ID on an uploaded clip (~11s sample). */
 export async function postIdentifyOwnClipSong(c: Context<{ Bindings: Env }>) {
   let body: Record<string, unknown>;
   try {

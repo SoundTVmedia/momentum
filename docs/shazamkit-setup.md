@@ -20,7 +20,7 @@ ShazamKit no-match or error.
    (`src/react-app/utils/shazamKitIdentify.ts`); no-match/error falls through
    to the existing ACRCloud ladder.
 2. The WebView picks the cheapest audio source for the Capacitor bridge:
-   parallel mic capture (AAC), else a ≤12s mono WAV extracted with WebAudio,
+   parallel mic capture (AAC), else a ≤11s mono WAV extracted with WebAudio,
    else the whole video when small — then sends it base64 to the
    `packages/shazamkit` plugin.
 3. The Swift plugin (`ShazamKitPlugin.swift`) writes the payload to a temp
@@ -30,7 +30,7 @@ ShazamKit no-match or error.
    float32/mono/44.1 kHz and not a `reader.timeRange`, both of which threw
    `Invalid sample cursor` (`ERR_SHAZAMKIT_BAD_FILE`) on Capgo recordings,
    HUD AAC segments, and clip-player WAVs. WebM/Opus is skipped (iOS cannot
-   decode it); ACRCloud remains the fallback. The same 12s cap applies to
+   decode it); ACRCloud remains the fallback. The same 11s cap applies to
    ACRCloud — see `IDENTIFY_SAMPLE_SECONDS` in
    `src/shared/identify-music-limits.ts`.
 4. **Quick capture**: live mic chunks still run ShazamKit then ACRCloud for

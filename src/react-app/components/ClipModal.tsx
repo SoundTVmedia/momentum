@@ -318,15 +318,17 @@ export default function ClipModal({
     </button>
   ) : null;
 
-  const superadminSongRecognition = isSuperAdmin && !isOwnClip ? (
-    <ClipSongRecognitionControl
-      clip={clip}
-      currentFields={metadataFieldsFromClip(clip)}
-      asSuperadmin
-      onSaved={handleClipSaved}
-      className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-3"
-    />
-  ) : null;
+  const playerSongIdentify =
+    (isOwnClip || isSuperAdmin) && !clip.song_title?.trim() ? (
+      <ClipSongRecognitionControl
+        clip={clip}
+        currentFields={metadataFieldsFromClip(clip)}
+        asSuperadmin={isSuperAdmin && !isOwnClip}
+        onSaved={handleClipSaved}
+        idleLabel="Tap to identify"
+        buttonClassName="inline-flex items-center gap-1.5 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
+      />
+    ) : null;
 
   const downloadClipButton = canDownloadClip ? (
     <button
@@ -556,9 +558,8 @@ export default function ClipModal({
               <Disc3 className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
               <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
             </button>
-          ) : null}
-          {superadminSongRecognition ? (
-            <div className="mt-3">{superadminSongRecognition}</div>
+          ) : playerSongIdentify ? (
+            <div className="mt-1">{playerSongIdentify}</div>
           ) : null}
           {clip.venue_name ? (
             <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
@@ -822,9 +823,6 @@ export default function ClipModal({
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
               {editClipButton ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
-              {superadminSongRecognition ? (
-                <div className="mb-3">{superadminSongRecognition}</div>
-              ) : null}
               <div className="mb-3 flex items-center space-x-3">
                 <UserAvatar
                   imageUrl={clip.user_avatar}
@@ -879,6 +877,8 @@ export default function ClipModal({
                       {clip.song_title}
                     </span>
                   </button>
+                ) : playerSongIdentify ? (
+                  <div>{playerSongIdentify}</div>
                 ) : null}
                 {clip.genre_name?.trim() ? (
                   <button

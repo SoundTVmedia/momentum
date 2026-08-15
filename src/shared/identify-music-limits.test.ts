@@ -8,30 +8,30 @@ import {
 } from './identify-music-limits';
 
 describe('identifySampleByteLength', () => {
-  it('uses a 12s default under the ACRCloud 5MB cap when duration is unknown', () => {
-    expect(IDENTIFY_SAMPLE_SECONDS).toBe(12);
+  it('uses an 11s default under the ACRCloud 5MB cap when duration is unknown', () => {
+    expect(IDENTIFY_SAMPLE_SECONDS).toBe(11);
     const n = identifySampleByteLength();
     expect(n).toBe(IDENTIFY_SAMPLE_SECONDS * IDENTIFY_SAMPLE_BYTES_PER_SECOND);
     expect(n).toBeLessThanOrEqual(ACR_MAX_SAMPLE_BYTES);
     expect(n).toBeGreaterThan(MIN_IDENTIFY_SAMPLE_BYTES);
   });
 
-  it('scales a 60s file down to ~12s with mux headroom, capped at ACR max', () => {
+  it('scales a 60s file down to ~11s with mux headroom, capped at ACR max', () => {
     const n = identifySampleByteLength({
       fileSize: 30 * 1024 * 1024,
       durationSeconds: 60,
     });
-    // 30MB * 12/60 * 1.15 = 6.9MB → capped at 5MB
+    // 30MB * 11/60 * 1.15 = 6.325MB → capped at 5MB
     expect(n).toBe(ACR_MAX_SAMPLE_BYTES);
   });
 
-  it('requests ~12s of a typical Stream MP4 (not the whole clip)', () => {
+  it('requests ~11s of a typical Stream MP4 (not the whole clip)', () => {
     const n = identifySampleByteLength({
       fileSize: 15 * 1024 * 1024,
       durationSeconds: 60,
     });
-    // 15MB * 12/60 * 1.15 = 3.45MB
-    expect(n).toBe(Math.ceil(((15 * 1024 * 1024) / 60) * 12 * 1.15));
+    // 15MB * 11/60 * 1.15 = 3.1625MB
+    expect(n).toBe(Math.ceil(((15 * 1024 * 1024) / 60) * IDENTIFY_SAMPLE_SECONDS * 1.15));
     expect(n).toBeLessThan(ACR_MAX_SAMPLE_BYTES);
   });
 
