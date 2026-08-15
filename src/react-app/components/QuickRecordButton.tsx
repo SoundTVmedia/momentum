@@ -77,10 +77,6 @@ import {
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
-import {
-  isHudSongIdentifyPending,
-  resolveCaptureHudSongLabel,
-} from '@/react-app/lib/capture-hud-song';
 import { clearCaptureHandoffBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
 import {
   blobSourceKey,
@@ -151,7 +147,6 @@ export default function QuickRecordButton({
   const {
     enqueue: enqueueClipUpload,
     activeCount: clipUploadsInFlight,
-    jobs: clipUploadJobs,
   } = useClipUploadQueue();
   const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const lastGeoRef = useRef<{
@@ -208,13 +203,8 @@ export default function QuickRecordButton({
   const prevIsOpenRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
-  /** Stabilized song/artist used as caption prefill fallback and camera HUD song line. */
+  /** Stabilized song/artist used as caption prefill fallback. */
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
-  /** Live stabilized match rendered on the camera HUD while recording. */
-  const [liveHudSong, setLiveHudSong] = useState<{ artist: string; title: string } | null>(null);
-  /** Last quick-capture outbox job — its song ID result feeds the HUD song line. */
-  const [hudSongJobId, setHudSongJobId] = useState<string | null>(null);
-  const [hudIdentifiedSongTitle, setHudIdentifiedSongTitle] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -316,28 +306,6 @@ export default function QuickRecordButton({
       notice: null,
     });
   }, []);
-
-  /** HUD song line follows the queued quick-capture job — the outbox patches
-   *  form.song_title when ShazamKit/ACR identify resolves during upload. */
-  const hudTrackedJob = hudSongJobId
-    ? clipUploadJobs.find((j) => j.id === hudSongJobId) ?? null
-    : null;
-  const hudTrackedSongTitle = hudTrackedJob?.form.song_title ?? '';
-  useEffect(() => {
-    const title = hudTrackedSongTitle.trim();
-    if (title) setHudIdentifiedSongTitle(title);
-  }, [hudTrackedSongTitle]);
-  useEffect(() => {
-    if (showModal) return;
-    setLiveHudSong(null);
-    setHudSongJobId(null);
-    setHudIdentifiedSongTitle(null);
-  }, [showModal]);
-  const captureHudSongLabel = resolveCaptureHudSongLabel({
-    identifiedTitle: hudIdentifiedSongTitle,
-    liveMatch: liveHudSong,
-    identifyPending: isHudSongIdentifyPending(hudTrackedJob, hudIdentifiedSongTitle),
-  });
 
   useEffect(() => {
     coordsForNearbyVenuesRef.current = coordsForNearbyVenues;
@@ -1823,7 +1791,6 @@ export default function QuickRecordButton({
   const resetLiveSongIdentification = () => {
     liveStabilizerRef.current.reset();
     lastLiveSongMatchRef.current = null;
-    setLiveHudSong(null);
   };
 
   const waitForLiveAuddInFlight = async (maxMs: number): Promise<void> => {
@@ -1899,7 +1866,6 @@ export default function QuickRecordButton({
   const applyLiveSongDisplayed = (displayed: { artist: string; title: string } | null) => {
     if (!displayed || (!displayed.artist && !displayed.title)) return;
     lastLiveSongMatchRef.current = displayed;
-    setLiveHudSong(displayed);
   };
 
   const identifyLiveSegmentBlob = (blob: Blob) => {
@@ -2249,10 +2215,8 @@ export default function QuickRecordButton({
             if (result?.status !== 'match') return;
             const title = result.title?.trim() ?? '';
             const artist = result.artist?.trim() ?? '';
-            if (title) setHudIdentifiedSongTitle(title);
             if (title || artist) {
               lastLiveSongMatchRef.current = { title, artist };
-              applyLiveSongDisplayed({ title, artist });
             }
           });
           await handleRecordingComplete(null, {
@@ -2514,7 +2478,6 @@ export default function QuickRecordButton({
                 artist: nativeMatch.artist?.trim() ?? '',
               };
             }
-            setHudIdentifiedSongTitle(song_title);
           }
         } catch (err) {
           console.warn('QuickRecordButton: native file ShazamKit failed', err);
@@ -2598,12 +2561,6 @@ export default function QuickRecordButton({
         );
       }
 
-      // HUD song line follows this clip's song ID (live match now, or the
-      // ShazamKit/ACR result patched onto the outbox job during upload).
-      setHudSongJobId(jobId);
-      setHudIdentifiedSongTitle(song_title || null);
-
-      // Same Photos/gallery persist as the old caption handoff — do not wait for upload.
       void saveClipToDeviceGallery(uploadBlob, fileName, {
         sourceKey: blobSourceKey(uploadBlob),
         skipIfSaved: true,
@@ -2629,7 +2586,6 @@ export default function QuickRecordButton({
       recordingSecondsRef.current = 0;
       setRecordingElapsedSeconds(0);
       lastLiveSongMatchRef.current = null;
-      setLiveHudSong(null);
       webCaptureHadAudioRef.current = false;
     } catch (e) {
       console.error('QuickRecordButton: recording complete failed', e);
@@ -2991,19 +2947,9 @@ export default function QuickRecordButton({
                   <p className="text-gray-500 text-[10px] leading-snug pt-1">
                     Saved with this clip — uploads start when you end the moment.
                   </p>
-                ) : isRecording && isNativeIosCapture ? (
-                  <p className="text-momentum-flare/90 text-[10px] leading-snug pt-1">
-                    No music in your clip? Open Control Center → Mic Mode → Wide Spectrum.
-                  </p>
                 ) : null}
                 </>
               )}
-              {captureHudSongLabel ? (
-                <p className="text-momentum-flare/95 text-[11px] leading-snug flex items-start gap-1.5 pt-0.5">
-                  <Music className="w-3 h-3 shrink-0 mt-0.5 text-momentum-rose/80" />
-                  <span className="truncate">{captureHudSongLabel}</span>
-                </p>
-              ) : null}
             </div>
           </div>
         </div>
@@ -3024,11 +2970,6 @@ export default function QuickRecordButton({
             {captureResolvePreview.eventTitle ? (
               <p className="truncate text-[11px] font-semibold text-white/90">
                 {captureResolvePreview.eventTitle}
-              </p>
-            ) : null}
-            {captureHudSongLabel ? (
-              <p className="truncate text-[10px] font-medium text-momentum-flare/95">
-                {captureHudSongLabel}
               </p>
             ) : null}
             {clipUploadsInFlight > 0 ? (
@@ -3272,45 +3213,35 @@ export default function QuickRecordButton({
             )}
 
             {isRecording && (
-              <>
-                <div
-                  className="absolute z-10 transition-all duration-300 ease-in-out"
-                  style={{
-                    top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-                    left: '1rem',
-                  }}
-                >
-                  <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                    <span className="text-red-500 text-sm font-bold">REC</span>
-                  </div>
+              <div
+                className={`absolute z-10 transition-all duration-300 ease-in-out ${captureOverlayTextClass}`}
+                style={{
+                  top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+                  left: '1rem',
+                }}
+                aria-live="polite"
+                aria-label={`Recording, ${Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds)} seconds remaining`}
+              >
+                <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center gap-2">
+                  <span
+                    className="capture-rec-dot inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]"
+                    aria-hidden
+                  />
+                  <span className="text-red-500 text-sm font-bold tracking-wide">REC</span>
+                  <span
+                    className={`text-sm font-bold tabular-nums ${
+                      recordingElapsedSeconds >= HAPTIC_WARNING_TIME
+                        ? 'text-red-400'
+                        : 'text-white'
+                    }`}
+                  >
+                    :
+                    {String(
+                      Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds),
+                    ).padStart(2, '0')}
+                  </span>
                 </div>
-                <div
-                  className={`absolute z-10 transition-all duration-300 ease-in-out ${captureOverlayTextClass}`}
-                  style={{
-                    top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-                    right: '1rem',
-                  }}
-                  aria-live="polite"
-                  aria-label={`${Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds)} seconds remaining`}
-                >
-                  <div className="rounded-lg border border-white/20 bg-black/45 px-3 py-1 backdrop-blur-md">
-                    <span
-                      className={`text-sm font-bold tabular-nums ${
-                        MAX_RECORDING_TIME - recordingElapsedSeconds <=
-                        MAX_RECORDING_TIME - HAPTIC_WARNING_TIME
-                          ? 'text-red-400'
-                          : 'text-white'
-                      }`}
-                    >
-                      :
-                      {String(
-                        Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds),
-                      ).padStart(2, '0')}
-                    </span>
-                  </div>
-                </div>
-              </>
+              </div>
             )}
 
             {hasPermission && networkSpeed === 'slow' && (

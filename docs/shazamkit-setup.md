@@ -33,11 +33,9 @@ ShazamKit no-match or error.
    decode it); ACRCloud remains the fallback. The same 12s cap applies to
    ACRCloud — see `IDENTIFY_SAMPLE_SECONDS` in
    `src/shared/identify-music-limits.ts`.
-4. **Quick capture HUD**: clips recorded with the quick record button show the
-   song name on the camera HUD next to the venue/show data — the stabilized
-   live match while recording, then "Identifying song…", then the
-   ShazamKit/ACR title once the queued upload's song ID resolves
-   (`src/react-app/lib/capture-hud-song.ts`).
+4. **Quick capture**: live mic chunks still run ShazamKit then ACRCloud for
+   caption/upload prefill. The camera HUD does **not** show the song name
+   while recording.
 
 ### Capacitor build steps
 
@@ -84,9 +82,9 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
 
 **HUD + upload behavior on this branch**
 
-- While recording (native Capgo + AAC segments, or web MediaRecorder), live
-  mic chunks run **ShazamKit first**, then Worker ACR — the song line appears
-  next to venue/show details on the camera HUD.
+- While recording, live mic chunks still run **ShazamKit first**, then Worker
+  ACR, to prefill the clip's song title after capture. The camera HUD does not
+  show the song name during recording.
 - After quick-capture enqueue, if there is still no title, the outbox runs
   ShazamKit→ACR before upload and again after publish (PATCH `/api/clips/update-own`)
   so the clip gets a song title even when live ID missed.
