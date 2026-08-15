@@ -319,7 +319,7 @@ export default function ClipModal({
   ) : null;
 
   const playerSongIdentify =
-    isOwnClip || isSuperAdmin ? (
+    (isOwnClip || isSuperAdmin) && !clip.song_title?.trim() ? (
       <ClipSongRecognitionControl
         clip={clip}
         currentFields={metadataFieldsFromClip(clip)}
