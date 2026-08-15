@@ -1,4 +1,5 @@
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import { downloadRemoteMediaToCache } from '@/react-app/lib/native-bridge';
 import {
   normalizeIdentifyResult,
   type AudDIdentifyResult,
@@ -107,10 +108,11 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
 /**
  * Clip-player / edit-modal song ID for a published clip.
  *
- * Same native path as capture: ShazamKit `recognizeFile` on the Cloudflare
- * Stream MP4 (faststart). Do not Range-fetch + WebAudio-decode Capgo MP4s —
- * WKWebView can hang on a missing `moov` and never reach the plugin.
- * Worker ACRCloud is the fallback when ShazamKit is unavailable or misses.
+ * Same native path as capture: download the Cloudflare Stream MP4 with
+ * URLSession, then `ShazamKit.recognizeFile` on that local file. Do not
+ * Range-fetch Capgo MP4s into WebAudio — WKWebView `decodeAudioData` can hang
+ * and never reach the plugin (current production JS still does this).
+ * Worker ACRCloud is the fallback.
  */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
@@ -120,7 +122,10 @@ export async function identifySongForUploadedClip(
   console.log('[identify] clip-player start', clipId, mediaUrl ?? 'no-stream-url');
 
   if (mediaUrl) {
-    const shazam = await identifyNativeFileWithShazamKit(mediaUrl);
+    const localPath = await downloadRemoteMediaToCache(mediaUrl, `clip-${clipId}.mp4`);
+    const shazamPath = localPath || mediaUrl;
+    console.log('[identify] clip-player shazamkit path', localPath ? 'local-cache' : 'remote-url');
+    const shazam = await identifyNativeFileWithShazamKit(shazamPath);
     if (shazam?.status === 'match') {
       console.log('[identify] clip-player shazamkit match', clipId);
       return normalizeIdentifyResult(shazam);

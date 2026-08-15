@@ -61,6 +61,32 @@ export async function writeVideoToNativeCache(blob: Blob, fileName: string): Pro
   return result.uri;
 }
 
+/** Native URLSession download into cache. Avoids WKWebView CORS / decodeAudioData hangs. */
+export async function downloadRemoteMediaToCache(
+  url: string,
+  fileName: string,
+): Promise<string | null> {
+  if (!isNativeApp()) return null;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_') || 'clip.mp4';
+  const path = `momentum/identify/${safeName}`;
+  try {
+    const result = await Filesystem.downloadFile({
+      url: trimmed,
+      path,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+    if (result.path?.trim()) return result.path.trim();
+    const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
+    return uri?.trim() || null;
+  } catch (err) {
+    console.warn('[identify] native download failed', err);
+    return null;
+  }
+}
+
 export async function saveVideoToGallery(filePath: string, fileName?: string): Promise<void> {
   if (!isNativeApp()) return;
   const baseName = fileName?.replace(/\.[^.]+$/, '') || undefined;

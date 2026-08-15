@@ -90,15 +90,14 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
   so the clip gets a song title even when live ID missed.
 - Manual / library uploads identify on the clip details (`UploadClip`) screen
   before Share via the same `identifyMusicForClip` ladder.
-- **Clip-player Tap to identify** uses the same native path as capture:
-  `ShazamKit.recognizeFile` on the Cloudflare Stream progressive MP4
-  (`https://videodelivery.net/<id>/downloads/default.mp4`). That is faststart,
-  so AVAsset can read it remotely — do **not** Range-fetch Capgo MP4s into
-  WebAudio (`decodeAudioData` can hang in WKWebView). If ShazamKit misses,
-  the Worker ACRCloud path (`POST /api/clips/identify-own-song`) still runs.
-  Native rebuild is required for HTTPS `recognizeFile`; Worker JS must include
-  this branch. The player button only appears when `song_title` is empty
-  (upload miss). Owners can still change the song from **Edit clip**.
+- **Clip-player Tap to identify** (untitled clips only): native-download the
+  Cloudflare Stream MP4 into cache, then `ShazamKit.recognizeFile` on that
+  local file — the same plugin call as capture. Do **not** Range-fetch Capgo
+  MP4s into WebAudio (`decodeAudioData` can hang in WKWebView). If ShazamKit
+  misses, `POST /api/clips/identify-own-song` (ACRCloud) still runs.
+  **The phone loads JS from `server.url`. `git pull` + Xcode rebuild is not
+  enough — run `npm run deploy` from this branch**, then force-quit the app.
+  Owners can still change the song from **Edit clip**.
 ### Troubleshooting: `objectVersion 70` / `pod install` fails
 
 CocoaPods **1.16.2** ships `xcodeproj` **1.27.0**, which does **not** map Xcode

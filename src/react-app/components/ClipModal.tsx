@@ -142,6 +142,14 @@ export default function ClipModal({
 
   const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
   const isSuperAdmin = isSuperAdminUser(extendedUser);
+
+  useEffect(() => {
+    if (!(isOwnClip || isSuperAdmin) || clip.song_title?.trim()) return;
+    console.log(
+      '[identify] untitled clip — Tap to identify shown',
+      clipNumericId(clip) ?? clip.id,
+    );
+  }, [clip.id, clip.song_title, clip.stream_video_id, isOwnClip, isSuperAdmin]);
   const canDownloadClip = isOwnClip && Boolean(resolveClipDownloadUrl(clip));
 
   const navIndex =
@@ -318,17 +326,26 @@ export default function ClipModal({
     </button>
   ) : null;
 
-  const playerSongIdentify =
-    (isOwnClip || isSuperAdmin) && !clip.song_title?.trim() ? (
+  const showPlayerSongIdentify = (isOwnClip || isSuperAdmin) && !clip.song_title?.trim();
+
+  const renderPlayerSongIdentify = (buttonClassName: string) =>
+    showPlayerSongIdentify ? (
       <ClipSongRecognitionControl
         clip={clip}
         currentFields={metadataFieldsFromClip(clip)}
         asSuperadmin={isSuperAdmin && !isOwnClip}
         onSaved={handleClipSaved}
         idleLabel="Tap to identify"
-        buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
+        buttonClassName={buttonClassName}
       />
     ) : null;
+
+  const playerSongIdentifyTop = renderPlayerSongIdentify(
+    'relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-momentum-ember/40 bg-momentum-ember/15 px-3 py-1.5 text-sm font-semibold text-momentum-flare transition-colors hover:bg-momentum-ember/25 disabled:opacity-50',
+  );
+  const playerSongIdentify = renderPlayerSongIdentify(
+    'relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50',
+  );
 
   const downloadClipButton = canDownloadClip ? (
     <button
@@ -487,7 +504,8 @@ export default function ClipModal({
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {playerSongIdentifyTop}
             {editClipButton}
             {downloadClipButton}
             <button
@@ -829,7 +847,12 @@ export default function ClipModal({
 
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
-              {editClipButton ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
+              {editClipButton || playerSongIdentifyTop ? (
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  {playerSongIdentifyTop}
+                  {editClipButton}
+                </div>
+              ) : null}
               <div className="mb-3 flex items-center space-x-3">
                 <UserAvatar
                   imageUrl={clip.user_avatar}
