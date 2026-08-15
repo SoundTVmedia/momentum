@@ -319,14 +319,14 @@ export default function ClipModal({
   ) : null;
 
   const playerSongIdentify =
-    (isOwnClip || isSuperAdmin) && !clip.song_title?.trim() ? (
+    isOwnClip || isSuperAdmin ? (
       <ClipSongRecognitionControl
         clip={clip}
         currentFields={metadataFieldsFromClip(clip)}
         asSuperadmin={isSuperAdmin && !isOwnClip}
         onSaved={handleClipSaved}
         idleLabel="Tap to identify"
-        buttonClassName="relative z-20 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
+        buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
       />
     ) : null;
 
@@ -558,9 +558,10 @@ export default function ClipModal({
               <Disc3 className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />
               <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
             </button>
-          ) : playerSongIdentify ? (
+          ) : null}
+          {playerSongIdentify ? (
             <div
-              className="relative z-20 mt-1 pointer-events-auto"
+              className="relative z-30 mt-1 pointer-events-auto"
               onPointerDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
             >
@@ -883,9 +884,10 @@ export default function ClipModal({
                       {clip.song_title}
                     </span>
                   </button>
-                ) : playerSongIdentify ? (
+                ) : null}
+                {playerSongIdentify ? (
                   <div
-                    className="relative z-20 pointer-events-auto"
+                    className="relative z-30 pointer-events-auto"
                     onPointerDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                   >

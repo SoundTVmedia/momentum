@@ -1,10 +1,25 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { identifySongForUploadedClip } from './identifySongForUploadedClip';
-import type { ClipPlaybackFields } from '@/shared/clip-playback';
+import {
+  clipPlayerShazamKitMediaUrl,
+  identifySongForUploadedClip,
+} from './identifySongForUploadedClip';
+import { streamMp4Url, type ClipPlaybackFields } from '@/shared/clip-playback';
 
 function clip(fields: Record<string, unknown>): ClipPlaybackFields {
   return fields as ClipPlaybackFields;
 }
+
+describe('clipPlayerShazamKitMediaUrl', () => {
+  it('returns the Stream progressive MP4 for native ShazamKit', () => {
+    expect(clipPlayerShazamKitMediaUrl(clip({ stream_video_id: 'abc123def456abc123def456abc123de' }))).toBe(
+      streamMp4Url('abc123def456abc123def456abc123de'),
+    );
+  });
+
+  it('returns null when the clip has no Stream id', () => {
+    expect(clipPlayerShazamKitMediaUrl(clip({ video_url: 'https://cdn.example.com/clip.mp4' }))).toBeNull();
+  });
+});
 
 describe('identifySongForUploadedClip', () => {
   afterEach(() => {

@@ -11,6 +11,8 @@ import type { AudDIdentifyResult } from '@/react-app/utils/auddIdentify';
 export const SHAZAMKIT_MAX_DIRECT_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
 
 const SHAZAMKIT_TIMEOUT_MS = 20_000;
+/** Remote Stream MP4: AVAsset track load allows 45s natively. */
+const SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS = 50_000;
 
 /**
  * True on native iOS. Do not gate on Capacitor.isPluginAvailable('ShazamKit') —
@@ -195,10 +197,13 @@ export async function identifyNativeFileWithShazamKit(
   const trimmed = path?.trim() ?? '';
   if (!trimmed) return null;
   if (!isShazamKitIdentifyAvailable()) return null;
+  const timeoutMs = /^https?:\/\//i.test(trimmed)
+    ? SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS
+    : SHAZAMKIT_TIMEOUT_MS;
   try {
     const { match } = await withTimeout(
       ShazamKit.recognizeFile({ path: trimmed }),
-      SHAZAMKIT_TIMEOUT_MS,
+      timeoutMs,
     );
     return shazamKitMatchToIdentifyResult(match);
   } catch (err) {
@@ -207,7 +212,7 @@ export async function identifyNativeFileWithShazamKit(
         await new Promise((r) => window.setTimeout(r, 1_200));
         const { match } = await withTimeout(
           ShazamKit.recognizeFile({ path: trimmed }),
-          SHAZAMKIT_TIMEOUT_MS,
+          timeoutMs,
         );
         return shazamKitMatchToIdentifyResult(match);
       } catch (retryErr) {

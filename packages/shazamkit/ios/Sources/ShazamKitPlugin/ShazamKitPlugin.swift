@@ -138,6 +138,10 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
 
     private func runFile(path: String) {
         let url = Self.fileURL(from: path)
+        if Self.isRemoteHttpURL(url) {
+            matchFile(at: url)
+            return
+        }
         guard FileManager.default.fileExists(atPath: url.path) else {
             reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
             return
@@ -166,9 +170,16 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         session.match(signature)
     }
 
+    private static func isRemoteHttpURL(_ url: URL) -> Bool {
+        let scheme = url.scheme?.lowercased() ?? ""
+        return scheme == "http" || scheme == "https"
+    }
+
     private static func fileURL(from path: String) -> URL {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("file:"), let url = URL(string: trimmed) {
+        if let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(),
+           ["http", "https", "file", "capgo", "capacitor"].contains(scheme)
+        {
             return url
         }
         return URL(fileURLWithPath: trimmed)
@@ -455,7 +466,8 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             status = asset.statusOfValue(forKey: "tracks", error: &nsError)
             lock.signal()
         }
-        if lock.wait(timeout: .now() + 20) == .timedOut {
+        let timeout: TimeInterval = isRemoteHttpURL(url) ? 45 : 20
+        if lock.wait(timeout: .now() + timeout) == .timedOut {
             throw RecognizerError(
                 code: "ERR_SHAZAMKIT_BAD_FILE",
                 message: "Timed out loading the clip audio track."

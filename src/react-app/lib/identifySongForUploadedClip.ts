@@ -3,7 +3,12 @@ import {
   normalizeIdentifyResult,
   type AudDIdentifyResult,
 } from '@/react-app/utils/auddIdentify';
-import type { ClipPlaybackFields } from '@/shared/clip-playback';
+import { identifyNativeFileWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
+import {
+  streamMp4Url,
+  streamVideoIdFromClip,
+  type ClipPlaybackFields,
+} from '@/shared/clip-playback';
 
 type ServerIdentifyResponse = {
   ok?: boolean;
@@ -15,6 +20,12 @@ type ServerIdentifyResponse = {
 };
 
 const SERVER_IDENTIFY_TIMEOUT_MS = 55_000;
+
+/** Progressive Stream MP4 for native ShazamKit (faststart; no WebAudio Range). */
+export function clipPlayerShazamKitMediaUrl(clip: ClipPlaybackFields): string | null {
+  const streamId = streamVideoIdFromClip(clip);
+  return streamId ? streamMp4Url(streamId) : null;
+}
 
 async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIdentifyResult> {
   const clipId = clipNumericId(clip);
@@ -96,18 +107,31 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
 /**
  * Clip-player / edit-modal song ID for a published clip.
  *
- * Do not Range-fetch the MP4 and decode it in WebAudio here. Capgo recordings
- * keep `moov` at the end, so a start-Range of ~11s often cannot decode — and
- * WKWebView `decodeAudioData` can hang instead of rejecting. That left the
- * player on "Identifying…" with zero native ShazamKit logs. The Worker uses
- * Cloudflare Stream (faststart) first, then ACRCloud, with an ≤11s sample.
+ * Same native path as capture: ShazamKit `recognizeFile` on the Cloudflare
+ * Stream MP4 (faststart). Do not Range-fetch + WebAudio-decode Capgo MP4s —
+ * WKWebView can hang on a missing `moov` and never reach the plugin.
+ * Worker ACRCloud is the fallback when ShazamKit is unavailable or misses.
  */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
 ): Promise<AudDIdentifyResult> {
-  console.log(
-    '[identify] clip-player via worker',
-    clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown',
-  );
+  const clipId = clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown';
+  const mediaUrl = clipPlayerShazamKitMediaUrl(clip);
+  console.log('[identify] clip-player start', clipId, mediaUrl ?? 'no-stream-url');
+
+  if (mediaUrl) {
+    const shazam = await identifyNativeFileWithShazamKit(mediaUrl);
+    if (shazam?.status === 'match') {
+      console.log('[identify] clip-player shazamkit match', clipId);
+      return normalizeIdentifyResult(shazam);
+    }
+    console.log(
+      '[identify] clip-player shazamkit',
+      shazam?.status ?? 'unavailable',
+      'falling back to worker',
+    );
+  }
+
+  console.log('[identify] clip-player via worker', clipId);
   return identifySongViaServer(clip);
 }

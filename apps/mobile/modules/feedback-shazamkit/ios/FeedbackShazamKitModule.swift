@@ -79,9 +79,13 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
       reject("ERR_SHAZAMKIT_BAD_FILE", "Invalid file URI: \(fileUri)")
       return
     }
-    guard FileManager.default.fileExists(atPath: url.path) else {
-      reject("ERR_SHAZAMKIT_FILE_NOT_FOUND", "Recorded file not found at \(url.path)")
-      return
+    let scheme = url.scheme?.lowercased() ?? ""
+    let isRemote = scheme == "http" || scheme == "https"
+    if !isRemote {
+      guard FileManager.default.fileExists(atPath: url.path) else {
+        reject("ERR_SHAZAMKIT_FILE_NOT_FOUND", "Recorded file not found at \(url.path)")
+        return
+      }
     }
 
     let signature: SHSignature
@@ -336,7 +340,9 @@ final class FeedbackShazamKitRecognizer: NSObject, SHSessionDelegate {
       status = asset.statusOfValue(forKey: "tracks", error: &nsError)
       lock.signal()
     }
-    if lock.wait(timeout: .now() + 20) == .timedOut {
+    let scheme = url.scheme?.lowercased() ?? ""
+    let timeout: TimeInterval = (scheme == "http" || scheme == "https") ? 45 : 20
+    if lock.wait(timeout: .now() + timeout) == .timedOut {
       throw RecognizerError(
         code: "ERR_SHAZAMKIT_BAD_FILE",
         message: "Timed out loading the recording audio track."
