@@ -63,7 +63,7 @@ export default function ClipSongRecognitionControl({
       if (outcome.status === 'match') {
         setStatus('done');
         setMessage(outcome.message);
-        if (outcome.titleDiscrepancy) {
+        if (outcome.titleDiscrepancy && outcome.result.status === 'match') {
           setDiscrepancy({
             previousTitle: outcome.previousTitle,
             recognizedTitle: outcome.result.title,
