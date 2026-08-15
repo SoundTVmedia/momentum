@@ -63,8 +63,10 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
 
 @available(iOS 15.0, *)
 final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
+    /// Apple's SHSignature max duration is 12.000s; 12.09s is SHError 201.
+    /// Cap at 11s so chunk size + 44.1k resample cannot overshoot.
     private static let maxSignatureSeconds: Double = 12
-    private static let signatureAppendCapSeconds: Double = maxSignatureSeconds - 0.5
+    private static let signatureAppendCapSeconds: Double = min(11, maxSignatureSeconds)
     private static let workQueue = DispatchQueue(
         label: "com.feedback.shazamkit",
         qos: .default
@@ -406,11 +408,6 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
             guard let pcm = pcmBuffer(from: sampleBuffer) else { continue }
-            let rate = pcm.format.sampleRate
-            guard rate > 0 else { continue }
-            let chunkSeconds = Double(pcm.frameLength) / rate
-            // Never exceed 12s — ShazamKit rejects Duration > 12 as error 201.
-            if appendedSeconds + chunkSeconds > signatureAppendCapSeconds { break }
             guard let toAppend = convertForSignature(
                 pcm,
                 converter: &converter,
@@ -418,6 +415,10 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             ) else {
                 continue
             }
+            let outRate = toAppend.format.sampleRate
+            guard outRate > 0 else { continue }
+            let chunkSeconds = Double(toAppend.frameLength) / outRate
+            if appendedSeconds + chunkSeconds > signatureAppendCapSeconds { break }
             do {
                 try generator.append(toAppend, at: nil)
                 appendedSeconds += chunkSeconds
