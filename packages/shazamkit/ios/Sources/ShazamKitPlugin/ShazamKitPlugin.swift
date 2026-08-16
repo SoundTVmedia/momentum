@@ -910,8 +910,8 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         appendU16(16)
         appendAscii("data")
         appendU32(UInt32(dataSize))
-        samples.withUnsafeBufferPointer { buffer in
-            data.append(UnsafeRawBufferPointer(buffer))
+        samples.withUnsafeBytes { raw in
+            data.append(contentsOf: raw)
         }
         try data.write(to: url, options: .atomic)
     }
