@@ -1,6 +1,10 @@
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
-import { downloadRemoteMediaToCache } from '@/react-app/lib/native-bridge';
 import {
+  downloadRemoteMediaToCache,
+  readNativeFileAsBlob,
+} from '@/react-app/lib/native-bridge';
+import {
+  identifyMusicWithAudD,
   normalizeIdentifyResult,
   type AudDIdentifyResult,
 } from '@/react-app/utils/auddIdentify';
@@ -194,6 +198,22 @@ async function identifySongForUploadedClipUncapped(
     }
     if (shazam?.status === 'nomatch') {
       console.log('[identify] clip-player shazamkit nomatch after full-file scan', clipId);
+      const wavPath = shazam.wavPath?.trim();
+      if (wavPath) {
+        console.log(
+          '[identify] clip-player acr loudest wav',
+          'start=',
+          shazam.loudestStartSeconds ?? '?',
+          'rms=',
+          shazam.loudestRms ?? '?',
+        );
+        const wav = await readNativeFileAsBlob(wavPath, 'audio/wav');
+        if (wav && wav.size > 4096) {
+          const acr = normalizeIdentifyResult(await identifyMusicWithAudD(wav));
+          console.log('[identify] clip-player acr', acr.status, acr.status === 'match' ? acr.title : acr.message);
+          return acr;
+        }
+      }
       return normalizeIdentifyResult(shazam);
     }
     console.log(

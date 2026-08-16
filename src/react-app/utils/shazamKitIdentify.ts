@@ -10,6 +10,12 @@ import {
 import { extractWavSnippetViaWebAudio } from '@/react-app/utils/identifyAudioSample';
 import type { AudDIdentifyResult } from '@/react-app/utils/auddIdentify';
 
+export type NativeFileIdentifyResult = AudDIdentifyResult & {
+  wavPath?: string | null;
+  loudestStartSeconds?: number | null;
+  loudestRms?: number | null;
+};
+
 /** Cap for payloads sent over the Capacitor bridge as base64. */
 export const SHAZAMKIT_MAX_DIRECT_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
 
@@ -232,7 +238,7 @@ function describeUnknownError(err: unknown): string {
 export async function identifyNativeFileWithShazamKit(
   path: string | null | undefined,
   options?: { scanWindows?: boolean },
-): Promise<AudDIdentifyResult | null> {
+): Promise<NativeFileIdentifyResult | null> {
   const trimmed = path?.trim() ?? '';
   if (!trimmed) return null;
   if (!isShazamKitIdentifyAvailable()) return null;
@@ -253,6 +259,9 @@ export async function identifyNativeFileWithShazamKit(
     windowCount?: number;
     durationSeconds?: number | null;
     windowStarts?: number[];
+    loudestStartSeconds?: number | null;
+    loudestRms?: number | null;
+    wavPath?: string | null;
   }) => {
     if (!scanWindows) return;
     console.log(
@@ -265,20 +274,37 @@ export async function identifyNativeFileWithShazamKit(
       result.windowsTried ?? '?',
       'of',
       result.windowCount ?? '?',
+      'loudest=',
+      result.loudestStartSeconds ?? '?',
+      'rms=',
+      result.loudestRms ?? '?',
       result.match ? 'match' : 'nomatch',
     );
   };
+  const withMeta = (
+    identify: AudDIdentifyResult,
+    result?: {
+      wavPath?: string | null;
+      loudestStartSeconds?: number | null;
+      loudestRms?: number | null;
+    },
+  ): NativeFileIdentifyResult => ({
+    ...identify,
+    wavPath: result?.wavPath ?? null,
+    loudestStartSeconds: result?.loudestStartSeconds ?? null,
+    loudestRms: result?.loudestRms ?? null,
+  });
   try {
     const result = await withTimeout(recognize(), timeoutMs);
     logScan(result);
-    return shazamKitMatchToIdentifyResult(result.match);
+    return withMeta(shazamKitMatchToIdentifyResult(result.match), result);
   } catch (err) {
     if (isTransientShazamKitMatchFailure(err)) {
       try {
         await new Promise((r) => window.setTimeout(r, 1_200));
         const result = await withTimeout(recognize(), timeoutMs);
         logScan(result);
-        return shazamKitMatchToIdentifyResult(result.match);
+        return withMeta(shazamKitMatchToIdentifyResult(result.match), result);
       } catch (retryErr) {
         console.warn('ShazamKit file identify failed', describeUnknownError(retryErr));
         return { status: 'error', message: describeUnknownError(retryErr) };

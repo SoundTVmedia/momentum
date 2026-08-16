@@ -92,6 +92,9 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     private var windowRetryCount = 0
     private var sawCleanNoMatch = false
     private var sawTransientFailure = false
+    private var preparedSignatures: [(start: Double, signature: SHSignature, rms: Double)] = []
+    private var loudestStartSeconds: Double?
+    private var loudestRms: Double?
     private var settled = false
 
     private init(call: CAPPluginCall) {
@@ -169,12 +172,38 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         matchFileURL = url
         if scanWindows {
             durationSeconds = Self.loadDurationSeconds(url: url)
-            windowStarts = Self.scanWindowStarts(durationSeconds: durationSeconds)
+            let planned = Self.scanWindowStarts(durationSeconds: durationSeconds)
+            var prepared: [(start: Double, signature: SHSignature, rms: Double)] = []
+            for start in planned {
+                do {
+                    let (signature, rms) = try Self.makeSignature(for: url, startSeconds: start)
+                    prepared.append((start, signature, rms))
+                } catch {
+                    if prepared.isEmpty {
+                        if let rec = error as? RecognizerError {
+                            reject(rec.message, rec.code)
+                        } else {
+                            reject(
+                                "Could not generate an audio signature: \(error.localizedDescription)",
+                                "ERR_SHAZAMKIT_SIGNATURE"
+                            )
+                        }
+                        return
+                    }
+                    break
+                }
+            }
+            prepared.sort { $0.rms > $1.rms }
+            preparedSignatures = prepared
+            windowStarts = prepared.map(\.start)
+            loudestStartSeconds = prepared.first?.start
+            loudestRms = prepared.first?.rms
             print(
-                "[shazamkit] scan duration=\(durationSeconds ?? -1) windows=\(windowStarts)"
+                "[shazamkit] scan duration=\(durationSeconds ?? -1) planned=\(planned) loudest-first=\(windowStarts) rms=\(prepared.map { String(format: "%.4f", $0.rms) })"
             )
         } else {
             windowStarts = [max(0, startSeconds ?? 0)]
+            preparedSignatures = []
         }
         windowIndex = 0
         matchCurrentWindow()
@@ -232,32 +261,36 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     }
 
     private func matchCurrentWindow() {
-        guard let url = matchFileURL else {
-            reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
-            return
-        }
-        let start = windowStarts.indices.contains(windowIndex) ? windowStarts[windowIndex] : 0
         let signature: SHSignature
-        do {
-            signature = try Self.makeSignature(for: url, startSeconds: start)
-        } catch let error as RecognizerError {
-            if windowIndex == 0 {
-                reject(error.message, error.code)
+        if preparedSignatures.indices.contains(windowIndex) {
+            signature = preparedSignatures[windowIndex].signature
+        } else {
+            guard let url = matchFileURL else {
+                reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
                 return
             }
-            // Later window has no audio left (unknown-duration probe past EOF).
-            resolveNoMatch()
-            return
-        } catch {
-            if windowIndex == 0 {
-                reject(
-                    "Could not generate an audio signature: \(error.localizedDescription)",
-                    "ERR_SHAZAMKIT_SIGNATURE"
-                )
+            let start = windowStarts.indices.contains(windowIndex) ? windowStarts[windowIndex] : 0
+            do {
+                let built = try Self.makeSignature(for: url, startSeconds: start)
+                signature = built.0
+            } catch let error as RecognizerError {
+                if windowIndex == 0 {
+                    reject(error.message, error.code)
+                    return
+                }
+                resolveNoMatch()
+                return
+            } catch {
+                if windowIndex == 0 {
+                    reject(
+                        "Could not generate an audio signature: \(error.localizedDescription)",
+                        "ERR_SHAZAMKIT_SIGNATURE"
+                    )
+                    return
+                }
+                resolveNoMatch()
                 return
             }
-            resolveNoMatch()
-            return
         }
 
         let session = SHSession()
@@ -346,7 +379,22 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             "windowCount": windowStarts.count,
             "durationSeconds": durationSeconds ?? NSNull(),
             "windowStarts": windowStarts,
+            "loudestStartSeconds": loudestStartSeconds ?? NSNull(),
+            "loudestRms": loudestRms ?? NSNull(),
         ]
+    }
+
+    private func writeLoudestWavIfNeeded() -> String? {
+        guard let url = matchFileURL, let start = loudestStartSeconds, (loudestRms ?? 0) > 0.004 else {
+            return nil
+        }
+        do {
+            let wavURL = try Self.writeWavSnippet(from: url, startSeconds: start)
+            return wavURL.absoluteString
+        } catch {
+            print("[shazamkit] loudest wav export failed: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func resolveNoMatch() {
@@ -359,6 +407,9 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         }
         var payload: [String: Any] = ["match": NSNull()]
         payload.merge(scanMeta()) { _, new in new }
+        if let wavPath = writeLoudestWavIfNeeded() {
+            payload["wavPath"] = wavPath
+        }
         resolve(payload)
     }
 
@@ -457,7 +508,7 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         return nil
     }
 
-    private static func makeSignature(for url: URL, startSeconds: Double = 0) throws -> SHSignature {
+    private static func makeSignature(for url: URL, startSeconds: Double = 0) throws -> (SHSignature, Double) {
         let ext = url.pathExtension.lowercased()
         let isVideoContainer = ext == "mp4" || ext == "mov" || ext == "m4v"
         if !isVideoContainer {
@@ -473,7 +524,7 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     }
 
     /// WAV / CAF / M4A (and some AAC-in-MP4) via AVAudioFile.
-    private static func signatureFromAudioFile(_ url: URL, startSeconds: Double = 0) throws -> SHSignature {
+    private static func signatureFromAudioFile(_ url: URL, startSeconds: Double = 0) throws -> (SHSignature, Double) {
         let file = try AVAudioFile(forReading: url)
         let inFormat = file.processingFormat
         let maxFrames = AVAudioFrameCount(inFormat.sampleRate * signatureAppendCapSeconds)
@@ -511,12 +562,12 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             )
         }
         try generator.append(toAppend, at: nil)
-        return generator.signature()
+        return (generator.signature(), rms(of: toAppend))
     }
 
     /// Do not set `reader.timeRange` to skip — that yields `Invalid sample cursor`
     /// on Capgo / Photos library MP4s. Discard sample buffers instead.
-    private static func signatureFromAssetReader(_ url: URL, startSeconds: Double = 0) throws -> SHSignature {
+    private static func signatureFromAssetReader(_ url: URL, startSeconds: Double = 0) throws -> (SHSignature, Double) {
         let (asset, track) = try loadAudioTrack(url: url)
 
         let reader: AVAssetReader
@@ -574,6 +625,8 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         let generator = SHSignatureGenerator()
         var skippedSeconds: Double = 0
         var appendedSeconds: Double = 0
+        var energy = 0.0
+        var energyCount = 0
         var converter: AVAudioConverter?
         var converterInFormat: AVAudioFormat?
         let skipNeed = max(0, startSeconds)
@@ -601,13 +654,17 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             do {
                 try generator.append(toAppend, at: nil)
                 appendedSeconds += chunkSeconds
+                let chunk = energyComponents(of: toAppend)
+                energy += chunk.sumSquares
+                energyCount += chunk.count
             } catch {
                 break
             }
         }
 
         if appendedSeconds >= 1 {
-            return generator.signature()
+            let rms = energyCount > 0 ? (energy / Double(energyCount)).squareRoot() : 0
+            return (generator.signature(), rms)
         }
 
         if reader.status == .failed {
@@ -734,5 +791,128 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             return nil
         }
         return pcmBuffer
+    }
+
+    private static func energyComponents(of buffer: AVAudioPCMBuffer) -> (sumSquares: Double, count: Int) {
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return (0, 0) }
+        if let floats = buffer.floatChannelData?[0] {
+            var sum = 0.0
+            for i in 0..<count {
+                let sample = Double(floats[i])
+                sum += sample * sample
+            }
+            return (sum, count)
+        }
+        if let ints = buffer.int16ChannelData?[0] {
+            var sum = 0.0
+            for i in 0..<count {
+                let sample = Double(ints[i]) / 32768.0
+                sum += sample * sample
+            }
+            return (sum, count)
+        }
+        return (0, 0)
+    }
+
+    private static func rms(of buffer: AVAudioPCMBuffer) -> Double {
+        let parts = energyComponents(of: buffer)
+        guard parts.count > 0 else { return 0 }
+        return (parts.sumSquares / Double(parts.count)).squareRoot()
+    }
+
+    /// 11s 44.1kHz mono 16-bit WAV of the loudest window for Worker ACRCloud.
+    private static func writeWavSnippet(from url: URL, startSeconds: Double) throws -> URL {
+        let dest = url.deletingPathExtension().appendingPathExtension("loudest.wav")
+        var samples: [Int16] = []
+        samples.reserveCapacity(Int(44_100 * signatureAppendCapSeconds) + 1024)
+        let (asset, track) = try loadAudioTrack(url: url)
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(
+            track: track,
+            outputSettings: [
+                AVFormatIDKey: Int(kAudioFormatLinearPCM),
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsNonInterleaved: false,
+            ]
+        )
+        output.alwaysCopiesSampleData = true
+        guard reader.canAdd(output) else {
+            throw RecognizerError(code: "ERR_SHAZAMKIT_BAD_FILE", message: "Could not decode audio for WAV export.")
+        }
+        reader.add(output)
+        guard reader.startReading() else {
+            throw RecognizerError(code: "ERR_SHAZAMKIT_BAD_FILE", message: "Could not read audio for WAV export.")
+        }
+        var skipped: Double = 0
+        var appended: Double = 0
+        var converter: AVAudioConverter?
+        var converterInFormat: AVAudioFormat?
+        let skipNeed = max(0, startSeconds)
+        while let sampleBuffer = output.copyNextSampleBuffer() {
+            guard let pcm = pcmBuffer(from: sampleBuffer) else { continue }
+            let inRate = pcm.format.sampleRate
+            if skipNeed > 0, skipped < skipNeed {
+                if inRate > 0 {
+                    skipped += Double(pcm.frameLength) / inRate
+                }
+                continue
+            }
+            guard let toAppend = convertForSignature(
+                pcm,
+                converter: &converter,
+                converterInFormat: &converterInFormat
+            ) else { continue }
+            let outRate = toAppend.format.sampleRate
+            guard outRate > 0, let floats = toAppend.floatChannelData?[0] else { continue }
+            let frames = Int(toAppend.frameLength)
+            let chunkSeconds = Double(frames) / outRate
+            if appended + chunkSeconds > signatureAppendCapSeconds { break }
+            for i in 0..<frames {
+                let clipped = max(-1.0, min(1.0, Double(floats[i])))
+                samples.append(Int16(clipped * 32767.0))
+            }
+            appended += chunkSeconds
+        }
+        guard samples.count >= 44_100 else {
+            throw RecognizerError(code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK", message: "WAV export was too short.")
+        }
+        try writePcmWav(samples: samples, sampleRate: 44_100, to: dest)
+        return dest
+    }
+
+    private static func writePcmWav(samples: [Int16], sampleRate: Int, to url: URL) throws {
+        var data = Data()
+        let dataSize = samples.count * 2
+        func appendAscii(_ value: String) {
+            data.append(contentsOf: value.utf8)
+        }
+        func appendU32(_ value: UInt32) {
+            var little = value.littleEndian
+            data.append(Data(bytes: &little, count: 4))
+        }
+        func appendU16(_ value: UInt16) {
+            var little = value.littleEndian
+            data.append(Data(bytes: &little, count: 2))
+        }
+        appendAscii("RIFF")
+        appendU32(UInt32(36 + dataSize))
+        appendAscii("WAVE")
+        appendAscii("fmt ")
+        appendU32(16)
+        appendU16(1)
+        appendU16(1)
+        appendU32(UInt32(sampleRate))
+        appendU32(UInt32(sampleRate * 2))
+        appendU16(2)
+        appendU16(16)
+        appendAscii("data")
+        appendU32(UInt32(dataSize))
+        samples.withUnsafeBufferPointer { buffer in
+            data.append(UnsafeRawBufferPointer(buffer))
+        }
+        try data.write(to: url, options: .atomic)
     }
 }

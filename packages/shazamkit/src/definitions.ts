@@ -43,5 +43,9 @@ export interface ShazamKitPlugin {
     windowCount?: number;
     durationSeconds?: number | null;
     windowStarts?: number[];
+    loudestStartSeconds?: number | null;
+    loudestRms?: number | null;
+    /** 11s WAV of the loudest window, for Worker ACR after a Shazam no-match. */
+    wavPath?: string | null;
   }>;
 }

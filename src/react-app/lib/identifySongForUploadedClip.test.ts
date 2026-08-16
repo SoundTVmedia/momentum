@@ -6,6 +6,8 @@ import {
 } from './identifySongForUploadedClip';
 import { streamMp4Url, type ClipPlaybackFields } from '@/shared/clip-playback';
 import type { AudDIdentifyResult } from '@/react-app/utils/auddIdentify';
+import * as auddIdentify from '@/react-app/utils/auddIdentify';
+import * as nativeBridge from '@/react-app/lib/native-bridge';
 import * as shazamKitIdentify from '@/react-app/utils/shazamKitIdentify';
 
 function clip(fields: Record<string, unknown>): ClipPlaybackFields {
@@ -136,6 +138,42 @@ describe('identifySongForUploadedClip', () => {
       'https://cdn.example.com/IMG_4016.mov',
       { scanWindows: true },
     );
+  });
+
+  it('sends the loudest 11s WAV to identify-music after a native no-match', async () => {
+    vi.spyOn(shazamKitIdentify, 'identifyNativeFileWithShazamKit').mockResolvedValue({
+      status: 'nomatch',
+      message: null,
+      wavPath: 'file:///tmp/clip-136.loudest.wav',
+      loudestStartSeconds: 24.5,
+      loudestRms: 0.11,
+    });
+    vi.spyOn(nativeBridge, 'readNativeFileAsBlob').mockResolvedValue(
+      new Blob([new Uint8Array(8000)], { type: 'audio/wav' }),
+    );
+    vi.spyOn(auddIdentify, 'identifyMusicWithAudD').mockResolvedValue({
+      status: 'match',
+      artist: 'Rihanna',
+      title: 'Bitch Better Have My Money',
+      message: 'Identified: Bitch Better Have My Money — Rihanna',
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await identifySongForUploadedClip(
+      clip({
+        id: 136,
+        video_url: 'https://cdn.example.com/IMG_4016.mov',
+      }),
+    );
+
+    expect(result).toMatchObject({
+      status: 'match',
+      artist: 'Rihanna',
+      title: 'Bitch Better Have My Money',
+    });
+    expect(auddIdentify.identifyMusicWithAudD).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('joins an in-flight identify instead of starting a second scan', async () => {
