@@ -328,7 +328,7 @@ export default function ClipModal({
 
   const showPlayerSongIdentify = (isOwnClip || isSuperAdmin) && !clip.song_title?.trim();
 
-  const renderPlayerSongIdentify = (buttonClassName: string) =>
+  const renderPlayerSongIdentify = () =>
     showPlayerSongIdentify ? (
       <ClipSongRecognitionControl
         clip={clip}
@@ -336,16 +336,9 @@ export default function ClipModal({
         asSuperadmin={isSuperAdmin && !isOwnClip}
         onSaved={handleClipSaved}
         idleLabel="Tap to identify"
-        buttonClassName={buttonClassName}
+        buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
       />
     ) : null;
-
-  const playerSongIdentifyTop = renderPlayerSongIdentify(
-    'relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-momentum-ember/40 bg-momentum-ember/15 px-3 py-1.5 text-sm font-semibold text-momentum-flare transition-colors hover:bg-momentum-ember/25 disabled:opacity-50',
-  );
-  const playerSongIdentify = renderPlayerSongIdentify(
-    'relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50',
-  );
 
   const downloadClipButton = canDownloadClip ? (
     <button
@@ -505,7 +498,6 @@ export default function ClipModal({
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            {playerSongIdentifyTop}
             {editClipButton}
             {downloadClipButton}
             <button
@@ -577,13 +569,13 @@ export default function ClipModal({
               <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
             </button>
           ) : null}
-          {playerSongIdentify ? (
+          {showPlayerSongIdentify ? (
             <div
               className="relative z-30 mt-1 pointer-events-auto"
               onPointerDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
             >
-              {playerSongIdentify}
+              {renderPlayerSongIdentify()}
             </div>
           ) : null}
           {clip.venue_name ? (
@@ -847,9 +839,8 @@ export default function ClipModal({
 
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
-              {editClipButton || playerSongIdentifyTop ? (
+              {editClipButton ? (
                 <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-                  {playerSongIdentifyTop}
                   {editClipButton}
                 </div>
               ) : null}
@@ -908,13 +899,13 @@ export default function ClipModal({
                     </span>
                   </button>
                 ) : null}
-                {playerSongIdentify ? (
+                {showPlayerSongIdentify ? (
                   <div
                     className="relative z-30 pointer-events-auto"
                     onPointerDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                   >
-                    {playerSongIdentify}
+                    {renderPlayerSongIdentify()}
                   </div>
                 ) : null}
                 {clip.genre_name?.trim() ? (
