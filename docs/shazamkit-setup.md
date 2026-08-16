@@ -93,12 +93,12 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
 - **Clip-player Tap to identify** (untitled clips only): native-download the
   Stream MP4 when present, otherwise the published `/api/files/…` or
   `video_url` (many untitled clips have no Stream id yet), then
-  `ShazamKit.recognizeFile` with `scanWindows` on that local file (start,
-  mid, and last 11s — library clips often put the song after talking). Do
-  **not** Range-fetch Capgo MP4s into WebAudio. A clean native no-match is
-  final; Worker ACR (`POST /api/clips/identify-own-song`) runs only when
-  ShazamKit is unavailable or errors. Native Swift changes need
-  `npx cap sync ios` + an Xcode rebuild.
+  `ShazamKit.recognizeFile` with `scanWindows` on that local file (overlapping
+  11s windows that always include the last 11s; unknown duration probes every
+  8s). SHError 202 retries that window, then continues. Do **not** Range-fetch
+  Capgo MP4s into WebAudio. A clean native no-match is final; Worker ACR
+  (`POST /api/clips/identify-own-song`) runs only when ShazamKit is unavailable
+  or errors. Native Swift changes need `npx cap sync ios` + an Xcode rebuild.
   **The phone loads JS from `server.url`. `git pull` + Xcode rebuild is not
   enough — run `npm run deploy` from this branch**, then force-quit the app.
   Owners can still change the song from **Edit clip**.

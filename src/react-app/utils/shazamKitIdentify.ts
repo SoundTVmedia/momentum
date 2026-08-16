@@ -2,6 +2,8 @@ import { Capacitor } from '@capacitor/core';
 import { ShazamKit, type ShazamKitMatchPayload } from '@feedback/shazamkit';
 import {
   IDENTIFY_SAMPLE_SECONDS,
+  IDENTIFY_SCAN_MAX_WINDOWS,
+  IDENTIFY_SCAN_STEP_SECONDS,
   MAX_IDENTIFY_UPLOAD_BYTES,
   MIN_IDENTIFY_SAMPLE_BYTES,
 } from '@/shared/identify-music-limits';
@@ -14,32 +16,40 @@ export const SHAZAMKIT_MAX_DIRECT_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
 const SHAZAMKIT_TIMEOUT_MS = 20_000;
 /** Remote Stream MP4: AVAsset track load allows 45s natively. */
 const SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS = 50_000;
-/** Start + mid + last 11s each need a catalog round-trip. */
-const SHAZAMKIT_SCAN_WINDOWS_TIMEOUT_MS = 90_000;
+/** Overlapping 11s windows + one 202 retry per window. */
+const SHAZAMKIT_SCAN_WINDOWS_TIMEOUT_MS = 120_000;
 
 /**
- * Native `scanWindows` offsets: opening 11s, then mid and last 11s when the
- * clip is long enough. Library uploads often put the song after talking.
+ * When duration cannot be read, probe 11s windows every 8s until the file ends.
+ * Native stops early once a later window has no audio left.
+ */
+export const SHAZAMKIT_UNKNOWN_DURATION_WINDOW_STARTS: number[] = Array.from(
+  { length: IDENTIFY_SCAN_MAX_WINDOWS },
+  (_, i) => i * IDENTIFY_SCAN_STEP_SECONDS,
+);
+
+/**
+ * Overlapping 11s window starts that always include the last 11s when the
+ * clip is longer than one signature. Three sparse points (start/mid/end)
+ * miss songs that sit between those windows.
  */
 export function shazamKitScanWindowStarts(durationSeconds: number | null | undefined): number[] {
-  const starts = [0];
   if (durationSeconds == null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
-    return starts;
+    return SHAZAMKIT_UNKNOWN_DURATION_WINDOW_STARTS.slice();
   }
   const window = IDENTIFY_SAMPLE_SECONDS;
-  if (durationSeconds > window + 5) {
-    starts.push(Math.max(0, durationSeconds / 2 - window / 2));
+  const lastStart = Math.max(0, durationSeconds - window);
+  if (lastStart <= 1.5) return [0];
+  const count = Math.min(
+    IDENTIFY_SCAN_MAX_WINDOWS,
+    Math.max(2, Math.round(lastStart / IDENTIFY_SCAN_STEP_SECONDS) + 1),
+  );
+  const step = lastStart / (count - 1);
+  const starts: number[] = [];
+  for (let i = 0; i < count; i += 1) {
+    starts.push(i === count - 1 ? lastStart : i * step);
   }
-  if (durationSeconds > window * 2) {
-    starts.push(Math.max(0, durationSeconds - window));
-  }
-  const unique: number[] = [];
-  for (const start of starts) {
-    if (!unique.some((existing) => Math.abs(existing - start) < 0.5)) {
-      unique.push(start);
-    }
-  }
-  return unique;
+  return starts;
 }
 
 /**
@@ -237,15 +247,38 @@ export async function identifyNativeFileWithShazamKit(
       path: trimmed,
       ...(scanWindows ? { scanWindows: true } : {}),
     });
+  const logScan = (result: {
+    match?: ShazamKitMatchPayload | null;
+    windowsTried?: number;
+    windowCount?: number;
+    durationSeconds?: number | null;
+    windowStarts?: number[];
+  }) => {
+    if (!scanWindows) return;
+    console.log(
+      '[identify] shazamkit scan',
+      'duration=',
+      result.durationSeconds ?? 'unknown',
+      'starts=',
+      result.windowStarts ?? [],
+      'tried=',
+      result.windowsTried ?? '?',
+      'of',
+      result.windowCount ?? '?',
+      result.match ? 'match' : 'nomatch',
+    );
+  };
   try {
-    const { match } = await withTimeout(recognize(), timeoutMs);
-    return shazamKitMatchToIdentifyResult(match);
+    const result = await withTimeout(recognize(), timeoutMs);
+    logScan(result);
+    return shazamKitMatchToIdentifyResult(result.match);
   } catch (err) {
     if (isTransientShazamKitMatchFailure(err)) {
       try {
         await new Promise((r) => window.setTimeout(r, 1_200));
-        const { match } = await withTimeout(recognize(), timeoutMs);
-        return shazamKitMatchToIdentifyResult(match);
+        const result = await withTimeout(recognize(), timeoutMs);
+        logScan(result);
+        return shazamKitMatchToIdentifyResult(result.match);
       } catch (retryErr) {
         console.warn('ShazamKit file identify failed', describeUnknownError(retryErr));
         return { status: 'error', message: describeUnknownError(retryErr) };

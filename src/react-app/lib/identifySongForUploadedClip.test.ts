@@ -5,6 +5,7 @@ import {
   identifySongForUploadedClip,
 } from './identifySongForUploadedClip';
 import { streamMp4Url, type ClipPlaybackFields } from '@/shared/clip-playback';
+import type { AudDIdentifyResult } from '@/react-app/utils/auddIdentify';
 import * as shazamKitIdentify from '@/react-app/utils/shazamKitIdentify';
 
 function clip(fields: Record<string, unknown>): ClipPlaybackFields {
@@ -135,6 +136,28 @@ describe('identifySongForUploadedClip', () => {
       'https://cdn.example.com/IMG_4016.mov',
       { scanWindows: true },
     );
+  });
+
+  it('joins an in-flight identify instead of starting a second scan', async () => {
+    let release!: (value: AudDIdentifyResult) => void;
+    const pending = new Promise<AudDIdentifyResult>((resolve) => {
+      release = resolve;
+    });
+    vi.spyOn(shazamKitIdentify, 'identifyNativeFileWithShazamKit').mockReturnValue(pending);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const clip136 = clip({
+      id: 136,
+      video_url: 'https://cdn.example.com/IMG_4016.mov',
+    });
+    const first = identifySongForUploadedClip(clip136);
+    const second = identifySongForUploadedClip(clip136);
+    release({ status: 'nomatch', message: null });
+    await expect(first).resolves.toMatchObject({ status: 'nomatch' });
+    await expect(second).resolves.toMatchObject({ status: 'nomatch' });
+    expect(shazamKitIdentify.identifyNativeFileWithShazamKit).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('falls back to the worker when ShazamKit errors', async () => {

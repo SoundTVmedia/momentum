@@ -72,6 +72,18 @@ export async function downloadRemoteMediaToCache(
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_') || 'clip.mp4';
   const path = `momentum/identify/${safeName}`;
   try {
+    try {
+      const existing = await Filesystem.stat({ path, directory: Directory.Cache });
+      if ((existing.size ?? 0) > 50_000) {
+        const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
+        if (uri?.trim()) {
+          console.log('[identify] native download cache hit', safeName, existing.size);
+          return uri.trim();
+        }
+      }
+    } catch {
+      // not cached yet
+    }
     const result = await Filesystem.downloadFile({
       url: trimmed,
       path,

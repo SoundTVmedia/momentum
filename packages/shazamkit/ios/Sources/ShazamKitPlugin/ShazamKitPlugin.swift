@@ -88,6 +88,10 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     private var matchFileURL: URL?
     private var windowStarts: [Double] = [0]
     private var windowIndex = 0
+    private var durationSeconds: Double?
+    private var windowRetryCount = 0
+    private var sawCleanNoMatch = false
+    private var sawTransientFailure = false
     private var settled = false
 
     private init(call: CAPPluginCall) {
@@ -164,8 +168,11 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         }
         matchFileURL = url
         if scanWindows {
-            let duration = Self.loadDurationSeconds(url: url)
-            windowStarts = Self.scanWindowStarts(durationSeconds: duration)
+            durationSeconds = Self.loadDurationSeconds(url: url)
+            windowStarts = Self.scanWindowStarts(durationSeconds: durationSeconds)
+            print(
+                "[shazamkit] scan duration=\(durationSeconds ?? -1) windows=\(windowStarts)"
+            )
         } else {
             windowStarts = [max(0, startSeconds ?? 0)]
         }
@@ -173,26 +180,25 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         matchCurrentWindow()
     }
 
-    /// Start, mid, and last 11s. Library clips often put the song after talking.
+    /// Overlapping 11s windows that always include the last 11s when the clip
+    /// is longer than one signature. Unknown duration probes every 8s.
     static func scanWindowStarts(durationSeconds: Double?) -> [Double] {
-        var starts: [Double] = [0]
-        guard let durationSeconds, durationSeconds.isFinite, durationSeconds > 0 else {
-            return starts
-        }
         let window = signatureAppendCapSeconds
-        if durationSeconds > window + 5 {
-            starts.append(max(0, durationSeconds / 2 - window / 2))
+        let maxWindows = 8
+        let stepHint = 8.0
+        guard let durationSeconds, durationSeconds.isFinite, durationSeconds > 0 else {
+            return stride(from: 0.0, through: Double(maxWindows - 1) * stepHint, by: stepHint)
+                .map { $0 }
         }
-        if durationSeconds > window * 2 {
-            starts.append(max(0, durationSeconds - window))
+        let lastStart = max(0, durationSeconds - window)
+        if lastStart <= 1.5 {
+            return [0]
         }
-        var unique: [Double] = []
-        for start in starts {
-            if !unique.contains(where: { abs($0 - start) < 0.5 }) {
-                unique.append(start)
-            }
+        let count = min(maxWindows, max(2, Int((lastStart / stepHint).rounded()) + 1))
+        let step = lastStart / Double(count - 1)
+        return (0..<count).map { index in
+            index == count - 1 ? lastStart : Double(index) * step
         }
-        return unique
     }
 
     private static func loadDurationSeconds(url: URL) -> Double? {
@@ -211,7 +217,17 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         if status == .failed {
             return nil
         }
-        let seconds = CMTimeGetSeconds(asset.duration)
+        var seconds = CMTimeGetSeconds(asset.duration)
+        if !(seconds.isFinite && seconds > 0) {
+            if let track = asset.tracks(withMediaType: .audio).first {
+                seconds = CMTimeGetSeconds(track.timeRange.duration)
+            }
+        }
+        if !(seconds.isFinite && seconds > 0) {
+            if let track = asset.tracks(withMediaType: .video).first {
+                seconds = CMTimeGetSeconds(track.timeRange.duration)
+            }
+        }
         return seconds.isFinite && seconds > 0 ? seconds : nil
     }
 
@@ -229,7 +245,8 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
                 reject(error.message, error.code)
                 return
             }
-            advanceToNextWindowOrResolveNoMatch()
+            // Later window has no audio left (unknown-duration probe past EOF).
+            resolveNoMatch()
             return
         } catch {
             if windowIndex == 0 {
@@ -239,7 +256,7 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
                 )
                 return
             }
-            advanceToNextWindowOrResolveNoMatch()
+            resolveNoMatch()
             return
         }
 
@@ -271,7 +288,7 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             advanceToNextWindowOrResolveNoMatch()
             return
         }
-        resolve([
+        var payload: [String: Any] = [
             "match": [
                 "title": item.title as Any,
                 "artist": item.artist as Any,
@@ -285,34 +302,76 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
                 // Public ShazamKit does not surface a confidence score.
                 "confidence": NSNull(),
             ] as [String: Any],
-        ])
+        ]
+        payload.merge(scanMeta()) { _, new in new }
+        resolve(payload)
     }
 
     func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
         if let error {
-            // Entitlement/network problems surface here (e.g. SHError 202
-            // SHErrorCode.matchAttemptFailed when matching cannot complete.
+            if Self.isTransientMatchError(error) {
+                if windowRetryCount < 1 {
+                    windowRetryCount += 1
+                    sawTransientFailure = true
+                    Self.workQueue.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                        self?.matchCurrentWindow()
+                    }
+                    return
+                }
+                // Keep scanning other windows — 202 on one offset is not final.
+                sawTransientFailure = true
+                windowRetryCount = 0
+                advanceToNextWindowOrResolveNoMatch()
+                return
+            }
             reject(
                 "Shazam match attempt failed: \(error.localizedDescription)",
                 "ERR_SHAZAMKIT_MATCH_FAILED"
             )
             return
         }
+        sawCleanNoMatch = true
+        windowRetryCount = 0
         advanceToNextWindowOrResolveNoMatch()
+    }
+
+    private static func isTransientMatchError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.code == 202 || nsError.localizedDescription.contains("202")
+    }
+
+    private func scanMeta() -> [String: Any] {
+        [
+            "windowsTried": windowIndex + 1,
+            "windowCount": windowStarts.count,
+            "durationSeconds": durationSeconds ?? NSNull(),
+            "windowStarts": windowStarts,
+        ]
+    }
+
+    private func resolveNoMatch() {
+        if !sawCleanNoMatch && sawTransientFailure {
+            reject(
+                "Shazam match attempt failed: (com.apple.ShazamKit error 202.)",
+                "ERR_SHAZAMKIT_MATCH_FAILED"
+            )
+            return
+        }
+        var payload: [String: Any] = ["match": NSNull()]
+        payload.merge(scanMeta()) { _, new in new }
+        resolve(payload)
     }
 
     private func advanceToNextWindowOrResolveNoMatch() {
         if windowIndex + 1 < windowStarts.count {
             windowIndex += 1
+            windowRetryCount = 0
             Self.workQueue.async { [weak self] in
                 self?.matchCurrentWindow()
             }
             return
         }
-        resolve([
-            "match": NSNull(),
-            "windowsTried": windowStarts.count,
-        ])
+        resolveNoMatch()
     }
 
     // MARK: - Resolution plumbing

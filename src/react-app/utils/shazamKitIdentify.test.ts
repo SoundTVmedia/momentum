@@ -7,6 +7,7 @@ import {
   shazamKitMatchToIdentifyResult,
   shazamKitScanWindowStarts,
   SHAZAMKIT_MAX_DIRECT_BYTES,
+  SHAZAMKIT_UNKNOWN_DURATION_WINDOW_STARTS,
 } from './shazamKitIdentify';
 import {
   MAX_IDENTIFY_UPLOAD_BYTES,
@@ -137,15 +138,15 @@ describe('isTransientShazamKitMatchFailure', () => {
 });
 
 describe('shazamKitScanWindowStarts', () => {
-  it('uses only the opening window for short or unknown clips', () => {
-    expect(shazamKitScanWindowStarts(null)).toEqual([0]);
+  it('probes every 8s when duration is unknown', () => {
+    expect(shazamKitScanWindowStarts(null)).toEqual(SHAZAMKIT_UNKNOWN_DURATION_WINDOW_STARTS);
     expect(shazamKitScanWindowStarts(10)).toEqual([0]);
-    expect(shazamKitScanWindowStarts(16)).toEqual([0]);
   });
 
-  it('adds mid and last 11s windows for longer library clips', () => {
-    expect(shazamKitScanWindowStarts(17)).toEqual([0, 17 / 2 - 5.5]);
-    expect(shazamKitScanWindowStarts(45)).toEqual([0, 45 / 2 - 5.5, 45 - 11]);
+  it('always includes the last 11s once the clip is longer than one signature', () => {
+    expect(shazamKitScanWindowStarts(16)).toEqual([0, 5]);
+    expect(shazamKitScanWindowStarts(22)).toEqual([0, 11]);
+    expect(shazamKitScanWindowStarts(45)).toEqual([0, 8.5, 17, 25.5, 34]);
   });
 });
 

@@ -21,6 +21,7 @@ type ServerIdentifyResponse = {
 
 const SERVER_IDENTIFY_TIMEOUT_MS = 55_000;
 const IDENTIFY_CACHE_EXTENSIONS = new Set(['mov', 'm4v', 'mp4', 'm4a', 'caf', 'wav']);
+const identifyInFlight = new Map<string, Promise<AudDIdentifyResult>>();
 
 function absoluteMediaUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
@@ -149,7 +150,23 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
 ): Promise<AudDIdentifyResult> {
-  const clipId = clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown';
+  const clipId = String(clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown');
+  const existing = identifyInFlight.get(clipId);
+  if (existing) {
+    console.log('[identify] clip-player join in-flight', clipId);
+    return existing;
+  }
+  const run = identifySongForUploadedClipUncapped(clip, clipId).finally(() => {
+    identifyInFlight.delete(clipId);
+  });
+  identifyInFlight.set(clipId, run);
+  return run;
+}
+
+async function identifySongForUploadedClipUncapped(
+  clip: ClipPlaybackFields,
+  clipId: string,
+): Promise<AudDIdentifyResult> {
   const mediaUrl = clipPlayerShazamKitMediaUrl(clip);
   console.log(
     '[identify] clip-player start',

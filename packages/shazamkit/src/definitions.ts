@@ -33,9 +33,15 @@ export interface ShazamKitPlugin {
     /** Skip this many seconds before building the 11s signature. */
     startSeconds?: number;
     /**
-     * After a start-window no-match, also try the middle and last 11s
-     * (library clips often have music later than the opening).
+     * Walk overlapping 11s windows across the file (library clips often
+     * put the song after talking).
      */
     scanWindows?: boolean;
-  }): Promise<{ match: ShazamKitMatchPayload | null }>;
+  }): Promise<{
+    match: ShazamKitMatchPayload | null;
+    windowsTried?: number;
+    windowCount?: number;
+    durationSeconds?: number | null;
+    windowStarts?: number[];
+  }>;
 }

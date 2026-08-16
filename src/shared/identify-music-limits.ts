@@ -14,6 +14,12 @@ export const MAX_IDENTIFY_UPLOAD_BYTES = 12 * 1024 * 1024;
  */
 export const IDENTIFY_SAMPLE_SECONDS = 11;
 
+/** Max 11s signatures per clip-player file scan. */
+export const IDENTIFY_SCAN_MAX_WINDOWS = 8;
+
+/** Target spacing between window starts when duration is known. */
+export const IDENTIFY_SCAN_STEP_SECONDS = 8;
+
 /**
  * Bytes of muxed A/V that typically cover {@link IDENTIFY_SAMPLE_SECONDS}
  * (~3.2 Mbps). Used when duration/size are unknown. Stays under ACRCloud's 5MB cap.
