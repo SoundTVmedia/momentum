@@ -57,7 +57,14 @@ public class ShazamKitPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("Missing audio file path.", "ERR_SHAZAMKIT_BAD_FILE")
             return
         }
-        ShazamKitRecognizer.recognizeFile(path: path, call: call)
+        let startSeconds = call.getDouble("startSeconds")
+        let scanWindows = call.getBool("scanWindows") ?? false
+        ShazamKitRecognizer.recognizeFile(
+            path: path,
+            startSeconds: startSeconds,
+            scanWindows: scanWindows,
+            call: call
+        )
     }
 }
 
@@ -78,6 +85,9 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     private let call: CAPPluginCall
     private var session: SHSession?
     private var tempFileURL: URL?
+    private var matchFileURL: URL?
+    private var windowStarts: [Double] = [0]
+    private var windowIndex = 0
     private var settled = false
 
     private init(call: CAPPluginCall) {
@@ -94,13 +104,18 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         }
     }
 
-    static func recognizeFile(path: String, call: CAPPluginCall) {
+    static func recognizeFile(
+        path: String,
+        startSeconds: Double?,
+        scanWindows: Bool,
+        call: CAPPluginCall
+    ) {
         let recognizer = ShazamKitRecognizer(call: call)
         activeLock.lock()
         active.append(recognizer)
         activeLock.unlock()
         workQueue.async {
-            recognizer.runFile(path: path)
+            recognizer.runFile(path: path, startSeconds: startSeconds, scanWindows: scanWindows)
         }
     }
 
@@ -133,34 +148,98 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             return
         }
         tempFileURL = url
-        matchFile(at: url)
+        matchFileURL = url
+        windowStarts = [0]
+        windowIndex = 0
+        matchCurrentWindow()
     }
 
-    private func runFile(path: String) {
+    private func runFile(path: String, startSeconds: Double?, scanWindows: Bool) {
         let url = Self.fileURL(from: path)
-        if Self.isRemoteHttpURL(url) {
-            matchFile(at: url)
-            return
+        if !Self.isRemoteHttpURL(url) {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
+                return
+            }
         }
-        guard FileManager.default.fileExists(atPath: url.path) else {
+        matchFileURL = url
+        if scanWindows {
+            let duration = Self.loadDurationSeconds(url: url)
+            windowStarts = Self.scanWindowStarts(durationSeconds: duration)
+        } else {
+            windowStarts = [max(0, startSeconds ?? 0)]
+        }
+        windowIndex = 0
+        matchCurrentWindow()
+    }
+
+    /// Start, mid, and last 11s. Library clips often put the song after talking.
+    static func scanWindowStarts(durationSeconds: Double?) -> [Double] {
+        var starts: [Double] = [0]
+        guard let durationSeconds, durationSeconds.isFinite, durationSeconds > 0 else {
+            return starts
+        }
+        let window = signatureAppendCapSeconds
+        if durationSeconds > window + 5 {
+            starts.append(max(0, durationSeconds / 2 - window / 2))
+        }
+        if durationSeconds > window * 2 {
+            starts.append(max(0, durationSeconds - window))
+        }
+        var unique: [Double] = []
+        for start in starts {
+            if !unique.contains(where: { abs($0 - start) < 0.5 }) {
+                unique.append(start)
+            }
+        }
+        return unique
+    }
+
+    private static func loadDurationSeconds(url: URL) -> Double? {
+        let asset = AVURLAsset(url: url)
+        let lock = DispatchSemaphore(value: 0)
+        var nsError: NSError?
+        var status: AVKeyValueStatus = .unknown
+        asset.loadValuesAsynchronously(forKeys: ["duration", "tracks"]) {
+            status = asset.statusOfValue(forKey: "duration", error: &nsError)
+            lock.signal()
+        }
+        let timeout: TimeInterval = isRemoteHttpURL(url) ? 45 : 20
+        if lock.wait(timeout: .now() + timeout) == .timedOut {
+            return nil
+        }
+        if status == .failed {
+            return nil
+        }
+        let seconds = CMTimeGetSeconds(asset.duration)
+        return seconds.isFinite && seconds > 0 ? seconds : nil
+    }
+
+    private func matchCurrentWindow() {
+        guard let url = matchFileURL else {
             reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
             return
         }
-        matchFile(at: url)
-    }
-
-    private func matchFile(at url: URL) {
+        let start = windowStarts.indices.contains(windowIndex) ? windowStarts[windowIndex] : 0
         let signature: SHSignature
         do {
-            signature = try Self.makeSignature(for: url)
+            signature = try Self.makeSignature(for: url, startSeconds: start)
         } catch let error as RecognizerError {
-            reject(error.message, error.code)
+            if windowIndex == 0 {
+                reject(error.message, error.code)
+                return
+            }
+            advanceToNextWindowOrResolveNoMatch()
             return
         } catch {
-            reject(
-                "Could not generate an audio signature: \(error.localizedDescription)",
-                "ERR_SHAZAMKIT_SIGNATURE"
-            )
+            if windowIndex == 0 {
+                reject(
+                    "Could not generate an audio signature: \(error.localizedDescription)",
+                    "ERR_SHAZAMKIT_SIGNATURE"
+                )
+                return
+            }
+            advanceToNextWindowOrResolveNoMatch()
             return
         }
 
@@ -189,7 +268,7 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
 
     func session(_ session: SHSession, didFind match: SHMatch) {
         guard let item = match.mediaItems.first else {
-            resolve(["match": NSNull()])
+            advanceToNextWindowOrResolveNoMatch()
             return
         }
         resolve([
@@ -219,7 +298,21 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             )
             return
         }
-        resolve(["match": NSNull()])
+        advanceToNextWindowOrResolveNoMatch()
+    }
+
+    private func advanceToNextWindowOrResolveNoMatch() {
+        if windowIndex + 1 < windowStarts.count {
+            windowIndex += 1
+            Self.workQueue.async { [weak self] in
+                self?.matchCurrentWindow()
+            }
+            return
+        }
+        resolve([
+            "match": NSNull(),
+            "windowsTried": windowStarts.count,
+        ])
     }
 
     // MARK: - Resolution plumbing
@@ -305,27 +398,32 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         return nil
     }
 
-    private static func makeSignature(for url: URL) throws -> SHSignature {
+    private static func makeSignature(for url: URL, startSeconds: Double = 0) throws -> SHSignature {
         let ext = url.pathExtension.lowercased()
         let isVideoContainer = ext == "mp4" || ext == "mov" || ext == "m4v"
         if !isVideoContainer {
             do {
-                return try signatureFromAudioFile(url)
+                return try signatureFromAudioFile(url, startSeconds: startSeconds)
             } catch let error as RecognizerError {
                 throw error
             } catch {
-                return try signatureFromAssetReader(url)
+                return try signatureFromAssetReader(url, startSeconds: startSeconds)
             }
         }
-        return try signatureFromAssetReader(url)
+        return try signatureFromAssetReader(url, startSeconds: startSeconds)
     }
 
     /// WAV / CAF / M4A (and some AAC-in-MP4) via AVAudioFile.
-    private static func signatureFromAudioFile(_ url: URL) throws -> SHSignature {
+    private static func signatureFromAudioFile(_ url: URL, startSeconds: Double = 0) throws -> SHSignature {
         let file = try AVAudioFile(forReading: url)
         let inFormat = file.processingFormat
         let maxFrames = AVAudioFrameCount(inFormat.sampleRate * signatureAppendCapSeconds)
-        let framesToRead = min(maxFrames, AVAudioFrameCount(file.length))
+        let skipFrames = AVAudioFramePosition(max(0, startSeconds) * inFormat.sampleRate)
+        if skipFrames > 0, file.length > 0 {
+            file.framePosition = min(skipFrames, max(0, file.length - 1))
+        }
+        let remaining = max(0, file.length - file.framePosition)
+        let framesToRead = min(maxFrames, AVAudioFrameCount(remaining))
         guard framesToRead >= AVAudioFrameCount(inFormat.sampleRate) else {
             throw RecognizerError(
                 code: "ERR_SHAZAMKIT_NO_AUDIO_TRACK",
@@ -357,7 +455,9 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         return generator.signature()
     }
 
-    private static func signatureFromAssetReader(_ url: URL) throws -> SHSignature {
+    /// Do not set `reader.timeRange` to skip — that yields `Invalid sample cursor`
+    /// on Capgo / Photos library MP4s. Discard sample buffers instead.
+    private static func signatureFromAssetReader(_ url: URL, startSeconds: Double = 0) throws -> SHSignature {
         let (asset, track) = try loadAudioTrack(url: url)
 
         let reader: AVAssetReader
@@ -413,12 +513,21 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         }
 
         let generator = SHSignatureGenerator()
+        var skippedSeconds: Double = 0
         var appendedSeconds: Double = 0
         var converter: AVAudioConverter?
         var converterInFormat: AVAudioFormat?
+        let skipNeed = max(0, startSeconds)
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
             guard let pcm = pcmBuffer(from: sampleBuffer) else { continue }
+            let inRate = pcm.format.sampleRate
+            if skipNeed > 0, skippedSeconds < skipNeed {
+                if inRate > 0 {
+                    skippedSeconds += Double(pcm.frameLength) / inRate
+                }
+                continue
+            }
             guard let toAppend = convertForSignature(
                 pcm,
                 converter: &converter,

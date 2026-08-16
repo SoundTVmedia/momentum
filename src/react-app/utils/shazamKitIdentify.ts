@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { ShazamKit, type ShazamKitMatchPayload } from '@feedback/shazamkit';
 import {
+  IDENTIFY_SAMPLE_SECONDS,
   MAX_IDENTIFY_UPLOAD_BYTES,
   MIN_IDENTIFY_SAMPLE_BYTES,
 } from '@/shared/identify-music-limits';
@@ -13,6 +14,33 @@ export const SHAZAMKIT_MAX_DIRECT_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
 const SHAZAMKIT_TIMEOUT_MS = 20_000;
 /** Remote Stream MP4: AVAsset track load allows 45s natively. */
 const SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS = 50_000;
+/** Start + mid + last 11s each need a catalog round-trip. */
+const SHAZAMKIT_SCAN_WINDOWS_TIMEOUT_MS = 90_000;
+
+/**
+ * Native `scanWindows` offsets: opening 11s, then mid and last 11s when the
+ * clip is long enough. Library uploads often put the song after talking.
+ */
+export function shazamKitScanWindowStarts(durationSeconds: number | null | undefined): number[] {
+  const starts = [0];
+  if (durationSeconds == null || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return starts;
+  }
+  const window = IDENTIFY_SAMPLE_SECONDS;
+  if (durationSeconds > window + 5) {
+    starts.push(Math.max(0, durationSeconds / 2 - window / 2));
+  }
+  if (durationSeconds > window * 2) {
+    starts.push(Math.max(0, durationSeconds - window));
+  }
+  const unique: number[] = [];
+  for (const start of starts) {
+    if (!unique.some((existing) => Math.abs(existing - start) < 0.5)) {
+      unique.push(start);
+    }
+  }
+  return unique;
+}
 
 /**
  * True on native iOS. Do not gate on Capacitor.isPluginAvailable('ShazamKit') —
@@ -193,27 +221,30 @@ function describeUnknownError(err: unknown): string {
  */
 export async function identifyNativeFileWithShazamKit(
   path: string | null | undefined,
+  options?: { scanWindows?: boolean },
 ): Promise<AudDIdentifyResult | null> {
   const trimmed = path?.trim() ?? '';
   if (!trimmed) return null;
   if (!isShazamKitIdentifyAvailable()) return null;
-  const timeoutMs = /^https?:\/\//i.test(trimmed)
-    ? SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS
-    : SHAZAMKIT_TIMEOUT_MS;
+  const scanWindows = options?.scanWindows === true;
+  const timeoutMs = scanWindows
+    ? SHAZAMKIT_SCAN_WINDOWS_TIMEOUT_MS
+    : /^https?:\/\//i.test(trimmed)
+      ? SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS
+      : SHAZAMKIT_TIMEOUT_MS;
+  const recognize = () =>
+    ShazamKit.recognizeFile({
+      path: trimmed,
+      ...(scanWindows ? { scanWindows: true } : {}),
+    });
   try {
-    const { match } = await withTimeout(
-      ShazamKit.recognizeFile({ path: trimmed }),
-      timeoutMs,
-    );
+    const { match } = await withTimeout(recognize(), timeoutMs);
     return shazamKitMatchToIdentifyResult(match);
   } catch (err) {
     if (isTransientShazamKitMatchFailure(err)) {
       try {
         await new Promise((r) => window.setTimeout(r, 1_200));
-        const { match } = await withTimeout(
-          ShazamKit.recognizeFile({ path: trimmed }),
-          timeoutMs,
-        );
+        const { match } = await withTimeout(recognize(), timeoutMs);
         return shazamKitMatchToIdentifyResult(match);
       } catch (retryErr) {
         console.warn('ShazamKit file identify failed', describeUnknownError(retryErr));

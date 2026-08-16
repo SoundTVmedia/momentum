@@ -5,6 +5,7 @@ import {
   isTransientShazamKitMatchFailure,
   pickShazamKitMicSource,
   shazamKitMatchToIdentifyResult,
+  shazamKitScanWindowStarts,
   SHAZAMKIT_MAX_DIRECT_BYTES,
 } from './shazamKitIdentify';
 import {
@@ -132,6 +133,19 @@ describe('isTransientShazamKitMatchFailure', () => {
         message: 'Could not load audio tracks: Cannot Open',
       }),
     ).toBe(false);
+  });
+});
+
+describe('shazamKitScanWindowStarts', () => {
+  it('uses only the opening window for short or unknown clips', () => {
+    expect(shazamKitScanWindowStarts(null)).toEqual([0]);
+    expect(shazamKitScanWindowStarts(10)).toEqual([0]);
+    expect(shazamKitScanWindowStarts(16)).toEqual([0]);
+  });
+
+  it('adds mid and last 11s windows for longer library clips', () => {
+    expect(shazamKitScanWindowStarts(17)).toEqual([0, 17 / 2 - 5.5]);
+    expect(shazamKitScanWindowStarts(45)).toEqual([0, 45 / 2 - 5.5, 45 - 11]);
   });
 });
 

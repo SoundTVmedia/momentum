@@ -30,5 +30,12 @@ export interface ShazamKitPlugin {
    */
   recognizeFile(options: {
     path: string;
+    /** Skip this many seconds before building the 11s signature. */
+    startSeconds?: number;
+    /**
+     * After a start-window no-match, also try the middle and last 11s
+     * (library clips often have music later than the opening).
+     */
+    scanWindows?: boolean;
   }): Promise<{ match: ShazamKitMatchPayload | null }>;
 }

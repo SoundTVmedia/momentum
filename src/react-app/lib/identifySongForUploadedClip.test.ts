@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   clipPlayerShazamKitMediaUrl,
+  identifyCacheFileName,
   identifySongForUploadedClip,
 } from './identifySongForUploadedClip';
 import { streamMp4Url, type ClipPlaybackFields } from '@/shared/clip-playback';
+import * as shazamKitIdentify from '@/react-app/utils/shazamKitIdentify';
 
 function clip(fields: Record<string, unknown>): ClipPlaybackFields {
   return fields as ClipPlaybackFields;
@@ -28,6 +30,16 @@ describe('clipPlayerShazamKitMediaUrl', () => {
         clip({ video_url: 'pending:upload', r2_raw_key: 'clips/user/video/abc.mp4' }),
       ),
     ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
+  });
+});
+
+describe('identifyCacheFileName', () => {
+  it('keeps Photos library .mov and defaults unknown URLs to .mp4', () => {
+    expect(
+      identifyCacheFileName(136, 'https://cdn.example.com/api/files/clips%2Fuser%2Fvideo%2FIMG_4016.mov'),
+    ).toBe('clip-136.mov');
+    expect(identifyCacheFileName(1, 'https://cdn.example.com/clip.m4v')).toBe('clip-1.m4v');
+    expect(identifyCacheFileName(2, 'https://cdn.example.com/clip')).toBe('clip-2.mp4');
   });
 });
 
@@ -100,5 +112,56 @@ describe('identifySongForUploadedClip', () => {
     const result = await identifySongForUploadedClip(clip({ id: 9 }));
     expect(result.status).toBe('error');
     expect(result.message).toMatch(/too many/i);
+  });
+
+  it('does not call the worker after a native full-file no-match', async () => {
+    vi.spyOn(shazamKitIdentify, 'identifyNativeFileWithShazamKit').mockResolvedValue({
+      status: 'nomatch',
+      message: null,
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await identifySongForUploadedClip(
+      clip({
+        id: 136,
+        video_url: 'https://cdn.example.com/IMG_4016.mov',
+      }),
+    );
+
+    expect(result.status).toBe('nomatch');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(shazamKitIdentify.identifyNativeFileWithShazamKit).toHaveBeenCalledWith(
+      'https://cdn.example.com/IMG_4016.mov',
+      { scanWindows: true },
+    );
+  });
+
+  it('falls back to the worker when ShazamKit errors', async () => {
+    vi.spyOn(shazamKitIdentify, 'identifyNativeFileWithShazamKit').mockResolvedValue({
+      status: 'error',
+      message: 'Could not read the clip audio.',
+    });
+    const fetchMock = vi.fn(async () => {
+      return new Response(JSON.stringify({ ok: true, match: { artist: 'Jay-Z', title: '99 Problems' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await identifySongForUploadedClip(
+      clip({
+        id: 137,
+        video_url: 'https://cdn.example.com/IMG_4018.mov',
+      }),
+    );
+
+    expect(result).toMatchObject({
+      status: 'match',
+      artist: 'Jay-Z',
+      title: '99 Problems',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

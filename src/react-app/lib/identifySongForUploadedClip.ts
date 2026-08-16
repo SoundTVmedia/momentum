@@ -20,6 +20,7 @@ type ServerIdentifyResponse = {
 };
 
 const SERVER_IDENTIFY_TIMEOUT_MS = 55_000;
+const IDENTIFY_CACHE_EXTENSIONS = new Set(['mov', 'm4v', 'mp4', 'm4a', 'caf', 'wav']);
 
 function absoluteMediaUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
@@ -34,6 +35,21 @@ function absoluteMediaUrl(url: string): string {
 export function clipPlayerShazamKitMediaUrl(clip: ClipPlaybackFields): string | null {
   const raw = resolveClipDownloadUrl(clip);
   return raw ? absoluteMediaUrl(raw) : null;
+}
+
+/** Keep the source container extension so AVFoundation opens Photos `.mov` files. */
+export function identifyCacheFileName(clipId: string | number, mediaUrl: string): string {
+  let ext = 'mp4';
+  try {
+    const pathname = new URL(mediaUrl, 'https://local.invalid').pathname;
+    const match = pathname.match(/\.([a-z0-9]+)$/i);
+    if (match && IDENTIFY_CACHE_EXTENSIONS.has(match[1].toLowerCase())) {
+      ext = match[1].toLowerCase();
+    }
+  } catch {
+    // keep mp4
+  }
+  return `clip-${clipId}.${ext}`;
 }
 
 async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIdentifyResult> {
@@ -126,7 +142,9 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
  * URLSession, then `ShazamKit.recognizeFile` on that local file. Do not
  * Range-fetch Capgo MP4s into WebAudio — WKWebView `decodeAudioData` can hang
  * and never reach the plugin (current production JS still does this).
- * Worker ACRCloud is the fallback.
+ * Worker ACRCloud runs only when ShazamKit is unavailable or errors. A clean
+ * native no-match after the full-file window scan is final — Range-fetching
+ * a Capgo/Photos `.mov` into ACR always returns code 2004.
  */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
@@ -146,12 +164,19 @@ export async function identifySongForUploadedClip(
   );
 
   if (mediaUrl) {
-    const localPath = await downloadRemoteMediaToCache(mediaUrl, `clip-${clipId}.mp4`);
+    const localPath = await downloadRemoteMediaToCache(
+      mediaUrl,
+      identifyCacheFileName(clipId, mediaUrl),
+    );
     const shazamPath = localPath || mediaUrl;
     console.log('[identify] clip-player shazamkit path', localPath ? 'local-cache' : 'remote-url');
-    const shazam = await identifyNativeFileWithShazamKit(shazamPath);
+    const shazam = await identifyNativeFileWithShazamKit(shazamPath, { scanWindows: true });
     if (shazam?.status === 'match') {
       console.log('[identify] clip-player shazamkit match', clipId);
+      return normalizeIdentifyResult(shazam);
+    }
+    if (shazam?.status === 'nomatch') {
+      console.log('[identify] clip-player shazamkit nomatch after full-file scan', clipId);
       return normalizeIdentifyResult(shazam);
     }
     console.log(
