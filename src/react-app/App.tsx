@@ -32,6 +32,7 @@ import SponsorDashboardPage from "@/react-app/pages/SponsorDashboard";
 import AnalyticsPage from "@/react-app/pages/Analytics";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import EventClipsPage from "@/react-app/pages/EventClips";
+import HowItWorksPage from "@/react-app/pages/HowItWorks";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
@@ -107,6 +108,7 @@ export default function App() {
               <Route path="/genres/:genreSlug" element={<GenrePage />} />
               <Route path="/artists/:artistName/shows/:showId/clips" element={<ShowClipsPage />} />
               <Route path="/events/clips/:eventTitle" element={<EventClipsPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

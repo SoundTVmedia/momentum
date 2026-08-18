@@ -1,4 +1,5 @@
 import { Music, Instagram, Twitter, Youtube, Download, Smartphone } from 'lucide-react'
+import { Link } from 'react-router'
 import { SHOW_FEEDBACK_LIVE_SCHEDULE } from '@/shared/feature-flags'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 
@@ -54,7 +55,7 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-white">Resources</h3>
             <div className="space-y-2">
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">How It Works</a>
+              <Link to="/how-it-works" className="block text-gray-400 hover:text-white transition-colors">How It Works</Link>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Content Guidelines</a>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Privacy Policy</a>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Terms of Service</a>
