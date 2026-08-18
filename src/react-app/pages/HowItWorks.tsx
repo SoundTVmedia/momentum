@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '@getmocha/users-service/react'
 import { Check, ChevronDown, MapPin, Search, Star, Users } from 'lucide-react'
@@ -45,7 +45,7 @@ const RULES = [
   "Your data isn't the product. We don't sell your personal information, and we don't track you across other companies' apps.",
 ]
 
-const FAQS: Array<{ question: string; answer: string }> = [
+const FAQS: Array<{ question: string; answer: ReactNode }> = [
   {
     question: 'Do I have to have gone to the show to review it?',
     answer:
@@ -68,8 +68,15 @@ const FAQS: Array<{ question: string; answer: string }> = [
   },
   {
     question: 'Can venues or artists get bad reviews taken down?',
-    answer:
-      'No. We remove reviews that break our Community Guidelines — not reviews that someone dislikes. Nobody can pay us to remove a rating.',
+    answer: (
+      <>
+        No. We remove reviews that break our{' '}
+        <Link to="/community-guidelines" className="text-momentum-flare hover:text-white transition-colors">
+          Community Guidelines
+        </Link>{' '}
+        — not reviews that someone dislikes. Nobody can pay us to remove a rating.
+      </>
+    ),
   },
   {
     question: 'Who can see my reviews?',

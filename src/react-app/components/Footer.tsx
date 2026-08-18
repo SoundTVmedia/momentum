@@ -73,7 +73,7 @@ export default function Footer() {
             <h3 className="font-bold text-white">Resources</h3>
             <div className="space-y-2">
               <FooterResourceLink to="/how-it-works">How It Works</FooterResourceLink>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Content Guidelines</a>
+              <FooterResourceLink to="/community-guidelines">Community Guidelines</FooterResourceLink>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Privacy Policy</a>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Terms of Service</a>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Support</a>
