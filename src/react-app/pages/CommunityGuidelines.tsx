@@ -202,8 +202,11 @@ const PART_THREE: Rule[] = [
         </ul>
         <p>
           Note on location in photos: photos can carry hidden location data. Feedback strips
-          location metadata from photos you upload before they’re published. Details are in our
-          Privacy Policy.
+          location metadata from photos you upload before they’re published. Details are in our{' '}
+          <Link to="/privacy" className="text-momentum-flare hover:text-white transition-colors">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </>
     ),
@@ -495,7 +498,11 @@ export default function CommunityGuidelines() {
         </p>
         <p>
           If your account is terminated you can still ask for a copy of your data or ask us to
-          delete it — see our Privacy Policy.
+          delete it — see our{' '}
+          <Link to="/privacy" className="text-momentum-flare hover:text-white transition-colors">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </section>
 

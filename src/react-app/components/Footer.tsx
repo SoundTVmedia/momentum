@@ -74,7 +74,7 @@ export default function Footer() {
             <div className="space-y-2">
               <FooterResourceLink to="/how-it-works">How It Works</FooterResourceLink>
               <FooterResourceLink to="/community-guidelines">Community Guidelines</FooterResourceLink>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Privacy Policy</a>
+              <FooterResourceLink to="/privacy">Privacy Policy</FooterResourceLink>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Terms of Service</a>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Support</a>
             </div>

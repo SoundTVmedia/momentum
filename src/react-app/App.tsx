@@ -34,6 +34,8 @@ import ShowClipsPage from "@/react-app/pages/ShowClips";
 import EventClipsPage from "@/react-app/pages/EventClips";
 import HowItWorksPage from "@/react-app/pages/HowItWorks";
 import CommunityGuidelinesPage from "@/react-app/pages/CommunityGuidelines";
+import PrivacyPolicyPage from "@/react-app/pages/PrivacyPolicy";
+import PrivacyChoicesPage from "@/react-app/pages/PrivacyChoices";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
@@ -111,6 +113,8 @@ export default function App() {
               <Route path="/events/clips/:eventTitle" element={<EventClipsPage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/privacy-choices" element={<PrivacyChoicesPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
