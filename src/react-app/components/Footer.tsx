@@ -3,6 +3,23 @@ import { Link } from 'react-router'
 import { SHOW_FEEDBACK_LIVE_SCHEDULE } from '@/shared/feature-flags'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 
+function FooterResourceLink({ to, children }: { to: string; children: string }) {
+  return (
+    <Link
+      to={to}
+      className="block text-gray-400 hover:text-white transition-colors"
+      onClick={() => {
+        history.scrollRestoration = 'manual'
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+        document.documentElement.scrollTop = 0
+        document.body.scrollTop = 0
+      }}
+    >
+      {children}
+    </Link>
+  )
+}
+
 export default function Footer() {
   const { hideBottomNav: hideSiteChrome } = useMobileChrome()
 
@@ -55,7 +72,7 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-white">Resources</h3>
             <div className="space-y-2">
-              <Link to="/how-it-works" className="block text-gray-400 hover:text-white transition-colors">How It Works</Link>
+              <FooterResourceLink to="/how-it-works">How It Works</FooterResourceLink>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Content Guidelines</a>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Privacy Policy</a>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Terms of Service</a>
