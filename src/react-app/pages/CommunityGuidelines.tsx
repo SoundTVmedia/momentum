@@ -197,7 +197,11 @@ const PART_THREE: Rule[] = [
           </li>
           <li>
             We remove media that infringes someone’s copyright when we get a valid notice. Repeat
-            infringers lose their accounts. See the copyright section of our Terms of Service.
+            infringers lose their accounts. See the copyright section of our{' '}
+            <Link to="/terms" className="text-momentum-flare hover:text-white transition-colors">
+              Terms of Service
+            </Link>
+            .
           </li>
         </ul>
         <p>
@@ -332,7 +336,11 @@ export default function CommunityGuidelines() {
           protects that.
         </p>
         <p>
-          These Guidelines are part of our Terms of Service. Using Feedback means agreeing to
+          These Guidelines are part of our{' '}
+          <Link to="/terms" className="text-momentum-flare hover:text-white transition-colors">
+            Terms of Service
+          </Link>
+          . Using Feedback means agreeing to
           follow them. We enforce the spirit of these rules as well as the letter — if someone
           finds a new way to make Feedback worse, we’ll act on it and then write the rule down.
         </p>

@@ -75,7 +75,7 @@ export default function Footer() {
               <FooterResourceLink to="/how-it-works">How It Works</FooterResourceLink>
               <FooterResourceLink to="/community-guidelines">Community Guidelines</FooterResourceLink>
               <FooterResourceLink to="/privacy">Privacy Policy</FooterResourceLink>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Terms of Service</a>
+              <FooterResourceLink to="/terms">Terms of Service</FooterResourceLink>
               <a href="#" className="block text-gray-400 hover:text-white transition-colors">Support</a>
             </div>
           </div>
