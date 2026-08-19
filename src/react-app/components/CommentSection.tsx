@@ -3,6 +3,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import { MessageCircle, Send, Loader2 } from 'lucide-react';
 import { useComments } from '@/react-app/hooks/useComments';
 import { CommentSkeleton } from './LoadingSkeleton';
+import ContentActionsMenu from './ContentActionsMenu';
 import UserAvatar from './UserAvatar';
 import type { ExtendedMochaUser } from '@/shared/types';
 
@@ -160,9 +161,18 @@ export default function CommentSection({ clipId, onCommentPosted }: CommentSecti
                     <span className="font-medium text-white">
                       {comment.user_display_name || 'Anonymous'}
                     </span>
-                    <span className="text-xs text-gray-500">
-                      {formatTimestamp(comment.created_at)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500">
+                        {formatTimestamp(comment.created_at)}
+                      </span>
+                      <ContentActionsMenu
+                        targetType="comment"
+                        targetId={comment.id}
+                        authorId={comment.mocha_user_id}
+                        authorName={comment.user_display_name}
+                        buttonClassName="-mr-1 p-1 text-gray-500 hover:text-white transition-colors"
+                      />
+                    </div>
                   </div>
                   <p className="text-gray-300 text-sm">{comment.content}</p>
                 </div>

@@ -36,6 +36,7 @@ import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets
 import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import type { StreamVideoPlayerHandle, StreamVideoPlayerPlaybackState } from '@/react-app/components/StreamVideoPlayer';
 import CommentSection from './CommentSection';
+import ContentActionsMenu from './ContentActionsMenu';
 import { ClipLikeHeart } from './ClipLikeHeart';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
@@ -667,6 +668,16 @@ export default function ClipModal({
             </div>
           ) : null}
         </div>
+        <div className="pointer-events-auto">
+          <ContentActionsMenu
+            targetType="clip"
+            targetId={clip.id}
+            authorId={clip.mocha_user_id}
+            authorName={clip.user_display_name}
+            buttonClassName="text-white"
+            openUp
+          />
+        </div>
       </div>
     </>
   );
@@ -1033,6 +1044,13 @@ export default function ClipModal({
                       </div>
                     ) : null}
                   </div>
+                  <ContentActionsMenu
+                    targetType="clip"
+                    targetId={clip.id}
+                    authorId={clip.mocha_user_id}
+                    authorName={clip.user_display_name}
+                    openUp
+                  />
                 </div>
               </div>
             </div>

@@ -37,6 +37,8 @@ import CommunityGuidelinesPage from "@/react-app/pages/CommunityGuidelines";
 import PrivacyPolicyPage from "@/react-app/pages/PrivacyPolicy";
 import PrivacyChoicesPage from "@/react-app/pages/PrivacyChoices";
 import TermsOfServicePage from "@/react-app/pages/TermsOfService";
+import HelpSupportPage from "@/react-app/pages/HelpSupport";
+import BlockedAccountsPage from "@/react-app/pages/BlockedAccounts";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
@@ -117,6 +119,8 @@ export default function App() {
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/privacy-choices" element={<PrivacyChoicesPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />
+              <Route path="/support" element={<HelpSupportPage />} />
+              <Route path="/settings/blocked" element={<BlockedAccountsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

@@ -6,6 +6,7 @@ import {
   mochaUserIdKey,
   toggleArtistFollowFavorite,
 } from './favorite-artists-sync';
+import { isBlockedBetween } from './user-blocks';
 
 function artistNameFollowKey(name: string): string {
   const normalized = name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -391,6 +392,10 @@ export async function toggleFollow(c: Context) {
   )
     .bind(uid, targetUserId)
     .first();
+
+  if (!existingFollow && (await isBlockedBetween(c.env.DB, uid, targetUserId))) {
+    return c.json({ error: 'You cannot follow this account' }, 403);
+  }
 
   if (existingFollow) {
     await c.env.DB.prepare(

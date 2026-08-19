@@ -3,55 +3,6 @@ import { purgeClipFromDatabase } from './clip-delete-utils';
 import { getStaffProfile, isAdmin, isSuperAdmin } from './admin-auth';
 import { mochaUserIdKey } from './mocha-user-id';
 
-// Report/flag a clip
-export async function reportClip(c: Context) {
-  const mochaUser = c.get("user");
-  
-  if (!mochaUser) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  
-  const clipId = c.req.param('clipId');
-  const body = await c.req.json();
-  const { reason } = body;
-
-  if (!reason || !reason.trim()) {
-    return c.json({ error: "Report reason is required" }, 400);
-  }
-
-  // Check if clip exists
-  const clip = await c.env.DB.prepare(
-    "SELECT id FROM clips WHERE id = ?"
-  )
-    .bind(clipId)
-    .first();
-
-  if (!clip) {
-    return c.json({ error: "Clip not found" }, 404);
-  }
-
-  // Check if user already reported this clip
-  const existingFlag = await c.env.DB.prepare(
-    "SELECT id FROM clip_flags WHERE clip_id = ? AND reported_by = ?"
-  )
-    .bind(clipId, mochaUser.id)
-    .first();
-
-  if (existingFlag) {
-    return c.json({ error: "You have already reported this clip" }, 400);
-  }
-
-  // Create flag
-  await c.env.DB.prepare(
-    `INSERT INTO clip_flags (clip_id, reported_by, reason, status, created_at, updated_at)
-     VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-  )
-    .bind(clipId, mochaUser.id, reason.trim())
-    .run();
-
-  return c.json({ success: true }, 201);
-}
-
 // Get flagged clips for moderation
 export async function getFlaggedClips(c: Context) {
   const mochaUser = c.get("user");
@@ -95,7 +46,7 @@ export async function getFlaggedClips(c: Context) {
     bindings.push(statusFilter);
   }
 
-  query += ` ORDER BY clip_flags.created_at DESC LIMIT 100`;
+  query += ` ORDER BY clip_flags.is_urgent DESC, clip_flags.created_at DESC LIMIT 100`;
 
   const flags = await c.env.DB.prepare(query)
     .bind(...bindings)
@@ -166,6 +117,166 @@ export async function reviewFlaggedClip(c: Context) {
       .bind(mochaUser.id, flagId)
       .run();
   }
+
+  return c.json({ success: true });
+}
+
+async function requireAdmin(c: Context): Promise<Response | null> {
+  const mochaUser = c.get('user');
+  if (!mochaUser) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const userProfile = await c.env.DB.prepare(
+    'SELECT is_admin, is_superadmin FROM user_profiles WHERE mocha_user_id = ?',
+  )
+    .bind(mochaUserIdKey(mochaUser))
+    .first();
+
+  if (!userProfile || !isAdmin(userProfile)) {
+    return c.json({ error: 'Admin access required' }, 403);
+  }
+
+  return null;
+}
+
+// Reported comments queue
+export async function getFlaggedComments(c: Context) {
+  const denied = await requireAdmin(c);
+  if (denied) return denied;
+
+  const statusFilter = c.req.query('status') || 'pending';
+
+  let query = `
+    SELECT
+      comment_flags.*,
+      comments.content AS comment_content,
+      comments.clip_id AS clip_id,
+      comments.is_hidden AS comment_is_hidden,
+      comments.mocha_user_id AS comment_user_id,
+      author.display_name AS comment_user_display_name,
+      author.profile_image_url AS comment_user_avatar,
+      reporter.display_name AS reporter_display_name
+    FROM comment_flags
+    LEFT JOIN comments ON comment_flags.comment_id = comments.id
+    LEFT JOIN user_profiles AS author ON comments.mocha_user_id = author.mocha_user_id
+    LEFT JOIN user_profiles AS reporter ON comment_flags.reported_by = reporter.mocha_user_id
+  `;
+
+  const bindings: unknown[] = [];
+  if (statusFilter !== 'all') {
+    query += ' WHERE comment_flags.status = ?';
+    bindings.push(statusFilter);
+  }
+  query += ' ORDER BY comment_flags.is_urgent DESC, comment_flags.created_at DESC LIMIT 100';
+
+  const flags = await c.env.DB.prepare(query).bind(...bindings).all();
+
+  return c.json({ flaggedComments: flags.results || [] });
+}
+
+export async function reviewFlaggedComment(c: Context) {
+  const denied = await requireAdmin(c);
+  if (denied) return denied;
+
+  const mochaUser = c.get('user');
+  const flagId = c.req.param('flagId');
+  const body = (await c.req.json()) as { action?: string };
+  const action = body.action;
+
+  if (action !== 'approve' && action !== 'remove') {
+    return c.json({ error: 'Invalid action' }, 400);
+  }
+
+  const flag = (await c.env.DB.prepare('SELECT comment_id FROM comment_flags WHERE id = ?')
+    .bind(flagId)
+    .first()) as { comment_id: number } | null;
+
+  if (!flag) {
+    return c.json({ error: 'Flag not found' }, 404);
+  }
+
+  if (action === 'remove') {
+    await c.env.DB.prepare('UPDATE comments SET is_hidden = 1 WHERE id = ?')
+      .bind(flag.comment_id)
+      .run();
+  } else {
+    // Approving clears an automatic removal (e.g. a report that turned out to be wrong).
+    await c.env.DB.prepare('UPDATE comments SET is_hidden = 0 WHERE id = ?')
+      .bind(flag.comment_id)
+      .run();
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE comment_flags
+     SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+  )
+    .bind(action === 'remove' ? 'removed' : 'approved', mochaUserIdKey(mochaUser ?? { id: '' }), flagId)
+    .run();
+
+  return c.json({ success: true });
+}
+
+// Reported profiles queue
+export async function getFlaggedProfiles(c: Context) {
+  const denied = await requireAdmin(c);
+  if (denied) return denied;
+
+  const statusFilter = c.req.query('status') || 'pending';
+
+  let query = `
+    SELECT
+      profile_flags.*,
+      reported.display_name AS reported_display_name,
+      reported.profile_image_url AS reported_avatar,
+      reported.bio AS reported_bio,
+      reporter.display_name AS reporter_display_name,
+      COALESCE(
+        (SELECT 1 FROM user_bans
+         WHERE user_bans.mocha_user_id = profile_flags.reported_user_id
+         AND (user_bans.expires_at IS NULL OR user_bans.expires_at > datetime('now'))
+         LIMIT 1),
+        0
+      ) AS is_banned
+    FROM profile_flags
+    LEFT JOIN user_profiles AS reported ON profile_flags.reported_user_id = reported.mocha_user_id
+    LEFT JOIN user_profiles AS reporter ON profile_flags.reported_by = reporter.mocha_user_id
+  `;
+
+  const bindings: unknown[] = [];
+  if (statusFilter !== 'all') {
+    query += ' WHERE profile_flags.status = ?';
+    bindings.push(statusFilter);
+  }
+  query += ' ORDER BY profile_flags.is_urgent DESC, profile_flags.created_at DESC LIMIT 100';
+
+  const flags = await c.env.DB.prepare(query).bind(...bindings).all();
+
+  return c.json({ flaggedProfiles: flags.results || [] });
+}
+
+/** Close a profile report. Bans stay a separate, explicit action. */
+export async function reviewFlaggedProfile(c: Context) {
+  const denied = await requireAdmin(c);
+  if (denied) return denied;
+
+  const mochaUser = c.get('user');
+  const flagId = c.req.param('flagId');
+  const body = (await c.req.json()) as { action?: string };
+  const action = body.action;
+
+  if (action !== 'approve' && action !== 'actioned') {
+    return c.json({ error: 'Invalid action' }, 400);
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE profile_flags
+     SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+  )
+    .bind(action === 'approve' ? 'approved' : 'actioned', mochaUserIdKey(mochaUser ?? { id: '' }), flagId)
+    .run();
 
   return c.json({ success: true });
 }
