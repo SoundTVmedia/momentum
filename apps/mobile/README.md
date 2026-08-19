@@ -27,6 +27,7 @@ npm run mobile:lint
 **Stack**
 - `react-native-vision-camera` — rear camera + muxed mic → MP4 file
 - `modules/feedback-audio-session` — AVAudioSession prepare/restore (Capacitor plugin left intact)
+- `modules/feedback-shazamkit` — on-device song ID at `/upload` review (ShazamKit primary, Worker ACRCloud fallback; see `docs/shazamkit-setup.md`)
 - File-based handoff + AsyncStorage outbox meta (no IndexedDB)
 - Worker multipart: `POST /api/uploads/init` → PUT parts → complete → poll published
 - Photos save via `expo-media-library`
@@ -34,7 +35,7 @@ npm run mobile:lint
 
 **Flow**
 1. Capture tab → record ≤60s → audio atom assert → persist under Documents/captures
-2. `/upload` review (caption/artist/venue) → Share
+2. `/upload` review (caption/artist/venue) → ShazamKit song ID prefills Song/Artist (never blocks Share) → Share
 3. Queue uploads + Photos save → clip appears in feed via existing Worker
 
 **Rebuild after Phase 4**
@@ -43,10 +44,15 @@ npm run mobile:ios
 ```
 Must validate on a **physical iPhone** (simulator camera/mic is insufficient).
 
+**Song ID (ShazamKit primary)**
+- `/upload` review identifies the clip once per capture: ShazamKit on-device (iOS 15+), Worker ACRCloud (`POST /api/clips/identify-music`) as fallback
+- Enable the ShazamKit **App Service** on the App ID (not an entitlements-file key) — setup steps in `docs/shazamkit-setup.md`
+- Rebuild the dev client after pulling this module: `npm run mobile:ios`
+
 **Deferred vs Capacitor (Phase 5+)**
 - Live AudD while recording
 - Zoom-while-record / flip
-- Content-feed classify + ACR at upload time (manual caption fields for now)
+- Content-feed classify (manual caption fields for now)
 - Capgo-specific settle timings / multi-clip sticky show session
 
 ## Phase status

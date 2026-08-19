@@ -1,0 +1,19 @@
+require 'json'
+
+package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
+
+Pod::Spec.new do |s|
+  # Must match Capacitor CLI's derived name for @feedback/shazamkit.
+  s.name = 'FeedbackShazamkit'
+  s.version = package['version']
+  s.summary = package['description']
+  s.license = package['license']
+  s.homepage = 'https://github.com/feedback-app/momentum'
+  s.author = 'Feedback'
+  s.source = { :git => 'https://github.com/feedback-app/momentum.git', :tag => s.version.to_s }
+  s.source_files = 'ios/Sources/**/*.{swift,h,m,c,cc,mm,cpp}'
+  s.ios.deployment_target = '15.0'
+  s.frameworks = 'ShazamKit', 'AVFoundation'
+  s.dependency 'Capacitor'
+  s.swift_version = '5.1'
+end

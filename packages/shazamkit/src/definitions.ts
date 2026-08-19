@@ -1,0 +1,51 @@
+/** Normalized Shazam catalog match returned by the native iOS plugin. */
+export type ShazamKitMatchPayload = {
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  genres: string[] | null;
+  isrc: string | null;
+  appleMusicId: string | null;
+  appleMusicUrl: string | null;
+  shazamId: string | null;
+  confidence: number | null;
+};
+
+export interface ShazamKitPlugin {
+  /** True on iOS 15+ builds that include the native plugin. */
+  isSupported(): Promise<{ supported: boolean }>;
+  /**
+   * Recognize a song from a base64-encoded audio/video payload (wav, m4a,
+   * mp4…). Resolves `{ match: null }` on a clean catalog no-match; rejects on
+   * unsupported platform, malformed audio, or a failed match attempt.
+   */
+  recognizeAudio(options: {
+    base64: string;
+    mimeType?: string;
+  }): Promise<{ match: ShazamKitMatchPayload | null }>;
+  /**
+   * Recognize a song from a local file path (`file://` / absolute) or a
+   * remote progressive MP4 (`https://`, e.g. Cloudflare Stream). Used for
+   * Capgo recordings and clip-player Tap to identify.
+   */
+  recognizeFile(options: {
+    path: string;
+    /** Skip this many seconds before building the 11s signature. */
+    startSeconds?: number;
+    /**
+     * Walk overlapping 11s windows across the file (library clips often
+     * put the song after talking).
+     */
+    scanWindows?: boolean;
+  }): Promise<{
+    match: ShazamKitMatchPayload | null;
+    windowsTried?: number;
+    windowCount?: number;
+    durationSeconds?: number | null;
+    windowStarts?: number[];
+    loudestStartSeconds?: number | null;
+    loudestRms?: number | null;
+    /** 11s WAV of the loudest window, for Worker ACR after a Shazam no-match. */
+    wavPath?: string | null;
+  }>;
+}

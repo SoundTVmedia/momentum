@@ -13,6 +13,7 @@ import {
   type OutboxJob,
   type UploadFormFields,
 } from '@/src/lib/upload/multipart';
+import type { MusicRecognitionOutcome } from '@/src/lib/music/recognition';
 
 const META_KEY = 'feedback.rn.outbox.meta.v1';
 const HANDOFF_KEY = 'feedback.rn.capture.handoff.v1';
@@ -47,6 +48,8 @@ export type CaptureHandoff = {
     startDate: string;
     distance_miles: number | null;
   } | null;
+  /** Song ID result (ShazamKit primary, ACRCloud fallback) — run once per capture. */
+  musicRecognition?: MusicRecognitionOutcome | null;
 };
 
 async function ensureCaptureDir(): Promise<void> {
@@ -122,6 +125,20 @@ export async function readCaptureHandoff(): Promise<CaptureHandoff | null> {
 
 export async function clearCaptureHandoff(): Promise<void> {
   await AsyncStorage.removeItem(HANDOFF_KEY);
+}
+
+/**
+ * Persist a song recognition outcome on the pending handoff so it runs once
+ * per capture (surviving review-screen remounts). No-op when the pending
+ * handoff no longer points at this capture.
+ */
+export async function saveCaptureRecognition(
+  videoUri: string,
+  outcome: MusicRecognitionOutcome,
+): Promise<void> {
+  const pending = await readCaptureHandoff();
+  if (!pending || pending.videoUri !== videoUri) return;
+  await writeCaptureHandoff({ ...pending, musicRecognition: outcome });
 }
 
 async function readJobs(): Promise<OutboxJob[]> {

@@ -1,6 +1,8 @@
-const SNIPPET_MS = 14_000;
-/** Prefer 8s+ when the clip is long enough; shorter clips use most of their duration. */
-const PREFERRED_RECORD_MS = 8_000;
+import { IDENTIFY_SAMPLE_SECONDS } from '@/shared/identify-music-limits';
+
+const SNIPPET_MS = IDENTIFY_SAMPLE_SECONDS * 1000;
+/** Prefer a full 11s sample when the clip is long enough. */
+const PREFERRED_RECORD_MS = IDENTIFY_SAMPLE_SECONDS * 1000;
 const MIN_RECORD_MS = 3_000;
 
 export type ExtractSnippetFailure =

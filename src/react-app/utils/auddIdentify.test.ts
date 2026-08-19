@@ -56,4 +56,13 @@ describe('isFatalSongIdentifyError', () => {
       }),
     ).toBe(true);
   });
+
+  it('does not treat ShazamKit decode failures as fatal (ACRCloud still runs)', () => {
+    expect(
+      isFatalSongIdentifyError({
+        status: 'error',
+        message: 'Reading the clip audio failed: Invalid sample cursor',
+      }),
+    ).toBe(false);
+  });
 });

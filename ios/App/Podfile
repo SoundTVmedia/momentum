@@ -1,5 +1,28 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
+# CocoaPods 1.16.2 bundles xcodeproj 1.27.0, which can create Pods.xcodeproj
+# using the user project's objectVersion but has no compatibility string for 70.
+# Xcode 16+/26 often bumps App.xcodeproj to 70 (Folders / Project Format).
+# Patch the mapping and normalize the on-disk project before install.
+require 'xcodeproj'
+compat = Xcodeproj::Constants::COMPATIBILITY_VERSION_BY_OBJECT_VERSION
+unless compat.key?(70)
+  patched = compat.dup
+  patched[70] = 'Xcode 16.0'
+  patched[71] = 'Xcode 16.2' unless patched.key?(71)
+  Xcodeproj::Constants.send(:remove_const, :COMPATIBILITY_VERSION_BY_OBJECT_VERSION)
+  Xcodeproj::Constants.const_set(:COMPATIBILITY_VERSION_BY_OBJECT_VERSION, patched.freeze)
+end
+
+pbxproj_path = File.expand_path('App.xcodeproj/project.pbxproj', __dir__)
+if File.file?(pbxproj_path)
+  pbx = File.read(pbxproj_path)
+  if pbx.include?('objectVersion = 70;')
+    File.write(pbxproj_path, pbx.sub('objectVersion = 70;', 'objectVersion = 56;'))
+    Pod::UI.puts '[Feedback] Normalized App.xcodeproj objectVersion 70 → 56 (CocoaPods xcodeproj 1.27.0)'
+  end
+end
+
 platform :ios, '15.0'
 use_frameworks!
 
@@ -22,6 +45,7 @@ def capacitor_pods
   pod 'CapgoCameraPreview', :path => '../../node_modules/@capgo/camera-preview'
   pod 'CapgoCapacitorSocialLogin', :path => '../../node_modules/@capgo/capacitor-social-login'
   pod 'FeedbackNativeAudioCapture', :path => '../../packages/native-audio-capture'
+  pod 'FeedbackShazamkit', :path => '../../packages/shazamkit'
 end
 
 target 'App' do
@@ -39,7 +63,7 @@ post_install do |installer|
       config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
 
       # Vendor pods — silence deprecation / unused-variable noise we cannot patch sustainably.
-      next if target.name == 'FeedbackNativeAudioCapture'
+      next if ['FeedbackNativeAudioCapture', 'FeedbackShazamkit'].include?(target.name)
 
       config.build_settings['SWIFT_SUPPRESS_WARNINGS'] = 'YES'
       config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'

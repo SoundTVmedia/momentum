@@ -45,4 +45,6 @@ export type ClipUploadJobPayload = {
     video_resolution_w?: number;
     video_resolution_h?: number;
   };
+  /** Capgo recording path — ShazamKit reads this file directly (no base64). */
+  nativeVideoUri?: string;
 };

@@ -11,6 +11,7 @@ import {
   auddSourceKey,
   auddPrefillFromLiveMatch,
 } from '@/react-app/utils/auddIdentify';
+import { identifyLiveAudioWithShazamKit, identifyNativeFileWithShazamKit, logShazamKitAvailability } from '@/react-app/utils/shazamKitIdentify';
 import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
 import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
@@ -59,6 +60,8 @@ import {
   scheduleNativeCaptureFullScreenPreview,
   startNativeVideoRecording,
   stopNativeVideoRecording,
+  startNativeLiveAudioSegments,
+  stopNativeLiveAudioSegments,
   setNativeCaptureZoom,
   setNativeCaptureFocus,
   beginNativeCapturePinchZoom,
@@ -141,7 +144,10 @@ export default function QuickRecordButton({
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
-  const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight } = useClipUploadQueue();
+  const {
+    enqueue: enqueueClipUpload,
+    activeCount: clipUploadsInFlight,
+  } = useClipUploadQueue();
   const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const lastGeoRef = useRef<{
     latitude: number;
@@ -197,7 +203,7 @@ export default function QuickRecordButton({
   const prevIsOpenRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
-  /** Stabilized song/artist used as caption prefill fallback (not shown on camera). */
+  /** Stabilized song/artist used as caption prefill fallback. */
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -1480,6 +1486,7 @@ export default function QuickRecordButton({
       void setNativeCaptureFocus(x, y);
       return;
     }
+
     if (focusReticleTimerRef.current) {
       clearTimeout(focusReticleTimerRef.current);
     }
@@ -1852,6 +1859,7 @@ export default function QuickRecordButton({
 
   const stopLiveAuddPipeline = () => {
     stopLiveAuddRecorder();
+    void stopNativeLiveAudioSegments();
     resetLiveSongIdentification();
   };
 
@@ -1863,6 +1871,15 @@ export default function QuickRecordButton({
   const identifyLiveSegmentBlob = (blob: Blob) => {
     if (liveAuddStoppedRef.current) return;
     if (blob.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
+
+    // ShazamKit must not block the HUD: a 20s catalog round-trip used to
+    // starve ACR and drop later mic segments (liveAuddInFlightRef).
+    void identifyLiveAudioWithShazamKit(blob).then((shazam) => {
+      if (liveAuddStoppedRef.current || shazam?.status !== 'match') return;
+      const { displayed } = liveStabilizerRef.current.observe(shazam);
+      applyLiveSongDisplayed(displayed);
+    });
+
     if (liveAuddInFlightRef.current) return;
     liveAuddInFlightRef.current = true;
     void (async () => {
@@ -2022,6 +2039,20 @@ export default function QuickRecordButton({
         setIsRecording(true);
         recordingSecondsRef.current = 0;
         setRecordingElapsedSeconds(0);
+        lastParallelAuddAudioBlobRef.current = null;
+        auddParallelAudioChunksRef.current = [];
+        liveAuddStoppedRef.current = false;
+        logShazamKitAvailability();
+        // Capgo owns the camera mic; emit rolling AAC segments for live HUD song ID.
+        void startNativeLiveAudioSegments((blob) => {
+          if (blob.size > 0) {
+            lastParallelAuddAudioBlobRef.current = blob;
+            auddParallelAudioChunksRef.current.push(blob);
+          }
+          identifyLiveSegmentBlob(blob);
+        }).catch((err) => {
+          console.warn('QuickRecordButton: native live audio segments failed', err);
+        });
         timerRef.current = setInterval(() => {
           recordingSecondsRef.current += 1;
           const t = recordingSecondsRef.current;
@@ -2037,6 +2068,7 @@ export default function QuickRecordButton({
         console.error('Native recording failed:', err);
         isRecordingRef.current = false;
         setIsRecording(false);
+        void stopNativeLiveAudioSegments();
         const msg = err instanceof Error ? err.message : String(err);
         setCameraError(
           /preview is not running/i.test(msg)
@@ -2167,6 +2199,9 @@ export default function QuickRecordButton({
       setIsFinishingRecording(true);
       void (async () => {
         try {
+          liveAuddStoppedRef.current = true;
+          await stopNativeLiveAudioSegments();
+          await waitForLiveAuddInFlight(LIVE_AUDD_STOP_WAIT_MS);
           const stopped = await stopNativeVideoRecording();
           const videoFilePath = stopped.videoFilePath;
           isRecordingRef.current = false;
@@ -2175,14 +2210,25 @@ export default function QuickRecordButton({
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          // Finalize + enqueue in place; keep the camera open for the next clip.
+          const pendingShazamKit = identifyNativeFileWithShazamKit(videoFilePath);
+          void pendingShazamKit.then((result) => {
+            if (result?.status !== 'match') return;
+            const title = result.title?.trim() ?? '';
+            const artist = result.artist?.trim() ?? '';
+            if (title || artist) {
+              lastLiveSongMatchRef.current = { title, artist };
+            }
+          });
           await handleRecordingComplete(null, {
             nativeVideoPath: videoFilePath,
             nativeAudioTrackCount: stopped.audioTrackCount,
-            skipAudd: true,
+            skipWebAuddRecorder: true,
+            pendingShazamKit,
           });
         } catch (err) {
           console.error('Native stop recording failed:', err);
+          liveAuddStoppedRef.current = true;
+          void stopNativeLiveAudioSegments();
           isRecordingRef.current = false;
           setIsRecording(false);
           if (timerRef.current) {
@@ -2259,12 +2305,17 @@ export default function QuickRecordButton({
   const handleRecordingComplete = async (
     blob: Blob | null,
     opts?: {
+      /** Skip waiting on the web MediaRecorder parallel mic track (native capture). */
+      skipWebAuddRecorder?: boolean;
+      /** @deprecated use skipWebAuddRecorder */
       skipAudd?: boolean;
       nativeVideoPath?: string;
       nativeAudioTrackCount?: number;
       webStreamHadAudio?: boolean;
+      pendingShazamKit?: Promise<import('@/react-app/utils/auddIdentify').AudDIdentifyResult | null>;
     },
   ) => {
+    const skipWebAuddRecorder = Boolean(opts?.skipWebAuddRecorder || opts?.skipAudd);
     const pathFirstNative =
       shouldUseNativeIosCapture() &&
       Boolean(opts?.nativeVideoPath?.trim()) &&
@@ -2289,7 +2340,7 @@ export default function QuickRecordButton({
       }
       const par = auddParallelAudioRecorderRef.current;
       if (
-        !opts?.skipAudd &&
+        !skipWebAuddRecorder &&
         par &&
         (par.state === 'recording' || par.state === 'paused')
       ) {
@@ -2306,7 +2357,7 @@ export default function QuickRecordButton({
           par.stop();
         });
       } else if (
-        !opts?.skipAudd &&
+        !skipWebAuddRecorder &&
         !lastParallelAuddAudioBlobRef.current &&
         auddParallelAudioChunksRef.current.length > 0
       ) {
@@ -2318,9 +2369,20 @@ export default function QuickRecordButton({
           type: outMime,
         });
         auddParallelAudioChunksRef.current = [];
+      } else if (
+        skipWebAuddRecorder &&
+        !lastParallelAuddAudioBlobRef.current &&
+        auddParallelAudioChunksRef.current.length > 0
+      ) {
+        // Native AAC segments — prefer the largest recent chunk for ShazamKit.
+        const chunks = auddParallelAudioChunksRef.current;
+        auddParallelAudioChunksRef.current = [];
+        lastParallelAuddAudioBlobRef.current = chunks.reduce((best, cur) =>
+          cur.size > best.size ? cur : best,
+        );
       }
 
-      const captureAudioBlob = opts?.skipAudd ? null : lastParallelAuddAudioBlobRef.current;
+      const captureAudioBlob = lastParallelAuddAudioBlobRef.current;
       lastParallelAuddAudioBlobRef.current = null;
 
       // Live song match is attached if available; full song ID can continue in the upload queue.
@@ -2401,10 +2463,26 @@ export default function QuickRecordButton({
       const artist_name = prefetchShow?.artist_name?.trim() ?? '';
       const venue_name = prefetchShow?.venue_name?.trim() ?? '';
       const locationLine = prefetchShow?.location?.trim() ?? '';
-      const song_title =
+      let song_title =
         auddPrefill.status === 'done' && auddPrefill.title.trim()
           ? auddPrefill.title.trim()
           : '';
+      if (!song_title && opts?.pendingShazamKit) {
+        try {
+          const nativeMatch = await opts.pendingShazamKit;
+          if (nativeMatch?.status === 'match' && nativeMatch.title?.trim()) {
+            song_title = nativeMatch.title.trim();
+            if (nativeMatch.artist?.trim() || song_title) {
+              lastLiveSongMatchRef.current = {
+                title: song_title,
+                artist: nativeMatch.artist?.trim() ?? '',
+              };
+            }
+          }
+        } catch (err) {
+          console.warn('QuickRecordButton: native file ShazamKit failed', err);
+        }
+      }
       const jambaseLink = prefetchShow
         ? {
             event: prefetchShow.jambase_event_id,
@@ -2470,6 +2548,7 @@ export default function QuickRecordButton({
             video_resolution_w: videoResolution.width,
             video_resolution_h: videoResolution.height,
           },
+          nativeVideoUri,
         },
         null,
         { nativeVideoUri },
@@ -2482,7 +2561,6 @@ export default function QuickRecordButton({
         );
       }
 
-      // Same Photos/gallery persist as the old caption handoff — do not wait for upload.
       void saveClipToDeviceGallery(uploadBlob, fileName, {
         sourceKey: blobSourceKey(uploadBlob),
         skipIfSaved: true,
@@ -2869,10 +2947,6 @@ export default function QuickRecordButton({
                   <p className="text-gray-500 text-[10px] leading-snug pt-1">
                     Saved with this clip — uploads start when you end the moment.
                   </p>
-                ) : isRecording && isNativeIosCapture ? (
-                  <p className="text-momentum-flare/90 text-[10px] leading-snug pt-1">
-                    No music in your clip? Open Control Center → Mic Mode → Wide Spectrum.
-                  </p>
                 ) : null}
                 </>
               )}
@@ -3139,45 +3213,35 @@ export default function QuickRecordButton({
             )}
 
             {isRecording && (
-              <>
-                <div
-                  className="absolute z-10 transition-all duration-300 ease-in-out"
-                  style={{
-                    top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-                    left: '1rem',
-                  }}
-                >
-                  <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                    <span className="text-red-500 text-sm font-bold">REC</span>
-                  </div>
+              <div
+                className={`absolute z-10 transition-all duration-300 ease-in-out ${captureOverlayTextClass}`}
+                style={{
+                  top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+                  left: '1rem',
+                }}
+                aria-live="polite"
+                aria-label={`Recording, ${Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds)} seconds remaining`}
+              >
+                <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 px-3 py-1 rounded-lg flex items-center gap-2">
+                  <span
+                    className="capture-rec-dot inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,1)]"
+                    aria-hidden
+                  />
+                  <span className="text-red-500 text-sm font-bold tracking-wide">REC</span>
+                  <span
+                    className={`text-sm font-bold tabular-nums ${
+                      recordingElapsedSeconds >= HAPTIC_WARNING_TIME
+                        ? 'text-red-400'
+                        : 'text-white'
+                    }`}
+                  >
+                    :
+                    {String(
+                      Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds),
+                    ).padStart(2, '0')}
+                  </span>
                 </div>
-                <div
-                  className={`absolute z-10 transition-all duration-300 ease-in-out ${captureOverlayTextClass}`}
-                  style={{
-                    top: 'max(0.75rem, env(safe-area-inset-top, 0px))',
-                    right: '1rem',
-                  }}
-                  aria-live="polite"
-                  aria-label={`${Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds)} seconds remaining`}
-                >
-                  <div className="rounded-lg border border-white/20 bg-black/45 px-3 py-1 backdrop-blur-md">
-                    <span
-                      className={`text-sm font-bold tabular-nums ${
-                        MAX_RECORDING_TIME - recordingElapsedSeconds <=
-                        MAX_RECORDING_TIME - HAPTIC_WARNING_TIME
-                          ? 'text-red-400'
-                          : 'text-white'
-                      }`}
-                    >
-                      :
-                      {String(
-                        Math.max(0, MAX_RECORDING_TIME - recordingElapsedSeconds),
-                      ).padStart(2, '0')}
-                    </span>
-                  </div>
-                </div>
-              </>
+              </div>
             )}
 
             {hasPermission && networkSpeed === 'slow' && (

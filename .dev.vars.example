@@ -66,7 +66,13 @@ MOCHA_USERS_SERVICE_API_KEY=
 # All-time cap instead: omit JAMBASE_QUOTA_WINDOW or set JAMBASE_QUOTA_WINDOW=all
 # Per-IP caps also apply to /api/jambase/* and /api/search/advanced.
 JAMBASE_API_KEY=
-# Music recognition for capture / POST /api/clips/identify-music (ACRCloud preferred).
+# Music recognition FALLBACK for capture / POST /api/clips/identify-music (ACRCloud).
+# Both iOS apps identify songs on-device with Apple ShazamKit FIRST (no Worker credentials
+# needed; see docs/shazamkit-setup.md):
+#   - Capacitor production app (com.feedbacklive.app) — packages/shazamkit plugin
+#   - RN migration app (com.feedbacklive.app.rn) — apps/mobile/modules/feedback-shazamkit
+# ACRCloud is only used when ShazamKit is unavailable (web browsers, Android, iOS <15,
+# older binaries without the plugin) or when ShazamKit returns no match / an error.
 # From https://console.acrcloud.com/ → Audio & Video Recognition project → keys: Host, Access Key, Access Secret.
 # REQUIRED: attach the "ACRCloud Music" bucket to that project (Project → Buckets). A custom-only or empty
 # bucket returns code 1001 ("No result") on every request even though the API dashboard shows activity.

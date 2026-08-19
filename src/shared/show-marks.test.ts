@@ -94,7 +94,11 @@ describe('upcomingGoingMarkEvents', () => {
       },
     ];
 
-    const events = upcomingGoingMarkEvents([pastGoing, futureGoing], enriched);
+    const events = upcomingGoingMarkEvents(
+      [pastGoing, futureGoing],
+      enriched,
+      now.getTime(),
+    );
     expect(events).toHaveLength(1);
     expect(events[0].identifier).toBe('jambase:future');
     expect(events[0].image).toBe('https://example.com/future.jpg');

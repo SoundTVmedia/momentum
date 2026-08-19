@@ -162,6 +162,14 @@ export default function ClipModal({
 
   const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
   const isSuperAdmin = isSuperAdminUser(extendedUser);
+
+  useEffect(() => {
+    if (!(isOwnClip || isSuperAdmin) || clip.song_title?.trim()) return;
+    console.log(
+      '[identify] untitled clip — Tap to identify shown',
+      clipNumericId(clip) ?? clip.id,
+    );
+  }, [clip.id, clip.song_title, clip.stream_video_id, isOwnClip, isSuperAdmin]);
   const canDownloadClip = isOwnClip && Boolean(resolveClipDownloadUrl(clip));
 
   const navIndex =
@@ -338,15 +346,20 @@ export default function ClipModal({
     </button>
   ) : null;
 
-  const superadminSongRecognition = isSuperAdmin && !isOwnClip ? (
-    <ClipSongRecognitionControl
-      clip={clip}
-      currentFields={metadataFieldsFromClip(clip)}
-      asSuperadmin
-      onSaved={handleClipSaved}
-      className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-3"
-    />
-  ) : null;
+  const showPlayerSongIdentify = (isOwnClip || isSuperAdmin) && !clip.song_title?.trim();
+
+  const renderPlayerSongIdentify = () =>
+    showPlayerSongIdentify ? (
+      <ClipSongRecognitionControl
+        clip={clip}
+        currentFields={metadataFieldsFromClip(clip)}
+        asSuperadmin={isSuperAdmin && !isOwnClip}
+        onSaved={handleClipSaved}
+        idleLabel="Tap to identify"
+        allowManualEntry={isOwnClip || isSuperAdmin}
+        buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
+      />
+    ) : null;
 
   const downloadClipButton = canDownloadClip ? (
     <button
@@ -505,7 +518,7 @@ export default function ClipModal({
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {editClipButton}
             {downloadClipButton}
             <button
@@ -577,8 +590,14 @@ export default function ClipModal({
               <span className="truncate text-sm font-semibold text-white/90">{clip.song_title}</span>
             </button>
           ) : null}
-          {superadminSongRecognition ? (
-            <div className="mt-3">{superadminSongRecognition}</div>
+          {showPlayerSongIdentify ? (
+            <div
+              className="relative z-30 mt-1 pointer-events-auto"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
+              {renderPlayerSongIdentify()}
+            </div>
           ) : null}
           {clip.venue_name ? (
             <button type="button" onClick={goVenue} className="mt-0.5 block max-w-full text-left">
@@ -851,9 +870,10 @@ export default function ClipModal({
 
           <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
             <div className="flex-shrink-0 border-b border-white/10 p-4">
-              {editClipButton ? <div className="mb-3 flex justify-end">{editClipButton}</div> : null}
-              {superadminSongRecognition ? (
-                <div className="mb-3">{superadminSongRecognition}</div>
+              {editClipButton ? (
+                <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+                  {editClipButton}
+                </div>
               ) : null}
               <div className="mb-3 flex items-center space-x-3">
                 <UserAvatar
@@ -909,6 +929,15 @@ export default function ClipModal({
                       {clip.song_title}
                     </span>
                   </button>
+                ) : null}
+                {showPlayerSongIdentify ? (
+                  <div
+                    className="relative z-30 pointer-events-auto"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                  >
+                    {renderPlayerSongIdentify()}
+                  </div>
                 ) : null}
                 {clip.genre_name?.trim() ? (
                   <button

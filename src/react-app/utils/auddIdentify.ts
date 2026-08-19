@@ -12,6 +12,7 @@ import {
   headSliceLikelyValid,
   sliceHeadForIdentify,
 } from '@/react-app/utils/identifyAudioSample';
+import { identifyClipWithShazamKit, identifyNativeFileWithShazamKit } from '@/react-app/utils/shazamKitIdentify';
 
 export function mergeSongTitleIntoCaption(current: string, title: string): string {
   const t = title.trim();
@@ -201,6 +202,8 @@ async function resolveSnippetForIdentify(source: Blob): Promise<{
   extractFailure?: ExtractSnippetFailure;
 }> {
   if (source.type.startsWith('audio/') && source.size >= MIN_SNIPPET_BYTES) {
+    const wav = await extractWavSnippetViaWebAudio(source);
+    if (wav && wav.size >= MIN_SNIPPET_BYTES) return { snippet: wav };
     if (source.size <= ACR_MAX_SAMPLE_BYTES) return { snippet: source };
     const head = sliceHeadForIdentify(source);
     return head ? { snippet: head } : { snippet: source.slice(0, ACR_MAX_SAMPLE_BYTES) };
@@ -253,7 +256,9 @@ export function normalizeIdentifyResult(r: AudDIdentifyResult): AudDIdentifyResu
     if (isConfigOrQuotaSkippedMessage(msg)) {
       return { status: 'error', message: msg };
     }
-    return { ...r, message: msg || null };
+    // Extract / decode skips must not become error banners — caption screen
+    // shows the manual song title field instead.
+    return { ...r, message: null };
   }
   if (r.status === 'nomatch') {
     return { ...r, message: null };
@@ -331,10 +336,11 @@ function shouldStopIdentifyPass(r: AudDIdentifyResult): boolean {
  */
 export async function identifyMusicForClip(
   video: Blob,
-  options?: { live?: LiveSongSnapshot | null; audio?: Blob | null },
+  options?: { live?: LiveSongSnapshot | null; audio?: Blob | null; nativeFilePath?: string | null },
 ): Promise<AudDIdentifyResult> {
   const live = options?.live;
   const audio = options?.audio;
+  const nativeFilePath = options?.nativeFilePath;
 
   let best: AudDIdentifyResult = {
     status: 'skipped',
@@ -344,8 +350,20 @@ export async function identifyMusicForClip(
   const finish = (r: AudDIdentifyResult) =>
     mergeLiveAndFinalSongIdentify(live, normalizeIdentifyResult(r));
 
+  // Primary provider: on-device ShazamKit (native iOS builds with the
+  // @feedback/shazamkit plugin). Prefer the local recording path so we do not
+  // base64 a 20–40MB movie. No-match/error falls through to ACRCloud.
+  const shazamKit = nativeFilePath
+    ? await identifyNativeFileWithShazamKit(nativeFilePath)
+    : await identifyClipWithShazamKit(video, audio ?? null);
+  if (shazamKit) {
+    if (shouldStopIdentifyPass(shazamKit)) return finish(shazamKit);
+    best = pickStrongerMatch(best, shazamKit);
+  }
+
   if (audio && audio.size >= 1024) {
-    const mic = normalizeIdentifyResult(await identifyMusicWithAudD(audio));
+    const capped = (await extractWavSnippetViaWebAudio(audio)) ?? audio;
+    const mic = normalizeIdentifyResult(await identifyMusicWithAudD(capped));
     best = pickStrongerMatch(best, mic);
     if (shouldStopIdentifyPass(mic)) return finish(mic);
   }
@@ -494,8 +512,17 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
         : undefined;
     return { status: 'match', artist, title, message, confidence };
   } catch (e) {
-    console.error('Song identify', e);
-    if (e instanceof DOMException && e.name === 'AbortError') {
+    const rec = e as { message?: string; errorMessage?: string; name?: string } | null;
+    const detail =
+      e instanceof Error
+        ? e.message
+        : typeof rec?.errorMessage === 'string'
+          ? rec.errorMessage
+          : typeof rec?.message === 'string'
+            ? rec.message
+            : rec?.name ?? String(e);
+    console.error('Song identify', detail);
+    if ((e instanceof DOMException && e.name === 'AbortError') || rec?.name === 'AbortError') {
       return {
         status: 'error',
         message: 'Song lookup timed out — try again or enter the song manually.',

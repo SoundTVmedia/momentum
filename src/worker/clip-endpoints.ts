@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { ACR_MAX_SAMPLE_BYTES } from '../shared/identify-music-limits';
+import { ACR_MAX_SAMPLE_BYTES, identifySampleByteLength } from '../shared/identify-music-limits';
 import { streamMp4Url } from '../shared/clip-playback';
 import { purgeClipFromDatabase } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
@@ -749,31 +749,66 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
   return c.json({ clips, scope });
 }
 
+function clipDurationSeconds(row: Record<string, unknown>): number | null {
+  const raw = row.video_duration;
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    const n = Number.parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
+async function headContentLength(url: string): Promise<number | null> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) return null;
+    const n = Number.parseInt(res.headers.get('content-length') ?? '', 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchRangeBlob(
+  url: string,
+  maxBytes: number,
+): Promise<Blob | null> {
+  try {
+    const res = await fetch(url, { headers: { Range: `bytes=0-${maxBytes - 1}` } });
+    if (!(res.ok || res.status === 206)) return null;
+    const buf = await res.arrayBuffer();
+    return buf.byteLength > 0 ? new Blob([buf]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** First ~11s of the uploaded clip (byte-scaled from duration when known). */
 async function readClipVideoSampleForIdentify(
   env: Env,
   row: Record<string, unknown>,
 ): Promise<{ blob: Blob; filename: string } | null> {
-  const max = ACR_MAX_SAMPLE_BYTES;
+  const durationSeconds = clipDurationSeconds(row);
   const streamId =
     typeof row.stream_video_id === 'string' ? row.stream_video_id.trim() : '';
   if (streamId) {
     const url = streamMp4Url(streamId);
-    try {
-      const res = await fetch(url, { headers: { Range: `bytes=0-${max - 1}` } });
-      if (res.ok || res.status === 206) {
-        const buf = await res.arrayBuffer();
-        if (buf.byteLength > 0) {
-          return { blob: new Blob([buf]), filename: 'clip.mp4' };
-        }
-      }
-    } catch {
-      /* fall through */
-    }
+    const fileSize = await headContentLength(url);
+    const max = identifySampleByteLength({
+      fileSize,
+      durationSeconds,
+      maxBytes: ACR_MAX_SAMPLE_BYTES,
+    });
+    const blob = await fetchRangeBlob(url, max);
+    if (blob) return { blob, filename: 'clip.mp4' };
+    // Prefer Stream over a start-Range of Capgo R2 (moov is often at EOF).
   }
 
   const r2Key = typeof row.r2_raw_key === 'string' ? row.r2_raw_key.trim() : '';
-  if (r2Key) {
+  if (!streamId && r2Key) {
     try {
+      const max = identifySampleByteLength({ durationSeconds, maxBytes: ACR_MAX_SAMPLE_BYTES });
       const obj = await env.R2_BUCKET.get(r2Key, { range: { offset: 0, length: max } });
       if (obj) {
         const buf = await obj.arrayBuffer();
@@ -786,26 +821,29 @@ async function readClipVideoSampleForIdentify(
     }
   }
 
-  const videoUrl = typeof row.video_url === 'string' ? row.video_url.trim() : '';
-  if (videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
-    try {
-      const res = await fetch(videoUrl, { headers: { Range: `bytes=0-${max - 1}` } });
-      if (res.ok || res.status === 206) {
-        const buf = await res.arrayBuffer();
-        if (buf.byteLength > 0) {
-          const blob = new Blob([buf]);
-          return { blob, filename: inferIdentifyFilename(blob) };
-        }
-      }
-    } catch {
-      /* ignore */
+  const videoUrlRaw = typeof row.video_url === 'string' ? row.video_url.trim() : '';
+  const publicBase = (env.PUBLIC_APP_URL ?? '').replace(/\/$/, '');
+  const videoUrl =
+    videoUrlRaw && !/^https?:\/\//i.test(videoUrlRaw) && publicBase
+      ? `${publicBase}${videoUrlRaw.startsWith('/') ? '' : '/'}${videoUrlRaw}`
+      : videoUrlRaw;
+  if (!streamId && videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
+    const fileSize = await headContentLength(videoUrl);
+    const max = identifySampleByteLength({
+      fileSize,
+      durationSeconds,
+      maxBytes: ACR_MAX_SAMPLE_BYTES,
+    });
+    const blob = await fetchRangeBlob(videoUrl, max);
+    if (blob) {
+      return { blob, filename: inferIdentifyFilename(blob) };
     }
   }
 
   return null;
 }
 
-/** POST JSON — owner or superadmin re-runs ACR on an uploaded clip. */
+/** POST JSON — owner or superadmin re-runs song ID on an uploaded clip (~11s sample). */
 export async function postIdentifyOwnClipSong(c: Context<{ Bindings: Env }>) {
   let body: Record<string, unknown>;
   try {

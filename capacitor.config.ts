@@ -28,7 +28,9 @@ const config: CapacitorConfig = {
   appName: 'Feedback',
   webDir: 'dist',
   // Live Workers URL: WebView loads from deploy — JS updates without a new TestFlight build.
-  // App Store release with bundled dist/: comment out `url` and run `npm run cap:sync ios`.
+  // IMPORTANT: all app APIs are relative /api/* fetches served by this Worker, so removing
+  // `url` breaks login/feeds/uploads. To test branch-only native features (e.g. ShazamKit),
+  // deploy this branch's Worker (`npm run deploy`) instead of commenting this out.
   server: {
     androidScheme: 'https',
     url: 'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev',
