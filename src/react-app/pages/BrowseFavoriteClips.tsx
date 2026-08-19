@@ -6,6 +6,10 @@ import Header from '@/react-app/components/Header';
 import ClipsInfiniteGrid from '@/react-app/components/ClipsInfiniteGrid';
 import type { ClipWithUser } from '@/shared/types';
 import { apiFetch } from '@/react-app/lib/apiFetch';
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events';
 
 const PAGE_SIZE = 24;
 
@@ -64,6 +68,26 @@ export default function BrowseFavoriteClipsPage() {
       }
     })();
   }, [user, isPending, navigate, fetchPage]);
+
+  useEffect(() => {
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event);
+      if (!detail) return;
+      if (detail.blocked) {
+        setClips((prev) =>
+          prev.filter(
+            (clip) => String(clip.mocha_user_id ?? '').trim().toLowerCase() !== detail.userId,
+          ),
+        );
+        void fetchPage(0, false);
+      } else {
+        void fetchPage(0, false);
+      }
+    };
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+  }, [fetchPage]);
 
   const loadMore = () => {
     if (!hasMore || loadingMore) return;

@@ -7,6 +7,7 @@ import {
   REPORT_REASONS,
   type ReportReasonCode,
 } from '@/shared/report-reasons';
+import { dispatchUserBlocksChanged } from '@/react-app/lib/user-block-events';
 
 export type ReportTargetType = 'clip' | 'comment' | 'profile';
 
@@ -99,6 +100,7 @@ export default function ReportContentModal({
         throw new Error(data.error || 'Could not block that account.');
       }
       setBlocked(true);
+      dispatchUserBlocksChanged(authorId, true);
       onBlocked?.(authorId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not block that account.');

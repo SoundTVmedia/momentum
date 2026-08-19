@@ -23,6 +23,52 @@ export function isUserFollowTargetId(followingId: string): boolean {
   return true;
 }
 
+type FollowBody = {
+  artist_name?: string;
+  venue_name?: string;
+  jambase_id?: string;
+};
+
+async function resolveVenueIdForFollow(
+  db: D1Database,
+  requestedId: number,
+  body: FollowBody,
+): Promise<number | null> {
+  if (Number.isInteger(requestedId) && requestedId > 0) {
+    const existing = await db.prepare('SELECT id FROM venues WHERE id = ?').bind(requestedId).first();
+    const id = Number(existing?.id);
+    if (Number.isInteger(id) && id > 0) return id;
+  }
+
+  const venueName =
+    typeof body.venue_name === 'string' ? body.venue_name.trim().replace(/\s+/g, ' ').slice(0, 200) : '';
+  const jambaseId =
+    typeof body.jambase_id === 'string' ? body.jambase_id.trim().slice(0, 200) : '';
+  if (!venueName) return null;
+
+  const lookupSql = jambaseId
+    ? `SELECT id FROM venues
+       WHERE jambase_id = ? OR LOWER(TRIM(name)) = LOWER(TRIM(?))
+       ORDER BY CASE WHEN jambase_id = ? THEN 0 ELSE 1 END
+       LIMIT 1`
+    : 'SELECT id FROM venues WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1';
+  const lookupArgs = jambaseId ? [jambaseId, venueName, jambaseId] : [venueName];
+  const found = await db.prepare(lookupSql).bind(...lookupArgs).first();
+  const foundId = Number(found?.id);
+  if (Number.isInteger(foundId) && foundId > 0) return foundId;
+
+  await db.prepare(
+    `INSERT OR IGNORE INTO venues (name, jambase_id, created_at, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+  )
+    .bind(venueName, jambaseId || null)
+    .run();
+
+  const created = await db.prepare(lookupSql).bind(...lookupArgs).first();
+  const createdId = Number(created?.id);
+  return Number.isInteger(createdId) && createdId > 0 ? createdId : null;
+}
+
 /** Users, artists, and venues the signed-in account follows (for profile following modal). */
 export async function getMyFollowingList(c: Context) {
   const mochaUser = c.get('user');
@@ -296,9 +342,9 @@ export async function toggleFollow(c: Context) {
   const artistFollow = /^artist-(\d+)$/.exec(targetUserId);
   const venueFollow = /^venue-(\d+)$/.exec(targetUserId);
 
-  let followBody: { artist_name?: string } = {};
+  let followBody: FollowBody = {};
   try {
-    followBody = (await c.req.json()) as { artist_name?: string };
+    followBody = (await c.req.json()) as FollowBody;
   } catch {
     /* empty body is fine */
   }
@@ -338,16 +384,19 @@ export async function toggleFollow(c: Context) {
   }
 
   if (venueFollow) {
-    const venueId = Number(venueFollow[1]);
-    if (!Number.isInteger(venueId) || venueId <= 0) {
-      return c.json({ error: 'Invalid venue' }, 400);
+    const requestedVenueId = Number(venueFollow[1]);
+    let venueId: number | null = null;
+    try {
+      venueId = await resolveVenueIdForFollow(c.env.DB, requestedVenueId, followBody);
+    } catch (err) {
+      console.error('follow venue resolveVenueIdForFollow:', err);
+      return c.json({ error: 'Could not resolve venue' }, 500);
     }
-
-    const venue = await c.env.DB.prepare('SELECT id FROM venues WHERE id = ?')
-      .bind(venueId)
-      .first();
-    if (!venue) {
-      return c.json({ error: 'Venue not found' }, 404);
+    if (venueId == null) {
+      return c.json(
+        { error: requestedVenueId > 0 ? 'Venue not found' : 'Invalid venue' },
+        requestedVenueId > 0 ? 404 : 400,
+      );
     }
 
     const venueTarget = `venue-${venueId}`;
@@ -363,7 +412,7 @@ export async function toggleFollow(c: Context) {
       )
         .bind(uid, venueTarget)
         .run();
-      return c.json({ following: false });
+      return c.json({ following: false, venue_id: venueId });
     }
 
     await c.env.DB.prepare(
@@ -371,7 +420,7 @@ export async function toggleFollow(c: Context) {
     )
       .bind(uid, venueTarget)
       .run();
-    return c.json({ following: true });
+    return c.json({ following: true, venue_id: venueId });
   }
 
   if (targetUserId === String(mochaUser.id) || targetUserId === uid) {

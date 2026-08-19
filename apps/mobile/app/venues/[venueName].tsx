@@ -153,7 +153,10 @@ export default function VenueScreen() {
     if (!data?.venue) return;
     setFollowBusy(true);
     try {
-      const result = await toggleFollowTarget(venueFollowTarget(data.venue.id));
+      const result = await toggleFollowTarget(venueFollowTarget(data.venue.id), {
+        venue_name: data.venue.name,
+        ...(data.venue.jambase_id ? { jambase_id: data.venue.jambase_id } : {}),
+      });
       setFollowing(Boolean(result.following));
     } catch {
       /* keep prior */

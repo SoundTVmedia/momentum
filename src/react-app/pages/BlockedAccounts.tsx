@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import { Loader2 } from 'lucide-react';
 import ResourcesPageLayout from '@/react-app/components/ResourcesPageLayout';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import { dispatchUserBlocksChanged } from '@/react-app/lib/user-block-events';
 
 type BlockedAccount = {
   blocked_id: string;
@@ -58,6 +59,7 @@ export default function BlockedAccounts() {
       });
       if (response.ok) {
         setAccounts((prev) => prev.filter((account) => account.blocked_id !== blockedId));
+        dispatchUserBlocksChanged(blockedId, false);
       }
     } catch (err) {
       console.error('Failed to unblock:', err);

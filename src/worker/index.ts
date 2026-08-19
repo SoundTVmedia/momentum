@@ -2177,9 +2177,15 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
   )
     .bind(uid)
     .all();
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
 
   return c.json({
-    clips: normalizeClipApiRows((savedClips.results || []) as Record<string, unknown>[]),
+    clips: normalizeClipApiRows(
+      withoutBlockedAuthors(
+        (savedClips.results || []) as Record<string, unknown>[],
+        hiddenAuthors,
+      ),
+    ),
   });
 });
 
@@ -2207,9 +2213,15 @@ app.get("/api/users/me/liked-clips-feed", authMiddleware, async (c) => {
   )
     .bind(uid)
     .all();
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
 
   return c.json({
-    clips: normalizeClipApiRows((likedClips.results || []) as Record<string, unknown>[]),
+    clips: normalizeClipApiRows(
+      withoutBlockedAuthors(
+        (likedClips.results || []) as Record<string, unknown>[],
+        hiddenAuthors,
+      ),
+    ),
   });
 });
 

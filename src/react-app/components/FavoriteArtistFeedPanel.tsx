@@ -26,6 +26,10 @@ import {
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events';
 
 export type FavoriteArtistFeedPanelProps = {
   variant: 'feed' | 'discover';
@@ -181,6 +185,28 @@ export default function FavoriteArtistFeedPanel({
     window.addEventListener('favorite-artists-changed', refresh);
     return () => window.removeEventListener('favorite-artists-changed', refresh);
   }, [user, fetchSlice, loadSavedFavoriteNames]);
+
+  useEffect(() => {
+    if (!user) return;
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event);
+      if (!detail) return;
+
+      if (detail.blocked) {
+        setClips((prev) =>
+          prev.filter(
+            (clip) => String(clip.mocha_user_id ?? '').trim().toLowerCase() !== detail.userId,
+          ),
+        );
+        void fetchSlice(0, false);
+      } else {
+        void fetchSlice(0, false);
+      }
+    };
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+  }, [user, fetchSlice]);
 
   useEffect(() => {
     if (!scrollIntoViewOnMount || loading || !hasFavoriteArtists) return;

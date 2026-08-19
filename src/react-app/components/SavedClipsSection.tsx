@@ -7,6 +7,10 @@ import SectionHeading from '@/react-app/components/SectionHeading';
 import type { ClipWithUser } from '@/shared/types';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { SAVED_CLIPS_CHANGED_EVENT } from '@/react-app/lib/savedClipsEvents';
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events';
 
 export default function SavedClipsSection() {
   const navigate = useNavigate();
@@ -42,6 +46,25 @@ export default function SavedClipsSection() {
     };
     window.addEventListener(SAVED_CLIPS_CHANGED_EVENT, onChanged);
     return () => window.removeEventListener(SAVED_CLIPS_CHANGED_EVENT, onChanged);
+  }, [fetchSavedClips]);
+
+  useEffect(() => {
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event);
+      if (!detail) return;
+      if (detail.blocked) {
+        setClips((prev) =>
+          prev.filter(
+            (clip) => String(clip.mocha_user_id ?? '').trim().toLowerCase() !== detail.userId,
+          ),
+        );
+      } else {
+        void fetchSavedClips();
+      }
+    };
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
   }, [fetchSavedClips]);
 
   const closeModal = () => {

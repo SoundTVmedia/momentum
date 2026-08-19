@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Heart, Loader2 } from 'lucide-react';
@@ -7,6 +7,10 @@ import ClipModal from '@/react-app/components/ClipModal';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import type { ClipWithUser } from '@/shared/types';
 import { PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events';
 
 export default function LikedClips() {
   const navigate = useNavigate();
@@ -16,15 +20,7 @@ export default function LikedClips() {
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [likedModalFeed, setLikedModalFeed] = useState<ClipWithUser[] | null>(null);
 
-  useEffect(() => {
-    if (!isPending && !user) {
-      navigate('/auth');
-    } else if (user) {
-      void fetchLikedClips();
-    }
-  }, [user, isPending, navigate]);
-
-  const fetchLikedClips = async () => {
+  const fetchLikedClips = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/users/me/liked-clips-feed', { credentials: 'include' });
@@ -38,7 +34,34 @@ export default function LikedClips() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isPending && !user) {
+      navigate('/auth');
+    } else if (user) {
+      void fetchLikedClips();
+    }
+  }, [user, isPending, navigate, fetchLikedClips]);
+
+  useEffect(() => {
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event);
+      if (!detail) return;
+      if (detail.blocked) {
+        setClips((prev) =>
+          prev.filter(
+            (clip) => String(clip.mocha_user_id ?? '').trim().toLowerCase() !== detail.userId,
+          ),
+        );
+      } else {
+        void fetchLikedClips();
+      }
+    };
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+  }, [fetchLikedClips]);
 
   if (isPending || (loading && user)) {
     return (

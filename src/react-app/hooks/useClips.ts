@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ClipWithUser } from '@/shared/types'
 import { apiFetch } from '@/react-app/lib/apiFetch'
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events'
 
 interface UseClipsOptions {
   feedType?: 'latest' | 'most_liked' | 'most_viewed'
@@ -44,14 +48,14 @@ export function useClips(options: UseClipsOptions = {}) {
   const loadingMoreRef = useRef(false)
 
   const fetchClips = useCallback(
-    async (pageNum: number, append: boolean = false) => {
+    async (pageNum: number, append: boolean = false, preserveExisting: boolean = false) => {
       const generation = ++fetchGenerationRef.current
 
       if (append) {
         if (loadingMoreRef.current) return
         loadingMoreRef.current = true
       } else {
-        setClips([])
+        if (!preserveExisting) setClips([])
         setHasMore(true)
         setError(null)
       }
@@ -169,6 +173,32 @@ export function useClips(options: UseClipsOptions = {}) {
     setPage(1)
     void fetchClips(1, false)
   }, [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, contentFeed, limit, fetchClips])
+
+  useEffect(() => {
+    if (mine) return
+
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event)
+      if (!detail) return
+
+      if (detail.blocked) {
+        setClips((prev) =>
+          prev.filter(
+            (clip) => String(clip.mocha_user_id ?? '').trim().toLowerCase() !== detail.userId,
+          ),
+        )
+        setPage(1)
+        void fetchClips(1, false, true)
+        return
+      }
+
+      setPage(1)
+      void fetchClips(1, false)
+    }
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged)
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged)
+  }, [fetchClips, mine])
 
   useEffect(() => {
     if (!enablePolling || feedType !== 'latest' || clips.length === 0) return

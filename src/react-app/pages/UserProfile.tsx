@@ -16,6 +16,7 @@ import type { ClipWithUser, ExtendedMochaUser, UserProfile } from '@/shared/type
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import SuperadminProfileModerationBar from '@/react-app/components/SuperadminProfileModerationBar';
+import { dispatchUserBlocksChanged } from '@/react-app/lib/user-block-events';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
@@ -111,10 +112,14 @@ export default function UserProfilePage() {
     if (!userId) return;
     setUnblocking(true);
     try {
-      await fetch(`/api/users/${encodeURIComponent(userId)}/block`, {
+      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/block`, {
         method: 'DELETE',
         credentials: 'include',
       });
+      if (!response.ok) {
+        throw new Error('Failed to unblock user');
+      }
+      dispatchUserBlocksChanged(userId, false);
       await fetchUserProfile();
     } catch (err) {
       console.error('Failed to unblock user:', err);

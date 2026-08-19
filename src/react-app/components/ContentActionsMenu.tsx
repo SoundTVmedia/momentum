@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Ban, Flag, Loader2, MoreHorizontal } from 'lucide-react';
 import ReportContentModal, { type ReportTargetType } from './ReportContentModal';
+import { dispatchUserBlocksChanged } from '@/react-app/lib/user-block-events';
 
 type ContentActionsMenuProps = {
   targetType: ReportTargetType;
@@ -73,6 +74,7 @@ export default function ContentActionsMenu({
       });
       if (response.ok) {
         setBlocked(true);
+        dispatchUserBlocksChanged(authorId, true);
         onBlocked?.(authorId);
         setOpen(false);
       }

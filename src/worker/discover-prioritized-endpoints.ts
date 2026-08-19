@@ -325,6 +325,7 @@ export async function getFavoriteArtistFeed(c: Context) {
   if (!user) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
+  const uid = mochaUserIdKey(user);
 
   const eventsLimit = Math.min(
     Math.max(parseInt(c.req.query('events_limit') || String(MAX_FAVORITE_FEED_EVENTS), 10) || MAX_FAVORITE_FEED_EVENTS, 1),
@@ -345,14 +346,14 @@ export async function getFavoriteArtistFeed(c: Context) {
       LEFT JOIN artists ON user_favorite_artists.artist_id = artists.id
       WHERE user_favorite_artists.mocha_user_id = ?`,
     )
-      .bind(mochaUserIdKey(user))
+      .bind(uid)
       .all();
 
     const rows = (favorites.results || []) as { artist_id?: unknown; name?: unknown }[];
 
     const profileRow = (await c.env.DB
       .prepare(`SELECT favorite_artists FROM user_profiles WHERE mocha_user_id = ?`)
-      .bind(mochaUserIdKey(user))
+      .bind(uid)
       .first()) as { favorite_artists: string | null } | null;
 
     const profileNameStrings = parseProfileFavoriteArtistNames(profileRow?.favorite_artists ?? null);
@@ -459,11 +460,25 @@ export async function getFavoriteArtistFeed(c: Context) {
         clips.artist_name IN (${inPlaceholders})
         OR LOWER(TRIM(clips.artist_name)) IN (${inLowerPlaceholders})
       )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM user_blocks
+        WHERE
+          (blocker_id = ? AND blocked_id = clips.mocha_user_id)
+          OR (blocker_id = clips.mocha_user_id AND blocked_id = ?)
+      )
       ORDER BY clips.created_at DESC
       LIMIT ? OFFSET ?
     `;
 
-    const clipBindings: unknown[] = [...clipArtistNames, ...clipNameLowerBinds, clipsLimit + 1, clipsOffset];
+    const clipBindings: unknown[] = [
+      ...clipArtistNames,
+      ...clipNameLowerBinds,
+      uid,
+      uid,
+      clipsLimit + 1,
+      clipsOffset,
+    ];
     const clipsRes = await c.env.DB.prepare(clipQuery).bind(...clipBindings).all();
     const rawRows = (clipsRes.results || []) as Record<string, unknown>[];
     hasMoreClips = rawRows.length > clipsLimit;
