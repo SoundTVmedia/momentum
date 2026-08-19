@@ -43,6 +43,10 @@ import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
 import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
+import LiveFeedPage from "@/react-app/pages/LiveFeed";
+import ArtistHubPage from "@/react-app/pages/ArtistHub";
+import VenueHubPage from "@/react-app/pages/VenueHub";
+import ArchivalHubPage from "@/react-app/pages/ArchivalHub";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 import { QuickCaptureProvider } from "@/react-app/contexts/QuickCaptureContext";
 import PendingCaptureRouteRecovery from "@/react-app/components/PendingCaptureRouteRecovery";
@@ -78,6 +82,10 @@ export default function App() {
           <Routes>
             <Route element={<AppRouteChrome />}>
               <Route path="/" element={<HomePage />} />
+              <Route path="/live" element={<LiveFeedPage />} />
+              <Route path="/artist-hub" element={<ArtistHubPage />} />
+              <Route path="/venue-hub" element={<VenueHubPage />} />
+              <Route path="/archival-hub" element={<ArchivalHubPage />} />
               <Route path="/share/clip/:clipId" element={<ShareClipRedirect />} />
               <Route path="/feed" element={<Navigate to="/" replace />} />
               <Route path="/auth" element={<AuthPage />} />

@@ -60,11 +60,11 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-white">Platform</h3>
             <div className="space-y-2">
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Live Show</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Concert Feed</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Artist Hub</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Venue Hub</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Community</a>
+              <FooterResourceLink to="/live">Live Feed</FooterResourceLink>
+              <FooterResourceLink to="/browse/clips/latest">Concert Feed</FooterResourceLink>
+              <FooterResourceLink to="/artist-hub">Artist Hub</FooterResourceLink>
+              <FooterResourceLink to="/venue-hub">Venue Hub</FooterResourceLink>
+              <FooterResourceLink to="/archival-hub">Archival Hub</FooterResourceLink>
             </div>
           </div>
 
