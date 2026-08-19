@@ -256,7 +256,9 @@ export function normalizeIdentifyResult(r: AudDIdentifyResult): AudDIdentifyResu
     if (isConfigOrQuotaSkippedMessage(msg)) {
       return { status: 'error', message: msg };
     }
-    return { ...r, message: msg || null };
+    // Extract / decode skips must not become error banners — caption screen
+    // shows the manual song title field instead.
+    return { ...r, message: null };
   }
   if (r.status === 'nomatch') {
     return { ...r, message: null };

@@ -258,10 +258,11 @@ export function enrichedEventsByMarkId(
 export function upcomingGoingMarkEvents(
   marks: UserShowMark[],
   enriched: Record<string, unknown>[] | undefined,
+  nowMs: number = Date.now(),
 ): Record<string, unknown>[] {
   const byId = enrichedEventsByMarkId(marks, enriched);
   return marks
-    .filter((m) => isUpcomingShowMark(m))
+    .filter((m) => isUpcomingShowMark(m, nowMs))
     .map(
       (mark) =>
         byId.get(mark.jambase_event_id) ?? mergeJamBaseEventWithShowMark(mark, null),
