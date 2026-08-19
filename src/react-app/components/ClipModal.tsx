@@ -336,6 +336,7 @@ export default function ClipModal({
         asSuperadmin={isSuperAdmin && !isOwnClip}
         onSaved={handleClipSaved}
         idleLabel="Tap to identify"
+        allowManualEntry={isOwnClip || isSuperAdmin}
         buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
       />
     ) : null;

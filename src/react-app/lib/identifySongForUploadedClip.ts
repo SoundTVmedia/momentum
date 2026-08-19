@@ -42,6 +42,26 @@ export function clipPlayerShazamKitMediaUrl(clip: ClipPlaybackFields): string | 
   return raw ? absoluteMediaUrl(raw) : null;
 }
 
+/**
+ * Published clip row for a just-uploaded clip. Device/library uploads have no
+ * local native path, so identify has to read the file we just published.
+ */
+export async function fetchClipPlaybackFieldsById(
+  clipId: number | string,
+): Promise<ClipPlaybackFields | null> {
+  try {
+    const res = await fetch(`/api/clips/${encodeURIComponent(String(clipId))}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ClipPlaybackFields;
+  } catch (err) {
+    console.warn('[identify] could not load published clip', clipId, err);
+    return null;
+  }
+}
+
 /** Keep the source container extension so AVFoundation opens Photos `.mov` files. */
 export function identifyCacheFileName(clipId: string | number, mediaUrl: string): string {
   let ext = 'mp4';
