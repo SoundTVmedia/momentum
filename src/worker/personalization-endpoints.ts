@@ -488,6 +488,13 @@ export async function getPersonalizedFeed(c: Context) {
       WHERE clips.is_hidden = 0 AND clips.is_draft = 0
       AND ${mainFeedFilter}
       AND clips.mocha_user_id != ?
+      AND NOT EXISTS (
+        SELECT 1
+        FROM user_blocks
+        WHERE
+          (blocker_id = ? AND blocked_id = clips.mocha_user_id)
+          OR (blocker_id = clips.mocha_user_id AND blocked_id = ?)
+      )
     `;
 
     const bindings: any[] = [...favoriteArtists];
@@ -532,13 +539,20 @@ export async function getPersonalizedFeed(c: Context) {
         WHERE clips.is_hidden = 0 AND clips.is_draft = 0
         AND ${mainFeedFilter}
         AND clips.mocha_user_id != ?
+        AND NOT EXISTS (
+          SELECT 1
+          FROM user_blocks
+          WHERE
+            (blocker_id = ? AND blocked_id = clips.mocha_user_id)
+            OR (blocker_id = clips.mocha_user_id AND blocked_id = ?)
+        )
       `;
 
       bindings.push(lat, lon, lat, radiusMiles);
     }
 
     // Exclude viewer's own uploads from "For You"
-    bindings.push(uid);
+    bindings.push(uid, uid, uid);
 
     // Order by total score
     query += `

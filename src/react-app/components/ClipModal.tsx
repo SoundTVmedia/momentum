@@ -36,6 +36,7 @@ import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets
 import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import type { StreamVideoPlayerHandle, StreamVideoPlayerPlaybackState } from '@/react-app/components/StreamVideoPlayer';
 import CommentSection from './CommentSection';
+import ContentActionsMenu from './ContentActionsMenu';
 import { ClipLikeHeart } from './ClipLikeHeart';
 import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
@@ -46,6 +47,10 @@ import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
 import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
 import { metadataFieldsFromClip } from '@/react-app/lib/clipFormFields';
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events';
 import UserAvatar from './UserAvatar';
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types';
 import {
@@ -110,6 +115,21 @@ export default function ClipModal({
     setHideBottomNav(true);
     return () => setHideBottomNav(false);
   }, [setHideBottomNav]);
+
+  useEffect(() => {
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event);
+      if (
+        detail?.blocked &&
+        String(clip.mocha_user_id ?? '').trim().toLowerCase() === detail.userId
+      ) {
+        onClose();
+      }
+    };
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+  }, [clip.mocha_user_id, onClose]);
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
   const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
@@ -686,6 +706,16 @@ export default function ClipModal({
             </div>
           ) : null}
         </div>
+        <div className="pointer-events-auto">
+          <ContentActionsMenu
+            targetType="clip"
+            targetId={clip.id}
+            authorId={clip.mocha_user_id}
+            authorName={clip.user_display_name}
+            buttonClassName="text-white"
+            openUp
+          />
+        </div>
       </div>
     </>
   );
@@ -1062,6 +1092,13 @@ export default function ClipModal({
                       </div>
                     ) : null}
                   </div>
+                  <ContentActionsMenu
+                    targetType="clip"
+                    targetId={clip.id}
+                    authorId={clip.mocha_user_id}
+                    authorName={clip.user_display_name}
+                    openUp
+                  />
                 </div>
               </div>
             </div>

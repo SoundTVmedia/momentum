@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Calendar, Loader2 } from 'lucide-react';
+import { Calendar, LifeBuoy, Loader2 } from 'lucide-react';
 import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
@@ -72,7 +72,7 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
           </div>
         </div>
 
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col sm:flex-row gap-3">
           <button
             type="button"
             onClick={() => navigate(MY_SHOWS_PATH)}
@@ -80,6 +80,14 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
           >
             <Calendar className="w-4 h-4 shrink-0" />
             My shows — going &amp; went
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/support')}
+            className="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/15 text-gray-200 hover:bg-white/10 transition-colors text-sm font-medium"
+          >
+            <LifeBuoy className="w-4 h-4 shrink-0" />
+            Help &amp; support
           </button>
         </div>
 

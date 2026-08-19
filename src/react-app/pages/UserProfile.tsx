@@ -5,6 +5,7 @@ import { Heart, Eye, Video, Users, UserPlus, UserMinus, Loader2, MapPin, Edit, S
 import Header from '@/react-app/components/Header';
 import OwnProfileHub from '@/react-app/components/OwnProfileHub';
 import ClipModal from '@/react-app/components/ClipModal';
+import ContentActionsMenu from '@/react-app/components/ContentActionsMenu';
 import ProfileEditor from '@/react-app/components/ProfileEditor';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import VerificationRequest from '@/react-app/components/VerificationRequest';
@@ -15,6 +16,7 @@ import type { ClipWithUser, ExtendedMochaUser, UserProfile } from '@/shared/type
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import SuperadminProfileModerationBar from '@/react-app/components/SuperadminProfileModerationBar';
+import { dispatchUserBlocksChanged } from '@/react-app/lib/user-block-events';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
@@ -32,6 +34,7 @@ interface UserProfileData {
   profile: UserProfile;
   clips: ClipWithUser[];
   stats: UserStats;
+  blocked?: boolean;
 }
 
 interface FavoriteArtistWithClips {
@@ -61,6 +64,7 @@ export default function UserProfilePage() {
   const [showVerificationRequest, setShowVerificationRequest] = useState(false);
   const [likedClipsCount, setLikedClipsCount] = useState<number | null>(null);
   const [showFollowingModal, setShowFollowingModal] = useState(false);
+  const [unblocking, setUnblocking] = useState(false);
 
   const isOwnProfile = user?.id === userId;
   const showSuperadminModeration =
@@ -101,6 +105,26 @@ export default function UserProfilePage() {
       console.error('Failed to fetch user profile:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const unblockProfile = async () => {
+    if (!userId) return;
+    setUnblocking(true);
+    try {
+      const response = await fetch(`/api/users/${encodeURIComponent(userId)}/block`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to unblock user');
+      }
+      dispatchUserBlocksChanged(userId, false);
+      await fetchUserProfile();
+    } catch (err) {
+      console.error('Failed to unblock user:', err);
+    } finally {
+      setUnblocking(false);
     }
   };
 
@@ -228,28 +252,42 @@ export default function UserProfilePage() {
                     </div>
                   </div>
                   
-                  {!isOwnProfile && user && (
-                    <button
-                      onClick={() => userId && toggleFollow(userId)}
-                      disabled={!followHydrated || followLoading(userId || '')}
-                      className={`mt-4 md:mt-0 px-6 py-3 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center space-x-2 ${
-                        isFollowing(userId || '')
-                          ? 'bg-white/10 border border-momentum-ember/50 text-white'
-                          : 'momentum-grad-interactive text-white'
-                      }`}
-                    >
-                      {isFollowing(userId || '') ? (
-                        <>
-                          <UserMinus className="w-5 h-5" />
-                          <span>Unfollow</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-5 h-5" />
-                          <span>Follow</span>
-                        </>
+                  {!isOwnProfile && (
+                    <div className="mt-4 md:mt-0 flex items-center justify-center md:justify-end gap-2">
+                      {user && !data.blocked && (
+                        <button
+                          onClick={() => userId && toggleFollow(userId)}
+                          disabled={!followHydrated || followLoading(userId || '')}
+                          className={`px-6 py-3 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center space-x-2 ${
+                            isFollowing(userId || '')
+                              ? 'bg-white/10 border border-momentum-ember/50 text-white'
+                              : 'momentum-grad-interactive text-white'
+                          }`}
+                        >
+                          {isFollowing(userId || '') ? (
+                            <>
+                              <UserMinus className="w-5 h-5" />
+                              <span>Unfollow</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-5 h-5" />
+                              <span>Follow</span>
+                            </>
+                          )}
+                        </button>
                       )}
-                    </button>
+                      {userId ? (
+                        <ContentActionsMenu
+                          targetType="profile"
+                          targetId={userId}
+                          authorId={data.blocked ? null : userId}
+                          authorName={profile.display_name}
+                          buttonClassName="p-3 rounded-xl bg-white/10 border border-white/15 text-gray-300 hover:text-white transition-colors"
+                          onBlocked={() => void fetchUserProfile()}
+                        />
+                      ) : null}
+                    </div>
                   )}
 
                   {isOwnProfile && (
@@ -439,6 +477,25 @@ export default function UserProfilePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {data.blocked ? (
+          <div className="mb-10 glass-panel rounded-xl border border-white/15 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-white mb-1">You blocked this account</h2>
+              <p className="text-sm text-gray-400">
+                You don’t see their clips or comments, and they don’t see yours.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void unblockProfile()}
+              disabled={unblocking}
+              className="px-5 py-2.5 rounded-xl border border-white/20 text-white hover:bg-white/10 transition-colors disabled:opacity-60"
+            >
+              {unblocking ? 'Unblocking…' : 'Unblock'}
+            </button>
+          </div>
+        ) : null}
+
         {isOwnProfile && user ? (
           <OwnProfileHub onOpenCapture={quickCapture.openQuickCapture} />
         ) : null}

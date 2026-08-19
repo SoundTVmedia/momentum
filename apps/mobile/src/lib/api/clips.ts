@@ -231,6 +231,7 @@ export type VenuePagePayload = {
     address: string | null;
     image_url: string | null;
     capacity: number | null;
+    jambase_id?: string | null;
   };
   clips: ClipsPage['clips'];
   upcomingEvents: Array<{

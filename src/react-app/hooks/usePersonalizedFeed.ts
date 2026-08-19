@@ -1,4 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events';
 
 interface Clip {
   id: number;
@@ -36,7 +40,7 @@ export function usePersonalizedFeed() {
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
 
-  const fetchFeed = async (pageNum: number = 1) => {
+  const fetchFeed = useCallback(async (pageNum: number = 1) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/feed/personalized?page=${pageNum}&limit=20`);
@@ -63,11 +67,32 @@ export function usePersonalizedFeed() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchFeed(1);
-  }, []);
+    void fetchFeed(1);
+  }, [fetchFeed]);
+
+  useEffect(() => {
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event);
+      if (!detail) return;
+
+      if (detail.blocked) {
+        setClips((prev) =>
+          prev.filter(
+            (clip) => String(clip.mocha_user_id ?? '').trim().toLowerCase() !== detail.userId,
+          ),
+        );
+        void fetchFeed(1);
+      } else {
+        void fetchFeed(1);
+      }
+    };
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+  }, [fetchFeed]);
 
   const loadMore = () => {
     if (!loading && hasMore) {

@@ -1,6 +1,24 @@
 import { Music, Instagram, Twitter, Youtube, Download, Smartphone } from 'lucide-react'
+import { Link } from 'react-router'
 import { SHOW_FEEDBACK_LIVE_SCHEDULE } from '@/shared/feature-flags'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
+
+function FooterResourceLink({ to, children }: { to: string; children: string }) {
+  return (
+    <Link
+      to={to}
+      className="block text-gray-400 hover:text-white transition-colors"
+      onClick={() => {
+        history.scrollRestoration = 'manual'
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+        document.documentElement.scrollTop = 0
+        document.body.scrollTop = 0
+      }}
+    >
+      {children}
+    </Link>
+  )
+}
 
 export default function Footer() {
   const { hideBottomNav: hideSiteChrome } = useMobileChrome()
@@ -42,11 +60,11 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-white">Platform</h3>
             <div className="space-y-2">
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Live Show</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Concert Feed</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Artist Hub</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Venue Hub</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Community</a>
+              <FooterResourceLink to="/live">Live Feed</FooterResourceLink>
+              <FooterResourceLink to="/browse/clips/latest">Concert Feed</FooterResourceLink>
+              <FooterResourceLink to="/artist-hub">Artist Hub</FooterResourceLink>
+              <FooterResourceLink to="/venue-hub">Venue Hub</FooterResourceLink>
+              <FooterResourceLink to="/archival-hub">Archival Hub</FooterResourceLink>
             </div>
           </div>
 
@@ -54,11 +72,11 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-white">Resources</h3>
             <div className="space-y-2">
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">How It Works</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Content Guidelines</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Privacy Policy</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Terms of Service</a>
-              <a href="#" className="block text-gray-400 hover:text-white transition-colors">Support</a>
+              <FooterResourceLink to="/how-it-works">How It Works</FooterResourceLink>
+              <FooterResourceLink to="/community-guidelines">Community Guidelines</FooterResourceLink>
+              <FooterResourceLink to="/privacy">Privacy Policy</FooterResourceLink>
+              <FooterResourceLink to="/terms">Terms of Service</FooterResourceLink>
+              <FooterResourceLink to="/support">Support</FooterResourceLink>
             </div>
           </div>
 

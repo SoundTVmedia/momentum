@@ -242,6 +242,7 @@ export default function UploadClip() {
 
   type UploadSource = 'capture' | 'library';
   const [uploadSource, setUploadSource] = useState<UploadSource>(() => {
+    if (new URLSearchParams(location.search).get('archive') === 'true') return 'library';
     const nav = location.state as {
       fromPhotoLibrary?: boolean;
       videoBlob?: unknown;
@@ -766,8 +767,9 @@ export default function UploadClip() {
       setReRecordGesturePending(false);
     }
     
-    // Check if we received show data from auto-tagging (live capture only — not photo library)
+    // Apply auto-tagged capture data or a show explicitly selected in the Archival Hub.
     const navFromLibrary = Boolean(navState?.fromPhotoLibrary);
+    const archiveUpload = new URLSearchParams(location.search).get('archive') === 'true';
     const navQuickCapture = Boolean(
       navState?.videoBlob || navState?.recordingStartedAt || navState?.fromQuickCapture,
     );
@@ -799,7 +801,8 @@ export default function UploadClip() {
       }
     }
 
-    if (showData && !navFromLibrary) {
+    if (showData && (!navFromLibrary || archiveUpload)) {
+      if (archiveUpload) autoShowTagAppliedRef.current = true;
       const cap = navState?.captureGeo;
       const fromGeo = cap ? [cap.city, cap.state].filter(Boolean).join(', ') : '';
       const locFromShow =

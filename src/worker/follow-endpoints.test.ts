@@ -51,8 +51,12 @@ function makeDb(stmts: Stmt[]) {
   return db as unknown as D1Database;
 }
 
-function mockContext(db: D1Database, userId: string, paramUserId: string) {
-  const jsonBody: { artist_name?: string } = {};
+function mockContext(
+  db: D1Database,
+  userId: string,
+  paramUserId: string,
+  jsonBody: { artist_name?: string; venue_name?: string; jambase_id?: string } = {},
+) {
   return {
     get: (key: string) => (key === 'user' ? { id: userId } : undefined),
     req: {
@@ -192,6 +196,70 @@ describe('follow-endpoints', () => {
     const c = mockContext(db, 'user-1', 'venue-12');
     const res = (await toggleFollow(c)) as unknown as { body: { following: boolean } };
     expect(res.body.following).toBe(true);
+    expect(insert.runCalls).toBe(1);
+  });
+
+  it('toggleFollow unfollows an existing venue', async () => {
+    const venueSelect: Stmt = {
+      sql: 'SELECT id FROM venues WHERE id = ?',
+      args: [12],
+      firstResult: { id: 12 },
+      allResults: [],
+      runCalls: 0,
+    };
+    const existing: Stmt = {
+      sql: 'SELECT id FROM follows WHERE follower_id = ? AND following_id = ?',
+      args: ['user-1', 'venue-12'],
+      firstResult: { id: 9 },
+      allResults: [],
+      runCalls: 0,
+    };
+    const remove: Stmt = {
+      sql: 'DELETE FROM follows WHERE follower_id = ? AND following_id = ?',
+      args: ['user-1', 'venue-12'],
+      firstResult: null,
+      allResults: [],
+      runCalls: 0,
+    };
+
+    const db = makeDb([venueSelect, existing, remove]);
+    const c = mockContext(db, 'user-1', 'venue-12');
+    const res = (await toggleFollow(c)) as unknown as { body: { following: boolean } };
+    expect(res.body.following).toBe(false);
+    expect(remove.runCalls).toBe(1);
+  });
+
+  it('toggleFollow resolves a JamBase-only venue by name when its page id is zero', async () => {
+    const venueLookup: Stmt = {
+      sql: 'SELECT id FROM venues WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1',
+      args: ['Madison Square Garden'],
+      firstResult: { id: 12 },
+      allResults: [],
+      runCalls: 0,
+    };
+    const existing: Stmt = {
+      sql: 'SELECT id FROM follows WHERE follower_id = ? AND following_id = ?',
+      args: ['user-1', 'venue-12'],
+      firstResult: null,
+      allResults: [],
+      runCalls: 0,
+    };
+    const insert: Stmt = {
+      sql: 'INSERT INTO follows (follower_id, following_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)',
+      args: ['user-1', 'venue-12'],
+      firstResult: null,
+      allResults: [],
+      runCalls: 0,
+    };
+
+    const db = makeDb([venueLookup, existing, insert]);
+    const c = mockContext(db, 'user-1', 'venue-0', {
+      venue_name: 'Madison Square Garden',
+    });
+    const res = (await toggleFollow(c)) as unknown as {
+      body: { following: boolean; venue_id: number };
+    };
+    expect(res.body).toEqual({ following: true, venue_id: 12 });
     expect(insert.runCalls).toBe(1);
   });
 });

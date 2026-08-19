@@ -1,4 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events'
 
 export interface Comment {
   id: number
@@ -130,8 +134,30 @@ export function useComments(clipId: number) {
     [clipId, fetchComments],
   )
 
+  const removeComment = useCallback((commentId: number) => {
+    setComments((prev) => prev.filter((comment) => comment.id !== commentId))
+  }, [])
+
   useEffect(() => {
     void fetchComments()
+  }, [fetchComments])
+
+  useEffect(() => {
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event)
+      if (!detail) return
+
+      if (detail.blocked) {
+        setComments((prev) =>
+          prev.filter((comment) => comment.mocha_user_id.trim().toLowerCase() !== detail.userId),
+        )
+      } else {
+        void fetchComments({ silent: true })
+      }
+    }
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged)
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged)
   }, [fetchComments])
 
   return {
@@ -139,6 +165,7 @@ export function useComments(clipId: number) {
     loading,
     error,
     postComment,
+    removeComment,
     refresh: fetchComments,
   }
 }

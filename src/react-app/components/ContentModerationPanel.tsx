@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Shield, Flag, Trash2, Eye, EyeOff, CheckCircle, AlertTriangle, Loader2, Search } from 'lucide-react';
+import { Shield, Flag, Trash2, Eye, EyeOff, CheckCircle, AlertTriangle, Loader2, MessageCircle, Search, UserX } from 'lucide-react';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
+import { reportReasonLabel } from '@/shared/report-reasons';
 
 interface FlaggedClip {
   id: number;
   clip_id: number;
   reported_by: string;
   reason: string;
+  details: string | null;
+  is_urgent: number;
   status: string;
   created_at: string;
   artist_name: string | null;
@@ -28,10 +31,48 @@ interface FlaggedUser {
   is_banned: number;
 }
 
+interface FlaggedComment {
+  id: number;
+  comment_id: number;
+  clip_id: number | null;
+  reported_by: string;
+  reason: string;
+  details: string | null;
+  status: string;
+  is_urgent: number;
+  created_at: string;
+  comment_content: string | null;
+  comment_is_hidden: number | null;
+  comment_user_id: string | null;
+  comment_user_display_name: string | null;
+  comment_user_avatar: string | null;
+  reporter_display_name: string | null;
+}
+
+interface FlaggedProfile {
+  id: number;
+  reported_user_id: string;
+  reported_by: string;
+  reason: string;
+  details: string | null;
+  status: string;
+  is_urgent: number;
+  created_at: string;
+  reported_display_name: string | null;
+  reported_avatar: string | null;
+  reported_bio: string | null;
+  reporter_display_name: string | null;
+  is_banned: number;
+}
+
+type ModerationTab = 'clips' | 'comments' | 'profiles' | 'users';
+
 export default function ContentModerationPanel() {
-  const [activeTab, setActiveTab] = useState<'clips' | 'users'>('clips');
+  const [activeTab, setActiveTab] = useState<ModerationTab>('clips');
   const [flaggedClips, setFlaggedClips] = useState<FlaggedClip[]>([]);
   const [flaggedUsers, setFlaggedUsers] = useState<FlaggedUser[]>([]);
+  const [flaggedComments, setFlaggedComments] = useState<FlaggedComment[]>([]);
+  const [flaggedProfiles, setFlaggedProfiles] = useState<FlaggedProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending');
@@ -39,6 +80,10 @@ export default function ContentModerationPanel() {
   useEffect(() => {
     if (activeTab === 'clips') {
       fetchFlaggedClips();
+    } else if (activeTab === 'comments') {
+      fetchFlaggedComments();
+    } else if (activeTab === 'profiles') {
+      fetchFlaggedProfiles();
     } else {
       fetchFlaggedUsers();
     }
@@ -71,6 +116,68 @@ export default function ContentModerationPanel() {
       console.error('Failed to fetch flagged users:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFlaggedComments = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/admin/moderation/comments?status=${statusFilter}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFlaggedComments(data.flaggedComments || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch flagged comments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchFlaggedProfiles = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/admin/moderation/profiles?status=${statusFilter}`);
+      if (response.ok) {
+        const data = await response.json();
+        setFlaggedProfiles(data.flaggedProfiles || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch flagged profiles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReviewComment = async (flagId: number, action: 'approve' | 'remove') => {
+    try {
+      const response = await fetch(`/api/admin/moderation/comments/${flagId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+
+      if (response.ok) {
+        fetchFlaggedComments();
+      }
+    } catch (error) {
+      console.error('Failed to review comment:', error);
+    }
+  };
+
+  const handleReviewProfile = async (flagId: number, action: 'approve' | 'actioned') => {
+    try {
+      const response = await fetch(`/api/admin/moderation/profiles/${flagId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+
+      if (response.ok) {
+        fetchFlaggedProfiles();
+      }
+    } catch (error) {
+      console.error('Failed to review profile report:', error);
     }
   };
 
@@ -125,7 +232,11 @@ export default function ContentModerationPanel() {
       });
 
       if (response.ok) {
-        fetchFlaggedUsers();
+        if (activeTab === 'profiles') {
+          fetchFlaggedProfiles();
+        } else {
+          fetchFlaggedUsers();
+        }
       }
     } catch (error) {
       console.error('Failed to ban user:', error);
@@ -139,7 +250,11 @@ export default function ContentModerationPanel() {
       });
 
       if (response.ok) {
-        fetchFlaggedUsers();
+        if (activeTab === 'profiles') {
+          fetchFlaggedProfiles();
+        } else {
+          fetchFlaggedUsers();
+        }
       }
     } catch (error) {
       console.error('Failed to unban user:', error);
@@ -176,6 +291,28 @@ export default function ContentModerationPanel() {
     user.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const query = searchQuery.toLowerCase();
+
+  const filteredComments = flaggedComments.filter(flag =>
+    !searchQuery ||
+    flag.comment_content?.toLowerCase().includes(query) ||
+    flag.comment_user_display_name?.toLowerCase().includes(query) ||
+    reportReasonLabel(flag.reason).toLowerCase().includes(query)
+  );
+
+  const filteredProfiles = flaggedProfiles.filter(flag =>
+    !searchQuery ||
+    flag.reported_display_name?.toLowerCase().includes(query) ||
+    reportReasonLabel(flag.reason).toLowerCase().includes(query)
+  );
+
+  const urgentBadge = (isUrgent: number) =>
+    isUrgent === 1 ? (
+      <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-xs font-semibold">
+        URGENT
+      </span>
+    ) : null;
+
   return (
     <div>
       <div className="mb-6">
@@ -197,6 +334,42 @@ export default function ContentModerationPanel() {
               {flaggedClips.filter(c => c.status === 'pending').length > 0 && (
                 <span className="px-2 py-0.5 bg-red-500 rounded-full text-xs text-white">
                   {flaggedClips.filter(c => c.status === 'pending').length}
+                </span>
+              )}
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('comments')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'comments'
+                ? 'text-red-400 border-b-2 border-red-400'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <MessageCircle className="w-5 h-5" />
+              <span>Reported Comments</span>
+              {flaggedComments.filter(c => c.status === 'pending').length > 0 && (
+                <span className="px-2 py-0.5 bg-red-500 rounded-full text-xs text-white">
+                  {flaggedComments.filter(c => c.status === 'pending').length}
+                </span>
+              )}
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('profiles')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'profiles'
+                ? 'text-red-400 border-b-2 border-red-400'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <UserX className="w-5 h-5" />
+              <span>Reported Profiles</span>
+              {flaggedProfiles.filter(p => p.status === 'pending').length > 0 && (
+                <span className="px-2 py-0.5 bg-red-500 rounded-full text-xs text-white">
+                  {flaggedProfiles.filter(p => p.status === 'pending').length}
                 </span>
               )}
             </div>
@@ -224,11 +397,17 @@ export default function ContentModerationPanel() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={activeTab === 'clips' ? 'Search clips...' : 'Search users...'}
+              placeholder={
+                activeTab === 'clips'
+                  ? 'Search clips...'
+                  : activeTab === 'comments'
+                    ? 'Search comments...'
+                    : 'Search users...'
+              }
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
             />
           </div>
-          {activeTab === 'clips' && (
+          {activeTab !== 'users' && (
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -236,7 +415,9 @@ export default function ContentModerationPanel() {
             >
               <option value="pending">Pending Review</option>
               <option value="approved">Approved</option>
-              <option value="removed">Removed</option>
+              <option value={activeTab === 'profiles' ? 'actioned' : 'removed'}>
+                {activeTab === 'profiles' ? 'Actioned' : 'Removed'}
+              </option>
               <option value="all">All</option>
             </select>
           )}
@@ -288,8 +469,9 @@ export default function ContentModerationPanel() {
                         <div className="flex items-center space-x-2 mb-2">
                           <Flag className={`w-5 h-5 ${getReasonColor(flag.reason)}`} />
                           <span className={`font-semibold ${getReasonColor(flag.reason)}`}>
-                            {flag.reason}
+                            {reportReasonLabel(flag.reason)}
                           </span>
+                          {urgentBadge(flag.is_urgent)}
                         </div>
                         <div className="text-sm text-gray-400 mb-2">
                           Reported by {flag.reporter_display_name || 'Anonymous'} on {formatTimestamp(flag.created_at)}
@@ -297,6 +479,9 @@ export default function ContentModerationPanel() {
                         <div className="text-sm text-gray-500">
                           Uploaded by {flag.clip_user_display_name || 'Anonymous'}
                         </div>
+                        {flag.details ? (
+                          <p className="mt-2 text-sm text-gray-300">“{flag.details}”</p>
+                        ) : null}
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         flag.status === 'pending' ? 'bg-momentum-ember/15 text-momentum-ember' :
@@ -343,6 +528,163 @@ export default function ContentModerationPanel() {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : activeTab === 'comments' ? (
+        <div className="space-y-4">
+          {filteredComments.length === 0 ? (
+            <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
+              <Shield className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400">No reported comments found</p>
+            </div>
+          ) : (
+            filteredComments.map((flag) => (
+              <div key={flag.id} className="glass-panel border border-red-500/20 rounded-xl p-6">
+                <div className="flex items-start justify-between mb-4 gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Flag className="w-5 h-5 text-red-400" />
+                      <span className="font-semibold text-red-400">
+                        {reportReasonLabel(flag.reason)}
+                      </span>
+                      {urgentBadge(flag.is_urgent)}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      Reported by {flag.reporter_display_name || 'Anonymous'} on{' '}
+                      {formatTimestamp(flag.created_at)}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Posted by {flag.comment_user_display_name || 'Anonymous'}
+                      {flag.clip_id ? ` on clip ${flag.clip_id}` : ''}
+                    </div>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold shrink-0 ${
+                      flag.status === 'pending'
+                        ? 'bg-momentum-ember/15 text-momentum-ember'
+                        : flag.status === 'approved'
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-red-500/20 text-red-400'
+                    }`}
+                  >
+                    {flag.status.toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="mb-4 rounded-lg border border-white/10 bg-white/5 p-4">
+                  <p className="text-gray-200">{flag.comment_content || '(comment deleted)'}</p>
+                  {flag.comment_is_hidden === 1 ? (
+                    <p className="mt-2 text-xs text-momentum-ember">
+                      Currently hidden from the app.
+                    </p>
+                  ) : null}
+                </div>
+
+                {flag.details ? (
+                  <p className="mb-4 text-sm text-gray-300">Reporter note: “{flag.details}”</p>
+                ) : null}
+
+                {flag.status === 'pending' && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleReviewComment(flag.id, 'approve')}
+                      className="px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 hover:bg-green-500/30 transition-colors flex items-center space-x-2"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Approve (Keep Comment)</span>
+                    </button>
+                    <button
+                      onClick={() => handleReviewComment(flag.id, 'remove')}
+                      className="px-4 py-2 bg-momentum-ember/15 border border-momentum-ember/25 rounded-lg text-momentum-ember hover:bg-momentum-ember/25 transition-colors flex items-center space-x-2"
+                    >
+                      <EyeOff className="w-4 h-4" />
+                      <span>Hide Comment</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      ) : activeTab === 'profiles' ? (
+        <div className="space-y-4">
+          {filteredProfiles.length === 0 ? (
+            <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
+              <Shield className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400">No reported profiles found</p>
+            </div>
+          ) : (
+            filteredProfiles.map((flag) => (
+              <div key={flag.id} className="glass-panel border border-red-500/20 rounded-xl p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex items-center space-x-4 min-w-0">
+                    <UserAvatar
+                      imageUrl={flag.reported_avatar}
+                      displayName={flag.reported_display_name}
+                      seed={flag.reported_user_id}
+                      alt={flag.reported_display_name || 'User'}
+                      sizeClass="w-16 h-16"
+                      letterClassName="text-xl font-semibold"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-white font-semibold mb-1">
+                        {flag.reported_display_name || 'Anonymous'}
+                      </div>
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-sm text-red-400">
+                          {reportReasonLabel(flag.reason)}
+                        </span>
+                        {urgentBadge(flag.is_urgent)}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Reported by {flag.reporter_display_name || 'Anonymous'} on{' '}
+                        {formatTimestamp(flag.created_at)}
+                      </div>
+                      {flag.details ? (
+                        <p className="mt-2 text-sm text-gray-300">“{flag.details}”</p>
+                      ) : null}
+                      {flag.is_banned === 1 && (
+                        <span className="inline-block mt-2 px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-full">
+                          BANNED
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {flag.status === 'pending' && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={`/users/${flag.reported_user_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-momentum-flare/20 border border-momentum-flare/30 rounded-lg text-momentum-flare hover:bg-momentum-flare/30 transition-colors flex items-center space-x-2"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>View Profile</span>
+                      </a>
+                      <button
+                        onClick={() => handleReviewProfile(flag.id, 'approve')}
+                        className="px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 hover:bg-green-500/30 transition-colors"
+                      >
+                        No Action
+                      </button>
+                      <button
+                        onClick={() => handleBanUser(flag.reported_user_id, 7)}
+                        className="px-4 py-2 bg-momentum-ember/15 border border-momentum-ember/25 rounded-lg text-momentum-ember hover:bg-momentum-ember/25 transition-colors"
+                      >
+                        Ban 7 Days
+                      </button>
+                      <button
+                        onClick={() => handleReviewProfile(flag.id, 'actioned')}
+                        className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/30 transition-colors"
+                      >
+                        Mark Actioned
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))

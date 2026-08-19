@@ -81,6 +81,9 @@ import * as youtube from "./youtube-endpoints";
 import * as userRole from "./user-role-endpoints";
 import * as programApplications from "./program-application-endpoints";
 import * as superadminModeration from "./superadmin-moderation-endpoints";
+import * as reports from "./report-endpoints";
+import { submitSupportRequest } from "./support-endpoints";
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from "./user-blocks";
 import { CLIP_SHOW_KEY_SQL } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
@@ -1609,7 +1612,7 @@ app.post("/api/admin/clips/update-metadata", authMiddleware, postAdminUpdateClip
 app.get("/api/me/clips", authMiddleware, getMyClipsFeed);
 
 // Get clips feed (optimized with caching headers)
-app.get("/api/clips", async (c) => {
+app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   try {
   const page = parseInt(c.req.query('page') || '1');
   const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50); // Cap at 50
@@ -1708,18 +1711,21 @@ app.get("/api/clips", async (c) => {
   // User-scoped or filtered feeds must not be cached publicly — stale JSON causes "My clips"
   // to show rows that no longer exist locally, so delete/update then return 404 Clip not found.
   const scopedFeed = Boolean(userId || since || artistName || venueName || songSlug);
-  if (scopedFeed) {
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  if (scopedFeed || hiddenAuthors.size > 0) {
     c.header('Cache-Control', 'private, no-store, must-revalidate');
     c.header('Pragma', 'no-cache');
   } else {
     c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
   }
 
+  const rows = (clips.results || []) as Record<string, unknown>[];
+
   return c.json({
-    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
+    clips: normalizeClipApiRows(withoutBlockedAuthors(rows, hiddenAuthors)),
     page,
     limit,
-    hasMore: (clips.results || []).length === limit
+    hasMore: rows.length === limit
   });
   } catch (err) {
     console.error('GET /api/clips:', err);
@@ -1924,7 +1930,7 @@ app.post("/api/clips/:id/save", authMiddleware, async (c) => {
 });
 
 // Get comments for a clip (optimized with pagination)
-app.get("/api/clips/:id/comments", async (c) => {
+app.get("/api/clips/:id/comments", optionalAuthMiddleware, async (c) => {
   const clipId = c.req.param('id');
   const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100);
   const offset = parseInt(c.req.query('offset') || '0');
@@ -1936,19 +1942,26 @@ app.get("/api/clips/:id/comments", async (c) => {
       user_profiles.profile_image_url as user_avatar
     FROM comments
     LEFT JOIN user_profiles ON comments.mocha_user_id = user_profiles.mocha_user_id
-    WHERE comments.clip_id = ?
+    WHERE comments.clip_id = ? AND COALESCE(comments.is_hidden, 0) = 0
     ORDER BY comments.created_at DESC
     LIMIT ? OFFSET ?`
   )
     .bind(clipId, limit, offset)
     .all();
 
-  // Cache comments briefly
-  c.header('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  const rows = (comments.results || []) as Record<string, unknown>[];
+
+  if (hiddenAuthors.size > 0) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+  } else {
+    // Cache comments briefly
+    c.header('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+  }
 
   return c.json({ 
-    comments: comments.results || [],
-    hasMore: (comments.results || []).length === limit
+    comments: withoutBlockedAuthors(rows, hiddenAuthors),
+    hasMore: rows.length === limit
   });
 });
 
@@ -2054,7 +2067,7 @@ app.get("/api/users/me/following/list", authMiddleware, follow.getMyFollowingLis
 app.post("/api/users/:userId/follow", authMiddleware, follow.toggleFollow);
 
 // Get user profile by ID
-app.get("/api/users/:userId", async (c) => {
+app.get("/api/users/:userId", optionalAuthMiddleware, async (c) => {
   const userId = c.req.param('userId');
   
   // Fetch user profile from database
@@ -2067,6 +2080,10 @@ app.get("/api/users/:userId", async (c) => {
   if (!profile) {
     return c.json({ error: "User not found" }, 404);
   }
+
+  // A blocked account still resolves so the viewer can unblock it, but its clips stay hidden.
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  const isBlockedProfile = hiddenAuthors.has(String(userId).trim().toLowerCase());
 
   // Get user's clips
   const clips = await c.env.DB.prepare(
@@ -2104,7 +2121,10 @@ app.get("/api/users/:userId", async (c) => {
 
   return c.json({
     profile,
-    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
+    blocked: isBlockedProfile,
+    clips: isBlockedProfile
+      ? []
+      : normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
     stats: {
       totalClips: clips.results?.length || 0,
       totalLikes,
@@ -2157,9 +2177,15 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
   )
     .bind(uid)
     .all();
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
 
   return c.json({
-    clips: normalizeClipApiRows((savedClips.results || []) as Record<string, unknown>[]),
+    clips: normalizeClipApiRows(
+      withoutBlockedAuthors(
+        (savedClips.results || []) as Record<string, unknown>[],
+        hiddenAuthors,
+      ),
+    ),
   });
 });
 
@@ -2187,9 +2213,15 @@ app.get("/api/users/me/liked-clips-feed", authMiddleware, async (c) => {
   )
     .bind(uid)
     .all();
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
 
   return c.json({
-    clips: normalizeClipApiRows((likedClips.results || []) as Record<string, unknown>[]),
+    clips: normalizeClipApiRows(
+      withoutBlockedAuthors(
+        (likedClips.results || []) as Record<string, unknown>[],
+        hiddenAuthors,
+      ),
+    ),
   });
 });
 
@@ -3659,9 +3691,22 @@ app.get("/api/admin/analytics", authMiddleware, async (c) => {
 });
 
 // Content Moderation Endpoints
-app.post("/api/clips/:clipId/report", authMiddleware, moderation.reportClip);
+app.post("/api/clips/:clipId/report", authMiddleware, reports.reportClip);
+app.post("/api/comments/:commentId/report", authMiddleware, reports.reportComment);
+app.post("/api/users/:userId/report", authMiddleware, reports.reportUserProfile);
+app.post("/api/users/:userId/block", authMiddleware, reports.blockUser);
+app.delete("/api/users/:userId/block", authMiddleware, reports.unblockUser);
+app.get("/api/users/:userId/block", authMiddleware, reports.getBlockStatusForUser);
+app.get("/api/users/me/blocks", authMiddleware, reports.getMyBlockedAccounts);
 app.get("/api/admin/moderation/clips", authMiddleware, moderation.getFlaggedClips);
 app.post("/api/admin/moderation/clips/:flagId/review", authMiddleware, moderation.reviewFlaggedClip);
+app.get("/api/admin/moderation/comments", authMiddleware, moderation.getFlaggedComments);
+app.post("/api/admin/moderation/comments/:flagId/review", authMiddleware, moderation.reviewFlaggedComment);
+app.get("/api/admin/moderation/profiles", authMiddleware, moderation.getFlaggedProfiles);
+app.post("/api/admin/moderation/profiles/:flagId/review", authMiddleware, moderation.reviewFlaggedProfile);
+
+// Public support form — Apple requires contact that is not behind a login.
+app.post("/api/support", rateLimiter(RateLimits.STRICT), submitSupportRequest);
 app.delete("/api/admin/clips/:clipId", authMiddleware, moderation.deleteClip);
 app.get("/api/admin/moderation/users", authMiddleware, moderation.getFlaggedUsers);
 app.post("/api/admin/users/:userId/ban", authMiddleware, moderation.banUser);

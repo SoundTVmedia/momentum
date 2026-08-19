@@ -11,8 +11,8 @@ export async function fetchFollowingIds(): Promise<string[]> {
 
 export async function toggleFollowTarget(
   target: string,
-  body?: { artist_name?: string },
-): Promise<{ following: boolean; artist_id?: number }> {
+  body?: { artist_name?: string; venue_name?: string; jambase_id?: string },
+): Promise<{ following: boolean; artist_id?: number; venue_id?: number }> {
   return apiJson(`/api/users/${encodeURIComponent(target)}/follow`, {
     method: 'POST',
     body: body ? JSON.stringify(body) : undefined,

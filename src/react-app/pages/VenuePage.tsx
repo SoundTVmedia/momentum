@@ -22,6 +22,7 @@ interface Venue {
   address: string | null;
   image_url: string | null;
   capacity: number | null;
+  jambase_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -235,7 +236,9 @@ export default function VenuePage() {
           {/* Sidebar */}
           <div className="space-y-6">
             <button 
-              onClick={() => venue && void toggleFollowVenue(venue.id)}
+              onClick={() =>
+                venue && void toggleFollowVenue(venue.id, venue.name, venue.jambase_id)
+              }
               disabled={!followHydrated || !venue || isVenueFollowLoading(venue.id)}
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
                 venue && isFollowingVenue(venue.id)

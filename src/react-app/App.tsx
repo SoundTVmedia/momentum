@@ -32,10 +32,21 @@ import SponsorDashboardPage from "@/react-app/pages/SponsorDashboard";
 import AnalyticsPage from "@/react-app/pages/Analytics";
 import ShowClipsPage from "@/react-app/pages/ShowClips";
 import EventClipsPage from "@/react-app/pages/EventClips";
+import HowItWorksPage from "@/react-app/pages/HowItWorks";
+import CommunityGuidelinesPage from "@/react-app/pages/CommunityGuidelines";
+import PrivacyPolicyPage from "@/react-app/pages/PrivacyPolicy";
+import PrivacyChoicesPage from "@/react-app/pages/PrivacyChoices";
+import TermsOfServicePage from "@/react-app/pages/TermsOfService";
+import HelpSupportPage from "@/react-app/pages/HelpSupport";
+import BlockedAccountsPage from "@/react-app/pages/BlockedAccounts";
 import SongPage from "@/react-app/pages/SongPage";
 import GlobalSongPage from "@/react-app/pages/GlobalSongPage";
 import GenrePage from "@/react-app/pages/GenrePage";
 import ShareClipRedirect from "@/react-app/pages/ShareClipRedirect";
+import LiveFeedPage from "@/react-app/pages/LiveFeed";
+import ArtistHubPage from "@/react-app/pages/ArtistHub";
+import VenueHubPage from "@/react-app/pages/VenueHub";
+import ArchivalHubPage from "@/react-app/pages/ArchivalHub";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 import { QuickCaptureProvider } from "@/react-app/contexts/QuickCaptureContext";
 import PendingCaptureRouteRecovery from "@/react-app/components/PendingCaptureRouteRecovery";
@@ -71,6 +82,10 @@ export default function App() {
           <Routes>
             <Route element={<AppRouteChrome />}>
               <Route path="/" element={<HomePage />} />
+              <Route path="/live" element={<LiveFeedPage />} />
+              <Route path="/artist-hub" element={<ArtistHubPage />} />
+              <Route path="/venue-hub" element={<VenueHubPage />} />
+              <Route path="/archival-hub" element={<ArchivalHubPage />} />
               <Route path="/share/clip/:clipId" element={<ShareClipRedirect />} />
               <Route path="/feed" element={<Navigate to="/" replace />} />
               <Route path="/auth" element={<AuthPage />} />
@@ -107,6 +122,13 @@ export default function App() {
               <Route path="/genres/:genreSlug" element={<GenrePage />} />
               <Route path="/artists/:artistName/shows/:showId/clips" element={<ShowClipsPage />} />
               <Route path="/events/clips/:eventTitle" element={<EventClipsPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
+              <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
+              <Route path="/privacy" element={<PrivacyPolicyPage />} />
+              <Route path="/privacy-choices" element={<PrivacyChoicesPage />} />
+              <Route path="/terms" element={<TermsOfServicePage />} />
+              <Route path="/support" element={<HelpSupportPage />} />
+              <Route path="/settings/blocked" element={<BlockedAccountsPage />} />
               <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>

@@ -7,10 +7,14 @@ import {
   isArtistFollowTarget,
   parseArtistIdFromFollowTarget,
 } from '@/react-app/lib/artist-follow-key'
+import { USER_BLOCKS_CHANGED_EVENT } from '@/react-app/lib/user-block-events'
 
 export type ToggleFollowOptions = {
   /** Required when following JamBase-only artists (`artist.id === 0`). */
   artistName?: string
+  /** Used to resolve JamBase-only venues when `venue.id === 0`. */
+  venueName?: string
+  venueJamBaseId?: string | null
 }
 
 export const FOLLOWING_CHANGED_EVENT = 'following-changed'
@@ -95,9 +99,11 @@ export function useFollow() {
     const onChanged = () => void refreshFollowing()
     window.addEventListener(FOLLOWING_CHANGED_EVENT, onChanged)
     window.addEventListener('favorite-artists-changed', onChanged)
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onChanged)
     return () => {
       window.removeEventListener(FOLLOWING_CHANGED_EVENT, onChanged)
       window.removeEventListener('favorite-artists-changed', onChanged)
+      window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onChanged)
     }
   }, [refreshFollowing])
 
@@ -141,9 +147,15 @@ export function useFollow() {
           ? artistFollowApiTarget(parseArtistIdFromFollowTarget(userId))
           : userId
 
-        const body: { artist_name?: string } = {}
+        const body: { artist_name?: string; venue_name?: string; jambase_id?: string } = {}
         if (isArtistFollowTarget(userId) && artistName) {
           body.artist_name = artistName
+        }
+        if (userId.startsWith('venue-') && options?.venueName?.trim()) {
+          body.venue_name = options.venueName.trim()
+          if (options.venueJamBaseId?.trim()) {
+            body.jambase_id = options.venueJamBaseId.trim()
+          }
         }
 
         const response = await apiFetch(
@@ -162,6 +174,7 @@ export function useFollow() {
         const data = (await response.json()) as {
           following?: boolean
           artist_id?: number
+          venue_id?: number
         }
         const nowFollowing = data.following ?? !wasFollowing
 
@@ -176,6 +189,14 @@ export function useFollow() {
                   : parseArtistIdFromFollowTarget(userId)
               for (const k of artistFollowStateKeys(resolvedId, artistName)) {
                 next.add(k)
+              }
+            } else if (userId.startsWith('venue-')) {
+              const resolvedId =
+                typeof data.venue_id === 'number' && data.venue_id > 0
+                  ? data.venue_id
+                  : Number(userId.slice('venue-'.length))
+              if (Number.isInteger(resolvedId) && resolvedId > 0) {
+                next.add(`venue-${resolvedId}`)
               }
             } else {
               next.add(userId)
@@ -225,8 +246,8 @@ export function useFollow() {
   )
 
   const toggleFollowVenue = useCallback(
-    (venueId: number) => {
-      return toggleFollow(`venue-${venueId}`)
+    (venueId: number, venueName?: string, venueJamBaseId?: string | null) => {
+      return toggleFollow(`venue-${venueId > 0 ? venueId : 0}`, { venueName, venueJamBaseId })
     },
     [toggleFollow],
   )
@@ -252,7 +273,7 @@ export function useFollow() {
 
   const isVenueFollowLoading = useCallback(
     (venueId: number) => loading.has(`venue-${venueId}`),
-    [following],
+    [loading],
   )
 
   const isFollowing = useCallback(
@@ -262,7 +283,7 @@ export function useFollow() {
 
   const isLoading = useCallback(
     (userId: string) => loading.has(userId),
-    [following],
+    [loading],
   )
 
   return {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { Bookmark, Loader2 } from 'lucide-react';
@@ -9,6 +9,10 @@ import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import {
+  USER_BLOCKS_CHANGED_EVENT,
+  userBlocksChangedDetail,
+} from '@/react-app/lib/user-block-events';
 
 export default function SavedClips() {
   const navigate = useNavigate();
@@ -18,15 +22,7 @@ export default function SavedClips() {
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [savedModalFeed, setSavedModalFeed] = useState<ClipWithUser[] | null>(null);
 
-  useEffect(() => {
-    if (!isPending && !user) {
-      navigate('/');
-    } else if (user) {
-      fetchSavedClips();
-    }
-  }, [user, isPending, navigate]);
-
-  const fetchSavedClips = async () => {
+  const fetchSavedClips = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/users/me/saved-clips');
@@ -40,7 +36,34 @@ export default function SavedClips() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isPending && !user) {
+      navigate('/');
+    } else if (user) {
+      void fetchSavedClips();
+    }
+  }, [user, isPending, navigate, fetchSavedClips]);
+
+  useEffect(() => {
+    const onBlocksChanged = (event: Event) => {
+      const detail = userBlocksChangedDetail(event);
+      if (!detail) return;
+      if (detail.blocked) {
+        setClips((prev) =>
+          prev.filter(
+            (clip) => String(clip.mocha_user_id ?? '').trim().toLowerCase() !== detail.userId,
+          ),
+        );
+      } else {
+        void fetchSavedClips();
+      }
+    };
+
+    window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+    return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
+  }, [fetchSavedClips]);
 
   if (isPending || (loading && user)) {
     return (

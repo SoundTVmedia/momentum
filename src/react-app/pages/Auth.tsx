@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams, Link } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import {
@@ -544,7 +544,14 @@ export default function Auth() {
         </div>
 
         <p className="text-center text-gray-500 text-xs mt-6">
-          By signing in, you agree to our Terms of Service and Privacy Policy
+          By signing in, you agree to our{' '}
+          <Link to="/terms" className="text-gray-400 hover:text-white transition-colors">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link to="/privacy" className="text-gray-400 hover:text-white transition-colors">
+            Privacy Policy
+          </Link>
         </p>
       </div>
     </div>
