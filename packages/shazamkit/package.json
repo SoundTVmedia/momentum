@@ -15,7 +15,8 @@
   "files": [
     "FeedbackShazamkit.podspec",
     "dist/",
-    "ios/"
+    "ios/",
+    "src/"
   ],
   "peerDependencies": {
     "@capacitor/core": ">=7.0.0"

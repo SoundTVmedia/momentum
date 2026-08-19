@@ -10,7 +10,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@feedback/native-audio-capture": ["./packages/native-audio-capture/src/index.ts"]
+      "@feedback/native-audio-capture": ["./packages/native-audio-capture/src/index.ts"],
+      "@feedback/shazamkit": ["./packages/shazamkit/src/index.ts"]
     },
 
     /* Bundler mode */
@@ -28,5 +29,9 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src/react-app", "packages/native-audio-capture/src"]
+  "include": [
+    "src/react-app",
+    "packages/native-audio-capture/src",
+    "packages/shazamkit/src"
+  ]
 }
