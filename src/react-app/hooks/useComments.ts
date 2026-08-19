@@ -134,6 +134,10 @@ export function useComments(clipId: number) {
     [clipId, fetchComments],
   )
 
+  const removeComment = useCallback((commentId: number) => {
+    setComments((prev) => prev.filter((comment) => comment.id !== commentId))
+  }, [])
+
   useEffect(() => {
     void fetchComments()
   }, [fetchComments])
@@ -161,6 +165,7 @@ export function useComments(clipId: number) {
     loading,
     error,
     postComment,
+    removeComment,
     refresh: fetchComments,
   }
 }

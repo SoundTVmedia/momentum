@@ -179,11 +179,10 @@ export async function reportComment(c: Context<{ Bindings: Env }>) {
     .bind(commentId, reporterId, parsed.reason, parsed.details, urgent ? 1 : 0)
     .run();
 
-  if (reasonRequiresImmediateRemoval(parsed.reason)) {
-    await c.env.DB.prepare('UPDATE comments SET is_hidden = 1 WHERE id = ?')
-      .bind(comment.id)
-      .run();
-  }
+  // Quarantine every reported comment until a superadmin explicitly approves it.
+  await c.env.DB.prepare('UPDATE comments SET is_hidden = 1 WHERE id = ?')
+    .bind(comment.id)
+    .run();
 
   if (urgent) {
     await alertFoundersOfUrgentReport(c, {

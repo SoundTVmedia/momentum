@@ -15,6 +15,7 @@ type ContentActionsMenuProps = {
   buttonClassName?: string;
   /** Open the dropdown upward when the trigger sits near the bottom of the viewport. */
   openUp?: boolean;
+  onReported?: () => void;
   onBlocked?: (userId: string) => void;
 };
 
@@ -26,6 +27,7 @@ export default function ContentActionsMenu({
   authorName,
   buttonClassName = 'p-2 text-gray-400 hover:text-white transition-colors',
   openUp = false,
+  onReported,
   onBlocked,
 }: ContentActionsMenuProps) {
   const navigate = useNavigate();
@@ -148,6 +150,7 @@ export default function ContentActionsMenu({
           authorId={authorId}
           authorName={authorName}
           onClose={() => setReportOpen(false)}
+          onReported={onReported}
           onBlocked={onBlocked}
         />
       ) : null}

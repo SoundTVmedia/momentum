@@ -17,7 +17,7 @@ export default function CommentSection({ clipId, onCommentPosted }: CommentSecti
   const { user } = useAuth();
   const extendedUser = user as ExtendedMochaUser | null;
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
-  const { comments, loading, error, postComment } = useComments(clipId);
+  const { comments, loading, error, postComment, removeComment } = useComments(clipId);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [replyTo, setReplyTo] = useState<number | null>(null);
@@ -171,6 +171,7 @@ export default function CommentSection({ clipId, onCommentPosted }: CommentSecti
                         authorId={comment.mocha_user_id}
                         authorName={comment.user_display_name}
                         buttonClassName="-mr-1 p-1 text-gray-500 hover:text-white transition-colors"
+                        onReported={() => removeComment(comment.id)}
                       />
                     </div>
                   </div>

@@ -19,6 +19,8 @@ type ReportContentModalProps = {
   authorId?: string | null;
   authorName?: string | null;
   onClose: () => void;
+  /** Called after the report is accepted so the caller can hide quarantined content. */
+  onReported?: () => void;
   /** Called after a successful block so the caller can refresh its list. */
   onBlocked?: (userId: string) => void;
 };
@@ -41,6 +43,7 @@ export default function ReportContentModal({
   authorId,
   authorName,
   onClose,
+  onReported,
   onBlocked,
 }: ReportContentModalProps) {
   const [step, setStep] = useState<'reason' | 'details' | 'sent'>('reason');
@@ -77,6 +80,7 @@ export default function ReportContentModal({
         throw new Error(data.error || 'Could not send that report. Try again in a moment.');
       }
 
+      onReported?.();
       setStep('sent');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send that report.');
