@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useClips } from '@/react-app/hooks/useClips'
 import ClipModal from './ClipModal'
@@ -43,6 +43,8 @@ interface ConcertFeedProps {
   suppressBottomPadding?: boolean
   /** Link to a full browse page; shown when the carousel can paginate. */
   viewAllHref?: string
+  /** Home Latest has no rows — parent can switch to Most Viewed and hide Latest. */
+  onLatestEmpty?: () => void
 }
 
 export function FeedSectionHeader({
@@ -95,6 +97,7 @@ export default function ConcertFeed({
   edgeBleedScope = 'page',
   suppressBottomPadding = false,
   viewAllHref,
+  onLatestEmpty,
 }: ConcertFeedProps) {
   const navigate = useNavigate()
   const isGlobalFeed =
@@ -115,6 +118,17 @@ export default function ConcertFeed({
   const carouselScrollRef = useRef<HTMLDivElement>(null)
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null)
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null)
+  const sawLoadingForFeed = useRef<string | null>(null)
+  if (loading) sawLoadingForFeed.current = feedType ?? 'latest'
+
+  useEffect(() => {
+    if (!onLatestEmpty) return
+    if (feedType !== 'latest' || !isGlobalFeed) return
+    if (loading || error) return
+    if (clips.length > 0) return
+    if (sawLoadingForFeed.current !== feedType) return
+    onLatestEmpty()
+  }, [onLatestEmpty, feedType, isGlobalFeed, loading, error, clips.length])
 
   const resolvedViewAllHref =
     viewAllHref ?? (isGlobalFeed ? browseClipsPath(feedType) : undefined)

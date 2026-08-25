@@ -22,16 +22,26 @@ describe('clipQualifiesForLatestScene', () => {
     ).toBe(false);
   });
 
-  it('uses recording time when the show start is missing', () => {
+  it('keeps unmatched clips even when they were recorded or uploaded later', () => {
+    expect(clipQualifiesForLatestScene({ nowMs: now })).toBe(true);
     expect(
       clipQualifiesForLatestScene({
         nowMs: now,
-        recordedAt: new Date(now - LATEST_SCENE_MAX_AGE_MS - 1000).toISOString(),
+        showStartAt: null,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('keeps unmatched clips with no dates', () => {
-    expect(clipQualifiesForLatestScene({ nowMs: now })).toBe(true);
+  it('keeps clips with an unparseable show start rather than emptying Latest', () => {
+    expect(
+      clipQualifiesForLatestScene({
+        nowMs: now,
+        showStartAt: 'not-a-date',
+      }),
+    ).toBe(true);
+  });
+
+  it('uses a 24-hour window from show start', () => {
+    expect(LATEST_SCENE_MAX_AGE_MS).toBe(24 * 60 * 60 * 1000);
   });
 });

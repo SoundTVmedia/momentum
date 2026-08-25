@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
 import ConcertFeed, { FeedSectionHeader } from '@/react-app/components/ConcertFeed'
-import type { FeedFilterValue } from '@/react-app/lib/feedFilterMeta'
+import {
+  FEED_FILTER_OPTIONS,
+  type FeedFilterValue,
+} from '@/react-app/lib/feedFilterMeta'
 import FavoriteArtistFeedPanel from '@/react-app/components/FavoriteArtistFeedPanel'
 import FeedFilters from '@/react-app/components/FeedFilters'
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts'
@@ -29,6 +32,14 @@ export default function MainFeedStack({
   const navigate = useNavigate()
   const { user } = useAuth()
   const [feedType, setFeedType] = useState(defaultFeedType)
+  const [latestUnavailable, setLatestUnavailable] = useState(false)
+  const sceneFilterOptions = latestUnavailable
+    ? FEED_FILTER_OPTIONS.filter((option) => option.value !== 'latest')
+    : FEED_FILTER_OPTIONS
+  const handleLatestEmpty = useCallback(() => {
+    setLatestUnavailable(true)
+    setFeedType((current) => (current === 'latest' ? 'most_viewed' : current))
+  }, [])
   const isHome = variant === 'home'
   const containerClass = isHome
     ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-7'
@@ -39,7 +50,11 @@ export default function MainFeedStack({
       <div className="mb-5 md:mb-5">
         <FeedSectionHeader feedType={feedType} />
         <div className="mt-3 md:mt-4">
-          <FeedFilters currentFilter={feedType} onFilterChange={setFeedType} />
+          <FeedFilters
+            currentFilter={feedType}
+            onFilterChange={setFeedType}
+            options={sceneFilterOptions}
+          />
         </div>
       </div>
 
@@ -49,6 +64,7 @@ export default function MainFeedStack({
         edgeBleed={isHome}
         edgeBleedScope="page"
         suppressBottomPadding={isHome}
+        onLatestEmpty={handleLatestEmpty}
       />
     </div>
   )

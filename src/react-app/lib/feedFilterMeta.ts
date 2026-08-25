@@ -10,14 +10,14 @@ export type FeedFilterMeta = {
 /** Static heading for the home / feed "From The Scene" block (toggle labels are separate). */
 export const FROM_THE_SCENE_SECTION = {
   title: 'From The Scene',
-  description: "Clips from tonight's shows and the last 24 hours",
+  description: 'Live moments from concerts on the scene',
 } as const;
 
 export const FEED_FILTER_OPTIONS: FeedFilterMeta[] = [
   {
     value: 'latest',
     label: 'Latest',
-    description: 'Clips from shows in the last 24 hours',
+    description: 'Newest posts, not including clips from past shows',
     viewAllClipsLabel: 'View All Latest Clips',
   },
   {
