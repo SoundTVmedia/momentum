@@ -1,6 +1,10 @@
 import { useLayoutEffect } from 'react';
 import { useLocation } from 'react-router';
-import { APP_SPLASH_ELEMENT_ID, shouldSkipAppSplash } from '@/react-app/lib/app-splash';
+import {
+  APP_SPLASH_ELEMENT_ID,
+  shouldSkipAppSplash,
+  splashHideDelayMs,
+} from '@/react-app/lib/app-splash';
 
 function hideSplash(el: HTMLElement, immediate: boolean) {
   if (el.dataset.splashHidden === '1') return;
@@ -21,7 +25,8 @@ function hideSplash(el: HTMLElement, immediate: boolean) {
 }
 
 /**
- * Keeps the HTML launch splash up until the first app frame has painted, then fades it out.
+ * Keeps the HTML launch splash visible for at least 3s (and until the first app
+ * frame has painted), then fades it out so the Powered By lockup can be read.
  */
 export default function AppSplashController() {
   const { pathname } = useLocation();
@@ -37,9 +42,13 @@ export default function AppSplashController() {
 
     let cancelled = false;
     let raf2 = 0;
+    let hideTimer = 0;
     const raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
-        if (!cancelled) hideSplash(el, false);
+        if (cancelled) return;
+        hideTimer = window.setTimeout(() => {
+          if (!cancelled) hideSplash(el, false);
+        }, splashHideDelayMs(performance.now()));
       });
     });
 
@@ -47,6 +56,7 @@ export default function AppSplashController() {
       cancelled = true;
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
+      window.clearTimeout(hideTimer);
     };
     // Cold-start only — do not re-show on client navigations.
     // eslint-disable-next-line react-hooks/exhaustive-deps
