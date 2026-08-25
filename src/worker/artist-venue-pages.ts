@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import {
   jamBaseFetch,
@@ -310,7 +311,7 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
         user_profiles.profile_image_url as user_avatar
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-      WHERE clips.is_hidden = 0
+      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
       AND (
         LOWER(REPLACE(TRIM(IFNULL(clips.artist_name, '')), ' ', '-')) = ?
         OR clips.artist_name = ?
@@ -639,7 +640,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
         user_profiles.profile_image_url as user_avatar
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-      WHERE clips.is_hidden = 0
+      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
       AND (
         LOWER(REPLACE(TRIM(IFNULL(clips.venue_name, '')), ' ', '-')) = ?
         OR clips.venue_name = ?
@@ -692,7 +693,7 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
     const cidRow = (await db
       .prepare(
         `SELECT jambase_venue_id FROM clips
-         WHERE clips.is_hidden = 0
+         WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
          AND TRIM(IFNULL(jambase_venue_id,'')) != ''
          AND (
            LOWER(REPLACE(TRIM(IFNULL(clips.venue_name, '')), ' ', '-')) = ?

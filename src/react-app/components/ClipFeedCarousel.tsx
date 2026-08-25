@@ -5,6 +5,7 @@ import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
+import { filterPublicFeedClips } from '@/shared/clip-playback';
 
 export type ClipFeedCarouselProps = {
   clips: ClipWithUser[];
@@ -21,7 +22,8 @@ export default function ClipFeedCarousel({
   className = PAGE_CAROUSEL_BLEED,
   carouselKey,
 }: ClipFeedCarouselProps) {
-  if (clips.length === 0) return null;
+  const visible = filterPublicFeedClips(clips);
+  if (visible.length === 0) return null;
 
   return (
     <HorizontalClipCarousel
@@ -30,14 +32,14 @@ export default function ClipFeedCarousel({
       className={className}
       stretchItems
     >
-      {clips.map((clip, index) => (
+      {visible.map((clip, index) => (
         <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
           <ClipFeedGridTile
             clip={clip}
             onOpenClip={onOpenClip}
             neighborClips={{
-              prev: clips[index - 1],
-              next: clips[index + 1],
+              prev: visible[index - 1],
+              next: visible[index + 1],
             }}
           />
         </HorizontalClipCarouselItem>

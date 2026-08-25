@@ -4,6 +4,13 @@ import UserAvatar from '@/react-app/components/UserAvatar';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import { reportReasonLabel } from '@/shared/report-reasons';
 
+const PLAYBACK_SYSTEM_REPORTER = 'system:playback';
+
+function moderationReasonLabel(code: string): string {
+  if (code === 'unplayable_video') return 'Unplayable video';
+  return reportReasonLabel(code);
+}
+
 interface FlaggedClip {
   id: number;
   clip_id: number;
@@ -17,6 +24,11 @@ interface FlaggedClip {
   venue_name: string | null;
   thumbnail_url: string | null;
   video_url: string;
+  stream_video_id?: string | null;
+  stream_playback_url?: string | null;
+  stream_thumbnail_url?: string | null;
+  playback_unplayable?: number | null;
+  playback_unplayable_reason?: string | null;
   reporter_display_name: string | null;
   clip_user_id: string;
   clip_user_display_name: string | null;
@@ -276,6 +288,7 @@ export default function ContentModerationPanel() {
     if (lower.includes('spam')) return 'text-momentum-ember';
     if (lower.includes('inappropriate') || lower.includes('nsfw')) return 'text-red-400';
     if (lower.includes('copyright')) return 'text-momentum-ember';
+    if (lower.includes('unplayable')) return 'text-amber-400';
     return 'text-gray-400';
   };
 
@@ -448,6 +461,9 @@ export default function ContentModerationPanel() {
                       clip={{
                         thumbnail_url: flag.thumbnail_url,
                         video_url: flag.video_url,
+                        stream_video_id: flag.stream_video_id,
+                        stream_playback_url: flag.stream_playback_url,
+                        stream_thumbnail_url: flag.stream_thumbnail_url,
                       }}
                       alt="Clip thumbnail"
                       className="w-full h-40 rounded-lg object-cover"
@@ -469,12 +485,19 @@ export default function ContentModerationPanel() {
                         <div className="flex items-center space-x-2 mb-2">
                           <Flag className={`w-5 h-5 ${getReasonColor(flag.reason)}`} />
                           <span className={`font-semibold ${getReasonColor(flag.reason)}`}>
-                            {reportReasonLabel(flag.reason)}
+                            {moderationReasonLabel(flag.reason)}
                           </span>
                           {urgentBadge(flag.is_urgent)}
+                          {flag.reason === 'unplayable_video' || flag.playback_unplayable === 1 ? (
+                            <span className="px-2 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Hidden from feeds
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-sm text-gray-400 mb-2">
-                          Reported by {flag.reporter_display_name || 'Anonymous'} on {formatTimestamp(flag.created_at)}
+                          {flag.reported_by === PLAYBACK_SYSTEM_REPORTER
+                            ? `Flagged by playback monitor on ${formatTimestamp(flag.created_at)}`
+                            : `Reported by ${flag.reporter_display_name || 'Anonymous'} on ${formatTimestamp(flag.created_at)}`}
                         </div>
                         <div className="text-sm text-gray-500">
                           Uploaded by {flag.clip_user_display_name || 'Anonymous'}
@@ -500,7 +523,11 @@ export default function ContentModerationPanel() {
                           className="px-4 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 hover:bg-green-500/30 transition-colors flex items-center space-x-2"
                         >
                           <CheckCircle className="w-4 h-4" />
-                          <span>Approve (Keep Clip)</span>
+                          <span>
+                            {flag.reason === 'unplayable_video'
+                              ? 'Dismiss flag (stays out of feeds)'
+                              : 'Approve (Keep Clip)'}
+                          </span>
                         </button>
                         <button
                           onClick={() => handleReviewClip(flag.id, 'remove')}

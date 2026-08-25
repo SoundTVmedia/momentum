@@ -15,6 +15,7 @@ export type ClipFeedItem = {
   stream_mp4_url?: string | null;
   stream_mp4_status?: string | null;
   r2_raw_key?: string | null;
+  playback_unplayable?: number | boolean | null;
   likes_count: number;
   comments_count: number;
   views_count: number;

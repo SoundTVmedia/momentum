@@ -4,6 +4,10 @@ export function isSuperAdminUser(user: ExtendedMochaUser | null | undefined): bo
   return user?.profile?.is_superadmin === 1;
 }
 
+export function isAdminUser(user: ExtendedMochaUser | null | undefined): boolean {
+  return user?.profile?.is_admin === 1 || isSuperAdminUser(user);
+}
+
 export function showAmbassadorNav(user: ExtendedMochaUser | null | undefined): boolean {
   if (!user?.profile) return false;
   return user.profile.role === 'ambassador' || isSuperAdminUser(user);

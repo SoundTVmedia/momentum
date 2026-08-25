@@ -52,8 +52,11 @@ const ClipModalMaximizedVideo = forwardRef<
           stream_video_id={clip.stream_video_id}
           stream_playback_url={clip.stream_playback_url}
           stream_thumbnail_url={clip.stream_thumbnail_url}
+          stream_mp4_url={clip.stream_mp4_url}
+          stream_mp4_status={clip.stream_mp4_status}
           video_url={clip.video_url}
           thumbnail_url={clip.thumbnail_url}
+          r2_raw_key={clip.r2_raw_key}
           autoPlay
           loop
           controlsPlacement="hidden"

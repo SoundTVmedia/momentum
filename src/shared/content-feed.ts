@@ -115,6 +115,16 @@ export function classifyContentFeed(input: ClassifyContentFeedInput): ContentFee
 /** SQL fragment: clips eligible for the public main performance feed. */
 export const MAIN_FEED_CLIP_SQL = `(clips.content_feed = 'main' OR clips.content_feed IS NULL)`;
 
+/**
+ * Published, not hidden, and not marked unplayable by the playback-health cron.
+ * Use on home / discover / carousels / public grids.
+ */
+export const PUBLIC_VISIBLE_CLIP_SQL =
+  'clips.is_hidden = 0 AND clips.is_draft = 0 AND COALESCE(clips.playback_unplayable, 0) = 0';
+
+/** Extra predicate when a query already filters hidden/draft itself. */
+export const CLIP_NOT_UNPLAYABLE_SQL = 'COALESCE(clips.playback_unplayable, 0) = 0';
+
 /** Lane used when persisting a clip — respects temporary bifurcation bypass. */
 export function effectiveContentFeedForPost(feed: string | null | undefined): ContentFeedLane {
   if (BYPASS_CONTENT_FEED_BIFURCATION) return 'main';

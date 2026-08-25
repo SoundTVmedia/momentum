@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { ClipFeedItem } from '@/src/lib/api/types';
-import { resolveClipPosterUrl } from '@/src/lib/api/clips';
+import { clipShouldRenderInPublicFeed, resolveClipPosterUrl } from '@/src/lib/api/clips';
 import { clipPostedAt, formatRelativeTime } from '@/src/lib/formatRelativeTime';
 import { artistPath, venuePath } from '@shared/app-paths';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
@@ -16,6 +16,9 @@ type Props = {
 export function ClipCarouselTile({ clip, onPress, width = 168 }: Props) {
   const router = useRouter();
   const poster = resolveClipPosterUrl(clip);
+  if (!clipShouldRenderInPublicFeed(clip)) {
+    return null;
+  }
   const place = [clip.venue_name, clip.location].filter(Boolean).join(' · ');
   const relative = formatRelativeTime(clipPostedAt(clip));
   const trending =
@@ -28,7 +31,9 @@ export function ClipCarouselTile({ clip, onPress, width = 168 }: Props) {
         {poster ? (
           <Image source={{ uri: poster }} style={styles.image} contentFit="cover" />
         ) : (
-          <View style={[styles.image, styles.placeholder]} />
+          <View style={[styles.image, styles.placeholder]}>
+            <Text style={styles.placeholderText}>No preview</Text>
+          </View>
         )}
         {trending ? (
           <View style={styles.badgeTrending}>
@@ -110,6 +115,14 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     backgroundColor: colors.shellBgDeep,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    fontSize: 10,
   },
   overlay: {
     position: 'absolute',

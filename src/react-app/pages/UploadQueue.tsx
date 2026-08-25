@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { CloudUpload, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -6,11 +6,18 @@ import Header from '@/react-app/components/Header';
 import UploadQueueJobCard from '@/react-app/components/UploadQueueJobCard';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { sortUploadJobsForDisplay } from '@/react-app/lib/upload-outbox/upload-queue-status';
+import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
+import { useEnqueueManualClip } from '@/react-app/hooks/useEnqueueManualClip';
+import { pickLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
 
 export default function UploadQueuePage() {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
   const { jobs, restartJob } = useClipUploadQueue();
+  const isMobile = useIsMobileViewport();
+  const enqueueManualClip = useEnqueueManualClip();
+  const [pickError, setPickError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     document.title = 'Upload Queue';
@@ -37,6 +44,23 @@ export default function UploadQueuePage() {
   }
 
   if (!user) return null;
+
+  const startManualUpload = async () => {
+    if (!isMobile) {
+      navigate('/upload');
+      return;
+    }
+    setPickError(null);
+    setPicking(true);
+    try {
+      const file = await pickLibraryVideoFile();
+      if (!file) return;
+      const result = await enqueueManualClip(file);
+      if (!result.ok) setPickError(result.error);
+    } finally {
+      setPicking(false);
+    }
+  };
 
   const visibleJobs = sortUploadJobsForDisplay(
     jobs.filter(
@@ -67,13 +91,20 @@ export default function UploadQueuePage() {
           </div>
           <button
             type="button"
-            onClick={() => navigate('/upload')}
-            className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-lg shadow-momentum-ember/35"
+            onClick={() => void startManualUpload()}
+            disabled={picking}
+            className="shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] active:scale-[0.98] transition-transform shadow-lg shadow-momentum-ember/35 disabled:opacity-60"
           >
             <Upload className="w-5 h-5" aria-hidden />
-            Upload clip
+            {picking ? 'Opening library…' : 'Upload clip'}
           </button>
         </div>
+
+        {pickError ? (
+          <p className="mb-4 text-sm text-red-400" role="alert">
+            {pickError}
+          </p>
+        ) : null}
 
         {visibleJobs.length === 0 ? (
           <div className="glass-panel rounded-xl p-8 text-center">
@@ -84,11 +115,12 @@ export default function UploadQueuePage() {
             </p>
             <button
               type="button"
-              onClick={() => navigate('/upload')}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] active:scale-[0.98] transition-transform"
+              onClick={() => void startManualUpload()}
+              disabled={picking}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-[1.02] active:scale-[0.98] transition-transform disabled:opacity-60"
             >
               <Upload className="w-5 h-5" aria-hidden />
-              Upload clip
+              {picking ? 'Opening library…' : 'Upload clip'}
             </button>
           </div>
         ) : (

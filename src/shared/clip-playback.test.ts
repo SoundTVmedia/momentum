@@ -5,6 +5,10 @@ import {
   isHlsPlaybackUrl,
   resolveClipPosterCandidates,
   resolveClipPosterUrl,
+  clipHasPlayableSource,
+  clipHasPosterSource,
+  clipShouldRenderInPublicFeed,
+  filterPublicFeedClips,
   resolveClipDownloadFilename,
   resolveClipDownloadUrl,
   resolveFeedPreviewVideoSrc,
@@ -168,6 +172,28 @@ seg-1.ts`;
 
   it('returns empty string when no clip poster sources exist', () => {
     expect(resolveClipPosterUrl({ video_url: 'pending:upload' })).toBe('');
+  });
+
+  it('treats a Stream id as a playable source with generated posters', () => {
+    expect(clipHasPlayableSource({ stream_video_id: UID })).toBe(true);
+    expect(clipHasPosterSource({ stream_video_id: UID })).toBe(true);
+    expect(clipShouldRenderInPublicFeed({ stream_video_id: UID })).toBe(true);
+  });
+
+  it('hides placeholder clips and worker-flagged unplayable rows from public feeds', () => {
+    expect(clipShouldRenderInPublicFeed({ video_url: 'pending:upload' })).toBe(false);
+    expect(
+      clipShouldRenderInPublicFeed({
+        stream_video_id: UID,
+        playback_unplayable: 1,
+      }),
+    ).toBe(false);
+    expect(
+      filterPublicFeedClips([
+        { stream_video_id: UID },
+        { video_url: 'pending:upload' },
+      ]),
+    ).toHaveLength(1);
   });
 
   it('does not use progressive video URLs as poster images', () => {

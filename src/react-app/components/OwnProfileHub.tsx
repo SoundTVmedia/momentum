@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Calendar, LifeBuoy, Loader2 } from 'lucide-react';
+import { Calendar, LifeBuoy, Loader2, Shield } from 'lucide-react';
 import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
@@ -11,6 +11,7 @@ import SavedClipsSection from '@/react-app/components/SavedClipsSection';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
 import MyGoingShowsSection from '@/react-app/components/MyGoingShowsSection';
 import type { ExtendedMochaUser } from '@/shared/types';
+import { isAdminUser } from '@/react-app/lib/program-nav';
 
 /**
  * Signed-in profile hub: points, clips, and shows from favorite artists.
@@ -89,6 +90,16 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
             <LifeBuoy className="w-4 h-4 shrink-0" />
             Help &amp; support
           </button>
+          {isAdminUser(userData) ? (
+            <button
+              type="button"
+              onClick={() => navigate('/admin')}
+              className="admin-header-control w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-momentum-rose/40 bg-momentum-rose/10 text-momentum-rose hover:bg-momentum-rose/20 transition-colors text-sm font-medium"
+            >
+              <Shield className="w-4 h-4 shrink-0" />
+              Admin dashboard
+            </button>
+          ) : null}
         </div>
 
         <div className="space-y-10">

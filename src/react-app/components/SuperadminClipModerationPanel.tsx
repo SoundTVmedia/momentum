@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2, Pencil, Search, Trash2, Video } from 'lucide-react';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import ClipEditModal from '@/react-app/components/ClipEditModal';
@@ -8,16 +8,41 @@ import type { ClipWithUser } from '@/shared/types';
 
 type ModerationClip = ClipWithUser & {
   is_hidden: number;
+  playback_unplayable?: number | null;
+  playback_unplayable_reason?: string | null;
 };
 
 export default function SuperadminClipModerationPanel() {
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [clips, setClips] = useState<ModerationClip[]>([]);
+  const [unplayableClips, setUnplayableClips] = useState<ModerationClip[]>([]);
+  const [loadingUnplayable, setLoadingUnplayable] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [editingClip, setEditingClip] = useState<ModerationClip | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadUnplayable = async () => {
+      setLoadingUnplayable(true);
+      try {
+        const response = await fetch('/api/admin/moderation/unplayable-clips');
+        if (!response.ok) return;
+        const data = (await response.json()) as { clips: ModerationClip[] };
+        if (!cancelled) setUnplayableClips(data.clips || []);
+      } catch {
+        if (!cancelled) setUnplayableClips([]);
+      } finally {
+        if (!cancelled) setLoadingUnplayable(false);
+      }
+    };
+    void loadUnplayable();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +90,7 @@ export default function SuperadminClipModerationPanel() {
         throw new Error(errBody.error || 'Could not delete clip');
       }
       setClips((prev) => prev.filter((c) => c.id !== clip.id));
+      setUnplayableClips((prev) => prev.filter((c) => c.id !== clip.id));
       setSuccess(`Deleted clip #${clip.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not delete clip');
@@ -79,6 +105,7 @@ export default function SuperadminClipModerationPanel() {
         <h2 className="text-2xl font-bold text-white mb-2">Clip Moderation</h2>
         <p className="text-gray-400">
           Search any clip by ID, artist, venue, uploader name, or user ID and permanently remove it.
+          Unplayable clips are hidden from public feeds and listed below for review.
         </p>
       </div>
 
@@ -113,6 +140,56 @@ export default function SuperadminClipModerationPanel() {
         </div>
       )}
 
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold text-white mb-2">Unplayable clips</h3>
+        <p className="text-gray-500 text-sm mb-4">
+          Automatically flagged by the worker when Stream/R2 playback is missing. These do not appear
+          in public feeds.
+        </p>
+        {loadingUnplayable ? (
+          <Loader2 className="w-6 h-6 text-momentum-flare animate-spin" />
+        ) : unplayableClips.length === 0 ? (
+          <p className="text-gray-500 text-sm">No unplayable clips right now.</p>
+        ) : (
+          <div className="space-y-3">
+            {unplayableClips.map((clip) => (
+              <div
+                key={`unplayable-${clip.id}`}
+                className="glass-panel border border-amber-500/20 rounded-xl p-4 flex flex-col sm:flex-row gap-4"
+              >
+                <ClipPosterImage
+                  clip={clip}
+                  alt=""
+                  className="w-full sm:w-32 h-20 rounded-lg object-cover flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold">Clip #{clip.id}</p>
+                  {clip.artist_name ? (
+                    <p className="text-momentum-rose text-sm">{clip.artist_name}</p>
+                  ) : null}
+                  <p className="text-amber-400/80 text-xs mt-1">
+                    {clip.playback_unplayable_reason || 'no_valid_playback'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteClip(clip)}
+                  disabled={deletingId === clip.id}
+                  className="px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 transition-colors flex items-center gap-2 disabled:opacity-50 self-start"
+                >
+                  {deletingId === clip.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {clips.length === 0 ? (
         <div className="glass-panel border border-white/10 rounded-xl p-12 text-center">
           <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
@@ -138,6 +215,11 @@ export default function SuperadminClipModerationPanel() {
                       Hidden
                     </span>
                   )}
+                  {clip.playback_unplayable === 1 && (
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Unplayable — hidden from feeds
+                    </span>
+                  )}
                 </div>
                 {clip.artist_name && (
                   <p className="text-momentum-rose text-sm">{clip.artist_name}</p>
@@ -152,6 +234,11 @@ export default function SuperadminClipModerationPanel() {
                 <p className="text-gray-600 text-xs mt-1">
                   {new Date(clip.created_at).toLocaleString()}
                 </p>
+                {clip.playback_unplayable === 1 && clip.playback_unplayable_reason ? (
+                  <p className="text-amber-400/80 text-xs mt-1">
+                    Playback: {clip.playback_unplayable_reason}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-col gap-2 self-start">
                 <button

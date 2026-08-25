@@ -61,6 +61,8 @@ export async function publishClipWithR2Playback(
            upload_status = 'uploaded',
            status = 'published',
            is_draft = 0,
+           playback_unplayable = 0,
+           playback_unplayable_reason = NULL,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
     )
@@ -224,6 +226,8 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
              upload_status = 'ready',
              status = 'published',
              is_draft = 0,
+             playback_unplayable = 0,
+             playback_unplayable_reason = NULL,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
       )

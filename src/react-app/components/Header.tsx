@@ -15,7 +15,7 @@ import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 import { HEADER_ACTION_BUTTON_CLASS } from '@/react-app/components/HeaderGradientPill'
 import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
 import PoweredByJamBase from '@/react-app/components/PoweredByJamBase'
-import { showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
+import { isAdminUser, showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -82,7 +82,7 @@ export default function Header() {
   return (
     <>
     {!hideSiteChrome ? (
-    <header className="glass-chrome border-b border-[var(--shell-border)] sticky top-0 z-50">
+    <header className="top-nav glass-chrome border-b border-[var(--shell-border)] sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5 md:gap-3">
@@ -192,13 +192,13 @@ export default function Header() {
                     <NotificationPanel onClose={() => setShowNotifications(false)} />
                   )}
                 </div>
-                {(extendedUser?.profile?.is_admin === 1 ||
-                  extendedUser?.profile?.is_superadmin === 1) && (
+                {isAdminUser(extendedUser) && (
                   <button
                     onClick={() => navigate('/admin')}
-                    className="hidden md:block p-1.5 sm:p-2 text-gray-400 hover:text-momentum-rose transition-colors"
+                    className="admin-header-control shrink-0 p-1.5 sm:p-2 text-gray-400 hover:text-momentum-rose transition-colors"
                     title="Admin Dashboard"
                     type="button"
+                    aria-label="Admin Dashboard"
                   >
                     <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>

@@ -12,6 +12,7 @@ import type {
   ShowsResponse,
 } from '@/src/lib/api/types';
 import {
+  clipShouldRenderInPublicFeed as sharedShouldRender,
   resolveClipPosterUrl as sharedPosterUrl,
   resolveModalPlaybackSource as sharedModalSource,
   type ClipPlaybackFields,
@@ -54,6 +55,10 @@ function absoluteMediaUrl(url: string | null | undefined): string {
 
 export function resolveClipPosterUrl(clip: ClipPlaybackFields): string {
   return absoluteMediaUrl(sharedPosterUrl(clip));
+}
+
+export function clipShouldRenderInPublicFeed(clip: ClipPlaybackFields): boolean {
+  return sharedShouldRender(clip);
 }
 
 export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlaybackSource {

@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { MochaUser } from '@/shared/mocha-user';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { genreSlugFromName } from '../shared/genre-tag';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import type { DiscoverLocation } from './discover-location';
@@ -186,7 +187,7 @@ async function fetchLoggedInForYou(
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.is_hidden = 0 AND clips.is_draft = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.mocha_user_id != ?
     AND (${whereMatch})
     ORDER BY clips.created_at DESC
@@ -247,7 +248,7 @@ async function fetchGuestForYou(
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.is_hidden = 0 AND clips.is_draft = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND (${conditions.join(' OR ')})
     ORDER BY clips.created_at DESC
     LIMIT ?

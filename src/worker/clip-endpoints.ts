@@ -4,7 +4,7 @@ import { readyStreamMp4Url, type ClipPlaybackFields } from '../shared/clip-playb
 import { purgeClipFromDatabase } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { clipsContentFeedColumnReady } from './content-feed-sql';
-import { MAIN_FEED_CLIP_SQL } from '../shared/content-feed';
+import { MAIN_FEED_CLIP_SQL, PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import {
   buildHashtagsForClipBody,
   genreFieldsFromBody,
@@ -637,7 +637,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
   const anchor = await c.env.DB.prepare(
     `${CLIP_WITH_USER_SELECT}
      ${CLIP_WITH_USER_FROM}
-     WHERE clips.id = ? AND clips.is_hidden = 0`,
+     WHERE clips.id = ? AND ${PUBLIC_VISIBLE_CLIP_SQL}`,
   )
     .bind(clipId)
     .first();
@@ -669,8 +669,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
-       WHERE clips.is_hidden = 0
-       AND clips.is_draft = 0
+       WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND clips.event_title = ?
        ORDER BY clips.created_at ASC
        LIMIT 50`,
@@ -682,8 +681,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
-       WHERE clips.is_hidden = 0
-       AND clips.is_draft = 0
+       WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND clips.artist_name = ?
        AND clips.show_id = ?
        ORDER BY clips.created_at ASC
@@ -696,8 +694,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
-       WHERE clips.is_hidden = 0
-       AND clips.is_draft = 0
+       WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND clips.jambase_event_id = ?
        ORDER BY clips.created_at ASC
        LIMIT 50`,
@@ -709,8 +706,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
-       WHERE clips.is_hidden = 0
-       AND clips.is_draft = 0
+       WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND clips.artist_name = ?
        AND clips.venue_name = ?
        AND clips.timestamp IS NOT NULL
@@ -725,8 +721,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
-       WHERE clips.is_hidden = 0
-       AND clips.is_draft = 0
+       WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND clips.artist_name = ?
        ORDER BY clips.created_at DESC
        LIMIT 40`,

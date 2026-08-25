@@ -28,6 +28,8 @@ export async function handleScheduled(env: Env): Promise<void> {
     // and confirmed separately before anything may link to it.
     const { finalizeStreamDownloads } = await import('./stream-downloads');
     await finalizeStreamDownloads(env);
+    const { auditClipPlaybackHealth } = await import('./clip-playback-health');
+    await auditClipPlaybackHealth(env);
     await cleanupStaleUploadSessions(env);
 
     // 3. Performance optimization tasks

@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ClipCarouselTile } from '@/src/components/ClipCarouselTile';
+import { clipShouldRenderInPublicFeed } from '@/src/lib/api/clips';
 import type { ClipFeedItem } from '@/src/lib/api/types';
-import { prefetchClipPlayback } from '@/src/lib/playback/prefetch';
 import { colors, spacing, typography } from '@/src/theme/tokens';
 
 type Props = {
@@ -23,9 +22,7 @@ export function HorizontalClipCarousel({
   emptyMessage,
   headerRight,
 }: Props) {
-  useEffect(() => {
-    for (const clip of clips.slice(0, 4)) prefetchClipPlayback(clip);
-  }, [clips]);
+  const visible = clips.filter(clipShouldRenderInPublicFeed);
   return (
     <View style={styles.section}>
       {title || subtitle || headerRight ? (
@@ -37,7 +34,7 @@ export function HorizontalClipCarousel({
           {headerRight}
         </View>
       ) : null}
-      {clips.length === 0 ? (
+      {visible.length === 0 ? (
         emptyMessage ? <Text style={styles.empty}>{emptyMessage}</Text> : null
       ) : (
         <ScrollView
@@ -48,7 +45,7 @@ export function HorizontalClipCarousel({
           snapToInterval={176}
           snapToAlignment="start"
         >
-          {clips.map((clip) => (
+          {visible.map((clip) => (
             <ClipCarouselTile key={clip.id} clip={clip} onPress={onPressClip} />
           ))}
         </ScrollView>

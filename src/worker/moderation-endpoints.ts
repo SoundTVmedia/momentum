@@ -30,6 +30,11 @@ export async function getFlaggedClips(c: Context) {
       clips.venue_name,
       clips.thumbnail_url,
       clips.video_url,
+      clips.stream_video_id,
+      clips.stream_playback_url,
+      clips.stream_thumbnail_url,
+      clips.playback_unplayable,
+      clips.playback_unplayable_reason,
       clips.mocha_user_id as clip_user_id,
       reporter.display_name as reporter_display_name,
       clip_user.display_name as clip_user_display_name
@@ -138,6 +143,26 @@ async function requireAdmin(c: Context): Promise<Response | null> {
   }
 
   return null;
+}
+
+export async function getUnplayableClips(c: Context) {
+  const denied = await requireAdmin(c);
+  if (denied) return denied;
+
+  const clips = await c.env.DB.prepare(
+    `SELECT clips.id, clips.artist_name, clips.venue_name, clips.thumbnail_url,
+            clips.stream_video_id, clips.stream_playback_url, clips.stream_thumbnail_url,
+            clips.video_url, clips.mocha_user_id, clips.created_at, clips.is_hidden,
+            clips.playback_unplayable, clips.playback_unplayable_reason,
+            user_profiles.display_name AS user_display_name
+     FROM clips
+     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+     WHERE COALESCE(clips.playback_unplayable, 0) = 1
+     ORDER BY clips.updated_at DESC
+     LIMIT 100`,
+  ).all();
+
+  return c.json({ clips: clips.results || [] });
 }
 
 // Reported comments queue

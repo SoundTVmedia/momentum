@@ -76,6 +76,11 @@ export const ClipSchema = z.object({
   stream_video_id: z.string().nullable().optional(),
   stream_playback_url: z.string().nullable().optional(),
   stream_thumbnail_url: z.string().nullable().optional(),
+  stream_mp4_url: z.string().nullable().optional(),
+  stream_mp4_status: z.string().nullable().optional(),
+  r2_raw_key: z.string().nullable().optional(),
+  playback_unplayable: z.number().int().optional(),
+  playback_unplayable_reason: z.string().nullable().optional(),
   /** `main` = public performance feed; `pre_post` = friends-only talking moments */
   content_feed: z.enum(['main', 'pre_post']).optional(),
 });

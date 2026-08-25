@@ -18,9 +18,9 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ClipFeedItem } from '@/src/lib/api/types';
 import { resolveClipPosterUrl, resolveModalPlaybackSource } from '@/src/lib/api/clips';
-import { PooledClipPlayer } from '@/src/components/PooledClipPlayer';
+import { PooledClipPlayer, OffscreenClipPrefetch } from '@/src/components/PooledClipPlayer';
 import { ClipTicketSheet } from '@/src/components/ClipTicketSheet';
-import { prefetchNeighborClips } from '@/src/lib/playback/prefetch';
+import { shouldPrefetchFullNativeClip } from '@/src/lib/playback/prefetch';
 import { useClipArtistProfile } from '@/src/hooks/useClipArtistProfile';
 import { useClipPlaybackTickets } from '@/src/hooks/useClipPlaybackTickets';
 import { restoreForMediaPlayback } from 'feedback-audio-session';
@@ -45,7 +45,8 @@ type Session = {
   index: number;
 };
 
-function clipSource(clip: ClipFeedItem): string | null {
+function clipSource(clip: ClipFeedItem | null | undefined): string | null {
+  if (!clip) return null;
   const playback = resolveModalPlaybackSource(clip);
   return playback.src || null;
 }
@@ -57,6 +58,7 @@ function ClipSlide({
   attachPlayer,
   modalVisible,
   appActive,
+  prefetchFull,
   onNavigateEntity,
 }: {
   clip: ClipFeedItem;
@@ -65,6 +67,7 @@ function ClipSlide({
   attachPlayer: boolean;
   modalVisible: boolean;
   appActive: boolean;
+  prefetchFull: boolean;
   onNavigateEntity: (href: string) => void;
 }) {
   const src = useMemo(() => clipSource(clip), [clip]);
@@ -114,6 +117,7 @@ function ClipSlide({
           isActive={isActive}
           modalVisible={modalVisible}
           appActive={appActive}
+          prefetchFull={prefetchFull}
         />
       ) : poster ? (
         <Image source={{ uri: poster }} style={styles.video} contentFit="contain" />
@@ -144,6 +148,7 @@ export function ClipPlayerModal({
   const [activeIndex, setActiveIndex] = useState(0);
   const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
   const [appActive, setAppActive] = useState(() => AppState.currentState === 'active');
+  const prefetchFull = shouldPrefetchFullNativeClip();
 
   const activeClip = session?.list[activeIndex] ?? clip;
   const artistName = activeClip?.artist_name ?? null;
@@ -178,11 +183,6 @@ export function ClipPlayerModal({
   useEffect(() => {
     if (visible) void restoreForMediaPlayback();
   }, [visible]);
-
-  useEffect(() => {
-    if (!visible || !session) return;
-    prefetchNeighborClips(session.list, activeIndex);
-  }, [visible, session, activeIndex]);
 
   useEffect(() => {
     setTicketSheetOpen(false);
@@ -272,10 +272,11 @@ export function ClipPlayerModal({
         attachPlayer={Math.abs(index - activeIndex) <= PLAYER_RADIUS}
         modalVisible={visible}
         appActive={appActive}
+        prefetchFull={prefetchFull}
         onNavigateEntity={navigateEntity}
       />
     ),
-    [width, activeIndex, visible, appActive, navigateEntity],
+    [width, activeIndex, visible, appActive, prefetchFull, navigateEntity],
   );
 
   if (!session || session.list.length === 0) {
@@ -284,6 +285,7 @@ export function ClipPlayerModal({
 
   const showMerch = Boolean(websiteUrl) && !merchLoading;
   const showTickets = Boolean(ticketShow?.ticketUrl) && !ticketLoading;
+  const nextNextSrc = clipSource(session.list[activeIndex + 2]);
 
   return (
     <Modal
@@ -292,6 +294,9 @@ export function ClipPlayerModal({
       onRequestClose={handleClose}
       presentationStyle="fullScreen"
     >
+      {visible && appActive && prefetchFull && nextNextSrc ? (
+        <OffscreenClipPrefetch key={nextNextSrc} src={nextNextSrc} full />
+      ) : null}
       <View
         style={[
           styles.root,

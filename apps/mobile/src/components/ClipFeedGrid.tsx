@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { clipShouldRenderInPublicFeed } from '@/src/lib/api/clips';
 import type { ClipFeedItem } from '@/src/lib/api/types';
 import { ClipGridTile } from '@/src/components/ClipGridTile';
 import { colors, spacing, typography } from '@/src/theme/tokens';
@@ -39,7 +40,7 @@ export function ClipFeedGrid({
 
   return (
     <FlatList
-      data={clips}
+      data={clips.filter(clipShouldRenderInPublicFeed)}
       keyExtractor={(item) => String(item.id)}
       numColumns={2}
       contentContainerStyle={styles.content}

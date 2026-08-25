@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { Film, Loader2, Circle, Square, Images, RefreshCw, MapPin, Music } from 'lucide-react';
+import { Film, Loader2, Circle, Square, RefreshCw, MapPin, Music } from 'lucide-react';
 import CameraZoomControls from '@/react-app/components/CameraZoomControls';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -138,8 +138,6 @@ export default function QuickRecordButton({
   /** When `deferCameraUntilLaunchGeo`, parent must set `true` after launch-time GPS finishes (even if coords are null). */
   captureLaunchGeoResolved = false,
   deferCameraUntilLaunchGeo = false,
-  onAfterCaptureNavigate,
-  /** Optional setlist / venue / time-window hints — reduces confirmation streak when AudD agrees. */
   liveSongPriors,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
@@ -1055,7 +1053,7 @@ export default function QuickRecordButton({
         /permission/i.test(errMessage);
       setPermissionDenied(isNotAllowed);
       const noDeviceHint =
-        'No camera was detected (common without a webcam, in Docker, or when the browser cannot access devices). Use the photo library button to pick a video.';
+        'No camera was detected (common without a webcam, in Docker, or when the browser cannot access devices).';
       const fallbackMsg = isNotAllowed
         ? isNativeIos
           ? 'Camera access was denied. Open Settings → Feedback → Camera, allow access, then tap Capture again.'
@@ -1603,103 +1601,6 @@ export default function QuickRecordButton({
       } else {
         setPreferredFacingMode(next);
       }
-    }
-  };
-
-  const processPickedVideoFile = async (file: File) => {
-    const fileIsVideo =
-      file.type.startsWith('video/') ||
-      /\.(mp4|mov|m4v|webm)$/i.test(file.name);
-    if (!fileIsVideo) {
-      setCameraError('Please choose a video from your photo library.');
-      return;
-    }
-
-    const tooLong = await new Promise<boolean>((resolve) => {
-      const url = URL.createObjectURL(file);
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      const done = (long: boolean) => {
-        URL.revokeObjectURL(url);
-        resolve(long);
-      };
-      video.onloadedmetadata = () => {
-        const d = video.duration;
-        if (Number.isFinite(d) && d > MAX_CLIP_LENGTH_SECONDS + 1) {
-          done(true);
-        } else {
-          done(false);
-        }
-      };
-      video.onerror = () => done(false);
-      video.src = url;
-    });
-    if (tooLong) {
-      setCameraError(`Videos must be ${MAX_CLIP_LENGTH_SECONDS} seconds or shorter.`);
-      return;
-    }
-
-    releaseAllCaptureResources();
-
-    navigate({ pathname: '/upload', search: '' }, {
-      state: {
-        videoFile: file,
-        fromPhotoLibrary: true,
-        recordingStartedAt: new Date(file.lastModified || Date.now()).toISOString(),
-      },
-    });
-    (onAfterCaptureNavigate ?? onClose)?.();
-  };
-
-  /** Open the device photo library for videos (not the camera / generic file chooser). */
-  const openPhotoLibraryPicker = () => {
-    const shouldRestoreCamera = Boolean(streamRef.current && showModalRef.current);
-    releaseAllCaptureResources();
-
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,video/*';
-    input.style.cssText =
-      'position:fixed;left:-9999px;top:0;opacity:0;width:1px;height:1px;pointer-events:none;';
-    input.setAttribute('aria-hidden', 'true');
-
-    let settled = false;
-    const finish = (file: File | null) => {
-      if (settled) return;
-      settled = true;
-      input.remove();
-      if (file) {
-        void processPickedVideoFile(file);
-        return;
-      }
-      if (shouldRestoreCamera && showModalRef.current) {
-        void requestPermissions();
-      }
-    };
-
-    input.addEventListener('change', () => {
-      finish(input.files?.[0] ?? null);
-    });
-
-    document.body.appendChild(input);
-
-    const onWindowFocus = () => {
-      window.setTimeout(() => {
-        if (!settled && !input.files?.length) {
-          finish(null);
-        }
-      }, 400);
-    };
-    window.addEventListener('focus', onWindowFocus, { once: true });
-
-    try {
-      if (typeof input.showPicker === 'function') {
-        input.showPicker();
-      } else {
-        input.click();
-      }
-    } catch {
-      input.click();
     }
   };
 
@@ -3011,16 +2912,6 @@ export default function QuickRecordButton({
             >
               <span className="text-xl">✕</span>
             </button>
-            <button
-              type="button"
-              onClick={openPhotoLibraryPicker}
-              className="w-14 h-14 shrink-0 rounded-full native-capture-control bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-              style={{ minWidth: '3.5rem', minHeight: '3.5rem' }}
-              title="Photo library"
-              aria-label="Choose video from photo library"
-            >
-              <Images className="w-6 h-6" />
-            </button>
           </div>
 
           <div className="flex justify-center pb-0.5">
@@ -3204,8 +3095,8 @@ export default function QuickRecordButton({
                   <h3 className="text-xl font-bold text-white">Camera blocked</h3>
                   <p className="text-gray-400 text-sm">
                     {shouldUseNativeIosCapture()
-                      ? 'Open Settings → Feedback → Camera and allow access, then tap Capture again. You can also use the photo library button below.'
-                      : 'Use your device settings to allow the camera for this site, then tap Capture again. You can also use the photo library button below to pick a video.'}
+                      ? 'Open Settings → Feedback → Camera and allow access, then tap Capture again.'
+                      : 'Use your device settings to allow the camera for this site, then tap Capture again.'}
                   </p>
                   {cameraError && <p className="text-red-400/90 text-xs mt-2">{cameraError}</p>}
                 </div>

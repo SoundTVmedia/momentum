@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { SONG_CLIPS_ORDER_BY_SQL } from './clip-order-by';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
@@ -42,8 +43,7 @@ export async function buildSongPagePayload(c: Context): Promise<Response> {
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
-    WHERE clips.is_hidden = 0
-    AND clips.is_draft = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND (
       clips.artist_name = ?
       OR LOWER(REPLACE(TRIM(IFNULL(clips.artist_name, '')), ' ', '-')) = ?

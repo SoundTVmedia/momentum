@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import { Home, CloudUpload, Bell, Video, LogIn } from 'lucide-react';
+import { Home, CloudUpload, Bell, Video, LogIn, Shield } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useUnreadNotificationCount } from '@/react-app/contexts/NotificationsContext';
@@ -9,8 +9,10 @@ import NotificationPanel from '@/react-app/components/NotificationPanel';
 import { hasUnreadNotifications } from '@/react-app/lib/notification-badge';
 import UserAvatar from './UserAvatar';
 import type { ExtendedMochaUser } from '@/shared/types';
+import { isAdminUser } from '@/react-app/lib/program-nav';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
+import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 
 const SIGN_IN_GRADIENT_STOPS = (
   <>
@@ -27,6 +29,8 @@ export default function MobileBottomNav() {
   const { hideBottomNav } = useMobileChrome();
   const { user } = useAuth();
   const extendedUser = user as ExtendedMochaUser | null;
+  const isMobileViewport = useIsMobileViewport();
+  const staffUser = isAdminUser(extendedUser);
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
   const unreadCount = useUnreadNotificationCount();
   const { jobs: uploadJobs } = useClipUploadQueue();
@@ -106,6 +110,17 @@ export default function MobileBottomNav() {
   return (
     <>
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-chrome border-t border-[var(--shell-border)] bottom-nav">
+        {staffUser ? (
+          <button
+            type="button"
+            onClick={() => navigate('/admin')}
+            title="Admin Dashboard"
+            aria-label="Admin Dashboard"
+            className="admin-mobile-entry absolute -top-12 right-3 z-10 p-2 rounded-full glass-chrome border border-momentum-rose/35 text-momentum-rose hover:text-white hover:bg-momentum-rose/20"
+          >
+            <Shield className="w-5 h-5" />
+          </button>
+        ) : null}
         <div className="grid grid-cols-5 items-center h-16 w-full">
           {navItems.map((item) => {
             const active = isActive(item.path);
@@ -242,6 +257,22 @@ export default function MobileBottomNav() {
           })}
         </div>
       </nav>
+
+      {staffUser && isMobileViewport ? (
+        <button
+          type="button"
+          onClick={() => navigate('/admin')}
+          title="Admin Dashboard"
+          aria-label="Admin Dashboard"
+          className="admin-mobile-entry hidden min-[768px]:inline-flex fixed z-[55] p-2 rounded-full glass-chrome border border-momentum-rose/35 text-momentum-rose hover:text-white hover:bg-momentum-rose/20"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+            right: '0.75rem',
+          }}
+        >
+          <Shield className="w-5 h-5" />
+        </button>
+      ) : null}
 
       {showNotifications && user ? (
         <>

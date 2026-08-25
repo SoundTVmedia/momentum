@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { ClipFeedItem } from '@/src/lib/api/types';
-import { resolveClipPosterUrl } from '@/src/lib/api/clips';
+import { clipShouldRenderInPublicFeed, resolveClipPosterUrl } from '@/src/lib/api/clips';
 import { artistPath, venuePath } from '@shared/app-paths';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 
@@ -14,6 +14,9 @@ type Props = {
 export function ClipGridTile({ clip, onPress }: Props) {
   const router = useRouter();
   const poster = resolveClipPosterUrl(clip);
+  if (!clipShouldRenderInPublicFeed(clip)) {
+    return null;
+  }
   const title = clip.song_title?.trim() || clip.artist_name?.trim() || 'Untitled clip';
 
   return (
@@ -22,7 +25,9 @@ export function ClipGridTile({ clip, onPress }: Props) {
         {poster ? (
           <Image source={{ uri: poster }} style={styles.image} contentFit="cover" />
         ) : (
-          <View style={[styles.image, styles.placeholder]} />
+          <View style={[styles.image, styles.placeholder]}>
+            <Text style={styles.placeholderText}>No preview</Text>
+          </View>
         )}
       </View>
       <Text style={styles.title} numberOfLines={2}>
@@ -78,6 +83,14 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     backgroundColor: colors.shellBgDeep,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+    fontSize: 10,
   },
   title: {
     ...typography.body,

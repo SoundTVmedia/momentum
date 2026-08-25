@@ -1,3 +1,4 @@
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { Context } from 'hono';
 import { resolveArtistNameForClipsQuery, resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
@@ -213,7 +214,7 @@ export async function getPrioritizedShows(c: Context) {
           COUNT(DISTINCT clips.id) as clip_count,
           MAX(clips.created_at) as latest_clip
         FROM artists
-        LEFT JOIN clips ON clips.artist_name = artists.name AND clips.is_hidden = 0
+        LEFT JOIN clips ON clips.artist_name = artists.name AND ${PUBLIC_VISIBLE_CLIP_SQL}
         WHERE artists.id IN (${favoriteArtistIds.map(() => '?').join(',')})
         GROUP BY artists.id
         HAVING clip_count > 0
@@ -245,8 +246,7 @@ export async function getPrioritizedShows(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       LEFT JOIN artists ON clips.artist_name = artists.name
-      WHERE clips.is_hidden = 0
-      AND clips.is_draft = 0
+      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
       ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC
       LIMIT 20`
     ).all();
@@ -455,8 +455,7 @@ export async function getFavoriteArtistFeed(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
-      WHERE clips.is_hidden = 0
-      AND clips.is_draft = 0
+      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
       AND (
         clips.artist_name IN (${inPlaceholders})
         OR LOWER(TRIM(clips.artist_name)) IN (${inLowerPlaceholders})
@@ -535,7 +534,7 @@ export async function getShowClips(c: Context) {
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       WHERE clips.artist_name = ?
       AND ${CLIP_SHOW_KEY_SQL} = ?
-      AND clips.is_hidden = 0
+      AND ${PUBLIC_VISIBLE_CLIP_SQL}
     `;
 
     const bindings: any[] = [artistName, showId];
@@ -609,8 +608,7 @@ export async function getEventClips(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       WHERE clips.event_title = ?
-      AND clips.is_hidden = 0
-      AND clips.is_draft = 0
+      AND ${PUBLIC_VISIBLE_CLIP_SQL}
     `;
 
     const bindings: unknown[] = [eventTitle];
@@ -691,8 +689,7 @@ export async function getVenueArchive(c: Context) {
         MAX(clips.thumbnail_url) as thumbnail_url
       FROM clips
       WHERE clips.venue_name = ?
-      AND clips.is_hidden = 0
-      AND clips.is_draft = 0
+      AND ${PUBLIC_VISIBLE_CLIP_SQL}
       AND clips.event_title IS NOT NULL
       AND TRIM(clips.event_title) != ''
       GROUP BY ${CLIP_SHOW_KEY_SQL}

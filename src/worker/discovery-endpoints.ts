@@ -1,4 +1,5 @@
 import { Context } from 'hono';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import type { MochaUser } from '@/shared/mocha-user';
 import {
   jamBaseFetch,
@@ -145,7 +146,7 @@ async function runGeoScopedAdvancedSearch(
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.is_hidden = 0`;
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}`;
 
   const clipsBindings: unknown[] = [];
 
@@ -181,7 +182,7 @@ async function runGeoScopedAdvancedSearch(
     FROM clips
     LEFT JOIN artists ON clips.artist_name = artists.name
     WHERE clips.artist_name IS NOT NULL
-    AND clips.is_hidden = 0
+    AND ${PUBLIC_VISIBLE_CLIP_SQL}
     AND ${geo.sql}
     GROUP BY clips.artist_name
     ORDER BY clip_count DESC
@@ -199,7 +200,7 @@ async function runGeoScopedAdvancedSearch(
     FROM clips
     LEFT JOIN venues ON clips.venue_name = venues.name
     WHERE clips.venue_name IS NOT NULL
-    AND clips.is_hidden = 0
+    AND ${PUBLIC_VISIBLE_CLIP_SQL}
     AND ${geo.sql}
     GROUP BY clips.venue_name
     ORDER BY clip_count DESC
@@ -397,7 +398,7 @@ export async function advancedSearch(c: Context) {
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.is_hidden = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND (
       clips.artist_name LIKE ? OR
       clips.venue_name LIKE ?
@@ -413,7 +414,7 @@ export async function advancedSearch(c: Context) {
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.is_hidden = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.created_at >= date('now', '-' || ? || ' days')
     AND (
       clips.artist_name LIKE ? OR
@@ -460,7 +461,7 @@ export async function advancedSearch(c: Context) {
     LEFT JOIN venues ON clips.venue_name = venues.name
     WHERE clips.venue_name IS NOT NULL
     AND clips.venue_name LIKE ?
-    AND clips.is_hidden = 0
+    AND ${PUBLIC_VISIBLE_CLIP_SQL}
     GROUP BY clips.venue_name
     ORDER BY clip_count DESC
     LIMIT ${venueLimit}`,
@@ -610,7 +611,7 @@ export async function getTrendingContent(c: Context) {
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.is_hidden = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.is_draft = 0
     ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC
     LIMIT 12`
@@ -625,7 +626,7 @@ export async function getTrendingContent(c: Context) {
     FROM clips
     LEFT JOIN artists ON clips.artist_name = artists.name
     WHERE clips.artist_name IS NOT NULL
-    AND clips.is_hidden = 0
+    AND ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.created_at >= date('now', '-7 days')
     GROUP BY clips.artist_name
     ORDER BY clip_count DESC
@@ -641,7 +642,7 @@ export async function getTrendingContent(c: Context) {
     FROM clips
     LEFT JOIN venues ON clips.venue_name = venues.name
     WHERE clips.venue_name IS NOT NULL
-    AND clips.is_hidden = 0
+    AND ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.created_at >= date('now', '-7 days')
     GROUP BY clips.venue_name
     ORDER BY clip_count DESC
@@ -728,7 +729,7 @@ export async function ensureDiscoverTrendingArtists(
       FROM clips
       LEFT JOIN artists ON clips.artist_name = artists.name
       WHERE clips.artist_name IS NOT NULL
-      AND clips.is_hidden = 0
+      AND ${PUBLIC_VISIBLE_CLIP_SQL}
       ${notInClause}
       GROUP BY clips.artist_name
       ORDER BY clip_count DESC
@@ -783,7 +784,7 @@ export async function getDiscoverFeed(c: Context) {
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.is_hidden = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.is_draft = 0
     ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC
     LIMIT 12`,
@@ -798,7 +799,7 @@ export async function getDiscoverFeed(c: Context) {
     FROM clips
     LEFT JOIN artists ON clips.artist_name = artists.name
     WHERE clips.artist_name IS NOT NULL
-    AND clips.is_hidden = 0
+    AND ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.created_at >= date('now', '-7 days')
     GROUP BY clips.artist_name
     ORDER BY clip_count DESC

@@ -1,22 +1,209 @@
 import {
+  isHlsPlaybackUrl,
   resolveFeedPreviewVideoSrc,
   resolveHlsPrefetchUrls,
-  resolveModalPlaybackSource,
   resolveModalPrefetchPlan,
   STREAM_DELIVERY_ORIGIN,
   type ClipPlaybackFields,
 } from '@/shared/clip-playback';
+import {
+  readNavigatorConnection,
+  shouldPrefetchFullClip,
+} from '@/shared/playback-network';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
 
-const prefetchedModalKeys = new Set<string>();
-const prefetchedFeedMp4 = new Set<string>();
+/** Next + next-next. The visible player owns the current clip. */
+const MAX_WARM_VIDEOS = 2;
+const MAX_INFLIGHT_FULL = 1;
+
+type WarmEntry = {
+  el: HTMLVideoElement;
+  url: string;
+  abort: AbortController | null;
+  full: boolean;
+};
+
+const warmByUrl = new Map<string, WarmEntry>();
+const blobByUrl = new Map<string, string>();
+const fullQueue: string[] = [];
+let inflightFull = 0;
+let sessionLooksFast = false;
+
 const prefetchedHlsManifests = new Set<string>();
 
-/** First ~1.5MB — enough for moov + early GOPs on typical Stream MP4s. */
-const MP4_HEAD_PREFETCH_BYTES = 1_500_000;
+function decideFull(): boolean {
+  return shouldPrefetchFullClip({
+    connection: readNavigatorConnection(),
+    nativeApp: isNativeApp(),
+    sessionLooksFast,
+  });
+}
 
-function modalPrefetchKey(clip: ClipPlaybackFields): string {
-  const modal = resolveModalPlaybackSource(clip);
-  return modal.streamVideoId ?? modal.src;
+function canUseNativeHls(): boolean {
+  if (typeof document === 'undefined') return false;
+  return Boolean(document.createElement('video').canPlayType('application/vnd.apple.mpegurl'));
+}
+
+/** After a clip actually started quickly, treat later neighbors as fast-network. */
+export function markPlaybackSessionFast(): void {
+  sessionLooksFast = true;
+}
+
+/** Blob URL if we already pulled the whole MP4; otherwise the network URL. */
+export function resolvePrefetchedPlaybackSrc(src: string | null | undefined): string {
+  const url = typeof src === 'string' ? src.trim() : '';
+  if (!url) return '';
+  return blobByUrl.get(url) ?? url;
+}
+
+/**
+ * Drop the hidden decoder once the visible player owns this URL.
+ * Keeps any blob: object URL so the visible element can still use it.
+ */
+export function releaseWarmedDecoder(src: string | null | undefined): void {
+  const url = typeof src === 'string' ? src.trim() : '';
+  if (!url) return;
+  const entry = warmByUrl.get(url);
+  if (!entry) return;
+  teardownVideo(entry, { revokeBlob: false });
+  warmByUrl.delete(url);
+}
+
+function teardownVideo(entry: WarmEntry, opts: { revokeBlob: boolean }): void {
+  entry.abort?.abort();
+  entry.abort = null;
+  try {
+    entry.el.pause();
+    entry.el.removeAttribute('src');
+    entry.el.load();
+    entry.el.remove();
+  } catch {
+    /* already detached */
+  }
+  if (opts.revokeBlob) {
+    const blobUrl = blobByUrl.get(entry.url);
+    if (blobUrl) {
+      URL.revokeObjectURL(blobUrl);
+      blobByUrl.delete(entry.url);
+    }
+  }
+}
+
+function evictOldestIfNeeded(): void {
+  while (warmByUrl.size >= MAX_WARM_VIDEOS) {
+    const oldest = warmByUrl.keys().next().value as string | undefined;
+    if (!oldest) break;
+    const entry = warmByUrl.get(oldest);
+    if (entry) teardownVideo(entry, { revokeBlob: true });
+    warmByUrl.delete(oldest);
+  }
+}
+
+function touch(url: string): void {
+  const entry = warmByUrl.get(url);
+  if (!entry) return;
+  warmByUrl.delete(url);
+  warmByUrl.set(url, entry);
+}
+
+function prefetchHost(): HTMLDivElement {
+  let el = document.getElementById('clip-playback-prefetch-host') as HTMLDivElement | null;
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'clip-playback-prefetch-host';
+    el.setAttribute('aria-hidden', 'true');
+    el.style.cssText =
+      'position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0.01;pointer-events:none;z-index:-1';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+/** iOS ignores preload="auto" unless playback actually starts (muted is enough). */
+function kickBuffer(el: HTMLVideoElement): void {
+  void el
+    .play()
+    .then(() => {
+      el.pause();
+    })
+    .catch(() => undefined);
+}
+
+function warmMediaElement(url: string, full: boolean): void {
+  if (typeof document === 'undefined') return;
+  const blobSrc = blobByUrl.get(url);
+  let entry = warmByUrl.get(url);
+  if (!entry) {
+    evictOldestIfNeeded();
+    const el = document.createElement('video');
+    el.muted = true;
+    el.defaultMuted = true;
+    el.playsInline = true;
+    el.setAttribute('playsinline', '');
+    el.setAttribute('webkit-playsinline', '');
+    el.preload = 'auto';
+    el.crossOrigin = 'anonymous';
+    if ('disableRemotePlayback' in el) {
+      el.disableRemotePlayback = true;
+    }
+    el.src = blobSrc ?? url;
+    prefetchHost().appendChild(el);
+    el.load();
+    entry = { el, url, abort: null, full: false };
+    warmByUrl.set(url, entry);
+  } else {
+    touch(url);
+  }
+  kickBuffer(entry.el);
+  if (full && !blobSrc && !isHlsPlaybackUrl(url)) {
+    enqueueFullBlob(url);
+  }
+  entry.full = entry.full || full;
+}
+
+function enqueueFullBlob(url: string): void {
+  if (blobByUrl.has(url) || fullQueue.includes(url)) return;
+  fullQueue.push(url);
+  pumpFullQueue();
+}
+
+function pumpFullQueue(): void {
+  while (inflightFull < MAX_INFLIGHT_FULL && fullQueue.length > 0) {
+    const url = fullQueue.shift();
+    if (!url || blobByUrl.has(url)) continue;
+    inflightFull += 1;
+    void fetchFullBlob(url).finally(() => {
+      inflightFull -= 1;
+      pumpFullQueue();
+    });
+  }
+}
+
+async function fetchFullBlob(url: string): Promise<void> {
+  const entry = warmByUrl.get(url);
+  const abort = new AbortController();
+  if (entry) entry.abort = abort;
+  try {
+    const res = await fetch(url, {
+      mode: 'cors',
+      credentials: 'omit',
+      signal: abort.signal,
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    if (blob.size < 80_000) return;
+    if (blobByUrl.has(url)) return;
+    const obj = URL.createObjectURL(blob);
+    blobByUrl.set(url, obj);
+    const live = warmByUrl.get(url);
+    if (live) {
+      live.el.src = obj;
+      live.el.load();
+      kickBuffer(live.el);
+    }
+  } catch {
+    /* aborted, CORS, or offline */
+  }
 }
 
 async function prefetchHlsStartup(hlsUrl: string): Promise<void> {
@@ -58,37 +245,11 @@ async function prefetchHlsStartup(hlsUrl: string): Promise<void> {
   }
 }
 
-/** Warm CDN bytes for progressive MP4 without spinning up a decoder. */
-function prefetchMp4Head(src: string): void {
-  const url = src.trim();
-  if (!url || prefetchedFeedMp4.has(url)) return;
-  prefetchedFeedMp4.add(url);
-
-  void fetch(url, {
-    mode: 'cors',
-    credentials: 'omit',
-    headers: { Range: `bytes=0-${MP4_HEAD_PREFETCH_BYTES - 1}` },
-  }).catch(() => {
-    // Some CDNs reject Range — fall back to a short-lived muted video warm.
-    const el = document.createElement('video');
-    el.preload = 'auto';
-    el.muted = true;
-    el.playsInline = true;
-    el.src = url;
-    el.load();
-    window.setTimeout(() => {
-      el.removeAttribute('src');
-      el.load();
-      el.remove();
-    }, 20_000);
-  });
-}
-
-/** Warm CDN MP4 for feed hover / scroll (best-effort; avoids HLS in grid). */
+/** Warm feed MP4 through a real decoder (same pipeline as playback). */
 export function prefetchFeedPreviewMp4(src: string | null | undefined): void {
   const url = typeof src === 'string' ? src.trim() : '';
   if (!url) return;
-  prefetchMp4Head(url);
+  warmMediaElement(url, decideFull());
 }
 
 /** Warm feed MP4 + modal sources for carousel neighbors on hover (best-effort). */
@@ -103,21 +264,23 @@ export function prefetchCarouselNeighborClips(
 }
 
 /**
- * Warm network cache for modal playback.
- * MP4-first: only prefetch the progressive source that will play. Do not warm
- * HLS while an MP4 will start — that steals first-frame bytes and radio.
+ * Warm the source the modal will actually play, in AVPlayer / `<video>` — not
+ * a Range `fetch()` that WKWebView typically ignores.
+ * On 5G / Wi-Fi, also pull the whole ≤60s MP4 into a blob URL.
  */
 export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
-  const key = modalPrefetchKey(clip);
-  if (!key || prefetchedModalKeys.has(key)) return;
-  prefetchedModalKeys.add(key);
-
+  if (typeof document === 'undefined') return;
   const plan = resolveModalPrefetchPlan(clip);
+  const full = decideFull();
   if (plan.progressiveUrl) {
-    prefetchMp4Head(plan.progressiveUrl);
+    warmMediaElement(plan.progressiveUrl, full);
     return;
   }
   if (plan.hlsUrl) {
+    if (canUseNativeHls()) {
+      warmMediaElement(plan.hlsUrl, false);
+      return;
+    }
     void prefetchHlsStartup(plan.hlsUrl);
   }
 }

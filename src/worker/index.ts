@@ -86,7 +86,7 @@ import * as superadminModeration from "./superadmin-moderation-endpoints";
 import * as reports from "./report-endpoints";
 import { submitSupportRequest } from "./support-endpoints";
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, isBlockedBetween, getBlockDirections, blockKey } from "./user-blocks";
-import { CLIP_SHOW_KEY_SQL } from "./past-show-sql";
+import { CLIP_SHOW_KEY_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -129,6 +129,8 @@ import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   CONTENT_FEED_REJECTION_MESSAGES,
   hasManualShowArtistVenue,
+  PUBLIC_VISIBLE_CLIP_SQL,
+  CLIP_NOT_UNPLAYABLE_SQL,
 } from "../shared/content-feed";
 import { headlinerMatchesAcrArtist } from "../shared/artist-name-match";
 import { computeShowId } from "../shared/show-id";
@@ -1632,6 +1634,20 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   const feedScope = c.req.query('feed_scope') || 'main';
   
   const offset = (page - 1) * limit;
+
+  const isPublicLatestScene =
+    sortBy === 'latest' &&
+    feedScope !== 'all' &&
+    !userId &&
+    !artistName &&
+    !venueName &&
+    !songSlug &&
+    !genreSlug;
+
+  const latestSceneJoin = isPublicLatestScene
+    ? `LEFT JOIN jambase_events latest_scene_ev
+      ON latest_scene_ev.jambase_event_id = clips.jambase_event_id`
+    : '';
   
   let query = `
     SELECT 
@@ -1644,8 +1660,8 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
-    WHERE clips.is_hidden = 0
-    AND clips.is_draft = 0
+    ${latestSceneJoin}
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
   `;
   
   const bindings: any[] = [];
@@ -1684,6 +1700,10 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   if (since) {
     query += ` AND clips.created_at > ?`;
     bindings.push(since);
+  }
+
+  if (isPublicLatestScene) {
+    query += ` AND ${LATEST_SCENE_CLIP_FRESH_SQL}`;
   }
   
   // Apply sorting with optimized indexes
@@ -2143,7 +2163,7 @@ app.get("/api/users/:userId", optionalAuthMiddleware, async (c) => {
       user_profiles.profile_image_url as user_avatar
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-    WHERE clips.mocha_user_id = ? AND clips.is_hidden = 0
+    WHERE clips.mocha_user_id = ? AND ${PUBLIC_VISIBLE_CLIP_SQL}
     ORDER BY clips.created_at DESC
     LIMIT 50`
   )
@@ -2221,7 +2241,7 @@ app.get("/api/users/me/saved-clips", authMiddleware, async (c) => {
     JOIN clips ON saved_clips.clip_id = clips.id
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE saved_clips.mocha_user_id = ?
-      AND clips.is_hidden = 0
+      AND ${PUBLIC_VISIBLE_CLIP_SQL}
     ORDER BY saved_clips.created_at DESC`
   )
     .bind(uid)
@@ -2257,7 +2277,7 @@ app.get("/api/users/me/liked-clips-feed", authMiddleware, async (c) => {
     JOIN clips ON clip_likes.clip_id = clips.id
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE clip_likes.mocha_user_id = ?
-      AND clips.is_hidden = 0
+      AND ${PUBLIC_VISIBLE_CLIP_SQL}
     ORDER BY clip_likes.created_at DESC`,
   )
     .bind(uid)
@@ -2415,6 +2435,7 @@ app.get("/api/search/clips", optionalAuthMiddleware, rateLimiter(RateLimits.SEAR
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE clips.is_hidden = 0
+    AND ${CLIP_NOT_UNPLAYABLE_SQL}
     AND (clips.artist_name LIKE ? 
        OR clips.venue_name LIKE ?
        OR clips.location LIKE ?
@@ -3762,6 +3783,7 @@ app.delete("/api/users/:userId/block", authMiddleware, reports.unblockUser);
 app.get("/api/users/:userId/block", authMiddleware, reports.getBlockStatusForUser);
 app.get("/api/users/me/blocks", authMiddleware, reports.getMyBlockedAccounts);
 app.get("/api/admin/moderation/clips", authMiddleware, moderation.getFlaggedClips);
+app.get("/api/admin/moderation/unplayable-clips", authMiddleware, moderation.getUnplayableClips);
 app.post("/api/admin/moderation/clips/:flagId/review", authMiddleware, moderation.reviewFlaggedClip);
 app.get("/api/admin/moderation/comments", authMiddleware, moderation.getFlaggedComments);
 app.post("/api/admin/moderation/comments/:flagId/review", authMiddleware, moderation.reviewFlaggedComment);
@@ -4001,8 +4023,7 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
         MAX(clips.thumbnail_url) as thumbnail_url
       FROM clips
       WHERE clips.artist_name = ?
-      AND clips.is_hidden = 0
-      AND clips.is_draft = 0
+      AND ${PUBLIC_VISIBLE_CLIP_SQL}
       AND clips.event_title IS NOT NULL
       AND TRIM(clips.event_title) != ''
       GROUP BY ${CLIP_SHOW_KEY_SQL}

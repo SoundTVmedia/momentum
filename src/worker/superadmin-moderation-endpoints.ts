@@ -161,6 +161,7 @@ export async function searchClipsForModeration(c: Context) {
               clips.stream_video_id, clips.stream_playback_url, clips.stream_thumbnail_url,
               clips.video_url,
               clips.mocha_user_id, clips.created_at, clips.is_hidden,
+              clips.playback_unplayable, clips.playback_unplayable_reason,
               user_profiles.display_name AS user_display_name
        FROM clips
        LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
@@ -176,6 +177,7 @@ export async function searchClipsForModeration(c: Context) {
               clips.stream_video_id, clips.stream_playback_url, clips.stream_thumbnail_url,
               clips.video_url,
               clips.mocha_user_id, clips.created_at, clips.is_hidden,
+              clips.playback_unplayable, clips.playback_unplayable_reason,
               user_profiles.display_name AS user_display_name
        FROM clips
        LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id

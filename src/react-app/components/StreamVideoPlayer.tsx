@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Play, Pause, Volume2, VolumeX, Maximize, Loader2 } from 'lucide-react';
 import type Hls from 'hls.js';
 import {
@@ -7,6 +7,11 @@ import {
   resolveModalPlaybackSource,
 } from '@/shared/clip-playback';
 import { recordClipView } from '@/react-app/lib/recordClipView';
+import {
+  markPlaybackSessionFast,
+  releaseWarmedDecoder,
+  resolvePrefetchedPlaybackSrc,
+} from '@/react-app/lib/clipPlaybackPrefetch';
 import { tryVideoPlayPreferSound, playVideoWithSoundOnGesture } from '@/react-app/utils/videoAutoplay';
 import { restoreNativeMediaPlaybackAudio, shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
 
@@ -63,8 +68,7 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
 }
 
 /**
- * Full clip player: HLS adaptive playback via Cloudflare Stream when available,
- * progressive MP4 / R2 with Range support as fallback.
+ * Full clip player: confirmed Stream MP4 first, HLS fallback, then R2.
  */
 const StreamVideoPlayer = forwardRef<StreamVideoPlayerHandle, StreamVideoPlayerProps>(
 function StreamVideoPlayer(
@@ -72,8 +76,11 @@ function StreamVideoPlayer(
   stream_video_id,
   stream_playback_url,
   stream_thumbnail_url,
+  stream_mp4_url,
+  stream_mp4_status,
   video_url,
   thumbnail_url,
+  r2_raw_key,
   streamVideoId,
   playbackUrl,
   fallbackUrl,
@@ -95,6 +102,7 @@ function StreamVideoPlayer(
   const lastPlayViewAtRef = useRef(0);
   const lastLoopViewAtRef = useRef(0);
   const lastTimeRef = useRef(0);
+  const loadStartedAtRef = useRef(0);
   const autoPlayRef = useRef(autoPlay);
   autoPlayRef.current = autoPlay;
   /** When set, user explicitly chose mute state — autoplay/loop must not override it. */
@@ -109,37 +117,51 @@ function StreamVideoPlayer(
     onPlaybackStateChange?.({ isPlaying, isMuted });
   }, [isPlaying, isMuted, onPlaybackStateChange]);
 
-  const clipFields: ClipPlaybackFields = {
-    stream_video_id: stream_video_id ?? streamVideoId,
-    stream_playback_url: stream_playback_url ?? playbackUrl,
-    stream_thumbnail_url,
-    video_url: video_url ?? fallbackUrl,
-    thumbnail_url,
-  };
+  const clipFields: ClipPlaybackFields = useMemo(
+    () => ({
+      stream_video_id: stream_video_id ?? streamVideoId,
+      stream_playback_url: stream_playback_url ?? playbackUrl,
+      stream_thumbnail_url,
+      stream_mp4_url,
+      stream_mp4_status,
+      video_url: video_url ?? fallbackUrl,
+      thumbnail_url,
+      r2_raw_key,
+    }),
+    [
+      stream_video_id,
+      streamVideoId,
+      stream_playback_url,
+      playbackUrl,
+      stream_thumbnail_url,
+      stream_mp4_url,
+      stream_mp4_status,
+      video_url,
+      fallbackUrl,
+      thumbnail_url,
+      r2_raw_key,
+    ],
+  );
 
   const resolvedModal = resolveModalPlaybackSource(clipFields);
-  const [playbackSrc, setPlaybackSrc] = useState(resolvedModal.src);
-  const [playbackIsHls, setPlaybackIsHls] = useState(resolvedModal.isHls);
+  const networkSrc = resolvedModal.src;
+  const [playbackSrc, setPlaybackSrc] = useState(() => resolvePrefetchedPlaybackSrc(networkSrc));
+  const [playbackIsHls, setPlaybackIsHls] = useState(
+    resolvedModal.isHls && isHlsPlaybackUrl(resolvePrefetchedPlaybackSrc(networkSrc)),
+  );
   const hlsFallbackRef = useRef(resolvedModal.hlsFallbackSrc ?? null);
   const hlsFallbackUsedRef = useRef(false);
 
   useEffect(() => {
     const next = resolveModalPlaybackSource(clipFields);
-    setPlaybackSrc(next.src);
-    setPlaybackIsHls(next.isHls);
+    const src = resolvePrefetchedPlaybackSrc(next.src);
+    setPlaybackSrc(src);
+    setPlaybackIsHls(next.isHls && isHlsPlaybackUrl(src));
     hlsFallbackRef.current = next.hlsFallbackSrc ?? null;
     hlsFallbackUsedRef.current = false;
     setLoadError(false);
     attachedSrcRef.current = null;
-  }, [
-    stream_video_id,
-    streamVideoId,
-    stream_playback_url,
-    playbackUrl,
-    video_url,
-    fallbackUrl,
-    thumbnail_url,
-  ]);
+  }, [clipFields]);
 
   const videoSrc = playbackSrc;
   const isHls = playbackIsHls;
@@ -205,6 +227,7 @@ function StreamVideoPlayer(
 
     if (attachedSrcRef.current !== videoSrc) {
       setIsLoading(true);
+      loadStartedAtRef.current = Date.now();
     }
 
     const setup = async () => {
@@ -339,7 +362,13 @@ function StreamVideoPlayer(
     };
     const handlePause = () => setIsPlaying(false);
     const handleWaiting = () => setIsLoading(true);
-    const handleCanPlay = () => setIsLoading(false);
+    const handleCanPlay = () => {
+      setIsLoading(false);
+      if (loadStartedAtRef.current > 0 && Date.now() - loadStartedAtRef.current < 1500) {
+        markPlaybackSessionFast();
+      }
+      releaseWarmedDecoder(networkSrc);
+    };
     const handleError = () => {
       if (tryHlsFallback()) return;
       setLoadError(true);
@@ -373,7 +402,7 @@ function StreamVideoPlayer(
       video.removeEventListener('error', handleError);
       video.removeEventListener('ended', handleEnded);
     };
-  }, [videoSrc, loop, clipId, bumpView, tryHlsFallback]);
+  }, [videoSrc, loop, clipId, bumpView, tryHlsFallback, networkSrc]);
 
   useEffect(() => {
     if (!autoPlay) return;

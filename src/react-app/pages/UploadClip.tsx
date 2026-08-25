@@ -6,11 +6,8 @@ import {
   MapPin,
   Music,
   Calendar,
-  Hash,
   Loader2,
   X,
-  Film,
-  Image as ImageIcon,
   Search,
   Edit2,
   Check,
@@ -51,7 +48,6 @@ import {
   type LiveSongSnapshot,
 } from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
-import { displayMediaUrl } from '@/shared/media-proxy';
 import { resolveClipEventTitle } from '@/shared/event-title';
 
 import { CLIP_GENRE_OPTIONS } from '@/shared/music-genres';
@@ -128,6 +124,8 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
+import { useEnqueueManualClip } from '@/react-app/hooks/useEnqueueManualClip';
+import { LIBRARY_VIDEO_ACCEPT, pickLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
 import {
   jamBaseEventToShowMarkInput,
   pickShowMarkForLibraryUpload,
@@ -158,7 +156,7 @@ export default function UploadClip() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isPending } = useAuth();
-  const { searchArtists, searchVenues, loading: jambaseLoading } = useJamBase();
+  const { searchArtists, searchVenues } = useJamBase();
   const { getDeviceCoordinates, location: lastKnownGeo, ingestCaptureGeo } = useGeolocation();
   const { setHideBottomNav } = useMobileChrome();
   const quickCapture = useQuickCapture();
@@ -167,6 +165,10 @@ export default function UploadClip() {
   const { enqueue: enqueueClipUpload, activeCount: clipUploadsInFlight, jobs: clipUploadJobs } =
     useClipUploadQueue();
   const isMobile = useIsMobileViewport();
+  const enqueueManualClip = useEnqueueManualClip();
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const [dropActive, setDropActive] = useState(false);
+  const [pendingLibraryFile, setPendingLibraryFile] = useState<File | null>(null);
   const { captureMarks, hydrated: showMarksHydrated } = useShowMarks();
   const [error, setError] = useState<string | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -174,6 +176,31 @@ export default function UploadClip() {
   const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const galleryCaptureKeyRef = useRef<string | null>(null);
   const nativeVideoUriRef = useRef<string | null>(null);
+
+  const ingestLibraryFile = useCallback(
+    async (file: File) => {
+      setLibraryBusy(true);
+      setError(null);
+      try {
+        const result = await enqueueManualClip(file);
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        navigate('/upload-queue', { replace: true });
+      } finally {
+        setLibraryBusy(false);
+      }
+    },
+    [enqueueManualClip, navigate],
+  );
+
+  useEffect(() => {
+    if (!pendingLibraryFile) return;
+    const file = pendingLibraryFile;
+    setPendingLibraryFile(null);
+    void ingestLibraryFile(file);
+  }, [pendingLibraryFile, ingestLibraryFile]);
 
   const clearLocalCaptureDraft = useCallback(async (opts?: { discarded?: boolean; shared?: boolean; video?: Blob | null }) => {
     const nativePath = nativeVideoUriRef.current;
@@ -751,17 +778,7 @@ export default function UploadClip() {
         return;
       }
       lastCaptionFromNavAtRef.current = fileAt;
-
-      const selectedFile = navState.videoFile;
-      setFormData(prev => ({ ...prev, video_file: selectedFile, video_blob: null }));
-      setUploadMethod('file');
-      const fileUrl = URL.createObjectURL(selectedFile);
-      setVideoBlobUrl(fileUrl);
-      setShowCaptionScreen(true);
-      setUploadSource('library');
-      setIsEditingTags(false);
-      setLibraryFileMeta(null);
-      setLibraryMetaReady(false);
+      setPendingLibraryFile(navState.videoFile);
       setShowQuickCapture(false);
       setReRecordPrimedStream((prev) => { prev?.getTracks().forEach((t) => t.stop()); return null; });
       setReRecordGesturePending(false);
@@ -2120,82 +2137,16 @@ export default function UploadClip() {
 
   const handleVideoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('video/')) {
-      setError('Please select a valid video file');
-      return;
-    }
-    if (file.size > 500 * 1024 * 1024) {
-      setError('Video file must be less than 500MB');
-      return;
-    }
-    const maxSeconds = 60;
-    const tooLong = await new Promise<boolean>((resolve) => {
-      const url = URL.createObjectURL(file);
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      const finish = (long: boolean) => {
-        URL.revokeObjectURL(url);
-        resolve(long);
-      };
-      video.onloadedmetadata = () => {
-        const d = video.duration;
-        finish(Number.isFinite(d) && d > maxSeconds + 1);
-      };
-      video.onerror = () => finish(false);
-      video.src = url;
-    });
-    if (tooLong) {
-      setError('Videos must be 1 minute or shorter.');
-      e.target.value = '';
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      video_file: file,
-      video_blob: null,
-      artist_name: '',
-      venue_name: '',
-      location: '',
-      song_title: '',
-      content_description: '',
-    }));
-    setUploadSource('library');
-    setIsEditingTags(false);
-    setLibraryFileMeta(null);
-    setLibraryMetaReady(false);
-    setJambaseLink(null);
-    setResolveNotice(null);
-    setShowResolveLoading(false);
-    setAuddStatus('idle');
-    setAuddMessage(null);
-    userOverrodeAutoTagsRef.current = false;
-    autoShowTagAppliedRef.current = false;
-    auddAttemptedForSourceKeyRef.current = null;
-    captionCommittedArtistNameRef.current = '';
-    captionCommittedVenueNameRef.current = '';
-    setArtistSearch('');
-    setVenueSearch('');
-    if (videoBlobUrl) revokeCapturePreviewVideo(videoBlobUrl);
-    setVideoBlobUrl(URL.createObjectURL(file));
-    setShowCaptionScreen(true);
-    setError(null);
+    await ingestLibraryFile(file);
   };
 
-  const handleThumbnailFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setError('Thumbnail file must be less than 10MB');
-        return;
-      }
-      setFormData(prev => ({ ...prev, thumbnail_file: file }));
-      setError(null);
-    }
+  const handleLibraryDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void ingestLibraryFile(file);
   };
 
   const handleEventTitleChange = useCallback(
@@ -3570,371 +3521,86 @@ export default function UploadClip() {
     );
   }
 
-  // FULL UPLOAD FORM - Original interface
+  // Drop / library only — no detail fields. Show + song come from clip metadata.
+  const openLibraryPicker = async () => {
+    if (libraryBusy) return;
+    const file = await pickLibraryVideoFile();
+    if (file) await ingestLibraryFile(file);
+  };
+
   return (
     <div className="min-h-screen text-white">
       <Header />
-      
+
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4 gap-3">
-            <h1 className="text-2xl sm:text-4xl font-bold text-white min-w-0">Share Your Moment</h1>
-            <button
-              type="button"
-              onClick={handleCloseUploadToFeed}
-              className="shrink-0 flex items-center justify-center p-2.5 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 active:scale-95 transition-transform"
-              aria-label="Close and go to feed"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-          <p className="text-gray-300 text-lg">Drop that fire from last night's show</p>
+        <div className="mb-6 flex items-center justify-end">
+          <button
+            type="button"
+            onClick={handleCloseUploadToFeed}
+            className="shrink-0 flex items-center justify-center p-2.5 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/20 active:scale-95 transition-transform"
+            aria-label="Close and go to feed"
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="glass-panel rounded-xl p-8 space-y-6">
-          {error && (
-            <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
-              <p className="text-red-400">{error}</p>
-            </div>
-          )}
-          {resolveNotice && (
-            <div className="p-3 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
-              <p className="text-momentum-glacier/90 text-sm">{resolveNotice}</p>
-            </div>
-          )}
-
-          {/* Upload Method Toggle */}
-          <div>
-            <label className="block text-white font-medium mb-3">Upload Method</label>
-            <div className="flex space-x-4">
-              <button
-                type="button"
-                onClick={() => setUploadMethod('file')}
-                className={`flex-1 px-6 py-3 rounded-lg font-medium transition-all ${
-                  uploadMethod === 'file'
-                    ? 'momentum-grad-interactive text-white'
-                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <Upload className="w-5 h-5" />
-                  <span>Upload Files</span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setUploadMethod('url')}
-                className={`flex-1 px-6 py-3 rounded-lg font-medium transition-all ${
-                  uploadMethod === 'url'
-                    ? 'momentum-grad-interactive text-white'
-                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <Film className="w-5 h-5" />
-                  <span>Use URLs</span>
-                </div>
-              </button>
-            </div>
+        {error ? (
+          <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
+            <p className="text-red-400">{error}</p>
           </div>
+        ) : null}
 
-          {/* Video Upload/URL */}
-          {uploadMethod === 'file' ? (
-            <div>
-              <label className="flex items-center space-x-2 text-white font-medium mb-2">
-                <Film className="w-5 h-5 text-momentum-flare" />
-                <span>Video File *</span>
-              </label>
-              <div className="relative">
-                <input
-                  ref={videoInputRef}
-                  type="file"
-                  accept="video/*"
-                  onChange={handleVideoFileChange}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => videoInputRef.current?.click()}
-                  className="w-full px-4 py-6 bg-white/10 border-2 border-dashed border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors flex flex-col items-center justify-center space-y-2"
-                >
-                  <Upload className="w-8 h-8 text-momentum-flare" />
-                  <span className="text-lg">
-                    {formData.video_file 
-                      ? formData.video_file.name 
-                      : formData.video_blob 
-                        ? '✓ Recorded video ready to upload' 
-                        : 'Drop your clip here'}
-                  </span>
-                  <span className="text-sm text-gray-400">
-                    {formData.video_blob ? 'Or click to replace with a file' : 'MP4, MOV, AVI (max 500MB)'}
-                  </span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="flex items-center space-x-2 text-white font-medium mb-2">
-                <Film className="w-5 h-5 text-momentum-flare" />
-                <span>Video URL *</span>
-              </label>
-              <input
-                type="url"
-                value={formData.video_url}
-                onChange={(e) => handleInputChange('video_url', e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                placeholder="https://example.com/video.mp4"
-                required
-              />
-              <p className="text-gray-400 text-sm mt-2">Paste the direct URL to your video file</p>
-            </div>
-          )}
+        <input
+          ref={videoInputRef}
+          type="file"
+          accept={LIBRARY_VIDEO_ACCEPT}
+          onChange={(e) => void handleVideoFileChange(e)}
+          className="hidden"
+        />
 
-          {/* Thumbnail Upload/URL */}
-          {uploadMethod === 'file' ? (
-            <div>
-              <label className="flex items-center space-x-2 text-white font-medium mb-2">
-                <ImageIcon className="w-5 h-5 text-momentum-flare" />
-                <span>Thumbnail Image (optional)</span>
-              </label>
-              <div className="relative">
-                <input
-                  ref={thumbnailInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleThumbnailFileChange}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => thumbnailInputRef.current?.click()}
-                  className="w-full px-4 py-6 bg-white/10 border-2 border-dashed border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors flex flex-col items-center justify-center space-y-2"
-                >
-                  <ImageIcon className="w-8 h-8 text-momentum-flare" />
-                  <span className="text-lg">
-                    {formData.thumbnail_file ? formData.thumbnail_file.name : 'Click to select thumbnail'}
-                  </span>
-                  <span className="text-sm text-gray-400">JPG, PNG, WebP (max 10MB)</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <label className="flex items-center space-x-2 text-white font-medium mb-2">
-                <ImageIcon className="w-5 h-5 text-momentum-flare" />
-                <span>Thumbnail URL (optional)</span>
-              </label>
-              <input
-                type="url"
-                value={formData.thumbnail_url}
-                onChange={(e) => handleInputChange('thumbnail_url', e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                placeholder="https://example.com/thumbnail.jpg"
-              />
-            </div>
-          )}
-
-          {/* Artist Name with Autocomplete */}
-          <div className="relative">
-            <label className="flex items-center space-x-2 text-white font-medium mb-2">
-              <Music className="w-5 h-5 text-momentum-rose" />
-              <span>Artist Name</span>
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={artistSearch}
-                onChange={(e) => handleCaptionArtistSearchChange(e.target.value)}
-                onFocus={releaseArtistAutocompleteLock}
-                className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                placeholder="Taylor Swift"
-              />
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              {jambaseLoading && (
-                <Loader2 className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 text-momentum-flare animate-spin" />
-              )}
-            </div>
-            
-            {/* Artist Suggestions Dropdown */}
-            {showArtistSuggestions && artistSuggestions.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-momentum-ember/30 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                {artistSuggestions.map((artist) => (
-                  <button
-                    key={artist.identifier}
-                    type="button"
-                    onClick={() => handleArtistSelect(artist)}
-                    className="w-full px-4 py-3 text-left hover:bg-momentum-ember/20 transition-colors border-b border-white/10 last:border-0"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {artist.image && (
-                        <img
-                          src={displayMediaUrl(artist.image)}
-                          alt={artist.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      )}
-                      <div>
-                        <div className="text-white font-medium">{artist.name}</div>
-                        {artist.description && (
-                          <div className="text-sm text-gray-400 line-clamp-1">{artist.description}</div>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-              <p className="text-gray-400 text-sm mt-2">
-                Search JamBase or type an artist name — pick a result for a verified link.
-              </p>
+        {isMobile ? (
+          <button
+            type="button"
+            disabled={libraryBusy}
+            onClick={() => void openLibraryPicker()}
+            className="w-full min-h-[16rem] px-6 py-16 bg-white/10 border-2 border-dashed border-white/20 rounded-2xl text-white hover:bg-white/15 transition-colors flex flex-col items-center justify-center gap-3 disabled:opacity-60"
+          >
+            <Upload className="w-10 h-10 text-momentum-flare" />
+            <span className="text-xl font-semibold">
+              {libraryBusy ? "Queuing your clip…" : "Choose a clip from your library"}
+            </span>
+          </button>
+        ) : (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              if (!libraryBusy) videoInputRef.current?.click();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (!libraryBusy) videoInputRef.current?.click();
+              }
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDropActive(true);
+            }}
+            onDragLeave={() => setDropActive(false)}
+            onDrop={handleLibraryDrop}
+            className={`w-full min-h-[18rem] px-6 py-16 border-2 border-dashed rounded-2xl text-white transition-colors flex flex-col items-center justify-center cursor-pointer ${
+              dropActive
+                ? "bg-momentum-flare/20 border-momentum-flare"
+                : "bg-white/10 border-white/20 hover:bg-white/15"
+            }`}
+          >
+            <Upload className="w-10 h-10 text-momentum-flare mb-3" />
+            <span className="text-2xl font-semibold">
+              {libraryBusy ? "Queuing your clip…" : "Drag your clip here"}
+            </span>
           </div>
-
-          {/* Song title (optional) — adds hashtag token for search when AudD or user fills it */}
-          <div>
-            <label className="flex items-center space-x-2 text-white font-medium mb-2">
-              <Disc3 className="w-5 h-5 text-momentum-flare-400" />
-              <span>
-                Song title <span className="text-gray-400 font-normal text-sm">(optional)</span>
-              </span>
-            </label>
-            <input
-              type="text"
-              value={formData.song_title}
-              onChange={(e) => handleInputChange('song_title', e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-              placeholder="Adds a searchable tag (e.g. after AudD or if you know the tune)"
-            />
-          </div>
-
-          {/* Venue and Location */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <label className="flex items-center space-x-2 text-white font-medium mb-2">
-                <Calendar className="w-5 h-5 text-momentum-flare" />
-                <span>
-                  Venue Name <span className="text-gray-400 font-normal text-sm">(JamBase)</span>
-                </span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={venueSearch}
-                  onChange={(e) => handleCaptionVenueSearchChange(e.target.value)}
-                  onFocus={releaseVenueAutocompleteLock}
-                  autoComplete="off"
-                  className="w-full px-4 py-3 pr-10 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                  placeholder="Search JamBase venues"
-                />
-                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                {venueSearchPending && (
-                  <Loader2 className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 text-momentum-flare animate-spin" />
-                )}
-              </div>
-
-              {showVenueSuggestions && debouncedVenueSearch.length >= 2 && (
-                <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-momentum-ember/30 rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                  {venueSearchPending ? (
-                    <div className="px-4 py-3 flex items-center gap-2 text-gray-300 text-sm">
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      Searching JamBase…
-                    </div>
-                  ) : venueSuggestions.length > 0 ? (
-                    venueSuggestions.map((venue) => (
-                      <button
-                        key={venue.identifier}
-                        type="button"
-                        onClick={() => handleVenueSelect(venue)}
-                        className="w-full px-4 py-3 text-left hover:bg-momentum-ember/20 transition-colors border-b border-white/10 last:border-0"
-                      >
-                        <div className="text-white font-medium">{venue.name}</div>
-                        {venue.location?.city && (
-                          <div className="text-sm text-gray-400">
-                            {venue.location.city}
-                            {venue.location.state ? `, ${venue.location.state}` : ''}
-                          </div>
-                        )}
-                        {venue.capacity && (
-                          <div className="text-xs text-gray-500">
-                            Capacity: {venue.capacity.toLocaleString()}
-                          </div>
-                        )}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-4 py-3 text-gray-400 text-sm">
-                      No venues match that search. Try a different spelling or name.
-                    </div>
-                  )}
-                </div>
-              )}
-              <p className="text-gray-400 text-sm mt-2">
-                Search JamBase or type a venue name — pick a result for a verified link.
-              </p>
-            </div>
-
-            <div>
-              <label className="flex items-center space-x-2 text-white font-medium mb-2">
-                <MapPin className="w-5 h-5 text-green-400" />
-                <span>Location</span>
-              </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-                placeholder="New York, NY"
-              />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-white font-medium mb-2">
-              Description
-            </label>
-            <textarea
-              value={formData.content_description}
-              onChange={(e) => handleInputChange('content_description', e.target.value)}
-              rows={4}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-              placeholder="Tell everyone about this epic moment..."
-            />
-          </div>
-
-          {/* Hashtags */}
-          <div>
-            <label className="flex items-center space-x-2 text-white font-medium mb-2">
-              <Hash className="w-5 h-5 text-momentum-ember" />
-              <span>Hashtags</span>
-            </label>
-            <input
-              type="text"
-              value={formData.hashtags}
-              onChange={(e) => handleInputChange('hashtags', e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
-              placeholder="#rock #livemusic #concert"
-            />
-            <p className="text-gray-400 text-sm mt-2">Separate hashtags with spaces (e.g., #rock #pop #concert)</p>
-          </div>
-
-          {/* Submit Button */}
-          <div className="flex space-x-4 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="flex-1 px-6 py-4 bg-black/30 border border-momentum-ember/30 backdrop-blur-lg rounded-xl font-semibold text-white hover:bg-black/50 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={clipUploadsInFlight >= 5}
-              className="flex-1 px-6 py-4 momentum-grad-interactive rounded-xl font-semibold text-white hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
-            >
-              Share It
-            </button>
-          </div>
-        </form>
+        )}
       </div>
     </div>
   );

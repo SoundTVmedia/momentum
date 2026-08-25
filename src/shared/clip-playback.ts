@@ -5,7 +5,9 @@ export {
   extractStreamVideoId,
   feedTileUsesStaticPoster,
   isPlaceholderVideoUrl,
+  isUsablePosterImageUrl,
   r2ClipFilePath,
+  r2KeyFromClipFileUrl,
   readyStreamMp4Url,
   resolveClipPosterCandidates,
   resolveClipPosterUrl,
@@ -17,7 +19,9 @@ import {
   type ClipPlaybackFields,
   isPlaceholderVideoUrl,
   r2ClipFilePath,
+  r2KeyFromClipFileUrl,
   readyStreamMp4Url,
+  resolveClipPosterCandidates,
   resolveClipPosterUrl,
   STREAM_DELIVERY_ORIGIN,
   streamVideoIdFromClip,
@@ -215,4 +219,42 @@ export function resolveClipDownloadFilename(
   const idPart = clipId ?? clip.id;
   const base = parts.length > 0 ? parts.join('-') : idPart != null ? `clip-${idPart}` : 'clip';
   return `${base}.mp4`;
+}
+
+export function clipIsMarkedUnplayable(clip: ClipPlaybackFields): boolean {
+  return clip.playback_unplayable === 1 || clip.playback_unplayable === true;
+}
+
+/** True when stored fields point at Stream HLS/MP4 or an R2/progressive file. */
+export function clipHasPlayableSource(clip: ClipPlaybackFields): boolean {
+  if (streamVideoIdFromClip(clip)) return true;
+  if (readyStreamMp4Url(clip)) return true;
+  const r2Key =
+    (typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '') ||
+    r2KeyFromClipFileUrl(clip.video_url) ||
+    '';
+  if (r2Key) return true;
+  const videoUrl = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
+  if (videoUrl && !isPlaceholderVideoUrl(videoUrl)) return true;
+  return false;
+}
+
+/** Stored JPEG, Stream still, or a video URL we can extract a first frame from. */
+export function clipHasPosterSource(clip: ClipPlaybackFields): boolean {
+  if (resolveClipPosterCandidates(clip).length > 0) return true;
+  return Boolean(resolveFeedPreviewVideoSrc(clip));
+}
+
+/**
+ * Last-line client filter for home/discover/carousels/grids. The worker also
+ * excludes `playback_unplayable` rows from public SQL.
+ */
+export function clipShouldRenderInPublicFeed(clip: ClipPlaybackFields): boolean {
+  if (clipIsMarkedUnplayable(clip)) return false;
+  if (!clipHasPlayableSource(clip)) return false;
+  return clipHasPosterSource(clip);
+}
+
+export function filterPublicFeedClips<T extends ClipPlaybackFields>(clips: T[]): T[] {
+  return clips.filter((clip) => clipShouldRenderInPublicFeed(clip));
 }

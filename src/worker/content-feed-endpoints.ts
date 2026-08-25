@@ -8,6 +8,7 @@ import {
   inferClassifyFilename,
   loadValidClassification,
 } from './content-feed-classify';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { describeMusicRecognitionConfig } from './music-recognition';
 
 const MAX_SNIPPET_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
@@ -115,8 +116,7 @@ export async function getFriendsFeed(c: Context) {
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
-    WHERE clips.is_hidden = 0
-      AND clips.is_draft = 0
+    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
       AND (
         clips.mocha_user_id = ?
         OR clips.mocha_user_id IN (${FRIENDS_FEED_USER_FOLLOWS_SQL})

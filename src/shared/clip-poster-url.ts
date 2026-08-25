@@ -19,6 +19,8 @@ export type ClipPlaybackFields = {
   thumbnail_url?: string | null;
   /** Set after multipart upload completes; used when video_url is still a placeholder. */
   r2_raw_key?: string | null;
+  /** Worker/cron marked this clip as having no valid Stream/R2 playback. */
+  playback_unplayable?: number | boolean | null;
 };
 
 /**
@@ -79,7 +81,23 @@ export function isPlaceholderVideoUrl(url: string | null | undefined): boolean {
   return u.startsWith('pending:') || u.startsWith('upload://');
 }
 
-function isUsablePosterImageUrl(url: string | null | undefined): boolean {
+/** Decode the R2 object key from a same-origin `/api/files/...` playback URL. */
+export function r2KeyFromClipFileUrl(url: string | null | undefined): string | null {
+  if (!url?.trim()) return null;
+  try {
+    const path = url.includes('://') ? new URL(url).pathname : url.split('?')[0] ?? '';
+    const marker = '/api/files/';
+    const idx = path.indexOf(marker);
+    if (idx < 0) return null;
+    const encoded = path.slice(idx + marker.length);
+    if (!encoded) return null;
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+}
+
+export function isUsablePosterImageUrl(url: string | null | undefined): boolean {
   const u = typeof url === 'string' ? url.trim() : '';
   if (!u) return false;
   const lower = u.toLowerCase();

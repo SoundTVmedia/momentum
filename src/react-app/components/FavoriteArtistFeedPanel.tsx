@@ -7,6 +7,7 @@ import ClipModal from '@/react-app/components/ClipModal';
 import UnifiedFavoritesAdd from '@/react-app/components/UnifiedFavoritesAdd';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
+import { filterPublicFeedClips } from '@/shared/clip-playback';
 import FeedFilters from '@/react-app/components/FeedFilters';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
 import PrePostClipsCarousel from '@/react-app/components/PrePostClipsCarousel';
@@ -448,14 +449,14 @@ export default function FavoriteArtistFeedPanel({
                   if (variant === 'feed' && hasMoreClips && !loadingMore) loadMoreClips();
                 }}
               >
-                {clips.map((clip, index) => (
+                {filterPublicFeedClips(clips).map((clip, index, visible) => (
                   <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
                     <ClipFeedGridTile
                       clip={clip}
                       onOpenClip={setSelectedClip}
                       neighborClips={{
-                        prev: clips[index - 1],
-                        next: clips[index + 1],
+                        prev: visible[index - 1],
+                        next: visible[index + 1],
                       }}
                     />
                   </HorizontalClipCarouselItem>

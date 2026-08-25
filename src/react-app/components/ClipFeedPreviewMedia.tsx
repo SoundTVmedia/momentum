@@ -44,8 +44,12 @@ export default function ClipFeedPreviewMedia({
   stream_video_id,
   stream_playback_url,
   stream_thumbnail_url,
+  stream_mp4_url,
+  stream_mp4_status,
   video_url,
   thumbnail_url,
+  r2_raw_key,
+  playback_unplayable,
   playbackUrl,
   fallbackUrl,
   posterUrl,
@@ -58,8 +62,12 @@ export default function ClipFeedPreviewMedia({
     stream_video_id: stream_video_id ?? undefined,
     stream_playback_url: stream_playback_url ?? playbackUrl,
     stream_thumbnail_url,
+    stream_mp4_url,
+    stream_mp4_status,
     video_url: video_url ?? fallbackUrl,
     thumbnail_url: thumbnail_url ?? posterUrl,
+    r2_raw_key,
+    playback_unplayable,
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -232,6 +240,7 @@ export default function ClipFeedPreviewMedia({
         <video
           ref={videoRef}
           src={previewVideoSrc}
+          poster={displayPoster || undefined}
           className={`clip-feed-preview__video absolute inset-0 z-[1] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
             thumbHidden ? 'opacity-100' : 'opacity-0'
           }`}
@@ -257,7 +266,14 @@ export default function ClipFeedPreviewMedia({
           onError={onPosterError}
           onLoad={onPosterLoad}
         />
-      ) : null}
+      ) : (
+        <div
+          className="clip-feed-preview__poster absolute inset-0 z-[2] flex items-center justify-center bg-white/10 text-[10px] font-medium uppercase tracking-wide text-white/70"
+          aria-hidden
+        >
+          No preview
+        </div>
+      )}
     </div>
   );
 }

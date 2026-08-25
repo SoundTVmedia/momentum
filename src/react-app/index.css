@@ -69,7 +69,7 @@ html.native-quick-capture-open
   .native-capture-modal
   *:not(.native-capture-control):not(.native-capture-control *):not(.native-capture-pill):not(
     .native-capture-pill *
-  ):not(.native-capture-boot-mask):not(.native-capture-boot-mask *) {
+  ):not(.native-capture-boot-mask):not(.native-capture-boot-mask *):not(.capture-rec-dot) {
   background-color: transparent !important;
   background-image: none !important;
   backdrop-filter: none !important;
@@ -210,11 +210,13 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
   46%,
   100% {
-    opacity: 0.12;
+    opacity: 0.4;
   }
 }
 
 .capture-rec-dot {
+  background-color: #ef4444 !important;
+  background-image: none !important;
   animation: capture-rec-flash 0.9s steps(1, end) infinite;
 }
 
@@ -1323,6 +1325,27 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   box-shadow:
     0 0 10px rgba(34, 211, 238, 0.5),
     0 0 20px rgba(99, 102, 241, 0.35);
+}
+
+/* Sticky header — sit below the status bar (time / signal / battery) on phones.
+   `sticky top-0` is viewport-relative, so iOS contentInset on the scroll view
+   does not move it; pad the bar itself. Glass fill covers the status-bar region. */
+.top-nav {
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Staff admin control stays visible on phones in both portrait and landscape.
+   Tailwind `md:` is width-based, so landscape phones otherwise lose mobile-only chrome. */
+.admin-header-control {
+  display: inline-flex;
+}
+
+@media (orientation: landscape) {
+  .admin-header-control,
+  .admin-mobile-entry {
+    display: inline-flex !important;
+  }
 }
 
 /* Mobile bottom tab bar — keep page content above the fixed nav */

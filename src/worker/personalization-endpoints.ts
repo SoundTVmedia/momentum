@@ -16,6 +16,7 @@ import {
   loadCanonicalFavoriteArtistNames,
 } from './favorite-artists-sync';
 import { mochaUserIdKey } from './mocha-user-id';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import {
   loadAttendedArtistNames,
   loadGoingEventIds,
@@ -485,7 +486,7 @@ export async function getPersonalizedFeed(c: Context) {
         END as recency_score
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-      WHERE clips.is_hidden = 0 AND clips.is_draft = 0
+      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
       AND ${mainFeedFilter}
       AND clips.mocha_user_id != ?
       AND NOT EXISTS (
@@ -536,7 +537,7 @@ export async function getPersonalizedFeed(c: Context) {
           END as recency_score
         FROM clips
         LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-        WHERE clips.is_hidden = 0 AND clips.is_draft = 0
+        WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
         AND ${mainFeedFilter}
         AND clips.mocha_user_id != ?
         AND NOT EXISTS (

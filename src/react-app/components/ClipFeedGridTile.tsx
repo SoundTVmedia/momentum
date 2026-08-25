@@ -13,6 +13,7 @@ import {
 } from '@/react-app/lib/clipPlaybackPrefetch';
 import {
   type ClipPlaybackFields,
+  clipShouldRenderInPublicFeed,
   feedTileUsesStaticPoster,
 } from '@/shared/clip-playback';
 
@@ -34,6 +35,10 @@ export default function ClipFeedGridTile({
   const navigate = useNavigate();
   const [mediaHovered, setMediaHovered] = useState(false);
   const posterOnly = forceStaticPoster || feedTileUsesStaticPoster(clip);
+
+  if (!forceStaticPoster && !clipShouldRenderInPublicFeed(clip)) {
+    return null;
+  }
 
   return (
     <div className="glass-clip-card group flex h-full w-full flex-col p-0">
@@ -57,9 +62,12 @@ export default function ClipFeedGridTile({
           stream_video_id={clip.stream_video_id}
           stream_playback_url={clip.stream_playback_url}
           stream_thumbnail_url={clip.stream_thumbnail_url}
+          stream_mp4_url={(clip as ClipWithUser & { stream_mp4_url?: string | null }).stream_mp4_url}
+          stream_mp4_status={(clip as ClipWithUser & { stream_mp4_status?: string | null }).stream_mp4_status}
           video_url={clip.video_url}
           thumbnail_url={clip.thumbnail_url}
           r2_raw_key={(clip as ClipWithUser & { r2_raw_key?: string | null }).r2_raw_key}
+          playback_unplayable={(clip as ClipWithUser & { playback_unplayable?: number | null }).playback_unplayable}
           mediaHovered={posterOnly ? false : mediaHovered}
           posterOnly={posterOnly}
           previewInstanceKey={String(clipNumericId(clip) ?? clip.video_url ?? '')}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ClipWithUser } from '@/shared/types'
 import { apiFetch } from '@/react-app/lib/apiFetch'
+import { filterPublicFeedClips } from '@/shared/clip-playback'
 import {
   USER_BLOCKS_CHANGED_EVENT,
   userBlocksChangedDetail,
@@ -102,14 +103,17 @@ export function useClips(options: UseClipsOptions = {}) {
 
         if (generation !== fetchGenerationRef.current) return
 
+        const incoming = data.clips ?? []
+        const nextClips = mine ? incoming : filterPublicFeedClips(incoming)
+
         if (append) {
           setClips((prev) => {
             const existingIds = new Set(prev.map((c) => c.id))
-            const newClips = (data.clips ?? []).filter((c) => !existingIds.has(c.id))
+            const newClips = nextClips.filter((c) => !existingIds.has(c.id))
             return [...prev, ...newClips]
           })
         } else {
-          setClips(data.clips ?? [])
+          setClips(nextClips)
         }
 
         setHasMore(Boolean(data.hasMore))
@@ -233,9 +237,10 @@ export function useClips(options: UseClipsOptions = {}) {
         const data = (await response.json()) as { clips?: ClipWithUser[] }
 
         if (data.clips && data.clips.length > 0) {
+          const incoming = mine ? data.clips : filterPublicFeedClips(data.clips)
           setClips((prev) => {
             const existingIds = new Set(prev.map((c) => c.id))
-            const fresh = data.clips!.filter((c) => !existingIds.has(c.id))
+            const fresh = incoming.filter((c) => !existingIds.has(c.id))
             return fresh.length > 0 ? [...fresh, ...prev] : prev
           })
         }

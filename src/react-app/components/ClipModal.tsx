@@ -185,6 +185,10 @@ export default function ClipModal({
     canFeedNav && navIndex < feedNavigation!.clips.length - 1
       ? feedNavigation!.clips[navIndex + 1]
       : null;
+  const nextNextClip =
+    canFeedNav && navIndex < feedNavigation!.clips.length - 2
+      ? feedNavigation!.clips[navIndex + 2]
+      : null;
 
   const goPrev = useCallback(() => {
     if (prevClip && feedNavigation) feedNavigation.onChangeClip(prevClip);
@@ -270,10 +274,11 @@ export default function ClipModal({
   });
 
   useEffect(() => {
-    prefetchModalPlayback(clip);
-    if (nextClip) prefetchModalPlayback(nextClip);
+    // Current clip is the visible player — only warm neighbors in hidden decoders.
     if (prevClip) prefetchModalPlayback(prevClip);
-  }, [clip, nextClip, prevClip]);
+    if (nextClip) prefetchModalPlayback(nextClip);
+    if (nextNextClip) prefetchModalPlayback(nextNextClip);
+  }, [nextClip, nextNextClip, prevClip]);
 
   useEffect(() => {
     setShowShareMenu(false);

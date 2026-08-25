@@ -11,3 +11,15 @@ export const CLIP_SHOW_KEY_SQL = `COALESCE(
     LOWER(TRIM(clips.venue_name)) || '|' ||
     strftime('%Y-%m-%d', clips.timestamp)
 )`;
+
+/**
+ * Latest From the Scene: hide clips whose show start (or recording/upload time)
+ * is more than 24 hours ago. Requires `LEFT JOIN jambase_events latest_scene_ev`.
+ */
+export const LATEST_SCENE_CLIP_FRESH_SQL = `(
+  datetime(COALESCE(
+    NULLIF(TRIM(IFNULL(latest_scene_ev.start_date, '')), ''),
+    NULLIF(TRIM(IFNULL(clips.timestamp, '')), ''),
+    clips.created_at
+  )) >= datetime('now', '-24 hours')
+)`;

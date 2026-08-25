@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -74,5 +74,56 @@ describe('CLIP_SHOW_KEY_SQL', () => {
       { show_id: 'phish|madison square garden|2025-04-20' },
       { show_id: 'phish|madison square garden|2025-04-21' },
     ]);
+  });
+});
+
+describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
+  const databases: DatabaseSync[] = [];
+
+  afterEach(() => {
+    for (const db of databases.splice(0)) db.close();
+  });
+
+  it('keeps clips from a show in the last 24 hours and drops older shows', () => {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        timestamp TEXT,
+        created_at TEXT,
+        jambase_event_id TEXT
+      );
+      CREATE TABLE jambase_events (
+        jambase_event_id TEXT PRIMARY KEY,
+        start_date TEXT
+      );
+    `);
+    db.prepare(
+      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-2 hours'))`,
+    ).run('fresh');
+    db.prepare(
+      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-30 hours'))`,
+    ).run('stale');
+    db.prepare(
+      `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
+       VALUES (1, datetime('now', '-2 hours'), datetime('now'), 'fresh')`,
+    ).run();
+    db.prepare(
+      `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
+       VALUES (2, datetime('now', '-30 hours'), datetime('now'), 'stale')`,
+    ).run();
+
+    const rows = db
+      .prepare(
+        `SELECT clips.id FROM clips
+         LEFT JOIN jambase_events latest_scene_ev
+           ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
+         WHERE ${LATEST_SCENE_CLIP_FRESH_SQL}
+         ORDER BY clips.id`,
+      )
+      .all() as Array<{ id: number }>;
+
+    expect(rows).toEqual([{ id: 1 }]);
   });
 });

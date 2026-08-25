@@ -5,6 +5,7 @@ import {
   effectiveContentFeedForPost,
   hasManualShowArtistVenue,
   hasManualShowPostDetails,
+  PUBLIC_VISIBLE_CLIP_SQL,
 } from './content-feed';
 
 describe('classifyContentFeed', () => {
@@ -96,5 +97,13 @@ describe('classifyContentFeed', () => {
         eventDateIso: '2026-06-10T12:00:00.000Z',
       }),
     ).toBe(false);
+  });
+});
+
+describe('PUBLIC_VISIBLE_CLIP_SQL', () => {
+  it('excludes hidden, draft, and unplayable clips', () => {
+    expect(PUBLIC_VISIBLE_CLIP_SQL).toContain('is_hidden = 0');
+    expect(PUBLIC_VISIBLE_CLIP_SQL).toContain('is_draft = 0');
+    expect(PUBLIC_VISIBLE_CLIP_SQL).toContain('playback_unplayable');
   });
 });
