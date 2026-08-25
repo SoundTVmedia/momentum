@@ -8,11 +8,34 @@ export type ClipPlaybackFields = {
   stream_video_id?: string | null;
   stream_playback_url?: string | null;
   stream_thumbnail_url?: string | null;
+  /**
+   * Progressive MP4 that Cloudflare has confirmed is generated and ready.
+   * Empty until the cron finalizer promotes it — a Stream video id alone does
+   * not mean `/downloads/default.mp4` exists.
+   */
+  stream_mp4_url?: string | null;
+  stream_mp4_status?: string | null;
   video_url?: string | null;
   thumbnail_url?: string | null;
   /** Set after multipart upload completes; used when video_url is still a placeholder. */
   r2_raw_key?: string | null;
 };
+
+/**
+ * The Stream MP4 only when Cloudflare has confirmed it. Callers that need a
+ * progressive file (feed previews, downloads, song identify) must treat a
+ * missing value as "no MP4" and use HLS or the R2 original instead of guessing
+ * a `/downloads/default.mp4` URL that has never been generated.
+ */
+export function readyStreamMp4Url(clip: ClipPlaybackFields): string | null {
+  const url = typeof clip.stream_mp4_url === 'string' ? clip.stream_mp4_url.trim() : '';
+  if (!url) return null;
+  const status =
+    typeof clip.stream_mp4_status === 'string' ? clip.stream_mp4_status.trim() : '';
+  // Older rows predate the status column; a stored URL is only written on ready.
+  if (status && status !== 'ready') return null;
+  return url;
+}
 
 /** Same-origin R2 playback path served by the worker. */
 export function r2ClipFilePath(key: string): string {

@@ -24,6 +24,10 @@ export async function handleScheduled(env: Env): Promise<void> {
     // 2. Resilient upload processing + stale session cleanup
     const { processUploadedClips, cleanupStaleUploadSessions } = await import('./upload-processor');
     await processUploadedClips(env);
+    // Ingest only registers the video; the progressive MP4 has to be generated
+    // and confirmed separately before anything may link to it.
+    const { finalizeStreamDownloads } = await import('./stream-downloads');
+    await finalizeStreamDownloads(env);
     await cleanupStaleUploadSessions(env);
 
     // 3. Performance optimization tasks

@@ -26,20 +26,35 @@ describe('clip-playback', () => {
     expect(extractStreamVideoId(`https://videodelivery.net/${UID}/manifest/video.m3u8`)).toBe(UID);
   });
 
-  it('prefers stream MP4 for feed preview', () => {
+  it('prefers the confirmed stream MP4 for feed preview', () => {
+    const src = resolveFeedPreviewVideoSrc({
+      stream_video_id: UID,
+      stream_mp4_url: `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`,
+      stream_mp4_status: 'ready',
+      video_url: `https://videodelivery.net/${UID}/manifest/video.m3u8`,
+    });
+    expect(src).toBe(`https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`);
+  });
+
+  it('never invents a downloads MP4 from a stream id alone', () => {
+    // Cloudflare 404s /downloads/default.mp4 until that download is generated.
     const src = resolveFeedPreviewVideoSrc({
       stream_video_id: UID,
       video_url: `https://videodelivery.net/${UID}/manifest/video.m3u8`,
+      r2_raw_key: 'clips/user/video/abc.mp4',
     });
-    expect(src).toBe(streamMp4Url(UID));
+    expect(src).not.toBe(streamMp4Url(UID));
+    expect(src).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 
-  it('derives stream MP4 from HLS-only video_url when uid is embedded', () => {
-    expect(
-      resolveFeedPreviewVideoSrc({
-        video_url: `https://videodelivery.net/${UID}/manifest/video.m3u8`,
-      })
-    ).toBe(streamMp4Url(UID));
+  it('ignores a stored MP4 whose generation has not finished', () => {
+    const src = resolveFeedPreviewVideoSrc({
+      stream_video_id: UID,
+      stream_mp4_url: `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`,
+      stream_mp4_status: 'inprogress',
+      video_url: '/api/files/clips/x.mp4',
+    });
+    expect(src).toBe('/api/files/clips/x.mp4');
   });
 
   it('returns R2 path for non-HLS fallback', () => {
@@ -61,13 +76,26 @@ describe('clip-playback', () => {
     ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 
-  it('uses Stream MP4 first for modal when stream id present', () => {
-    const modal = resolveModalPlaybackSource({ stream_video_id: UID, video_url: '/api/files/x.mp4' });
+  it('uses the confirmed Stream MP4 first for modal, with HLS as fallback', () => {
+    const mp4 = `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`;
+    const modal = resolveModalPlaybackSource({
+      stream_video_id: UID,
+      stream_mp4_url: mp4,
+      stream_mp4_status: 'ready',
+      video_url: '/api/files/x.mp4',
+    });
     expect(modal.isHls).toBe(false);
-    expect(modal.src).toBe(streamMp4Url(UID));
+    expect(modal.src).toBe(mp4);
     expect(modal.streamVideoId).toBe(UID);
     expect(modal.hlsFallbackSrc).toBe(`https://videodelivery.net/${UID}/manifest/video.m3u8`);
     expect(streamVideoIdFromClip({ stream_video_id: UID })).toBe(UID);
+  });
+
+  it('plays a freshly ingested Stream clip over HLS until its MP4 exists', () => {
+    const modal = resolveModalPlaybackSource({ stream_video_id: UID, video_url: '/api/files/x.mp4' });
+    expect(modal.src).toBe(`https://videodelivery.net/${UID}/manifest/video.m3u8`);
+    expect(modal.isHls).toBe(true);
+    expect(modal.streamVideoId).toBe(UID);
   });
 
   it('parses HLS media segment URLs from a manifest', () => {
@@ -136,8 +164,21 @@ seg-1.ts`;
     expect(feedTileUsesStaticPoster({ video_url: '/api/files/x.mp4' })).toBe(true);
   });
 
-  it('resolves stream MP4 for clip download', () => {
-    expect(resolveClipDownloadUrl({ stream_video_id: UID })).toBe(streamMp4Url(UID));
+  it('resolves the confirmed stream MP4 for clip download', () => {
+    const mp4 = `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`;
+    expect(
+      resolveClipDownloadUrl({
+        stream_video_id: UID,
+        stream_mp4_url: mp4,
+        stream_mp4_status: 'ready',
+      }),
+    ).toBe(mp4);
+  });
+
+  it('downloads the R2 original when no Stream MP4 has been generated', () => {
+    expect(
+      resolveClipDownloadUrl({ stream_video_id: UID, r2_raw_key: 'clips/user/video/abc.mp4' }),
+    ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 
   it('builds a readable download filename from artist and venue', () => {

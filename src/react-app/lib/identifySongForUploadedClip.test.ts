@@ -49,10 +49,25 @@ function identifyCalls() {
 }
 
 describe('clipPlayerShazamKitMediaUrl', () => {
-  it('returns the Stream progressive MP4 for native ShazamKit', () => {
-    expect(clipPlayerShazamKitMediaUrl(clip({ stream_video_id: 'abc123def456abc123def456abc123de' }))).toBe(
-      streamMp4Url('abc123def456abc123def456abc123de'),
+  const UID = 'abc123def456abc123def456abc123de';
+
+  it('returns the Stream MP4 once Cloudflare has generated it', () => {
+    const mp4 = `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`;
+    expect(
+      clipPlayerShazamKitMediaUrl(
+        clip({ stream_video_id: UID, stream_mp4_url: mp4, stream_mp4_status: 'ready' }),
+      ),
+    ).toBe(mp4);
+  });
+
+  it('reads the R2 original rather than an ungenerated Stream MP4', () => {
+    // /downloads/default.mp4 404s until generated; identify would have been
+    // handed an error page instead of audio.
+    const url = clipPlayerShazamKitMediaUrl(
+      clip({ stream_video_id: UID, r2_raw_key: 'clips/user/video/abc.mp4' }),
     );
+    expect(url).not.toBe(streamMp4Url(UID));
+    expect(url).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 
   it('falls back to a published progressive video_url when Stream is missing', () => {

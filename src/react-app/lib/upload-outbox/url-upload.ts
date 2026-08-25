@@ -90,7 +90,9 @@ function buildClipCreateBody(
     clipData.stream_thumbnail_url = thumbnailUrl || videoData.thumbnailUrl;
     clipData.video_status = videoData.status;
     clipData.video_duration = videoData.duration;
-    clipData.video_url = videoData.mp4PlaybackUrl || videoData.playbackUrl;
+    // HLS, not the progressive MP4: Cloudflare has not generated that download
+    // yet, so its URL 404s. The cron finalizer promotes the MP4 once it exists.
+    clipData.video_url = videoData.playbackUrl;
     clipData.thumbnail_url = thumbnailUrl || videoData.thumbnailUrl;
   } else {
     clipData.video_url = videoData.url || job.videoUrl;
