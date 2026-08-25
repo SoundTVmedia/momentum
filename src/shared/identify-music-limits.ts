@@ -21,6 +21,43 @@ export const IDENTIFY_SCAN_MAX_WINDOWS = 8;
 export const IDENTIFY_SCAN_STEP_SECONDS = 8;
 
 /**
+ * Timeout budget for each stage of the clip-player identify pass.
+ *
+ * These must stay consistent with {@link IDENTIFY_CLIP_PLAYER_TIMEOUT_MS}: a
+ * caller budget smaller than the native budget it wraps aborts a scan that was
+ * still working, which reads as "identify always fails" in the UI.
+ * `identify-music-limits.test.ts` asserts the ordering so it cannot drift again.
+ */
+export const IDENTIFY_NATIVE_DOWNLOAD_TIMEOUT_MS = 45_000;
+
+/** Single 11s signature from a local file — the quick-capture upload path. */
+export const IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS = 20_000;
+
+/** Remote progressive MP4: AVAsset track load alone allows 45s natively. */
+export const IDENTIFY_SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS = 50_000;
+
+/** Overlapping 11s windows, each its own catalog lookup. */
+export const IDENTIFY_SHAZAMKIT_SCAN_TIMEOUT_MS = 75_000;
+
+/** Worker ACRCloud round trip after a clean ShazamKit no-match. */
+export const IDENTIFY_ACR_FALLBACK_TIMEOUT_MS = 30_000;
+
+/** Headroom for bridge overhead between stages. */
+const IDENTIFY_STAGE_OVERHEAD_MS = 10_000;
+
+/**
+ * Whole clip-player tap-to-identify pass: download, then the ShazamKit fast
+ * pass, then the window scan, then ACRCloud. Must exceed the sum of the stages
+ * it wraps.
+ */
+export const IDENTIFY_CLIP_PLAYER_TIMEOUT_MS =
+  IDENTIFY_NATIVE_DOWNLOAD_TIMEOUT_MS +
+  IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS +
+  IDENTIFY_SHAZAMKIT_SCAN_TIMEOUT_MS +
+  IDENTIFY_ACR_FALLBACK_TIMEOUT_MS +
+  IDENTIFY_STAGE_OVERHEAD_MS;
+
+/**
  * Bytes of muxed A/V that typically cover {@link IDENTIFY_SAMPLE_SECONDS}
  * (~3.2 Mbps). Used when duration/size are unknown. Stays under ACRCloud's 5MB cap.
  */

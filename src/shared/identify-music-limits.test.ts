@@ -1,11 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACR_MAX_SAMPLE_BYTES,
+  IDENTIFY_ACR_FALLBACK_TIMEOUT_MS,
+  IDENTIFY_CLIP_PLAYER_TIMEOUT_MS,
+  IDENTIFY_NATIVE_DOWNLOAD_TIMEOUT_MS,
   IDENTIFY_SAMPLE_BYTES_PER_SECOND,
   IDENTIFY_SAMPLE_SECONDS,
+  IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS,
+  IDENTIFY_SHAZAMKIT_SCAN_TIMEOUT_MS,
   MIN_IDENTIFY_SAMPLE_BYTES,
   identifySampleByteLength,
 } from './identify-music-limits';
+
+describe('clip-player identify timeout budget', () => {
+  it('gives the caller more time than every native stage it wraps', () => {
+    // Regression: a 60s caller timeout wrapped a 120s ShazamKit window scan, so
+    // the caller aborted its own scan and tap-to-identify "always failed".
+    const stages =
+      IDENTIFY_NATIVE_DOWNLOAD_TIMEOUT_MS +
+      IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS +
+      IDENTIFY_SHAZAMKIT_SCAN_TIMEOUT_MS +
+      IDENTIFY_ACR_FALLBACK_TIMEOUT_MS;
+    expect(IDENTIFY_CLIP_PLAYER_TIMEOUT_MS).toBeGreaterThan(stages);
+  });
+
+  it('keeps the scan budget above a single-file read', () => {
+    expect(IDENTIFY_SHAZAMKIT_SCAN_TIMEOUT_MS).toBeGreaterThan(
+      IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS,
+    );
+  });
+});
 
 describe('identifySampleByteLength', () => {
   it('uses an 11s default under the ACRCloud 5MB cap when duration is unknown', () => {

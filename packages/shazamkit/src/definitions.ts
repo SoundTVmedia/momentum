@@ -41,10 +41,20 @@ export interface ShazamKitPlugin {
     match: ShazamKitMatchPayload | null;
     windowsTried?: number;
     windowCount?: number;
+    /** Windows actually sent to the catalog (near-silent ones are skipped). */
+    windowsMatched?: number;
+    windowsSkippedQuiet?: number;
     durationSeconds?: number | null;
     windowStarts?: number[];
     loudestStartSeconds?: number | null;
     loudestRms?: number | null;
+    /**
+     * True when no window reached the catalog, so `match: null` means "could
+     * not ask" rather than "Shazam does not know this song".
+     */
+    matchUnavailable?: boolean;
+    /** Last per-window failure, for diagnostics. Windows fail independently. */
+    lastWindowError?: string | null;
     /** 11s WAV of the loudest window, for Worker ACR after a Shazam no-match. */
     wavPath?: string | null;
   }>;

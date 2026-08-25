@@ -137,6 +137,7 @@ import { genreFieldsFromBody, songFieldsFromBody } from "./clip-tag-fields";
 import { buildGenrePagePayload } from "./genre-page-endpoints";
 import { buildGlobalSongPagePayload } from "./global-song-page-endpoints";
 import { buildSongPagePayload } from "./song-page-endpoints";
+import { SONG_CLIPS_ORDER_BY_SQL } from "./clip-order-by";
 import { normalizeClipApiRows } from "./clip-row-normalize";
 import { r2ForClipObjectKey } from "./r2-clip-key";
 import { serveR2ClipFile } from "./r2-serve";
@@ -1697,7 +1698,9 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
       break;
     case 'latest':
     default:
-      query += ` ORDER BY clips.created_at DESC`;
+      // Clips of one song are ordered by when they were recorded, so a song
+      // page follows the performances instead of the upload queue.
+      query += songSlug ? ` ${SONG_CLIPS_ORDER_BY_SQL}` : ` ORDER BY clips.created_at DESC`;
       break;
   }
   

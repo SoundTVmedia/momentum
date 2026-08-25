@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { SONG_CLIPS_ORDER_BY_SQL } from './clip-order-by';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { normalizedSlugFromRouteParam } from '../shared/jambase-slug';
 import { songTitleFromSlug } from '../shared/song-tag';
@@ -30,7 +31,7 @@ export async function buildGlobalSongPagePayload(c: Context): Promise<Response> 
   const clipsRes = await c.env.DB.prepare(
     `${CLIP_SELECT}
     AND clips.song_slug = ?
-    ORDER BY clips.created_at DESC
+    ${SONG_CLIPS_ORDER_BY_SQL}
     LIMIT 80`,
   )
     .bind(songSlug)
