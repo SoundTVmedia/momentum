@@ -1736,6 +1736,10 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
     .bind(...bindings)
     .all();
 
+  // #region agent log
+  fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96f763'},body:JSON.stringify({sessionId:'96f763',runId:'pre-fix',hypothesisId:'A',location:'worker/index.ts:GET /api/clips',message:'clips query ok',data:{sortBy,isPublicLatestScene,rowCount:(clips.results||[]).length,limit,offset},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
   // User-scoped or filtered feeds must not be cached publicly — stale JSON causes "My clips"
   // to show rows that no longer exist locally, so delete/update then return 404 Clip not found.
   const scopedFeed = Boolean(userId || since || artistName || venueName || songSlug);
@@ -1758,6 +1762,9 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   } catch (err) {
     console.error('GET /api/clips:', err);
     const message = err instanceof Error ? err.message : 'Failed to load clips feed';
+    // #region agent log
+    fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96f763'},body:JSON.stringify({sessionId:'96f763',runId:'pre-fix',hypothesisId:'A',location:'worker/index.ts:GET /api/clips catch',message:'clips query failed',data:{error:message,sortBy:c.req.query('sort_by')||'latest'},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return c.json({ error: message }, 500);
   }
 });

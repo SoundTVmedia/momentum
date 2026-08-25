@@ -93,6 +93,10 @@ export function useClips(options: UseClipsOptions = {}) {
         if (generation !== fetchGenerationRef.current) return
 
         if (!response.ok) {
+          const errBody = await response.text().catch(() => '')
+          // #region agent log
+          fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96f763'},body:JSON.stringify({sessionId:'96f763',runId:'pre-fix',hypothesisId:'A',location:'useClips.ts:fetchClips',message:'clips feed not ok',data:{status:response.status,listPath,feedType,errBody:errBody.slice(0,500)},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           throw new Error('Failed to fetch clips')
         }
 
@@ -105,6 +109,10 @@ export function useClips(options: UseClipsOptions = {}) {
 
         const incoming = data.clips ?? []
         const nextClips = mine ? incoming : filterPublicFeedClips(incoming)
+
+        // #region agent log
+        fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96f763'},body:JSON.stringify({sessionId:'96f763',runId:'pre-fix',hypothesisId:'B',location:'useClips.ts:fetchClips',message:'clips feed ok',data:{listPath,feedType,incoming:incoming.length,visible:nextClips.length,hasMore:Boolean(data.hasMore)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
 
         if (append) {
           setClips((prev) => {

@@ -120,13 +120,22 @@ export default function FavoriteArtistFeedPanel({
         `/api/discover/favorite-artist-feed?events_limit=0&clips_limit=${clipsLimit}&clips_offset=${offset}`,
         { cache: 'no-store' },
       );
-      if (!res.ok) throw new Error('favorite-artist-feed');
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        // #region agent log
+        fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96f763'},body:JSON.stringify({sessionId:'96f763',runId:'pre-fix',hypothesisId:'C',location:'FavoriteArtistFeedPanel.tsx:fetchSlice',message:'favorite-artist-feed not ok',data:{status:res.status,errBody:errBody.slice(0,500),offset},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        throw new Error('favorite-artist-feed');
+      }
       const data = (await res.json()) as {
         hasFavoriteArtists?: boolean;
         upcomingEvents?: unknown[];
         clips?: ClipWithUser[];
         hasMoreClips?: boolean;
       };
+      // #region agent log
+      fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96f763'},body:JSON.stringify({sessionId:'96f763',runId:'pre-fix',hypothesisId:'C',location:'FavoriteArtistFeedPanel.tsx:fetchSlice',message:'favorite-artist-feed ok',data:{hasFavoriteArtists:Boolean(data.hasFavoriteArtists),clipCount:(data.clips??[]).length,hasMoreClips:Boolean(data.hasMoreClips),offset},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
 
       if (!data.hasFavoriteArtists) {
         setHasFavoriteArtists(false);
