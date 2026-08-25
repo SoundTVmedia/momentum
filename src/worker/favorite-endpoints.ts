@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 import {
   getOrCreateArtistIdByName,
+  loadCanonicalFavoriteArtistNames,
   mergeCanonicalNamesForFavoriteBatch,
   mergeProfileFavoriteArtistsJson,
   mochaUserIdKey,
@@ -36,7 +37,26 @@ export async function getFavoriteArtists(c: Context) {
       .bind(uid)
       .all();
 
-    return c.json({ artists: favorites.results || [] });
+    const tableArtists = (favorites.results || []) as Array<{
+      name?: string | null;
+      artist_id?: number;
+      image_url?: string | null;
+      bio?: string | null;
+    }>;
+    const seen = new Set(
+      tableArtists
+        .map((row) => normalizeArtistDisplayName(String(row.name ?? '')))
+        .filter(Boolean)
+        .map((name) => name.toLowerCase()),
+    );
+    const canonical = await loadCanonicalFavoriteArtistNames(c.env.DB, uid);
+    const artists = [...tableArtists];
+    for (const name of canonical) {
+      if (seen.has(name.toLowerCase())) continue;
+      artists.push({ name, artist_id: 0, image_url: null, bio: null });
+    }
+
+    return c.json({ artists });
   } catch (error) {
     console.error('Get favorite artists error:', error);
     return c.json({ error: 'Failed to get favorite artists' }, 500);

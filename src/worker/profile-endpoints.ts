@@ -1,11 +1,27 @@
 import { Context } from 'hono';
 import { normalizeClipApiRows } from './clip-row-normalize';
+import { mochaUserIdKey } from './mocha-user-id';
+import { getBlockDirections } from './user-blocks';
 
 /**
  * Get user profile stats including lifetime metrics
  */
 export async function getUserStats(c: Context) {
-  const userId = c.req.param('userId');
+  const userId = c.req.param('userId') ?? '';
+  const mochaUser = c.get('user');
+  const directions = mochaUser
+    ? await getBlockDirections(c.env.DB, mochaUserIdKey(mochaUser), userId)
+    : { blocked: false, blockedByThem: false };
+  if (directions.blockedByThem) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+  if (directions.blocked) {
+    return c.json({
+      totalClipsPosted: 0,
+      totalViewsOnClips: 0,
+      userAverageClipRating: 0,
+    });
+  }
 
   try {
     // Get all clips by user
@@ -42,7 +58,14 @@ export async function getUserStats(c: Context) {
  * Get user's favorite artists with clips
  */
 export async function getUserFavoriteArtistsWithClips(c: Context) {
-  const userId = c.req.param('userId');
+  const userId = c.req.param('userId') ?? '';
+  const mochaUser = c.get('user');
+  const directions = mochaUser
+    ? await getBlockDirections(c.env.DB, mochaUserIdKey(mochaUser), userId)
+    : { blocked: false, blockedByThem: false };
+  if (directions.blockedByThem || directions.blocked) {
+    return c.json({ favoriteArtists: [] });
+  }
 
   try {
     // Get favorite artists

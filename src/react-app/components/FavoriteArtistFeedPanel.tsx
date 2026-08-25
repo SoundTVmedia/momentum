@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, Plus, Save, X } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipModal from '@/react-app/components/ClipModal';
-import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
+import UnifiedFavoritesAdd from '@/react-app/components/UnifiedFavoritesAdd';
+import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import FeedFilters from '@/react-app/components/FeedFilters';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
@@ -15,7 +16,7 @@ import HorizontalClipCarousel, {
 } from '@/react-app/components/HorizontalClipCarousel';
 import { useCarouselInfiniteLoad } from '@/react-app/hooks/useCarouselInfiniteLoad';
 import { BROWSE_FAVORITE_CLIPS_PATH, BROWSE_FAVORITE_SHOWS_PATH } from '@/react-app/lib/browse-paths';
-import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
+import { apiFetch } from '@/react-app/lib/apiFetch';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import {
   FAVORITE_FEED_FILTER_OPTIONS,
@@ -61,54 +62,43 @@ export default function FavoriteArtistFeedPanel({
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [showAddArtists, setShowAddArtists] = useState(false);
-  const [draftFavoriteNames, setDraftFavoriteNames] = useState<string[]>([]);
-  const [savingArtists, setSavingArtists] = useState(false);
-  const [saveArtistsError, setSaveArtistsError] = useState<string | null>(null);
-  const [loadingSavedArtists, setLoadingSavedArtists] = useState(false);
+  const [followedVenues, setFollowedVenues] = useState<{ venue_id: number; name: string }[]>([]);
+  const [selectedVenueName, setSelectedVenueName] = useState('');
+  const [savedSongs, setSavedSongs] = useState<{ slug: string; title: string }[]>([]);
+  const [selectedSongSlug, setSelectedSongSlug] = useState('');
 
-  const loadSavedFavoriteNames = useCallback(async () => {
+  const loadHubLists = useCallback(async () => {
     if (!user) return;
-    setLoadingSavedArtists(true);
     try {
-      const names = new Set<string>();
-      const [favRes, meRes] = await Promise.all([
-        apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' }),
-        apiFetch('/api/users/me', { cache: 'no-store' }),
+      const [venuesRes, songsRes] = await Promise.all([
+        apiFetch('/api/users/me/following/list', { cache: 'no-store' }),
+        apiFetch('/api/users/me/favorites?type=song', { cache: 'no-store' }),
       ]);
-
-      if (favRes.ok) {
-        const data = (await favRes.json()) as { artists?: { name?: string | null }[] };
-        for (const a of data.artists ?? []) {
-          const n = typeof a.name === 'string' ? a.name.trim() : '';
-          if (n) names.add(n);
-        }
+      if (venuesRes.ok) {
+        const data = (await venuesRes.json()) as { venues?: { venue_id: number; name: string }[] };
+        const next = (data.venues ?? []).filter((v) => v.name?.trim());
+        setFollowedVenues(next);
+        setSelectedVenueName((current) =>
+          current && next.some((v) => v.name === current) ? current : next[0]?.name ?? '',
+        );
       }
-
-      if (meRes.ok) {
-        const me = (await meRes.json()) as {
-          profile?: { favorite_artists?: string | null } | null;
-        } | null;
-        const json = me?.profile?.favorite_artists;
-        if (json) {
-          try {
-            const parsed = JSON.parse(json) as unknown;
-            if (Array.isArray(parsed)) {
-              for (const x of parsed) {
-                const n = typeof x === 'string' ? x.trim() : String(x ?? '').trim();
-                if (n) names.add(n);
-              }
-            }
-          } catch {
-            /* ignore bad JSON */
-          }
-        }
+      if (songsRes.ok) {
+        const data = (await songsRes.json()) as {
+          favorites?: { entity_key?: string; display_name?: string | null }[];
+        };
+        const next = (data.favorites ?? [])
+          .map((row) => ({
+            slug: (row.entity_key ?? '').trim(),
+            title: (row.display_name ?? row.entity_key ?? '').trim(),
+          }))
+          .filter((row) => row.slug);
+        setSavedSongs(next);
+        setSelectedSongSlug((current) =>
+          current && next.some((s) => s.slug === current) ? current : next[0]?.slug ?? '',
+        );
       }
-
-      setDraftFavoriteNames([...names]);
     } catch {
-      /* keep current draft */
-    } finally {
-      setLoadingSavedArtists(false);
+      /* keep current lists */
     }
   }, [user]);
 
@@ -179,12 +169,16 @@ export default function FavoriteArtistFeedPanel({
   useEffect(() => {
     if (!user) return;
     const refresh = () => {
-      void loadSavedFavoriteNames();
+      void loadHubLists();
       void fetchSlice(0, false);
     };
     window.addEventListener('favorite-artists-changed', refresh);
-    return () => window.removeEventListener('favorite-artists-changed', refresh);
-  }, [user, fetchSlice, loadSavedFavoriteNames]);
+    window.addEventListener('following-changed', refresh);
+    return () => {
+      window.removeEventListener('favorite-artists-changed', refresh);
+      window.removeEventListener('following-changed', refresh);
+    };
+  }, [user, fetchSlice, loadHubLists]);
 
   useEffect(() => {
     if (!user) return;
@@ -240,46 +234,13 @@ export default function FavoriteArtistFeedPanel({
     itemCount: clips.length,
   });
 
-  const saveFavoriteArtists = async () => {
-    setSavingArtists(true);
-    setSaveArtistsError(null);
-    try {
-      const res = await apiFetch('/api/personalization/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          favorite_artists: draftFavoriteNames,
-          personalization_enabled: true,
-        }),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        detail?: string;
-      };
-      if (!res.ok) {
-        throw new Error(body.detail || body.error || 'Could not save artists');
-      }
-      await loadSavedFavoriteNames();
-      await fetchSlice(0, false);
-      setShowAddArtists(false);
-      window.dispatchEvent(new CustomEvent('favorite-artists-changed'));
-    } catch (e) {
-      setSaveArtistsError(apiFetchErrorMessage(e, 'Save failed'));
-    } finally {
-      setSavingArtists(false);
-    }
+  const toggleAddArtists = () => {
+    setShowAddArtists((open) => !open);
   };
 
-  const toggleAddArtists = () => {
-    setShowAddArtists((open) => {
-      const next = !open;
-      if (next) {
-        setSaveArtistsError(null);
-        void loadSavedFavoriteNames();
-      }
-      return next;
-    });
-  };
+  useEffect(() => {
+    if (user) void loadHubLists();
+  }, [user, loadHubLists]);
 
   if (!user || isPending) return null;
   // Discover: avoid showing a loading shell that then vanishes when the user has no favorite artists.
@@ -300,7 +261,7 @@ export default function FavoriteArtistFeedPanel({
           <div className="min-w-0 flex-1">
             <SectionHeading
               title="Your Favorites"
-              subtitle="Clips and shows from your favorite artists, plus everything from people you follow."
+              subtitle="Clips and shows from artists, venues, and songs you follow."
               className="mb-0"
             />
           </div>
@@ -309,10 +270,12 @@ export default function FavoriteArtistFeedPanel({
               type="button"
               onClick={toggleAddArtists}
               className="shrink-0 inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-3 py-2 text-white hover:bg-white/15 hover:border-white transition-colors"
-              title={showAddArtists ? 'Close manage artists' : 'Add favorite artists'}
+              title={showAddArtists ? 'Close add favorites' : 'Add favorites'}
               aria-expanded={showAddArtists}
               aria-label={
-                showAddArtists ? 'Close manage artists' : 'Click to add favorite artists'
+                showAddArtists
+                  ? 'Close add favorites'
+                  : 'Click to add your favorite artists, venues, or archival shows'
               }
             >
               {showAddArtists ? (
@@ -325,7 +288,7 @@ export default function FavoriteArtistFeedPanel({
               ) : (
                 <>
                   <span className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">
-                    Click to Add Artists
+                    Click to add your favorite artists, venues, or archival shows.
                   </span>
                   <Plus className="w-5 h-5 shrink-0 text-white" aria-hidden />
                 </>
@@ -335,45 +298,8 @@ export default function FavoriteArtistFeedPanel({
         </div>
 
         {variant === 'feed' && showAddArtists ? (
-          <div className="mb-6 rounded-xl border border-momentum-rose/30 bg-black/50 p-4 sm:p-5">
-            {loadingSavedArtists ? (
-              <div className="flex items-center gap-2 text-gray-400 text-sm">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading your favorites…
-              </div>
-            ) : (
-              <FavoriteArtistsJamBaseField
-                favoriteArtists={draftFavoriteNames}
-                setFavoriteArtists={setDraftFavoriteNames}
-                labelExtra={
-                  <span className="text-gray-400 text-sm ml-2 font-normal block sm:inline mt-1 sm:mt-0">
-                    Same list as profile → Home feed personalization
-                  </span>
-                }
-                savedListLabel="Your favorites"
-              />
-            )}
-            {saveArtistsError ? <p className="text-red-400 text-sm mt-3">{saveArtistsError}</p> : null}
-            <div className="mt-4">
-              <button
-                type="button"
-                disabled={savingArtists || loadingSavedArtists}
-                onClick={() => void saveFavoriteArtists()}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 momentum-grad-interactive rounded-lg font-semibold text-white text-sm hover:scale-[1.02] transition-transform disabled:opacity-45 disabled:hover:scale-100"
-              >
-                {savingArtists ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    Save artists
-                  </>
-                )}
-              </button>
-            </div>
+          <div className="mb-6 mt-4 rounded-xl border border-momentum-rose/30 bg-black/50 p-4 sm:p-5">
+            <UnifiedFavoritesAdd />
           </div>
         ) : null}
 
@@ -397,6 +323,77 @@ export default function FavoriteArtistFeedPanel({
               viewAllHref={BROWSE_FAVORITE_SHOWS_PATH}
               viewAllLabel="View all shows"
             />
+          </div>
+        ) : variant === 'feed' && panelView === 'venues' ? (
+          <div className="mt-4 md:mt-5">
+            {followedVenues.length === 0 ? (
+              <p className="text-gray-400 text-sm py-4">
+                Follow venues from the add panel to filter clips by room.
+              </p>
+            ) : (
+              <>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {followedVenues.map((venue) => (
+                    <button
+                      key={venue.venue_id}
+                      type="button"
+                      onClick={() => setSelectedVenueName(venue.name)}
+                      className={`rounded-full border px-3 py-1.5 text-sm ${
+                        selectedVenueName === venue.name
+                          ? 'border-momentum-flare bg-momentum-flare/15 text-white'
+                          : 'border-white/15 text-gray-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {venue.name}
+                    </button>
+                  ))}
+                </div>
+                {selectedVenueName ? (
+                  <ConcertFeed
+                    venueName={selectedVenueName}
+                    hideSectionHeader
+                    edgeBleed={edgeBleed}
+                    edgeBleedScope={edgeBleedScope}
+                  />
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : variant === 'feed' && panelView === 'songs' ? (
+          <div className="mt-4 md:mt-5">
+            {savedSongs.length === 0 ? (
+              <p className="text-gray-400 text-sm py-4">
+                Save a song from any song page to filter clips here. Adding songs from the homepage
+                is not available yet.
+              </p>
+            ) : (
+              <>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {savedSongs.map((song) => (
+                    <button
+                      key={song.slug}
+                      type="button"
+                      onClick={() => setSelectedSongSlug(song.slug)}
+                      className={`rounded-full border px-3 py-1.5 text-sm ${
+                        selectedSongSlug === song.slug
+                          ? 'border-momentum-flare bg-momentum-flare/15 text-white'
+                          : 'border-white/15 text-gray-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {song.title}
+                    </button>
+                  ))}
+                </div>
+                {selectedSongSlug ? (
+                  <ConcertFeed
+                    songSlug={selectedSongSlug}
+                    hideSectionHeader
+                    edgeBleed={edgeBleed}
+                    edgeBleedScope={edgeBleedScope}
+                  />
+                ) : null}
+              </>
+            )}
           </div>
         ) : variant === 'feed' && panelView === 'friends' ? (
           <div className="mt-4 md:mt-5">

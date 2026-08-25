@@ -3,6 +3,7 @@ import { SONG_CLIPS_ORDER_BY_SQL } from './clip-order-by';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { normalizedSlugFromRouteParam } from '../shared/jambase-slug';
 import { songTitleFromSlug } from '../shared/song-tag';
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 
 const CLIP_SELECT = `
   SELECT
@@ -37,7 +38,10 @@ export async function buildGlobalSongPagePayload(c: Context): Promise<Response> 
     .bind(songSlug)
     .all();
 
-  const rows = (clipsRes.results ?? []) as Record<string, unknown>[];
+  const rows = withoutBlockedAuthors(
+    (clipsRes.results ?? []) as Record<string, unknown>[],
+    await getHiddenUserIdsForRequest(c),
+  );
   const clips = normalizeClipApiRows(rows);
 
   let displayTitle = songTitleFromSlug(songSlug);

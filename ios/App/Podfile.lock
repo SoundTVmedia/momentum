@@ -40,6 +40,8 @@ PODS:
     - GoogleSignIn (~> 9.0.0)
   - FeedbackNativeAudioCapture (0.1.0):
     - Capacitor
+  - FeedbackShazamkit (0.1.0):
+    - Capacitor
   - GoogleSignIn (9.0.0):
     - AppAuth (~> 2.0)
     - AppCheckCore (~> 11.0)
@@ -82,6 +84,7 @@ DEPENDENCIES:
   - "CapgoCameraPreview (from `../../node_modules/@capgo/camera-preview`)"
   - "CapgoCapacitorSocialLogin (from `../../node_modules/@capgo/capacitor-social-login`)"
   - FeedbackNativeAudioCapture (from `../../packages/native-audio-capture`)
+  - FeedbackShazamkit (from `../../packages/shazamkit`)
 
 SPEC REPOS:
   trunk:
@@ -125,6 +128,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capgo/capacitor-social-login"
   FeedbackNativeAudioCapture:
     :path: "../../packages/native-audio-capture"
+  FeedbackShazamkit:
+    :path: "../../packages/shazamkit"
 
 SPEC CHECKSUMS:
   AppAuth: ef4da5a3fc2e10b90c09a0a94a9baeaedc0341d5
@@ -142,6 +147,7 @@ SPEC CHECKSUMS:
   CapgoCameraPreview: 44d4980e10b9d47bf680a631ba89c2a69745c8b0
   CapgoCapacitorSocialLogin: c0e138419bb46a0f95eb0c89f2d9a2d2f7bb21c0
   FeedbackNativeAudioCapture: 402c68a1bf6e6c687d40187f9bd5df660f011059
+  FeedbackShazamkit: 5767b30a4a26d6e4ec735122c0a9106b503a3f28
   GoogleSignIn: c7f09cfbc85a1abf69187be091997c317cc33b77
   GoogleUtilities: 766ace00c6b10d8148408f329d10c4f051931850
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238
@@ -153,6 +159,6 @@ SPEC CHECKSUMS:
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
 
-PODFILE CHECKSUM: 69b0b4272b61005fdec79b5547e43e7c90e49a61
+PODFILE CHECKSUM: 32f8f0646cdec979951193f6d39ab9edbd08c207
 
 COCOAPODS: 1.16.2

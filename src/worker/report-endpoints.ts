@@ -9,7 +9,7 @@ import {
 import { mochaUserIdKey } from './mocha-user-id';
 import { resolveResendApiKey, resolveTransactionalEmailFrom } from './transactional-email-config';
 import { SUPPORT_INBOX_EMAIL, sendUrgentReportEmail } from './support-email';
-import { blockKey, isBlockedBetween } from './user-blocks';
+import { blockKey, getBlockDirections, isBlockedBetween } from './user-blocks';
 
 type ReportInput = {
   reason: string;
@@ -359,22 +359,9 @@ export async function getBlockStatusForUser(c: Context<{ Bindings: Env }>) {
     return c.json({ blocked: false, blockedByThem: false });
   }
 
-  const viewerId = mochaUserIdKey(mochaUser);
-  const targetId = c.req.param('userId') ?? '';
-
-  const row = await c.env.DB.prepare(
-    `SELECT blocker_id FROM user_blocks
-     WHERE (LOWER(TRIM(blocker_id)) = ? AND LOWER(TRIM(blocked_id)) = ?)
-        OR (LOWER(TRIM(blocker_id)) = ? AND LOWER(TRIM(blocked_id)) = ?)`,
-  )
-    .bind(blockKey(viewerId), blockKey(targetId), blockKey(targetId), blockKey(viewerId))
-    .all();
-
-  const rows = (row.results ?? []) as Array<{ blocker_id: string }>;
-  return c.json({
-    blocked: rows.some((r) => blockKey(r.blocker_id) === blockKey(viewerId)),
-    blockedByThem: rows.some((r) => blockKey(r.blocker_id) === blockKey(targetId)),
-  });
+  return c.json(
+    await getBlockDirections(c.env.DB, mochaUserIdKey(mochaUser), c.req.param('userId') ?? ''),
+  );
 }
 
 export { isBlockedBetween };

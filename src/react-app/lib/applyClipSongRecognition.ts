@@ -136,7 +136,12 @@ export async function runClipSongRecognitionAndSave(input: {
   }
 
   if (result.status === 'nomatch') {
-    return { status: 'nomatch', message: 'No match found.', result };
+    return {
+      status: 'nomatch',
+      message:
+        'No catalog match. Live mixes and crowd noise often are not in Shazam or ACRCloud — you can type the title.',
+      result,
+    };
   }
   if (result.status === 'skipped') {
     return {

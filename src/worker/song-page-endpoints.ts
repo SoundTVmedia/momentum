@@ -8,6 +8,7 @@ import {
   slugifyEntityName,
 } from '../shared/jambase-slug';
 import { songTitleFromSlug } from '../shared/song-tag';
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 
 export async function buildSongPagePayload(c: Context): Promise<Response> {
   const artistParam = c.req.param('artistName') ?? '';
@@ -54,7 +55,10 @@ export async function buildSongPagePayload(c: Context): Promise<Response> {
     .bind(artistName, artistSlug, songSlug)
     .all();
 
-  const rows = (clipsRes.results ?? []) as Record<string, unknown>[];
+  const rows = withoutBlockedAuthors(
+    (clipsRes.results ?? []) as Record<string, unknown>[],
+    await getHiddenUserIdsForRequest(c),
+  );
   const clips = normalizeClipApiRows(rows);
 
   let displayTitle = songTitleFromSlug(songSlug);

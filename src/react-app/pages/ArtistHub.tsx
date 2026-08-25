@@ -52,6 +52,17 @@ export default function ArtistHubPage() {
     if (!isPending) void loadArtists();
   }, [isPending, loadArtists]);
 
+  useEffect(() => {
+    if (!user) return;
+    const refresh = () => void loadArtists();
+    window.addEventListener('favorite-artists-changed', refresh);
+    window.addEventListener('following-changed', refresh);
+    return () => {
+      window.removeEventListener('favorite-artists-changed', refresh);
+      window.removeEventListener('following-changed', refresh);
+    };
+  }, [user, loadArtists]);
+
   const saveFavorites = async () => {
     setSaving(true);
     setError(null);

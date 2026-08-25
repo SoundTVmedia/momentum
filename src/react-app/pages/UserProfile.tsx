@@ -88,10 +88,12 @@ export default function UserProfilePage() {
       setData(profileData);
 
       // Track profile view (async, don't wait)
-      fetch(`/api/analytics/profile-view/${userId}`, { method: 'POST' }).catch(() => {});
+      if (!profileData.blocked) {
+        fetch(`/api/analytics/profile-view/${userId}`, { method: 'POST' }).catch(() => {});
+      }
 
       const viewingOwnProfile = user?.id === userId;
-      if (viewingOwnProfile) {
+      if (viewingOwnProfile || profileData.blocked) {
         setFavoriteArtists([]);
       } else {
         const favoritesResponse = await fetch(`/api/users/${userId}/favorite-artists-with-clips`);
@@ -312,18 +314,18 @@ export default function UserProfilePage() {
                   )}
                 </div>
 
-                {profile.location && (
+                {profile.location && !data.blocked && (
                   <div className="flex items-center justify-center md:justify-start space-x-1 text-gray-400 mb-2">
                     <MapPin className="w-4 h-4" />
                     <span>{profile.location}</span>
                   </div>
                 )}
                 
-                {profile.bio && (
+                {profile.bio && !data.blocked && (
                   <p className="text-gray-300 max-w-2xl mb-4">{profile.bio}</p>
                 )}
                 
-                {(genres.length > 0 || isOwnProfile) && (
+                {!data.blocked && (genres.length > 0 || isOwnProfile) && (
                   <div
                     className={`flex flex-col gap-3 ${
                       isOwnProfile
@@ -370,6 +372,7 @@ export default function UserProfilePage() {
             </div>
 
             {/* Stats */}
+            {!data.blocked ? (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mt-6 sm:mt-8">
               <div className="glass-panel rounded-xl p-3 sm:p-4 text-center">
                 <div className="flex items-center justify-center mb-1 sm:mb-2">
@@ -443,9 +446,10 @@ export default function UserProfilePage() {
                 </div>
               )}
             </div>
+            ) : null}
 
             {/* Lifetime Feedback stats */}
-            {lifetimeStats && (
+            {lifetimeStats && !data.blocked && (
               <div className="mt-6 sm:mt-8 bg-gradient-to-r from-momentum-ember/12 to-momentum-flare/8 border border-momentum-ember/30 rounded-xl p-4 sm:p-6">
                 <div className="flex items-center space-x-2 mb-4">
                   <TrendingUp className="w-5 h-5 text-momentum-flare" />
@@ -501,7 +505,7 @@ export default function UserProfilePage() {
         ) : null}
 
         {/* Favorite Artists — other users' profiles only (own profile ends at shows carousel) */}
-        {favoriteArtists.length > 0 && !isOwnProfile && (
+        {favoriteArtists.length > 0 && !isOwnProfile && !data.blocked && (
           <div className="mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-6 flex items-center space-x-2">
               <Star className="w-6 h-6 text-momentum-ember" />
@@ -552,7 +556,7 @@ export default function UserProfilePage() {
         )}
 
         {/* Public profile clips — own profile uses My clips carousel in OwnProfileHub */}
-        {!isOwnProfile ? (
+        {!isOwnProfile && !data.blocked ? (
           <>
         <h2 className="text-2xl md:text-3xl font-bold text-white mb-6">
           {`${profile.display_name}'s Clips`}

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { X, Upload, Loader2, Camera, Image as ImageIcon, Check, AlertCircle, MapPin, Heart, Settings } from 'lucide-react';
+import { Link } from 'react-router';
+import { Ban, X, Upload, Loader2, Camera, Image as ImageIcon, Check, AlertCircle, MapPin, Heart, Settings } from 'lucide-react';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 import DeviceManagement from '@/react-app/components/DeviceManagement';
@@ -487,6 +488,13 @@ export default function ProfileEditor({ profile, onClose, onUpdate }: ProfileEdi
 
           {/* Remembered devices */}
           <div className="pt-2 border-t border-white/10 space-y-4">
+            <Link
+              to="/settings/blocked"
+              className="flex items-center gap-2 text-momentum-flare hover:text-momentum-flare/90 transition-colors text-left"
+            >
+              <Ban className="w-5 h-5 shrink-0" />
+              <span className="font-medium">Blocked accounts</span>
+            </Link>
             <button
               type="button"
               onClick={() => setShowDeviceManagement((open) => !open)}

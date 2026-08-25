@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Disc3, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
+import SongFavoriteButton from '@/react-app/components/SongFavoriteButton';
 import { apiGlobalSongPath } from '@/shared/app-paths';
 
 type GlobalSongPageData = {
@@ -74,6 +75,11 @@ export default function GlobalSongPage() {
                   <p className="text-gray-400 text-sm">
                     {data.clipCount} moment{data.clipCount === 1 ? '' : 's'} tagged with this track
                   </p>
+                  <SongFavoriteButton
+                    slug={data.song.slug}
+                    title={data.song.title}
+                    className="mt-4"
+                  />
                 </div>
               </div>
             </div>

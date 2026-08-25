@@ -4,6 +4,7 @@ import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
 import { CLIP_SHOW_KEY_SQL } from './past-show-sql';
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 
 /**
  * Get prioritized shows for discovery feed
@@ -558,10 +559,12 @@ export async function getShowClips(c: Context) {
       .bind(...bindings)
       .all();
     const rows = clips.results || [];
-    const hasMore = rows.length > limit;
+    const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+    const visible = withoutBlockedAuthors(rows as Record<string, unknown>[], hiddenAuthors);
+    const hasMore = visible.length > limit;
 
     return c.json({
-      clips: hasMore ? rows.slice(0, limit) : rows,
+      clips: hasMore ? visible.slice(0, limit) : visible,
       page,
       limit,
       hasMore,
@@ -630,12 +633,18 @@ export async function getEventClips(c: Context) {
       .bind(...bindings)
       .all();
 
+    const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+    const visible = withoutBlockedAuthors(
+      (clips.results || []) as Record<string, unknown>[],
+      hiddenAuthors,
+    );
+
     return c.json({
-      clips: clips.results || [],
+      clips: visible,
       event_title: eventTitle,
       page,
       limit,
-      hasMore: (clips.results || []).length === limit,
+      hasMore: visible.length === limit,
     });
   } catch (error) {
     console.error('Get event clips error:', error);

@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import { MAX_IDENTIFY_UPLOAD_BYTES } from '../shared/identify-music-limits';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import {
   classifyClipContentFromAudio,
   inferClassifyFilename,
@@ -128,8 +129,14 @@ export async function getFriendsFeed(c: Context) {
 
   c.header('Cache-Control', 'private, no-store, must-revalidate');
 
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  const rows = withoutBlockedAuthors(
+    (clips.results || []) as Record<string, unknown>[],
+    hiddenAuthors,
+  );
+
   return c.json({
-    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
+    clips: normalizeClipApiRows(rows),
     page,
     limit,
     hasMore: (clips.results || []).length === limit,

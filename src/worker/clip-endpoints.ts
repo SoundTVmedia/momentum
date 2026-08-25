@@ -15,6 +15,7 @@ import { resolveClipEventTitle } from '../shared/event-title';
 import { createRealtimeService } from './realtime-service';
 import { getStaffProfile, isSuperAdmin } from './admin-auth';
 import { mochaUserIdKey } from './mocha-user-id';
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors, blockKey } from './user-blocks';
 import {
   describeMusicRecognitionConfig,
   inferIdentifyFilename,
@@ -645,6 +646,11 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
     return c.json({ error: 'Clip not found' }, 404);
   }
 
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  if (hiddenAuthors.has(blockKey((anchor as { mocha_user_id?: unknown }).mocha_user_id))) {
+    return c.json({ error: 'Clip not found' }, 404);
+  }
+
   const row = anchor as Record<string, unknown>;
   const artistName = typeof row.artist_name === 'string' ? row.artist_name.trim() : '';
   const showId = typeof row.show_id === 'string' ? row.show_id.trim() : '';
@@ -729,7 +735,10 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
       .all();
   }
 
-  const rawRows = (results.results ?? []) as Record<string, unknown>[];
+  const rawRows = withoutBlockedAuthors(
+    (results.results ?? []) as Record<string, unknown>[],
+    hiddenAuthors,
+  );
   let clips = normalizeClipApiRows(rawRows);
   const hasAnchor = clips.some((c) => Number(c.id) === clipId);
   if (!hasAnchor) {

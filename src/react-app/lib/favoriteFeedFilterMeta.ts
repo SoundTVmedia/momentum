@@ -1,4 +1,4 @@
-export type FavoriteFeedFilterValue = 'artists' | 'upcoming' | 'friends';
+export type FavoriteFeedFilterValue = 'artists' | 'venues' | 'songs' | 'upcoming' | 'friends';
 
 export type FavoriteFeedFilterMeta = {
   value: FavoriteFeedFilterValue;
@@ -11,6 +11,16 @@ export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
     value: 'artists',
     label: 'Your Artists',
     description: 'Clips from artists you follow',
+  },
+  {
+    value: 'venues',
+    label: 'Your Venues',
+    description: 'Clips from venues you follow',
+  },
+  {
+    value: 'songs',
+    label: 'Your Songs',
+    description: 'Clips tagged with songs you saved',
   },
   {
     value: 'upcoming',

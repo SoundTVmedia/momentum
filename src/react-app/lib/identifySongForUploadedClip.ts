@@ -238,6 +238,10 @@ async function acrFallbackForLoudestWindow(
     '[identify] clip-player acr',
     acr.status,
     acr.status === 'match' ? acr.title : acr.message,
+    'wavBytes=',
+    wav.size,
+    'clip=',
+    clipId,
   );
   if (acr.status === 'match') return acr;
 
@@ -317,6 +321,7 @@ async function identifySongForUploadedClipUncapped(
         shazam.loudestStartSeconds ?? '?',
         'rms=',
         shazam.loudestRms ?? '?',
+        'cleanNoMatch — catalogs often miss live mixes; opening manual title',
       );
       const acr = await acrFallbackForLoudestWindow(clipId, shazam.wavPath, report);
       if (acr) return acr;

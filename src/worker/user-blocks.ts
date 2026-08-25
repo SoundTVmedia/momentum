@@ -54,6 +54,34 @@ export function withoutBlockedAuthors<T extends Record<string, unknown>>(
   return rows.filter((row) => !hidden.has(blockKey(row[authorField])));
 }
 
+/** Viewer-facing block state for a profile page. */
+export async function getBlockDirections(
+  db: D1Database,
+  viewerId: string,
+  targetId: string,
+): Promise<{ blocked: boolean; blockedByThem: boolean }> {
+  const viewer = blockKey(viewerId);
+  const target = blockKey(targetId);
+  if (!viewer || !target || viewer === target) {
+    return { blocked: false, blockedByThem: false };
+  }
+
+  const row = await db
+    .prepare(
+      `SELECT blocker_id FROM user_blocks
+       WHERE (LOWER(TRIM(blocker_id)) = ? AND LOWER(TRIM(blocked_id)) = ?)
+          OR (LOWER(TRIM(blocker_id)) = ? AND LOWER(TRIM(blocked_id)) = ?)`,
+    )
+    .bind(viewer, target, target, viewer)
+    .all();
+
+  const rows = (row.results ?? []) as Array<{ blocker_id: string }>;
+  return {
+    blocked: rows.some((r) => blockKey(r.blocker_id) === viewer),
+    blockedByThem: rows.some((r) => blockKey(r.blocker_id) === target),
+  };
+}
+
 export async function isBlockedBetween(
   db: D1Database,
   a: string,

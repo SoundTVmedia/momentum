@@ -85,7 +85,7 @@ import * as programApplications from "./program-application-endpoints";
 import * as superadminModeration from "./superadmin-moderation-endpoints";
 import * as reports from "./report-endpoints";
 import { submitSupportRequest } from "./support-endpoints";
-import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from "./user-blocks";
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors, isBlockedBetween, getBlockDirections, blockKey } from "./user-blocks";
 import { CLIP_SHOW_KEY_SQL } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
@@ -112,6 +112,8 @@ import {
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postCameraVenuesForClip } from "./clips-camera-venues";
 import * as showMarks from "./user-show-marks-endpoints";
+import * as userFavorites from "./user-favorites-endpoints";
+import * as archivalShows from "./archival-show-endpoints";
 import {
   getClipIdentifyMusicConfig,
   postClipIdentifyMusicAudD,
@@ -1740,10 +1742,10 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   }
 });
 
-app.get("/api/clips/:id/related-clips", getRelatedClipsForShare);
+app.get("/api/clips/:id/related-clips", optionalAuthMiddleware, getRelatedClipsForShare);
 
 // Get single clip
-app.get("/api/clips/:id", async (c) => {
+app.get("/api/clips/:id", optionalAuthMiddleware, async (c) => {
   const clipId = c.req.param('id');
   
   const clip = await c.env.DB.prepare(
@@ -1760,6 +1762,11 @@ app.get("/api/clips/:id", async (c) => {
     .first();
 
   if (!clip) {
+    return c.json({ error: "Clip not found" }, 404);
+  }
+
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  if (hiddenAuthors.has(blockKey((clip as { mocha_user_id?: unknown }).mocha_user_id))) {
     return c.json({ error: "Clip not found" }, 404);
   }
 
@@ -1806,6 +1813,10 @@ app.post("/api/clips/:id/like", authMiddleware, async (c) => {
 
   if (!clip) {
     return c.json({ error: "Clip not found" }, 404);
+  }
+
+  if (await isBlockedBetween(c.env.DB, mochaUserIdKey(mochaUser), String(clip.mocha_user_id ?? ''))) {
+    return c.json({ error: 'You cannot interact with this account' }, 403);
   }
 
   // Check if user already liked this clip
@@ -1999,6 +2010,10 @@ app.post("/api/clips/:id/comments", authMiddleware, async (c) => {
     return c.json({ error: "Clip not found" }, 404);
   }
 
+  if (await isBlockedBetween(c.env.DB, uid, String(clip.mocha_user_id ?? ''))) {
+    return c.json({ error: 'You cannot interact with this account' }, 403);
+  }
+
   // Insert comment
   const result = await c.env.DB.prepare(
     `INSERT INTO comments (clip_id, mocha_user_id, parent_comment_id, content, created_at, updated_at)
@@ -2087,9 +2102,37 @@ app.get("/api/users/:userId", optionalAuthMiddleware, async (c) => {
     return c.json({ error: "User not found" }, 404);
   }
 
-  // A blocked account still resolves so the viewer can unblock it, but its clips stay hidden.
-  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
-  const isBlockedProfile = hiddenAuthors.has(String(userId).trim().toLowerCase());
+  const mochaUser = c.get('user');
+  const directions = mochaUser
+    ? await getBlockDirections(c.env.DB, mochaUserIdKey(mochaUser), userId)
+    : { blocked: false, blockedByThem: false };
+
+  if (directions.blockedByThem) {
+    return c.json({ error: "User not found" }, 404);
+  }
+
+  const isBlockedProfile = directions.blocked;
+
+  if (isBlockedProfile) {
+    return c.json({
+      profile: {
+        mocha_user_id: (profile as { mocha_user_id?: unknown }).mocha_user_id,
+        display_name: (profile as { display_name?: unknown }).display_name,
+        profile_image_url: (profile as { profile_image_url?: unknown }).profile_image_url,
+        role: (profile as { role?: unknown }).role,
+        is_verified: (profile as { is_verified?: unknown }).is_verified,
+      },
+      blocked: true,
+      clips: [],
+      stats: {
+        totalClips: 0,
+        totalLikes: 0,
+        totalViews: 0,
+        followers: 0,
+        following: 0,
+      },
+    });
+  }
 
   // Get user's clips
   const clips = await c.env.DB.prepare(
@@ -2263,12 +2306,18 @@ app.get("/api/notifications", authMiddleware, async (c) => {
   c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
 
   const rows = (notifications.results || []) as { is_read?: unknown }[];
-  const unread_count = rows.filter((r) => {
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  const visibleRows = withoutBlockedAuthors(
+    rows as unknown as Record<string, unknown>[],
+    hiddenAuthors,
+    'related_user_id',
+  ) as typeof rows;
+  const unread_count = visibleRows.filter((r) => {
     const read = (r as { is_read?: unknown }).is_read;
     return read === 0 || read === false || read == null;
   }).length;
 
-  return c.json({ notifications: rows, unread_count });
+  return c.json({ notifications: visibleRows, unread_count });
 });
 
 // Mark all notifications as read (register before :id/read so "read-all" is not captured as an id)
@@ -2338,7 +2387,7 @@ app.post("/api/notifications/:id/read", authMiddleware, async (c) => {
 });
 
 // Search clips (optimized with better indexing and rate limiting)
-app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
+app.get("/api/search/clips", optionalAuthMiddleware, rateLimiter(RateLimits.SEARCH), async (c) => {
   const query = c.req.query('q') || '';
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50); // Cap at 50
 
@@ -2377,10 +2426,17 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
     .bind(searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, limit)
     .all();
 
-  cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300, staleWhileRevalidate: 600 });
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  if (hiddenAuthors.size > 0) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+  } else {
+    cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300, staleWhileRevalidate: 600 });
+  }
 
   return c.json({
-    clips: normalizeClipApiRows((clips.results || []) as Record<string, unknown>[]),
+    clips: normalizeClipApiRows(
+      withoutBlockedAuthors((clips.results || []) as Record<string, unknown>[], hiddenAuthors),
+    ),
   });
 });
 
@@ -2388,7 +2444,7 @@ app.get("/api/search/clips", rateLimiter(RateLimits.SEARCH), async (c) => {
 app.get("/api/search/advanced", optionalAuthMiddleware, discovery.advancedSearch);
 
 // Get trending content
-app.get("/api/discover/trending", discovery.getTrendingContent);
+app.get("/api/discover/trending", optionalAuthMiddleware, discovery.getTrendingContent);
 app.get("/api/discover/feed", optionalAuthMiddleware, discovery.getDiscoverFeed);
 app.get("/api/shows/nearby", optionalAuthMiddleware, discovery.getNearbyShows);
 app.get("/api/shows/tonight", optionalAuthMiddleware, discovery.getTonightShows);
@@ -3845,13 +3901,19 @@ app.delete("/api/users/me/show-marks/:jambaseEventId", authMiddleware, showMarks
 app.get("/api/users/me/favorite-artists", authMiddleware, favorite.getFavoriteArtists);
 app.post("/api/users/favorite-artist", authMiddleware, favorite.toggleFavoriteArtist);
 app.post("/api/users/favorite-artists/sync-by-name", authMiddleware, favorite.syncFavoriteArtistsByName);
+app.get("/api/users/me/favorites", authMiddleware, userFavorites.listMyFavorites);
+app.post("/api/users/me/favorites", authMiddleware, userFavorites.addMyFavorite);
+app.delete("/api/users/me/favorites/:type/:entityKey", authMiddleware, userFavorites.removeMyFavorite);
+app.get("/api/search/unified-favorites", authMiddleware, rateLimiter(RateLimits.SEARCH), userFavorites.unifiedFavoritesSearch);
+app.post("/api/archival-shows/match", authMiddleware, archivalShows.matchArchivalShow);
+app.post("/api/archival-shows", authMiddleware, archivalShows.createArchivalShow);
 app.post("/api/clips/:id/favorite", authMiddleware, favorite.favoriteClip);
 app.get("/api/clips/:id/favorited", authMiddleware, favorite.checkClipFavorited);
 app.get("/api/users/me/favorite-clips-by-artist", authMiddleware, favorite.getFavoriteClipsByArtist);
 
 // Enhanced Profile Endpoints
-app.get("/api/users/:userId/stats", profile.getUserStats);
-app.get("/api/users/:userId/favorite-artists-with-clips", profile.getUserFavoriteArtistsWithClips);
+app.get("/api/users/:userId/stats", optionalAuthMiddleware, profile.getUserStats);
+app.get("/api/users/:userId/favorite-artists-with-clips", optionalAuthMiddleware, profile.getUserFavoriteArtistsWithClips);
 
 // Prioritized Discovery Endpoints
 app.get("/api/discover/prioritized-shows", discoverPrioritized.getPrioritizedShows);
@@ -3861,11 +3923,11 @@ app.get(
   rateLimiter(RateLimits.API),
   discoverPrioritized.getFavoriteArtistFeed,
 );
-app.get("/api/artists/:artistName/songs/:songSlug", buildSongPagePayload);
-app.get("/api/songs/:songSlug", buildGlobalSongPagePayload);
+app.get("/api/artists/:artistName/songs/:songSlug", optionalAuthMiddleware, buildSongPagePayload);
+app.get("/api/songs/:songSlug", optionalAuthMiddleware, buildGlobalSongPagePayload);
 app.get("/api/genres/:genreSlug", buildGenrePagePayload);
-app.get("/api/artists/:artistName/shows/:showId/clips", discoverPrioritized.getShowClips);
-app.get("/api/event-clips/:eventTitle/clips", discoverPrioritized.getEventClips);
+app.get("/api/artists/:artistName/shows/:showId/clips", optionalAuthMiddleware, discoverPrioritized.getShowClips);
+app.get("/api/event-clips/:eventTitle/clips", optionalAuthMiddleware, discoverPrioritized.getEventClips);
 app.get("/api/venues/:venueName/archive", discoverPrioritized.getVenueArchive);
 
 // Artist Live Status

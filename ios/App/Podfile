@@ -45,6 +45,7 @@ def capacitor_pods
   pod 'CapgoCameraPreview', :path => '../../node_modules/@capgo/camera-preview'
   pod 'CapgoCapacitorSocialLogin', :path => '../../node_modules/@capgo/capacitor-social-login'
   pod 'FeedbackNativeAudioCapture', :path => '../../packages/native-audio-capture'
+  pod 'FeedbackShazamkit', :path => '../../packages/shazamkit'
 end
 
 target 'App' do

@@ -29,7 +29,7 @@ type FollowBody = {
   jambase_id?: string;
 };
 
-async function resolveVenueIdForFollow(
+export async function resolveVenueIdForFollow(
   db: D1Database,
   requestedId: number,
   body: FollowBody,

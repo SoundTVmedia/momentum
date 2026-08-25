@@ -4,6 +4,7 @@ import { ArrowLeft, Music, Loader2, Disc3 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
+import SongFavoriteButton from '@/react-app/components/SongFavoriteButton';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, apiSongPath } from '@/shared/app-paths';
 
@@ -95,6 +96,11 @@ export default function SongPage() {
                   <p className="text-gray-400 text-sm mt-3">
                     {data.clipCount} moment{data.clipCount === 1 ? '' : 's'} tagged with this track
                   </p>
+                  <SongFavoriteButton
+                    slug={data.song.slug}
+                    title={data.song.title}
+                    className="mt-4"
+                  />
                 </div>
               </div>
             </div>

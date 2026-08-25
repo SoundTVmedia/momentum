@@ -223,6 +223,7 @@ export const MOCHA_USER_ID_TABLES = [
   'two_factor_auth',
   'subscriptions',
   'user_favorite_artists',
+  'user_favorites',
   'user_favorite_clips_by_artist',
   'user_device_tokens',
   'daily_active_users',

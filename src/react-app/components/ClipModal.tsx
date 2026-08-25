@@ -725,11 +725,11 @@ export default function ClipModal({
   );
 
   const modal = (
-    <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay">
+    <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay touch-manipulation">
       {/* ——— Mobile: full-viewport video + overlays ——— */}
       <div
         ref={mobileContainerRef}
-        className={`relative flex h-[100dvh] w-full flex-col md:hidden overscroll-none ${
+        className={`clip-player-lock-scale relative flex h-[100svh] max-h-[100svh] w-full flex-col overflow-hidden md:hidden overscroll-none ${
           mobileSwipeEnabled || ticketSwipeEnabled ? 'touch-none' : ''
         }`}
       >

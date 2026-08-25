@@ -9,6 +9,16 @@ html {
   overflow-x: hidden;
   width: 100%;
   max-width: 100vw;
+  touch-action: manipulation;
+}
+
+.clip-player-lock-scale {
+  touch-action: manipulation;
+}
+.clip-player-lock-scale input,
+.clip-player-lock-scale textarea,
+.clip-player-lock-scale select {
+  font-size: 16px !important;
 }
 
 body {

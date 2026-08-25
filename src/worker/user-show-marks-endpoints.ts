@@ -25,6 +25,7 @@ import {
 } from './jambase-client';
 import { jamBaseEventImageUrl } from '../shared/jambase-events';
 import { fetchJamBaseEventById, fetchJamBaseEventsByArtistName } from './jambase-endpoints';
+import { isArchivalShowId } from '../shared/archival-show';
 
 /** Going marks that are tonight or later (SQLite date compare on YYYY-MM-DD prefix). */
 export const UPCOMING_SHOW_MARK_SQL = `(
@@ -343,13 +344,15 @@ export async function upsertMyShowMark(c: Context) {
 
   const upcoming = isUpcomingJamBaseEvent(showMarkToJamBaseEvent(tempMarkFromInput(input)));
   const markEvent = showMarkToJamBaseEvent(tempMarkFromInput(input));
-  if (input.status === 'going' && !goingMarkAllowed(input)) {
+  const archival = isArchivalShowId(input.jambase_event_id);
+  if (!archival && input.status === 'going' && !goingMarkAllowed(input)) {
     return c.json(
       { error: 'Going is only for upcoming shows. Mark past shows as Went instead.' },
       400,
     );
   }
   if (
+    !archival &&
     input.status === 'attended' &&
     upcoming &&
     !jamBaseEventHasStarted(markEvent)

@@ -6,7 +6,7 @@ import ConcertFeed from '@/react-app/components/ConcertFeed';
 import Header from '@/react-app/components/Header';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
-import { useFollow } from '@/react-app/hooks/useFollow';
+import { FOLLOWING_CHANGED_EVENT, useFollow } from '@/react-app/hooks/useFollow';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { venueUpcomingCarouselProps, type VenueUpcomingRow } from '@/react-app/lib/venue-upcoming-events';
 import { apiVenuePath, venuePath } from '@/shared/app-paths';
@@ -66,6 +66,13 @@ export default function VenueHubPage() {
   useEffect(() => {
     if (!isPending) void loadVenues();
   }, [isPending, loadVenues]);
+
+  useEffect(() => {
+    if (!user) return;
+    const refresh = () => void loadVenues();
+    window.addEventListener(FOLLOWING_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(FOLLOWING_CHANGED_EVENT, refresh);
+  }, [user, loadVenues]);
 
   useEffect(() => {
     if (!selected) {

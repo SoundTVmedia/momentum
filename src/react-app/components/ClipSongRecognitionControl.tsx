@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import { Check, Disc3, Loader2, Pencil, X } from 'lucide-react';
 import type { AcrClipFieldSnapshot } from '@/react-app/lib/acrClipFieldPatch';
 import {
@@ -43,11 +43,42 @@ export default function ClipSongRecognitionControl({
   const [manualTitle, setManualTitle] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
+  const [keyboardLift, setKeyboardLift] = useState(0);
   const runningRef = useRef(false);
 
   const stopGesture = (e: SyntheticEvent) => {
     e.stopPropagation();
   };
+
+  // iOS WKWebView zooms the visual viewport when a text field focuses. Keep the clip
+  // player at scale 1 so typing a song title does not enlarge the video.
+  useEffect(() => {
+    if (!manualOpen) return;
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const previous = viewport?.getAttribute('content') ?? '';
+    viewport?.setAttribute(
+      'content',
+      'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover',
+    );
+    const resetScale = () => {
+      const vv = window.visualViewport;
+      if (vv) {
+        setKeyboardLift(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+      } else {
+        setKeyboardLift(0);
+      }
+      window.scrollTo(0, 0);
+    };
+    resetScale();
+    window.visualViewport?.addEventListener('resize', resetScale);
+    window.visualViewport?.addEventListener('scroll', resetScale);
+    return () => {
+      if (viewport) viewport.setAttribute('content', previous);
+      setKeyboardLift(0);
+      window.visualViewport?.removeEventListener('resize', resetScale);
+      window.visualViewport?.removeEventListener('scroll', resetScale);
+    };
+  }, [manualOpen]);
 
   const handleRun = async (e?: SyntheticEvent) => {
     e?.preventDefault();
@@ -159,7 +190,10 @@ export default function ClipSongRecognitionControl({
       </div>
 
       {allowManualEntry && manualOpen ? (
-        <div className="mt-2 flex items-center gap-2">
+        <div
+          className="mt-2 flex items-center gap-2"
+          style={keyboardLift > 0 ? { transform: `translateY(-${keyboardLift}px)` } : undefined}
+        >
           <input
             type="text"
             value={manualTitle}
@@ -176,7 +210,11 @@ export default function ClipSongRecognitionControl({
               if (e.key === 'Enter') void handleManualSave(e);
               if (e.key === 'Escape') setManualOpen(false);
             }}
-            className="min-w-0 flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-momentum-ember/60 focus:outline-none"
+            className="min-w-0 flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-base text-white placeholder:text-white/40 focus:border-momentum-ember/60 focus:outline-none"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            style={{ fontSize: 16 }}
           />
           <button
             type="button"

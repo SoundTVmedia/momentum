@@ -487,6 +487,19 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
       return normalizeIdentifyResult(err);
     }
     if (!data.match || (!data.match.artist && !data.match.title)) {
+      console.log(
+        '[identify] acr/audd nomatch',
+        'http=',
+        res.status,
+        'provider=',
+        data.provider ?? 'unknown',
+        'acrCode=',
+        data.acrcloudCode ?? 'none',
+        'skippedReason=',
+        data.skippedReason ?? '',
+        'bytes=',
+        uploadBlob.size,
+      );
       if (data.skippedReason === 'fragment_too_short') {
         return {
           status: 'skipped',

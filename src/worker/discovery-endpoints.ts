@@ -45,6 +45,7 @@ import {
   searchFeedbackUsersByText,
   searchFeedbackUsersInGeo,
 } from './search-users';
+import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 
 function rewriteEventListForClient(
   events: unknown[],
@@ -289,8 +290,15 @@ async function runGeoScopedAdvancedSearch(
   });
 
   const mediaOrigin = clientMediaOrigin(c);
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  if (hiddenAuthors.size > 0) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+  }
   return c.json({
-    clips: clips.results || [],
+    clips: withoutBlockedAuthors(
+      (clips.results || []) as Record<string, unknown>[],
+      hiddenAuthors,
+    ),
     artists: enrichedArtists.map((row) => ({
       ...row,
       image_url: rewriteMediaUrlForClient(row.image_url, mediaOrigin),
@@ -299,7 +307,10 @@ async function runGeoScopedAdvancedSearch(
       ...row,
       image_url: rewriteMediaUrlForClient(row.image_url, mediaOrigin),
     })),
-    users,
+    users: withoutBlockedAuthors(
+      users as unknown as Record<string, unknown>[],
+      hiddenAuthors,
+    ),
     jambase: {
       artists: [],
       venues: [],
@@ -545,6 +556,10 @@ export async function advancedSearch(c: Context) {
   });
 
   const mediaOrigin = clientMediaOrigin(c);
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  if (hiddenAuthors.size > 0) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+  }
   const rewriteArtistRows = (rows: TrendingArtistRow[]) =>
     rows.map((row) => ({
       ...row,
@@ -566,10 +581,16 @@ export async function advancedSearch(c: Context) {
     });
 
   return c.json({
-    clips: clips.results || [],
+    clips: withoutBlockedAuthors(
+      (clips.results || []) as Record<string, unknown>[],
+      hiddenAuthors,
+    ),
     artists: rewriteArtistRows(searchArtists),
     venues: rewriteVenueRows(enrichedVenues),
-    users,
+    users: withoutBlockedAuthors(
+      users as unknown as Record<string, unknown>[],
+      hiddenAuthors,
+    ),
     jambase: {
       artists: rewriteJamBaseEntities(jambase.artists),
       venues: rewriteJamBaseEntities(jambase.venues),
@@ -629,8 +650,16 @@ export async function getTrendingContent(c: Context) {
 
   cacheJsonProxy(c, { browserMaxAge: 120, cdnMaxAge: 600, staleWhileRevalidate: 900 });
 
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  if (hiddenAuthors.size > 0) {
+    c.header('Cache-Control', 'private, no-store, must-revalidate');
+  }
+
   return c.json({
-    clips: trendingClips.results || [],
+    clips: withoutBlockedAuthors(
+      (trendingClips.results || []) as Record<string, unknown>[],
+      hiddenAuthors,
+    ),
     artists: trendingArtists.results || [],
     venues: trendingVenues.results || [],
   });
@@ -828,13 +857,28 @@ export async function getDiscoverFeed(c: Context) {
     mediaOrigin,
   );
 
+  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
+  const visibleClips = withoutBlockedAuthors(
+    (trendingClips.results || []) as Record<string, unknown>[],
+    hiddenAuthors,
+  );
+  const forYouFiltered = forYou
+    ? {
+        ...forYou,
+        clips: withoutBlockedAuthors(
+          forYou.clips as unknown as Record<string, unknown>[],
+          hiddenAuthors,
+        ),
+      }
+    : forYou;
+
   return c.json({
-    clips: trendingClips.results || [],
+    clips: visibleClips,
     artists: artistsForClient,
     nearbyEvents: nearbyForClient,
     location,
     jambaseNotice,
-    forYou,
+    forYou: forYouFiltered,
   });
 }
 

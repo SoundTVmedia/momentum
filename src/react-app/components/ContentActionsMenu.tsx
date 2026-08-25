@@ -137,7 +137,7 @@ export default function ContentActionsMenu({
               ) : (
                 <Ban className="h-4 w-4" />
               )}
-              <span>{blocked ? 'Blocked' : `Block ${authorName || 'this account'}`}</span>
+              <span>{blocked ? 'Blocked' : 'Block user'}</span>
             </button>
           ) : null}
         </div>
