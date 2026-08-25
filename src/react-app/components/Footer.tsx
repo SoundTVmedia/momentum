@@ -1,4 +1,4 @@
-import { Music, Instagram, Twitter, Youtube, Download, Smartphone } from 'lucide-react'
+import { Music, Instagram, Twitter, Youtube } from 'lucide-react'
 import { Link } from 'react-router'
 import { SHOW_FEEDBACK_LIVE_SCHEDULE } from '@/shared/feature-flags'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
@@ -31,7 +31,7 @@ export default function Footer() {
     <footer className="glass-chrome border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
@@ -60,11 +60,9 @@ export default function Footer() {
           <div className="space-y-4">
             <h3 className="font-bold text-white">Platform</h3>
             <div className="space-y-2">
-              <FooterResourceLink to="/live">Live Feed</FooterResourceLink>
               <FooterResourceLink to="/browse/clips/latest">Concert Feed</FooterResourceLink>
               <FooterResourceLink to="/artist-hub">Artist Hub</FooterResourceLink>
               <FooterResourceLink to="/venue-hub">Venue Hub</FooterResourceLink>
-              <FooterResourceLink to="/archival-hub">Archival Hub</FooterResourceLink>
             </div>
           </div>
 
@@ -77,24 +75,6 @@ export default function Footer() {
               <FooterResourceLink to="/privacy">Privacy Policy</FooterResourceLink>
               <FooterResourceLink to="/terms">Terms of Service</FooterResourceLink>
               <FooterResourceLink to="/support">Support</FooterResourceLink>
-            </div>
-          </div>
-
-          {/* Mobile App */}
-          <div className="space-y-4">
-            <h3 className="font-bold text-white">Get the App</h3>
-            <p className="text-gray-400 text-sm">
-              Download FEEDBACK to capture and share concert moments
-            </p>
-            <div className="space-y-2">
-              <button className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors">
-                <Download className="w-4 h-4" />
-                <span>App Store</span>
-              </button>
-              <button className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors">
-                <Smartphone className="w-4 h-4" />
-                <span>Google Play</span>
-              </button>
             </div>
           </div>
         </div>
@@ -143,7 +123,7 @@ export default function Footer() {
         <div className="border-t border-momentum-rose/20 pt-8 text-center">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-gray-400 text-sm">
-              © 2024 FEEDBACK. All rights reserved.
+              © 2026 SoundTV Media Inc.
             </div>
             <div className="text-gray-400 text-sm">
               Built for the live music community 🎵
