@@ -163,6 +163,64 @@ export async function getMyFollowingList(c: Context) {
       }
     }
 
+    // Homepage / unified favorites also write venues to user_favorites — include those.
+    try {
+      const favoriteVenues = await c.env.DB.prepare(
+        `SELECT entity_key, display_name, metadata_json
+         FROM user_favorites
+         WHERE mocha_user_id = ? AND favorite_type = 'venue'
+         ORDER BY created_at DESC`,
+      )
+        .bind(uid)
+        .all();
+      const seenVenueKeys = new Set(
+        venues.map((v) => {
+          const id = Number(v.venue_id);
+          return Number.isFinite(id) && id > 0
+            ? `id:${id}`
+            : `name:${String(v.name ?? '').trim().toLowerCase()}`;
+        }),
+      );
+      for (const row of favoriteVenues.results || []) {
+        let venueId = Number((row as { entity_key?: unknown }).entity_key);
+        let location: string | null = null;
+        const metaRaw = (row as { metadata_json?: unknown }).metadata_json;
+        if (typeof metaRaw === 'string' && metaRaw.trim()) {
+          try {
+            const meta = JSON.parse(metaRaw) as { venue_id?: number; location?: string };
+            if (Number.isFinite(meta.venue_id) && (meta.venue_id ?? 0) > 0) {
+              venueId = Math.trunc(meta.venue_id!);
+            }
+            if (typeof meta.location === 'string') location = meta.location;
+          } catch {
+            /* ignore */
+          }
+        }
+        const name =
+          typeof (row as { display_name?: unknown }).display_name === 'string'
+            ? String((row as { display_name: string }).display_name).trim()
+            : '';
+        if (!name) continue;
+        const key =
+          Number.isFinite(venueId) && venueId > 0
+            ? `id:${Math.trunc(venueId)}`
+            : `name:${name.toLowerCase()}`;
+        if (seenVenueKeys.has(key)) continue;
+        seenVenueKeys.add(key);
+        venues.push({
+          venue_id: Number.isFinite(venueId) && venueId > 0 ? Math.trunc(venueId) : 0,
+          name,
+          location,
+          image_url: null,
+        });
+      }
+    } catch (favErr) {
+      const message = favErr instanceof Error ? favErr.message : String(favErr);
+      if (!/no such table: user_favorites/i.test(message)) {
+        console.error('getMyFollowingList user_favorites venues:', favErr);
+      }
+    }
+
     const artistRows = await c.env.DB.prepare(
       `SELECT artists.id AS artist_id, artists.name, artists.image_url
        FROM user_favorite_artists

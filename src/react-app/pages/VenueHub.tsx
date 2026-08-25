@@ -4,11 +4,10 @@ import { Link } from 'react-router';
 import { Loader2, MapPin, UserMinus } from 'lucide-react';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import Header from '@/react-app/components/Header';
-import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
+import PastShowsSection from '@/react-app/components/PastShowsSection';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { FOLLOWING_CHANGED_EVENT, useFollow } from '@/react-app/hooks/useFollow';
 import { apiFetch } from '@/react-app/lib/apiFetch';
-import { venueUpcomingCarouselProps, type VenueUpcomingRow } from '@/react-app/lib/venue-upcoming-events';
 import { apiVenuePath, venuePath } from '@/shared/app-paths';
 
 type FollowedVenue = {
@@ -18,24 +17,12 @@ type FollowedVenue = {
   image_url: string | null;
 };
 
-type VenueDetails = {
-  venue: FollowedVenue & {
-    id: number;
-    address?: string | null;
-    capacity?: number | null;
-  };
-  upcomingEvents: VenueUpcomingRow[];
-  upcomingJamBaseEvents?: Record<string, unknown>[] | null;
-};
-
 export default function VenueHubPage() {
   const { user, isPending } = useAuth();
   const { toggleFollowVenue, isVenueFollowLoading } = useFollow();
   const [venues, setVenues] = useState<FollowedVenue[]>([]);
   const [selected, setSelected] = useState<FollowedVenue | null>(null);
-  const [details, setDetails] = useState<VenueDetails | null>(null);
   const [loading, setLoading] = useState(true);
-  const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadVenues = useCallback(async () => {
@@ -48,10 +35,10 @@ export default function VenueHubPage() {
       const response = await apiFetch('/api/users/me/following/list', { cache: 'no-store' });
       if (!response.ok) throw new Error('Could not load followed venues');
       const data = (await response.json()) as { venues?: FollowedVenue[] };
-      const next = data.venues ?? [];
+      const next = (data.venues ?? []).filter((venue) => venue.name?.trim());
       setVenues(next);
       setSelected((current) =>
-        current && next.some((venue) => venue.venue_id === current.venue_id)
+        current && next.some((venue) => venue.venue_id === current.venue_id || venue.name === current.name)
           ? current
           : next[0] ?? null,
       );
@@ -71,32 +58,12 @@ export default function VenueHubPage() {
     if (!user) return;
     const refresh = () => void loadVenues();
     window.addEventListener(FOLLOWING_CHANGED_EVENT, refresh);
-    return () => window.removeEventListener(FOLLOWING_CHANGED_EVENT, refresh);
-  }, [user, loadVenues]);
-
-  useEffect(() => {
-    if (!selected) {
-      setDetails(null);
-      return;
-    }
-    let cancelled = false;
-    setDetailsLoading(true);
-    void apiFetch(apiVenuePath(selected.name), { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Could not load venue details');
-        const data = (await response.json()) as VenueDetails;
-        if (!cancelled) setDetails(data);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load venue');
-      })
-      .finally(() => {
-        if (!cancelled) setDetailsLoading(false);
-      });
+    window.addEventListener('favorite-artists-changed', refresh);
     return () => {
-      cancelled = true;
+      window.removeEventListener(FOLLOWING_CHANGED_EVENT, refresh);
+      window.removeEventListener('favorite-artists-changed', refresh);
     };
-  }, [selected]);
+  }, [user, loadVenues]);
 
   const unfollowSelected = async () => {
     if (!selected) return;
@@ -111,7 +78,7 @@ export default function VenueHubPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <SectionHeading
             title="Venue Hub"
-            subtitle="Shows and clips from the venues you follow."
+            subtitle="Your saved favorite venues — latest clips and past shows."
             icon={MapPin}
             size="page"
           />
@@ -140,6 +107,9 @@ export default function VenueHubPage() {
         ) : venues.length === 0 ? (
           <div className="glass-highlight rounded-2xl p-8 text-center">
             <p className="text-gray-300">You are not following any venues yet.</p>
+            <p className="mt-2 text-sm text-gray-400">
+              Follow venues from the homepage, then they will show up here.
+            </p>
             <Link to="/discover" className="mt-4 inline-block text-momentum-flare hover:text-white">
               Discover venues and shows
             </Link>
@@ -149,11 +119,11 @@ export default function VenueHubPage() {
             <div className="mb-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {venues.map((venue) => (
                 <button
-                  key={venue.venue_id}
+                  key={`${venue.venue_id}-${venue.name}`}
                   type="button"
                   onClick={() => setSelected(venue)}
                   className={`glass-panel flex items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
-                    selected?.venue_id === venue.venue_id
+                    selected?.name === venue.name
                       ? 'border-momentum-flare/70 bg-momentum-flare/10'
                       : 'border-white/10 hover:border-white/30'
                   }`}
@@ -187,42 +157,20 @@ export default function VenueHubPage() {
                       Open venue page
                     </Link>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void unfollowSelected()}
-                    disabled={isVenueFollowLoading(selected.venue_id)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-60"
-                  >
-                    {isVenueFollowLoading(selected.venue_id) ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserMinus className="h-4 w-4" />
-                    )}
-                    Unfollow
-                  </button>
-                </div>
-
-                <div>
-                  <SectionHeading
-                    title="Upcoming shows"
-                    subtitle={`Upcoming dates at ${selected.name}`}
-                    size="section"
-                  />
-                  {detailsLoading ? (
-                    <div className="flex justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-momentum-flare" />
-                    </div>
-                  ) : details ? (
-                    <JamBaseEventGrid
-                      {...venueUpcomingCarouselProps(
-                        details.venue,
-                        details.upcomingEvents ?? [],
-                        details.upcomingJamBaseEvents,
-                        24,
+                  {selected.venue_id > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void unfollowSelected()}
+                      disabled={isVenueFollowLoading(selected.venue_id)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-60"
+                    >
+                      {isVenueFollowLoading(selected.venue_id) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserMinus className="h-4 w-4" />
                       )}
-                      layout="carousel"
-                      carouselAriaLabel={`Shows at ${selected.name}`}
-                    />
+                      Unfollow
+                    </button>
                   ) : null}
                 </div>
 
@@ -234,6 +182,12 @@ export default function VenueHubPage() {
                   />
                   <ConcertFeed venueName={selected.name} hideSectionHeader />
                 </div>
+
+                <PastShowsSection
+                  fetchUrl={`${apiVenuePath(selected.name)}/archive`}
+                  variant="venue"
+                  showSort
+                />
               </section>
             ) : null}
           </>

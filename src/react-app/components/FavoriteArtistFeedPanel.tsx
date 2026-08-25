@@ -48,6 +48,8 @@ export default function FavoriteArtistFeedPanel({
   edgeBleedScope = 'page',
 }: FavoriteArtistFeedPanelProps) {
   const { user, isPending } = useAuth();
+  const welcomeEmail =
+    (typeof user?.email === 'string' && user.email.trim()) || 'there';
   const sectionRef = useRef<HTMLElement>(null);
   const carouselScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
@@ -70,9 +72,10 @@ export default function FavoriteArtistFeedPanel({
   const loadHubLists = useCallback(async () => {
     if (!user) return;
     try {
-      const [venuesRes, songsRes] = await Promise.all([
+      const [venuesRes, songsRes, artistsRes] = await Promise.all([
         apiFetch('/api/users/me/following/list', { cache: 'no-store' }),
         apiFetch('/api/users/me/favorites?type=song', { cache: 'no-store' }),
+        apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' }),
       ]);
       if (venuesRes.ok) {
         const data = (await venuesRes.json()) as { venues?: { venue_id: number; name: string }[] };
@@ -96,6 +99,14 @@ export default function FavoriteArtistFeedPanel({
         setSelectedSongSlug((current) =>
           current && next.some((s) => s.slug === current) ? current : next[0]?.slug ?? '',
         );
+      }
+      // Favorite artists feed already hydrates clips; this keeps hasFavoriteArtists true
+      // when the user only has profile JSON favorites and no clips yet.
+      if (artistsRes.ok) {
+        const data = (await artistsRes.json()) as { artists?: { name?: string }[] };
+        if ((data.artists ?? []).some((a) => a.name?.trim())) {
+          setHasFavoriteArtists(true);
+        }
       }
     } catch {
       /* keep current lists */
@@ -257,44 +268,47 @@ export default function FavoriteArtistFeedPanel({
             : 'mb-8 rounded-2xl border border-momentum-rose/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-col items-start gap-2 text-left">
+          {variant === 'feed' ? (
+            <>
+              <h2 className="text-xl sm:text-2xl font-headline font-bold text-white">
+                Welcome, {welcomeEmail}
+              </h2>
+              <p className="text-sm text-gray-400">
+                Clips and shows from artists, venues, and songs you follow.
+              </p>
+              <button
+                type="button"
+                onClick={toggleAddArtists}
+                className="mt-1 inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 hover:border-white transition-colors"
+                title={showAddArtists ? 'Close follow' : 'Follow artists, venues, or shows'}
+                aria-expanded={showAddArtists}
+                aria-label={
+                  showAddArtists
+                    ? 'Close follow'
+                    : 'Follow artists, venues, or archival shows'
+                }
+              >
+                {showAddArtists ? (
+                  <>
+                    <span>Close</span>
+                    <X className="w-4 h-4 shrink-0" aria-hidden />
+                  </>
+                ) : (
+                  <>
+                    <span>Follow</span>
+                    <Plus className="w-4 h-4 shrink-0" aria-hidden />
+                  </>
+                )}
+              </button>
+            </>
+          ) : (
             <SectionHeading
               title="Your Favorites"
               subtitle="Clips and shows from artists, venues, and songs you follow."
               className="mb-0"
             />
-          </div>
-          {variant === 'feed' ? (
-            <button
-              type="button"
-              onClick={toggleAddArtists}
-              className="shrink-0 inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-3 py-2 text-white hover:bg-white/15 hover:border-white transition-colors"
-              title={showAddArtists ? 'Close add favorites' : 'Add favorites'}
-              aria-expanded={showAddArtists}
-              aria-label={
-                showAddArtists
-                  ? 'Close add favorites'
-                  : 'Click to add your favorite artists, venues, or archival shows'
-              }
-            >
-              {showAddArtists ? (
-                <>
-                  <span className="text-xs sm:text-sm font-medium text-white">
-                    Close
-                  </span>
-                  <X className="w-5 h-5 shrink-0 text-white" aria-hidden />
-                </>
-              ) : (
-                <>
-                  <span className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">
-                    Click to add your favorite artists, venues, or archival shows.
-                  </span>
-                  <Plus className="w-5 h-5 shrink-0 text-white" aria-hidden />
-                </>
-              )}
-            </button>
-          ) : null}
+          )}
         </div>
 
         {variant === 'feed' && showAddArtists ? (

@@ -5,8 +5,10 @@ import { Loader2, Music, Save } from 'lucide-react';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 import Header from '@/react-app/components/Header';
+import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
+import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { artistPath } from '@/shared/app-paths';
 
 type FavoriteArtist = {
@@ -98,7 +100,7 @@ export default function ArtistHubPage() {
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <SectionHeading
           title="Artist Hub"
-          subtitle="Manage your favorite artists and jump straight into their latest clips."
+          subtitle="Your saved favorite artists — clips and upcoming shows in one place."
           icon={Music}
           size="page"
         />
@@ -125,7 +127,7 @@ export default function ArtistHubPage() {
                 setFavoriteArtists={setFavoriteNames}
                 labelExtra={
                   <span className="ml-2 text-xs font-normal text-gray-500">
-                    Add or remove artists, then save.
+                    Favorites from the homepage appear here. Add or remove, then save.
                   </span>
                 }
               />
@@ -161,11 +163,11 @@ export default function ArtistHubPage() {
                 </div>
 
                 {selectedName ? (
-                  <section>
-                    <div className="mb-2 flex items-center justify-between gap-4">
+                  <section className="space-y-12">
+                    <div className="flex items-center justify-between gap-4">
                       <SectionHeading
                         title={selectedName}
-                        subtitle={`Latest clips featuring ${selectedName}`}
+                        subtitle={`Clips and tour dates for ${selectedName}`}
                         size="section"
                       />
                       <Link
@@ -175,13 +177,36 @@ export default function ArtistHubPage() {
                         Artist page
                       </Link>
                     </div>
-                    <ConcertFeed artistName={selectedName} hideSectionHeader />
+
+                    <div>
+                      <SectionHeading
+                        title="Latest clips"
+                        subtitle={`Fan-captured moments featuring ${selectedName}`}
+                        size="section"
+                      />
+                      <ConcertFeed artistName={selectedName} hideSectionHeader />
+                    </div>
+
+                    <div>
+                      <SectionHeading
+                        title="Upcoming shows"
+                        subtitle={`Tour dates for ${selectedName}`}
+                        size="section"
+                      />
+                      <JamBaseEventGrid
+                        artistName={selectedName}
+                        maxEvents={24}
+                        layout="carousel"
+                        carouselAriaLabel={`Upcoming shows for ${selectedName}`}
+                        carouselClassName={PAGE_CAROUSEL_BLEED}
+                      />
+                    </div>
                   </section>
                 ) : null}
               </>
             ) : (
               <div className="glass-highlight rounded-2xl p-8 text-center text-gray-300">
-                Add an artist above to start your hub.
+                Follow artists from the homepage or add one above to start your hub.
               </div>
             )}
           </>
