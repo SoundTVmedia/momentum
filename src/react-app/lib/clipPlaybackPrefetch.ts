@@ -2,6 +2,7 @@ import {
   resolveFeedPreviewVideoSrc,
   resolveHlsPrefetchUrls,
   resolveModalPlaybackSource,
+  resolveModalPrefetchPlan,
   STREAM_DELIVERY_ORIGIN,
   type ClipPlaybackFields,
 } from '@/shared/clip-playback';
@@ -103,33 +104,21 @@ export function prefetchCarouselNeighborClips(
 
 /**
  * Warm network cache for modal playback.
- * MP4-first: only prefetch the progressive source that will play; defer HLS to idle
- * so it does not compete with first-frame bytes. Keeps unmuted autoplay path fast.
+ * MP4-first: only prefetch the progressive source that will play. Do not warm
+ * HLS while an MP4 will start — that steals first-frame bytes and radio.
  */
 export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
   const key = modalPrefetchKey(clip);
   if (!key || prefetchedModalKeys.has(key)) return;
   prefetchedModalKeys.add(key);
 
-  const modal = resolveModalPlaybackSource(clip);
-
-  if (!modal.isHls && modal.src) {
-    prefetchMp4Head(modal.src);
-    if (modal.hlsFallbackSrc) {
-      const hlsUrl = modal.hlsFallbackSrc;
-      const schedule =
-        typeof requestIdleCallback === 'function'
-          ? (cb: () => void) => requestIdleCallback(() => cb(), { timeout: 4_000 })
-          : (cb: () => void) => window.setTimeout(cb, 2_500);
-      schedule(() => {
-        void prefetchHlsStartup(hlsUrl);
-      });
-    }
+  const plan = resolveModalPrefetchPlan(clip);
+  if (plan.progressiveUrl) {
+    prefetchMp4Head(plan.progressiveUrl);
     return;
   }
-
-  if (modal.src) {
-    void prefetchHlsStartup(modal.src);
+  if (plan.hlsUrl) {
+    void prefetchHlsStartup(plan.hlsUrl);
   }
 }
 

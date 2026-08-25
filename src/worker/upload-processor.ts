@@ -3,6 +3,7 @@ import { clipPublishedNotificationContent } from '../shared/notification-copy';
 import { createStreamService, describeStreamConfig, isStreamConfigured } from './stream-service';
 import { notifyUser } from './notification-utils';
 import { createRealtimeService } from './realtime-service';
+import { kickStreamMp4Finalize } from './stream-downloads';
 import * as gamification from './gamification-endpoints';
 import { enrichDraftClipRowIfNeeded } from './clips-enrich-upload-show';
 
@@ -237,6 +238,17 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
       )
       .run();
     console.log(`upload-processor clip ${clipId}: ingested to Stream ${videoDetails.uid}`);
+
+    try {
+      await kickStreamMp4Finalize(env, {
+        id: clipId,
+        stream_video_id: videoDetails.uid,
+        stream_mp4_status: 'pending',
+        stream_playback_url: videoDetails.playbackUrl,
+      });
+    } catch (err) {
+      console.error(`upload-processor clip ${clipId}: MP4 kick failed:`, err);
+    }
 
     try {
       const realtime = createRealtimeService(env);

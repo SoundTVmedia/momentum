@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideStreamMp4Step } from './stream-downloads';
+import { decideStreamMp4Step, STREAM_MP4_ERROR_RETRY_MINUTES } from './stream-downloads';
 import { parseStreamDownloadState } from './stream-service';
 
 describe('decideStreamMp4Step', () => {
@@ -39,6 +39,10 @@ describe('decideStreamMp4Step', () => {
       download: { status: 'error', url: 'https://x/default.mp4', percentComplete: 0 },
     });
     expect(step.action).toBe('error');
+  });
+
+  it('spaces failed MP4 generation retries so cron does not hot-loop', () => {
+    expect(STREAM_MP4_ERROR_RETRY_MINUTES).toBe(10);
   });
 });
 

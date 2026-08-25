@@ -87,6 +87,23 @@ export type ModalPlaybackSource = {
 };
 
 /**
+ * What to warm on the network before the user opens a clip.
+ * When the confirmed Stream MP4 will play, skip HLS entirely so manifest/segment
+ * fetches do not steal first-frame bandwidth or keep the radio awake.
+ */
+export type ModalPrefetchPlan = {
+  progressiveUrl: string | null;
+  hlsUrl: string | null;
+};
+
+export function resolveModalPrefetchPlan(clip: ClipPlaybackFields): ModalPrefetchPlan {
+  const modal = resolveModalPlaybackSource(clip);
+  if (!modal.src) return { progressiveUrl: null, hlsUrl: null };
+  if (modal.isHls) return { progressiveUrl: null, hlsUrl: modal.src };
+  return { progressiveUrl: modal.src, hlsUrl: null };
+}
+
+/**
  * Full-quality modal playback: Stream MP4 first for fast start on short clips,
  * HLS adaptive as fallback; direct URL for R2-only clips.
  */

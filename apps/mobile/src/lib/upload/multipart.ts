@@ -1,5 +1,6 @@
 import { UPLOAD_PART_SIZE_BYTES } from '@shared/upload';
-import { apiFetch, apiJson } from '@/src/lib/api/client';
+import { apiAuthHeaders, apiFetch, apiJson, resolveUrl } from '@/src/lib/api/client';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const PART_RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 15_000, 30_000, 45_000];
 const MAX_UPLOAD_ATTEMPTS = PART_RETRY_DELAYS_MS.length + 1;
@@ -178,6 +179,57 @@ async function uploadPart(
   });
 }
 
+/**
+ * PUT a local file slice via iOS/Android background URLSession so the transfer
+ * can continue after lock. Returns false when native upload is unavailable.
+ */
+async function tryBackgroundPartUpload(options: {
+  sessionId: string;
+  partNumber: number;
+  fileUri: string;
+  start: number;
+  length: number;
+}): Promise<boolean> {
+  const cache = FileSystem.cacheDirectory;
+  const sessionType = FileSystem.FileSystemSessionType?.BACKGROUND;
+  if (!cache || sessionType == null || typeof FileSystem.uploadAsync !== 'function') {
+    return false;
+  }
+
+  const { sessionId, partNumber, fileUri, start, length } = options;
+  const dir = `${cache}upload-parts/`;
+  const partPath = `${dir}${sessionId}-${partNumber}.bin`;
+  try {
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    const b64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+      position: start,
+      length,
+    });
+    await FileSystem.writeAsStringAsync(partPath, b64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    const path = `/api/uploads/${sessionId}/parts/${partNumber}`;
+    const url = resolveUrl(path);
+    const headers = await apiAuthHeaders(url);
+    const result = await FileSystem.uploadAsync(url, partPath, {
+      httpMethod: 'PUT',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      sessionType,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/octet-stream',
+      },
+    });
+    if (result.status >= 400) {
+      throw new Error(`Part ${partNumber} upload failed: ${result.status}`);
+    }
+    return true;
+  } finally {
+    await FileSystem.deleteAsync(partPath, { idempotent: true }).catch(() => undefined);
+  }
+}
+
 export async function completeUploadSession(
   sessionId: string,
   idempotencyKey: string,
@@ -230,21 +282,37 @@ export async function uploadVideoFileMultipart(options: {
   const { sessionId, fileUri, fileSize, onProgress } = options;
   const partSize = UPLOAD_PART_SIZE_BYTES;
   const totalParts = Math.max(1, Math.ceil(fileSize / partSize));
-
-  // Read once — concert clips are ≤60s so this stays bounded.
-  const response = await fetch(fileUri);
-  if (!response.ok) {
-    throw new Error('Could not read the recorded video file for upload.');
-  }
-  const blob = await response.blob();
   let uploaded = 0;
+  let fallbackBlob: Blob | null = null;
 
   for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
     const start = (partNumber - 1) * partSize;
-    const end = Math.min(start + partSize, fileSize);
-    const chunk = blob.slice(start, end);
-    await uploadPart(sessionId, partNumber, chunk);
-    uploaded += chunk.size;
+    const length = Math.min(partSize, fileSize - start);
+    await withBackoff(async () => {
+      try {
+        const usedBackground = await tryBackgroundPartUpload({
+          sessionId,
+          partNumber,
+          fileUri,
+          start,
+          length,
+        });
+        if (usedBackground) return;
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith(`Part ${partNumber}`)) throw err;
+        console.warn('background part upload failed, falling back to fetch', err);
+      }
+
+      if (!fallbackBlob) {
+        const response = await fetch(fileUri);
+        if (!response.ok) {
+          throw new Error('Could not read the recorded video file for upload.');
+        }
+        fallbackBlob = await response.blob();
+      }
+      await uploadPart(sessionId, partNumber, fallbackBlob.slice(start, start + length));
+    });
+    uploaded += length;
     onProgress?.(Math.round((uploaded / Math.max(fileSize, 1)) * 100));
   }
 }

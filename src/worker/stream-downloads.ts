@@ -14,7 +14,12 @@ import {
   type StreamDownloadState,
 } from './stream-service';
 
-const FINALIZE_BATCH_SIZE = 5;
+const FINALIZE_BATCH_SIZE = 15;
+/** Error rows are retried after this delay so a bad generate does not hot-loop the cron. */
+export const STREAM_MP4_ERROR_RETRY_MINUTES = 10;
+/** After ingest, poll Stream this many times so the MP4 is requested without waiting for cron. */
+const MP4_KICK_POLLS = 5;
+const MP4_KICK_DELAY_MS = 2_000;
 
 export type StreamDownloadRow = {
   id: number;
@@ -71,7 +76,9 @@ async function finalizeOne(env: Env, row: StreamDownloadRow): Promise<void> {
   }
 
   const existing =
-    row.stream_mp4_status === 'pending' ? null : await service.getDownloads(videoId);
+    row.stream_mp4_status === 'pending' || row.stream_mp4_status === 'error'
+      ? null
+      : await service.getDownloads(videoId);
   const step = decideStreamMp4Step({ readyToStream: details.readyToStream, download: existing });
 
   if (step.action === 'wait') {
@@ -98,6 +105,34 @@ async function finalizeOne(env: Env, row: StreamDownloadRow): Promise<void> {
   }
 
   await promote(env, row.id, step.url);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Ask Cloudflare for the progressive MP4 as soon as the copy is ready to stream,
+ * instead of waiting up to a minute for the cron. Safe to call from waitUntil.
+ */
+export async function kickStreamMp4Finalize(env: Env, row: StreamDownloadRow): Promise<void> {
+  if (!isStreamConfigured(env)) return;
+  const videoId = row.stream_video_id?.trim();
+  if (!videoId) return;
+
+  const service = createStreamService(env);
+  for (let i = 0; i < MP4_KICK_POLLS; i++) {
+    const details = await service.getVideoDetails(videoId);
+    if (!details) return;
+    if (details.readyToStream) {
+      await finalizeOne(env, {
+        ...row,
+        stream_mp4_status: row.stream_mp4_status ?? 'pending',
+      });
+      return;
+    }
+    if (i < MP4_KICK_POLLS - 1) await sleep(MP4_KICK_DELAY_MS);
+  }
 }
 
 /** MP4 confirmed live: it can now back playback, download and song identify. */
@@ -135,7 +170,14 @@ export async function finalizeStreamDownloads(env: Env): Promise<void> {
       `SELECT id, stream_video_id, stream_mp4_status, stream_playback_url
        FROM clips
        WHERE stream_video_id IS NOT NULL AND trim(stream_video_id) != ''
-         AND (stream_mp4_status IS NULL OR stream_mp4_status IN ('pending', 'inprogress'))
+         AND (
+           stream_mp4_status IS NULL
+           OR stream_mp4_status IN ('pending', 'inprogress')
+           OR (
+             stream_mp4_status = 'error'
+             AND updated_at <= datetime('now', '-${STREAM_MP4_ERROR_RETRY_MINUTES} minutes')
+           )
+         )
        ORDER BY updated_at ASC
        LIMIT ?`,
     )

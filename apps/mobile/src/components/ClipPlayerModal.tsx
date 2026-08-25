@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   Dimensions,
   FlatList,
   Linking,
@@ -8,20 +9,27 @@ import {
   StyleSheet,
   Text,
   View,
+  type AppStateStatus,
   type ListRenderItemInfo,
   type ViewToken,
 } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ClipFeedItem } from '@/src/lib/api/types';
-import { resolveModalPlaybackSource } from '@/src/lib/api/clips';
+import { resolveClipPosterUrl, resolveModalPlaybackSource } from '@/src/lib/api/clips';
+import { PooledClipPlayer } from '@/src/components/PooledClipPlayer';
 import { ClipTicketSheet } from '@/src/components/ClipTicketSheet';
+import { prefetchNeighborClips } from '@/src/lib/playback/prefetch';
 import { useClipArtistProfile } from '@/src/hooks/useClipArtistProfile';
 import { useClipPlaybackTickets } from '@/src/hooks/useClipPlaybackTickets';
+import { restoreForMediaPlayback } from 'feedback-audio-session';
 import { artistPath, venuePath } from '@shared/app-paths';
 import { jamBaseEventTitle } from '@shared/event-title';
 import { colors, spacing, typography } from '@/src/theme/tokens';
+
+/** Only current ± 1 mount a decoder. Everything else is a poster. */
+const PLAYER_RADIUS = 1;
 
 type Props = {
   clip: ClipFeedItem | null;
@@ -39,53 +47,28 @@ type Session = {
 
 function clipSource(clip: ClipFeedItem): string | null {
   const playback = resolveModalPlaybackSource(clip);
-  return playback.src || playback.hlsFallbackSrc || null;
+  return playback.src || null;
 }
 
 function ClipSlide({
   clip,
   width,
   isActive,
+  attachPlayer,
   modalVisible,
+  appActive,
   onNavigateEntity,
 }: {
   clip: ClipFeedItem;
   width: number;
   isActive: boolean;
+  attachPlayer: boolean;
   modalVisible: boolean;
+  appActive: boolean;
   onNavigateEntity: (href: string) => void;
 }) {
   const src = useMemo(() => clipSource(clip), [clip]);
-  const player = useVideoPlayer(src, (instance) => {
-    instance.loop = true;
-  });
-
-  useEffect(() => {
-    if (!src) return;
-    if (isActive && modalVisible) {
-      try {
-        player.play();
-      } catch {
-        /* player may be releasing */
-      }
-      return;
-    }
-    try {
-      player.pause();
-    } catch {
-      /* ignore */
-    }
-  }, [isActive, modalVisible, src, player]);
-
-  useEffect(() => {
-    return () => {
-      try {
-        player.pause();
-      } catch {
-        /* ignore */
-      }
-    };
-  }, [player]);
+  const poster = useMemo(() => resolveClipPosterUrl(clip), [clip]);
 
   const title = clip.song_title?.trim() || clip.artist_name?.trim() || 'Clip';
 
@@ -124,16 +107,19 @@ function ClipSlide({
           ) : null}
         </View>
       </View>
-      {src ? (
-        <VideoView
-          style={styles.video}
-          player={player}
-          contentFit="contain"
-          nativeControls={isActive && modalVisible}
+      {src && attachPlayer ? (
+        <PooledClipPlayer
+          key={String(clip.id)}
+          src={src}
+          isActive={isActive}
+          modalVisible={modalVisible}
+          appActive={appActive}
         />
+      ) : poster ? (
+        <Image source={{ uri: poster }} style={styles.video} contentFit="contain" />
       ) : (
         <View style={[styles.video, styles.videoEmpty]}>
-          <Text style={styles.emptyText}>No playable source</Text>
+          <Text style={styles.emptyText}>{src ? 'Loading…' : 'No playable source'}</Text>
         </View>
       )}
     </View>
@@ -157,6 +143,7 @@ export function ClipPlayerModal({
   const [session, setSession] = useState<Session | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
+  const [appActive, setAppActive] = useState(() => AppState.currentState === 'active');
 
   const activeClip = session?.list[activeIndex] ?? clip;
   const artistName = activeClip?.artist_name ?? null;
@@ -179,6 +166,23 @@ export function ClipPlayerModal({
   useEffect(() => {
     if (!visible) setTicketSheetOpen(false);
   }, [visible]);
+
+  useEffect(() => {
+    const onChange = (state: AppStateStatus) => {
+      setAppActive(state === 'active');
+    };
+    const sub = AppState.addEventListener('change', onChange);
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (visible) void restoreForMediaPlayback();
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !session) return;
+    prefetchNeighborClips(session.list, activeIndex);
+  }, [visible, session, activeIndex]);
 
   useEffect(() => {
     setTicketSheetOpen(false);
@@ -265,11 +269,13 @@ export function ClipPlayerModal({
         clip={item}
         width={width}
         isActive={index === activeIndex}
+        attachPlayer={Math.abs(index - activeIndex) <= PLAYER_RADIUS}
         modalVisible={visible}
+        appActive={appActive}
         onNavigateEntity={navigateEntity}
       />
     ),
-    [width, activeIndex, visible, navigateEntity],
+    [width, activeIndex, visible, appActive, navigateEntity],
   );
 
   if (!session || session.list.length === 0) {
@@ -305,9 +311,13 @@ export function ClipPlayerModal({
         <FlatList
           ref={listRef}
           data={session.list}
+          extraData={`${activeIndex}:${visible}:${appActive}`}
           keyExtractor={(item) => String(item.id)}
           horizontal
           pagingEnabled
+          windowSize={5}
+          maxToRenderPerBatch={3}
+          initialNumToRender={3}
           showsHorizontalScrollIndicator={false}
           initialScrollIndex={session.index}
           getItemLayout={(_, index) => ({

@@ -268,8 +268,8 @@ export async function saveNativeVideoUriToGallery(
 }
 
 /**
- * Hook for a future native background uploader (URLSession / WorkManager).
- * Persists the cache path so native code can resume multipart upload after app backgrounding.
+ * Capacitor hook for a native background uploader (URLSession / WorkManager).
+ * Expo RN uploads use FileSystem BACKGROUND sessions in multipart.ts instead.
  */
 export function scheduleNativeBackgroundUpload(jobId: string, cachePath?: string): void {
   if (!isNativeApp()) return;

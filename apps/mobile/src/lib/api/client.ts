@@ -21,10 +21,21 @@ export class ApiError extends Error {
   }
 }
 
-function resolveUrl(pathOrUrl: string): string {
+export function resolveUrl(pathOrUrl: string): string {
   if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
   const path = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
   return `${API_BASE_URL}${path}`;
+}
+
+/** Headers for native URLSession uploads (Cookie + Bearer). */
+export async function apiAuthHeaders(pathOrUrl: string): Promise<Record<string, string>> {
+  const url = resolveUrl(pathOrUrl);
+  const headers: Record<string, string> = {};
+  const cookie = await getCookieHeaderForUrl(url);
+  if (cookie) headers.Cookie = cookie;
+  const bearer = await getBearerSession();
+  if (bearer?.token) headers.Authorization = `Bearer ${bearer.token}`;
+  return headers;
 }
 
 /**
@@ -41,16 +52,10 @@ export async function apiFetch(
     headers.set('Accept', 'application/json');
   }
 
-  const cookie = await getCookieHeaderForUrl(url);
-  if (cookie) {
-    headers.set('Cookie', cookie);
-  }
-
-  if (!headers.has('Authorization')) {
-    const bearer = await getBearerSession();
-    if (bearer?.token) {
-      headers.set('Authorization', `Bearer ${bearer.token}`);
-    }
+  const auth = await apiAuthHeaders(url);
+  if (auth.Cookie && !headers.has('Cookie')) headers.set('Cookie', auth.Cookie);
+  if (auth.Authorization && !headers.has('Authorization')) {
+    headers.set('Authorization', auth.Authorization);
   }
 
   const response = await fetch(url, {

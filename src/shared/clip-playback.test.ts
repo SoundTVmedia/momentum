@@ -10,6 +10,7 @@ import {
   resolveFeedPreviewVideoSrc,
   resolveHlsPrefetchUrls,
   resolveModalPlaybackSource,
+  resolveModalPrefetchPlan,
   streamMp4Url,
   streamVideoIdFromClip,
 } from './clip-playback';
@@ -74,6 +75,24 @@ describe('clip-playback', () => {
         r2_raw_key: 'clips/user/video/abc.mp4',
       }),
     ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
+  });
+
+  it('prefetches only the confirmed Stream MP4 — never HLS — when MP4 will play', () => {
+    const mp4 = `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`;
+    expect(
+      resolveModalPrefetchPlan({
+        stream_video_id: UID,
+        stream_mp4_url: mp4,
+        stream_mp4_status: 'ready',
+      }),
+    ).toEqual({ progressiveUrl: mp4, hlsUrl: null });
+  });
+
+  it('prefetches HLS only when the Stream MP4 is not ready yet', () => {
+    expect(resolveModalPrefetchPlan({ stream_video_id: UID })).toEqual({
+      progressiveUrl: null,
+      hlsUrl: `https://videodelivery.net/${UID}/manifest/video.m3u8`,
+    });
   });
 
   it('uses the confirmed Stream MP4 first for modal, with HLS as fallback', () => {

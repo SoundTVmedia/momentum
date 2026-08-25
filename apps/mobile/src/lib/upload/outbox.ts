@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
-import * as KeepAwake from 'expo-keep-awake';
 import {
   completeUploadSession,
   initUploadSession,
@@ -236,7 +235,6 @@ export async function runOutboxJob(
   };
 
   try {
-    await KeepAwake.activateKeepAwakeAsync('upload-outbox');
     if (!job.gallerySaved) {
       const saved = await saveCaptureToPhotos(job.videoUri);
       await emit({ gallerySaved: saved });
@@ -278,7 +276,5 @@ export async function runOutboxJob(
       uploadRetryCount: (job.uploadRetryCount ?? 0) + 1,
     });
     throw err;
-  } finally {
-    KeepAwake.deactivateKeepAwake('upload-outbox');
   }
 }
