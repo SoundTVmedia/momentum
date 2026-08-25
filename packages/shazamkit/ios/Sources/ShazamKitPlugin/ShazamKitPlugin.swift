@@ -82,7 +82,15 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     private static var active: [ShazamKitRecognizer] = []
     private static let activeLock = NSLock()
 
+    /// Below this RMS a window is effectively silence. Matching it burns a
+    /// catalog lookup (and Shazam's rate limit) to learn nothing.
+    private static let minWindowRms: Double = 0.004
+    /// Transient (202) retries per window before moving to the next offset.
+    private static let maxWindowRetries = 2
+
     private let call: CAPPluginCall
+    /// One session for the whole scan. A fresh SHSession per window made Shazam
+    /// throttle the burst, and reassigning it tore down the in-flight request.
     private var session: SHSession?
     private var tempFileURL: URL?
     private var matchFileURL: URL?
@@ -92,10 +100,19 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
     private var windowRetryCount = 0
     private var sawCleanNoMatch = false
     private var sawTransientFailure = false
-    private var preparedSignatures: [(start: Double, signature: SHSignature, rms: Double)] = []
     private var loudestStartSeconds: Double?
     private var loudestRms: Double?
     private var settled = false
+    /// Windows that produced a signature; 0 means the file itself is unreadable.
+    private var generatedSignatureCount = 0
+    /// Windows actually sent to the catalog (quiet ones are skipped).
+    private var matchedWindowCount = 0
+    private var skippedQuietWindows = 0
+    private var lastWindowErrorMessage: String?
+    private var lastWindowErrorCode: String?
+    /// Cached so a transient retry does not re-decode the same window.
+    private var currentSignature: SHSignature?
+    private var currentSignatureIndex = -1
 
     private init(call: CAPPluginCall) {
         self.call = call
@@ -172,38 +189,13 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         matchFileURL = url
         if scanWindows {
             durationSeconds = Self.loadDurationSeconds(url: url)
-            let planned = Self.scanWindowStarts(durationSeconds: durationSeconds)
-            var prepared: [(start: Double, signature: SHSignature, rms: Double)] = []
-            for start in planned {
-                do {
-                    let (signature, rms) = try Self.makeSignature(for: url, startSeconds: start)
-                    prepared.append((start, signature, rms))
-                } catch {
-                    if prepared.isEmpty {
-                        if let rec = error as? RecognizerError {
-                            reject(rec.message, rec.code)
-                        } else {
-                            reject(
-                                "Could not generate an audio signature: \(error.localizedDescription)",
-                                "ERR_SHAZAMKIT_SIGNATURE"
-                            )
-                        }
-                        return
-                    }
-                    break
-                }
-            }
-            prepared.sort { $0.rms > $1.rms }
-            preparedSignatures = prepared
-            windowStarts = prepared.map(\.start)
-            loudestStartSeconds = prepared.first?.start
-            loudestRms = prepared.first?.rms
+            windowStarts = Self.scanWindowStarts(durationSeconds: durationSeconds)
             print(
-                "[shazamkit] scan duration=\(durationSeconds ?? -1) planned=\(planned) loudest-first=\(windowStarts) rms=\(prepared.map { String(format: "%.4f", $0.rms) })"
+                "[shazamkit] scan start duration=\(durationSeconds ?? -1) windows=\(windowStarts)"
             )
         } else {
             windowStarts = [max(0, startSeconds ?? 0)]
-            preparedSignatures = []
+            print("[shazamkit] fast pass start=\(windowStarts[0])")
         }
         windowIndex = 0
         matchCurrentWindow()
@@ -260,43 +252,88 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         return seconds.isFinite && seconds > 0 ? seconds : nil
     }
 
+    /// Signatures are built one window at a time, right before the lookup that
+    /// needs them. Building all of them up front delayed the first catalog call
+    /// by the whole decode (the file is re-read per window), which is what made
+    /// long clips blow their caller's timeout before any answer came back.
     private func matchCurrentWindow() {
-        let signature: SHSignature
-        if preparedSignatures.indices.contains(windowIndex) {
-            signature = preparedSignatures[windowIndex].signature
-        } else {
-            guard let url = matchFileURL else {
-                reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
-                return
-            }
-            let start = windowStarts.indices.contains(windowIndex) ? windowStarts[windowIndex] : 0
-            do {
-                let built = try Self.makeSignature(for: url, startSeconds: start)
-                signature = built.0
-            } catch let error as RecognizerError {
-                if windowIndex == 0 {
-                    reject(error.message, error.code)
-                    return
-                }
-                resolveNoMatch()
-                return
-            } catch {
-                if windowIndex == 0 {
-                    reject(
-                        "Could not generate an audio signature: \(error.localizedDescription)",
-                        "ERR_SHAZAMKIT_SIGNATURE"
-                    )
-                    return
-                }
-                resolveNoMatch()
-                return
-            }
+        guard let url = matchFileURL else {
+            reject("Audio file not found on device.", "ERR_SHAZAMKIT_BAD_FILE")
+            return
+        }
+        let start = windowStarts.indices.contains(windowIndex) ? windowStarts[windowIndex] : 0
+
+        // Reuse the signature on a 202 retry — rebuilding it means decoding the
+        // file from the start again for no benefit.
+        if let cached = currentSignature, currentSignatureIndex == windowIndex {
+            currentSession().match(cached)
+            return
         }
 
-        let session = SHSession()
-        session.delegate = self
-        self.session = session
-        session.match(signature)
+        let signature: SHSignature
+        do {
+            let built = try Self.makeSignature(for: url, startSeconds: start)
+            signature = built.0
+            generatedSignatureCount += 1
+            let rms = built.1
+            if rms > (loudestRms ?? -1) {
+                loudestRms = rms
+                loudestStartSeconds = start
+            }
+            print(
+                "[shazamkit] window \(windowIndex + 1)/\(windowStarts.count) start=\(String(format: "%.1f", start)) rms=\(String(format: "%.4f", rms))"
+            )
+            // Silence never matches; skip the lookup unless it is all we have.
+            if rms < Self.minWindowRms, windowIndex + 1 < windowStarts.count {
+                skippedQuietWindows += 1
+                advanceToNextWindowOrResolveNoMatch()
+                return
+            }
+        } catch {
+            recordWindowError(error, start: start)
+            // A single unreadable window must not end the scan. Only a file
+            // that yields no signature at all is a real failure.
+            if windowIndex + 1 < windowStarts.count {
+                advanceToNextWindowOrResolveNoMatch()
+                return
+            }
+            if generatedSignatureCount == 0 {
+                reject(
+                    lastWindowErrorMessage ?? "Could not generate an audio signature.",
+                    lastWindowErrorCode ?? "ERR_SHAZAMKIT_SIGNATURE"
+                )
+                return
+            }
+            resolveNoMatch()
+            return
+        }
+
+        currentSignature = signature
+        currentSignatureIndex = windowIndex
+        matchedWindowCount += 1
+        currentSession().match(signature)
+    }
+
+    private func currentSession() -> SHSession {
+        if let session { return session }
+        let created = SHSession()
+        created.delegate = self
+        session = created
+        return created
+    }
+
+    private func recordWindowError(_ error: Error, start: Double) {
+        if let rec = error as? RecognizerError {
+            lastWindowErrorMessage = rec.message
+            lastWindowErrorCode = rec.code
+        } else {
+            lastWindowErrorMessage =
+                "Could not generate an audio signature: \(error.localizedDescription)"
+            lastWindowErrorCode = "ERR_SHAZAMKIT_SIGNATURE"
+        }
+        print(
+            "[shazamkit] window start=\(String(format: "%.1f", start)) signature failed: \(lastWindowErrorMessage ?? "")"
+        )
     }
 
     private static func isRemoteHttpURL(_ url: URL) -> Bool {
@@ -337,30 +374,38 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
             ] as [String: Any],
         ]
         payload.merge(scanMeta()) { _, new in new }
+        print(
+            "[shazamkit] MATCH window \(windowIndex + 1)/\(windowStarts.count) title=\(item.title ?? "?") artist=\(item.artist ?? "?")"
+        )
         resolve(payload)
     }
 
     func session(_ session: SHSession, didNotFindMatchFor signature: SHSignature, error: Error?) {
         if let error {
-            if Self.isTransientMatchError(error) {
-                if windowRetryCount < 1 {
-                    windowRetryCount += 1
-                    sawTransientFailure = true
-                    Self.workQueue.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                        self?.matchCurrentWindow()
-                    }
-                    return
-                }
-                // Keep scanning other windows — 202 on one offset is not final.
+            let transient = Self.isTransientMatchError(error)
+            if transient, windowRetryCount < Self.maxWindowRetries {
+                windowRetryCount += 1
                 sawTransientFailure = true
-                windowRetryCount = 0
-                advanceToNextWindowOrResolveNoMatch()
+                // Back off before retrying: a burst of lookups is what makes
+                // Shazam return 202 in the first place.
+                let delay = 1.2 * Double(windowRetryCount)
+                print("[shazamkit] window \(windowIndex + 1) transient 202, retry in \(delay)s")
+                Self.workQueue.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.matchCurrentWindow()
+                }
                 return
             }
-            reject(
-                "Shazam match attempt failed: \(error.localizedDescription)",
-                "ERR_SHAZAMKIT_MATCH_FAILED"
+            // Any lookup failure — transient or not — is scoped to this window.
+            // Rejecting the whole call here meant one bad offset threw away
+            // every other window that might still have matched.
+            sawTransientFailure = true
+            lastWindowErrorMessage = "Shazam match attempt failed: \(error.localizedDescription)"
+            lastWindowErrorCode = "ERR_SHAZAMKIT_MATCH_FAILED"
+            print(
+                "[shazamkit] window \(windowIndex + 1) lookup failed (transient=\(transient)): \(error.localizedDescription)"
             )
+            windowRetryCount = 0
+            advanceToNextWindowOrResolveNoMatch()
             return
         }
         sawCleanNoMatch = true
@@ -377,10 +422,13 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         [
             "windowsTried": windowIndex + 1,
             "windowCount": windowStarts.count,
+            "windowsMatched": matchedWindowCount,
+            "windowsSkippedQuiet": skippedQuietWindows,
             "durationSeconds": durationSeconds ?? NSNull(),
             "windowStarts": windowStarts,
             "loudestStartSeconds": loudestStartSeconds ?? NSNull(),
             "loudestRms": loudestRms ?? NSNull(),
+            "lastWindowError": lastWindowErrorMessage ?? NSNull(),
         ]
     }
 
@@ -397,19 +445,21 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         }
     }
 
+    /// Always resolves. The audio was readable, so the caller can still hand the
+    /// exported loudest window to the ACRCloud fallback and then to manual
+    /// entry. Rejecting here (which is what a catalog-wide 202 used to do)
+    /// surfaced a red error and skipped both of those.
     private func resolveNoMatch() {
-        if !sawCleanNoMatch && sawTransientFailure {
-            reject(
-                "Shazam match attempt failed: (com.apple.ShazamKit error 202.)",
-                "ERR_SHAZAMKIT_MATCH_FAILED"
-            )
-            return
-        }
         var payload: [String: Any] = ["match": NSNull()]
         payload.merge(scanMeta()) { _, new in new }
+        // No window ever reached the catalog, so "no match" is unconfirmed.
+        payload["matchUnavailable"] = !sawCleanNoMatch && sawTransientFailure
         if let wavPath = writeLoudestWavIfNeeded() {
             payload["wavPath"] = wavPath
         }
+        print(
+            "[shazamkit] resolve nomatch windows=\(windowIndex + 1)/\(windowStarts.count) matched=\(matchedWindowCount) quiet=\(skippedQuietWindows) cleanNoMatch=\(sawCleanNoMatch) transient=\(sawTransientFailure)"
+        )
         resolve(payload)
     }
 
@@ -417,6 +467,8 @@ final class ShazamKitRecognizer: NSObject, SHSessionDelegate {
         if windowIndex + 1 < windowStarts.count {
             windowIndex += 1
             windowRetryCount = 0
+            currentSignature = nil
+            currentSignatureIndex = -1
             Self.workQueue.async { [weak self] in
                 self?.matchCurrentWindow()
             }

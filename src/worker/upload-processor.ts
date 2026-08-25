@@ -1,6 +1,6 @@
 import { r2ClipFilePath } from '../shared/clip-poster-url';
 import { clipPublishedNotificationContent } from '../shared/notification-copy';
-import { createStreamService } from './stream-service';
+import { createStreamService, describeStreamConfig, isStreamConfigured } from './stream-service';
 import { notifyUser } from './notification-utils';
 import { createRealtimeService } from './realtime-service';
 import * as gamification from './gamification-endpoints';
@@ -19,6 +19,16 @@ type UploadedClipRow = {
 };
 
 const PROCESSING_BATCH_SIZE = 5;
+
+let loggedStreamConfig = false;
+
+/** Say once per isolate why ingest is skipped, instead of on every clip. */
+function logStreamConfigOnce(env: Env): void {
+  if (loggedStreamConfig) return;
+  loggedStreamConfig = true;
+  const config = describeStreamConfig(env);
+  if (config.hint) console.warn(`[stream] ${config.hint}`);
+}
 
 function publicFileUrl(env: Env, key: string): string {
   const base = (env.PUBLIC_APP_URL ?? '').replace(/\/$/, '');
@@ -170,6 +180,13 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
 
   await publishClipWithR2Playback(env, clipId, r2Key, clip.thumbnail_url);
 
+  if (!isStreamConfigured(env)) {
+    // Nothing to retry until secrets exist; leave the clip on R2 playback and
+    // say why once per run rather than throwing for every clip every minute.
+    logStreamConfigOnce(env);
+    return;
+  }
+
   await env.DB
     .prepare(
       `UPDATE clips SET upload_status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
@@ -187,19 +204,22 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
     const thumbnailUrl =
       clip.thumbnail_url?.trim() ||
       streamService.getThumbnailUrl(videoDetails.uid, { time: '1s', height: 720 });
-    const videoUrl = videoDetails.mp4Url || videoDetails.playbackUrl;
     const posterUrl = clip.thumbnail_url?.trim() || thumbnailUrl;
 
+    // video_url stays on R2. The Stream MP4 does not exist until its download
+    // has been generated, and the copy has not even finished transcoding yet;
+    // pointing playback at /downloads/default.mp4 here serves a 404.
+    // finalizeStreamDownloads promotes it once Cloudflare confirms it is ready.
     await env.DB
       .prepare(
         `UPDATE clips
          SET stream_video_id = ?,
              stream_playback_url = ?,
              stream_thumbnail_url = ?,
-             video_url = ?,
              thumbnail_url = ?,
              video_status = ?,
              video_duration = ?,
+             stream_mp4_status = 'pending',
              upload_status = 'ready',
              status = 'published',
              is_draft = 0,
@@ -210,13 +230,13 @@ async function processOneUploadedClip(env: Env, clip: UploadedClipRow): Promise<
         videoDetails.uid,
         videoDetails.playbackUrl,
         posterUrl,
-        videoUrl,
         posterUrl,
         videoDetails.status,
         videoDetails.duration,
         clipId,
       )
       .run();
+    console.log(`upload-processor clip ${clipId}: ingested to Stream ${videoDetails.uid}`);
 
     try {
       const realtime = createRealtimeService(env);
@@ -258,6 +278,11 @@ export async function processClipStreamIngestById(env: Env, clipId: number): Pro
 /** Pick up clips with finished R2 upload and ingest to Stream. */
 export async function processUploadedClips(env: Env): Promise<void> {
   await repairStuckR2Clips(env);
+
+  if (!isStreamConfigured(env)) {
+    logStreamConfigOnce(env);
+    return;
+  }
 
   const rows = await env.DB
     .prepare(

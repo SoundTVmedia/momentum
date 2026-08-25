@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { ACR_MAX_SAMPLE_BYTES, identifySampleByteLength } from '../shared/identify-music-limits';
-import { streamMp4Url } from '../shared/clip-playback';
+import { readyStreamMp4Url, type ClipPlaybackFields } from '../shared/clip-playback';
 import { purgeClipFromDatabase } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { clipsContentFeedColumnReady } from './content-feed-sql';
@@ -790,23 +790,24 @@ async function readClipVideoSampleForIdentify(
   row: Record<string, unknown>,
 ): Promise<{ blob: Blob; filename: string } | null> {
   const durationSeconds = clipDurationSeconds(row);
-  const streamId =
-    typeof row.stream_video_id === 'string' ? row.stream_video_id.trim() : '';
-  if (streamId) {
-    const url = streamMp4Url(streamId);
-    const fileSize = await headContentLength(url);
+  // Only a Cloudflare-confirmed MP4. Constructing /downloads/default.mp4 from a
+  // Stream id returns 404 until that download has been generated, and the
+  // Range read of an error page was being handed to ACRCloud as "audio".
+  const streamMp4 = readyStreamMp4Url(row as ClipPlaybackFields);
+  if (streamMp4) {
+    const fileSize = await headContentLength(streamMp4);
     const max = identifySampleByteLength({
       fileSize,
       durationSeconds,
       maxBytes: ACR_MAX_SAMPLE_BYTES,
     });
-    const blob = await fetchRangeBlob(url, max);
+    const blob = await fetchRangeBlob(streamMp4, max);
     if (blob) return { blob, filename: 'clip.mp4' };
     // Prefer Stream over a start-Range of Capgo R2 (moov is often at EOF).
   }
 
   const r2Key = typeof row.r2_raw_key === 'string' ? row.r2_raw_key.trim() : '';
-  if (!streamId && r2Key) {
+  if (!streamMp4 && r2Key) {
     try {
       const max = identifySampleByteLength({ durationSeconds, maxBytes: ACR_MAX_SAMPLE_BYTES });
       const obj = await env.R2_BUCKET.get(r2Key, { range: { offset: 0, length: max } });
@@ -827,7 +828,7 @@ async function readClipVideoSampleForIdentify(
     videoUrlRaw && !/^https?:\/\//i.test(videoUrlRaw) && publicBase
       ? `${publicBase}${videoUrlRaw.startsWith('/') ? '' : '/'}${videoUrlRaw}`
       : videoUrlRaw;
-  if (!streamId && videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
+  if (!streamMp4 && videoUrl && !videoUrl.toLowerCase().includes('.m3u8')) {
     const fileSize = await headContentLength(videoUrl);
     const max = identifySampleByteLength({
       fileSize,

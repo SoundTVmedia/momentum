@@ -6,6 +6,7 @@ export {
   feedTileUsesStaticPoster,
   isPlaceholderVideoUrl,
   r2ClipFilePath,
+  readyStreamMp4Url,
   resolveClipPosterCandidates,
   resolveClipPosterUrl,
   streamThumbnailUrl,
@@ -16,6 +17,7 @@ import {
   type ClipPlaybackFields,
   isPlaceholderVideoUrl,
   r2ClipFilePath,
+  readyStreamMp4Url,
   resolveClipPosterUrl,
   STREAM_DELIVERY_ORIGIN,
   streamVideoIdFromClip,
@@ -33,7 +35,14 @@ export function streamHlsUrl(videoId: string): string {
   return `${STREAM_DELIVERY_ORIGIN}/${videoId}/manifest/video.m3u8`;
 }
 
-/** Progressive MP4 from Stream CDN — lightweight feed previews (all browsers). */
+/**
+ * Where a Stream progressive MP4 *would* live.
+ *
+ * Do not use this to play, download or sample a clip: Cloudflare returns 404
+ * until that download has been generated for the video, and it answers on the
+ * account's customer subdomain rather than this one. Use
+ * {@link readyStreamMp4Url}, which only returns a URL Cloudflare confirmed.
+ */
 export function streamMp4Url(videoId: string): string {
   return `${STREAM_DELIVERY_ORIGIN}/${videoId}/downloads/default.mp4`;
 }
@@ -52,17 +61,18 @@ export function resolveStreamHlsUrl(clip: ClipPlaybackFields, streamId: string):
  * Video URL for feed tiles: Stream MP4 on CDN when possible; never HLS in grid (too heavy).
  */
 export function resolveFeedPreviewVideoSrc(clip: ClipPlaybackFields): string | null {
-  const streamId = streamVideoIdFromClip(clip);
-  if (streamId) {
-    return streamMp4Url(streamId);
-  }
+  // Only a confirmed MP4 — a Stream id alone does not mean one was generated.
+  const mp4 = readyStreamMp4Url(clip);
+  if (mp4) return mp4;
 
   const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
-  if (!fallback || isPlaceholderVideoUrl(fallback)) {
-    const r2Key = typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '';
-    return r2Key ? r2ClipFilePath(r2Key) : null;
-  }
-  if (isHlsPlaybackUrl(fallback)) return null;
+  const r2Key = typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '';
+  const r2 = r2Key ? r2ClipFilePath(r2Key) : null;
+
+  if (!fallback || isPlaceholderVideoUrl(fallback)) return r2;
+  // Grid tiles cannot play HLS, so a Stream clip whose MP4 is still generating
+  // previews from the R2 original rather than showing nothing.
+  if (isHlsPlaybackUrl(fallback)) return r2;
   return fallback;
 }
 
@@ -86,12 +96,15 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
 
   if (streamId) {
     const hls = resolveStreamHlsUrl(clip, streamId);
+    // Start on the progressive MP4 only once Cloudflare has generated it;
+    // otherwise HLS is the one Stream URL that is live immediately.
+    const mp4 = readyStreamMp4Url(clip);
     return {
-      src: streamMp4Url(streamId),
+      src: mp4 ?? hls,
       poster,
-      isHls: false,
+      isHls: !mp4,
       streamVideoId: streamId,
-      hlsFallbackSrc: hls,
+      hlsFallbackSrc: mp4 ? hls : null,
     };
   }
 
@@ -156,8 +169,11 @@ function slugForDownloadFilename(part: string): string {
 
 /** Progressive MP4 (or same-origin file path) suitable for saving a clip locally. */
 export function resolveClipDownloadUrl(clip: ClipPlaybackFields): string | null {
-  const streamId = streamVideoIdFromClip(clip);
-  if (streamId) return streamMp4Url(streamId);
+  // Confirmed Stream MP4 first, then the R2 original. Never a constructed
+  // /downloads/default.mp4 — that 404s until the download has been generated,
+  // which broke both clip download and song identification.
+  const mp4 = readyStreamMp4Url(clip);
+  if (mp4) return mp4;
 
   const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
   if (!isPlaceholderVideoUrl(fallback) && !isHlsPlaybackUrl(fallback)) {
