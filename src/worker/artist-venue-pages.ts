@@ -5,6 +5,7 @@ import {
   jamBaseQuotaFromEnv,
   type JamBaseQuotaContext,
 } from './jambase-client';
+import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
 import { jamBaseEventToTourDateRow, jamBaseEventToVenueUpcomingRow } from './jambase-map';
 import {
   normalizedSlugFromRouteParam,
@@ -56,6 +57,8 @@ export async function resolveArtistNameForClipsQuery(
 
   const phrase = searchPhraseFromSlug(slug);
   if (apiKey?.trim()) {
+    const cached = quota?.db ? await lookupArtistIdByName(quota.db, phrase) : null;
+    if (cached?.display_name?.trim()) return cached.display_name.trim();
     const data = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
       apiKey,
       '/artists',
@@ -106,6 +109,8 @@ export async function resolveVenueNameForClipsQuery(
 
   const phrase = searchPhraseFromSlug(slug);
   if (apiKey?.trim()) {
+    const cached = quota?.db ? await lookupVenueIdByName(quota.db, phrase) : null;
+    if (cached?.display_name?.trim()) return cached.display_name.trim();
     const data = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
       apiKey,
       '/venues',
@@ -141,21 +146,40 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
   const phrase = searchPhraseFromSlug(slug);
 
   if (apiKey?.trim() && phrase) {
-    const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
-      apiKey,
-      '/artists',
-      {
-        artistName: phrase,
-        perPage: '20',
-        page: '1',
-        expandArtistSameAs: 'true',
-      },
-      jbQ
-    );
-    const artists = list?.artists ?? [];
-    if (artists.length) {
-      jambaseArtist =
-        artists.find((a) => slugifyEntityName(String(a.name)) === slug) ?? artists[0];
+    const cached = jbQ?.db ? await lookupArtistIdByName(jbQ.db, phrase) : null;
+    if (cached?.payload) {
+      try {
+        jambaseArtist = JSON.parse(cached.payload) as Record<string, unknown>;
+      } catch {
+        jambaseArtist = null;
+      }
+    }
+    if (!jambaseArtist && cached?.jambase_id) {
+      const byId = await jamBaseFetch<Record<string, unknown>>(
+        apiKey,
+        `/artists/${encodeURIComponent(cached.jambase_id)}`,
+        {},
+        jbQ,
+      );
+      if (byId) jambaseArtist = byId;
+    }
+    if (!jambaseArtist) {
+      const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
+        apiKey,
+        '/artists',
+        {
+          artistName: phrase,
+          perPage: '20',
+          page: '1',
+          expandArtistSameAs: 'true',
+        },
+        jbQ
+      );
+      const artists = list?.artists ?? [];
+      if (artists.length) {
+        jambaseArtist =
+          artists.find((a) => slugifyEntityName(String(a.name)) === slug) ?? artists[0];
+      }
     }
   }
 
@@ -377,20 +401,39 @@ export async function buildVenuePagePayload(c: Context): Promise<Record<string, 
   const phrase = searchPhraseFromSlug(slug);
 
   if (apiKey?.trim() && phrase) {
-    const list = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
-      apiKey,
-      '/venues',
-      {
-        venueName: phrase,
-        perPage: '20',
-        page: '1',
-      },
-      jbQ
-    );
-    const venues = list?.venues ?? [];
-    if (venues.length) {
-      jambaseVenue =
-        venues.find((v) => slugifyEntityName(String(v.name)) === slug) ?? venues[0];
+    const cached = jbQ?.db ? await lookupVenueIdByName(jbQ.db, phrase) : null;
+    if (cached?.payload) {
+      try {
+        jambaseVenue = JSON.parse(cached.payload) as Record<string, unknown>;
+      } catch {
+        jambaseVenue = null;
+      }
+    }
+    if (!jambaseVenue && cached?.jambase_id) {
+      const byId = await jamBaseFetch<Record<string, unknown>>(
+        apiKey,
+        `/venues/${encodeURIComponent(cached.jambase_id)}`,
+        {},
+        jbQ,
+      );
+      if (byId) jambaseVenue = byId;
+    }
+    if (!jambaseVenue) {
+      const list = await jamBaseFetch<{ venues?: Record<string, unknown>[] }>(
+        apiKey,
+        '/venues',
+        {
+          venueName: phrase,
+          perPage: '20',
+          page: '1',
+        },
+        jbQ
+      );
+      const venues = list?.venues ?? [];
+      if (venues.length) {
+        jambaseVenue =
+          venues.find((v) => slugifyEntityName(String(v.name)) === slug) ?? venues[0];
+      }
     }
   }
 

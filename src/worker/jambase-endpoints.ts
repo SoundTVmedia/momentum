@@ -9,6 +9,7 @@ import {
   type JamBaseFetchDiag,
   type JamBaseQuotaContext,
 } from './jambase-client';
+import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
 import { cacheJsonProxy, noCache } from './performance-utils';
 import { buildTightJamBaseEventResults } from './jambase-events-search';
 import {
@@ -626,18 +627,41 @@ export async function fetchJamBaseEventsByArtistName(
     return data?.artists ?? [];
   };
 
-  let artists = await searchArtists(phrase || trim);
-  if (!artists.length && trim.toLowerCase() !== (phrase || '').toLowerCase()) {
-    artists = await searchArtists(trim);
-  }
-  if (!artists.length) {
-    return { events: [], artist: null };
+  let id: string | undefined;
+  let pick: Record<string, unknown> | undefined;
+
+  const cachedArtist = jbQ?.db ? await lookupArtistIdByName(jbQ.db, phrase || trim) : null;
+  if (cachedArtist?.jambase_id) {
+    id = cachedArtist.jambase_id;
+    if (cachedArtist.payload) {
+      try {
+        pick = JSON.parse(cachedArtist.payload) as Record<string, unknown>;
+      } catch {
+        pick = undefined;
+      }
+    }
+    pick = pick ?? {
+      name: cachedArtist.display_name ?? (phrase || trim),
+      identifier: id,
+    };
+  } else {
+    let artists = await searchArtists(phrase || trim);
+    if (!artists.length && trim.toLowerCase() !== (phrase || '').toLowerCase()) {
+      artists = await searchArtists(trim);
+    }
+    if (!artists.length) {
+      return { events: [], artist: null };
+    }
+
+    const exact = artists.find((a) => slugifyEntityName(String(a.name)) === slug);
+    pick = exact || artists[0];
+    id = typeof pick?.identifier === 'string' ? pick.identifier : undefined;
+    if (typeof id !== 'string') {
+      return { events: [], artist: null };
+    }
   }
 
-  const exact = artists.find((a) => slugifyEntityName(String(a.name)) === slug);
-  const pick = exact || artists[0];
-  const id = pick?.identifier;
-  if (typeof id !== 'string') {
+  if (!pick || typeof id !== 'string') {
     return { events: [], artist: null };
   }
 
@@ -711,21 +735,44 @@ export async function fetchJamBaseEventsByVenueName(
     return data;
   };
 
-  let venues = (await searchOnce(phraseFromSlug || trim))?.venues ?? [];
-  if (!venues.length && trim.toLowerCase() !== (phraseFromSlug || '').toLowerCase()) {
-    venues = (await searchOnce(trim))?.venues ?? [];
+  let id: string | undefined;
+  let pick: Record<string, unknown> | undefined;
+
+  const cachedVenue = jbQ?.db ? await lookupVenueIdByName(jbQ.db, phraseFromSlug || trim) : null;
+  if (cachedVenue?.jambase_id) {
+    id = cachedVenue.jambase_id;
+    if (cachedVenue.payload) {
+      try {
+        pick = JSON.parse(cachedVenue.payload) as Record<string, unknown>;
+      } catch {
+        pick = undefined;
+      }
+    }
+    pick = pick ?? {
+      name: cachedVenue.display_name ?? (phraseFromSlug || trim),
+      identifier: id,
+    };
+  } else {
+    let venues = (await searchOnce(phraseFromSlug || trim))?.venues ?? [];
+    if (!venues.length && trim.toLowerCase() !== (phraseFromSlug || '').toLowerCase()) {
+      venues = (await searchOnce(trim))?.venues ?? [];
+    }
+
+    if (!venues.length) {
+      return { events: [], venue: null };
+    }
+
+    const exact =
+      venues.find((v) => slugifyEntityName(String(v.name)) === slug) ??
+      venues.find((v) => String(v?.name ?? '').trim().toLowerCase() === trim.toLowerCase());
+    pick = exact ?? venues[0];
+    id = typeof pick?.identifier === 'string' ? pick.identifier : undefined;
+    if (typeof id !== 'string') {
+      return { events: [], venue: null };
+    }
   }
 
-  if (!venues.length) {
-    return { events: [], venue: null };
-  }
-
-  const exact =
-    venues.find((v) => slugifyEntityName(String(v.name)) === slug) ??
-    venues.find((v) => String(v?.name ?? '').trim().toLowerCase() === trim.toLowerCase());
-  const pick = exact ?? venues[0];
-  const id = pick?.identifier;
-  if (typeof id !== 'string') {
+  if (!pick || typeof id !== 'string') {
     return { events: [], venue: null };
   }
 

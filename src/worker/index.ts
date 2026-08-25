@@ -52,9 +52,11 @@ import {
 } from "./notification-utils";
 import { getCookie, setCookie } from "hono/cookie";
 import { handleScheduled } from "./scheduled";
+import { JAMBASE_NIGHTLY_CRON, prefetchJamBaseFavoriteCalendars } from "./jambase-prefetch";
 import * as moderation from "./moderation-endpoints";
 import * as discovery from "./discovery-endpoints";
 import * as jambase from "./jambase-endpoints";
+import { getJamBaseCacheMetrics } from "./jambase-metrics-endpoint";
 import * as artistVenuePages from "./artist-venue-pages";
 import * as stripe from "./stripe-endpoints";
 import { handleStripeWebhook } from "./stripe-webhooks";
@@ -2390,6 +2392,7 @@ app.get("/api/shows/tonight", optionalAuthMiddleware, discovery.getTonightShows)
 // JamBase API Integration Endpoints
 app.get("/api/jambase/status", jambase.getJamBaseStatus);
 app.get("/api/jambase/connection-test", authMiddleware, jambase.connectionTest);
+app.get("/api/admin/jambase/metrics", authMiddleware, getJamBaseCacheMetrics);
 app.get("/api/jambase/search/artists", jambase.searchArtists);
 app.get("/api/jambase/search/venues", jambase.searchVenues);
 app.get("/api/jambase/artist/:artistId/tourdates", jambase.getArtistTourDates);
@@ -3965,7 +3968,11 @@ export default {
 
     return app.fetch(request, env, ctx);
   },
-  scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
+  scheduled: async (controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
+    if (controller.cron === JAMBASE_NIGHTLY_CRON) {
+      ctx.waitUntil(prefetchJamBaseFavoriteCalendars(env));
+      return;
+    }
     ctx.waitUntil(handleScheduled(env));
   }
 };

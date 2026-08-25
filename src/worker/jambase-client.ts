@@ -1,3 +1,12 @@
+import {
+  classifyJamBaseEndpoint,
+  coalesceInflight,
+  jamBaseCoalesceKey,
+  readJamBaseResponseCache,
+  recordJamBaseCacheMetric,
+  storeJamBaseResponseCache,
+} from './jambase-cache';
+
 const JAMBASE_V3_BASE = 'https://api.data.jambase.com/v3';
 const JAMBASE_USER_AGENT = 'Feedback/1.0';
 
@@ -26,9 +35,10 @@ export interface JamBaseQuotaEnv {
 
 export type JamBaseQuotaContext = {
   db: D1Database;
-  max: number;
+  /** When set with `bucketId`, upstream calls are capped via `jambase_api_usage`. */
+  max?: number;
   /** D1 `jambase_api_usage.bucket_id` used for this cap. */
-  bucketId: string;
+  bucketId?: string;
 };
 
 /**
@@ -39,24 +49,38 @@ export type JamBaseQuotaContext = {
  *
  * Example (6k / month): `JAMBASE_QUOTA_ENFORCEMENT=1` `JAMBASE_QUOTA_MAX=6000` `JAMBASE_QUOTA_WINDOW=month`
  */
-export function jamBaseQuotaFromEnv(env: JamBaseQuotaEnv): JamBaseQuotaContext | undefined {
+export function jamBaseQuotaFromEnv(env: JamBaseQuotaEnv): JamBaseQuotaContext {
+  const db = env.DB;
   const raw = env.JAMBASE_QUOTA_ENFORCEMENT?.trim().toLowerCase();
   if (raw !== '1' && raw !== 'true' && raw !== 'on') {
-    return undefined;
+    return { db };
   }
   const max = Number.parseInt(String(env.JAMBASE_QUOTA_MAX ?? '1000'), 10);
   if (!Number.isFinite(max) || max <= 0) {
-    return undefined;
+    return { db };
   }
   const windowRaw = env.JAMBASE_QUOTA_WINDOW?.trim().toLowerCase();
   const useMonth = windowRaw === 'month' || windowRaw === 'monthly';
   const now = new Date();
   const ym = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
   const bucketId = useMonth ? `jam:month:${ym}` : JAMBASE_USAGE_BUCKET_ALLTIME;
-  return { db: env.DB, max, bucketId };
+  return { db, max, bucketId };
+}
+
+function jamBaseQuotaEnforced(
+  quota: JamBaseQuotaContext | undefined,
+): quota is JamBaseQuotaContext & { max: number; bucketId: string } {
+  return (
+    quota != null &&
+    typeof quota.max === 'number' &&
+    quota.max > 0 &&
+    typeof quota.bucketId === 'string' &&
+    quota.bucketId.length > 0
+  );
 }
 
 export async function jamBaseQuotaPrecheck(quota: JamBaseQuotaContext): Promise<boolean> {
+  if (!jamBaseQuotaEnforced(quota)) return true;
   try {
     const row = await quota.db
       .prepare('SELECT count FROM jambase_api_usage WHERE bucket_id = ?')
@@ -84,6 +108,7 @@ function jamBaseResponseCountsAsUpstream(res: Response): boolean {
 }
 
 async function jamBaseRecordUpstream(quota: JamBaseQuotaContext): Promise<void> {
+  if (!jamBaseQuotaEnforced(quota)) return;
   const sql = `INSERT INTO jambase_api_usage (bucket_id, count) VALUES (?, 1)
     ON CONFLICT(bucket_id) DO UPDATE SET count = count + 1, updated_at = datetime('now')`;
   try {
@@ -92,8 +117,6 @@ async function jamBaseRecordUpstream(quota: JamBaseQuotaContext): Promise<void> 
     console.error('[JamBase] Quota increment failed', e);
   }
 }
-
-const inflight = new Map<string, Promise<JamBaseJson | null>>();
 
 const JAMBASE_429_MAX_ATTEMPTS = 3;
 /** Per-request ceiling so home-feed nearby lookups do not hang ~30s+ on slow upstream. */
@@ -139,6 +162,8 @@ export type JamBaseFetchDiag = {
 export type JamBaseFetchOptions = {
   /** Skip Cloudflare subrequest cache (use for health probes after key rotation). */
   bypassEdgeCache?: boolean;
+  /** Skip D1 response cache (probes / forced refresh). */
+  skipResponseCache?: boolean;
   /** Override per-call wall budget (default {@link JAMBASE_FETCH_BUDGET_MS}). */
   fetchBudgetMs?: number;
   /** Override per-fetch timeout (default {@link JAMBASE_FETCH_TIMEOUT_MS}). */
@@ -181,9 +206,10 @@ function jamBaseProblemDetail(json: JamBaseJson, text: string): string | undefin
 
 /**
  * JamBase Data API v3 fetch with:
- * - In-flight deduplication for concurrent identical requests in the same isolate
+ * - D1 response cache (permanent IDs / geo; 72h event lists; past events never expire)
+ * - In-flight coalescing so concurrent callers share one upstream request
  * - No CF subrequest cache (auth header is not part of URL cache keys — caused stale errors)
- * - Optional D1-backed global cap on upstream calls (non-cache hits only)
+ * - Optional D1-backed global cap on upstream calls
  */
 export async function jamBaseFetch<T extends JamBaseJson>(
   apiKey: string | undefined,
@@ -199,20 +225,38 @@ export async function jamBaseFetch<T extends JamBaseJson>(
     return null;
   }
 
+  const db = quota?.db;
+  const endpoint = classifyJamBaseEndpoint(path, params);
+  const skipResponseCache =
+    options?.skipResponseCache === true || options?.bypassEdgeCache === true;
+
+  if (db && !skipResponseCache) {
+    const cached = await readJamBaseResponseCache(db, path, params);
+    if (cached) {
+      await recordJamBaseCacheMetric(db, endpoint, 'hit');
+      return cached as T;
+    }
+  }
+
   const url = new URL(`${JAMBASE_V3_BASE}${path.startsWith('/') ? path : `/${path}`}`);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== '') url.searchParams.set(k, v);
   }
 
-  const urlKey = url.toString();
-  const existing = inflight.get(urlKey) as Promise<T | null> | undefined;
-  if (existing) return existing;
-
+  const coalesceKey = jamBaseCoalesceKey(path, params);
   const bypassEdgeCache = options?.bypassEdgeCache === true;
   const fetchBudgetMs = options?.fetchBudgetMs ?? JAMBASE_FETCH_BUDGET_MS;
   const fetchTimeoutMs = options?.fetchTimeoutMs ?? JAMBASE_FETCH_TIMEOUT_MS;
 
-  const promise = (async (): Promise<T | null> => {
+  return coalesceInflight(coalesceKey, async (): Promise<T | null> => {
+    if (db && !skipResponseCache) {
+      const cached = await readJamBaseResponseCache(db, path, params);
+      if (cached) {
+        await recordJamBaseCacheMetric(db, endpoint, 'hit');
+        return cached as T;
+      }
+    }
+
     const startedAt = Date.now();
     try {
       let res: Response;
@@ -320,18 +364,18 @@ export async function jamBaseFetch<T extends JamBaseJson>(
         return null;
       }
 
+      if (db && !skipResponseCache) {
+        await recordJamBaseCacheMetric(db, endpoint, 'upstream');
+        await storeJamBaseResponseCache(db, path, params, json);
+      }
+
       return json;
     } catch (e) {
       console.error('JamBase fetch unexpected error', path, e);
       if (diag) diag.failure = 'unknown';
       return null;
-    } finally {
-      inflight.delete(urlKey);
     }
-  })();
-
-  inflight.set(urlKey, promise as Promise<JamBaseJson | null>);
-  return promise;
+  });
 }
 
 export function jamBaseEventDateFromToday(): string {

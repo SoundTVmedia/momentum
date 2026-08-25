@@ -38,7 +38,7 @@ export async function lookupArtistForYoutube(
 
   const slug = slugifyEntityName(param);
   const canonicalName = (
-    await resolveArtistNameForClipsQuery(db, jambaseApiKey, param, undefined)
+    await resolveArtistNameForClipsQuery(db, jambaseApiKey, param, { db })
   ).trim();
 
   let row = (await db

@@ -50,6 +50,7 @@ import ArchivalHubPage from "@/react-app/pages/ArchivalHub";
 import { MobileChromeProvider } from "@/react-app/contexts/MobileChromeContext";
 import { QuickCaptureProvider } from "@/react-app/contexts/QuickCaptureContext";
 import PendingCaptureRouteRecovery from "@/react-app/components/PendingCaptureRouteRecovery";
+import AppSplashController from "@/react-app/components/AppSplashController";
 import { ClipUploadQueueProvider } from "@/react-app/contexts/ClipUploadQueueContext";
 import { NotificationsProvider } from "@/react-app/contexts/NotificationsContext";
 import { useEffect } from "react";
@@ -78,6 +79,7 @@ export default function App() {
         <NotificationsProvider>
         <Router>
           <QuickCaptureProvider>
+          <AppSplashController />
           <PendingCaptureRouteRecovery />
           <Routes>
             <Route element={<AppRouteChrome />}>

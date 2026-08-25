@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog, ClipboardList } from 'lucide-react';
+import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog, ClipboardList, Database } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNavigate } from 'react-router';
 import LiveSessionManager from './LiveSessionManager';
@@ -10,6 +10,7 @@ import VerificationAdminPanel from './VerificationAdminPanel';
 import UserRoleAdminPanel from './UserRoleAdminPanel';
 import ProgramApplicationsAdminPanel from './ProgramApplicationsAdminPanel';
 import SuperadminClipModerationPanel from './SuperadminClipModerationPanel';
+import JamBaseQuotaPanel from './JamBaseQuotaPanel';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 interface LiveSession {
@@ -32,7 +33,7 @@ export default function AdminDashboard() {
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [loading, setLoading] = useState(true);
   const isSuperAdmin = extendedUser?.profile?.is_superadmin === 1;
-  const [activeTab, setActiveTab] = useState<'sessions' | 'moderation' | 'analytics' | 'content' | 'verification' | 'applications' | 'roles' | 'clips'>('sessions');
+  const [activeTab, setActiveTab] = useState<'sessions' | 'moderation' | 'analytics' | 'content' | 'verification' | 'applications' | 'roles' | 'clips' | 'jambase'>('sessions');
   const [selectedSession, setSelectedSession] = useState<LiveSession | null>(null);
   const [showSessionManager, setShowSessionManager] = useState(false);
 
@@ -188,6 +189,19 @@ export default function AdminDashboard() {
               <div className="flex items-center space-x-2">
                 <BarChart3 className="w-5 h-5" />
                 <span>Analytics</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('jambase')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'jambase'
+                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Database className="w-5 h-5" />
+                <span>JamBase</span>
               </div>
             </button>
             <button
@@ -392,6 +406,8 @@ export default function AdminDashboard() {
         {activeTab === 'moderation' && <ChatModerationPanel />}
 
         {activeTab === 'analytics' && <AnalyticsDashboard />}
+
+        {activeTab === 'jambase' && <JamBaseQuotaPanel />}
 
         {activeTab === 'content' && <ContentModerationPanel />}
 

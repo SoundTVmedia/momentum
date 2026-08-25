@@ -14,6 +14,7 @@ import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 import { HEADER_ACTION_BUTTON_CLASS } from '@/react-app/components/HeaderGradientPill'
 import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
+import PoweredByJamBase from '@/react-app/components/PoweredByJamBase'
 import { showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
 
 export default function Header() {
@@ -84,15 +85,18 @@ export default function Header() {
     <header className="glass-chrome border-b border-[var(--shell-border)] sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
-          {/* Logo */}
-          <button 
-            onClick={() => navigate('/')}
-            className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-4 min-w-0"
-          >
-            <div className="text-lg sm:text-xl md:text-2xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent truncate">
-              FEEDBACK
-            </div>
-          </button>
+          <div className="flex min-w-0 items-center gap-2 sm:gap-2.5 md:gap-3">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="min-w-0"
+            >
+              <div className="truncate whitespace-nowrap text-lg font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent sm:text-xl md:text-2xl">
+                FEEDBACK
+              </div>
+            </button>
+            <PoweredByJamBase variant="nav" />
+          </div>
 
           <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
             <button
