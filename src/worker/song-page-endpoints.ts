@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { SONG_CLIPS_ORDER_BY_SQL } from './clip-order-by';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { resolveArtistNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
@@ -47,7 +48,7 @@ export async function buildSongPagePayload(c: Context): Promise<Response> {
       OR LOWER(REPLACE(TRIM(IFNULL(clips.artist_name, '')), ' ', '-')) = ?
     )
     AND clips.song_slug = ?
-    ORDER BY clips.created_at DESC
+    ${SONG_CLIPS_ORDER_BY_SQL}
     LIMIT 80`
   )
     .bind(artistName, artistSlug, songSlug)

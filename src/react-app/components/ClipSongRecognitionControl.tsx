@@ -8,6 +8,7 @@ import {
 } from '@/react-app/lib/applyClipSongRecognition';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import type { ClipPlaybackFields } from '@/shared/clip-playback';
+import { identifyStageLabel, type IdentifySongStage } from '@/shared/identify-stage';
 import type { ClipWithUser } from '@/shared/types';
 
 type ClipSongRecognitionControlProps = {
@@ -37,6 +38,7 @@ export default function ClipSongRecognitionControl({
     'idle' | 'loading' | 'done' | 'nomatch' | 'skipped' | 'error'
   >('idle');
   const [message, setMessage] = useState<string | null>(null);
+  const [stage, setStage] = useState<IdentifySongStage>('start');
   const [manualOpen, setManualOpen] = useState(false);
   const [manualTitle, setManualTitle] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
@@ -55,11 +57,13 @@ export default function ClipSongRecognitionControl({
     console.log('[identify] tap', clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown');
     setStatus('loading');
     setMessage(null);
+    setStage('start');
     try {
       const outcome = await runClipSongRecognitionAndSave({
         clip,
         currentFields,
         asSuperadmin,
+        onStage: (event) => setStage(event.stage),
       });
       if (outcome.status === 'match') {
         setStatus('done');
@@ -208,7 +212,7 @@ export default function ClipSongRecognitionControl({
 
       {manualError ? <p className="mt-2 text-xs text-red-300">{manualError}</p> : null}
       {status === 'loading' ? (
-        <p className="mt-2 text-xs text-violet-200/90">Listening for a song in this clip…</p>
+        <p className="mt-2 text-xs text-violet-200/90">{identifyStageLabel(stage)}</p>
       ) : null}
       {status === 'done' && message ? (
         <p className="mt-2 text-xs text-emerald-300">{message}</p>

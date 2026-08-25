@@ -1,5 +1,12 @@
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import {
+  acrCloudExhaustedReason,
+  isAcrCloudExhaustedMessage,
+  isAcrCloudFallbackAvailable,
+  isAcrCloudMisconfiguredMessage,
+  markAcrCloudExhausted,
+} from '@/react-app/lib/identify-music-config';
+import {
   downloadRemoteMediaToCache,
   readNativeFileAsBlob,
 } from '@/react-app/lib/native-bridge';
@@ -13,6 +20,11 @@ import {
   resolveClipDownloadUrl,
   type ClipPlaybackFields,
 } from '@/shared/clip-playback';
+import type { IdentifyStageReporter } from '@/shared/identify-stage';
+import {
+  IDENTIFY_ACR_FALLBACK_TIMEOUT_MS,
+  IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS,
+} from '@/shared/identify-music-limits';
 
 type ServerIdentifyResponse = {
   ok?: boolean;
@@ -23,9 +35,12 @@ type ServerIdentifyResponse = {
   acrcloudCode?: number;
 };
 
-const SERVER_IDENTIFY_TIMEOUT_MS = 55_000;
+const SERVER_IDENTIFY_TIMEOUT_MS = IDENTIFY_ACR_FALLBACK_TIMEOUT_MS;
 const IDENTIFY_CACHE_EXTENSIONS = new Set(['mov', 'm4v', 'mp4', 'm4a', 'caf', 'wav']);
 const identifyInFlight = new Map<string, Promise<AudDIdentifyResult>>();
+
+/** No song was found, but nothing is broken — callers open manual entry. */
+const NO_MATCH: AudDIdentifyResult = { status: 'nomatch', message: null };
 
 function absoluteMediaUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url;
@@ -173,6 +188,7 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
  */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
+  options?: { onStage?: IdentifyStageReporter },
 ): Promise<AudDIdentifyResult> {
   const clipId = String(clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown');
   const existing = identifyInFlight.get(clipId);
@@ -180,17 +196,71 @@ export async function identifySongForUploadedClip(
     console.log('[identify] clip-player join in-flight', clipId);
     return existing;
   }
-  const run = identifySongForUploadedClipUncapped(clip, clipId).finally(() => {
-    identifyInFlight.delete(clipId);
-  });
+  const run = identifySongForUploadedClipUncapped(clip, clipId, options?.onStage).finally(
+    () => {
+      identifyInFlight.delete(clipId);
+    },
+  );
   identifyInFlight.set(clipId, run);
   return run;
+}
+
+/**
+ * ACRCloud fallback on the 11s WAV the native scan already exported for the
+ * loudest window. Only runs when the Worker has keys; an exhausted quota is
+ * recorded once and reported as "no match" so manual entry opens immediately.
+ */
+async function acrFallbackForLoudestWindow(
+  clipId: string,
+  wavPath: string | null | undefined,
+  report: IdentifyStageReporter,
+): Promise<AudDIdentifyResult | null> {
+  const path = wavPath?.trim();
+  if (!path) return null;
+  if (!(await isAcrCloudFallbackAvailable())) {
+    console.log(
+      '[identify] clip-player acr skipped',
+      clipId,
+      acrCloudExhaustedReason() ?? 'not configured',
+    );
+    return null;
+  }
+
+  report({ stage: 'acrcloud', detail: 'loudest-window wav' });
+  const wav = await readNativeFileAsBlob(path, 'audio/wav');
+  if (!wav || wav.size <= 4096) {
+    console.log('[identify] clip-player acr wav unreadable', clipId);
+    return null;
+  }
+
+  const acr = normalizeIdentifyResult(await identifyMusicWithAudD(wav));
+  console.log(
+    '[identify] clip-player acr',
+    acr.status,
+    acr.status === 'match' ? acr.title : acr.message,
+  );
+  if (acr.status === 'match') return acr;
+
+  const message = acr.status === 'error' ? acr.message : null;
+  if (isAcrCloudExhaustedMessage(message) || isAcrCloudMisconfiguredMessage(message)) {
+    // A spent quota or bad keys must not surface as a red banner on the clip.
+    markAcrCloudExhausted(message ?? 'ACRCloud rejected the request');
+    return null;
+  }
+  return acr.status === 'nomatch' ? acr : null;
 }
 
 async function identifySongForUploadedClipUncapped(
   clip: ClipPlaybackFields,
   clipId: string,
+  onStage?: IdentifyStageReporter,
 ): Promise<AudDIdentifyResult> {
+  const report: IdentifyStageReporter = (event) => {
+    console.log('[identify] stage', clipId, event.stage, event.detail ?? '');
+    onStage?.(event);
+  };
+
+  report({ stage: 'start' });
   const mediaUrl = clipPlayerShazamKitMediaUrl(clip);
   console.log(
     '[identify] clip-player start',
@@ -205,44 +275,81 @@ async function identifySongForUploadedClipUncapped(
   );
 
   if (mediaUrl) {
+    report({ stage: 'download', detail: mediaUrl });
     const localPath = await downloadRemoteMediaToCache(
       mediaUrl,
       identifyCacheFileName(clipId, mediaUrl),
     );
     const shazamPath = localPath || mediaUrl;
     console.log('[identify] clip-player shazamkit path', localPath ? 'local-cache' : 'remote-url');
+
+    // Fast pass: one 11s signature from the head of the file. This is byte for
+    // byte the call the quick-capture upload path makes, and it is the only
+    // shape that has been reliable, so try it before the long scan.
+    report({ stage: 'shazamkit-fast', detail: localPath ? 'local-cache' : 'remote-url' });
+    const fast = await identifyNativeFileWithShazamKit(shazamPath, {
+      timeoutMs: IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS,
+    });
+    if (fast?.status === 'match') {
+      console.log('[identify] clip-player shazamkit fast-pass match', clipId);
+      return normalizeIdentifyResult(fast);
+    }
+    console.log('[identify] clip-player fast pass', fast?.status ?? 'unavailable');
+
+    // The song may start later in the clip, so walk the rest of the file.
+    // A window that errors no longer kills the pass — native keeps scanning.
+    report({ stage: 'shazamkit-scan' });
     const shazam = await identifyNativeFileWithShazamKit(shazamPath, { scanWindows: true });
     if (shazam?.status === 'match') {
       console.log('[identify] clip-player shazamkit match', clipId);
       return normalizeIdentifyResult(shazam);
     }
+
     if (shazam?.status === 'nomatch') {
-      console.log('[identify] clip-player shazamkit nomatch after full-file scan', clipId);
-      const wavPath = shazam.wavPath?.trim();
-      if (wavPath) {
-        console.log(
-          '[identify] clip-player acr loudest wav',
-          'start=',
-          shazam.loudestStartSeconds ?? '?',
-          'rms=',
-          shazam.loudestRms ?? '?',
-        );
-        const wav = await readNativeFileAsBlob(wavPath, 'audio/wav');
-        if (wav && wav.size > 4096) {
-          const acr = normalizeIdentifyResult(await identifyMusicWithAudD(wav));
-          console.log('[identify] clip-player acr', acr.status, acr.status === 'match' ? acr.title : acr.message);
-          return acr;
-        }
-      }
-      return normalizeIdentifyResult(shazam);
+      console.log(
+        '[identify] clip-player shazamkit nomatch after full-file scan',
+        clipId,
+        'windows=',
+        shazam.windowsTried ?? '?',
+        'of',
+        shazam.windowCount ?? '?',
+        'loudest=',
+        shazam.loudestStartSeconds ?? '?',
+        'rms=',
+        shazam.loudestRms ?? '?',
+      );
+      const acr = await acrFallbackForLoudestWindow(clipId, shazam.wavPath, report);
+      if (acr) return acr;
+      // Shazam read the audio fine and found nothing: that is a real no-match,
+      // not a failure. Say so, so the owner gets the manual field.
+      return NO_MATCH;
     }
+
+    // ShazamKit itself could not run (unavailable, unreadable audio, timeout).
+    // The Worker can still read the published file, so let it try.
     console.log(
       '[identify] clip-player shazamkit',
       shazam?.status ?? 'unavailable',
+      shazam?.status === 'error' ? shazam.message : '',
       'falling back to worker',
     );
   }
 
+  if (!(await isAcrCloudFallbackAvailable())) {
+    console.log(
+      '[identify] clip-player worker skipped',
+      clipId,
+      acrCloudExhaustedReason() ?? 'ACRCloud not configured',
+    );
+    return NO_MATCH;
+  }
+
+  report({ stage: 'worker' });
   console.log('[identify] clip-player via worker', clipId);
-  return identifySongViaServer(clip);
+  const server = await identifySongViaServer(clip);
+  if (server.status === 'error' && isAcrCloudExhaustedMessage(server.message)) {
+    markAcrCloudExhausted(server.message);
+    return NO_MATCH;
+  }
+  return server;
 }

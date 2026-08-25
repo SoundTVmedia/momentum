@@ -80,7 +80,8 @@ export async function handleResumableUpload(c: Context) {
           success: true,
           streamVideoId: videoDetails.uid,
           playbackUrl: videoDetails.playbackUrl,
-          mp4PlaybackUrl: videoDetails.mp4Url,
+          // No mp4PlaybackUrl: the progressive download is generated later by
+          // the cron finalizer, so that URL is a 404 at this point.
           thumbnailUrl: videoDetails.thumbnail,
           status: videoDetails.status,
           readyToStream: videoDetails.readyToStream,

@@ -43,6 +43,7 @@ import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
 import ClipModalBuyMerch from './ClipModalBuyMerch';
 import ClipModalBuyTickets from './ClipModalBuyTickets';
 import ClipModalTicketSheet from './ClipModalTicketSheet';
+import { canRunClipSongIdentify } from '@/shared/clip-song-identify';
 import { clipBelongsToUser } from '@/shared/mocha-user-id';
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
 import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
@@ -346,7 +347,10 @@ export default function ClipModal({
     </button>
   ) : null;
 
-  const showPlayerSongIdentify = (isOwnClip || isSuperAdmin) && !clip.song_title?.trim();
+  const showPlayerSongIdentify = canRunClipSongIdentify(clip, {
+    isOwner: isOwnClip,
+    isSuperadmin: isSuperAdmin,
+  });
 
   const renderPlayerSongIdentify = () =>
     showPlayerSongIdentify ? (

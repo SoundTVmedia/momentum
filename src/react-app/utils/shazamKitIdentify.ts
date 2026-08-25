@@ -4,6 +4,9 @@ import {
   IDENTIFY_SAMPLE_SECONDS,
   IDENTIFY_SCAN_MAX_WINDOWS,
   IDENTIFY_SCAN_STEP_SECONDS,
+  IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS,
+  IDENTIFY_SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS,
+  IDENTIFY_SHAZAMKIT_SCAN_TIMEOUT_MS,
   MAX_IDENTIFY_UPLOAD_BYTES,
   MIN_IDENTIFY_SAMPLE_BYTES,
 } from '@/shared/identify-music-limits';
@@ -14,16 +17,20 @@ export type NativeFileIdentifyResult = AudDIdentifyResult & {
   wavPath?: string | null;
   loudestStartSeconds?: number | null;
   loudestRms?: number | null;
+  /** Scan diagnostics echoed by the native plugin. */
+  durationSeconds?: number | null;
+  windowsTried?: number | null;
+  windowCount?: number | null;
 };
 
 /** Cap for payloads sent over the Capacitor bridge as base64. */
 export const SHAZAMKIT_MAX_DIRECT_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
 
-const SHAZAMKIT_TIMEOUT_MS = 20_000;
+const SHAZAMKIT_TIMEOUT_MS = IDENTIFY_SHAZAMKIT_FILE_TIMEOUT_MS;
 /** Remote Stream MP4: AVAsset track load allows 45s natively. */
-const SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS = 50_000;
+const SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS = IDENTIFY_SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS;
 /** Overlapping 11s windows + one 202 retry per window. */
-const SHAZAMKIT_SCAN_WINDOWS_TIMEOUT_MS = 120_000;
+const SHAZAMKIT_SCAN_WINDOWS_TIMEOUT_MS = IDENTIFY_SHAZAMKIT_SCAN_TIMEOUT_MS;
 
 /**
  * When duration cannot be read, probe 11s windows every 8s until the file ends.
@@ -234,24 +241,37 @@ function describeUnknownError(err: unknown): string {
 
 /**
  * Identify from a native file path (Capgo recording) — avoids base64 of a 20–40MB movie.
+ *
+ * `scanWindows` walks overlapping 11s windows across the whole file. Leave it
+ * off for the fast pass: one 11s signature from `startSeconds`, which is the
+ * exact shape the quick-capture upload path uses.
  */
 export async function identifyNativeFileWithShazamKit(
   path: string | null | undefined,
-  options?: { scanWindows?: boolean },
+  options?: { scanWindows?: boolean; startSeconds?: number; timeoutMs?: number },
 ): Promise<NativeFileIdentifyResult | null> {
   const trimmed = path?.trim() ?? '';
   if (!trimmed) return null;
   if (!isShazamKitIdentifyAvailable()) return null;
   const scanWindows = options?.scanWindows === true;
-  const timeoutMs = scanWindows
+  const startSeconds =
+    typeof options?.startSeconds === 'number' && Number.isFinite(options.startSeconds)
+      ? Math.max(0, options.startSeconds)
+      : 0;
+  const defaultTimeoutMs = scanWindows
     ? SHAZAMKIT_SCAN_WINDOWS_TIMEOUT_MS
     : /^https?:\/\//i.test(trimmed)
       ? SHAZAMKIT_REMOTE_FILE_TIMEOUT_MS
       : SHAZAMKIT_TIMEOUT_MS;
+  const timeoutMs =
+    typeof options?.timeoutMs === 'number' && options.timeoutMs > 0
+      ? Math.min(options.timeoutMs, defaultTimeoutMs)
+      : defaultTimeoutMs;
   const recognize = () =>
     ShazamKit.recognizeFile({
       path: trimmed,
       ...(scanWindows ? { scanWindows: true } : {}),
+      ...(startSeconds > 0 ? { startSeconds } : {}),
     });
   const logScan = (result: {
     match?: ShazamKitMatchPayload | null;
@@ -263,9 +283,10 @@ export async function identifyNativeFileWithShazamKit(
     loudestRms?: number | null;
     wavPath?: string | null;
   }) => {
-    if (!scanWindows) return;
     console.log(
-      '[identify] shazamkit scan',
+      scanWindows ? '[identify] shazamkit scan' : '[identify] shazamkit fast pass',
+      'start=',
+      startSeconds,
       'duration=',
       result.durationSeconds ?? 'unknown',
       'starts=',
@@ -287,12 +308,18 @@ export async function identifyNativeFileWithShazamKit(
       wavPath?: string | null;
       loudestStartSeconds?: number | null;
       loudestRms?: number | null;
+      durationSeconds?: number | null;
+      windowsTried?: number;
+      windowCount?: number;
     },
   ): NativeFileIdentifyResult => ({
     ...identify,
     wavPath: result?.wavPath ?? null,
     loudestStartSeconds: result?.loudestStartSeconds ?? null,
     loudestRms: result?.loudestRms ?? null,
+    durationSeconds: result?.durationSeconds ?? null,
+    windowsTried: result?.windowsTried ?? null,
+    windowCount: result?.windowCount ?? null,
   });
   try {
     const result = await withTimeout(recognize(), timeoutMs);

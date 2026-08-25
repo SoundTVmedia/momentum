@@ -39,7 +39,8 @@ export async function uploadFromUrl(c: Context) {
       success: true,
       streamVideoId: videoDetails.uid,
       playbackUrl: videoDetails.playbackUrl,
-      mp4PlaybackUrl: videoDetails.mp4Url,
+      // No mp4PlaybackUrl: the progressive download does not exist until the
+      // cron finalizer generates it, so publishing that URL here serves a 404.
       thumbnailUrl: videoDetails.thumbnail,
       status: videoDetails.status,
       readyToStream: videoDetails.readyToStream,
