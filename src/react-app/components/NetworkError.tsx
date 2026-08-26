@@ -1,4 +1,5 @@
 import { WifiOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { IonButton } from '@ionic/react';
 
 interface NetworkErrorProps {
   onRetry?: () => void;
@@ -57,13 +58,10 @@ export default function NetworkError({
       </p>
 
       {onRetry && (
-        <button
-          onClick={onRetry}
-          className="flex items-center space-x-2 px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
-        >
-          <RefreshCw className="w-5 h-5" />
-          <span>Try Again</span>
-        </button>
+        <IonButton color="primary" onClick={onRetry}>
+          <RefreshCw className="w-5 h-5 mr-2" />
+          Try Again
+        </IonButton>
       )}
     </div>
   );

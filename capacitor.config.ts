@@ -10,6 +10,12 @@ const googleIosUrlScheme = isValidGoogleIosOAuthClientId(googleIosClientId)
   ? googleIosUrlSchemeFromClientId(googleIosClientId)
   : null;
 
+/** Live Worker by default. Override with CAPACITOR_SERVER_URL for on-device review of a local Vite server. */
+const capServerUrl =
+  process.env.CAPACITOR_SERVER_URL?.trim() ||
+  'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev';
+const capServerIsHttp = capServerUrl.startsWith('http://');
+
 const iosUrlTypes: Array<{ CFBundleURLName: string; CFBundleURLSchemes: string[] }> = [
   {
     CFBundleURLName: NATIVE_APP_ID,
@@ -31,9 +37,11 @@ const config: CapacitorConfig = {
   // IMPORTANT: all app APIs are relative /api/* fetches served by this Worker, so removing
   // `url` breaks login/feeds/uploads. To test branch-only native features (e.g. ShazamKit),
   // deploy this branch's Worker (`npm run deploy`) instead of commenting this out.
+  // For on-device review of local Vite: CAPACITOR_SERVER_URL=http://<lan-ip>:5173 npm run cap:sync
   server: {
     androidScheme: 'https',
-    url: 'https://019aa38d-a318-7dee-9fdf-30039470c120.wes-6f3.workers.dev',
+    url: capServerUrl,
+    ...(capServerIsHttp ? { cleartext: true } : {}),
   },
   // Baked into ios/App/App/capacitor.config.json at sync — used to gate native Google SDK vs browser OAuth.
   ...(googleIosClientId ? { googleIosOAuthClientId: googleIosClientId } : {}),

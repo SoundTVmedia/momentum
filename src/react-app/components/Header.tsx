@@ -1,6 +1,14 @@
-import { Search, LogOut, Bell, Shield, Handshake } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@getmocha/users-service/react'
+import {
+  IonButton,
+  IonButtons,
+  IonHeader,
+  IonIcon,
+  IonSearchbar,
+  IonToolbar,
+} from '@ionic/react'
+import { logOutOutline, notificationsOutline, peopleOutline, shieldOutline } from 'ionicons/icons'
 import { useLocation, useNavigate } from 'react-router'
 import { useUnreadNotificationCount } from '@/react-app/contexts/NotificationsContext'
 import NotificationAlertBadge from './NotificationAlertBadge'
@@ -12,7 +20,6 @@ import AdvancedSearchDropdown from './AdvancedSearchDropdown'
 import type { ClipWithUser, ExtendedMochaUser } from '@/shared/types'
 import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
-import { HEADER_ACTION_BUTTON_CLASS } from '@/react-app/components/HeaderGradientPill'
 import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
 import PoweredByJamBase from '@/react-app/components/PoweredByJamBase'
 import { isAdminUser, showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
@@ -74,17 +81,12 @@ export default function Header() {
     navigate(`/discover?q=${encodeURIComponent(q)}`)
   }
 
-  const handleHeaderSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    goToDiscoverSearch()
-  }
-
   return (
     <>
     {!hideSiteChrome ? (
-    <header className="top-nav glass-chrome border-b border-[var(--shell-border)] sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
-        <div className="flex items-center justify-between h-14 sm:h-16">
+    <IonHeader className="app-top-header ion-no-border">
+      <IonToolbar className="app-toolbar">
+        <div className="flex w-full min-w-0 items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5 md:gap-3">
             <button
               type="button"
@@ -98,19 +100,16 @@ export default function Header() {
             <PoweredByJamBase variant="nav" />
           </div>
 
-          <div className="flex items-center justify-end gap-1 sm:gap-2 md:gap-4 min-w-0">
-            <button
-              type="button"
+          <div className="flex min-w-0 items-center justify-end gap-0.5 sm:gap-1 md:gap-2">
+            <IonButton
+              fill="clear"
+              className="hidden md:inline-flex"
+              color={pathname === '/partner' || pathname === '/sponsors' ? 'primary' : 'medium'}
               onClick={() => navigate(showSponsorNav(extendedUser) ? '/sponsors' : '/partner')}
-              className={`hidden md:inline-flex shrink-0 items-center justify-center gap-1.5 bg-transparent ${
-                pathname === '/partner' || pathname === '/sponsors'
-                  ? 'shadow-[inset_0_0_0_1.5px_theme(colors.momentum.flare)] bg-white/10 text-momentum-flare'
-                  : 'shadow-[inset_0_0_0_1.5px_#fff] hover:bg-white/5'
-              } ${HEADER_ACTION_BUTTON_CLASS}`}
             >
-              <Handshake className="h-3.5 w-3.5" aria-hidden />
-              <span>{showSponsorNav(extendedUser) ? 'Sponsors' : 'Partner With Us'}</span>
-            </button>
+              <IonIcon slot="start" icon={peopleOutline} />
+              {showSponsorNav(extendedUser) ? 'Sponsors' : 'Partner With Us'}
+            </IonButton>
             {user && showBecomeNav(extendedUser) ? (
               <BecomeNavDropdown user={extendedUser!} />
             ) : null}
@@ -118,19 +117,20 @@ export default function Header() {
               className={`relative z-[100] hidden lg:block ${hideHeaderSearch ? 'lg:hidden' : ''}`}
               ref={searchDropdownRef}
             >
-              <form onSubmit={handleHeaderSearchSubmit} className="relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => handleSearchInput(e.target.value)}
-                  onFocus={() => searchQuery.trim().length >= 2 && setShowSearchResults(true)}
-                  placeholder="Search clips, artists, venues..."
-                  className="glass-input w-48 xl:w-64 pl-9 pr-3 py-2 rounded-xl text-white placeholder-gray-400 text-sm"
-                  aria-autocomplete="list"
-                  aria-expanded={showSearchResults}
-                />
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </form>
+              <IonSearchbar
+                className="app-searchbar w-48 xl:w-64"
+                value={searchQuery}
+                debounce={0}
+                placeholder="Search clips, artists, venues..."
+                onIonInput={(e) => handleSearchInput(e.detail.value ?? '')}
+                onIonFocus={() => searchQuery.trim().length >= 2 && setShowSearchResults(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    goToDiscoverSearch()
+                  }
+                }}
+              />
 
               <AdvancedSearchDropdown
                 query={searchQuery}
@@ -146,18 +146,19 @@ export default function Header() {
             </div>
 
             {user ? (
-              <div className="flex items-center space-x-0.5 sm:space-x-1 md:space-x-2">
-                <button
+              <IonButtons>
+                <IonButton
+                  className="hidden md:inline-flex"
+                  color="primary"
                   onClick={() => navigate('/upload')}
-                  className={`hidden md:block momentum-grad-interactive shadow-lg shadow-momentum-ember/35 ${HEADER_ACTION_BUTTON_CLASS}`}
                 >
-                  Share Your Moment
-                </button>
-                <button
+                  Share
+                </IonButton>
+                <IonButton
+                  className="hidden md:inline-flex"
+                  fill="clear"
                   onClick={() => navigate(`/users/${user.id}`)}
-                  className="hidden md:inline-flex items-center justify-center p-0.5 sm:p-1 rounded-full text-gray-400 hover:text-white transition-colors ring-2 ring-transparent hover:ring-white/20 tap-feedback"
-                  title="Your profile"
-                  type="button"
+                  aria-label="Your profile"
                 >
                   <UserAvatar
                     imageUrl={
@@ -174,56 +175,54 @@ export default function Header() {
                     sizeClass="w-8 h-8 sm:w-9 sm:h-9"
                     letterClassName="text-xs sm:text-sm font-semibold"
                   />
-                </button>
+                </IonButton>
                 <div className="relative hidden md:block">
-                  <button
+                  <IonButton
+                    fill="clear"
+                    color="medium"
                     onClick={() => setShowNotifications(!showNotifications)}
-                    className="relative p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors group"
-                    title="Notifications"
-                    type="button"
+                    aria-label="Notifications"
                   >
-                    <Bell
-                      className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${hasUnreadNotifications(unreadCount) ? 'animate-pulse' : ''} group-hover:scale-110`}
+                    <IonIcon
+                      slot="icon-only"
+                      icon={notificationsOutline}
+                      className={hasUnreadNotifications(unreadCount) ? 'animate-pulse' : ''}
                     />
-                    <NotificationAlertBadge variant="header" />
-                  </button>
-
+                  </IonButton>
+                  <NotificationAlertBadge variant="header" />
                   {showNotifications && (
                     <NotificationPanel onClose={() => setShowNotifications(false)} />
                   )}
                 </div>
                 {isAdminUser(extendedUser) && (
-                  <button
+                  <IonButton
+                    fill="clear"
+                    color="tertiary"
+                    className="admin-header-control"
                     onClick={() => navigate('/admin')}
-                    className="admin-header-control shrink-0 p-1.5 sm:p-2 text-gray-400 hover:text-momentum-rose transition-colors"
-                    title="Admin Dashboard"
-                    type="button"
                     aria-label="Admin Dashboard"
                   >
-                    <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
+                    <IonIcon slot="icon-only" icon={shieldOutline} />
+                  </IonButton>
                 )}
-                <button
+                <IonButton
+                  fill="clear"
+                  color="medium"
                   onClick={logout}
-                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white transition-colors"
-                  title="Sign out"
-                  type="button"
+                  aria-label="Sign out"
                 >
-                  <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
-              </div>
+                  <IonIcon slot="icon-only" icon={logOutOutline} />
+                </IonButton>
+              </IonButtons>
             ) : (
-              <button
-                onClick={() => navigate('/auth')}
-                className="px-2.5 sm:px-3 md:px-4 py-1.5 sm:py-2 momentum-grad-interactive rounded-lg font-bold text-white hover:scale-105 transition-transform text-xs sm:text-sm md:text-base whitespace-nowrap shadow-lg shadow-momentum-flare/35"
-              >
+              <IonButton color="primary" onClick={() => navigate('/auth')}>
                 Sign In
-              </button>
+              </IonButton>
             )}
           </div>
         </div>
-      </div>
-    </header>
+      </IonToolbar>
+    </IonHeader>
     ) : null}
     {headerClipModal ? (
       <ClipModal

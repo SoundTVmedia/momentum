@@ -10,7 +10,18 @@ import {
 import { nativeIosGoogleOAuthCallbackUrl } from '@/shared/oauth-redirect';
 import { shouldUseNativeInAppOAuth } from '@/react-app/lib/native-oauth';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
-import { Loader2, Mail, Lock, UserCircle } from 'lucide-react';
+import {
+  IonButton,
+  IonCard,
+  IonCardContent,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonNote,
+  IonSegment,
+  IonSegmentButton,
+  IonSpinner,
+} from '@ionic/react';
 
 const DEVICE_TOKEN_COOKIE = 'momentum_device_token';
 
@@ -323,8 +334,8 @@ export default function Auth() {
     return (
       <div className="min-h-screen text-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Loading...</p>
+          <IonSpinner className="app-spinner h-12 w-12" name="crescent" />
+          <p className="text-white text-lg mt-4">Loading...</p>
         </div>
       </div>
     );
@@ -334,8 +345,8 @@ export default function Auth() {
     return (
       <div className="min-h-screen text-white flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin mx-auto mb-4" />
-          <p className="text-white text-lg">Finishing sign-in...</p>
+          <IonSpinner className="app-spinner h-12 w-12" name="crescent" />
+          <p className="text-white text-lg mt-4">Finishing sign-in...</p>
         </div>
       </div>
     );
@@ -351,11 +362,12 @@ export default function Auth() {
           <p className="text-sm text-gray-300">Where Live Music Lives</p>
         </div>
 
-        <div className="glass-panel rounded-xl p-8 space-y-6">
+        <IonCard className="app-auth-card">
+          <IonCardContent className="space-y-6">
           {error && (
-            <div className="p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
-              <p className="text-red-400">{error}</p>
-            </div>
+            <IonNote color="danger" className="block rounded-lg border border-red-500/50 bg-red-500/20 p-4">
+              {error}
+            </IonNote>
           )}
 
           <div className="text-center">
@@ -370,22 +382,26 @@ export default function Auth() {
               label="Sign in with Google"
             />
 
-            <button
+            <IonButton
+              expand="block"
+              fill="solid"
+              color="dark"
               type="button"
               onClick={() => void startAppleAuth()}
               disabled={googleLoading || appleLoading || emailLoading}
-              className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-black hover:bg-gray-900 !text-white rounded-xl font-semibold text-base shadow-md border border-white/10 transition-colors disabled:opacity-50"
             >
-              <svg className="w-5 h-5 shrink-0 fill-white" viewBox="0 0 24 24" aria-hidden>
+              <svg className="w-5 h-5 mr-2 shrink-0 fill-white" viewBox="0 0 24 24" aria-hidden>
                 <path d="M16.365 1.43c0 1.14-.417 2.2-1.114 2.99-.84.97-2.22 1.72-3.41 1.62-.14-1.12.42-2.3 1.06-3.03.72-.82 2-1.46 3.18-1.58.02.13.024.27.024.4zM20.7 17.18c-.6 1.39-.89 2-1.66 3.23-1.08 1.72-2.6 3.86-4.49 3.88-1.68.02-2.11-1.1-4.39-1.08-2.28.01-2.76 1.1-4.43 1.09-1.89-.02-3.34-1.95-4.42-3.66C-1.04 16.99-1.36 11.4 1.34 8.42 2.61 7 4.46 6.1 6.2 6.1c1.77 0 2.88 1.09 4.35 1.09 1.42 0 2.29-1.09 4.34-1.09 1.55 0 3.19.84 4.36 2.3-3.83 2.1-3.21 7.56.45 8.78z" />
               </svg>
-              <span>Sign in with Apple</span>
-            </button>
+              Sign in with Apple
+            </IonButton>
           </div>
 
           {!showEmailForm && (
             <div className="text-center">
-              <button
+              <IonButton
+                fill="clear"
+                color="medium"
                 type="button"
                 onClick={() => {
                   setShowEmailForm(true);
@@ -393,97 +409,102 @@ export default function Auth() {
                   setError(null);
                   setForgotMessage(null);
                 }}
-                className="text-sm text-gray-400 hover:text-white transition-colors"
               >
                 or sign in with email
-              </button>
+              </IonButton>
             </div>
           )}
 
           {showEmailForm && (
             <div className="space-y-4 pt-4 border-t border-white/10">
             {forgotMessage && (
-              <div className="p-4 bg-momentum-ember/10 border border-momentum-ember/30 rounded-lg">
-                <p className="text-momentum-flare text-sm">{forgotMessage}</p>
-              </div>
+              <IonNote color="primary" className="block rounded-lg border border-momentum-ember/30 bg-momentum-ember/10 p-4">
+                {forgotMessage}
+              </IonNote>
             )}
 
-            <form onSubmit={handleEmailAuth} className="space-y-4">
-              {emailMode === 'signup' && (
-                <div>
-                  <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-2">
-                    Display name <span className="text-gray-500">(optional)</span>
-                  </label>
-                  <div className="relative">
-                    <UserCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      id="displayName"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="How should we call you?"
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
-                      disabled={googleLoading || appleLoading || emailLoading}
-                    />
-                  </div>
-                </div>
-              )}
+            <IonSegment
+              className="app-feed-segment"
+              value={emailMode}
+              onIonChange={(e) => {
+                const next = e.detail.value;
+                if (next === 'signin' || next === 'signup' || next === 'forgot') {
+                  setEmailMode(next);
+                  setError(null);
+                  setForgotMessage(null);
+                }
+              }}
+            >
+              <IonSegmentButton value="signin">
+                <IonLabel>Sign in</IonLabel>
+              </IonSegmentButton>
+              <IonSegmentButton value="signup">
+                <IonLabel>Sign up</IonLabel>
+              </IonSegmentButton>
+              <IonSegmentButton value="forgot">
+                <IonLabel>Forgot</IonLabel>
+              </IonSegmentButton>
+            </IonSegment>
 
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="email"
-                    id="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your.email@example.com"
-                    autoComplete="email"
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
+            <form onSubmit={handleEmailAuth} className="space-y-3">
+              {emailMode === 'signup' && (
+                <IonItem lines="none" className="rounded-xl">
+                  <IonInput
+                    label="Display name"
+                    labelPlacement="stacked"
+                    type="text"
+                    value={displayName}
+                    placeholder="How should we call you?"
+                    onIonInput={(e) => setDisplayName(e.detail.value ?? '')}
                     disabled={googleLoading || appleLoading || emailLoading}
                   />
-                </div>
-              </div>
+                </IonItem>
+              )}
+
+              <IonItem lines="none" className="rounded-xl">
+                <IonInput
+                  label="Email Address"
+                  labelPlacement="stacked"
+                  type="email"
+                  autocomplete="email"
+                  value={email}
+                  placeholder="your.email@example.com"
+                  onIonInput={(e) => setEmail(e.detail.value ?? '')}
+                  disabled={googleLoading || appleLoading || emailLoading}
+                />
+              </IonItem>
 
               {emailMode !== 'forgot' && (
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="password"
-                      id="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={emailMode === 'signup' ? 'At least 8 characters' : '••••••••'}
-                      autoComplete={emailMode === 'signup' ? 'new-password' : 'current-password'}
-                      className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
-                      disabled={googleLoading || appleLoading || emailLoading}
-                    />
-                  </div>
-                </div>
+                <IonItem lines="none" className="rounded-xl">
+                  <IonInput
+                    label="Password"
+                    labelPlacement="stacked"
+                    type="password"
+                    autocomplete={emailMode === 'signup' ? 'new-password' : 'current-password'}
+                    value={password}
+                    placeholder={emailMode === 'signup' ? 'At least 8 characters' : '••••••••'}
+                    onIonInput={(e) => setPassword(e.detail.value ?? '')}
+                    disabled={googleLoading || appleLoading || emailLoading}
+                  />
+                </IonItem>
               )}
 
               {emailMode === 'forgot' && (
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-400 px-1">
                   We&apos;ll email you a link to choose a new password if this address has an email
                   account.
                 </p>
               )}
 
-              <button
+              <IonButton
                 type="submit"
+                expand="block"
+                color="primary"
                 disabled={googleLoading || appleLoading || emailLoading}
-                className="w-full px-6 py-3 bg-white/10 border border-white/20 rounded-lg text-white font-semibold hover:bg-white/20 transition-colors disabled:opacity-50"
               >
                 {emailLoading ? (
-                  <span className="flex items-center justify-center space-x-2">
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="flex items-center justify-center gap-2">
+                    <IonSpinner name="crescent" />
                     <span>
                       {emailMode === 'signup'
                         ? 'Creating account...'
@@ -499,49 +520,12 @@ export default function Auth() {
                 ) : (
                   'Sign in with email'
                 )}
-              </button>
-              {emailMode === 'signin' ? (
-                <div className="flex items-center justify-between text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmailMode('forgot');
-                      setError(null);
-                      setForgotMessage(null);
-                    }}
-                    className="text-momentum-ember hover:text-momentum-flare"
-                  >
-                    Forgot password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmailMode('signup');
-                      setError(null);
-                      setForgotMessage(null);
-                    }}
-                    className="text-momentum-ember hover:text-momentum-flare"
-                  >
-                    Create account
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmailMode('signin');
-                    setError(null);
-                    setForgotMessage(null);
-                  }}
-                  className="w-full text-center text-[11px] text-momentum-ember hover:text-momentum-flare"
-                >
-                  Back to sign in
-                </button>
-              )}
+              </IonButton>
             </form>
             </div>
           )}
-        </div>
+          </IonCardContent>
+        </IonCard>
 
         <p className="text-center text-gray-500 text-xs mt-6">
           By signing in, you agree to our{' '}

@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Filter, Users, X } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import {
+  IonButton,
+  IonButtons,
+  IonIcon,
+  IonItem,
+  IonSearchbar,
+  IonSelect,
+  IonSelectOption,
+  IonSpinner,
+} from '@ionic/react';
+import { closeOutline, optionsOutline } from 'ionicons/icons';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
@@ -371,97 +382,98 @@ export default function DiscoverPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-10">
           <form onSubmit={handleSearch} className="w-full">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
-              <input
-                type="text"
+            <div className="flex items-center gap-2">
+              <IonSearchbar
+                className="app-searchbar-hero min-w-0 flex-1"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                debounce={0}
                 placeholder="Search artists, venues, cities..."
-                className="w-full pl-14 pr-32 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-lg"
+                onIonInput={(e) => setSearchQuery(e.detail.value ?? '')}
               />
-              <button
-                type="button"
-                onClick={() => setShowFilters(!showFilters)}
-                className="absolute right-20 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <Filter className="w-5 h-5" />
-              </button>
-              <button
-                type="submit"
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 px-6 py-2 momentum-grad-interactive rounded-lg text-white font-medium hover:scale-105 transition-transform"
-              >
-                Search
-              </button>
+              <IonButtons>
+                <IonButton
+                  fill="clear"
+                  color={showFilters ? 'primary' : 'medium'}
+                  onClick={() => setShowFilters(!showFilters)}
+                  aria-label="Filters"
+                >
+                  <IonIcon slot="icon-only" icon={optionsOutline} />
+                </IonButton>
+                <IonButton type="submit" color="primary">
+                  Search
+                </IonButton>
+              </IonButtons>
             </div>
           </form>
 
           {showFilters && (
-            <div className="w-full mt-4 p-6 glass-panel border border-white/10 rounded-xl">
-              <div className="flex items-center justify-between mb-4">
+            <div className="w-full mt-4 p-4 glass-panel border border-white/10 rounded-xl space-y-2">
+              <div className="flex items-center justify-between mb-2">
                 <h3 className="text-white font-bold">Filters</h3>
-                <button
-                  type="button"
+                <IonButton
+                  fill="clear"
+                  color="medium"
                   onClick={() => setShowFilters(false)}
-                  className="text-gray-400 hover:text-white"
+                  aria-label="Close filters"
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  <IonIcon slot="icon-only" icon={closeOutline} />
+                </IonButton>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Genre</label>
-                  <select
-                    value={filters.genre}
-                    onChange={(e) => updateFilter('genre', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
-                  >
-                    <option value="">All Genres</option>
-                    <option value="Rock">Rock</option>
-                    <option value="Pop">Pop</option>
-                    <option value="Hip-Hop">Hip-Hop</option>
-                    <option value="Electronic">Electronic</option>
-                    <option value="Jazz">Jazz</option>
-                    <option value="Country">Country</option>
-                  </select>
-                </div>
+              <IonItem lines="none" className="rounded-xl">
+                <IonSelect
+                  label="Genre"
+                  labelPlacement="stacked"
+                  interface="popover"
+                  value={filters.genre}
+                  onIonChange={(e) => updateFilter('genre', String(e.detail.value ?? ''))}
+                >
+                  <IonSelectOption value="">All Genres</IonSelectOption>
+                  <IonSelectOption value="Rock">Rock</IonSelectOption>
+                  <IonSelectOption value="Pop">Pop</IonSelectOption>
+                  <IonSelectOption value="Hip-Hop">Hip-Hop</IonSelectOption>
+                  <IonSelectOption value="Electronic">Electronic</IonSelectOption>
+                  <IonSelectOption value="Jazz">Jazz</IonSelectOption>
+                  <IonSelectOption value="Country">Country</IonSelectOption>
+                </IonSelect>
+              </IonItem>
 
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Time Range</label>
-                  <select
-                    value={filters.dateRange}
-                    onChange={(e) => updateFilter('dateRange', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
-                  >
-                    <option value="7d">Last 7 days</option>
-                    <option value="30d">Last 30 days</option>
-                    <option value="90d">Last 90 days</option>
-                    <option value="all">All time</option>
-                  </select>
-                </div>
+              <IonItem lines="none" className="rounded-xl">
+                <IonSelect
+                  label="Time Range"
+                  labelPlacement="stacked"
+                  interface="popover"
+                  value={filters.dateRange}
+                  onIonChange={(e) => updateFilter('dateRange', String(e.detail.value ?? ''))}
+                >
+                  <IonSelectOption value="7d">Last 7 days</IonSelectOption>
+                  <IonSelectOption value="30d">Last 30 days</IonSelectOption>
+                  <IonSelectOption value="90d">Last 90 days</IonSelectOption>
+                  <IonSelectOption value="all">All time</IonSelectOption>
+                </IonSelect>
+              </IonItem>
 
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Sort By</label>
-                  <select
-                    value={filters.sortBy}
-                    onChange={(e) => updateFilter('sortBy', e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-momentum-flare"
-                  >
-                    <option value="latest">Latest</option>
-                    <option value="trending">Trending</option>
-                    <option value="most_liked">Most Liked</option>
-                    <option value="most_viewed">Most Viewed</option>
-                  </select>
-                </div>
-              </div>
+              <IonItem lines="none" className="rounded-xl">
+                <IonSelect
+                  label="Sort By"
+                  labelPlacement="stacked"
+                  interface="popover"
+                  value={filters.sortBy}
+                  onIonChange={(e) => updateFilter('sortBy', String(e.detail.value ?? ''))}
+                >
+                  <IonSelectOption value="latest">Latest</IonSelectOption>
+                  <IonSelectOption value="trending">Trending</IonSelectOption>
+                  <IonSelectOption value="most_liked">Most Liked</IonSelectOption>
+                  <IonSelectOption value="most_viewed">Most Viewed</IonSelectOption>
+                </IonSelect>
+              </IonItem>
             </div>
           )}
         </div>
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="inline-block w-12 h-12 border-4 border-momentum-flare border-t-transparent rounded-full animate-spin" />
+            <IonSpinner className="app-spinner h-12 w-12" name="crescent" />
           </div>
         ) : results ? (
           <div className={PAGE_SECTION_STACK_CLASS}>

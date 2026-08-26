@@ -95,7 +95,8 @@ html.native-quick-capture-open .momentum-ambient {
   pointer-events: none !important;
 }
 
-html.native-quick-capture-open nav.bottom-nav {
+html.native-quick-capture-open nav.bottom-nav,
+html.native-quick-capture-open ion-footer.app-tab-footer {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -243,7 +244,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   --glass-blur: 24px;
   --glass-blur-chrome: 32px;
 
-  --mobile-bottom-nav-bar: 4rem;
+  --mobile-bottom-nav-bar: 4.75rem;
   --mobile-bottom-nav-safe-extra: 0.5rem;
 }
 

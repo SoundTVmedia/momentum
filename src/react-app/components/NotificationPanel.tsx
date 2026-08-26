@@ -1,5 +1,15 @@
-import { Bell, Heart, MessageCircle, UserPlus, X, Check, Star, Award, Video, Radio, Shield, Loader2, Ticket } from 'lucide-react';
+import { Bell, Heart, MessageCircle, UserPlus, Check, Star, Award, Video, Radio, Shield, Ticket } from 'lucide-react';
 import { useState } from 'react';
+import {
+  IonButton,
+  IonButtons,
+  IonIcon,
+  IonLabel,
+  IonSegment,
+  IonSegmentButton,
+  IonSpinner,
+} from '@ionic/react';
+import { closeOutline } from 'ionicons/icons';
 import type { Notification } from '@/react-app/hooks/useNotifications';
 import { useNotificationsContext } from '@/react-app/contexts/NotificationsContext';
 import { useNavigate } from 'react-router';
@@ -111,11 +121,11 @@ export default function NotificationPanel({
 
   const panelClass =
     variant === 'mobile'
-      ? 'w-full glass-dropdown rounded-xl overflow-hidden shadow-xl shadow-momentum-ember/15'
+      ? 'w-full overflow-hidden'
       : 'absolute top-full right-0 mt-2 w-80 sm:w-96 glass-dropdown rounded-xl overflow-hidden z-50 shadow-xl shadow-momentum-ember/15';
 
   return (
-    <div className={panelClass} role="dialog" aria-label="Notifications">
+    <div className={`${panelClass} ${variant === 'mobile' ? 'ion-padding-top' : ''}`} role="dialog" aria-label="Notifications">
       <div className="p-3 sm:p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-white font-bold flex items-center space-x-2">
@@ -132,48 +142,43 @@ export default function NotificationPanel({
               </span>
             )}
           </h3>
-          <button
-            type="button"
+          <IonButton
+            fill="clear"
+            color="medium"
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors p-1"
             aria-label="Close"
           >
-            <X className="w-5 h-5" />
-          </button>
+            <IonIcon slot="icon-only" icon={closeOutline} />
+          </IonButton>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={() => setFilter('unread')}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              filter === 'unread'
-                ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10'
-            }`}
+        <div className="flex items-center gap-2">
+          <IonSegment
+            className="app-feed-segment flex-1"
+            value={filter}
+            onIonChange={(e) => {
+              const next = e.detail.value;
+              if (next === 'unread' || next === 'read') setFilter(next);
+            }}
           >
-            Unread ({unreadCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter('read')}
-            className={`flex-1 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
-              filter === 'read'
-                ? 'bg-momentum-ember/20 text-momentum-flare border border-momentum-ember/30'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10'
-            }`}
-          >
-            Read ({readCount})
-          </button>
+            <IonSegmentButton value="unread">
+              <IonLabel>Unread ({unreadCount})</IonLabel>
+            </IonSegmentButton>
+            <IonSegmentButton value="read">
+              <IonLabel>Read ({readCount})</IonLabel>
+            </IonSegmentButton>
+          </IonSegment>
           {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={() => void markAllAsRead()}
-              className="p-1.5 text-momentum-flare hover:text-momentum-flare/90 transition-colors"
-              title="Mark all as read"
-            >
-              <Check className="w-4 h-4" />
-            </button>
+            <IonButtons>
+              <IonButton
+                fill="clear"
+                color="primary"
+                onClick={() => void markAllAsRead()}
+                aria-label="Mark all as read"
+              >
+                <Check className="w-4 h-4" />
+              </IonButton>
+            </IonButtons>
           )}
         </div>
       </div>
@@ -181,7 +186,7 @@ export default function NotificationPanel({
       <div className="max-h-80 sm:max-h-96 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
+            <IonSpinner className="app-spinner h-8 w-8" name="crescent" />
           </div>
         ) : error ? (
           <div className="p-8 text-center text-red-400 text-sm">{error}</div>

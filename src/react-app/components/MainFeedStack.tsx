@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
@@ -32,13 +32,19 @@ export default function MainFeedStack({
   const navigate = useNavigate()
   const { user } = useAuth()
   const [feedType, setFeedType] = useState(defaultFeedType)
-  const [latestUnavailable, setLatestUnavailable] = useState(false)
-  const sceneFilterOptions = latestUnavailable
-    ? FEED_FILTER_OPTIONS.filter((option) => option.value !== 'latest')
-    : FEED_FILTER_OPTIONS
-  const handleLatestEmpty = useCallback(() => {
-    setLatestUnavailable(true)
-    setFeedType((current) => (current === 'latest' ? 'most_viewed' : current))
+  const emptySceneTypesRef = useRef<Set<FeedFilterValue>>(new Set())
+  const [emptySceneTypes, setEmptySceneTypes] = useState<Set<FeedFilterValue>>(
+    () => new Set(),
+  )
+  const sceneFilterOptions = FEED_FILTER_OPTIONS.filter(
+    (option) => !emptySceneTypes.has(option.value),
+  )
+  const handleFeedEmpty = useCallback((emptyType: FeedFilterValue) => {
+    emptySceneTypesRef.current.add(emptyType)
+    const skip = emptySceneTypesRef.current
+    setEmptySceneTypes(new Set(skip))
+    const fallback = FEED_FILTER_OPTIONS.find((option) => !skip.has(option.value))
+    if (fallback) setFeedType(fallback.value)
   }, [])
   const isHome = variant === 'home'
   const containerClass = isHome
@@ -50,11 +56,17 @@ export default function MainFeedStack({
       <div className="mb-5 md:mb-5">
         <FeedSectionHeader feedType={feedType} />
         <div className="mt-3 md:mt-4">
-          <FeedFilters
-            currentFilter={feedType}
-            onFilterChange={setFeedType}
-            options={sceneFilterOptions}
-          />
+          {sceneFilterOptions.length > 0 ? (
+            <FeedFilters
+              currentFilter={
+                sceneFilterOptions.some((option) => option.value === feedType)
+                  ? feedType
+                  : (sceneFilterOptions[0]?.value ?? feedType)
+              }
+              onFilterChange={setFeedType}
+              options={sceneFilterOptions}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -64,7 +76,7 @@ export default function MainFeedStack({
         edgeBleed={isHome}
         edgeBleedScope="page"
         suppressBottomPadding={isHome}
-        onLatestEmpty={handleLatestEmpty}
+        onFeedEmpty={handleFeedEmpty}
       />
     </div>
   )

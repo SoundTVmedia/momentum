@@ -29,7 +29,15 @@ export default function Footer() {
 
   return (
     <footer className="glass-chrome border-t border-white/10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="md:hidden px-4 py-10 text-center text-xs text-gray-500 space-y-3">
+        <div className="flex justify-center gap-3">
+          <FooterResourceLink to="/support">Support</FooterResourceLink>
+          <FooterResourceLink to="/privacy">Privacy</FooterResourceLink>
+          <FooterResourceLink to="/terms">Terms</FooterResourceLink>
+        </div>
+        <p>© 2026 SoundTV Media Inc.</p>
+      </div>
+      <div className="hidden md:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Main Footer Content */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           {/* Brand */}

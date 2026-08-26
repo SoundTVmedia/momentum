@@ -43,7 +43,9 @@ interface ConcertFeedProps {
   suppressBottomPadding?: boolean
   /** Link to a full browse page; shown when the carousel can paginate. */
   viewAllHref?: string
-  /** Home Latest has no rows — parent can switch to Most Viewed and hide Latest. */
+  /** Home Latest (and other scene sorts) have no rows — parent can switch to the next sort. */
+  onFeedEmpty?: (feedType: FeedFilterValue) => void
+  /** @deprecated use onFeedEmpty */
   onLatestEmpty?: () => void
 }
 
@@ -97,6 +99,7 @@ export default function ConcertFeed({
   edgeBleedScope = 'page',
   suppressBottomPadding = false,
   viewAllHref,
+  onFeedEmpty,
   onLatestEmpty,
 }: ConcertFeedProps) {
   const navigate = useNavigate()
@@ -122,13 +125,14 @@ export default function ConcertFeed({
   if (loading) sawLoadingForFeed.current = feedType ?? 'latest'
 
   useEffect(() => {
-    if (!onLatestEmpty) return
-    if (feedType !== 'latest' || !isGlobalFeed) return
+    if (!onFeedEmpty && !onLatestEmpty) return
+    if (!isGlobalFeed) return
     if (loading || error) return
     if (clips.length > 0) return
     if (sawLoadingForFeed.current !== feedType) return
-    onLatestEmpty()
-  }, [onLatestEmpty, feedType, isGlobalFeed, loading, error, clips.length])
+    onFeedEmpty?.(feedType)
+    if (feedType === 'latest') onLatestEmpty?.()
+  }, [onFeedEmpty, onLatestEmpty, feedType, isGlobalFeed, loading, error, clips.length])
 
   const resolvedViewAllHref =
     viewAllHref ?? (isGlobalFeed ? browseClipsPath(feedType) : undefined)
@@ -162,7 +166,8 @@ export default function ConcertFeed({
             onRetry={refetch}
             message="Failed to load clips. Please check your connection and try again."
           />
-        ) : loading && clips.length === 0 ? (
+        ) : (loading && clips.length === 0) ||
+          (isGlobalFeed && clips.length === 0 && !error) ? (
           <HorizontalClipCarousel
             key={`${feedType}-loading`}
             ariaLabel={feedCarouselLabel(feedType, artistName, venueName, songSlug, genreSlug)}
@@ -218,19 +223,19 @@ export default function ConcertFeed({
           </>
         ) : null}
 
-        {clips.length === 0 && !loading && !error && (
+        {clips.length === 0 && !loading && !error && !isGlobalFeed && (
           <div className="text-center py-12 px-4">
             <div className="max-w-md mx-auto glass-highlight rounded-xl p-8 space-y-4">
               <div className="text-6xl mb-4">🎸</div>
-              <h3 className="text-2xl font-bold text-white mb-2">No Clips Yet</h3>
+              <h3 className="text-2xl font-bold text-white mb-2">No clips in this view</h3>
               <p className="text-gray-300 mb-6">
-                Be the first to drop a moment from tonight&apos;s show!
+                Try another artist, venue, or head back to the feed for more from the scene.
               </p>
               <button
-                onClick={() => navigate('/upload')}
+                onClick={() => navigate('/')}
                 className="px-6 py-3 momentum-grad-interactive rounded-lg text-white font-semibold hover:scale-105 transition-transform"
               >
-                Share Your Moment
+                Back to feed
               </button>
             </div>
           </div>

@@ -14,27 +14,34 @@ export default function LiveFeedPage() {
     limit: 24,
     enablePolling: true,
   });
+  const viewedFallback = useClips({
+    feedType: 'most_viewed',
+    limit: 24,
+  });
+  const sceneClips = clips.length > 0 ? clips : viewedFallback.clips;
+  const sceneLoading = clips.length > 0 ? loading : loading || viewedFallback.loading;
+  const sceneError = clips.length > 0 ? error : error && viewedFallback.error;
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const openedRef = useRef(false);
 
   useEffect(() => {
-    if (openedRef.current || clips.length === 0) return;
+    if (openedRef.current || sceneClips.length === 0) return;
     openedRef.current = true;
-    setSelectedClip(clips[0] ?? null);
-  }, [clips]);
+    setSelectedClip(sceneClips[0] ?? null);
+  }, [sceneClips]);
 
   return (
     <div className="min-h-screen text-white">
       <Header />
       <main className="mx-auto flex min-h-[60vh] max-w-xl items-center justify-center px-4 py-16 text-center">
-        {loading && clips.length === 0 ? (
+        {sceneLoading && sceneClips.length === 0 ? (
           <div>
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-momentum-flare" />
             <p className="mt-4 text-gray-400">Opening the latest clip…</p>
           </div>
-        ) : error ? (
+        ) : sceneError && sceneClips.length === 0 ? (
           <div className="glass-panel rounded-2xl p-8">
-            <p className="text-red-300">{error}</p>
+            <p className="text-red-300">{sceneError}</p>
             <button
               type="button"
               onClick={refresh}
@@ -43,11 +50,11 @@ export default function LiveFeedPage() {
               Try again
             </button>
           </div>
-        ) : clips.length === 0 ? (
+        ) : sceneClips.length === 0 ? (
           <div className="glass-panel rounded-2xl p-8">
             <Radio className="mx-auto h-10 w-10 text-momentum-flare" />
             <h1 className="mt-4 text-2xl font-bold">Live Feed</h1>
-            <p className="mt-2 text-gray-400">There are no clips in From the Scene yet.</p>
+            <p className="mt-2 text-gray-400">Loading moments from the scene…</p>
           </div>
         ) : null}
       </main>
@@ -56,7 +63,7 @@ export default function LiveFeedPage() {
         <ClipModal
           clip={selectedClip}
           onClose={() => navigate('/browse/clips/latest')}
-          feedNavigation={{ clips, onChangeClip: setSelectedClip }}
+          feedNavigation={{ clips: sceneClips, onChangeClip: setSelectedClip }}
         />
       ) : null}
     </div>

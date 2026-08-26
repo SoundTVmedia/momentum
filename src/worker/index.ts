@@ -1747,6 +1747,14 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
     ) {
       clips = await runClipsQuery('+30 days');
     }
+    if (
+      isPublicLatestScene &&
+      page === 1 &&
+      (clips.results || []).length === 0
+    ) {
+      // Catalog has no scene-window hits — still return public clips so the grid is never blank.
+      clips = await runClipsQuery(null);
+    }
   } catch (latestErr) {
     if (!isPublicLatestScene) throw latestErr;
     console.error('GET /api/clips latest window failed, retrying without it:', latestErr);

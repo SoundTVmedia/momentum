@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Search } from 'lucide-react';
+import { IonButton, IonSearchbar } from '@ionic/react';
 import { useNavigate } from 'react-router';
 import AdvancedSearchDropdown from '@/react-app/components/AdvancedSearchDropdown';
 import ClipModal from '@/react-app/components/ClipModal';
@@ -84,29 +84,19 @@ export default function HeroSearchBar({
             className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-ember/50 via-momentum-flare/40 to-momentum-ember/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
             aria-hidden
           />
-          <div className="relative flex items-center rounded-2xl glass-input shadow-glass-lg">
-            <Search
-              className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-momentum-flare/80 sm:h-6 sm:w-6"
-              aria-hidden
-            />
-            <input
-              type="search"
+          <div className="relative flex items-center gap-2 rounded-2xl glass-input p-1 shadow-glass-lg">
+            <IonSearchbar
+              className="app-searchbar-hero min-w-0 flex-1"
               value={query}
-              onChange={(e) => handleInput(e.target.value)}
-              onFocus={() => query.trim().length >= 2 && setShowResults(true)}
+              debounce={0}
               placeholder="Search artists, venues, songs, clips…"
-              className="w-full min-w-0 flex-1 bg-transparent py-3.5 pl-12 pr-28 text-base text-white placeholder:text-gray-400 focus:outline-none sm:py-4 sm:text-lg"
-              autoComplete="off"
-              enterKeyHint="search"
-              aria-autocomplete="list"
-              aria-expanded={showResults}
+              enterkeyhint="search"
+              onIonInput={(e) => handleInput(e.detail.value ?? '')}
+              onIonFocus={() => query.trim().length >= 2 && setShowResults(true)}
             />
-            <button
-              type="submit"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl px-4 py-2 text-sm font-semibold text-white momentum-grad-interactive transition-transform hover:scale-[1.02] sm:px-5 sm:py-2.5 sm:text-base"
-            >
+            <IonButton type="submit" className="mr-1 shrink-0" color="primary">
               Search
-            </button>
+            </IonButton>
           </div>
 
           <AdvancedSearchDropdown

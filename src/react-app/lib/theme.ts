@@ -26,6 +26,7 @@ export function resolveTheme(preference: ThemePreference): ResolvedTheme {
 
 export function applyResolvedTheme(resolved: ResolvedTheme): void {
   document.documentElement.setAttribute('data-theme', resolved);
+  document.documentElement.classList.toggle('ion-palette-dark', resolved === 'dark');
 }
 
 /** Runs before React paint — keep in sync with index.html inline script. */

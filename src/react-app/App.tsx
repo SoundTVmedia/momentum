@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
+import { IonApp } from "@ionic/react";
 import AppRouteChrome from "@/react-app/components/AppRouteChrome";
 import { AuthProvider } from "@getmocha/users-service/react";
 import ErrorBoundary from "@/react-app/components/ErrorBoundary";
@@ -71,6 +72,7 @@ function NativeAppBootstrap() {
 export default function App() {
   return (
     <ErrorBoundary>
+      <IonApp className="momentum-ion-app">
       <div className="momentum-ambient" aria-hidden />
       <NativeAppBootstrap />
       <AuthProvider>
@@ -140,6 +142,7 @@ export default function App() {
         </ClipUploadQueueProvider>
         </MobileChromeProvider>
     </AuthProvider>
+      </IonApp>
     </ErrorBoundary>
   );
 }

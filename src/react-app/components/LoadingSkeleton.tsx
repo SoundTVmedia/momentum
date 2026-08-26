@@ -1,11 +1,12 @@
 /**
  * Reusable loading skeleton components for better perceived performance
  */
+import { IonSkeletonText } from '@ionic/react';
 
 export function ClipGridTileSkeleton() {
   return (
-    <div className="glass-clip-card flex h-full w-full flex-col overflow-hidden animate-pulse">
-      <div className="aspect-square rounded-[0.9rem] bg-gradient-to-br from-slate-800/80 to-slate-900/90" />
+    <div className="glass-clip-card flex h-full w-full flex-col overflow-hidden">
+      <IonSkeletonText animated className="aspect-square m-0 rounded-[0.9rem]" />
     </div>
   );
 }
