@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -164,7 +164,7 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
-  it('drops a just-uploaded clip tagged to a show that started more than 24 hours ago', () => {
+  it('keeps a just-uploaded clip tagged to a show from 30 hours ago in the 30-day window', () => {
     const db = new DatabaseSync(':memory:');
     databases.push(db);
     db.exec(`
@@ -187,12 +187,56 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
        VALUES (1, datetime('now'), datetime('now'), 'past-show')`,
     ).run();
 
-    const rows = db
+    const rows24 = db
       .prepare(
         `SELECT clips.id FROM clips
          LEFT JOIN jambase_events latest_scene_ev
            ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
          WHERE ${LATEST_SCENE_CLIP_FRESH_SQL}`,
+      )
+      .all() as Array<{ id: number }>;
+    const rows30 = db
+      .prepare(
+        `SELECT clips.id FROM clips
+         LEFT JOIN jambase_events latest_scene_ev
+           ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
+         WHERE ${LATEST_SCENE_CLIP_FRESH_30D_SQL}`,
+      )
+      .all() as Array<{ id: number }>;
+
+    expect(rows24).toEqual([]);
+    expect(rows30).toEqual([{ id: 1 }]);
+  });
+
+  it('drops a clip posted more than 30 days after the tagged show', () => {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        timestamp TEXT,
+        created_at TEXT,
+        jambase_event_id TEXT
+      );
+      CREATE TABLE jambase_events (
+        jambase_event_id TEXT PRIMARY KEY,
+        start_date TEXT
+      );
+    `);
+    db.prepare(
+      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, ?)`,
+    ).run('old-show', new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
+    db.prepare(
+      `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
+       VALUES (1, datetime('now'), datetime('now'), 'old-show')`,
+    ).run();
+
+    const rows = db
+      .prepare(
+        `SELECT clips.id FROM clips
+         LEFT JOIN jambase_events latest_scene_ev
+           ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
+         WHERE ${LATEST_SCENE_CLIP_FRESH_30D_SQL}`,
       )
       .all() as Array<{ id: number }>;
 

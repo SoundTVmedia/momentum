@@ -1,10 +1,14 @@
-import { MAIN_FEED_CLIP_SQL } from '../shared/content-feed';
+import { MAIN_FEED_CLIP_SQL, PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 
-/** True when migration 57+ applied (`clips.content_feed` exists). */
-export async function clipsContentFeedColumnReady(db: D1Database): Promise<boolean> {
+async function clipsColumnReady(
+  db: D1Database,
+  column: 'content_feed' | 'playback_unplayable',
+): Promise<boolean> {
   try {
     const row = await db
-      .prepare(`SELECT 1 AS ok FROM pragma_table_info('clips') WHERE name = 'content_feed' LIMIT 1`)
+      .prepare(
+        `SELECT 1 AS ok FROM pragma_table_info('clips') WHERE name = '${column}' LIMIT 1`,
+      )
       .first();
     return row != null;
   } catch {
@@ -12,8 +16,24 @@ export async function clipsContentFeedColumnReady(db: D1Database): Promise<boole
   }
 }
 
+/** True when migration 57+ applied (`clips.content_feed` exists). */
+export async function clipsContentFeedColumnReady(db: D1Database): Promise<boolean> {
+  return clipsColumnReady(db, 'content_feed');
+}
+
 /** SQL fragment for public main-feed clips, or `1=1` when column not migrated yet. */
 export async function mainFeedClipFilterSql(db: D1Database): Promise<string> {
   const ready = await clipsContentFeedColumnReady(db);
   return ready ? MAIN_FEED_CLIP_SQL : '1=1';
+}
+
+/**
+ * Published / not hidden. Skips `playback_unplayable` until migration 74 is on the DB
+ * so public feeds do not 500.
+ */
+export async function publicVisibleClipFilterSql(db: D1Database): Promise<string> {
+  const ready = await clipsColumnReady(db, 'playback_unplayable');
+  return ready
+    ? PUBLIC_VISIBLE_CLIP_SQL
+    : 'clips.is_hidden = 0 AND clips.is_draft = 0';
 }

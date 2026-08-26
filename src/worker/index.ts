@@ -86,7 +86,7 @@ import * as superadminModeration from "./superadmin-moderation-endpoints";
 import * as reports from "./report-endpoints";
 import { submitSupportRequest } from "./support-endpoints";
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, isBlockedBetween, getBlockDirections, blockKey } from "./user-blocks";
-import { CLIP_SHOW_KEY_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from "./past-show-sql";
+import { CLIP_SHOW_KEY_SQL, latestSceneClipFreshSql } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -124,7 +124,7 @@ import {
   loadValidClassification,
   postClassifyClipContent,
 } from "./content-feed-endpoints";
-import { mainFeedClipFilterSql } from "./content-feed-sql";
+import { mainFeedClipFilterSql, publicVisibleClipFilterSql } from "./content-feed-sql";
 import {
   BYPASS_CONTENT_FEED_BIFURCATION,
   CONTENT_FEED_REJECTION_MESSAGES,
@@ -1644,12 +1644,20 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
     !songSlug &&
     !genreSlug;
 
-  const latestSceneJoin = isPublicLatestScene
-    ? `LEFT JOIN jambase_events latest_scene_ev
+  const publicVisibleSql = await publicVisibleClipFilterSql(c.env.DB);
+  const mainFeedFilter =
+    !userId && feedScope !== 'all' ? await mainFeedClipFilterSql(c.env.DB) : null;
+
+  const runClipsQuery = async (
+    latestPostedWithin: '+24 hours' | '+30 days' | null,
+  ) => {
+    const applyLatest = isPublicLatestScene && latestPostedWithin != null;
+    const latestSceneJoin = applyLatest
+      ? `LEFT JOIN jambase_events latest_scene_ev
       ON latest_scene_ev.jambase_event_id = clips.jambase_event_id`
-    : '';
-  
-  let query = `
+      : '';
+
+    let query = `
     SELECT 
       clips.rowid AS _clipRowId,
       clips.id AS clip_primary_id,
@@ -1661,80 +1669,89 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
     ${latestSceneJoin}
-    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+    WHERE ${publicVisibleSql}
   `;
-  
-  const bindings: any[] = [];
 
-  // Public discovery feeds show performance clips only; profile pages show all lanes.
-  if (!userId && feedScope !== 'all') {
-    const mainFeedFilter = await mainFeedClipFilterSql(c.env.DB);
-    query += ` AND ${mainFeedFilter}`;
-  }
-  
-  if (artistName) {
-    query += ` AND clips.artist_name = ?`;
-    bindings.push(artistName);
-  }
-  
-  if (venueName) {
-    query += ` AND clips.venue_name = ?`;
-    bindings.push(venueName);
-  }
+    const bindings: any[] = [];
 
-  if (songSlug) {
-    query += ` AND clips.song_slug = ?`;
-    bindings.push(songSlug.trim().toLowerCase());
-  }
+    if (mainFeedFilter) {
+      query += ` AND ${mainFeedFilter}`;
+    }
 
-  if (genreSlug) {
-    query += ` AND clips.genre_slug = ?`;
-    bindings.push(genreSlug.trim().toLowerCase());
-  }
-  
-  if (userId) {
-    query += ` AND clips.mocha_user_id = ?`;
-    bindings.push(userId);
-  }
-  
-  if (since) {
-    query += ` AND clips.created_at > ?`;
-    bindings.push(since);
-  }
+    if (artistName) {
+      query += ` AND clips.artist_name = ?`;
+      bindings.push(artistName);
+    }
 
-  if (isPublicLatestScene) {
-    query += ` AND ${LATEST_SCENE_CLIP_FRESH_SQL}`;
+    if (venueName) {
+      query += ` AND clips.venue_name = ?`;
+      bindings.push(venueName);
+    }
+
+    if (songSlug) {
+      query += ` AND clips.song_slug = ?`;
+      bindings.push(songSlug.trim().toLowerCase());
+    }
+
+    if (genreSlug) {
+      query += ` AND clips.genre_slug = ?`;
+      bindings.push(genreSlug.trim().toLowerCase());
+    }
+
+    if (userId) {
+      query += ` AND clips.mocha_user_id = ?`;
+      bindings.push(userId);
+    }
+
+    if (since) {
+      query += ` AND clips.created_at > ?`;
+      bindings.push(since);
+    }
+
+    if (applyLatest && latestPostedWithin) {
+      query += ` AND ${latestSceneClipFreshSql(latestPostedWithin)}`;
+    }
+
+    switch (sortBy) {
+      case 'trending':
+        query += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
+        break;
+      case 'most_liked':
+        query += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
+        break;
+      case 'most_viewed':
+        query += ` ORDER BY clips.views_count DESC, clips.created_at DESC`;
+        break;
+      case 'top_rated':
+        query += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
+        break;
+      case 'latest':
+      default:
+        query += songSlug ? ` ${SONG_CLIPS_ORDER_BY_SQL}` : ` ORDER BY clips.created_at DESC`;
+        break;
+    }
+
+    query += ` LIMIT ? OFFSET ?`;
+    bindings.push(limit, offset);
+
+    return c.env.DB.prepare(query).bind(...bindings).all();
+  };
+
+  let clips;
+  try {
+    clips = await runClipsQuery(isPublicLatestScene ? '+24 hours' : null);
+    if (
+      isPublicLatestScene &&
+      page === 1 &&
+      (clips.results || []).length === 0
+    ) {
+      clips = await runClipsQuery('+30 days');
+    }
+  } catch (latestErr) {
+    if (!isPublicLatestScene) throw latestErr;
+    console.error('GET /api/clips latest window failed, retrying without it:', latestErr);
+    clips = await runClipsQuery(null);
   }
-  
-  // Apply sorting with optimized indexes
-  switch (sortBy) {
-    case 'trending':
-      query += ` ORDER BY clips.likes_count DESC, clips.views_count DESC, clips.created_at DESC`;
-      break;
-    case 'most_liked':
-      query += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
-      break;
-    case 'most_viewed':
-      query += ` ORDER BY clips.views_count DESC, clips.created_at DESC`;
-      break;
-    case 'top_rated':
-      // Legacy: star ratings retired from feeds — treat as most liked
-      query += ` ORDER BY clips.likes_count DESC, clips.created_at DESC`;
-      break;
-    case 'latest':
-    default:
-      // Clips of one song are ordered by when they were recorded, so a song
-      // page follows the performances instead of the upload queue.
-      query += songSlug ? ` ${SONG_CLIPS_ORDER_BY_SQL}` : ` ORDER BY clips.created_at DESC`;
-      break;
-  }
-  
-  query += ` LIMIT ? OFFSET ?`;
-  bindings.push(limit, offset);
-  
-  const clips = await c.env.DB.prepare(query)
-    .bind(...bindings)
-    .all();
 
   // User-scoped or filtered feeds must not be cached publicly — stale JSON causes "My clips"
   // to show rows that no longer exist locally, so delete/update then return 404 Clip not found.

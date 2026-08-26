@@ -8,7 +8,7 @@ import {
   inferClassifyFilename,
   loadValidClassification,
 } from './content-feed-classify';
-import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
+import { publicVisibleClipFilterSql } from './content-feed-sql';
 import { describeMusicRecognitionConfig } from './music-recognition';
 
 const MAX_SNIPPET_BYTES = MAX_IDENTIFY_UPLOAD_BYTES;
@@ -104,6 +104,7 @@ export async function getFriendsFeed(c: Context) {
   const limit = Math.min(parseInt(c.req.query('limit') || '12', 10), 50);
   const offset = (page - 1) * limit;
   const uid = mochaUserIdKey(mochaUser);
+  const publicVisibleSql = await publicVisibleClipFilterSql(c.env.DB);
 
   const clips = await c.env.DB.prepare(
     `SELECT
@@ -116,7 +117,7 @@ export async function getFriendsFeed(c: Context) {
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
-    WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+    WHERE ${publicVisibleSql}
       AND (
         clips.mocha_user_id = ?
         OR clips.mocha_user_id IN (${FRIENDS_FEED_USER_FOLLOWS_SQL})

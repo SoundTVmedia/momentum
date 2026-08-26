@@ -1,4 +1,5 @@
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
+import { publicVisibleClipFilterSql } from './content-feed-sql';
 import { Context } from 'hono';
 import { resolveArtistNameForClipsQuery, resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
@@ -444,6 +445,7 @@ export async function getFavoriteArtistFeed(c: Context) {
     let trimmed: Record<string, unknown>[] = [];
     let hasMoreClips = false;
 
+    const publicVisibleSql = await publicVisibleClipFilterSql(c.env.DB);
     const clipQuery = `
       SELECT
         clips.rowid AS _clipRowId,
@@ -455,7 +457,7 @@ export async function getFavoriteArtistFeed(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
-      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+      WHERE ${publicVisibleSql}
       AND (
         clips.artist_name IN (${inPlaceholders})
         OR LOWER(TRIM(clips.artist_name)) IN (${inLowerPlaceholders})
