@@ -173,11 +173,17 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
 }
 
 ion-footer.app-tab-footer {
-  position: fixed;
-  bottom: 0;
+  position: fixed !important;
   left: 0;
   right: 0;
+  bottom: 0 !important;
+  top: auto !important;
   z-index: 50;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--ion-tab-bar-background, var(--glass-chrome-bg, rgba(3, 7, 18, 0.88)));
+  transform: translateZ(0);
 }
 
 ion-footer.app-tab-footer::before {
@@ -187,8 +193,10 @@ ion-footer.app-tab-footer::before {
 ion-tab-bar.app-tab-bar {
   --background: var(--glass-chrome-bg, rgba(3, 7, 18, 0.88));
   --border: 1px solid var(--shell-border, rgba(255, 255, 255, 0.1));
-  height: calc(var(--mobile-bottom-nav-bar, 4rem) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Ionic tab-bar is content-box; height is the icon row only. Safe-area padding
+     paints the bar to the physical bottom of the device without a second inset. */
+  height: var(--mobile-bottom-nav-bar, 4.75rem);
+  padding-bottom: var(--ion-safe-area-bottom, env(safe-area-inset-bottom, 0px));
   backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
 }

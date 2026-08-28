@@ -1349,12 +1349,9 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 }
 
-/* Mobile bottom tab bar — keep page content above the fixed nav */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .bottom-nav {
-    padding-bottom: calc(env(safe-area-inset-bottom) + var(--mobile-bottom-nav-safe-extra));
-  }
-}
+/* Mobile bottom tab bar is `position: fixed` on the device edge.
+   Safe-area padding lives on ion-tab-bar (content-box) so the chrome fills
+   the home-indicator region instead of floating above it. */
 
 /* Scrollable pages: inset equals full nav footprint (bar + safe area + extra) */
 .mobile-page-inset-bottom {

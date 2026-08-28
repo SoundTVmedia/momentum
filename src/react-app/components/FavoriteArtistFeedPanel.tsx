@@ -9,14 +9,13 @@ import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import { filterViewerFeedClips } from '@/react-app/lib/clipPlaybackFailure';
 import FeedFilters from '@/react-app/components/FeedFilters';
-import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
 import PrePostClipsCarousel from '@/react-app/components/PrePostClipsCarousel';
 import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
 import { useCarouselInfiniteLoad } from '@/react-app/hooks/useCarouselInfiniteLoad';
-import { BROWSE_FAVORITE_CLIPS_PATH, BROWSE_FAVORITE_SHOWS_PATH } from '@/react-app/lib/browse-paths';
+import { BROWSE_FAVORITE_CLIPS_PATH } from '@/react-app/lib/browse-paths';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import {
@@ -280,30 +279,38 @@ export default function FavoriteArtistFeedPanel({
               <p className="text-sm text-gray-400">
                 Clips and shows from artists, venues, and songs you follow.
               </p>
-              <button
-                type="button"
-                onClick={toggleAddArtists}
-                className="mt-1 inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 hover:border-white transition-colors"
-                title={showAddArtists ? 'Close follow' : 'Follow artists, venues, or shows'}
-                aria-expanded={showAddArtists}
-                aria-label={
-                  showAddArtists
-                    ? 'Close follow'
-                    : 'Follow artists, venues, or archival shows'
-                }
-              >
-                {showAddArtists ? (
-                  <>
-                    <span>Close</span>
-                    <X className="w-4 h-4 shrink-0" aria-hidden />
-                  </>
-                ) : (
-                  <>
-                    <span>Follow</span>
-                    <Plus className="w-4 h-4 shrink-0" aria-hidden />
-                  </>
-                )}
-              </button>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleAddArtists}
+                  className="inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 hover:border-white transition-colors"
+                  title={showAddArtists ? 'Close follow' : 'Follow artists, venues, or shows'}
+                  aria-expanded={showAddArtists}
+                  aria-label={
+                    showAddArtists
+                      ? 'Close follow'
+                      : 'Follow artists, venues, or archival shows'
+                  }
+                >
+                  {showAddArtists ? (
+                    <>
+                      <span>Close</span>
+                      <X className="w-4 h-4 shrink-0" aria-hidden />
+                    </>
+                  ) : (
+                    <>
+                      <span>Follow</span>
+                      <Plus className="w-4 h-4 shrink-0" aria-hidden />
+                    </>
+                  )}
+                </button>
+                <FeedFilters
+                  variant="menu"
+                  options={FAVORITE_FEED_FILTER_OPTIONS}
+                  currentFilter={panelView}
+                  onFilterChange={setPanelView}
+                />
+              </div>
             </>
           ) : (
             <SectionHeading
@@ -320,28 +327,7 @@ export default function FavoriteArtistFeedPanel({
           </div>
         ) : null}
 
-        {variant === 'feed' ? (
-          <div className="mt-3 md:mt-4">
-            <FeedFilters
-              options={FAVORITE_FEED_FILTER_OPTIONS}
-              currentFilter={panelView}
-              onFilterChange={setPanelView}
-            />
-          </div>
-        ) : null}
-
-        {variant === 'feed' && panelView === 'upcoming' ? (
-          <div className="mt-4 md:mt-5">
-            <PersonalizedConcerts
-              carouselBleedScope={edgeBleedScope}
-              mode="favorite-artists"
-              hideHeader
-              carouselMaxEvents={12}
-              viewAllHref={BROWSE_FAVORITE_SHOWS_PATH}
-              viewAllLabel="View all shows"
-            />
-          </div>
-        ) : variant === 'feed' && panelView === 'venues' ? (
+        {variant === 'feed' && panelView === 'venues' ? (
           <div className="mt-4 md:mt-5">
             {followedVenues.length === 0 ? (
               <p className="text-gray-400 text-sm py-4">
