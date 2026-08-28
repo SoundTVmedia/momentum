@@ -101,6 +101,7 @@ export default function Header() {
                 FEEDBACK
               </div>
             </button>
+            <span className="app-header-brand-rule" aria-hidden />
             <PoweredByJamBase variant="nav" />
           </div>
 

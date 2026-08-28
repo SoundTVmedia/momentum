@@ -49,17 +49,11 @@ interface ConcertFeedProps {
   onLatestEmpty?: () => void
 }
 
-export function FeedSectionHeader({
-  feedType = 'latest',
-}: {
-  feedType?: FeedFilterValue
-}) {
-  const { description } = getFeedFilterMeta(feedType)
-
+export function FeedSectionHeader() {
   return (
     <SectionHeading
       title={FROM_THE_SCENE_SECTION.title}
-      subtitle={description}
+      subtitle={FROM_THE_SCENE_SECTION.description}
       size="section"
     />
   )
@@ -157,7 +151,7 @@ export default function ConcertFeed({
     <>
         {!hideSectionHeader && (
           <div className="mb-4 sm:mb-5 md:mb-5">
-            <FeedSectionHeader feedType={feedType} />
+            <FeedSectionHeader />
           </div>
         )}
 

@@ -165,6 +165,15 @@ ion-header.app-top-header {
   margin-right: 1.35rem;
 }
 
+.app-header-brand-rule {
+  flex-shrink: 0;
+  align-self: center;
+  width: 1px;
+  height: 1.55rem;
+  background: #ffffff;
+  margin-right: 1.35rem;
+}
+
 .app-header-mark {
   display: inline-flex;
   flex-shrink: 0;
@@ -188,6 +197,11 @@ ion-header.app-top-header {
     margin-right: 1.75rem;
   }
 
+  .app-header-brand-rule {
+    height: 1.7rem;
+    margin-right: 1.75rem;
+  }
+
   .app-header-mark {
     width: 1.9rem;
     height: 1.9rem;
@@ -198,6 +212,11 @@ ion-header.app-top-header {
 @media (min-width: 768px) {
   .app-header-wordmark {
     font-size: 2.088rem;
+    margin-right: 2.25rem;
+  }
+
+  .app-header-brand-rule {
+    height: 1.9rem;
     margin-right: 2.25rem;
   }
 

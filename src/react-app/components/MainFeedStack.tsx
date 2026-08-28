@@ -54,7 +54,7 @@ export default function MainFeedStack({
   const fromTheSceneBlock = (
     <div className={isHome && user ? HOME_FEED_SECTION_CLASS : ''}>
       <div className="mb-5 md:mb-5">
-        <FeedSectionHeader feedType={feedType} />
+        <FeedSectionHeader />
         <div className="mt-3 md:mt-4">
           {sceneFilterOptions.length > 0 ? (
             <FeedFilters

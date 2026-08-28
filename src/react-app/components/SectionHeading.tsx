@@ -12,6 +12,7 @@ export type SectionHeadingProps = {
   badge?: ReactNode;
   size?: SectionHeadingSize;
   className?: string;
+  subtitleClassName?: string;
 };
 
 const titleClassBySize: Record<SectionHeadingSize, string> = {
@@ -29,6 +30,7 @@ export default function SectionHeading({
   badge,
   size = 'section',
   className = '',
+  subtitleClassName = '',
 }: SectionHeadingProps) {
   const centered = align === 'center';
 
@@ -50,9 +52,11 @@ export default function SectionHeading({
       {subtitle ? (
         <p
           className={
-            centered
-              ? 'fb-section-subtitle fb-section-subtitle--center mt-2'
-              : 'fb-section-subtitle mt-1'
+            `${
+              centered
+                ? 'fb-section-subtitle fb-section-subtitle--center mt-2'
+                : 'fb-section-subtitle mt-1'
+            } ${subtitleClassName}`.trim()
           }
         >
           {subtitle}
