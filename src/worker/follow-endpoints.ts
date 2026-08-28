@@ -7,6 +7,7 @@ import {
   toggleArtistFollowFavorite,
 } from './favorite-artists-sync';
 import { isBlockedBetween } from './user-blocks';
+import { publicVisibleClipFilterSql } from './content-feed-sql';
 
 function artistNameFollowKey(name: string): string {
   const normalized = name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -256,6 +257,44 @@ export async function getMyFollowingList(c: Context) {
       if (seenNames.has(key)) continue;
       seenNames.add(key);
       artists.push({ artist_id: 0, name, image_url: null });
+    }
+
+    const venueNames = venues
+      .map((v) => String(v.name ?? '').trim())
+      .filter(Boolean);
+    if (venueNames.length > 0) {
+      try {
+        const publicVisibleSql = await publicVisibleClipFilterSql(c.env.DB);
+        const lowered = [...new Set(venueNames.map((n) => n.toLowerCase()))];
+        const ph = lowered.map(() => '?').join(',');
+        const countRows = await c.env.DB
+          .prepare(
+            `SELECT LOWER(TRIM(clips.venue_name)) AS k, COUNT(*) AS clip_count
+             FROM clips
+             WHERE ${publicVisibleSql}
+             AND LOWER(TRIM(clips.venue_name)) IN (${ph})
+             GROUP BY LOWER(TRIM(clips.venue_name))`,
+          )
+          .bind(...lowered)
+          .all();
+        const countBy = new Map<string, number>();
+        for (const row of countRows.results || []) {
+          const k = String((row as { k?: unknown }).k ?? '').trim();
+          const n = Number((row as { clip_count?: unknown }).clip_count);
+          if (k) countBy.set(k, Number.isFinite(n) ? n : 0);
+        }
+        for (const venue of venues) {
+          const key = String(venue.name ?? '').trim().toLowerCase();
+          venue.clip_count = countBy.get(key) ?? 0;
+        }
+        venues.sort((a, b) => {
+          const ac = Number(a.clip_count) > 0 ? 1 : 0;
+          const bc = Number(b.clip_count) > 0 ? 1 : 0;
+          return bc - ac;
+        });
+      } catch (countErr) {
+        console.error('getMyFollowingList venue clip counts:', countErr);
+      }
     }
 
     return c.json({ users, artists, venues });

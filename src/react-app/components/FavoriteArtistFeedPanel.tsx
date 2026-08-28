@@ -5,6 +5,7 @@ import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipModal from '@/react-app/components/ClipModal';
 import UnifiedFavoritesAdd from '@/react-app/components/UnifiedFavoritesAdd';
+import FollowEmptySearch from '@/react-app/components/FollowEmptySearch';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import { filterViewerFeedClips } from '@/react-app/lib/clipPlaybackFailure';
@@ -32,6 +33,16 @@ import {
   userBlocksChangedDetail,
 } from '@/react-app/lib/user-block-events';
 
+type FollowedVenue = { venue_id: number; name: string; clip_count?: number };
+
+function followSwitcherChipClass(selected: boolean): string {
+  return `inline-flex max-w-[14rem] items-center justify-center truncate rounded-xl border-2 px-4 py-2.5 text-sm font-semibold shadow-md transition-colors ${
+    selected
+      ? 'border-momentum-flare bg-momentum-flare/25 text-white'
+      : 'border-white/40 bg-white/10 text-white hover:border-white hover:bg-white/20'
+  }`;
+}
+
 export type FavoriteArtistFeedPanelProps = {
   variant: 'feed' | 'discover';
   /** When true, scroll this block into view after data loads (e.g. `?from_favorites=1` on Discover). */
@@ -54,18 +65,21 @@ export default function FavoriteArtistFeedPanel({
   const clipsLimit = 12;
   const nextClipOffsetRef = useRef(0);
 
-  const [panelView, setPanelView] = useState<FavoriteFeedFilterValue>('artists');
+  const [panelView, setPanelView] = useState<FavoriteFeedFilterValue>('all');
   const [loading, setLoading] = useState(true);
   const [clips, setClips] = useState<ClipWithUser[]>([]);
   const [hasMoreClips, setHasMoreClips] = useState(false);
   const [hasFavoriteArtists, setHasFavoriteArtists] = useState(false);
+  const [hasFollows, setHasFollows] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [showAddArtists, setShowAddArtists] = useState(false);
-  const [followedVenues, setFollowedVenues] = useState<{ venue_id: number; name: string }[]>([]);
+  const [followedVenues, setFollowedVenues] = useState<FollowedVenue[]>([]);
+  const [followedFriendsCount, setFollowedFriendsCount] = useState(0);
   const [selectedVenueName, setSelectedVenueName] = useState('');
   const [savedSongs, setSavedSongs] = useState<{ slug: string; title: string }[]>([]);
   const [selectedSongSlug, setSelectedSongSlug] = useState('');
+  const clipFeedScope = panelView === 'artists' ? 'artists' : 'all';
 
   const loadHubLists = useCallback(async () => {
     if (!user) return;
@@ -76,11 +90,17 @@ export default function FavoriteArtistFeedPanel({
         apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' }),
       ]);
       if (venuesRes.ok) {
-        const data = (await venuesRes.json()) as { venues?: { venue_id: number; name: string }[] };
+        const data = (await venuesRes.json()) as {
+          venues?: FollowedVenue[];
+          users?: { mocha_user_id?: string }[];
+        };
         const next = (data.venues ?? []).filter((v) => v.name?.trim());
         setFollowedVenues(next);
+        setFollowedFriendsCount((data.users ?? []).length);
+        const preferred =
+          next.find((v) => (v.clip_count ?? 0) > 0)?.name ?? next[0]?.name ?? '';
         setSelectedVenueName((current) =>
-          current && next.some((v) => v.name === current) ? current : next[0]?.name ?? '',
+          current && next.some((v) => v.name === current) ? current : preferred,
         );
       }
       if (songsRes.ok) {
@@ -113,8 +133,9 @@ export default function FavoriteArtistFeedPanel({
 
   const fetchSlice = useCallback(
     async (offset: number, append: boolean) => {
+      const scope = clipFeedScope;
       const res = await apiFetch(
-        `/api/discover/favorite-artist-feed?events_limit=0&clips_limit=${clipsLimit}&clips_offset=${offset}`,
+        `/api/discover/favorite-artist-feed?scope=${scope}&events_limit=0&clips_limit=${clipsLimit}&clips_offset=${offset}`,
         { cache: 'no-store' },
       );
       if (!res.ok) {
@@ -122,20 +143,14 @@ export default function FavoriteArtistFeedPanel({
       }
       const data = (await res.json()) as {
         hasFavoriteArtists?: boolean;
+        hasFollows?: boolean;
         upcomingEvents?: unknown[];
         clips?: ClipWithUser[];
         hasMoreClips?: boolean;
       };
 
-      if (!data.hasFavoriteArtists) {
-        setHasFavoriteArtists(false);
-        setClips([]);
-        setHasMoreClips(false);
-        nextClipOffsetRef.current = 0;
-        return;
-      }
-
-      setHasFavoriteArtists(true);
+      setHasFavoriteArtists(Boolean(data.hasFavoriteArtists));
+      setHasFollows(Boolean(data.hasFollows ?? data.hasFavoriteArtists));
       if (!append) {
         setClips(data.clips ?? []);
         nextClipOffsetRef.current = (data.clips ?? []).length;
@@ -148,7 +163,7 @@ export default function FavoriteArtistFeedPanel({
       }
       setHasMoreClips(Boolean(data.hasMoreClips));
     },
-    [clipsLimit],
+    [clipsLimit, clipFeedScope],
   );
 
   useEffect(() => {
@@ -165,6 +180,7 @@ export default function FavoriteArtistFeedPanel({
       } catch {
         if (!cancelled) {
           setHasFavoriteArtists(false);
+          setHasFollows(false);
           setClips([]);
           setHasMoreClips(false);
         }
@@ -214,12 +230,12 @@ export default function FavoriteArtistFeedPanel({
   }, [user, fetchSlice]);
 
   useEffect(() => {
-    if (!scrollIntoViewOnMount || loading || !hasFavoriteArtists) return;
+    if (!scrollIntoViewOnMount || loading || !hasFollows) return;
     const id = requestAnimationFrame(() => {
       sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     return () => cancelAnimationFrame(id);
-  }, [scrollIntoViewOnMount, loading, hasFavoriteArtists]);
+  }, [scrollIntoViewOnMount, loading, hasFollows]);
 
   const loadMoreClips = useCallback(() => {
     if (!hasMoreClips || loadingMore) return;
@@ -238,7 +254,7 @@ export default function FavoriteArtistFeedPanel({
   useCarouselInfiniteLoad({
     scrollRef: carouselScrollRef,
     sentinelRef: loadMoreSentinelRef,
-    enabled: variant === 'feed' && panelView === 'artists' && clips.length > 0,
+    enabled: variant === 'feed' && (panelView === 'all' || panelView === 'artists') && clips.length > 0,
     hasMore: hasMoreClips,
     loading: loadingMore,
     onLoadMore: loadMoreClips,
@@ -254,8 +270,8 @@ export default function FavoriteArtistFeedPanel({
   }, [user, loadHubLists]);
 
   if (!user || isPending) return null;
-  // Discover: avoid showing a loading shell that then vanishes when the user has no favorite artists.
-  if (variant === 'discover' && (loading || !hasFavoriteArtists)) return null;
+  // Discover: avoid showing a loading shell that then vanishes when the user follows nothing.
+  if (variant === 'discover' && (loading || !hasFollows)) return null;
 
   return (
     <>
@@ -325,22 +341,16 @@ export default function FavoriteArtistFeedPanel({
         {variant === 'feed' && panelView === 'venues' ? (
           <div className="mt-4 md:mt-5">
             {followedVenues.length === 0 ? (
-              <p className="text-gray-400 text-sm py-4">
-                Follow venues from the add panel to filter clips by room.
-              </p>
+              <FollowEmptySearch kind="venue" />
             ) : (
               <>
                 <div className="mb-3 flex flex-wrap gap-2">
                   {followedVenues.map((venue) => (
                     <button
-                      key={venue.venue_id}
+                      key={venue.venue_id || venue.name}
                       type="button"
                       onClick={() => setSelectedVenueName(venue.name)}
-                      className={`rounded-full border px-3 py-1.5 text-sm ${
-                        selectedVenueName === venue.name
-                          ? 'border-momentum-flare bg-momentum-flare/15 text-white'
-                          : 'border-white/15 text-gray-300 hover:bg-white/10'
-                      }`}
+                      className={followSwitcherChipClass(selectedVenueName === venue.name)}
                     >
                       {venue.name}
                     </button>
@@ -360,9 +370,7 @@ export default function FavoriteArtistFeedPanel({
         ) : variant === 'feed' && panelView === 'songs' ? (
           <div className="mt-4 md:mt-5">
             {savedSongs.length === 0 ? (
-              <p className="text-gray-400 text-sm py-4">
-                Follow a song from the Follow + panel to filter clips here.
-              </p>
+              <FollowEmptySearch kind="song" />
             ) : (
               <>
                 <div className="mb-3 flex flex-wrap gap-2">
@@ -371,11 +379,7 @@ export default function FavoriteArtistFeedPanel({
                       key={song.slug}
                       type="button"
                       onClick={() => setSelectedSongSlug(song.slug)}
-                      className={`rounded-full border px-3 py-1.5 text-sm ${
-                        selectedSongSlug === song.slug
-                          ? 'border-momentum-flare bg-momentum-flare/15 text-white'
-                          : 'border-white/15 text-gray-300 hover:bg-white/10'
-                      }`}
+                      className={followSwitcherChipClass(selectedSongSlug === song.slug)}
                     >
                       {song.title}
                     </button>
@@ -394,14 +398,22 @@ export default function FavoriteArtistFeedPanel({
           </div>
         ) : variant === 'feed' && panelView === 'friends' ? (
           <div className="mt-4 md:mt-5">
-            <PrePostClipsCarousel
-              scope="friends"
-              ariaLabel="Clips from people you follow"
-              emptyMessage="No clips from people you follow yet."
-              edgeBleed={edgeBleed}
-              edgeBleedScope={edgeBleedScope}
-              enableInfiniteScroll
-            />
+            {followedFriendsCount === 0 ? (
+              <FollowEmptySearch kind="friend" />
+            ) : (
+              <PrePostClipsCarousel
+                scope="friends"
+                ariaLabel="Clips from people you follow"
+                emptyMessage="No clips from people you follow yet."
+                edgeBleed={edgeBleed}
+                edgeBleedScope={edgeBleedScope}
+                enableInfiniteScroll
+              />
+            )}
+          </div>
+        ) : variant === 'feed' && panelView === 'artists' && !loading && !hasFavoriteArtists ? (
+          <div className="mt-4 md:mt-5">
+            <FollowEmptySearch kind="artist" />
           </div>
         ) : loading ? (
           <div className="mt-4 md:mt-5 flex justify-center py-10">
@@ -411,14 +423,16 @@ export default function FavoriteArtistFeedPanel({
           <div className="mt-4 md:mt-5">
             {clips.length === 0 ? (
               <p className="text-gray-400 text-sm py-4">
-                {hasFavoriteArtists
-                  ? 'No clips yet from these artists — check back after the next show.'
-                  : 'Add favorite artists to see their clips and tour picks here.'}
+                {hasFollows || hasFavoriteArtists
+                  ? panelView === 'artists'
+                    ? 'No clips yet from these artists — check back after the next show.'
+                    : 'No clips yet from who you follow — check back after the next show.'
+                  : 'Use Follow + to add artists, friends, songs, and venues — then their clips show up here.'}
               </p>
             ) : (
               <HorizontalClipCarousel
                 ref={variant === 'feed' ? carouselScrollRef : undefined}
-                ariaLabel="Clips from your artists"
+                ariaLabel={panelView === 'artists' ? 'Clips from your artists' : 'Clips from who you follow'}
                 stretchItems
                 className={
                   edgeBleed

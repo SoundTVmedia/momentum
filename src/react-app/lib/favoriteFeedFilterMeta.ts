@@ -1,4 +1,4 @@
-export type FavoriteFeedFilterValue = 'artists' | 'venues' | 'songs' | 'friends';
+export type FavoriteFeedFilterValue = 'all' | 'artists' | 'venues' | 'songs' | 'friends';
 
 export type FavoriteFeedFilterMeta = {
   value: FavoriteFeedFilterValue;
@@ -7,6 +7,11 @@ export type FavoriteFeedFilterMeta = {
 };
 
 export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
+  {
+    value: 'all',
+    label: 'All clips',
+    description: 'Clips from everyone and everything you follow',
+  },
   {
     value: 'artists',
     label: 'Artists',
@@ -30,7 +35,7 @@ export const FAVORITE_FEED_FILTER_OPTIONS: FavoriteFeedFilterMeta[] = [
 ];
 
 export function getFavoriteFeedFilterMeta(
-  filter: FavoriteFeedFilterValue = 'artists',
+  filter: FavoriteFeedFilterValue = 'all',
 ): FavoriteFeedFilterMeta {
   return (
     FAVORITE_FEED_FILTER_OPTIONS.find((o) => o.value === filter) ??

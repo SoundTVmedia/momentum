@@ -564,8 +564,6 @@ export default function ClipModal({
               </p>
               <p className="text-xs text-white/70">
                 {formatRelativeTime(clipPostedAt(clip))}
-                <span className="text-white/50"> · </span>
-                {formatCount(viewsCount)} views
               </p>
             </div>
           </div>
@@ -623,7 +621,7 @@ export default function ClipModal({
               onClick={goEvent}
               className="block max-w-full text-left transition-opacity hover:opacity-80 mb-2"
             >
-              <p className="text-xl sm:text-2xl font-bold text-white leading-snug line-clamp-3">{eventTitle}</p>
+              <p className="text-xl sm:text-2xl font-bold text-white leading-snug line-clamp-2">{eventTitle}</p>
             </button>
           ) : null}
           {clip.artist_name ? (
@@ -815,11 +813,11 @@ export default function ClipModal({
     ) : null;
 
   const modal = (
-    <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay touch-manipulation">
+    <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay touch-manipulation overflow-hidden overflow-y-hidden">
       {/* ——— Mobile: full-viewport video + overlays ——— */}
       <div
         ref={mobileContainerRef}
-        className={`clip-player-lock-scale relative flex h-[100svh] max-h-[100svh] w-full flex-col overflow-hidden md:hidden overscroll-none ${
+        className={`clip-player-lock-scale relative flex h-[100svh] max-h-[100svh] w-full flex-col overflow-hidden overflow-y-hidden md:hidden overscroll-none touch-pan-x ${
           mobileSwipeEnabled || ticketSwipeEnabled ? 'touch-none' : ''
         }`}
       >
@@ -885,7 +883,7 @@ export default function ClipModal({
 
       {/* ——— Desktop ——— */}
       <div className="mx-auto hidden h-full w-full max-w-6xl items-center justify-center p-4 md:flex">
-        <div className="flex h-full max-h-[90vh] w-full overflow-hidden rounded-2xl glass-dropdown animate-scale-in">
+        <div className="flex h-full max-h-[90vh] w-full overflow-hidden overflow-y-hidden rounded-2xl glass-dropdown animate-scale-in">
           <div className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black">
             <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
               <button
@@ -989,8 +987,6 @@ export default function ClipModal({
                   </div>
                   <div className="text-sm text-gray-400">
                     {formatRelativeTime(clipPostedAt(clip))}
-                    <span className="text-gray-500"> · </span>
-                    {formatCount(viewsCount)} views
                   </div>
                 </div>
               </div>

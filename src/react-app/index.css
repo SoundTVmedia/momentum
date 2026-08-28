@@ -13,7 +13,7 @@ html {
 }
 
 .clip-player-lock-scale {
-  touch-action: manipulation;
+  touch-action: pan-x pinch-zoom;
 }
 .clip-player-lock-scale input,
 .clip-player-lock-scale textarea,
@@ -774,7 +774,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 
   .fb-clip-caption {
-    @apply text-xs sm:text-sm md:text-[11px] text-white/80 leading-tight drop-shadow line-clamp-2;
+    @apply text-xs sm:text-sm md:text-[11px] text-white/80 leading-tight drop-shadow line-clamp-2 overflow-hidden;
   }
 
   .fb-clip-user {

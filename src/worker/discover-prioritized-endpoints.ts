@@ -7,6 +7,7 @@ import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
 import { CLIP_SHOW_KEY_SQL } from './past-show-sql';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
+import { isUserFollowTargetId } from './follow-endpoints';
 
 /**
  * Get prioritized shows for discovery feed
@@ -302,6 +303,9 @@ const MAX_FAVORITE_FEED_CLIP_PAGE = 50;
 const MAX_PROFILE_FAVORITE_NAMES = 40;
 /** Cap `IN (...)` size for clip queries (SQLite binding limits). */
 const MAX_CLIP_ARTIST_NAMES_IN = 80;
+const MAX_CLIP_VENUE_NAMES_IN = 80;
+const MAX_CLIP_SONG_SLUGS_IN = 80;
+const MAX_CLIP_FRIEND_IDS_IN = 80;
 
 function parseProfileFavoriteArtistNames(raw: string | null | undefined): string[] {
   if (raw == null || !String(raw).trim()) return [];
@@ -317,10 +321,112 @@ function parseProfileFavoriteArtistNames(raw: string | null | undefined): string
   }
 }
 
+async function loadFollowedVenueNamesForFeed(db: D1Database, uid: string): Promise<string[]> {
+  const names = new Set<string>();
+  const followRows = await db
+    .prepare(`SELECT following_id FROM follows WHERE follower_id = ?`)
+    .bind(uid)
+    .all();
+  const venueIds: number[] = [];
+  for (const row of followRows.results || []) {
+    const fid = String((row as { following_id?: unknown }).following_id ?? '').trim();
+    const vm = /^venue-(\d+)$/.exec(fid);
+    if (!vm) continue;
+    const id = Number(vm[1]);
+    if (Number.isFinite(id) && id > 0) venueIds.push(Math.trunc(id));
+  }
+  if (venueIds.length > 0) {
+    const ph = venueIds.map(() => '?').join(',');
+    const venueRows = await db
+      .prepare(`SELECT name FROM venues WHERE id IN (${ph})`)
+      .bind(...venueIds)
+      .all();
+    for (const r of venueRows.results || []) {
+      const n = typeof (r as { name?: unknown }).name === 'string' ? String((r as { name: string }).name).trim() : '';
+      if (n) names.add(n);
+    }
+  }
+  try {
+    const favs = await db
+      .prepare(
+        `SELECT display_name FROM user_favorites WHERE mocha_user_id = ? AND favorite_type = 'venue'`,
+      )
+      .bind(uid)
+      .all();
+    for (const r of favs.results || []) {
+      const n =
+        typeof (r as { display_name?: unknown }).display_name === 'string'
+          ? String((r as { display_name: string }).display_name).trim()
+          : '';
+      if (n) names.add(n);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!/no such table: user_favorites/i.test(message)) throw err;
+  }
+  return [...names].slice(0, MAX_CLIP_VENUE_NAMES_IN);
+}
+
+async function loadSavedSongSlugsForFeed(db: D1Database, uid: string): Promise<string[]> {
+  try {
+    const favs = await db
+      .prepare(
+        `SELECT entity_key FROM user_favorites WHERE mocha_user_id = ? AND favorite_type = 'song'`,
+      )
+      .bind(uid)
+      .all();
+    const slugs: string[] = [];
+    const seen = new Set<string>();
+    for (const r of favs.results || []) {
+      const slug = String((r as { entity_key?: unknown }).entity_key ?? '').trim().toLowerCase();
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+      slugs.push(slug);
+    }
+    return slugs.slice(0, MAX_CLIP_SONG_SLUGS_IN);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/no such table: user_favorites/i.test(message)) return [];
+    throw err;
+  }
+}
+
+async function loadFollowedFriendIdsForFeed(db: D1Database, uid: string): Promise<string[]> {
+  const followRows = await db
+    .prepare(`SELECT following_id FROM follows WHERE follower_id = ?`)
+    .bind(uid)
+    .all();
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const row of followRows.results || []) {
+    const fid = String((row as { following_id?: unknown }).following_id ?? '').trim();
+    if (!isUserFollowTargetId(fid) || seen.has(fid)) continue;
+    seen.add(fid);
+    ids.push(fid);
+  }
+  return ids.slice(0, MAX_CLIP_FRIEND_IDS_IN);
+}
+
+function inListSql(column: string, values: string[], caseInsensitive: boolean): { sql: string; binds: string[] } {
+  const trimmed = values.map((v) => v.trim()).filter(Boolean);
+  if (trimmed.length === 0) return { sql: '0', binds: [] };
+  const exactPh = trimmed.map(() => '?').join(',');
+  if (!caseInsensitive) {
+    return { sql: `${column} IN (${exactPh})`, binds: trimmed };
+  }
+  const lowered = [...new Set(trimmed.map((v) => v.toLowerCase()))];
+  const lowerPh = lowered.map(() => '?').join(',');
+  return {
+    sql: `(${column} IN (${exactPh}) OR LOWER(TRIM(${column})) IN (${lowerPh}))`,
+    binds: [...trimmed, ...lowered],
+  };
+}
+
 /**
  * Upcoming tour dates (max 3) + paginated clips for artists the user follows:
  * `user_favorite_artists` plus names from `user_profiles.favorite_artists` (personalization / onboarding).
  * Auth required; `clips_limit` / `clips_offset` paginate the clip grid.
+ * `scope=all` unions followed artists, venues, songs, and friends.
  */
 export async function getFavoriteArtistFeed(c: Context) {
   const user = c.get('user');
@@ -405,11 +511,22 @@ export async function getFavoriteArtistFeed(c: Context) {
 
     const favoriteArtistNames = [...canonicalNames].map((n) => n.trim()).filter(Boolean);
     const clipArtistNames = favoriteArtistNames.slice(0, MAX_CLIP_ARTIST_NAMES_IN);
+    const scope = c.req.query('scope') === 'all' ? 'all' : 'artists';
 
-    if (clipArtistNames.length === 0) {
+    const venueNames =
+      scope === 'all' ? await loadFollowedVenueNamesForFeed(c.env.DB, uid) : [];
+    const songSlugs = scope === 'all' ? await loadSavedSongSlugsForFeed(c.env.DB, uid) : [];
+    const friendIds = scope === 'all' ? await loadFollowedFriendIdsForFeed(c.env.DB, uid) : [];
+
+    const hasFavoriteArtists = clipArtistNames.length > 0;
+    const hasFollows =
+      hasFavoriteArtists || venueNames.length > 0 || songSlugs.length > 0 || friendIds.length > 0;
+
+    if (scope === 'artists' ? !hasFavoriteArtists : !hasFollows) {
       c.header('Cache-Control', 'private, no-store');
       return c.json({
-        hasFavoriteArtists: false,
+        hasFavoriteArtists,
+        hasFollows,
         upcomingEvents: [],
         clips: [],
         hasMoreClips: false,
@@ -439,9 +556,31 @@ export async function getFavoriteArtistFeed(c: Context) {
       upcomingEvents = (upcoming.results || []) as Record<string, unknown>[];
     }
 
-    const inPlaceholders = clipArtistNames.map(() => '?').join(',');
-    const clipNameLowerBinds = [...new Set(clipArtistNames.map((n) => n.trim().toLowerCase()))];
-    const inLowerPlaceholders = clipNameLowerBinds.map(() => '?').join(',');
+    const matchParts: string[] = [];
+    const matchBinds: string[] = [];
+    const artistMatch = inListSql('clips.artist_name', clipArtistNames, true);
+    if (clipArtistNames.length > 0) {
+      matchParts.push(artistMatch.sql);
+      matchBinds.push(...artistMatch.binds);
+    }
+    if (scope === 'all') {
+      const venueMatch = inListSql('clips.venue_name', venueNames, true);
+      if (venueNames.length > 0) {
+        matchParts.push(venueMatch.sql);
+        matchBinds.push(...venueMatch.binds);
+      }
+      const songMatch = inListSql('clips.song_slug', songSlugs, false);
+      if (songSlugs.length > 0) {
+        matchParts.push(songMatch.sql);
+        matchBinds.push(...songMatch.binds);
+      }
+      const friendMatch = inListSql('clips.mocha_user_id', friendIds, false);
+      if (friendIds.length > 0) {
+        matchParts.push(friendMatch.sql);
+        matchBinds.push(...friendMatch.binds);
+      }
+    }
+
     let trimmed: Record<string, unknown>[] = [];
     let hasMoreClips = false;
 
@@ -458,10 +597,7 @@ export async function getFavoriteArtistFeed(c: Context) {
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       LEFT JOIN live_featured_clips ON clips.id = live_featured_clips.clip_id
       WHERE ${publicVisibleSql}
-      AND (
-        clips.artist_name IN (${inPlaceholders})
-        OR LOWER(TRIM(clips.artist_name)) IN (${inLowerPlaceholders})
-      )
+      AND (${matchParts.join(' OR ')})
       AND NOT EXISTS (
         SELECT 1
         FROM user_blocks
@@ -474,8 +610,7 @@ export async function getFavoriteArtistFeed(c: Context) {
     `;
 
     const clipBindings: unknown[] = [
-      ...clipArtistNames,
-      ...clipNameLowerBinds,
+      ...matchBinds,
       uid,
       uid,
       clipsLimit + 1,
@@ -490,7 +625,8 @@ export async function getFavoriteArtistFeed(c: Context) {
     c.header('Pragma', 'no-cache');
 
     return c.json({
-      hasFavoriteArtists: true,
+      hasFavoriteArtists,
+      hasFollows,
       upcomingEvents,
       clips: normalizeClipApiRows(trimmed),
       hasMoreClips,
