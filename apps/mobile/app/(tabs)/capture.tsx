@@ -38,6 +38,7 @@ import {
   type CaptureHandoff,
 } from '@/src/lib/upload/outbox';
 import type { ClipShowCandidate } from '@shared/types';
+import { resolveCameraVenuePicker } from '@shared/clip-resolve-show-match';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 
 export default function CaptureScreen() {
@@ -156,6 +157,7 @@ export default function CaptureScreen() {
         const going = goingAutoFillCandidate(marks, lat, lon);
         if (going) {
           showCandidateRef.current = going;
+          setPickerChoices([]);
           setSelectedVenueKey(venueOptionKey(going));
           setShowPreview(previewFromCandidate(going));
           return;
@@ -167,7 +169,8 @@ export default function CaptureScreen() {
         });
         if (cancelled) return;
 
-        if (venues.length === 0) {
+        const resolution = resolveCameraVenuePicker(venues, marks, Date.now(), lat, lon);
+        if (resolution.mode === 'none') {
           setShowPreview({
             status: 'none',
             eventTitle: null,
@@ -179,17 +182,18 @@ export default function CaptureScreen() {
           return;
         }
 
-        if (venues.length === 1) {
-          showCandidateRef.current = venues[0];
-          setSelectedVenueKey(venueOptionKey(venues[0]));
-          setShowPreview(previewFromCandidate(venues[0]));
+        if (resolution.mode === 'single') {
+          showCandidateRef.current = resolution.candidate;
+          setPickerChoices([]);
+          setSelectedVenueKey(venueOptionKey(resolution.candidate));
+          setShowPreview(previewFromCandidate(resolution.candidate));
           return;
         }
 
-        showCandidateRef.current = venues[0];
-        setSelectedVenueKey(venueOptionKey(venues[0]));
-        setPickerChoices(venues.slice(0, 5));
-        setShowPreview(previewFromCandidate(venues[0], 'picker'));
+        showCandidateRef.current = resolution.venues[0] ?? null;
+        setSelectedVenueKey(venueOptionKey(resolution.venues[0]!));
+        setPickerChoices(resolution.venues);
+        setShowPreview(previewFromCandidate(resolution.venues[0]!, 'picker'));
       } catch (err) {
         if (cancelled) return;
         setShowPreview({

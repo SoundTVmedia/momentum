@@ -1,3 +1,5 @@
+import { loadClipStorageForPurge, purgeClipMedia } from './clip-media-purge';
+
 /**
  * Permanently remove a clip and dependent rows (likes, comments, saves, etc.).
  * Used by owner self-delete and admin moderation delete.
@@ -77,4 +79,11 @@ export async function purgeClipFromDatabase(db: D1Database, clipId: number): Pro
     .bind(id, id)
     .run();
   await db.prepare('DELETE FROM clips WHERE id = ? OR rowid = ?').bind(id, id).run();
+}
+
+/** Database rows first, then best-effort R2 + Stream so the clip disappears even if media delete fails. */
+export async function purgeClip(env: Env, clipId: number): Promise<void> {
+  const media = await loadClipStorageForPurge(env.DB, clipId);
+  await purgeClipFromDatabase(env.DB, clipId);
+  await purgeClipMedia(env, media);
 }

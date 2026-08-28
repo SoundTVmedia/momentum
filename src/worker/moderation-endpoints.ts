@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { purgeClipFromDatabase } from './clip-delete-utils';
+import { purgeClip } from './clip-delete-utils';
 import { getStaffProfile, isAdmin, isSuperAdmin } from './admin-auth';
 import { mochaUserIdKey } from './mocha-user-id';
 
@@ -329,7 +329,7 @@ export async function deleteClip(c: Context) {
     return c.json({ error: 'Invalid clip id' }, 400);
   }
 
-  await purgeClipFromDatabase(c.env.DB, clipId);
+  await purgeClip(c.env, clipId);
 
   return c.json({ success: true });
 }

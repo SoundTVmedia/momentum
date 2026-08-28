@@ -23,7 +23,7 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
-import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, isCameraGoingAutoFillSource } from '@/shared/clip-resolve-show-match';
+import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, isCameraGoingAutoFillSource, resolveCameraVenuePicker } from '@/shared/clip-resolve-show-match';
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
   animateCaptureZoom,
@@ -457,11 +457,12 @@ export default function QuickRecordButton({
     applyGoingCaptureCandidate,
   ]);
 
-  /** Prefetch nearest JamBase show for camera HUD — once per modal open. */
+  /** Prefetch nearest JamBase show for camera HUD whenever GPS is available. */
   useEffect(() => {
     if (!showModal || !user || isPending) return;
     const c = coordsForNearbyVenues;
     if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) {
+      if (captureGoingAppliedRef.current) return;
       captureResolveCandidateRef.current = null;
       setCaptureVenuePickerChoices([]);
       setCaptureResolvePreview({
@@ -473,6 +474,21 @@ export default function QuickRecordButton({
         notice: null,
       });
       return;
+    }
+
+    if (captureGoingAppliedRef.current) return;
+
+    if (showMarksHydratedRef.current) {
+      const autoFill = resolveCameraGoingAutoFill(
+        captureMarksRef.current,
+        Date.now(),
+        c.lat,
+        c.lon,
+      );
+      if (autoFill) {
+        applyGoingCaptureCandidate(autoFill.candidate, c.lat, c.lon);
+        return;
+      }
     }
 
     const ac = new AbortController();
@@ -495,21 +511,6 @@ export default function QuickRecordButton({
         notice: null,
       });
     };
-
-    if (captureVenueFetchStartedRef.current || captureGoingAppliedRef.current) return;
-
-    if (showMarksHydratedRef.current) {
-      const autoFill = resolveCameraGoingAutoFill(
-        captureMarksRef.current,
-        Date.now(),
-        c.lat,
-        c.lon,
-      );
-      if (autoFill) {
-        applyGoingCaptureCandidate(autoFill.candidate, c.lat, c.lon);
-        return;
-      }
-    }
 
     void (async () => {
       captureVenueFetchStartedRef.current = true;
@@ -568,7 +569,7 @@ export default function QuickRecordButton({
             expandPastEventMatchedCount?: number;
             geoEventRawCount?: number;
             geoEventMatchedCount?: number;
-            matchSource?: 'im_there' | 'going' | 'going_fallback' | 'jambase';
+            matchSource?: 'im_there' | 'going' | 'going_fallback' | 'at_venue' | 'jambase';
           };
         };
         if (cancelled || captureGoingAppliedRef.current) return;
@@ -593,33 +594,49 @@ export default function QuickRecordButton({
             return;
           }
 
-          const stickySession = loadStickyCaptureShowSession({
-            lat: c.lat,
-            lon: c.lon,
-            uploadsInFlight: clipUploadsInFlight > 0,
-          });
-          let selected = serverVenues[0]!;
-          if (
-            stickySession?.source !== 'going' &&
-            stickySession?.candidate &&
-            clipCandidateMatchesCameraCaptureDay(
-              stickySession.candidate,
-              captureMs,
-              c.lat,
-              c.lon,
-            )
-          ) {
-            const stickyKey = captureVenueOptionKey(stickySession.candidate);
-            const matched = serverVenues.find(
-              (v) => captureVenueOptionKey(v) === stickyKey,
-            );
-            if (matched) selected = matched;
+          const resolution = resolveCameraVenuePicker(
+            serverVenues,
+            captureMarksRef.current,
+            captureMs,
+            c.lat,
+            c.lon,
+          );
+          if (resolution.mode === 'single') {
+            applyGoingCaptureCandidate(resolution.candidate, c.lat, c.lon);
+            return;
           }
-          captureResolveCandidateRef.current = selected;
-          setCaptureVenuePickerChoices(serverVenues);
-          setCaptureVenuePickerSelectedKey(captureVenueOptionKey(selected));
-          applySessionCandidate(selected, { picker: true });
-          return;
+
+          if (resolution.mode === 'picker') {
+            const pickerVenues = resolution.venues;
+            const stickySession = loadStickyCaptureShowSession({
+              lat: c.lat,
+              lon: c.lon,
+              uploadsInFlight: clipUploadsInFlight > 0,
+            });
+            let selected = pickerVenues[0]!;
+            if (
+              stickySession?.source !== 'going' &&
+              stickySession?.candidate &&
+              clipCandidateMatchesCameraCaptureDay(
+                stickySession.candidate,
+                captureMs,
+                c.lat,
+                c.lon,
+              )
+            ) {
+              const stickyKey = captureVenueOptionKey(stickySession.candidate);
+              const matched = pickerVenues.find(
+                (v) => captureVenueOptionKey(v) === stickyKey,
+              );
+              if (matched) selected = matched;
+            }
+            saveCaptureShowSession(selected, c.lat, c.lon, { source: 'resolve' });
+            captureResolveCandidateRef.current = selected;
+            setCaptureVenuePickerChoices(pickerVenues);
+            setCaptureVenuePickerSelectedKey(captureVenueOptionKey(selected));
+            applySessionCandidate(selected, { picker: true });
+            return;
+          }
         }
 
         captureVenueFetchStartedRef.current = false;

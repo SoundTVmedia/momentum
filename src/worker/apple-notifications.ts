@@ -46,7 +46,7 @@ export async function handleAppleServerNotification(
       await revokeAllAppleSessionsForUser(c.env.DB, sub);
       if (eventType === 'account-delete') {
         try {
-          await purgeUserAccount(c.env.DB, sub, { deleteClips: false });
+          await purgeUserAccount(c.env, sub, { deleteClips: false });
         } catch (err) {
           console.warn('Apple account-delete purge:', err);
         }

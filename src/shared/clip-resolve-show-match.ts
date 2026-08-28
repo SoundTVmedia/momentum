@@ -19,6 +19,9 @@ import {
 /** Auto-apply when GPS ↔ venue is within this distance (non–going-mark path). */
 export const AUTO_APPLY_MAX_DISTANCE_MILES = 2;
 
+/** Camera HUD: if the user is this close to a venue with a show tonight, assume they are going. */
+export const CAMERA_AT_VENUE_MILES = 0.25;
+
 /** Manual picker can surface same-day shows within this radius when auto-apply misses. */
 export const NEARBY_PICKER_MAX_DISTANCE_MILES = 15;
 
@@ -216,16 +219,25 @@ export type CameraVenueMatchSource =
   | 'im_there'
   | 'going'
   | 'going_fallback'
+  | 'at_venue'
   | 'jambase';
 
+/** True when we may auto-fill the camera HUD without showing the nearby-venue picker. */
 export function isCameraGoingAutoFillSource(
   source: CameraVenueMatchSource | string | undefined,
 ): boolean {
   return (
     source === 'im_there' ||
     source === 'going' ||
-    source === 'going_fallback'
+    source === 'going_fallback' ||
+    source === 'at_venue'
   );
+}
+
+/** GPS says the user is at this venue (within {@link CAMERA_AT_VENUE_MILES}). */
+export function candidateIsAtVenue(candidate: ClipShowCandidate): boolean {
+  const dist = candidate.distance_miles;
+  return dist != null && Number.isFinite(dist) && dist <= CAMERA_AT_VENUE_MILES;
 }
 
 /**
@@ -417,12 +429,21 @@ export function resolveShowAutoApplyCandidate(
 
 export type CameraCaptureVenueResolution =
   | { mode: 'none' }
-  | { mode: 'single'; candidate: ClipShowCandidate }
+  | { mode: 'single'; candidate: ClipShowCandidate; matchSource: CameraVenueMatchSource }
   | { mode: 'picker'; venues: ClipShowCandidate[] };
 
+function singleFromJamBaseCandidate(candidate: ClipShowCandidate): CameraCaptureVenueResolution {
+  return {
+    mode: 'single',
+    candidate,
+    matchSource: candidateIsAtVenue(candidate) ? 'at_venue' : 'jambase',
+  };
+}
+
 /**
- * Camera HUD: going mark auto-fill, otherwise dropdown of the closest venues with
- * tonight's JamBase event (up to {@link CAMERA_VENUE_PICKER_COUNT}).
+ * Camera HUD: Going / I'm there auto-fill; else assume the closest same-day
+ * show when within {@link CAMERA_AT_VENUE_MILES}; else dropdown of the three
+ * closest venues with tonight's JamBase event.
  */
 export function resolveCameraVenuePicker(
   candidates: ClipShowCandidate[],
@@ -438,7 +459,11 @@ export function resolveCameraVenuePicker(
     userLon,
   );
   if (autoFill) {
-    return { mode: 'single', candidate: autoFill.candidate };
+    return {
+      mode: 'single',
+      candidate: autoFill.candidate,
+      matchSource: autoFill.matchSource,
+    };
   }
 
   const venues = closestVenuesWithEventsOnCaptureDay(
@@ -450,6 +475,10 @@ export function resolveCameraVenuePicker(
   );
   if (venues.length === 0) {
     return { mode: 'none' };
+  }
+  const closest = venues[0]!;
+  if (candidateIsAtVenue(closest)) {
+    return { mode: 'single', candidate: closest, matchSource: 'at_venue' };
   }
   return { mode: 'picker', venues };
 }
@@ -473,11 +502,15 @@ export function resolveCameraCaptureVenues(
     userLon,
   );
   if (autoFill) {
-    return { mode: 'single', candidate: autoFill.candidate };
+    return {
+      mode: 'single',
+      candidate: autoFill.candidate,
+      matchSource: autoFill.matchSource,
+    };
   }
 
   if (data.match === 'single' && data.candidates?.[0]) {
-    return { mode: 'single', candidate: data.candidates[0] };
+    return singleFromJamBaseCandidate(data.candidates[0]);
   }
 
   const serverPick = dedupeClipCandidatesByVenue([
@@ -488,10 +521,10 @@ export function resolveCameraCaptureVenues(
     if (serverPick.length > 1) {
       return { mode: 'picker', venues: serverPick.slice(0, NEARBY_VENUE_PICKER_COUNT) };
     }
-    return { mode: 'single', candidate: serverPick[0]! };
+    return singleFromJamBaseCandidate(serverPick[0]!);
   }
   if (serverPick.length === 1) {
-    return { mode: 'single', candidate: serverPick[0]! };
+    return singleFromJamBaseCandidate(serverPick[0]!);
   }
   if (serverPick.length > 1) {
     return { mode: 'picker', venues: serverPick.slice(0, NEARBY_VENUE_PICKER_COUNT) };
@@ -500,7 +533,7 @@ export function resolveCameraCaptureVenues(
   const pool = serverPick;
   const matches = nearbyEventVenuesWithinAutoApplyRadius(pool, captureMs, userLat, userLon);
   if (matches.length === 1) {
-    return { mode: 'single', candidate: matches[0]! };
+    return singleFromJamBaseCandidate(matches[0]!);
   }
   const pickerMatches = sameDayEventVenuesWithinRadius(
     pool,
@@ -513,7 +546,7 @@ export function resolveCameraCaptureVenues(
     return { mode: 'picker', venues: pickerMatches };
   }
   if (pickerMatches.length === 1) {
-    return { mode: 'single', candidate: pickerMatches[0]! };
+    return singleFromJamBaseCandidate(pickerMatches[0]!);
   }
 
   return { mode: 'none' };

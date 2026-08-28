@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AUTO_APPLY_MAX_DISTANCE_MILES,
+  CAMERA_AT_VENUE_MILES,
   CAMERA_VENUE_PICKER_COUNT,
   canAutoApplyCandidate,
   closestVenuesWithEventsOnCaptureDay,
@@ -340,7 +341,31 @@ describe('resolveCameraVenuePicker', () => {
     }
   });
 
-  it('returns picker with one venue when only one qualifies', () => {
+  it('prefers a Going mark over a closer venue the user is standing at', () => {
+    const resolution = resolveCameraVenuePicker(
+      [
+        baseCandidate({
+          jambase_event_id: 'nearby',
+          jambase_venue_id: 'v-other',
+          venue_name: 'Other Venue',
+          startDate: '2026-06-09T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.1,
+        }),
+      ],
+      [goingMark()],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(resolution.mode).toBe('single');
+    if (resolution.mode === 'single') {
+      expect(resolution.matchSource).toBe('going');
+      expect(resolution.candidate.jambase_event_id).toBe('jambase:ev-going');
+    }
+  });
+
+  it('returns picker with one venue when only one qualifies beyond 0.25 miles', () => {
     const resolution = resolveCameraVenuePicker(
       [
         baseCandidate({
@@ -359,6 +384,54 @@ describe('resolveCameraVenuePicker', () => {
     if (resolution.mode === 'picker') {
       expect(resolution.venues).toHaveLength(1);
     }
+  });
+
+  it('auto-fills the closest venue when the user is within 0.25 miles', () => {
+    const resolution = resolveCameraVenuePicker(
+      [
+        baseCandidate({
+          jambase_event_id: 'a',
+          startDate: '2026-06-09T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 0.2,
+        }),
+        baseCandidate({
+          jambase_event_id: 'b',
+          jambase_venue_id: 'v2',
+          venue_name: 'Venue Two',
+          startDate: '2026-06-09T20:00:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: 1.1,
+        }),
+      ],
+      [],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(resolution.mode).toBe('single');
+    if (resolution.mode === 'single') {
+      expect(resolution.matchSource).toBe('at_venue');
+      expect(resolution.candidate.jambase_event_id).toBe('a');
+    }
+  });
+
+  it('does not auto-assume a venue farther than 0.25 miles', () => {
+    const resolution = resolveCameraVenuePicker(
+      [
+        baseCandidate({
+          jambase_event_id: 'a',
+          startDate: '2026-06-09T19:30:00',
+          venue_timezone: 'America/New_York',
+          distance_miles: CAMERA_AT_VENUE_MILES + 0.01,
+        }),
+      ],
+      [],
+      captureMs,
+      40.73,
+      -73.99,
+    );
+    expect(resolution.mode).toBe('picker');
   });
 });
 

@@ -1,5 +1,5 @@
 import { MOCHA_USER_ID_TABLES } from './account-linking';
-import { purgeClipFromDatabase } from './clip-delete-utils';
+import { purgeClip } from './clip-delete-utils';
 import { revokeAllEmailSessionsForUser } from './hybrid-auth';
 
 async function revokeAllGoogleSessionsForUser(db: D1Database, userId: string): Promise<void> {
@@ -10,8 +10,8 @@ async function revokeAllAppleSessionsForUserLocal(db: D1Database, userId: string
   await db.prepare('DELETE FROM apple_sessions WHERE user_id = ?').bind(userId).run();
 }
 
-export async function purgeUserClips(db: D1Database, userId: string): Promise<void> {
-  const clips = await db
+export async function purgeUserClips(env: Env, userId: string): Promise<void> {
+  const clips = await env.DB
     .prepare('SELECT id FROM clips WHERE mocha_user_id = ?')
     .bind(userId)
     .all();
@@ -19,7 +19,7 @@ export async function purgeUserClips(db: D1Database, userId: string): Promise<vo
   for (const clip of clips.results || []) {
     const id = (clip as { id: number }).id;
     if (typeof id === 'number' && Number.isFinite(id)) {
-      await purgeClipFromDatabase(db, id);
+      await purgeClip(env, id);
     }
   }
 }
@@ -28,14 +28,15 @@ export async function purgeUserClips(db: D1Database, userId: string): Promise<vo
  * Permanently remove a user and their data. Clips are deleted by default.
  */
 export async function purgeUserAccount(
-  db: D1Database,
+  env: Env,
   userId: string,
   opts: { deleteClips?: boolean } = {},
 ): Promise<void> {
+  const db = env.DB;
   const deleteClips = opts.deleteClips !== false;
 
   if (deleteClips) {
-    await purgeUserClips(db, userId);
+    await purgeUserClips(env, userId);
   } else {
     await db
       .prepare("UPDATE clips SET mocha_user_id = 'deleted_user' WHERE mocha_user_id = ?")

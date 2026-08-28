@@ -2,10 +2,9 @@ import type { Context } from 'hono';
 import type { ClipShowCandidate } from '../shared/types';
 import { clipCandidatesFromJamBaseEvents } from '../shared/jambase-events';
 import {
-  CAMERA_VENUE_PICKER_COUNT,
-  closestVenuesWithEventsOnCaptureDay,
   dedupeClipCandidatesByVenue,
   resolveCameraGoingAutoFill,
+  resolveCameraVenuePicker,
 } from '../shared/clip-resolve-show-match';
 import { fetchCameraVenueJamBaseEvents } from './discover-jambase-enrich';
 import { jamBaseQuotaFromEnv } from './jambase-client';
@@ -81,22 +80,16 @@ export async function postCameraVenuesForClip(c: Context) {
     loose: true,
   });
   const deduped = dedupeClipCandidatesByVenue(mapped);
-  const venues = closestVenuesWithEventsOnCaptureDay(
-    deduped,
-    captureMs,
-    lat,
-    lon,
-    CAMERA_VENUE_PICKER_COUNT,
-  );
+  const resolution = resolveCameraVenuePicker(deduped, goingMarks, captureMs, lat, lon);
 
   c.header('Cache-Control', 'private, max-age=30');
 
   const debugNotice =
-    venues.length === 0 && rawEvents.length > 0
+    resolution.mode === 'none' && rawEvents.length > 0
       ? `JamBase returned ${rawEvents.length} event(s) but none matched today (${stats.captureLocalYmd}).`
       : null;
 
-  if (venues.length === 0) {
+  if (resolution.mode === 'none') {
     return c.json({
       venues: [] as ClipShowCandidate[],
       notice:
@@ -117,20 +110,31 @@ export async function postCameraVenuesForClip(c: Context) {
     });
   }
 
+  if (resolution.mode === 'single') {
+    return c.json({
+      venues: [resolution.candidate],
+      notice: null,
+      meta: {
+        matchSource: resolution.matchSource,
+        rawEventCount: rawEvents.length,
+        mappedCandidateCount: deduped.length,
+        venueMatchCount: 1,
+        lat,
+        lon,
+        captureMs,
+        ...stats,
+      },
+    });
+  }
+
   return c.json({
-    venues,
-    notice:
-      venues.length === 0
-        ? debugNotice ||
-          (rawEvents.length === 0
-            ? 'No JamBase events returned near this location.'
-            : 'No JamBase shows today at nearby venues.')
-        : null,
+    venues: resolution.venues,
+    notice: null,
     meta: {
       matchSource: 'jambase' as const,
       rawEventCount: rawEvents.length,
       mappedCandidateCount: deduped.length,
-      venueMatchCount: venues.length,
+      venueMatchCount: resolution.venues.length,
       lat,
       lon,
       captureMs,

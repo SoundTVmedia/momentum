@@ -136,7 +136,7 @@ export async function deleteUserAccount(c: Context) {
   }
 
   const body = (await c.req.json().catch(() => ({}))) as { delete_clips?: boolean };
-  await purgeUserAccount(c.env.DB, targetUserId, { deleteClips: body.delete_clips !== false });
+  await purgeUserAccount(c.env, targetUserId, { deleteClips: body.delete_clips !== false });
 
   return c.json({ success: true });
 }

@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { ACR_MAX_SAMPLE_BYTES, identifySampleByteLength } from '../shared/identify-music-limits';
 import { readyStreamMp4Url, type ClipPlaybackFields } from '../shared/clip-playback';
-import { purgeClipFromDatabase } from './clip-delete-utils';
+import { purgeClip } from './clip-delete-utils';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { clipsContentFeedColumnReady } from './content-feed-sql';
 import { MAIN_FEED_CLIP_SQL, PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
@@ -399,7 +399,7 @@ async function deleteOwnClipForRow(c: Context<{ Bindings: Env }>, clip: { id: nu
     return c.json({ error: 'You can only delete clips you uploaded' }, 403);
   }
 
-  await purgeClipFromDatabase(c.env.DB, clip.id);
+  await purgeClip(c.env, clip.id);
 
   try {
     const realtime = createRealtimeService(c.env);
