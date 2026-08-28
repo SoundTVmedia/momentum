@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { ClipWithUser } from '@/shared/types'
 import { apiFetch } from '@/react-app/lib/apiFetch'
-import { filterPublicFeedClips } from '@/shared/clip-playback'
+import { clipNumericId } from '@/react-app/lib/clip-numeric-id'
+import {
+  CLIP_PLAYBACK_SKIPPED_EVENT,
+  clipPlaybackSkippedDetail,
+  filterViewerFeedClips,
+} from '@/react-app/lib/clipPlaybackFailure'
 import {
   USER_BLOCKS_CHANGED_EVENT,
   userBlocksChangedDetail,
@@ -104,7 +109,7 @@ export function useClips(options: UseClipsOptions = {}) {
         if (generation !== fetchGenerationRef.current) return
 
         const incoming = data.clips ?? []
-        const nextClips = mine ? incoming : filterPublicFeedClips(incoming)
+        const nextClips = mine ? incoming : filterViewerFeedClips(incoming)
 
         if (append) {
           setClips((prev) => {
@@ -205,6 +210,26 @@ export function useClips(options: UseClipsOptions = {}) {
   }, [fetchClips, mine])
 
   useEffect(() => {
+    const onSkipped = (event: Event) => {
+      const detail = clipPlaybackSkippedDetail(event)
+      if (!detail) return
+      setClips((prev) => {
+        if (mine) {
+          if (!detail.hidden) return prev
+          return prev.map((clip) =>
+            clipNumericId(clip) === detail.clipId
+              ? { ...clip, playback_unplayable: 1 }
+              : clip,
+          )
+        }
+        return prev.filter((clip) => clipNumericId(clip) !== detail.clipId)
+      })
+    }
+    window.addEventListener(CLIP_PLAYBACK_SKIPPED_EVENT, onSkipped)
+    return () => window.removeEventListener(CLIP_PLAYBACK_SKIPPED_EVENT, onSkipped)
+  }, [mine])
+
+  useEffect(() => {
     if (!enablePolling || feedType !== 'latest' || clips.length === 0) return
 
     const interval = setInterval(async () => {
@@ -237,7 +262,7 @@ export function useClips(options: UseClipsOptions = {}) {
         const data = (await response.json()) as { clips?: ClipWithUser[] }
 
         if (data.clips && data.clips.length > 0) {
-          const incoming = mine ? data.clips : filterPublicFeedClips(data.clips)
+          const incoming = mine ? data.clips : filterViewerFeedClips(data.clips)
           setClips((prev) => {
             const existingIds = new Set(prev.map((c) => c.id))
             const fresh = incoming.filter((c) => !existingIds.has(c.id))

@@ -5,7 +5,7 @@ import ClipModal from '@/react-app/components/ClipModal';
 import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import { ClipGridTileSkeleton } from '@/react-app/components/LoadingSkeleton';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { filterPublicFeedClips } from '@/shared/clip-playback';
+import { filterViewerFeedClips } from '@/react-app/lib/clipPlaybackFailure';
 
 type ClipsInfiniteGridProps = {
   clips: ClipWithUser[];
@@ -25,7 +25,7 @@ export default function ClipsInfiniteGrid({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
 
-  const visible = filterPublicFeedClips(clips);
+  const visible = filterViewerFeedClips(clips);
 
   useEffect(() => {
     const target = sentinelRef.current;

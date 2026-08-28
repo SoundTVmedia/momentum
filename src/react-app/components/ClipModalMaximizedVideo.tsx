@@ -2,6 +2,7 @@ import { forwardRef, type ReactNode } from 'react';
 import StreamVideoPlayer, {
   type StreamVideoPlayerHandle,
   type StreamVideoPlayerPlaybackState,
+  type StreamVideoPlayerFailure,
 } from '@/react-app/components/StreamVideoPlayer';
 import {
   clipDisplayAspectRatio,
@@ -20,6 +21,7 @@ type ClipModalMaximizedVideoProps = {
   overlay?: ReactNode;
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
   onViewsCountChange?: (viewsCount: number) => void;
+  onPlaybackFailed?: (failure: StreamVideoPlayerFailure) => void;
 };
 
 /** Fills the modal player; landscape / 16:9 clips span full width, portrait clips span full height. */
@@ -27,7 +29,7 @@ const ClipModalMaximizedVideo = forwardRef<
   StreamVideoPlayerHandle,
   ClipModalMaximizedVideoProps
 >(function ClipModalMaximizedVideo(
-  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange },
+  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange, onPlaybackFailed },
   ref,
 ) {
   const clipId = clipNumericId(clip);
@@ -64,6 +66,7 @@ const ClipModalMaximizedVideo = forwardRef<
           onPlaybackStateChange={onPlaybackStateChange}
           clipId={clipId}
           onViewsCountChange={onViewsCountChange}
+          onPlaybackFailed={onPlaybackFailed}
           className="absolute inset-0 h-full w-full"
         />
         {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}

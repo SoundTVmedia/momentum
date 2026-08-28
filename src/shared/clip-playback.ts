@@ -88,6 +88,8 @@ export type ModalPlaybackSource = {
   streamVideoId: string | null;
   /** Adaptive HLS URL when modal starts on Stream MP4 (fallback if MP4 fails). */
   hlsFallbackSrc?: string | null;
+  /** Original R2 / progressive file when Stream MP4 and HLS both fail. */
+  r2FallbackSrc?: string | null;
 };
 
 /**
@@ -107,6 +109,33 @@ export function resolveModalPrefetchPlan(clip: ClipPlaybackFields): ModalPrefetc
   return { progressiveUrl: modal.src, hlsUrl: null };
 }
 
+/** Same-origin R2 original, or a non-HLS progressive `video_url`. */
+export function resolveR2ProgressiveSrc(clip: ClipPlaybackFields): string | null {
+  const r2Key =
+    (typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '') ||
+    r2KeyFromClipFileUrl(clip.video_url) ||
+    '';
+  if (r2Key) return r2ClipFilePath(r2Key);
+
+  const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
+  if (fallback && !isPlaceholderVideoUrl(fallback) && !isHlsPlaybackUrl(fallback)) {
+    return fallback;
+  }
+  return null;
+}
+
+function withDistinctR2Fallback(
+  source: Omit<ModalPlaybackSource, 'r2FallbackSrc'>,
+  clip: ClipPlaybackFields,
+): ModalPlaybackSource {
+  const r2 = resolveR2ProgressiveSrc(clip);
+  const primary = source.src.trim();
+  return {
+    ...source,
+    r2FallbackSrc: r2 && r2 !== primary ? r2 : null,
+  };
+}
+
 /**
  * Full-quality modal playback: Stream MP4 first for fast start on short clips,
  * HLS adaptive as fallback; direct URL for R2-only clips.
@@ -120,33 +149,42 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
     // Start on the progressive MP4 only once Cloudflare has generated it;
     // otherwise HLS is the one Stream URL that is live immediately.
     const mp4 = readyStreamMp4Url(clip);
-    return {
-      src: mp4 ?? hls,
-      poster,
-      isHls: !mp4,
-      streamVideoId: streamId,
-      hlsFallbackSrc: mp4 ? hls : null,
-    };
+    return withDistinctR2Fallback(
+      {
+        src: mp4 ?? hls,
+        poster,
+        isHls: !mp4,
+        streamVideoId: streamId,
+        hlsFallbackSrc: mp4 ? hls : null,
+      },
+      clip,
+    );
   }
 
   const fallback = typeof clip.video_url === 'string' ? clip.video_url.trim() : '';
   if (isPlaceholderVideoUrl(fallback)) {
     const r2Key = typeof clip.r2_raw_key === 'string' ? clip.r2_raw_key.trim() : '';
-    return {
-      src: r2Key ? r2ClipFilePath(r2Key) : '',
+    return withDistinctR2Fallback(
+      {
+        src: r2Key ? r2ClipFilePath(r2Key) : '',
+        poster,
+        isHls: false,
+        streamVideoId: null,
+        hlsFallbackSrc: null,
+      },
+      clip,
+    );
+  }
+  return withDistinctR2Fallback(
+    {
+      src: fallback,
       poster,
-      isHls: false,
+      isHls: isHlsPlaybackUrl(fallback),
       streamVideoId: null,
       hlsFallbackSrc: null,
-    };
-  }
-  return {
-    src: fallback,
-    poster,
-    isHls: isHlsPlaybackUrl(fallback),
-    streamVideoId: null,
-    hlsFallbackSrc: null,
-  };
+    },
+    clip,
+  );
 }
 
 /** Resolve media segment or variant URLs from an HLS manifest (one level). */

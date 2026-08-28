@@ -28,6 +28,11 @@ export type StreamVideoPlayerPlaybackState = {
 
 export type StreamVideoPlayerControlsPlacement = 'bottom' | 'top' | 'hidden';
 
+export type StreamVideoPlayerFailure = {
+  clipId: number;
+  mediaErrorCode: number | null;
+};
+
 let hlsModulePromise: Promise<typeof Hls> | null = null;
 
 async function loadHlsConstructor(): Promise<typeof Hls> {
@@ -65,6 +70,8 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   /** When set, each play / loop records a view and reports the server total. */
   clipId?: number | null;
   onViewsCountChange?: (viewsCount: number) => void;
+  /** Fired once after MP4, HLS, and R2 sources all fail. */
+  onPlaybackFailed?: (failure: StreamVideoPlayerFailure) => void;
 }
 
 /**
@@ -93,6 +100,7 @@ function StreamVideoPlayer(
   onPlaybackStateChange,
   clipId = null,
   onViewsCountChange,
+  onPlaybackFailed,
 }: StreamVideoPlayerProps,
   ref,
 ) {
@@ -151,6 +159,12 @@ function StreamVideoPlayer(
   );
   const hlsFallbackRef = useRef(resolvedModal.hlsFallbackSrc ?? null);
   const hlsFallbackUsedRef = useRef(false);
+  const r2FallbackRef = useRef(resolvedModal.r2FallbackSrc ?? null);
+  const r2FallbackUsedRef = useRef(false);
+  const reportedFailureRef = useRef(false);
+  const onPlaybackFailedRef = useRef(onPlaybackFailed);
+  onPlaybackFailedRef.current = onPlaybackFailed;
+  const tryNextFallbackRef = useRef<() => boolean>(() => false);
 
   useEffect(() => {
     const next = resolveModalPlaybackSource(clipFields);
@@ -159,6 +173,9 @@ function StreamVideoPlayer(
     setPlaybackIsHls(next.isHls && isHlsPlaybackUrl(src));
     hlsFallbackRef.current = next.hlsFallbackSrc ?? null;
     hlsFallbackUsedRef.current = false;
+    r2FallbackRef.current = next.r2FallbackSrc ?? null;
+    r2FallbackUsedRef.current = false;
+    reportedFailureRef.current = false;
     setLoadError(false);
     attachedSrcRef.current = null;
   }, [clipFields]);
@@ -198,6 +215,34 @@ function StreamVideoPlayer(
     setPlaybackIsHls(true);
     return true;
   }, [destroyHls]);
+
+  const tryR2Fallback = useCallback(() => {
+    const fallback = r2FallbackRef.current;
+    if (!fallback || r2FallbackUsedRef.current) return false;
+    r2FallbackUsedRef.current = true;
+    attachedSrcRef.current = null;
+    destroyHls();
+    setLoadError(false);
+    setIsLoading(true);
+    setPlaybackSrc(fallback);
+    setPlaybackIsHls(false);
+    return true;
+  }, [destroyHls]);
+
+  const reportPlaybackFailed = useCallback(
+    (mediaErrorCode: number | null) => {
+      if (reportedFailureRef.current || !clipId) return;
+      reportedFailureRef.current = true;
+      onPlaybackFailedRef.current?.({ clipId, mediaErrorCode });
+    },
+    [clipId],
+  );
+
+  tryNextFallbackRef.current = () => {
+    if (tryHlsFallback()) return true;
+    if (tryR2Fallback()) return true;
+    return false;
+  };
 
   const playbackAudioRestore = useCallback(async () => {
     if (shouldUseNativeIosCapture()) {
@@ -276,8 +321,11 @@ function StreamVideoPlayer(
             hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
               if (data.fatal) {
                 console.error('HLS fatal error', data);
+                if (tryNextFallbackRef.current()) return;
+                const code = videoRef.current?.error?.code ?? 4;
                 setLoadError(true);
                 setIsLoading(false);
+                reportPlaybackFailed(code);
               }
             });
             hls.loadSource(videoSrc);
@@ -302,7 +350,7 @@ function StreamVideoPlayer(
     return () => {
       cancelled = true;
     };
-  }, [videoSrc, isHls, tryAutoplay, destroyHls]);
+  }, [videoSrc, isHls, tryAutoplay, destroyHls, reportPlaybackFailed]);
 
   useEffect(() => {
     return () => {
@@ -370,9 +418,11 @@ function StreamVideoPlayer(
       releaseWarmedDecoder(networkSrc);
     };
     const handleError = () => {
-      if (tryHlsFallback()) return;
+      if (tryNextFallbackRef.current()) return;
+      const code = video.error?.code ?? 4;
       setLoadError(true);
       setIsLoading(false);
+      reportPlaybackFailed(Number.isFinite(code) ? code : 4);
     };
     const handleEnded = () => {
       if (!loop) return;
@@ -402,7 +452,28 @@ function StreamVideoPlayer(
       video.removeEventListener('error', handleError);
       video.removeEventListener('ended', handleEnded);
     };
-  }, [videoSrc, loop, clipId, bumpView, tryHlsFallback, networkSrc]);
+  }, [videoSrc, loop, clipId, bumpView, reportPlaybackFailed, networkSrc]);
+
+  useEffect(() => {
+    if (!videoSrc || loadError) return;
+    const timeout = window.setTimeout(() => {
+      const video = videoRef.current;
+      if (!video || video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (tryNextFallbackRef.current()) return;
+      const code = video.error?.code ?? 4;
+      setLoadError(true);
+      setIsLoading(false);
+      reportPlaybackFailed(Number.isFinite(code) ? code : 4);
+    }, 18000);
+    return () => window.clearTimeout(timeout);
+  }, [videoSrc, loadError, reportPlaybackFailed]);
+
+  useEffect(() => {
+    if (videoSrc) return;
+    setLoadError(true);
+    setIsLoading(false);
+    reportPlaybackFailed(4);
+  }, [videoSrc, reportPlaybackFailed]);
 
   useEffect(() => {
     if (!autoPlay) return;
@@ -472,7 +543,7 @@ function StreamVideoPlayer(
       <div
         className={`relative bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center ${className}`}
       >
-        <p className="text-gray-400">Video not available</p>
+        <p className="text-gray-400 text-sm px-4 text-center">This clip can&apos;t be played</p>
       </div>
     );
   }
@@ -502,7 +573,7 @@ function StreamVideoPlayer(
 
       {loadError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-          <p className="text-gray-400 text-sm px-4 text-center">Unable to play this video</p>
+          <p className="text-gray-400 text-sm px-4 text-center">This clip can&apos;t be played</p>
         </div>
       )}
 

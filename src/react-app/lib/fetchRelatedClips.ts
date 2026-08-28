@@ -1,4 +1,5 @@
 import type { ClipWithUser } from '@/shared/types';
+import { filterViewerFeedClips } from '@/react-app/lib/clipPlaybackFailure';
 
 export type RelatedClipsScope = 'show' | 'artist';
 
@@ -15,7 +16,7 @@ export async function fetchRelatedClips(clipId: number): Promise<RelatedClipsRes
   }
   const data = (await res.json()) as RelatedClipsResponse;
   return {
-    clips: Array.isArray(data.clips) ? data.clips : [],
+    clips: Array.isArray(data.clips) ? filterViewerFeedClips(data.clips) : [],
     scope: data.scope === 'show' ? 'show' : 'artist',
   };
 }

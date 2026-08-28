@@ -13,6 +13,8 @@ import LiveSchedulePreview from '@/react-app/components/LiveSchedulePreview';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import StreamVideoPlayer from '@/react-app/components/StreamVideoPlayer';
 import { artistPath } from '@/shared/app-paths';
+import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import { reportClipPlaybackFailure } from '@/react-app/lib/clipPlaybackFailure';
 
 interface LiveBroadcastProps {
   layoutMode?: 'full' | 'compact';
@@ -220,9 +222,16 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                       stream_video_id={currentClip.stream_video_id}
                       stream_playback_url={currentClip.stream_playback_url}
                       stream_thumbnail_url={currentClip.stream_thumbnail_url}
+                      stream_mp4_url={currentClip.stream_mp4_url}
+                      stream_mp4_status={currentClip.stream_mp4_status}
                       video_url={currentClip.video_url}
                       thumbnail_url={currentClip.thumbnail_url}
+                      r2_raw_key={currentClip.r2_raw_key}
                       autoPlay
+                      clipId={clipNumericId(currentClip)}
+                      onPlaybackFailed={(failure) => {
+                        void reportClipPlaybackFailure(failure.clipId, failure.mediaErrorCode);
+                      }}
                       className="w-full h-full"
                     />
                     <div className="absolute top-2 left-2 sm:top-3 sm:left-3 md:top-4 md:left-4 flex items-center space-x-1.5 sm:space-x-2 bg-black/60 backdrop-blur-lg rounded-full px-2 py-1 sm:px-2.5 sm:py-1 md:px-3">

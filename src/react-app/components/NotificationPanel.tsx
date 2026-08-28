@@ -1,4 +1,4 @@
-import { Bell, Heart, MessageCircle, UserPlus, Check, Star, Award, Video, Radio, Shield, Ticket } from 'lucide-react';
+import { Bell, Heart, MessageCircle, UserPlus, Check, Star, Award, Video, Radio, Shield, Ticket, Upload } from 'lucide-react';
 import { useState } from 'react';
 import {
   IonButton,
@@ -66,6 +66,8 @@ export default function NotificationPanel({
       case 'clip':
       case 'clip_published':
         return { icon: <Video className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
+      case 'clip_needs_reupload':
+        return { icon: <Upload className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-momentum-ember/20 text-momentum-flare', ringColor: 'ring-momentum-ember/30' };
       case 'live':
         return { icon: <Radio className="w-4 h-4 sm:w-5 sm:h-5" />, color: 'bg-red-500/20 text-red-400', ringColor: 'ring-red-500/30' };
       case 'ticket_interest':

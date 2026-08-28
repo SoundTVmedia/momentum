@@ -13,6 +13,7 @@ import {
 } from '@/react-app/lib/clipPlaybackPrefetch';
 import {
   type ClipPlaybackFields,
+  clipIsMarkedUnplayable,
   clipShouldRenderInPublicFeed,
   feedTileUsesStaticPoster,
 } from '@/shared/clip-playback';
@@ -93,6 +94,12 @@ export default function ClipFeedGridTile({
         {clip.momentum_live_featured && (
           <div className="absolute top-2 left-2 md:top-1.5 md:left-1.5 px-2 py-0.5 md:px-1.5 md:py-0.5 momentum-grad-interactive rounded-full text-[10px] md:text-[10px] font-bold text-white shadow-lg animate-slide-up">
             🎬 Featured on Feedback Live
+          </div>
+        )}
+
+        {forceStaticPoster && clipIsMarkedUnplayable(clip) && (
+          <div className="absolute inset-x-2 bottom-12 z-10 rounded-lg bg-black/75 px-2 py-1.5 text-center text-[11px] font-semibold text-white">
+            Can&apos;t play — re-upload
           </div>
         )}
 

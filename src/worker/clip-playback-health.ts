@@ -7,8 +7,17 @@ import {
   streamVideoIdFromClip,
   type ClipPlaybackFields,
 } from '../shared/clip-playback';
+import {
+  CLIP_NEEDS_REUPLOAD_NOTIFICATION,
+  decideClientPlaybackFailure,
+  isUserSourceUnplayableReason,
+  PLAYBACK_CLIENT_REPORT_REASON,
+  type ClipPlaybackFailureApiResult,
+} from '../shared/clip-playback-failure';
+import { clipNeedsReuploadNotificationContent } from '../shared/notification-copy';
 import { createStreamService, isStreamConfigured } from './stream-service';
 import { clipObjectExistsInR2 } from './r2-clip-key';
+import { isSameMochaUser, notifyUser } from './notification-utils';
 
 export const PLAYBACK_SYSTEM_REPORTER = 'system:playback';
 export const UNPLAYABLE_FLAG_REASON = 'unplayable_video';
@@ -165,7 +174,7 @@ async function persistPosterIfMissing(env: Env, clip: PlaybackAuditClip): Promis
     .run();
 }
 
-async function markUnplayable(env: Env, clipId: number, reason: string): Promise<void> {
+export async function markUnplayable(env: Env, clipId: number, reason: string): Promise<void> {
   await env.DB.prepare(
     `UPDATE clips
      SET playback_unplayable = 1,
@@ -271,4 +280,149 @@ export async function auditClipPlaybackHealth(env: Env): Promise<void> {
       console.error(`[playback-health] clip ${clip.id}:`, err);
     }
   }
+}
+
+function kindFromStoredReason(reason: string | null | undefined): 'user_source' | 'server_playback' {
+  const value = (reason ?? '').trim();
+  if (value === 'stream_missing' || value === 'server_playback_reports') {
+    return 'server_playback';
+  }
+  return isUserSourceUnplayableReason(value) || !value ? 'user_source' : 'server_playback';
+}
+
+async function recordClientPlaybackReport(
+  env: Env,
+  clipId: number,
+  reporterKey: string,
+  details: string,
+): Promise<void> {
+  const existing = await env.DB.prepare(
+    `SELECT id FROM clip_flags
+     WHERE clip_id = ? AND reported_by = ? AND reason = ?`,
+  )
+    .bind(clipId, reporterKey, PLAYBACK_CLIENT_REPORT_REASON)
+    .first();
+
+  if (existing) {
+    await env.DB.prepare(
+      `UPDATE clip_flags
+       SET details = ?, status = 'pending', is_urgent = 0,
+           reviewed_by = NULL, reviewed_at = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+    )
+      .bind(details, (existing as { id: number }).id)
+      .run();
+    return;
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO clip_flags (clip_id, reported_by, reason, details, status, is_urgent, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'pending', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+  )
+    .bind(clipId, reporterKey, PLAYBACK_CLIENT_REPORT_REASON, details)
+    .run();
+}
+
+async function countUniqueClientPlaybackReporters(env: Env, clipId: number): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT COUNT(DISTINCT reported_by) AS n
+     FROM clip_flags
+     WHERE clip_id = ? AND reason = ?`,
+  )
+    .bind(clipId, PLAYBACK_CLIENT_REPORT_REASON)
+    .first<{ n: number }>();
+  return Number(row?.n ?? 0);
+}
+
+async function notifyOwnerToReupload(env: Env, ownerId: string, clipId: number): Promise<void> {
+  const recent = await env.DB.prepare(
+    `SELECT id FROM notifications
+     WHERE mocha_user_id = ? AND type = ? AND related_clip_id = ?
+       AND datetime(created_at) > datetime('now', '-7 days')
+     LIMIT 1`,
+  )
+    .bind(ownerId, CLIP_NEEDS_REUPLOAD_NOTIFICATION, clipId)
+    .first();
+  if (recent) return;
+
+  const profile = await env.DB.prepare(
+    `SELECT display_name FROM user_profiles WHERE mocha_user_id = ?`,
+  )
+    .bind(ownerId)
+    .first<{ display_name?: string | null }>();
+
+  await notifyUser(env, ownerId, {
+    type: CLIP_NEEDS_REUPLOAD_NOTIFICATION,
+    content: clipNeedsReuploadNotificationContent(profile?.display_name),
+    related_clip_id: clipId,
+  });
+}
+
+export type ClientPlaybackFailureClip = PlaybackAuditClip & {
+  mocha_user_id?: string | null;
+  playback_unplayable_reason?: string | null;
+};
+
+/** Record a client player failure and hide the clip from public feeds when confirmed. */
+export async function applyClientPlaybackFailure(
+  env: Env,
+  args: {
+    clip: ClientPlaybackFailureClip;
+    mediaErrorCode: number | null;
+    reporterKey: string;
+    reporterIsOwner: boolean;
+  },
+): Promise<ClipPlaybackFailureApiResult> {
+  const { clip, mediaErrorCode, reporterKey, reporterIsOwner } = args;
+
+  if (Number(clip.playback_unplayable) === 1) {
+    const reason = clip.playback_unplayable_reason?.trim() || 'no_valid_playback';
+    const kind = kindFromStoredReason(reason);
+    if (kind === 'user_source' && clip.mocha_user_id) {
+      await notifyOwnerToReupload(env, String(clip.mocha_user_id).trim(), clip.id);
+    }
+    return {
+      hidden: true,
+      kind,
+      reason,
+      notifyOwner: kind === 'user_source',
+    };
+  }
+
+  const details = JSON.stringify({
+    mediaErrorCode,
+    at: new Date().toISOString(),
+  }).slice(0, 500);
+  await recordClientPlaybackReport(env, clip.id, reporterKey, details);
+
+  const uniqueViewerReports = await countUniqueClientPlaybackReporters(env, clip.id);
+  const audit = await resolvePlaybackAudit(env, clip);
+  const decision = decideClientPlaybackFailure({
+    mediaErrorCode,
+    auditPlayable: audit.playable,
+    auditReason: audit.reason,
+    reporterIsOwner,
+    uniqueViewerReports,
+  });
+
+  if (decision.action === 'ignore') {
+    return { hidden: false, kind: null, reason: audit.reason, notifyOwner: false };
+  }
+
+  await markUnplayable(env, clip.id, decision.reason);
+  console.warn(
+    `[playback-health] clip ${clip.id}: client report hid (${decision.kind}/${decision.reason})`,
+  );
+
+  const ownerId = String(clip.mocha_user_id ?? '').trim();
+  if (decision.notifyOwner && ownerId && !isSameMochaUser(ownerId, PLAYBACK_SYSTEM_REPORTER)) {
+    await notifyOwnerToReupload(env, ownerId, clip.id);
+  }
+
+  return {
+    hidden: true,
+    kind: decision.kind,
+    reason: decision.reason,
+    notifyOwner: decision.notifyOwner,
+  };
 }

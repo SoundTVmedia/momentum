@@ -22,6 +22,7 @@ import {
   Eye,
   Download,
   Loader2,
+  Upload,
 } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -73,7 +74,10 @@ import { buildClipShareMeta } from '@/shared/clip-share-meta';
 import { applyClipShareMetaToDocument } from '@/react-app/lib/applyClipShareMetaToDocument';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { downloadClipVideo } from '@/react-app/lib/downloadClipVideo';
-import { resolveClipDownloadUrl } from '@/shared/clip-playback';
+import { resolveClipDownloadUrl, clipIsMarkedUnplayable } from '@/shared/clip-playback';
+import type { PlaybackFailureKind } from '@/shared/clip-playback-failure';
+import { isUserSourceUnplayableReason } from '@/shared/clip-playback-failure';
+import { reportClipPlaybackFailure } from '@/react-app/lib/clipPlaybackFailure';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
 export type ClipModalFeedNavigation = {
@@ -88,6 +92,15 @@ interface ClipModalProps {
   feedNavigation?: ClipModalFeedNavigation | null;
   /** Called after the owner saves edits (e.g. refresh feed tiles). */
   onClipUpdated?: (clip: ClipWithUser) => void;
+}
+
+function playbackFailureKindFromClip(clip: ClipWithUser): PlaybackFailureKind | null {
+  if (!clipIsMarkedUnplayable(clip)) return null;
+  const reason =
+    typeof clip.playback_unplayable_reason === 'string' ? clip.playback_unplayable_reason : null;
+  if (reason === 'stream_missing' || reason === 'server_playback_reports') return 'server_playback';
+  if (!reason || isUserSourceUnplayableReason(reason)) return 'user_source';
+  return 'server_playback';
 }
 
 export default function ClipModal({
@@ -163,6 +176,13 @@ export default function ClipModal({
 
   const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
   const isSuperAdmin = isSuperAdminUser(extendedUser);
+  const [playbackFailureKind, setPlaybackFailureKind] = useState<PlaybackFailureKind | null>(
+    () => playbackFailureKindFromClip(clip),
+  );
+
+  useEffect(() => {
+    setPlaybackFailureKind(playbackFailureKindFromClip(clip));
+  }, [clip.id, clip.playback_unplayable, clip.playback_unplayable_reason]);
 
   useEffect(() => {
     if (!(isOwnClip || isSuperAdmin) || clip.song_title?.trim()) return;
@@ -197,6 +217,39 @@ export default function ClipModal({
   const goNext = useCallback(() => {
     if (nextClip && feedNavigation) feedNavigation.onChangeClip(nextClip);
   }, [nextClip, feedNavigation]);
+
+  const autoSkippedClipIdRef = useRef<number | null>(null);
+
+  const skipBrokenClip = useCallback(() => {
+    const id = clipNumericId(clip);
+    if (id != null) autoSkippedClipIdRef.current = id;
+    if (nextClip && feedNavigation) {
+      feedNavigation.onChangeClip(nextClip);
+      return;
+    }
+    onClose();
+  }, [clip, nextClip, feedNavigation, onClose]);
+
+  const handlePlaybackFailed = useCallback(
+    (failure: { clipId: number; mediaErrorCode: number | null }) => {
+      void (async () => {
+        const result = await reportClipPlaybackFailure(failure.clipId, failure.mediaErrorCode);
+        const kind = result?.kind ?? (isOwnClip ? 'user_source' : 'server_playback');
+        setPlaybackFailureKind(kind);
+        if (!isOwnClip) {
+          skipBrokenClip();
+        }
+      })();
+    },
+    [isOwnClip, skipBrokenClip],
+  );
+
+  useEffect(() => {
+    if (!clipIsMarkedUnplayable(clip) || isOwnClip) return;
+    const id = clipNumericId(clip);
+    if (id != null && autoSkippedClipIdRef.current === id) return;
+    skipBrokenClip();
+  }, [clip, isOwnClip, skipBrokenClip]);
 
   const [mobileViewport, setMobileViewport] = useState(() =>
     typeof window !== 'undefined'
@@ -729,6 +782,41 @@ export default function ClipModal({
     </>
   );
 
+  const playbackFailurePanel =
+    isOwnClip && playbackFailureKind ? (
+      <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-black/80 px-6">
+        <div className="max-w-sm rounded-2xl border border-white/15 bg-black/70 p-5 text-center shadow-xl">
+          {playbackFailureKind === 'user_source' ? (
+            <>
+              <p className="text-base font-semibold text-white">This clip can&apos;t be played</p>
+              <p className="mt-2 text-sm text-gray-300">
+                The uploaded file looks broken. Re-upload the video so it can show in feeds again.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate('/upload');
+                }}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white momentum-grad-interactive"
+              >
+                <Upload className="h-4 w-4" />
+                Re-upload clip
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-base font-semibold text-white">Playback is temporarily down</p>
+              <p className="mt-2 text-sm text-gray-300">
+                This clip is hidden from feeds until we can play it again. You don&apos;t need to
+                re-upload.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    ) : null;
+
   const modal = (
     <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay touch-manipulation">
       {/* ——— Mobile: full-viewport video + overlays ——— */}
@@ -745,8 +833,10 @@ export default function ClipModal({
               clip={clip}
               onPlaybackStateChange={setPlayback}
               onViewsCountChange={handleViewsCountChange}
+              onPlaybackFailed={handlePlaybackFailed}
             />
           ) : null}
+          {playbackFailurePanel}
         </div>
 
         {/* Pin chrome to the viewport — not the letterboxed video box (16:9 / landscape clips). */}
@@ -863,8 +953,10 @@ export default function ClipModal({
                   clip={clip}
                   onPlaybackStateChange={setPlayback}
                   onViewsCountChange={handleViewsCountChange}
+                  onPlaybackFailed={handlePlaybackFailed}
                 />
               ) : null}
+              {playbackFailurePanel}
             </div>
 
             {ticketSheetOpen && nearestTicketShow?.ticketUrl ? (

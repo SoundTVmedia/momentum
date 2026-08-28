@@ -109,6 +109,7 @@ import {
   postRecordClipView,
   getRelatedClipsForShare,
 } from "./clip-endpoints";
+import { postClipPlaybackFailure } from "./clip-playback-failure-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postCameraVenuesForClip } from "./clips-camera-venues";
 import * as showMarks from "./user-show-marks-endpoints";
@@ -3801,6 +3802,12 @@ app.get("/api/admin/analytics", authMiddleware, async (c) => {
 
 // Content Moderation Endpoints
 app.post("/api/clips/:clipId/report", authMiddleware, reports.reportClip);
+app.post(
+  "/api/clips/:clipId/playback-failure",
+  optionalAuthMiddleware,
+  rateLimiter(RateLimits.API),
+  postClipPlaybackFailure,
+);
 app.post("/api/comments/:commentId/report", authMiddleware, reports.reportComment);
 app.post("/api/users/:userId/report", authMiddleware, reports.reportUserProfile);
 app.post("/api/users/:userId/block", authMiddleware, reports.blockUser);

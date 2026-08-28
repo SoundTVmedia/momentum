@@ -15,6 +15,7 @@ import {
   resolveHlsPrefetchUrls,
   resolveModalPlaybackSource,
   resolveModalPrefetchPlan,
+  resolveR2ProgressiveSrc,
   streamMp4Url,
   streamVideoIdFromClip,
 } from './clip-playback';
@@ -99,26 +100,42 @@ describe('clip-playback', () => {
     });
   });
 
-  it('uses the confirmed Stream MP4 first for modal, with HLS as fallback', () => {
+  it('uses the confirmed Stream MP4 first for modal, with HLS then R2 as fallbacks', () => {
     const mp4 = `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`;
     const modal = resolveModalPlaybackSource({
       stream_video_id: UID,
       stream_mp4_url: mp4,
       stream_mp4_status: 'ready',
       video_url: '/api/files/x.mp4',
+      r2_raw_key: 'clips/user/video/abc.mp4',
     });
     expect(modal.isHls).toBe(false);
     expect(modal.src).toBe(mp4);
     expect(modal.streamVideoId).toBe(UID);
     expect(modal.hlsFallbackSrc).toBe(`https://videodelivery.net/${UID}/manifest/video.m3u8`);
+    expect(modal.r2FallbackSrc).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
     expect(streamVideoIdFromClip({ stream_video_id: UID })).toBe(UID);
   });
 
   it('plays a freshly ingested Stream clip over HLS until its MP4 exists', () => {
-    const modal = resolveModalPlaybackSource({ stream_video_id: UID, video_url: '/api/files/x.mp4' });
+    const modal = resolveModalPlaybackSource({
+      stream_video_id: UID,
+      video_url: '/api/files/x.mp4',
+      r2_raw_key: 'clips/user/video/abc.mp4',
+    });
     expect(modal.src).toBe(`https://videodelivery.net/${UID}/manifest/video.m3u8`);
     expect(modal.isHls).toBe(true);
     expect(modal.streamVideoId).toBe(UID);
+    expect(modal.r2FallbackSrc).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
+  });
+
+  it('resolves the R2 original for last-resort playback', () => {
+    expect(
+      resolveR2ProgressiveSrc({
+        stream_video_id: UID,
+        r2_raw_key: 'clips/user/video/abc.mp4',
+      }),
+    ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 
   it('parses HLS media segment URLs from a manifest', () => {

@@ -5,7 +5,7 @@ import ClipFeedGridTile from '@/react-app/components/ClipFeedGridTile';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
-import { filterPublicFeedClips } from '@/shared/clip-playback';
+import { filterViewerFeedClips } from '@/react-app/lib/clipPlaybackFailure';
 
 export type ClipFeedCarouselProps = {
   clips: ClipWithUser[];
@@ -22,7 +22,7 @@ export default function ClipFeedCarousel({
   className = PAGE_CAROUSEL_BLEED,
   carouselKey,
 }: ClipFeedCarouselProps) {
-  const visible = filterPublicFeedClips(clips);
+  const visible = filterViewerFeedClips(clips);
   if (visible.length === 0) return null;
 
   return (
