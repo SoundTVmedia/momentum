@@ -65,6 +65,12 @@ interface SearchResults {
     profile_image_url: string | null;
     clip_count: number;
   }[];
+  songs?: {
+    slug: string;
+    title: string;
+    artist_name: string | null;
+    clip_count: number;
+  }[];
   jambase?: {
     artists: Record<string, unknown>[];
     venues: Record<string, unknown>[];
