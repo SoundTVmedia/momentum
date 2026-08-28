@@ -17,7 +17,7 @@ export default function PoweredByJamBase({ variant }: PoweredByJamBaseProps) {
       aria-label="Powered by JamBase"
       className={
         isNav
-          ? 'flex origin-left scale-[0.95] shrink-0 flex-col items-start justify-center leading-none'
+          ? 'flex shrink-0 flex-col items-start justify-center leading-none'
           : 'flex flex-col items-center justify-center gap-2'
       }
     >

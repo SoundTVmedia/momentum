@@ -87,12 +87,16 @@ export default function Header() {
     <IonHeader className="app-top-header ion-no-border">
       <IonToolbar className="app-toolbar">
         <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-col items-start justify-center gap-0.5">
+          <div className="flex min-w-0 items-center">
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="min-w-0"
+              className="flex min-w-0 items-center gap-2 sm:gap-2.5"
+              aria-label="Feedback home"
             >
+              <span className="app-header-mark" aria-hidden>
+                <img src="/favicon.svg" alt="" width={36} height={36} />
+              </span>
               <div className="app-header-wordmark truncate whitespace-nowrap font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
                 FEEDBACK
               </div>

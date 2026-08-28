@@ -161,18 +161,50 @@ ion-header.app-top-header {
 }
 
 .app-header-wordmark {
-  font-size: 1.423rem;
+  font-size: 1.565rem;
+  margin-right: 1.35rem;
+}
+
+.app-header-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 1.7rem;
+  height: 1.7rem;
+  overflow: hidden;
+  border-radius: 0.4rem;
+  background: #0b1220;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.42);
+}
+
+.app-header-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 @media (min-width: 640px) {
   .app-header-wordmark {
-    font-size: 1.581rem;
+    font-size: 1.739rem;
+    margin-right: 1.75rem;
+  }
+
+  .app-header-mark {
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 0.45rem;
   }
 }
 
 @media (min-width: 768px) {
   .app-header-wordmark {
-    font-size: 1.898rem;
+    font-size: 2.088rem;
+    margin-right: 2.25rem;
+  }
+
+  .app-header-mark {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.5rem;
   }
 }
 
@@ -196,26 +228,26 @@ ion-button.app-header-signin::part(native) {
 ion-header.app-top-header ion-toolbar.app-toolbar {
   --background: var(--glass-chrome-bg, rgba(3, 7, 18, 0.78));
   --border-width: 0;
-  --min-height: 4.35rem;
-  --padding-start: 1rem;
-  --padding-end: 1rem;
-  --padding-top: 0.4rem;
-  --padding-bottom: 0.4rem;
+  --min-height: 4.785rem;
+  --padding-start: 1.1rem;
+  --padding-end: 1.1rem;
+  --padding-top: 0.44rem;
+  --padding-bottom: 0.44rem;
   backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
 }
 
 @media (min-width: 640px) {
   ion-header.app-top-header ion-toolbar.app-toolbar {
-    --padding-start: 1.5rem;
-    --padding-end: 1.5rem;
+    --padding-start: 1.65rem;
+    --padding-end: 1.65rem;
   }
 }
 
 @media (min-width: 1024px) {
   ion-header.app-top-header ion-toolbar.app-toolbar {
-    --padding-start: 2rem;
-    --padding-end: 2rem;
+    --padding-start: 2.2rem;
+    --padding-end: 2.2rem;
   }
 }
 
