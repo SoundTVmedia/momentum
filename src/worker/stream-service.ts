@@ -81,6 +81,9 @@ interface StreamVideoDetails {
   status: string;
 }
 
+/** How long we wait for Stream's copy-from-URL accept (the copy itself is async). */
+export const STREAM_COPY_ACCEPT_TIMEOUT_MS = 20_000;
+
 export class StreamService {
   private accountId: string;
   private apiToken: string;
@@ -139,17 +142,28 @@ export class StreamService {
       requireSignedURLs: false,
     };
 
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/copy`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiToken}`,
-          'Content-Type': 'application/json',
+    let response: Response;
+    try {
+      response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${this.accountId}/stream/copy`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+          // Copy is async on Cloudflare's side; a hung accept must not pin the cron.
+          signal: AbortSignal.timeout(STREAM_COPY_ACCEPT_TIMEOUT_MS),
         },
-        body: JSON.stringify(requestBody),
+      );
+    } catch (err) {
+      const name = err instanceof Error ? err.name : '';
+      if (name === 'TimeoutError' || name === 'AbortError') {
+        throw new Error(`Stream URL upload timed out after ${STREAM_COPY_ACCEPT_TIMEOUT_MS}ms`);
       }
-    );
+      throw err;
+    }
 
     if (!response.ok) {
       const error = await response.text();

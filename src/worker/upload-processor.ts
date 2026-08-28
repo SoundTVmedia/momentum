@@ -20,6 +20,19 @@ type UploadedClipRow = {
 };
 
 const PROCESSING_BATCH_SIZE = 5;
+/** `processing` with no Stream id older than this is treated as a dead ingest and retried. */
+export const STALE_STREAM_PROCESSING_MINUTES = 3;
+
+/** SQL predicate for Stream ingest that started and never stored a video id. */
+export function staleStreamProcessingPredicate(
+  minutes = STALE_STREAM_PROCESSING_MINUTES,
+): string {
+  const n = Math.max(1, Math.min(60, Math.trunc(minutes)));
+  return `upload_status = 'processing'
+      AND (stream_video_id IS NULL OR trim(stream_video_id) = '')
+      AND r2_raw_key IS NOT NULL AND trim(r2_raw_key) != ''
+      AND updated_at <= datetime('now', '-${n} minutes')`;
+}
 
 let loggedStreamConfig = false;
 
@@ -291,9 +304,25 @@ export async function processClipStreamIngestById(env: Env, clipId: number): Pro
   await processOneUploadedClip(env, row as UploadedClipRow);
 }
 
+/** Re-queue Stream ingest that died while `upload_status` was `processing`. */
+async function repairStaleStreamProcessing(env: Env): Promise<void> {
+  const result = await env.DB
+    .prepare(
+      `UPDATE clips
+       SET upload_status = 'uploaded', updated_at = CURRENT_TIMESTAMP
+       WHERE ${staleStreamProcessingPredicate()}`,
+    )
+    .run();
+  const n = Number(result.meta?.changes ?? 0);
+  if (n > 0) {
+    console.warn(`[stream] reset ${n} stale processing clip(s) to uploaded for Stream retry`);
+  }
+}
+
 /** Pick up clips with finished R2 upload and ingest to Stream. */
 export async function processUploadedClips(env: Env): Promise<void> {
   await repairStuckR2Clips(env);
+  await repairStaleStreamProcessing(env);
 
   if (!isStreamConfigured(env)) {
     logStreamConfigOnce(env);
