@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -80,8 +81,16 @@ export function HomeSearchBar({ onSelectClip }: Props) {
   const clips = results?.clips ?? [];
   const artists = results?.artists ?? [];
   const venues = results?.venues ?? [];
+  const users = results?.users ?? [];
+  const songs = results?.songs ?? [];
+  const events = results?.jambase?.events ?? [];
   const hasHits =
-    clips.length > 0 || artists.length > 0 || venues.length > 0;
+    clips.length > 0 ||
+    artists.length > 0 ||
+    venues.length > 0 ||
+    users.length > 0 ||
+    songs.length > 0 ||
+    events.length > 0;
 
   return (
     <View style={styles.wrap}>
@@ -162,6 +171,70 @@ export function HomeSearchBar({ onSelectClip }: Props) {
               <Text style={styles.rowTitle} numberOfLines={1}>
                 {venue.name}
                 {venue.location ? ` · ${venue.location}` : ''}
+              </Text>
+            </Pressable>
+          ))}
+
+          {users.slice(0, 4).map((user) => (
+            <Pressable
+              key={`user-${user.mocha_user_id}`}
+              style={styles.row}
+              onPress={() => {
+                setOpen(false);
+                router.push(`/discover?q=${encodeURIComponent(user.display_name || query.trim())}`);
+              }}
+            >
+              <Text style={styles.rowKind}>Person</Text>
+              <Text style={styles.rowTitle} numberOfLines={1}>
+                {user.display_name || 'User'}
+              </Text>
+            </Pressable>
+          ))}
+
+          {events.slice(0, 4).map((ev, index) => {
+            const title = typeof ev.name === 'string' ? ev.name : 'Event';
+            const id = typeof ev.identifier === 'string' ? ev.identifier : `event-${index}`;
+            const offers = ev.offers;
+            const ticket =
+              Array.isArray(offers) && offers[0] && typeof offers[0] === 'object'
+                ? String((offers[0] as { url?: string }).url || '')
+                : typeof ev.url === 'string'
+                  ? ev.url
+                  : '';
+            return (
+              <Pressable
+                key={`event-${id}`}
+                style={styles.row}
+                onPress={() => {
+                  setOpen(false);
+                  if (ticket) {
+                    void Linking.openURL(ticket);
+                  } else {
+                    router.push(`/discover?q=${encodeURIComponent(title)}`);
+                  }
+                }}
+              >
+                <Text style={styles.rowKind}>Event</Text>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {title}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          {songs.slice(0, 4).map((song) => (
+            <Pressable
+              key={`song-${song.slug}`}
+              style={styles.row}
+              onPress={() => {
+                setOpen(false);
+                router.push(`/discover?q=${encodeURIComponent(song.title)}`);
+              }}
+            >
+              <Text style={styles.rowKind}>Song</Text>
+              <Text style={styles.rowTitle} numberOfLines={1}>
+                {song.title}
+                {song.artist_name ? ` · ${song.artist_name}` : ''}
               </Text>
             </Pressable>
           ))}

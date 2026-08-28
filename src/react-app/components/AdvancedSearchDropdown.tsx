@@ -22,13 +22,18 @@ export type SearchDropdownSection =
   | 'shows'
   | 'songs';
 
-const DEFAULT_SECTIONS: SearchDropdownSection[] = [
-  'clips',
-  'friends',
+/** Universal typeahead: artists, venues, Feedback users, events, and songs. */
+export const UNIVERSAL_SEARCH_SECTIONS: SearchDropdownSection[] = [
   'artists',
+  'friends',
   'venues',
   'shows',
   'songs',
+];
+
+const DEFAULT_SECTIONS: SearchDropdownSection[] = [
+  'clips',
+  ...UNIVERSAL_SEARCH_SECTIONS,
 ];
 
 type Props = {
@@ -140,7 +145,7 @@ function SearchDropdownPanel({
           {show('friends') && results.users.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-green-400/90 uppercase tracking-wide flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" /> Friends
+                <Users className="w-3.5 h-3.5" /> People
               </div>
               {results.users.map((u) => (
                 <button
@@ -247,7 +252,7 @@ function SearchDropdownPanel({
           {show('shows') && results.jambase && results.jambase.events.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-ember/90 uppercase tracking-wide flex items-center gap-1">
-                <Ticket className="w-3.5 h-3.5" /> Shows
+                <Ticket className="w-3.5 h-3.5" /> Events
               </div>
               {results.jambase.events.slice(0, 4).map((ev) => {
                 const id =

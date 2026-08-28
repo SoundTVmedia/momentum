@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { IonButton, IonSearchbar } from '@ionic/react';
 import { useNavigate } from 'react-router';
-import AdvancedSearchDropdown from '@/react-app/components/AdvancedSearchDropdown';
+import AdvancedSearchDropdown, {
+  UNIVERSAL_SEARCH_SECTIONS,
+} from '@/react-app/components/AdvancedSearchDropdown';
 import ClipModal from '@/react-app/components/ClipModal';
 import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch';
 import type { ClipWithUser } from '@/shared/types';
@@ -12,7 +14,7 @@ export type HeroSearchBarProps = {
   className?: string;
 };
 
-/** Primary discovery entry — live JamBase + Feedback search with dropdown, Enter → Discover. */
+/** Primary discovery entry — artists, venues, people, events, and songs. Enter → Discover. */
 export default function HeroSearchBar({
   initialQuery = '',
   className = '',
@@ -105,7 +107,7 @@ export default function HeroSearchBar({
             onDiscoverAll={goToDiscover}
             onClipSelect={(clip, feed) => setClipModal({ clip, feed })}
             variant="hero"
-            sections={['artists', 'friends', 'venues', 'songs']}
+            sections={UNIVERSAL_SEARCH_SECTIONS}
             anchorRef={containerRef}
             dropdownRef={dropdownRef}
           />

@@ -31,6 +31,23 @@ export type AdvancedSearchPayload = {
     location?: string | null;
     clip_count?: number;
   }>;
+  users?: Array<{
+    mocha_user_id: string;
+    display_name: string | null;
+    profile_image_url: string | null;
+    clip_count: number;
+  }>;
+  songs?: Array<{
+    slug: string;
+    title: string;
+    artist_name: string | null;
+    clip_count: number;
+  }>;
+  jambase?: {
+    artists?: unknown[];
+    venues?: unknown[];
+    events?: Array<Record<string, unknown>>;
+  };
   jambaseNotice?: string | null;
 };
 

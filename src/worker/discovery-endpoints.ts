@@ -12,6 +12,7 @@ import {
 } from './jambase-client';
 import { cacheJsonProxy } from './performance-utils';
 import {
+  buildFastJamBaseEventResults,
   buildTightJamBaseEventResults,
   jamBaseArtistVenueSearchPhrase,
 } from './jambase-events-search';
@@ -114,11 +115,11 @@ async function fetchJamBaseCompactCatalog(
   apiKey: string,
   query: string,
   jbQ: JamBaseQuotaContext | undefined,
-): Promise<{ artists: unknown[]; venues: unknown[]; failed: boolean }> {
+): Promise<{ artists: unknown[]; venues: unknown[]; events: unknown[]; failed: boolean }> {
   const phrase = jamBaseArtistVenueSearchPhrase(query);
   const aDiag: JamBaseFetchDiag = {};
   const vDiag: JamBaseFetchDiag = {};
-  const [a, v] = await Promise.all([
+  const [a, v, events] = await Promise.all([
     jamBaseFetch<{ artists?: unknown[] }>(
       apiKey,
       '/artists',
@@ -133,10 +134,12 @@ async function fetchJamBaseCompactCatalog(
       jbQ,
       vDiag,
     ),
+    buildFastJamBaseEventResults(apiKey, query, 6, jbQ),
   ]);
   return {
     artists: a?.artists ?? [],
     venues: v?.venues ?? [],
+    events,
     failed: Boolean(aDiag.failure || vDiag.failure),
   };
 }
@@ -391,7 +394,7 @@ export async function advancedSearch(c: Context) {
   const sortBy = c.req.query('sortBy') || 'latest';
   const compact = c.req.query('compact') === '1';
   const clipLimit = compact ? 6 : 30;
-  const venueLimit = compact ? 0 : 20;
+  const venueLimit = compact ? 6 : 20;
   const userLimit = compact ? 6 : 20;
   const songLimit = compact ? 6 : 12;
   
@@ -539,7 +542,7 @@ export async function advancedSearch(c: Context) {
         ? fetchJamBaseCompactCatalog(jbKeyTrimmed, trimmedQuery, jbQ).then((jb) => ({
             artists: jb.artists,
             venues: jb.venues,
-            events: [] as unknown[],
+            events: jb.events,
             failed: jb.failed,
           }))
         : (async () => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users } from 'lucide-react';
+import { Users, Music } from 'lucide-react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import {
   IonButton,
@@ -30,6 +30,7 @@ import DiscoverSearchGeoBanner from '@/react-app/components/DiscoverSearchGeoBan
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { nearbyShowsApiUrl, readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
+import { globalSongPath } from '@/shared/app-paths';
 import {
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
@@ -537,6 +538,32 @@ export default function DiscoverPage() {
                 <DiscoverVenueCarousel
                   venues={results.jambase.venues.map(discoverVenueFromJamBase)}
                 />
+              </section>
+            )}
+
+            {(results.songs ?? []).length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle icon={Music} title="Songs" />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {(results.songs ?? []).map((song) => (
+                    <button
+                      key={song.slug}
+                      type="button"
+                      onClick={() => navigate(globalSongPath(song.slug))}
+                      className="glass-panel border border-white/10 rounded-xl p-4 text-left hover:border-momentum-flare/40 transition-all min-w-0"
+                    >
+                      <div className="text-white font-medium truncate">{song.title}</div>
+                      {song.artist_name ? (
+                        <div className="text-gray-400 text-xs truncate mt-1">{song.artist_name}</div>
+                      ) : null}
+                      {song.clip_count > 0 ? (
+                        <div className="text-gray-500 text-xs mt-1">
+                          {song.clip_count} clip{song.clip_count !== 1 ? 's' : ''}
+                        </div>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
               </section>
             )}
 
