@@ -76,7 +76,6 @@ import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { downloadClipVideo } from '@/react-app/lib/downloadClipVideo';
 import { resolveClipDownloadUrl, clipIsMarkedUnplayable } from '@/shared/clip-playback';
 import type { PlaybackFailureKind } from '@/shared/clip-playback-failure';
-import { isUserSourceUnplayableReason } from '@/shared/clip-playback-failure';
 import { reportClipPlaybackFailure } from '@/react-app/lib/clipPlaybackFailure';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 
@@ -92,15 +91,6 @@ interface ClipModalProps {
   feedNavigation?: ClipModalFeedNavigation | null;
   /** Called after the owner saves edits (e.g. refresh feed tiles). */
   onClipUpdated?: (clip: ClipWithUser) => void;
-}
-
-function playbackFailureKindFromClip(clip: ClipWithUser): PlaybackFailureKind | null {
-  if (!clipIsMarkedUnplayable(clip)) return null;
-  const reason =
-    typeof clip.playback_unplayable_reason === 'string' ? clip.playback_unplayable_reason : null;
-  if (reason === 'stream_missing' || reason === 'server_playback_reports') return 'server_playback';
-  if (!reason || isUserSourceUnplayableReason(reason)) return 'user_source';
-  return 'server_playback';
 }
 
 export default function ClipModal({
@@ -176,13 +166,11 @@ export default function ClipModal({
 
   const isOwnClip = clipBelongsToUser(user?.id, clip.mocha_user_id);
   const isSuperAdmin = isSuperAdminUser(extendedUser);
-  const [playbackFailureKind, setPlaybackFailureKind] = useState<PlaybackFailureKind | null>(
-    () => playbackFailureKindFromClip(clip),
-  );
+  const [playbackFailureKind, setPlaybackFailureKind] = useState<PlaybackFailureKind | null>(null);
 
   useEffect(() => {
-    setPlaybackFailureKind(playbackFailureKindFromClip(clip));
-  }, [clip.id, clip.playback_unplayable, clip.playback_unplayable_reason]);
+    setPlaybackFailureKind(null);
+  }, [clip.id]);
 
   useEffect(() => {
     if (!(isOwnClip || isSuperAdmin) || clip.song_title?.trim()) return;
@@ -232,12 +220,13 @@ export default function ClipModal({
 
   const handlePlaybackFailed = useCallback(
     (failure: { clipId: number; mediaErrorCode: number | null }) => {
+      if (!isOwnClip) {
+        skipBrokenClip();
+      }
       void (async () => {
         const result = await reportClipPlaybackFailure(failure.clipId, failure.mediaErrorCode);
-        const kind = result?.kind ?? (isOwnClip ? 'user_source' : 'server_playback');
-        setPlaybackFailureKind(kind);
-        if (!isOwnClip) {
-          skipBrokenClip();
+        if (isOwnClip) {
+          setPlaybackFailureKind(result?.kind ?? 'user_source');
         }
       })();
     },
@@ -785,7 +774,15 @@ export default function ClipModal({
   const playbackFailurePanel =
     isOwnClip && playbackFailureKind ? (
       <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-black/80 px-6">
-        <div className="max-w-sm rounded-2xl border border-white/15 bg-black/70 p-5 text-center shadow-xl">
+        <div className="relative max-w-sm rounded-2xl border border-white/15 bg-black/70 p-5 pt-10 text-center shadow-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-2 top-2 rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
           {playbackFailureKind === 'user_source' ? (
             <>
               <p className="text-base font-semibold text-white">This clip can&apos;t be played</p>

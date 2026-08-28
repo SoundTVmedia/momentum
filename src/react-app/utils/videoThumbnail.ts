@@ -45,10 +45,9 @@ function clampSeek(t: number, duration: number): number {
 function candidateSeekTimes(duration: number): number[] {
   if (!Number.isFinite(duration) || duration <= 0) return [0];
   const raw = [
-    0,
-    Math.min(0.12, duration * 0.02),
     Math.min(0.35, duration * 0.06),
     Math.min(0.8, duration * 0.12),
+    Math.min(1.2, duration * 0.2),
     duration * 0.22,
     duration * 0.45,
   ].map((t) => clampSeek(t, duration));
@@ -116,7 +115,7 @@ async function paintBestVideoFrameDataUrl(
         settled = true;
         resolve();
       };
-      const timer = window.setTimeout(finish, 2000);
+      const timer = window.setTimeout(finish, 8000);
       video.addEventListener(
         'loadeddata',
         () => {
@@ -155,6 +154,7 @@ async function paintBestVideoFrameDataUrl(
   if (!ctx) return null;
 
   let bestDataUrl: string | null = null;
+  let nonBlackDataUrl: string | null = null;
 
   for (const t of seekPlan) {
     try {
@@ -172,12 +172,16 @@ async function paintBestVideoFrameDataUrl(
     bestDataUrl = dataUrl;
 
     const black = isLikelyBlackFrame(ctx, cw, ch);
-    if (explicitSeek !== undefined || !black) {
+    if (!black) {
+      nonBlackDataUrl = dataUrl;
+      break;
+    }
+    if (explicitSeek !== undefined) {
       break;
     }
   }
 
-  return bestDataUrl;
+  return nonBlackDataUrl ?? (explicitSeek !== undefined ? bestDataUrl : null);
 }
 
 /** Capture a JPEG data URL from a remote/same-origin video URL (feed poster fallback). */
@@ -186,7 +190,7 @@ export async function captureVideoFrameDataUrl(
   options?: { maxWidth?: number; quality?: number },
 ): Promise<string | null> {
   const video = document.createElement('video');
-  video.preload = 'auto';
+  video.preload = 'metadata';
   video.muted = true;
   video.playsInline = true;
   if (
@@ -205,6 +209,9 @@ export async function captureVideoFrameDataUrl(
     return await paintBestVideoFrameDataUrl(video, options);
   } catch {
     return null;
+  } finally {
+    video.removeAttribute('src');
+    video.load();
   }
 }
 
@@ -228,6 +235,14 @@ export async function generateVideoThumbnailJpeg(
       video.onloadedmetadata = () => resolve();
       video.src = url;
     });
+
+    try {
+      video.muted = true;
+      await video.play();
+      video.pause();
+    } catch {
+      // Autoplay may be blocked; seeking still works after metadata.
+    }
 
     const dataUrl = await paintBestVideoFrameDataUrl(video, {
       seekSeconds: explicitSeek,

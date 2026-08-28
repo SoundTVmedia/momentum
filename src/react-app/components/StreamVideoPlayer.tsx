@@ -72,6 +72,8 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   onViewsCountChange?: (viewsCount: number) => void;
   /** Fired once after MP4, HLS, and R2 sources all fail. */
   onPlaybackFailed?: (failure: StreamVideoPlayerFailure) => void;
+  /** When false, keep a loader instead of the unplayable copy (clip modal uses its own overlay). */
+  showLoadError?: boolean;
 }
 
 /**
@@ -101,6 +103,7 @@ function StreamVideoPlayer(
   clipId = null,
   onViewsCountChange,
   onPlaybackFailed,
+  showLoadError = true,
 }: StreamVideoPlayerProps,
   ref,
 ) {
@@ -543,7 +546,11 @@ function StreamVideoPlayer(
       <div
         className={`relative bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center ${className}`}
       >
-        <p className="text-gray-400 text-sm px-4 text-center">This clip can&apos;t be played</p>
+        {showLoadError ? (
+          <p className="text-gray-400 text-sm px-4 text-center">This clip can&apos;t be played</p>
+        ) : (
+          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin" />
+        )}
       </div>
     );
   }
@@ -571,11 +578,17 @@ function StreamVideoPlayer(
         </div>
       )}
 
-      {loadError && (
+      {loadError && showLoadError ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70">
           <p className="text-gray-400 text-sm px-4 text-center">This clip can&apos;t be played</p>
         </div>
-      )}
+      ) : null}
+
+      {loadError && !showLoadError ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
+          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin" />
+        </div>
+      ) : null}
 
       {controlsPlacement !== 'hidden' ? (
         <div

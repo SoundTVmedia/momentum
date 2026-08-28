@@ -1,5 +1,10 @@
 import type { Context } from 'hono';
-import { getClipObjectFromR2, r2ForClipObjectKey } from './r2-clip-key';
+import {
+  getClipObjectFromR2,
+  persistRecoveredR2VideoKey,
+  r2ForClipObjectKey,
+  recoverMissingR2VideoKey,
+} from './r2-clip-key';
 
 async function r2HeadSize(
   env: { R2_BUCKET: R2Bucket; R2_THUMBNAILS_BUCKET: R2Bucket },
@@ -62,7 +67,22 @@ export async function serveR2ClipFile(c: Context): Promise<Response> {
   const key = decodeURIComponent(rawKey);
 
   try {
-    const size = await r2HeadSize(c.env, key);
+    let resolvedKey = key;
+    let size = await r2HeadSize(c.env, resolvedKey);
+    if (size == null && resolvedKey.includes('/video/')) {
+      const recovered = await recoverMissingR2VideoKey(c.env, resolvedKey);
+      if (recovered) {
+        resolvedKey = recovered;
+        size = await r2HeadSize(c.env, resolvedKey);
+        if (size != null) {
+          c.executionCtx.waitUntil(
+            persistRecoveredR2VideoKey(c.env, key, recovered).catch((err) => {
+              console.warn('[r2-serve] persist recovered key failed:', err);
+            }),
+          );
+        }
+      }
+    }
     if (size == null) {
       return c.json({ error: 'File not found' }, 404);
     }
@@ -78,8 +98,8 @@ export async function serveR2ClipFile(c: Context): Promise<Response> {
 
     const object =
       rangeSpec != null
-        ? await getClipObjectFromR2(c.env, key, { range: rangeSpec })
-        : await getClipObjectFromR2(c.env, key);
+        ? await getClipObjectFromR2(c.env, resolvedKey, { range: rangeSpec })
+        : await getClipObjectFromR2(c.env, resolvedKey);
 
     if (!object) {
       return c.json({ error: 'File not found' }, 404);

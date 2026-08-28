@@ -2,6 +2,7 @@ import {
   isHlsPlaybackUrl,
   isPlaceholderVideoUrl,
   isUsablePosterImageUrl,
+  r2ClipFilePath,
   r2KeyFromClipFileUrl,
   streamThumbnailUrl,
   streamVideoIdFromClip,
@@ -16,12 +17,12 @@ import {
 } from '../shared/clip-playback-failure';
 import { clipNeedsReuploadNotificationContent } from '../shared/notification-copy';
 import { createStreamService, isStreamConfigured } from './stream-service';
-import { clipObjectExistsInR2 } from './r2-clip-key';
+import { clipObjectExistsInR2, recoverMissingR2VideoKey } from './r2-clip-key';
 import { isSameMochaUser, notifyUser } from './notification-utils';
 
 export const PLAYBACK_SYSTEM_REPORTER = 'system:playback';
 export const UNPLAYABLE_FLAG_REASON = 'unplayable_video';
-export const PLAYBACK_AUDIT_BATCH = 25;
+export const PLAYBACK_AUDIT_BATCH = 40;
 
 export type PlaybackAuditClip = ClipPlaybackFields & {
   id: number;
@@ -141,14 +142,34 @@ export async function resolvePlaybackAudit(
   }
 
   if (decision.action === 'check_r2') {
-    const ok = await clipObjectExistsInR2(env, decision.key);
+    const ok = await ensurePlayableR2Key(env, clip, decision.key);
     return ok ? { playable: true, reason: null } : { playable: false, reason: 'r2_404' };
   }
 
   const streamOk = await streamSourcePlayable(env, decision.streamId);
   if (streamOk) return { playable: true, reason: null };
-  const r2Ok = await clipObjectExistsInR2(env, decision.key);
+  const r2Ok = await ensurePlayableR2Key(env, clip, decision.key);
   return r2Ok ? { playable: true, reason: null } : { playable: false, reason: 'stream_and_r2_missing' };
+}
+
+async function ensurePlayableR2Key(
+  env: Env,
+  clip: PlaybackAuditClip,
+  key: string,
+): Promise<boolean> {
+  if (await clipObjectExistsInR2(env, key)) return true;
+  const recovered = await recoverMissingR2VideoKey(env, key);
+  if (!recovered) return false;
+  await env.DB.prepare(
+    `UPDATE clips
+     SET r2_raw_key = ?,
+         video_url = ?,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+  )
+    .bind(recovered, r2ClipFilePath(recovered), clip.id)
+    .run();
+  return true;
 }
 
 async function persistPosterIfMissing(env: Env, clip: PlaybackAuditClip): Promise<void> {
@@ -250,7 +271,9 @@ export async function auditClipPlaybackHealth(env: Env): Promise<void> {
        AND COALESCE(status, 'published') = 'published'
        AND COALESCE(upload_status, 'ready') NOT IN ('uploading', 'processing')
        AND datetime(COALESCE(updated_at, created_at)) <= datetime('now', '-15 minutes')
-     ORDER BY playback_unplayable DESC, updated_at ASC
+     ORDER BY playback_unplayable DESC,
+              CASE WHEN playback_checked_at IS NULL THEN 0 ELSE 1 END,
+              datetime(COALESCE(updated_at, created_at)) DESC
      LIMIT ?`,
   )
     .bind(PLAYBACK_AUDIT_BATCH)
@@ -375,8 +398,16 @@ export async function applyClientPlaybackFailure(
 ): Promise<ClipPlaybackFailureApiResult> {
   const { clip, mediaErrorCode, reporterKey, reporterIsOwner } = args;
 
+  const audit = await resolvePlaybackAudit(env, clip);
+  if (audit.playable) {
+    if (Number(clip.playback_unplayable) === 1) {
+      await markPlayable(env, clip.id);
+    }
+    return { hidden: false, kind: null, reason: null, notifyOwner: false };
+  }
+
   if (Number(clip.playback_unplayable) === 1) {
-    const reason = clip.playback_unplayable_reason?.trim() || 'no_valid_playback';
+    const reason = clip.playback_unplayable_reason?.trim() || audit.reason || 'no_valid_playback';
     const kind = kindFromStoredReason(reason);
     if (kind === 'user_source' && clip.mocha_user_id) {
       await notifyOwnerToReupload(env, String(clip.mocha_user_id).trim(), clip.id);
@@ -396,7 +427,6 @@ export async function applyClientPlaybackFailure(
   await recordClientPlaybackReport(env, clip.id, reporterKey, details);
 
   const uniqueViewerReports = await countUniqueClientPlaybackReporters(env, clip.id);
-  const audit = await resolvePlaybackAudit(env, clip);
   const decision = decideClientPlaybackFailure({
     mediaErrorCode,
     auditPlayable: audit.playable,

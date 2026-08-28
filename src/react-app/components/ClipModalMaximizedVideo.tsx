@@ -67,6 +67,7 @@ const ClipModalMaximizedVideo = forwardRef<
           clipId={clipId}
           onViewsCountChange={onViewsCountChange}
           onPlaybackFailed={onPlaybackFailed}
+          showLoadError={false}
           className="absolute inset-0 h-full w-full"
         />
         {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}

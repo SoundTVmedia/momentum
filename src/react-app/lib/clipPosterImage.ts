@@ -53,6 +53,34 @@ export function clipPosterCrossOrigin(src: string): 'anonymous' | undefined {
     : undefined;
 }
 
+const EXTRACTED_POSTER_CACHE_LIMIT = 48;
+const extractedPosterCache = new Map<string, string>();
+let extractActive = 0;
+const extractWaiters: Array<() => void> = [];
+
+function rememberExtractedPoster(videoSrc: string, dataUrl: string): void {
+  if (extractedPosterCache.has(videoSrc)) extractedPosterCache.delete(videoSrc);
+  extractedPosterCache.set(videoSrc, dataUrl);
+  while (extractedPosterCache.size > EXTRACTED_POSTER_CACHE_LIMIT) {
+    const oldest = extractedPosterCache.keys().next().value;
+    if (oldest == null) break;
+    extractedPosterCache.delete(oldest);
+  }
+}
+
+async function withExtractSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (extractActive >= 2) {
+    await new Promise<void>((resolve) => extractWaiters.push(resolve));
+  }
+  extractActive += 1;
+  try {
+    return await run();
+  } finally {
+    extractActive -= 1;
+    extractWaiters.shift()?.();
+  }
+}
+
 export function useClipPosterSrc(clip: ClipPlaybackFields) {
   const urlCandidates = useMemo(
     () => resolveClipPosterCandidates(clip),
@@ -71,40 +99,51 @@ export function useClipPosterSrc(clip: ClipPlaybackFields) {
     clip.stream_playback_url,
     clip.video_url,
     clip.r2_raw_key,
+    clip.stream_mp4_url,
+    clip.stream_mp4_status,
   ]);
 
+  const cached = videoSrc ? extractedPosterCache.get(videoSrc) ?? null : null;
   const [index, setIndex] = useState(0);
-  const [extractedSrc, setExtractedSrc] = useState<string | null>(null);
-  const extractAttemptedRef = useRef(false);
+  const [extractedSrc, setExtractedSrc] = useState<string | null>(cached);
+  const [rejectStored, setRejectStored] = useState(Boolean(cached));
+  const extractAttemptedRef = useRef(Boolean(cached));
 
   useEffect(() => {
+    const nextCached = videoSrc ? extractedPosterCache.get(videoSrc) ?? null : null;
     setIndex(0);
-    setExtractedSrc(null);
-    extractAttemptedRef.current = false;
+    setExtractedSrc(nextCached);
+    setRejectStored(Boolean(nextCached));
+    extractAttemptedRef.current = Boolean(nextCached);
   }, [urlCandidates, videoSrc]);
 
   const tryExtractFrame = useCallback(async () => {
     if (extractAttemptedRef.current || !videoSrc) return;
     extractAttemptedRef.current = true;
-    const dataUrl = await captureVideoFrameDataUrl(videoSrc, { maxWidth: 720, quality: 0.85 });
-    if (dataUrl) setExtractedSrc(dataUrl);
+    const dataUrl = await withExtractSlot(() =>
+      captureVideoFrameDataUrl(videoSrc, { maxWidth: 720, quality: 0.85 }),
+    );
+    if (!dataUrl) return;
+    rememberExtractedPoster(videoSrc, dataUrl);
+    setExtractedSrc(dataUrl);
   }, [videoSrc]);
 
   useEffect(() => {
-    if (urlCandidates.length === 0 && videoSrc) {
+    if ((urlCandidates.length === 0 || rejectStored) && videoSrc) {
       void tryExtractFrame();
     }
-  }, [urlCandidates.length, videoSrc, tryExtractFrame]);
+  }, [urlCandidates.length, rejectStored, videoSrc, tryExtractFrame]);
 
   const advanceOrExtract = useCallback(() => {
     if (index + 1 < urlCandidates.length) {
       setIndex((i) => i + 1);
       return;
     }
+    setRejectStored(true);
     void tryExtractFrame();
   }, [index, urlCandidates.length, tryExtractFrame]);
 
-  const urlSrc = urlCandidates[index] ?? '';
+  const urlSrc = rejectStored ? '' : (urlCandidates[index] ?? '');
   const src = extractedSrc ?? urlSrc;
 
   const onError = useCallback(() => {
