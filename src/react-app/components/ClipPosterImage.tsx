@@ -1,6 +1,7 @@
 import type { ImgHTMLAttributes } from 'react';
 import type { ClipPlaybackFields } from '@/shared/clip-playback';
 import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
+import ClipVideoStill from '@/react-app/components/ClipVideoStill';
 
 export type ClipPosterImageProps = Omit<
   ImgHTMLAttributes<HTMLImageElement>,
@@ -9,31 +10,41 @@ export type ClipPosterImageProps = Omit<
   clip: ClipPlaybackFields;
 };
 
-/** Static clip poster — always from the clip (stored JPEG, Stream still, or captured frame). */
+/** Static clip poster — stored JPEG, Stream still, captured frame, or a paused video frame. */
 export default function ClipPosterImage({ clip, alt = '', className = '', ...rest }: ClipPosterImageProps) {
-  const { src, onError, onLoad, crossOrigin } = useClipPosterSrc(clip);
-
-  if (!src) {
-    return (
-      <div
-        className={`flex items-center justify-center bg-white/10 text-[10px] font-medium uppercase tracking-wide text-white/70 ${className}`.trim()}
-        aria-hidden
-      >
-        No preview
-      </div>
-    );
-  }
+  const { src, probeSrc, videoSrc, onError, onLoad, crossOrigin, cacheExtractedPoster } =
+    useClipPosterSrc(clip);
 
   return (
-    <img
-      key={src}
-      src={src}
-      alt={alt}
-      className={className}
-      crossOrigin={crossOrigin}
-      onError={onError}
-      onLoad={onLoad}
-      {...rest}
-    />
+    <>
+      {probeSrc ? (
+        <img
+          key={`probe-${probeSrc}`}
+          src={probeSrc}
+          alt=""
+          className="pointer-events-none fixed left-0 top-0 h-px w-px opacity-0"
+          aria-hidden
+          crossOrigin={crossOrigin}
+          onError={onError}
+          onLoad={onLoad}
+        />
+      ) : null}
+      {src ? (
+        <img
+          key={src}
+          src={src}
+          alt={alt}
+          className={className}
+          crossOrigin={crossOrigin}
+          onError={onError}
+          onLoad={onLoad}
+          {...rest}
+        />
+      ) : videoSrc ? (
+        <ClipVideoStill src={videoSrc} className={className} onCaptured={cacheExtractedPoster} />
+      ) : (
+        <div className={`animate-pulse bg-white/10 ${className}`.trim()} aria-hidden />
+      )}
+    </>
   );
 }

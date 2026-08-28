@@ -181,7 +181,7 @@ async function paintBestVideoFrameDataUrl(
     }
   }
 
-  return nonBlackDataUrl ?? (explicitSeek !== undefined ? bestDataUrl : null);
+  return nonBlackDataUrl ?? bestDataUrl;
 }
 
 /** Capture a JPEG data URL from a remote/same-origin video URL (feed poster fallback). */
@@ -190,28 +190,43 @@ export async function captureVideoFrameDataUrl(
   options?: { maxWidth?: number; quality?: number },
 ): Promise<string | null> {
   const video = document.createElement('video');
-  video.preload = 'metadata';
+  video.preload = 'auto';
   video.muted = true;
+  video.defaultMuted = true;
   video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', 'true');
+  video.style.cssText =
+    'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
   if (
     videoUrl.includes('videodelivery.net') ||
     videoUrl.includes('cloudflarestream.com')
   ) {
     video.crossOrigin = 'anonymous';
   }
+  document.body.appendChild(video);
 
   try {
     await new Promise<void>((resolve, reject) => {
       video.onerror = () => reject(new Error('video load error'));
       video.onloadedmetadata = () => resolve();
       video.src = videoUrl;
+      video.load();
     });
+    try {
+      await video.play();
+      video.pause();
+    } catch {
+      // Autoplay may be blocked; seeking still works after metadata on some browsers.
+    }
     return await paintBestVideoFrameDataUrl(video, options);
   } catch {
     return null;
   } finally {
+    video.pause();
     video.removeAttribute('src');
     video.load();
+    video.remove();
   }
 }
 

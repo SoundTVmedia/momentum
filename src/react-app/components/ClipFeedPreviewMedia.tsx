@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  type ClipPlaybackFields,
-  resolveFeedPreviewVideoSrc,
-} from '@/shared/clip-playback';
+import ClipVideoStill from '@/react-app/components/ClipVideoStill';
+import { type ClipPlaybackFields } from '@/shared/clip-playback';
 import { prefetchFeedPreviewMp4 } from '@/react-app/lib/clipPlaybackPrefetch';
 import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
 import {
@@ -85,9 +83,16 @@ export default function ClipFeedPreviewMedia({
   const [thumbHidden, setThumbHidden] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
-  const { src: displayPoster, onError: onPosterError, onLoad: onPosterLoad, crossOrigin } =
-    useClipPosterSrc(clipFields);
-  const previewVideoSrc = posterOnly ? null : resolveFeedPreviewVideoSrc(clipFields);
+  const {
+    src: displayPoster,
+    probeSrc,
+    videoSrc: stillVideoSrc,
+    onError: onPosterError,
+    onLoad: onPosterLoad,
+    crossOrigin,
+    cacheExtractedPoster,
+  } = useClipPosterSrc(clipFields);
+  const previewVideoSrc = posterOnly ? null : stillVideoSrc;
 
   const hoverFromParent = mediaHoveredProp !== undefined;
   const hovering = hoverFromParent ? mediaHoveredProp : internalHovering;
@@ -118,7 +123,7 @@ export default function ClipFeedPreviewMedia({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || !previewVideoSrc) return;
+    if (!el || !stillVideoSrc) return;
     const obs = new IntersectionObserver(
       (entries) => {
         const e = entries[0];
@@ -127,11 +132,11 @@ export default function ClipFeedPreviewMedia({
         setIoRatio(r);
         setInView(e.isIntersecting && r > 0.06);
       },
-      { threshold: [0, 0.06, 0.1, 0.25, 0.35, 0.5, 0.75, 1], rootMargin: '0px' },
+      { threshold: [0, 0.06, 0.1, 0.25, 0.35, 0.5, 0.75, 1], rootMargin: '160px 0px' },
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [previewVideoSrc]);
+  }, [stillVideoSrc]);
 
   const useHoverPlay = desktopHoverMode && !isNarrowViewport;
   const scrollStyle = isNarrowViewport || !desktopHoverMode;
@@ -251,6 +256,18 @@ export default function ClipFeedPreviewMedia({
           preload={shouldPlay ? 'auto' : 'metadata'}
         />
       ) : null}
+      {probeSrc ? (
+        <img
+          key={`probe-${probeSrc}`}
+          src={probeSrc}
+          alt=""
+          crossOrigin={crossOrigin}
+          className="pointer-events-none fixed left-0 top-0 z-0 h-px w-px opacity-0"
+          aria-hidden
+          onError={onPosterError}
+          onLoad={onPosterLoad}
+        />
+      ) : null}
       {displayPoster ? (
         <img
           key={displayPoster}
@@ -266,13 +283,19 @@ export default function ClipFeedPreviewMedia({
           onError={onPosterError}
           onLoad={onPosterLoad}
         />
+      ) : stillVideoSrc ? (
+        <ClipVideoStill
+          src={stillVideoSrc}
+          className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
+            thumbHidden ? 'opacity-0' : 'opacity-100'
+          }`}
+          onCaptured={cacheExtractedPoster}
+        />
       ) : (
         <div
-          className="clip-feed-preview__poster absolute inset-0 z-[2] flex items-center justify-center bg-white/10 text-[10px] font-medium uppercase tracking-wide text-white/70"
+          className="clip-feed-preview__poster absolute inset-0 z-[2] animate-pulse bg-white/10"
           aria-hidden
-        >
-          No preview
-        </div>
+        />
       )}
     </div>
   );
