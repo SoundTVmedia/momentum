@@ -10,6 +10,7 @@ import {
 import { nativeIosGoogleOAuthCallbackUrl } from '@/shared/oauth-redirect';
 import { shouldUseNativeInAppOAuth } from '@/react-app/lib/native-oauth';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
+import PoweredByJamBase from '@/react-app/components/PoweredByJamBase';
 import {
   IonButton,
   IonCard,
@@ -353,13 +354,28 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen text-white flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent mb-1">
-            FEEDBACK
+    <div className="relative min-h-screen overflow-hidden text-white flex items-center justify-center px-4 py-10">
+      <div className="pointer-events-none absolute inset-0" aria-hidden>
+        <div className="absolute left-1/2 top-[-4rem] h-72 w-72 -translate-x-1/2 rounded-full bg-momentum-ember/25 blur-3xl" />
+        <div className="absolute bottom-[-3rem] right-[-4rem] h-80 w-80 rounded-full bg-momentum-flare/15 blur-3xl" />
+        <div className="absolute bottom-1/4 left-[-5rem] h-56 w-56 rounded-full bg-momentum-rose/10 blur-3xl" />
+      </div>
+
+      <div className="relative max-w-md w-full">
+        <div className="mb-8 text-center">
+          <img
+            src="/favicon.svg"
+            alt=""
+            width={80}
+            height={80}
+            className="mx-auto mb-4 h-20 w-20 rounded-[1.35rem] shadow-[0_16px_48px_rgba(59,130,246,0.32)] ring-1 ring-white/15"
+          />
+          <h1 className="font-headline text-4xl tracking-tight bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent sm:text-5xl">
+            Feedback
           </h1>
-          <p className="text-sm text-gray-300">Where Live Music Lives</p>
+          <p className="mt-3 text-xl font-medium leading-snug text-white/90 sm:text-2xl">
+            Where live music lives
+          </p>
         </div>
 
         <IonCard className="app-auth-card">
@@ -370,9 +386,10 @@ export default function Auth() {
             </IonNote>
           )}
 
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-white">Welcome</h2>
-          </div>
+          <p className="text-center text-[0.95rem] leading-relaxed text-gray-300">
+            Welcome. To get started, sign in or create an account using your Google or Apple account
+            below.
+          </p>
 
           <div className="space-y-3">
             <GoogleSignInButton
@@ -383,6 +400,7 @@ export default function Auth() {
             />
 
             <IonButton
+              className="app-auth-apple-btn"
               expand="block"
               fill="solid"
               color="dark"
@@ -537,6 +555,10 @@ export default function Auth() {
             Privacy Policy
           </Link>
         </p>
+
+        <div className="mt-8 flex justify-center opacity-90">
+          <PoweredByJamBase variant="nav" />
+        </div>
       </div>
     </div>
   );

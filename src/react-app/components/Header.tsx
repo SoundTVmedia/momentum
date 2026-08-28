@@ -93,7 +93,7 @@ export default function Header() {
               onClick={() => navigate('/')}
               className="min-w-0"
             >
-              <div className="truncate whitespace-nowrap text-lg font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent sm:text-xl md:text-2xl">
+              <div className="app-header-wordmark truncate whitespace-nowrap font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
                 FEEDBACK
               </div>
             </button>
@@ -215,7 +215,7 @@ export default function Header() {
                 </IonButton>
               </IonButtons>
             ) : (
-              <IonButton color="primary" onClick={() => navigate('/auth')}>
+              <IonButton className="app-header-signin" color="primary" onClick={() => navigate('/auth')}>
                 Sign In
               </IonButton>
             )}

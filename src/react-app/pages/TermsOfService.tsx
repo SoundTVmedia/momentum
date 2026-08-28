@@ -30,10 +30,6 @@ export default function TermsOfService() {
 
   return (
     <ResourcesPageLayout>
-      <div className="mb-8 rounded-xl border border-momentum-flare/40 bg-momentum-flare/10 px-4 py-3 text-center text-sm text-gray-200">
-        Draft — pending attorney review.
-      </div>
-
       <header className="text-center mb-14 sm:mb-16">
         <h1 className="fb-hero-title">Terms of Service</h1>
         <p className="fb-section-subtitle fb-section-subtitle--center mt-4">
