@@ -387,8 +387,7 @@ export default function Auth() {
           )}
 
           <p className="text-center text-[0.95rem] leading-relaxed text-gray-300">
-            Welcome. To get started, sign in or create an account using your Google or Apple account
-            below.
+            To get started, sign in or create account by using your Google or Apple account.
           </p>
 
           <div className="space-y-3">
