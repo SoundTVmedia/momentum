@@ -28,3 +28,12 @@ export function clipNumericId(clip: unknown): number | null {
   }
   return null;
 }
+
+/** Index of `clip` in a player feed: the tapped object first, then numeric id. */
+export function clipFeedNavIndex(clips: readonly unknown[], clip: unknown): number {
+  const exact = clips.indexOf(clip);
+  if (exact >= 0) return exact;
+  const nid = clipNumericId(clip);
+  if (nid == null) return -1;
+  return clips.findIndex((candidate) => clipNumericId(candidate) === nid);
+}

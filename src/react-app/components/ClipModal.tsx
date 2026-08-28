@@ -72,7 +72,7 @@ import { prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
 import { clipShareUrl } from '@/shared/clip-share';
 import { buildClipShareMeta } from '@/shared/clip-share-meta';
 import { applyClipShareMetaToDocument } from '@/react-app/lib/applyClipShareMetaToDocument';
-import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import { clipNumericId, clipFeedNavIndex } from '@/react-app/lib/clip-numeric-id';
 import { downloadClipVideo } from '@/react-app/lib/downloadClipVideo';
 import { resolveClipDownloadUrl, clipIsMarkedUnplayable } from '@/shared/clip-playback';
 import type { PlaybackFailureKind } from '@/shared/clip-playback-failure';
@@ -183,9 +183,7 @@ export default function ClipModal({
 
   const navIndex =
     feedNavigation && feedNavigation.clips.length > 0
-      ? feedNavigation.clips.findIndex(
-          (c) => clipNumericId(c) != null && clipNumericId(c) === clipNumericId(clip),
-        )
+      ? clipFeedNavIndex(feedNavigation.clips, clip)
       : -1;
   const canFeedNav = navIndex >= 0 && feedNavigation != null && feedNavigation.clips.length > 1;
   const prevClip = canFeedNav && navIndex > 0 ? feedNavigation!.clips[navIndex - 1] : null;

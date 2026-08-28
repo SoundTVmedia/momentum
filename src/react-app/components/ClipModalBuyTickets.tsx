@@ -26,12 +26,14 @@ export default function ClipModalBuyTickets({
       type="button"
       onClick={onActivate}
       className={`${hintClass} ${className}`}
-      aria-label="Swipe up to buy tickets to nearest show"
+      aria-label="Swipe up to buy tickets near you"
+      onPointerDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       <Ticket className="h-4 w-4 shrink-0 text-momentum-flare" aria-hidden />
       <span className="min-w-0 flex-1 text-left">
-        <span className="md:hidden">Swipe up to buy tickets to nearest show</span>
-        <span className="hidden md:inline">Buy tickets to nearest show</span>
+        <span className="md:hidden">Swipe up to buy tickets near you</span>
+        <span className="hidden md:inline">Buy tickets near you</span>
       </span>
       <ChevronUp className="h-4 w-4 shrink-0 animate-bounce md:hidden" aria-hidden />
     </button>

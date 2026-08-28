@@ -539,10 +539,10 @@ export default function UserProfilePage() {
                       clips={favoriteArtist.clips}
                       className={PAGE_CAROUSEL_BLEED}
                       ariaLabel={`${favoriteArtist.artist.name} favorite moments`}
-                      onOpenClip={(clip) => {
+                      onOpenClip={(clip, visible) => {
                         setSelectedClip(clip);
                         setProfileModalFeed(
-                          favoriteArtist.clips.length > 1 ? favoriteArtist.clips : null
+                          visible.length > 1 ? visible : null
                         );
                       }}
                     />
@@ -574,9 +574,9 @@ export default function UserProfilePage() {
             clips={clips}
             className={PAGE_CAROUSEL_BLEED}
             ariaLabel={`${profile.display_name}'s clips`}
-            onOpenClip={(clip) => {
+            onOpenClip={(clip, visible) => {
               setSelectedClip(clip);
-              setProfileModalFeed(clips.length > 1 ? clips : null);
+              setProfileModalFeed(visible.length > 1 ? visible : null);
             }}
           />
         )}

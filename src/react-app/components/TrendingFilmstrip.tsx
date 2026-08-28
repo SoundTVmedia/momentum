@@ -17,9 +17,9 @@ export default function TrendingFilmstrip() {
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
   const [modalFeed, setModalFeed] = useState<ClipWithUser[] | null>(null);
 
-  const openClip = (clip: ClipWithUser) => {
+  const openClip = (clip: ClipWithUser, visible: ClipWithUser[]) => {
     setSelectedClip(clip);
-    setModalFeed(clips.length > 1 ? clips : null);
+    setModalFeed(visible.length > 1 ? visible : null);
   };
 
   return (

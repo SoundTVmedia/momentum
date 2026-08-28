@@ -125,9 +125,9 @@ export default function SavedClipsSection() {
         clips={clips}
         className={HOME_FEED_CAROUSEL_BLEED}
         ariaLabel="Saved clips"
-        onOpenClip={(clip) => {
+        onOpenClip={(clip, visible) => {
           setSelectedClip(clip);
-          setSavedModalFeed(clips.length > 1 ? clips : null);
+          setSavedModalFeed(visible.length > 1 ? visible : null);
         }}
       />
 

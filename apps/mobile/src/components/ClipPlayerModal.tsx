@@ -359,7 +359,7 @@ export function ClipPlayerModal({
                 onPress={() => setTicketSheetOpen(true)}
               >
                 <Text style={styles.commerceLabel}>
-                  Buy tickets to nearest show
+                  Buy tickets near you
                 </Text>
               </Pressable>
             ) : null}

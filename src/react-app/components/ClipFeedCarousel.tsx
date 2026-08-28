@@ -9,7 +9,7 @@ import { filterViewerFeedClips } from '@/react-app/lib/clipPlaybackFailure';
 
 export type ClipFeedCarouselProps = {
   clips: ClipWithUser[];
-  onOpenClip: (clip: ClipWithUser) => void;
+  onOpenClip: (clip: ClipWithUser, visibleClips: ClipWithUser[]) => void;
   ariaLabel?: string;
   className?: string;
   carouselKey?: string;
@@ -36,7 +36,7 @@ export default function ClipFeedCarousel({
         <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
           <ClipFeedGridTile
             clip={clip}
-            onOpenClip={onOpenClip}
+            onOpenClip={(opened) => onOpenClip(opened, visible)}
             neighborClips={{
               prev: visible[index - 1],
               next: visible[index + 1],

@@ -109,9 +109,9 @@ export default function LikedClips() {
             clips={clips}
             className={PAGE_CAROUSEL_BLEED}
             ariaLabel="Liked clips"
-            onOpenClip={(clip) => {
+            onOpenClip={(clip, visible) => {
               setSelectedClip(clip);
-              setLikedModalFeed(clips.length > 1 ? clips : null);
+              setLikedModalFeed(visible.length > 1 ? visible : null);
             }}
           />
         )}

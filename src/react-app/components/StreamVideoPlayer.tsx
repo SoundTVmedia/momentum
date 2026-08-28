@@ -301,14 +301,7 @@ function StreamVideoPlayer(
           if (cancelled) return;
 
           if (Hls.isSupported()) {
-            if (hlsRef.current) {
-              hlsRef.current.loadSource(videoSrc);
-              hlsRef.current.startLoad(0);
-              attachedSrcRef.current = videoSrc;
-              tryAutoplay();
-              return;
-            }
-
+            destroyHls();
             const mobile =
               typeof window !== 'undefined' &&
               window.matchMedia('(max-width: 767px)').matches;

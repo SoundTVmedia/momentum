@@ -80,6 +80,7 @@ export default function FavoriteArtistFeedPanel({
   const [savedSongs, setSavedSongs] = useState<{ slug: string; title: string }[]>([]);
   const [selectedSongSlug, setSelectedSongSlug] = useState('');
   const clipFeedScope = panelView === 'artists' ? 'artists' : 'all';
+  const visibleClips = filterViewerFeedClips(clips);
 
   const loadHubLists = useCallback(async () => {
     if (!user) return;
@@ -445,14 +446,14 @@ export default function FavoriteArtistFeedPanel({
                   if (variant === 'feed' && hasMoreClips && !loadingMore) loadMoreClips();
                 }}
               >
-                {filterViewerFeedClips(clips).map((clip, index, visible) => (
+                {visibleClips.map((clip, index) => (
                   <HorizontalClipCarouselItem key={clipListItemKey(clip, index)}>
                     <ClipFeedGridTile
                       clip={clip}
                       onOpenClip={setSelectedClip}
                       neighborClips={{
-                        prev: visible[index - 1],
-                        next: visible[index + 1],
+                        prev: visibleClips[index - 1],
+                        next: visibleClips[index + 1],
                       }}
                     />
                   </HorizontalClipCarouselItem>
@@ -489,8 +490,8 @@ export default function FavoriteArtistFeedPanel({
           clip={selectedClip}
           onClose={() => setSelectedClip(null)}
           feedNavigation={
-            clips.length > 1
-              ? { clips, onChangeClip: setSelectedClip }
+            visibleClips.length > 1
+              ? { clips: visibleClips, onChangeClip: setSelectedClip }
               : null
           }
         />

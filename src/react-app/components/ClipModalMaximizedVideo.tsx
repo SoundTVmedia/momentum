@@ -50,6 +50,7 @@ const ClipModalMaximizedVideo = forwardRef<
         style={{ aspectRatio: ratioStr }}
       >
         <StreamVideoPlayer
+          key={String(clipId ?? clip.video_url ?? clip.stream_video_id ?? 'clip')}
           ref={ref}
           stream_video_id={clip.stream_video_id}
           stream_playback_url={clip.stream_playback_url}

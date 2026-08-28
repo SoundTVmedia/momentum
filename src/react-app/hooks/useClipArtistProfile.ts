@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiArtistPath } from '@/shared/app-paths';
+import { merchUrlFromArtistSocialLinks } from '@/shared/artist-merch-url';
 import { displayMediaUrl } from '@/shared/media-proxy';
 
 type ClipArtistProfileState = {
@@ -7,21 +8,6 @@ type ClipArtistProfileState = {
   websiteUrl: string | null;
   loading: boolean;
 };
-
-function parseSocialLinksWebsite(raw: string | null | undefined): string | null {
-  if (raw == null || !String(raw).trim()) return null;
-  try {
-    const v = JSON.parse(String(raw));
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
-    const website = typeof v.website === 'string' ? v.website.trim() : '';
-    if (!website) return null;
-    const host = new URL(website).hostname.toLowerCase();
-    if (host === 'jambase.com' || host.endsWith('.jambase.com')) return null;
-    return website;
-  } catch {
-    return null;
-  }
-}
 
 export function useClipArtistProfile(artistName?: string | null): ClipArtistProfileState {
   const artist = artistName?.trim() ?? '';
@@ -48,14 +34,14 @@ export function useClipArtistProfile(artistName?: string | null): ClipArtistProf
         const res = await fetch(apiArtistPath(artist));
         if (!res.ok) return;
         const data = (await res.json()) as {
-          artist?: { image_url?: string | null; social_links?: string | null };
+          artist?: { image_url?: string | null; social_links?: string | Record<string, unknown> | null };
         };
         if (cancelled) return;
 
         const img =
           typeof data.artist?.image_url === 'string' ? data.artist.image_url.trim() : '';
         setImageUrl(img ? displayMediaUrl(img) : null);
-        setWebsiteUrl(parseSocialLinksWebsite(data.artist?.social_links));
+        setWebsiteUrl(merchUrlFromArtistSocialLinks(data.artist?.social_links));
       } catch (err) {
         console.error('Clip artist profile:', err);
       } finally {

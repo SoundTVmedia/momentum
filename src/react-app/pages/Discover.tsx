@@ -496,7 +496,7 @@ export default function DiscoverPage() {
                 <DiscoverSectionTitle title="Clips" />
                 <ClipFeedCarousel
                   clips={results.clips}
-                  onOpenClip={(clip) => openDiscoverClip(clip, results.clips)}
+                  onOpenClip={(clip, visible) => openDiscoverClip(clip, visible)}
                   ariaLabel="Search result clips"
                 />
               </section>
@@ -599,9 +599,7 @@ export default function DiscoverPage() {
                 />
                 <ClipFeedCarousel
                   clips={discoverFeed.forYou.clips}
-                  onOpenClip={(clip) =>
-                    openDiscoverClip(clip, discoverFeed.forYou!.clips)
-                  }
+                  onOpenClip={(clip, visible) => openDiscoverClip(clip, visible)}
                   ariaLabel="For you clips"
                 />
               </section>
@@ -615,7 +613,7 @@ export default function DiscoverPage() {
                 />
                 <ClipFeedCarousel
                   clips={discoverFeed.clips}
-                  onOpenClip={(clip) => openDiscoverClip(clip, discoverFeed.clips)}
+                  onOpenClip={(clip, visible) => openDiscoverClip(clip, visible)}
                   ariaLabel="Trending clips"
                 />
               </section>

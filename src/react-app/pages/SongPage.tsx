@@ -22,6 +22,7 @@ export default function SongPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
+  const [songModalFeed, setSongModalFeed] = useState<ClipWithUser[] | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -46,9 +47,9 @@ export default function SongPage() {
   }, [artistName, songSlug]);
 
   const modalFeed =
-    data && data.clips.length > 1
+    songModalFeed && songModalFeed.length > 1
       ? {
-          clips: data.clips,
+          clips: songModalFeed,
           onChangeClip: setSelectedClip,
         }
       : null;
@@ -108,8 +109,9 @@ export default function SongPage() {
             {data.clips.length > 0 ? (
               <ClipFeedCarousel
                 clips={data.clips}
-                onOpenClip={(clip) => {
+                onOpenClip={(clip, visible) => {
                   setSelectedClip(clip);
+                  setSongModalFeed(visible.length > 1 ? visible : null);
                 }}
                 ariaLabel={`Clips for ${data.song.title}`}
               />
@@ -125,7 +127,10 @@ export default function SongPage() {
       {selectedClip ? (
         <ClipModal
           clip={selectedClip}
-          onClose={() => setSelectedClip(null)}
+          onClose={() => {
+            setSelectedClip(null);
+            setSongModalFeed(null);
+          }}
           feedNavigation={modalFeed}
         />
       ) : null}
