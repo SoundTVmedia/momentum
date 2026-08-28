@@ -48,8 +48,6 @@ export default function FavoriteArtistFeedPanel({
   edgeBleedScope = 'page',
 }: FavoriteArtistFeedPanelProps) {
   const { user, isPending } = useAuth();
-  const welcomeEmail =
-    (typeof user?.email === 'string' && user.email.trim()) || 'there';
   const sectionRef = useRef<HTMLElement>(null);
   const carouselScrollRef = useRef<HTMLDivElement>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
@@ -273,23 +271,20 @@ export default function FavoriteArtistFeedPanel({
         <div className="flex flex-col items-start gap-2 text-left">
           {variant === 'feed' ? (
             <>
-              <h2 className="text-xl sm:text-2xl font-headline font-bold text-white">
-                Welcome, {welcomeEmail}
-              </h2>
               <p className="text-sm text-gray-400">
-                Clips and shows from artists, venues, and songs you follow.
+                Follow Artists, Friends, Songs, and Venues for their latest content.
               </p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleAddArtists}
                   className="inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 hover:border-white transition-colors"
-                  title={showAddArtists ? 'Close follow' : 'Follow artists, venues, or shows'}
+                  title={showAddArtists ? 'Close follow' : 'Follow artists, friends, venues, songs, or shows'}
                   aria-expanded={showAddArtists}
                   aria-label={
                     showAddArtists
                       ? 'Close follow'
-                      : 'Follow artists, venues, or archival shows'
+                      : 'Follow artists, friends, venues, songs, or shows'
                   }
                 >
                   {showAddArtists ? (
@@ -366,8 +361,7 @@ export default function FavoriteArtistFeedPanel({
           <div className="mt-4 md:mt-5">
             {savedSongs.length === 0 ? (
               <p className="text-gray-400 text-sm py-4">
-                Save a song from any song page to filter clips here. Adding songs from the homepage
-                is not available yet.
+                Follow a song from the Follow + panel to filter clips here.
               </p>
             ) : (
               <>

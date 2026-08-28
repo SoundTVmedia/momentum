@@ -5,6 +5,7 @@ import {
   type UserFavoriteType,
 } from '../shared/user-favorites';
 import { songSlugFromTitle, songTitleFromSlug } from '../shared/song-tag';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import {
   mergeCanonicalNamesForFavoriteBatch,
   mergeProfileFavoriteArtistsJson,
@@ -22,6 +23,7 @@ import { fetchJamBaseEventsByArtistName } from './jambase-endpoints';
 import { clientMediaOrigin } from './client-media-origin';
 import { rewriteJamBaseEventImages, rewriteMediaUrlForClient } from '../shared/media-proxy';
 import { archivalShowDateKey } from '../shared/archival-show';
+import { searchFeedbackUsersByText } from './search-users';
 
 async function upsertFavoriteRow(
   db: D1Database,
@@ -211,24 +213,82 @@ function eventVenueName(ev: Record<string, unknown>): string {
   return '';
 }
 
-/** One search box: artists, venues, and archival/live shows grouped by type. */
+/** One search box: artists, friends, venues, songs, and archival/live shows. */
 export async function unifiedFavoritesSearch(c: Context) {
   const q = (c.req.query('q') || '').trim();
   if (q.length < 2) {
-    return c.json({ artists: [], venues: [], shows: [] });
+    return c.json({ artists: [], venues: [], shows: [], friends: [], songs: [] });
   }
+
+  const mochaUser = c.get('user');
+  const uid = mochaUser ? mochaUserIdKey(mochaUser) : '';
+  const origin = clientMediaOrigin(c);
+  const titleLike = `%${q}%`;
+  const slugHint = songSlugFromTitle(q) || q.toLowerCase();
+  const slugLike = `%${slugHint}%`;
+
+  const friendsPromise = searchFeedbackUsersByText(c.env.DB, q, 8).then((rows) =>
+    rows
+      .filter((row) => row.mocha_user_id !== uid)
+      .map((row) => ({
+        mocha_user_id: row.mocha_user_id,
+        display_name: row.display_name,
+        profile_image_url: rewriteMediaUrlForClient(row.profile_image_url, origin),
+        clip_count: row.clip_count,
+      })),
+  );
+
+  const songsPromise = c.env.DB
+    .prepare(
+      `SELECT
+        clips.song_slug as slug,
+        MAX(clips.song_title) as title,
+        MAX(clips.artist_name) as artist_name,
+        COUNT(DISTINCT clips.id) as clip_count
+      FROM clips
+      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+      AND clips.song_slug IS NOT NULL
+      AND TRIM(clips.song_slug) != ''
+      AND (
+        clips.song_title LIKE ? COLLATE NOCASE OR
+        clips.song_slug LIKE ? COLLATE NOCASE
+      )
+      GROUP BY clips.song_slug
+      ORDER BY clip_count DESC
+      LIMIT 8`,
+    )
+    .bind(titleLike, slugLike)
+    .all()
+    .then(
+      (rows: {
+        results?: { slug: string; title: string | null; artist_name: string | null; clip_count: number }[];
+      }) =>
+        (rows.results ?? []).map((row) => ({
+          slug: row.slug,
+          title: (row.title && row.title.trim()) || songTitleFromSlug(row.slug),
+          artist_name: row.artist_name,
+          clip_count: Number(row.clip_count) || 0,
+        })),
+    );
 
   const key = typeof c.env.JAMBASE_API_KEY === 'string' ? c.env.JAMBASE_API_KEY : '';
   if (!key.trim()) {
-    return c.json({ artists: [], venues: [], shows: [], notice: 'JamBase is not configured' });
+    const [friends, songs] = await Promise.all([friendsPromise, songsPromise]);
+    return c.json({
+      artists: [],
+      venues: [],
+      shows: [],
+      friends,
+      songs,
+      notice: 'JamBase is not configured',
+    });
   }
 
   const jbQ = jamBaseQuotaFromEnv(c.env);
-  const origin = clientMediaOrigin(c);
   const aDiag: JamBaseFetchDiag = {};
   const vDiag: JamBaseFetchDiag = {};
 
-  const [artistsData, venuesData, artistShows] = await Promise.all([
+  const [artistsData, venuesData, artistShows, friends, songs] = await Promise.all([
     jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
       key,
       '/artists',
@@ -244,6 +304,8 @@ export async function unifiedFavoritesSearch(c: Context) {
       vDiag,
     ),
     fetchJamBaseEventsByArtistName(key, jbQ, q, '12'),
+    friendsPromise,
+    songsPromise,
   ]);
 
   const artists = (artistsData?.artists ?? []).slice(0, 8).map((row) => {
@@ -285,5 +347,5 @@ export async function unifiedFavoritesSearch(c: Context) {
       image: typeof ev.image === 'string' ? ev.image : null,
     }));
 
-  return c.json({ artists, venues, shows });
+  return c.json({ artists, venues, shows, friends, songs });
 }

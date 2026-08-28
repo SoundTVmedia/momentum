@@ -161,18 +161,18 @@ ion-header.app-top-header {
 }
 
 .app-header-wordmark {
-  font-size: 1.2375rem;
+  font-size: 1.423rem;
 }
 
 @media (min-width: 640px) {
   .app-header-wordmark {
-    font-size: 1.375rem;
+    font-size: 1.581rem;
   }
 }
 
 @media (min-width: 768px) {
   .app-header-wordmark {
-    font-size: 1.65rem;
+    font-size: 1.898rem;
   }
 }
 
@@ -196,13 +196,27 @@ ion-button.app-header-signin::part(native) {
 ion-header.app-top-header ion-toolbar.app-toolbar {
   --background: var(--glass-chrome-bg, rgba(3, 7, 18, 0.78));
   --border-width: 0;
-  --min-height: 3.5rem;
-  --padding-start: 0.5rem;
-  --padding-end: 0.5rem;
-  --padding-top: 0;
-  --padding-bottom: 0;
+  --min-height: 4.35rem;
+  --padding-start: 1rem;
+  --padding-end: 1rem;
+  --padding-top: 0.4rem;
+  --padding-bottom: 0.4rem;
   backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
+}
+
+@media (min-width: 640px) {
+  ion-header.app-top-header ion-toolbar.app-toolbar {
+    --padding-start: 1.5rem;
+    --padding-end: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  ion-header.app-top-header ion-toolbar.app-toolbar {
+    --padding-start: 2rem;
+    --padding-end: 2rem;
+  }
 }
 
 ion-footer.app-tab-footer {
@@ -277,14 +291,33 @@ ion-searchbar.app-searchbar {
 }
 
 ion-searchbar.app-searchbar-hero {
-  --background: var(--glass-bg, rgba(255, 255, 255, 0.04));
-  --border-radius: 1rem;
-  --box-shadow: var(--glass-shadow-lg);
-  --height: 3.35rem;
+  --background: transparent;
+  --border-radius: 9999px;
+  --box-shadow: none;
+  --height: 2.85rem;
   --icon-color: var(--momentum-flare, #3b82f6);
   --placeholder-color: #8fa3b8;
   --color: #ffffff;
   padding: 0;
+}
+
+ion-button.app-hero-search-btn {
+  --padding-start: 0.72rem;
+  --padding-end: 0.72rem;
+  --padding-top: 0.28rem;
+  --padding-bottom: 0.28rem;
+  --border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  min-height: 1.9rem;
+  height: 1.9rem;
+}
+
+ion-button.app-hero-search-btn::part(native) {
+  min-height: 1.9rem;
+  padding-inline: 0.72rem;
+  font-size: 0.8125rem;
+  border-radius: 9999px;
 }
 
 ion-segment.app-feed-segment {

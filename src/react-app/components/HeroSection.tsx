@@ -1,11 +1,10 @@
 import HeroConcertBackdrop from '@/react-app/components/HeroConcertBackdrop';
-import HeroSearchBar from '@/react-app/components/HeroSearchBar';
 
 export default function HeroSection() {
   return (
     <section
       className="relative z-30 overflow-x-hidden overflow-y-visible bg-momentum-ink"
-      aria-label="Search"
+      aria-label="Where Live Music Lives"
     >
       <div className="absolute inset-0 hero-grad-base" aria-hidden />
       <div className="absolute inset-0 hero-concert-photo" aria-hidden>
@@ -28,17 +27,16 @@ export default function HeroSection() {
         />
       </div>
 
-      <div className="relative z-10 flex flex-col justify-center px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
+      <div className="relative z-10 flex min-h-[12.5rem] flex-col justify-center px-4 py-8 sm:min-h-[15.5rem] sm:px-6 sm:py-12 lg:px-8">
         <div className="mx-auto w-full max-w-7xl">
-          <h1 className="font-headline hero-headline-grad mb-5 text-center text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
+          <h1 className="font-headline hero-headline-grad text-center text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
             Where Live Music Lives
           </h1>
-          <HeroSearchBar />
         </div>
       </div>
 
       <div
-        className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black to-transparent"
+        className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black to-transparent"
         aria-hidden
       />
     </section>

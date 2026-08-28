@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, ImagePlus, Loader2, MapPin, Music, Plus, Search, Ticket } from 'lucide-react';
+import { Calendar, ImagePlus, Loader2, MapPin, Music, Plus, Search, Ticket, Users } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
+import { artistPath } from '@/shared/app-paths';
+import UserAvatar from '@/react-app/components/UserAvatar';
 
 type UnifiedArtist = { identifier: string; name: string; image: string | null };
 type UnifiedVenue = { identifier: string; name: string; city: string; image: string | null };
@@ -13,6 +16,18 @@ type UnifiedShow = {
   venueName: string;
   image: string | null;
 };
+type UnifiedFriend = {
+  mocha_user_id: string;
+  display_name: string | null;
+  profile_image_url: string | null;
+  clip_count: number;
+};
+type UnifiedSong = {
+  slug: string;
+  title: string;
+  artist_name: string | null;
+};
+type FollowedArtist = { name: string; image_url: string | null };
 
 type ManualShow = {
   artist: string;
@@ -25,12 +40,16 @@ type ManualShow = {
 const EMPTY_MANUAL: ManualShow = { artist: '', venue: '', city: '', date: '', notes: '' };
 
 export default function UnifiedFavoritesAdd() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const debounced = useDebounce(query.trim(), 350);
   const [loading, setLoading] = useState(false);
   const [artists, setArtists] = useState<UnifiedArtist[]>([]);
   const [venues, setVenues] = useState<UnifiedVenue[]>([]);
   const [shows, setShows] = useState<UnifiedShow[]>([]);
+  const [friends, setFriends] = useState<UnifiedFriend[]>([]);
+  const [songs, setSongs] = useState<UnifiedSong[]>([]);
+  const [followedArtists, setFollowedArtists] = useState<FollowedArtist[]>([]);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +64,8 @@ export default function UnifiedFavoritesAdd() {
       setArtists([]);
       setVenues([]);
       setShows([]);
+      setFriends([]);
+      setSongs([]);
       return;
     }
     let cancelled = false;
@@ -59,11 +80,15 @@ export default function UnifiedFavoritesAdd() {
           artists?: UnifiedArtist[];
           venues?: UnifiedVenue[];
           shows?: UnifiedShow[];
+          friends?: UnifiedFriend[];
+          songs?: UnifiedSong[];
         };
         if (cancelled) return;
         setArtists(data.artists ?? []);
         setVenues(data.venues ?? []);
         setShows(data.shows ?? []);
+        setFriends(data.friends ?? []);
+        setSongs(data.songs ?? []);
       } catch {
         if (!cancelled) setError('Search failed');
       } finally {
@@ -82,6 +107,31 @@ export default function UnifiedFavoritesAdd() {
     window.dispatchEvent(new CustomEvent('following-changed'));
   }, []);
 
+  const loadFollowedArtists = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { artists?: { name?: string | null; image_url?: string | null }[] };
+      setFollowedArtists(
+        (data.artists ?? [])
+          .map((row) => ({
+            name: (row.name ?? '').trim(),
+            image_url: row.image_url ?? null,
+          }))
+          .filter((row) => row.name),
+      );
+    } catch {
+      /* keep current list */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadFollowedArtists();
+    const refresh = () => void loadFollowedArtists();
+    window.addEventListener('favorite-artists-changed', refresh);
+    return () => window.removeEventListener('favorite-artists-changed', refresh);
+  }, [loadFollowedArtists]);
+
   const addArtist = async (name: string) => {
     setBusyKey(`artist:${name}`);
     try {
@@ -92,8 +142,42 @@ export default function UnifiedFavoritesAdd() {
       });
       if (!res.ok) throw new Error(await res.text());
       added(`Added ${name}`);
+      void loadFollowedArtists();
     } catch (err) {
       setError(apiFetchErrorMessage(err, 'Could not add artist'));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const addFriend = async (friend: UnifiedFriend) => {
+    setBusyKey(`friend:${friend.mocha_user_id}`);
+    try {
+      const res = await apiFetch(`/api/users/${encodeURIComponent(friend.mocha_user_id)}/follow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      added(`Following ${friend.display_name || 'friend'}`);
+    } catch (err) {
+      setError(apiFetchErrorMessage(err, 'Could not follow user'));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const addSong = async (song: UnifiedSong) => {
+    setBusyKey(`song:${song.slug}`);
+    try {
+      const res = await apiFetch('/api/users/me/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'song', name: song.title || song.slug }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      added(`Following ${song.title}`);
+    } catch (err) {
+      setError(apiFetchErrorMessage(err, 'Could not save song'));
     } finally {
       setBusyKey(null);
     }
@@ -204,20 +288,45 @@ export default function UnifiedFavoritesAdd() {
     });
   };
 
-  const hasResults = artists.length + venues.length + shows.length > 0;
+  const hasResults = artists.length + venues.length + shows.length + friends.length + songs.length > 0;
+  const followedNameSet = new Set(followedArtists.map((a) => a.name.toLowerCase()));
 
   return (
     <div>
       <p className="text-sm text-gray-300 mb-3">
-        Click to add your favorite artists, venues, or archival shows.
+        Search artists, friends, venues, songs, and shows to follow.
       </p>
+      {followedArtists.length > 0 ? (
+        <section className="mb-4">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Artists you follow
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {followedArtists.map((artist) => (
+              <button
+                key={artist.name}
+                type="button"
+                onClick={() => navigate(artistPath(artist.name))}
+                className="inline-flex max-w-full items-center gap-2 rounded-full border border-momentum-flare/35 bg-momentum-flare/10 px-3 py-1.5 text-sm text-white hover:bg-momentum-flare/20"
+              >
+                {artist.image_url ? (
+                  <img src={artist.image_url} alt="" className="h-5 w-5 rounded-full object-cover" />
+                ) : null}
+                <span className="truncate">{artist.name}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <p className="mb-3 text-xs text-gray-500">You are not following any artists yet.</p>
+      )}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search artists, venues, or shows"
+          placeholder="Search artists, friends, venues, songs, or shows"
           className="w-full rounded-xl border border-white/15 bg-black/40 py-3 pl-10 pr-4 text-base text-white placeholder:text-white/40 focus:border-momentum-ember/60 focus:outline-none"
           autoComplete="off"
         />
@@ -241,12 +350,14 @@ export default function UnifiedFavoritesAdd() {
             Artists
           </h3>
           <ul className="space-y-2">
-            {artists.map((artist) => (
+            {artists.map((artist) => {
+              const alreadyFollowing = followedNameSet.has(artist.name.toLowerCase());
+              return (
               <li key={artist.identifier || artist.name}>
                 <button
                   type="button"
                   onClick={() => void addArtist(artist.name)}
-                  disabled={busyKey === `artist:${artist.name}`}
+                  disabled={busyKey === `artist:${artist.name}` || alreadyFollowing}
                   className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-50"
                 >
                   {artist.image ? (
@@ -257,6 +368,82 @@ export default function UnifiedFavoritesAdd() {
                     </span>
                   )}
                   <span className="min-w-0 flex-1 truncate font-medium text-white">{artist.name}</span>
+                  {alreadyFollowing ? (
+                    <span className="shrink-0 text-xs font-medium text-momentum-flare">Following</span>
+                  ) : (
+                    <Plus className="h-4 w-4 shrink-0 text-momentum-flare" />
+                  )}
+                </button>
+              </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {friends.length > 0 ? (
+        <section className="mt-5">
+          <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <Users className="w-3.5 h-3.5" />
+            Friends
+          </h3>
+          <ul className="space-y-2">
+            {friends.map((friend) => (
+              <li key={friend.mocha_user_id}>
+                <button
+                  type="button"
+                  onClick={() => void addFriend(friend)}
+                  disabled={busyKey === `friend:${friend.mocha_user_id}`}
+                  className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-50"
+                >
+                  <UserAvatar
+                    imageUrl={friend.profile_image_url}
+                    displayName={friend.display_name}
+                    seed={friend.mocha_user_id}
+                    alt={friend.display_name || 'User'}
+                    sizeClass="h-10 w-10"
+                    letterClassName="text-sm font-semibold"
+                    className="shrink-0"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-white">
+                      {friend.display_name || 'User'}
+                    </span>
+                    {friend.clip_count > 0 ? (
+                      <span className="block truncate text-xs text-gray-400">
+                        {friend.clip_count} clip{friend.clip_count !== 1 ? 's' : ''}
+                      </span>
+                    ) : null}
+                  </span>
+                  <Plus className="h-4 w-4 shrink-0 text-momentum-flare" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {songs.length > 0 ? (
+        <section className="mt-5">
+          <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <Music className="w-3.5 h-3.5" />
+            Songs
+          </h3>
+          <ul className="space-y-2">
+            {songs.map((song) => (
+              <li key={song.slug}>
+                <button
+                  type="button"
+                  onClick={() => void addSong(song)}
+                  disabled={busyKey === `song:${song.slug}`}
+                  className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-50"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-white">{song.title}</span>
+                    {song.artist_name ? (
+                      <span className="block truncate text-xs text-gray-400">{song.artist_name}</span>
+                    ) : null}
+                  </span>
                   <Plus className="h-4 w-4 shrink-0 text-momentum-flare" />
                 </button>
               </li>

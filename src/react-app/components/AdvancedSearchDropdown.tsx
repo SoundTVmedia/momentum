@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, MapPin, Music, Ticket, Users } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, venuePath } from '@/shared/app-paths';
+import { artistPath, globalSongPath, venuePath } from '@/shared/app-paths';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import UserAvatar from '@/react-app/components/UserAvatar';
@@ -13,6 +13,23 @@ import {
   type AdvancedSearchPayload,
 } from '@/react-app/lib/advanced-search';
 import { displayMediaUrl } from '@/shared/media-proxy';
+
+export type SearchDropdownSection =
+  | 'clips'
+  | 'friends'
+  | 'artists'
+  | 'venues'
+  | 'shows'
+  | 'songs';
+
+const DEFAULT_SECTIONS: SearchDropdownSection[] = [
+  'clips',
+  'friends',
+  'artists',
+  'venues',
+  'shows',
+  'songs',
+];
 
 type Props = {
   query: string;
@@ -25,6 +42,8 @@ type Props = {
   onClipSelect: (clip: ClipWithUser, feed: ClipWithUser[]) => void;
   /** `header` = fixed width panel; `hero` = portaled fixed panel under search bar */
   variant?: 'header' | 'hero';
+  /** Which result groups to show. Defaults to all. */
+  sections?: SearchDropdownSection[];
   /** Hero home search: anchor for fixed positioning (escapes hero stacking context). */
   anchorRef?: RefObject<HTMLElement | null>;
   /** Optional ref on the dropdown root (for outside-click handling when portaled). */
@@ -39,6 +58,7 @@ type PanelProps = {
   onDiscoverAll: () => void;
   onClipSelect: (clip: ClipWithUser, feed: ClipWithUser[]) => void;
   className: string;
+  show: (section: SearchDropdownSection) => boolean;
 };
 
 function SearchDropdownPanel({
@@ -49,6 +69,7 @@ function SearchDropdownPanel({
   onDiscoverAll,
   onClipSelect,
   className,
+  show,
 }: PanelProps) {
   const navigate = useNavigate();
   const hasHits = advancedSearchHasHits(results);
@@ -83,7 +104,7 @@ function SearchDropdownPanel({
       )}
       {showResults && hasHits && results && (
         <div className="max-h-[min(24rem,70vh)] overflow-y-auto">
-          {results.clips.length > 0 && (
+          {show('clips') && results.clips.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-flare/90 uppercase tracking-wide">
                 Clips
@@ -116,10 +137,10 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
-          {results.users.length > 0 && (
+          {show('friends') && results.users.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-green-400/90 uppercase tracking-wide flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" /> Feedback Users
+                <Users className="w-3.5 h-3.5" /> Friends
               </div>
               {results.users.map((u) => (
                 <button
@@ -152,7 +173,7 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
-          {results.artists.length > 0 && (
+          {show('artists') && results.artists.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-rose/90 uppercase tracking-wide flex items-center gap-1">
                 <Music className="w-3.5 h-3.5" /> Artists
@@ -179,7 +200,7 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
-          {results.venues.length > 0 && (
+          {show('venues') && results.venues.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-blue-300/90 uppercase tracking-wide flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" /> Venues (Feedback)
@@ -200,7 +221,7 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
-          {results.jambase && results.jambase.venues.length > 0 && (
+          {show('venues') && results.jambase && results.jambase.venues.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-glacier/90 uppercase tracking-wide flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" /> Venues
@@ -223,7 +244,7 @@ function SearchDropdownPanel({
               })}
             </div>
           )}
-          {results.jambase && results.jambase.events.length > 0 && (
+          {show('shows') && results.jambase && results.jambase.events.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-ember/90 uppercase tracking-wide flex items-center gap-1">
                 <Ticket className="w-3.5 h-3.5" /> Shows
@@ -255,6 +276,29 @@ function SearchDropdownPanel({
               })}
             </div>
           )}
+          {show('songs') && (results.songs ?? []).length > 0 && (
+            <div className="border-b border-white/10">
+              <div className="px-3 py-2 text-xs font-semibold text-momentum-flare/90 uppercase tracking-wide flex items-center gap-1">
+                <Music className="w-3.5 h-3.5" /> Songs
+              </div>
+              {(results.songs ?? []).map((song) => (
+                <button
+                  key={song.slug}
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate(globalSongPath(song.slug));
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 min-w-0"
+                >
+                  <span className="block truncate font-medium">{song.title}</span>
+                  {song.artist_name ? (
+                    <span className="block truncate text-xs text-gray-400">{song.artist_name}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             onClick={onDiscoverAll}
@@ -284,6 +328,7 @@ export default function AdvancedSearchDropdown({
   onDiscoverAll,
   onClipSelect,
   variant = 'header',
+  sections = DEFAULT_SECTIONS,
   anchorRef,
   dropdownRef,
 }: Props) {
@@ -321,6 +366,9 @@ export default function AdvancedSearchDropdown({
 
   if (!open || query.trim().length < 2) return null;
 
+  const allowed = new Set(sections);
+  const show = (section: SearchDropdownSection) => allowed.has(section);
+
   const panelProps = {
     loading,
     revalidating,
@@ -328,6 +376,7 @@ export default function AdvancedSearchDropdown({
     onClose,
     onDiscoverAll,
     onClipSelect,
+    show,
   };
 
   if (variant === 'hero' && anchorRef && portalStyle) {

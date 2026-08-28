@@ -65,6 +65,7 @@ export function useAdvancedSearch() {
           artists: [],
           venues: [],
           users: [],
+          songs: [],
           jambase: { artists: [], venues: [], events: [] },
           jambaseNotice: timedOut
             ? 'Search timed out — JamBase may be slow or misconfigured on the worker. Try again or check JAMBASE_API_KEY.'

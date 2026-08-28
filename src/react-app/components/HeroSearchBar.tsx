@@ -79,22 +79,18 @@ export default function HeroSearchBar({
         onSubmit={submit}
         className={`w-full ${className}`.trim()}
       >
-        <div ref={containerRef} className="relative group z-10">
-          <div
-            className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-momentum-ember/50 via-momentum-flare/40 to-momentum-ember/50 opacity-60 blur-sm transition-opacity group-focus-within:opacity-100"
-            aria-hidden
-          />
-          <div className="relative flex items-center gap-2 rounded-2xl glass-input p-1 shadow-glass-lg">
+        <div ref={containerRef} className="relative z-10">
+          <div className="relative flex items-center gap-1.5 overflow-hidden rounded-full glass-input py-0.5 pl-0.5 pr-1">
             <IonSearchbar
               className="app-searchbar-hero min-w-0 flex-1"
               value={query}
               debounce={0}
-              placeholder="Search artists, venues, songs, clips…"
+              placeholder="Search artists, friends, venues, songs…"
               enterkeyhint="search"
               onIonInput={(e) => handleInput(e.detail.value ?? '')}
               onIonFocus={() => query.trim().length >= 2 && setShowResults(true)}
             />
-            <IonButton type="submit" className="mr-1 shrink-0" color="primary">
+            <IonButton type="submit" className="app-hero-search-btn shrink-0" color="primary">
               Search
             </IonButton>
           </div>
@@ -109,20 +105,11 @@ export default function HeroSearchBar({
             onDiscoverAll={goToDiscover}
             onClipSelect={(clip, feed) => setClipModal({ clip, feed })}
             variant="hero"
+            sections={['artists', 'friends', 'venues', 'songs']}
             anchorRef={containerRef}
             dropdownRef={dropdownRef}
           />
         </div>
-        <p className="mt-3 text-center text-xs text-gray-500 sm:text-sm">
-          Or{' '}
-          <button
-            type="button"
-            onClick={() => navigate('/discover')}
-            className="text-momentum-flare/90 underline-offset-2 hover:text-momentum-flare hover:underline"
-          >
-            browse everything on Discover
-          </button>
-        </p>
       </form>
 
       {clipModal ? (

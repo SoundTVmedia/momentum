@@ -87,7 +87,7 @@ export default function Header() {
     <IonHeader className="app-top-header ion-no-border">
       <IonToolbar className="app-toolbar">
         <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-2.5 md:gap-3">
+          <div className="flex min-w-0 flex-col items-start justify-center gap-0.5">
             <button
               type="button"
               onClick={() => navigate('/')}

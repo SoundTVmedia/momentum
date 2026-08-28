@@ -21,6 +21,12 @@ export type AdvancedSearchPayload = {
     profile_image_url: string | null;
     clip_count: number;
   }[];
+  songs?: {
+    slug: string;
+    title: string;
+    artist_name: string | null;
+    clip_count: number;
+  }[];
   jambase?: {
     artists: Record<string, unknown>[];
     venues: Record<string, unknown>[];
@@ -55,6 +61,7 @@ export function advancedSearchHasHits(data: AdvancedSearchPayload | null): boole
     data.artists.length > 0 ||
     data.venues.length > 0 ||
     data.users.length > 0 ||
+    (data.songs?.length ?? 0) > 0 ||
     (data.jambase !== undefined &&
       (data.jambase.artists.length > 0 ||
         data.jambase.venues.length > 0 ||

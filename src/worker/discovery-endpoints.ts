@@ -47,6 +47,7 @@ import {
   searchFeedbackUsersInGeo,
 } from './search-users';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
+import { songSlugFromTitle, songTitleFromSlug } from '../shared/song-tag';
 
 function rewriteEventListForClient(
   events: unknown[],
@@ -55,6 +56,58 @@ function rewriteEventListForClient(
   return events
     .filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
     .map((e) => rewriteJamBaseEventImages(e, origin));
+}
+
+type SearchSongRow = {
+  slug: string;
+  title: string;
+  artist_name: string | null;
+  clip_count: number;
+};
+
+async function searchLibrarySongs(
+  db: D1Database,
+  query: string,
+  limit: number,
+  extra?: { sql: string; bindings: unknown[] },
+): Promise<SearchSongRow[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const titleLike = `%${trimmed}%`;
+  const slugHint = songSlugFromTitle(trimmed) || trimmed.toLowerCase();
+  const slugLike = `%${slugHint}%`;
+  const extraSql = extra?.sql ? ` AND ${extra.sql}` : '';
+  const extraBindings = extra?.bindings ?? [];
+
+  const rows = await db
+    .prepare(
+      `SELECT
+        clips.song_slug as slug,
+        MAX(clips.song_title) as title,
+        MAX(clips.artist_name) as artist_name,
+        COUNT(DISTINCT clips.id) as clip_count
+      FROM clips
+      WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+      AND clips.song_slug IS NOT NULL
+      AND TRIM(clips.song_slug) != ''
+      AND (
+        clips.song_title LIKE ? COLLATE NOCASE OR
+        clips.song_slug LIKE ? COLLATE NOCASE
+      )
+      ${extraSql}
+      GROUP BY clips.song_slug
+      ORDER BY clip_count DESC
+      LIMIT ?`,
+    )
+    .bind(titleLike, slugLike, ...extraBindings, limit)
+    .all();
+
+  return ((rows.results ?? []) as SearchSongRow[]).map((row) => ({
+    slug: row.slug,
+    title: (row.title && row.title.trim()) || songTitleFromSlug(row.slug),
+    artist_name: row.artist_name,
+    clip_count: Number(row.clip_count) || 0,
+  }));
 }
 
 async function fetchJamBaseCompactCatalog(
@@ -114,13 +167,14 @@ async function runGeoScopedAdvancedSearch(
     clipLimit: number;
     venueLimit: number;
     userLimit: number;
+    songLimit: number;
     dateRange: string;
     sortBy: string;
     jbKeyTrimmed: string;
     jbQ: ReturnType<typeof jamBaseQuotaFromEnv>;
   },
 ) {
-  const { geoAnchor, radiusMiles, compact, clipLimit, venueLimit, userLimit, dateRange, sortBy, jbKeyTrimmed, jbQ } =
+  const { geoAnchor, radiusMiles, compact, clipLimit, venueLimit, userLimit, songLimit, dateRange, sortBy, jbKeyTrimmed, jbQ } =
     opts;
   const geo = clipGeoWhereClause(geoAnchor, radiusMiles);
 
@@ -242,13 +296,14 @@ async function runGeoScopedAdvancedSearch(
           failed: false,
         });
 
-  const [clips, artists, venues, users, jbResult] = await Promise.all([
+  const [clips, artists, venues, users, songs, jbResult] = await Promise.all([
     c.env.DB.prepare(clipsQuery).bind(...clipsBindings).all(),
     c.env.DB.prepare(artistsQuery).bind(...geo.bindings).all(),
     venuesQuery
       ? c.env.DB.prepare(venuesQuery).bind(...geo.bindings).all()
       : Promise.resolve({ results: [] as SearchVenueRow[] }),
     searchFeedbackUsersInGeo(c.env.DB, geoAnchor, radiusMiles, userLimit),
+    searchLibrarySongs(c.env.DB, opts.trimmedQuery, songLimit, geo),
     jbPromise,
   ]);
 
@@ -312,6 +367,7 @@ async function runGeoScopedAdvancedSearch(
       users as unknown as Record<string, unknown>[],
       hiddenAuthors,
     ),
+    songs,
     jambase: {
       artists: [],
       venues: [],
@@ -336,7 +392,8 @@ export async function advancedSearch(c: Context) {
   const compact = c.req.query('compact') === '1';
   const clipLimit = compact ? 6 : 30;
   const venueLimit = compact ? 0 : 20;
-  const userLimit = compact ? 3 : 20;
+  const userLimit = compact ? 6 : 20;
+  const songLimit = compact ? 6 : 12;
   
   if (!query.trim()) {
     cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 120 });
@@ -345,6 +402,7 @@ export async function advancedSearch(c: Context) {
       artists: [],
       venues: [],
       users: [],
+      songs: [],
       jambase: { artists: [], venues: [], events: [] },
     });
   }
@@ -369,6 +427,7 @@ export async function advancedSearch(c: Context) {
       clipLimit,
       venueLimit,
       userLimit,
+      songLimit,
       dateRange,
       sortBy,
       jbKeyTrimmed,
@@ -401,11 +460,12 @@ export async function advancedSearch(c: Context) {
     WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
     AND (
       clips.artist_name LIKE ? OR
-      clips.venue_name LIKE ?
+      clips.venue_name LIKE ? OR
+      clips.song_title LIKE ?
     )
     ORDER BY clips.created_at DESC
     LIMIT ${clipLimit}`;
-    clipsBindings = [like, like];
+    clipsBindings = [like, like, like];
   } else {
     clipsQuery = `
     SELECT 
@@ -470,6 +530,7 @@ export async function advancedSearch(c: Context) {
           .all()
       : Promise.resolve({ results: [] as SearchVenueRow[] }),
     searchFeedbackUsersByText(c.env.DB, trimmedQuery, userLimit),
+    searchLibrarySongs(c.env.DB, trimmedQuery, songLimit),
   ]);
 
   const jbPromise =
@@ -522,7 +583,7 @@ export async function advancedSearch(c: Context) {
           failed: false,
         });
 
-  const [[clips, venues, users], jbResult] = await Promise.all([d1Promise, jbPromise]);
+  const [[clips, venues, users, songs], jbResult] = await Promise.all([d1Promise, jbPromise]);
 
   const jambase = {
     artists: jbResult.artists,
@@ -592,6 +653,7 @@ export async function advancedSearch(c: Context) {
       users as unknown as Record<string, unknown>[],
       hiddenAuthors,
     ),
+    songs,
     jambase: {
       artists: rewriteJamBaseEntities(jambase.artists),
       venues: rewriteJamBaseEntities(jambase.venues),

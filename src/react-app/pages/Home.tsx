@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
+import HeroSearchBar from '@/react-app/components/HeroSearchBar'
 import Footer from '@/react-app/components/Footer'
 import MainFeedStack from '@/react-app/components/MainFeedStack'
 import { useAuth } from '@getmocha/users-service/react'
@@ -11,6 +12,10 @@ export default function Home() {
   return (
     <div className="min-h-screen text-white">
       <Header />
+
+      <div className="relative z-40 bg-momentum-ink py-3">
+        <HeroSearchBar className="mx-auto w-[75%]" />
+      </div>
 
       <HeroSection />
 
