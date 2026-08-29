@@ -353,13 +353,18 @@ export function partitionShowMarksForLists(
 export function isActiveShowMarkForCapture(
   mark: UserShowMark,
   nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
 ): boolean {
   const ev = showMarkToJamBaseEvent(mark);
   if (mark.status === 'going') {
-    return jamBaseEventUpcomingOrInProgress(ev, nowMs);
+    if (jamBaseEventUpcomingOrInProgress(ev, nowMs, userLat, userLon)) return true;
+    // After ~8pm US time, UTC "today" has already rolled. JamBase startDate is
+    // venue-local wall time — keep tonight's Going mark even when timezone is missing.
+    return jamBaseEventMatchesCapture(ev, nowMs, userLat, userLon);
   }
   if (mark.status === 'attended') {
-    return jamBaseEventInProgress(ev, nowMs);
+    return jamBaseEventInProgress(ev, nowMs, userLat, userLon);
   }
   return false;
 }
@@ -434,6 +439,10 @@ export function pickGoingShowMarkForCapture(
     const sd = mark.start_date?.trim();
     if (sd) {
       const ev = showMarkToJamBaseEvent(mark);
+      if (jamBaseEventMatchesCapture(ev, captureMs, userLat, userLon)) {
+        matching.push(mark);
+        continue;
+      }
       if (jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)) {
         matching.push(mark);
       }

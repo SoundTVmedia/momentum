@@ -430,11 +430,11 @@ export default function QuickRecordButton({
     applyGoingCaptureCandidate,
   ]);
 
-  /** When GPS is unavailable, fall back to same-day Going / I'm there marks or sticky venue. */
+  /** Going mark fills immediately — do not wait on GPS. */
   useEffect(() => {
-    if (!showModal || !showMarksHydrated || !captureLaunchGeoResolved) return;
+    if (!showModal || !showMarksHydrated) return;
+    if (captureGoingAppliedRef.current) return;
     if (coordsForNearbyVenues) return;
-    if (captureGoingAppliedRef.current || captureVenueFetchStartedRef.current) return;
 
     const autoFill = resolveCameraGoingAutoFill(captureMarks, Date.now());
     if (autoFill) {
@@ -442,6 +442,7 @@ export default function QuickRecordButton({
       return;
     }
 
+    if (!captureLaunchGeoResolved) return;
     const sticky = loadStickyCaptureShowSession({
       uploadsInFlight: clipUploadsInFlight > 0,
     });
@@ -454,6 +455,7 @@ export default function QuickRecordButton({
     captureLaunchGeoResolved,
     coordsForNearbyVenues,
     captureMarks,
+    clipUploadsInFlight,
     applyGoingCaptureCandidate,
   ]);
 

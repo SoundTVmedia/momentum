@@ -8,6 +8,7 @@ import {
   ymdInTimeZone,
 } from './jambase-event-day';
 import {
+  pickClosestGoingShowMark,
   pickGoingShowMarkForCapture,
   pickInProgressGoingShowMark,
   pickLastEligibleGoingShowMark,
@@ -241,13 +242,14 @@ export function candidateIsAtVenue(candidate: ClipShowCandidate): boolean {
 }
 
 /**
- * Camera auto-fill: in-progress "I'm there" mark → same-day Going mark → null (JamBase picker).
+ * Camera auto-fill: in-progress "I'm there" → same-night Going → nearest upcoming Going.
  */
 export function resolveCameraGoingAutoFill(
   goingMarks: UserShowMark[],
   captureMs: number,
   userLat?: number,
   userLon?: number,
+  opts?: { includeUpcoming?: boolean },
 ): { candidate: ClipShowCandidate; matchSource: CameraVenueMatchSource } | null {
   const imThere = pickInProgressGoingShowMark(goingMarks, captureMs, userLat, userLon);
   if (imThere) {
@@ -257,13 +259,25 @@ export function resolveCameraGoingAutoFill(
     };
   }
 
-  const sameDay = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
-  if (!sameDay) return null;
+  const sameNight = pickGoingShowMarkForCapture(goingMarks, captureMs, userLat, userLon);
+  if (sameNight) {
+    return {
+      candidate: showMarkToClipCandidate(sameNight),
+      matchSource: 'going',
+    };
+  }
 
-  return {
-    candidate: showMarkToClipCandidate(sameDay),
-    matchSource: 'going',
-  };
+  if (opts?.includeUpcoming === false) return null;
+
+  const closest = pickClosestGoingShowMark(goingMarks, captureMs, userLat, userLon);
+  if (closest) {
+    return {
+      candidate: showMarkToClipCandidate(closest),
+      matchSource: 'going_fallback',
+    };
+  }
+
+  return null;
 }
 
 /** Last eligible Going mark when GPS or venue match is unavailable. */
@@ -336,6 +350,7 @@ export function resolveShowMatchFromCandidates(
     captureMs,
     userLat,
     userLon,
+    { includeUpcoming: false },
   );
   if (autoFill) {
     const goingId = autoFill.candidate.jambase_event_id;
@@ -417,6 +432,7 @@ export function resolveShowAutoApplyCandidate(
     captureMs,
     userLat,
     userLon,
+    { includeUpcoming: false },
   );
   if (autoFill) return autoFill.candidate;
 

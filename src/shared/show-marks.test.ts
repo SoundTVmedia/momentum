@@ -10,6 +10,7 @@ import {
   pickGoingShowMarkForCapture,
   pickLastEligibleGoingShowMark,
   pickShowMarkForLibraryUpload,
+  isActiveShowMarkForCapture,
   showMarkButtonLabelForEvent,
   showMarkToJamBaseEvent,
   upcomingGoingMarkEvents,
@@ -299,6 +300,14 @@ describe('pickGoingShowMarkForCapture', () => {
     );
     expect(picked?.jambase_event_id).toBe('tonight');
   });
+
+  it('matches tonight\'s going mark after UTC midnight without a venue timezone', () => {
+    const picked = pickGoingShowMarkForCapture(
+      [mark({ jambase_event_id: 'tonight', start_date: '2026-08-28T20:00:00', venue_timezone: null })],
+      Date.parse('2026-08-29T00:25:00.000Z'),
+    );
+    expect(picked?.jambase_event_id).toBe('tonight');
+  });
 });
 
 describe('showMarkShouldPromoteGoingToAttended', () => {
@@ -328,6 +337,17 @@ describe('showMarkShouldPromoteGoingToAttended', () => {
         nowMs,
       ),
     ).toBe(false);
+  });
+});
+
+describe('isActiveShowMarkForCapture', () => {
+  it('keeps tonight\'s going mark after UTC midnight when timezone is missing', () => {
+    expect(
+      isActiveShowMarkForCapture(
+        mark({ start_date: '2026-08-28T20:00:00', venue_timezone: null }),
+        Date.parse('2026-08-29T00:25:00.000Z'),
+      ),
+    ).toBe(true);
   });
 });
 

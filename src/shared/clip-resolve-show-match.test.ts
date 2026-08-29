@@ -279,7 +279,17 @@ describe('resolveCameraGoingAutoFill', () => {
     expect(result?.matchSource).toBe('going');
   });
 
-  it('does not auto-fill future going marks', () => {
+  it('fills tonight\'s going mark after UTC midnight when venue timezone is missing', () => {
+    const captureMs = Date.parse('2026-08-29T00:25:00.000Z'); // 8:25pm Eastern Aug 28
+    const result = resolveCameraGoingAutoFill(
+      [goingMark({ start_date: '2026-08-28T20:00:00', venue_timezone: null })],
+      captureMs,
+    );
+    expect(result?.matchSource).toBe('going');
+    expect(result?.candidate.event_title).toBe('Show');
+  });
+
+  it('auto-fills the closest upcoming going mark when none are tonight', () => {
     const captureMs = Date.parse('2026-06-09T22:00:00.000Z');
     const result = resolveCameraGoingAutoFill(
       [goingMark({ start_date: '2026-06-20T20:00:00' })],
@@ -287,7 +297,8 @@ describe('resolveCameraGoingAutoFill', () => {
       40.73,
       -73.99,
     );
-    expect(result).toBeNull();
+    expect(result?.matchSource).toBe('going_fallback');
+    expect(result?.candidate.jambase_event_id).toBe('jambase:ev-going');
   });
 });
 
