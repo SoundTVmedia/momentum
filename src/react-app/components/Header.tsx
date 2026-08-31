@@ -154,13 +154,6 @@ export default function Header() {
               <IonButtons>
                 <IonButton
                   className="hidden md:inline-flex"
-                  color="primary"
-                  onClick={() => navigate('/upload')}
-                >
-                  Share
-                </IonButton>
-                <IonButton
-                  className="hidden md:inline-flex"
                   fill="clear"
                   onClick={() => navigate(`/users/${user.id}`)}
                   aria-label="Your profile"

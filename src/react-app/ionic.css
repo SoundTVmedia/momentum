@@ -352,23 +352,78 @@ ion-searchbar.app-searchbar-hero {
   padding: 0;
 }
 
-ion-button.app-hero-search-btn {
-  --padding-start: 0.72rem;
-  --padding-end: 0.72rem;
-  --padding-top: 0.28rem;
-  --padding-bottom: 0.28rem;
-  --border-radius: 9999px;
-  font-size: 0.8125rem;
-  font-weight: 650;
-  min-height: 1.9rem;
-  height: 1.9rem;
+.hero-search-pill {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  min-height: 2.85rem;
+  border-radius: 9999px;
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.92);
 }
 
-ion-button.app-hero-search-btn::part(native) {
-  min-height: 1.9rem;
-  padding-inline: 0.72rem;
-  font-size: 0.8125rem;
-  border-radius: 9999px;
+.hero-search-pill:focus-within {
+  border-color: #ffffff;
+}
+
+.hero-search-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 3.2rem;
+  background: #ffffff;
+  border-top-right-radius: 0.7rem;
+  border-bottom-right-radius: 0.7rem;
+}
+
+.hero-search-mark img {
+  display: block;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 0.38rem;
+}
+
+.hero-search-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0 0.75rem;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.hero-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.hero-search-input::-webkit-search-decoration,
+.hero-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.hero-search-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.7rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.hero-search-submit ion-icon {
+  font-size: 1.25rem;
 }
 
 ion-segment.app-feed-segment {

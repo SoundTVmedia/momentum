@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { IonButton, IonSearchbar } from '@ionic/react';
+import { IonIcon } from '@ionic/react';
+import { searchOutline } from 'ionicons/icons';
 import { useNavigate } from 'react-router';
 import AdvancedSearchDropdown, {
   UNIVERSAL_SEARCH_SECTIONS,
@@ -82,19 +83,26 @@ export default function HeroSearchBar({
         className={`w-full ${className}`.trim()}
       >
         <div ref={containerRef} className="relative z-10">
-          <div className="relative flex items-center gap-1.5 overflow-hidden rounded-full glass-input py-0.5 pl-0.5 pr-1">
-            <IonSearchbar
-              className="app-searchbar-hero min-w-0 flex-1"
+          <div className="hero-search-pill">
+            <span className="hero-search-mark" aria-hidden>
+              <img src="/favicon.svg" alt="" width={28} height={28} />
+            </span>
+            <input
+              type="search"
+              className="hero-search-input"
               value={query}
-              debounce={0}
               placeholder="Search artists, friends, venues, songs…"
-              enterkeyhint="search"
-              onIonInput={(e) => handleInput(e.detail.value ?? '')}
-              onIonFocus={() => query.trim().length >= 2 && setShowResults(true)}
+              enterKeyHint="search"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-label="Search artists, friends, venues, songs"
+              onChange={(e) => handleInput(e.target.value)}
+              onFocus={() => query.trim().length >= 2 && setShowResults(true)}
             />
-            <IonButton type="submit" className="app-hero-search-btn shrink-0" color="primary">
-              Search
-            </IonButton>
+            <button type="submit" className="hero-search-submit" aria-label="Search">
+              <IonIcon icon={searchOutline} />
+            </button>
           </div>
 
           <AdvancedSearchDropdown
