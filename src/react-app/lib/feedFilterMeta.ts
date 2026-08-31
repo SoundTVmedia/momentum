@@ -10,7 +10,6 @@ export type FeedFilterMeta = {
 /** Static heading for the home / feed "From The Scene" block (toggle labels are separate). */
 export const FROM_THE_SCENE_SECTION = {
   title: 'From The Scene',
-  description: 'Latest and Greatest from the Community',
 } as const;
 
 export const FEED_FILTER_OPTIONS: FeedFilterMeta[] = [

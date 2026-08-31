@@ -288,9 +288,6 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>From The Scene</Text>
-          <Text style={styles.sectionSubtitle}>
-            Fresh concert clips from everywhere
-          </Text>
           <View style={styles.filters}>
             {SORT_OPTIONS.map((option) => {
               const active = sortBy === option.value;
@@ -445,9 +442,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.title,
     fontSize: 20,
-  },
-  sectionSubtitle: {
-    ...typography.caption,
   },
   filters: {
     flexDirection: 'row',

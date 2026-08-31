@@ -53,7 +53,6 @@ export function FeedSectionHeader() {
   return (
     <SectionHeading
       title={FROM_THE_SCENE_SECTION.title}
-      subtitle={FROM_THE_SCENE_SECTION.description}
       size="section"
     />
   )
