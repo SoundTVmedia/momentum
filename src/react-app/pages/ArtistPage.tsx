@@ -48,17 +48,24 @@ interface ArtistData {
   jambase_attribution?: boolean;
 }
 
-function parseArtistSocialLinks(raw: string | null | undefined): Record<string, string> {
-  if (raw == null || !String(raw).trim()) return {};
-  try {
-    const v = JSON.parse(String(raw));
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      return v as Record<string, string>;
+function parseArtistSocialLinks(raw: unknown): Record<string, string> {
+  if (raw == null) return {};
+  let value: unknown = raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return {};
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      return {};
     }
-  } catch {
-    /* ignore */
   }
-  return {};
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof entry === 'string' && entry.trim()) out[key] = entry.trim();
+  }
+  return out;
 }
 
 interface LiveShow {

@@ -61,6 +61,10 @@ export function useHorizontalFeedSwipe({
     let tracking = false;
 
     const onTouchStart = (e: TouchEvent) => {
+      if (e.target instanceof Element && e.target.closest('a, button, input, textarea, select, [role="button"]')) {
+        tracking = false;
+        return;
+      }
       if (e.touches.length !== 1) return;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;

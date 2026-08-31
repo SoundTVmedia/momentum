@@ -26,6 +26,12 @@ describe('merchUrlFromArtistSocialLinks', () => {
     );
   });
 
+  it('uses bandcamp when merch and website shop keys are missing', () => {
+    expect(merchUrlFromArtistSocialLinks({ bandcamp: 'https://radiohead.bandcamp.com' })).toBe(
+      'https://radiohead.bandcamp.com/',
+    );
+  });
+
   it('returns null for JamBase-only websites', () => {
     expect(
       merchUrlFromArtistSocialLinks({ website: 'https://www.jambase.com/band/phish' }),

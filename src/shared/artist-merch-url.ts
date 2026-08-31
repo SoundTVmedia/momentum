@@ -49,6 +49,7 @@ export function merchUrlFromArtistSocialLinks(raw: unknown): string | null {
     normalizeExternalHttpUrl(links.merch) ??
     normalizeExternalHttpUrl(links.shop) ??
     normalizeExternalHttpUrl(links.store) ??
+    normalizeExternalHttpUrl(links.bandcamp) ??
     normalizeExternalHttpUrl(links.website)
   );
 }

@@ -24,6 +24,20 @@ describe('jamBaseArtistSocialLinks', () => {
     });
   });
 
+  it('maps bandcamp and merch identifiers to merch', () => {
+    expect(
+      jamBaseArtistSocialLinks({
+        sameAs: [{ identifier: 'bandcamp', url: 'https://phish.bandcamp.com' }],
+      }),
+    ).toEqual({ merch: 'https://phish.bandcamp.com/' });
+  });
+
+  it('falls back to artist.url when sameAs is missing', () => {
+    expect(jamBaseArtistSocialLinks({ url: 'https://www.phish.com' })).toEqual({
+      website: 'https://www.phish.com/',
+    });
+  });
+
   it('skips JamBase profile URLs tagged as officialSite', () => {
     expect(
       jamBaseArtistSocialLinks({
@@ -71,6 +85,13 @@ describe('parseArtistSocialLinksJson', () => {
     expect(parseArtistSocialLinksJson(JSON.stringify({ website: 'https://a.com', merch: 'https://shop.com' }))).toEqual({
       website: 'https://a.com',
       merch: 'https://shop.com',
+    });
+  });
+
+  it('accepts an already-parsed object from D1', () => {
+    expect(parseArtistSocialLinksJson({ website: 'https://phish.com', instagram: 'https://ig.com/phish' })).toEqual({
+      website: 'https://phish.com',
+      instagram: 'https://ig.com/phish',
     });
   });
 });

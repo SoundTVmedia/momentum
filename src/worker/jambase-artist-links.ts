@@ -1,6 +1,13 @@
 /** JamBase `sameAs.identifier` → `artists.social_links` JSON keys used by the SPA. */
 const JAMBASE_URL_TYPE_TO_SOCIAL_KEY: Record<string, string> = {
   officialSite: 'website',
+  officialWebsite: 'website',
+  website: 'website',
+  homepage: 'website',
+  merch: 'merch',
+  shop: 'merch',
+  store: 'merch',
+  bandcamp: 'merch',
   instagram: 'instagram',
   twitter: 'twitter',
   youtube: 'youtube',
@@ -48,39 +55,53 @@ function urlFromJamBaseSameAsEntry(entry: unknown): { type: string; url: string 
   return { type, url };
 }
 
+export function jamBaseArtistHasSameAs(
+  artist: Record<string, unknown> | null | undefined,
+): boolean {
+  return Array.isArray(artist?.sameAs) && artist.sameAs.length > 0;
+}
+
 /** Official site + social URLs from JamBase `sameAs` (requires `expandArtistSameAs=true`). */
 export function jamBaseArtistSocialLinks(artist: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {};
   const sameAs = artist.sameAs;
-  if (!Array.isArray(sameAs)) return out;
+  if (Array.isArray(sameAs)) {
+    for (const entry of sameAs) {
+      const parsed = urlFromJamBaseSameAsEntry(entry);
+      if (!parsed) continue;
+      const key = JAMBASE_URL_TYPE_TO_SOCIAL_KEY[parsed.type];
+      if (!key || out[key]) continue;
+      if ((key === 'website' || key === 'merch') && isJambaseArtistProfileUrl(parsed.url)) continue;
+      out[key] = parsed.url;
+    }
+  }
 
-  for (const entry of sameAs) {
-    const parsed = urlFromJamBaseSameAsEntry(entry);
-    if (!parsed) continue;
-    const key = JAMBASE_URL_TYPE_TO_SOCIAL_KEY[parsed.type];
-    if (!key || out[key]) continue;
-    if (key === 'website' && isJambaseArtistProfileUrl(parsed.url)) continue;
-    out[key] = parsed.url;
+  if (!out.website && typeof artist.url === 'string') {
+    const url = normalizeHttpUrl(artist.url);
+    if (url && !isJambaseArtistProfileUrl(url)) out.website = url;
   }
 
   return out;
 }
 
-export function parseArtistSocialLinksJson(
-  raw: string | null | undefined,
-): Record<string, string> {
-  if (raw == null || !String(raw).trim()) return {};
-  try {
-    const v = JSON.parse(String(raw));
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) return {};
-    const out: Record<string, string> = {};
-    for (const [key, value] of Object.entries(v)) {
-      if (typeof value === 'string' && value.trim()) out[key] = value.trim();
+export function parseArtistSocialLinksJson(raw: unknown): Record<string, string> {
+  if (raw == null) return {};
+  let value: unknown = raw;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return {};
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      return {};
     }
-    return out;
-  } catch {
-    return {};
   }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof entry === 'string' && entry.trim()) out[key] = entry.trim();
+  }
+  return out;
 }
 
 /** JamBase fills missing keys; replaces a JamBase profile URL mistakenly stored as `website`. */

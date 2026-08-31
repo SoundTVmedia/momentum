@@ -22,10 +22,12 @@ import { fetchJamBaseEventsByVenueName } from './jambase-endpoints';
 import { enrichJamBaseVenueImage } from './discover-jambase-enrich';
 import {
   artistSocialLinksToJson,
+  jamBaseArtistHasSameAs,
   jamBaseArtistSocialLinks,
   mergeArtistSocialLinks,
   parseArtistSocialLinksJson,
 } from './jambase-artist-links';
+import { merchUrlFromArtistSocialLinks } from '../shared/artist-merch-url';
 import { rewriteJamBaseEventImages, rewriteMediaUrlForClient } from '../shared/media-proxy';
 import { clientMediaOrigin } from './client-media-origin';
 
@@ -143,9 +145,17 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
   const db = c.env.DB;
   const jbQ = jamBaseQuotaFromEnv(c.env);
 
-  let jambaseArtist: Record<string, unknown> | null = null;
   const phrase = searchPhraseFromSlug(slug);
+  let artist = (await db
+    .prepare(
+      `SELECT * FROM artists WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ? LIMIT 1`,
+    )
+    .bind(slug)
+    .first()) as Record<string, unknown> | null;
 
+  const hasStorefront = Boolean(merchUrlFromArtistSocialLinks(artist?.social_links));
+
+  let jambaseArtist: Record<string, unknown> | null = null;
   if (apiKey?.trim() && phrase) {
     const cached = jbQ?.db ? await lookupArtistIdByName(jbQ.db, phrase) : null;
     if (cached?.payload) {
@@ -155,16 +165,18 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
         jambaseArtist = null;
       }
     }
-    if (!jambaseArtist && cached?.jambase_id) {
+
+    const needSameAs = !hasStorefront && !jamBaseArtistHasSameAs(jambaseArtist);
+    if (needSameAs && cached?.jambase_id) {
       const byId = await jamBaseFetch<Record<string, unknown>>(
         apiKey,
         `/artists/${encodeURIComponent(cached.jambase_id)}`,
-        {},
+        { expandArtistSameAs: 'true' },
         jbQ,
       );
       if (byId) jambaseArtist = byId;
     }
-    if (!jambaseArtist) {
+    if (needSameAs && !jamBaseArtistHasSameAs(jambaseArtist)) {
       const list = await jamBaseFetch<{ artists?: Record<string, unknown>[] }>(
         apiKey,
         '/artists',
@@ -174,13 +186,21 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
           page: '1',
           expandArtistSameAs: 'true',
         },
-        jbQ
+        jbQ,
       );
       const artists = list?.artists ?? [];
       if (artists.length) {
         jambaseArtist =
           artists.find((a) => slugifyEntityName(String(a.name)) === slug) ?? artists[0];
       }
+    } else if (!jambaseArtist && cached?.jambase_id) {
+      const byId = await jamBaseFetch<Record<string, unknown>>(
+        apiKey,
+        `/artists/${encodeURIComponent(cached.jambase_id)}`,
+        {},
+        jbQ,
+      );
+      if (byId) jambaseArtist = byId;
     }
   }
 
@@ -196,12 +216,14 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
       'Artist';
   }
 
-  let artist = (await db
-    .prepare(
-      `SELECT * FROM artists WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ? OR name = ? LIMIT 1`
-    )
-    .bind(slug, canonicalName)
-    .first()) as Record<string, unknown> | null;
+  if (!artist) {
+    artist = (await db
+      .prepare(
+        `SELECT * FROM artists WHERE LOWER(REPLACE(TRIM(name), ' ', '-')) = ? OR name = ? LIMIT 1`,
+      )
+      .bind(slug, canonicalName)
+      .first()) as Record<string, unknown> | null;
+  }
 
   if (!artist && canonicalName) {
     try {
@@ -253,15 +275,9 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
 
   const jbSocialLinks = jambaseArtist ? jamBaseArtistSocialLinks(jambaseArtist) : {};
   const mergedSocialLinks = artistSocialLinksToJson(
-    mergeArtistSocialLinks(
-      parseArtistSocialLinksJson(
-        artist && typeof artist.social_links === 'string' ? artist.social_links : null,
-      ),
-      jbSocialLinks,
-    ),
+    mergeArtistSocialLinks(parseArtistSocialLinksJson(artist?.social_links), jbSocialLinks),
   );
-  const priorSocialLinks =
-    artist && typeof artist.social_links === 'string' ? artist.social_links : null;
+  const priorSocialLinks = artistSocialLinksToJson(parseArtistSocialLinksJson(artist?.social_links));
 
   if (
     artist &&
