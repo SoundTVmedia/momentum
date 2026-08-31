@@ -4,11 +4,6 @@ import StreamVideoPlayer, {
   type StreamVideoPlayerPlaybackState,
   type StreamVideoPlayerFailure,
 } from '@/react-app/components/StreamVideoPlayer';
-import {
-  clipDisplayAspectRatio,
-  clipModalPrefersFullWidth,
-  clipModalFallbackAspectRatio,
-} from '@/react-app/utils/clipDisplayAspectRatio';
 import type { ClipWithUser } from '@/shared/types';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 
@@ -24,7 +19,7 @@ type ClipModalMaximizedVideoProps = {
   onPlaybackFailed?: (failure: StreamVideoPlayerFailure) => void;
 };
 
-/** Fills the modal player; landscape / 16:9 clips span full width, portrait clips span full height. */
+/** Fills the modal player edge-to-edge (crop, no letterbox), matching feed tiles. */
 const ClipModalMaximizedVideo = forwardRef<
   StreamVideoPlayerHandle,
   ClipModalMaximizedVideoProps
@@ -33,46 +28,35 @@ const ClipModalMaximizedVideo = forwardRef<
   ref,
 ) {
   const clipId = clipNumericId(clip);
-  const fullWidth = clipModalPrefersFullWidth(clip);
-  const ratioStr = clipDisplayAspectRatio(clip) ?? clipModalFallbackAspectRatio(clip);
 
   return (
     <div
-      className="relative flex h-full w-full min-h-0 items-center justify-center overflow-hidden bg-black"
+      className="relative h-full w-full min-h-0 overflow-hidden bg-black"
       {...swipeHandlers}
     >
-      <div
-        className={
-          fullWidth
-            ? 'relative w-full max-h-full overflow-hidden bg-black'
-            : 'relative h-full max-w-full overflow-hidden bg-black'
-        }
-        style={{ aspectRatio: ratioStr }}
-      >
-        <StreamVideoPlayer
-          key={String(clipId ?? clip.video_url ?? clip.stream_video_id ?? 'clip')}
-          ref={ref}
-          stream_video_id={clip.stream_video_id}
-          stream_playback_url={clip.stream_playback_url}
-          stream_thumbnail_url={clip.stream_thumbnail_url}
-          stream_mp4_url={clip.stream_mp4_url}
-          stream_mp4_status={clip.stream_mp4_status}
-          video_url={clip.video_url}
-          thumbnail_url={clip.thumbnail_url}
-          r2_raw_key={clip.r2_raw_key}
-          autoPlay
-          loop
-          controlsPlacement="hidden"
-          videoObjectFit="contain"
-          onPlaybackStateChange={onPlaybackStateChange}
-          clipId={clipId}
-          onViewsCountChange={onViewsCountChange}
-          onPlaybackFailed={onPlaybackFailed}
-          showLoadError={false}
-          className="absolute inset-0 h-full w-full"
-        />
-        {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}
-      </div>
+      <StreamVideoPlayer
+        key={String(clipId ?? clip.video_url ?? clip.stream_video_id ?? 'clip')}
+        ref={ref}
+        stream_video_id={clip.stream_video_id}
+        stream_playback_url={clip.stream_playback_url}
+        stream_thumbnail_url={clip.stream_thumbnail_url}
+        stream_mp4_url={clip.stream_mp4_url}
+        stream_mp4_status={clip.stream_mp4_status}
+        video_url={clip.video_url}
+        thumbnail_url={clip.thumbnail_url}
+        r2_raw_key={clip.r2_raw_key}
+        autoPlay
+        loop
+        controlsPlacement="hidden"
+        videoObjectFit="cover"
+        onPlaybackStateChange={onPlaybackStateChange}
+        clipId={clipId}
+        onViewsCountChange={onViewsCountChange}
+        onPlaybackFailed={onPlaybackFailed}
+        showLoadError={false}
+        className="absolute inset-0 h-full w-full"
+      />
+      {overlay ? <div className="absolute inset-0 z-10">{overlay}</div> : null}
     </div>
   );
 });

@@ -120,7 +120,7 @@ function ClipSlide({
           prefetchFull={prefetchFull}
         />
       ) : poster ? (
-        <Image source={{ uri: poster }} style={styles.video} contentFit="contain" />
+        <Image source={{ uri: poster }} style={styles.video} contentFit="cover" />
       ) : (
         <View style={[styles.video, styles.videoEmpty]}>
           <Text style={styles.emptyText}>{src ? 'Loading…' : 'No playable source'}</Text>

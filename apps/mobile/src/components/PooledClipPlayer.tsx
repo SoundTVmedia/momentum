@@ -91,7 +91,7 @@ export function PooledClipPlayer({
     <VideoView
       style={styles.video}
       player={player}
-      contentFit="contain"
+      contentFit="cover"
       nativeControls={isActive && modalVisible && appActive}
     />
   );

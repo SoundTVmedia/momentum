@@ -832,7 +832,7 @@ export default function ClipModal({
           {playbackFailurePanel}
         </div>
 
-        {/* Pin chrome to the viewport — not the letterboxed video box (16:9 / landscape clips). */}
+        {/* Pin chrome to the viewport, not the video element. */}
         <div className="pointer-events-none absolute inset-0 z-10">{mobileVideoOverlay}</div>
 
         {mobileCommentsOpen ? (

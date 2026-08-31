@@ -561,7 +561,7 @@ function StreamVideoPlayer(
         loop={loop}
         playsInline
         muted={isMuted}
-        className={`w-full h-full bg-black ${videoObjectFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+        className={`absolute inset-0 h-full w-full bg-black ${videoObjectFit === 'cover' ? 'object-cover' : 'object-contain'}`}
         preload="auto"
       />
 
