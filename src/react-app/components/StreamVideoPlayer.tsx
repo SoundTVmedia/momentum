@@ -62,11 +62,13 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
   /** When true, restart from the beginning when playback reaches the end. */
   loop?: boolean;
   className?: string;
-  /** How the video frame fills its box (modal landscape uses `cover` for edge-to-edge width). */
+  /** Crop inside the sized player frame (landscape = full width, portrait = full height). */
   videoObjectFit?: 'contain' | 'cover';
   /** Where play/mute/fullscreen chrome renders; `hidden` for parent-rendered controls (e.g. clip modal). */
   controlsPlacement?: StreamVideoPlayerControlsPlacement;
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
+  /** Intrinsic decoded size — used to size the modal to 16:9 width vs 9:16 height. */
+  onVideoDimensions?: (size: { width: number; height: number }) => void;
   /** When set, each play / loop records a view and reports the server total. */
   clipId?: number | null;
   onViewsCountChange?: (viewsCount: number) => void;
@@ -100,6 +102,7 @@ function StreamVideoPlayer(
   videoObjectFit = 'contain',
   controlsPlacement = 'bottom',
   onPlaybackStateChange,
+  onVideoDimensions,
   clipId = null,
   onViewsCountChange,
   onPlaybackFailed,
@@ -123,6 +126,8 @@ function StreamVideoPlayer(
   const [showControls, setShowControls] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const onVideoDimensionsRef = useRef(onVideoDimensions);
+  onVideoDimensionsRef.current = onVideoDimensions;
 
   useEffect(() => {
     onPlaybackStateChange?.({ isPlaying, isMuted });
@@ -369,6 +374,11 @@ function StreamVideoPlayer(
     const video = videoRef.current;
     if (!video) return;
 
+    const reportDimensions = () => {
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (w > 0 && h > 0) onVideoDimensionsRef.current?.({ width: w, height: h });
+    };
     const handlePlay = () => {
       setIsPlaying(true);
       setIsLoading(false);
@@ -429,6 +439,8 @@ function StreamVideoPlayer(
       void video.play().catch(() => {});
     };
 
+    video.addEventListener('loadedmetadata', reportDimensions);
+    video.addEventListener('loadeddata', reportDimensions);
     video.addEventListener('play', handlePlay);
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('pause', handlePause);
@@ -439,6 +451,8 @@ function StreamVideoPlayer(
     video.addEventListener('ended', handleEnded);
 
     return () => {
+      video.removeEventListener('loadedmetadata', reportDimensions);
+      video.removeEventListener('loadeddata', reportDimensions);
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('pause', handlePause);
