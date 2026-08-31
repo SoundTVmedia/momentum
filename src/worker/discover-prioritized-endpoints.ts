@@ -574,7 +574,7 @@ export async function getFavoriteArtistFeed(c: Context) {
         matchParts.push(songMatch.sql);
         matchBinds.push(...songMatch.binds);
       }
-      const friendMatch = inListSql('clips.mocha_user_id', friendIds, false);
+      const friendMatch = inListSql('clips.mocha_user_id', friendIds, true);
       if (friendIds.length > 0) {
         matchParts.push(friendMatch.sql);
         matchBinds.push(...friendMatch.binds);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Calendar, LifeBuoy, Loader2, Shield } from 'lucide-react';
+import { Calendar, LifeBuoy, Loader2, MapPin, Music, Shield } from 'lucide-react';
 import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
@@ -74,6 +74,22 @@ export default function OwnProfileHub({ onOpenCapture }: OwnProfileHubProps) {
         </div>
 
         <div className="mb-8 flex flex-col sm:flex-row gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/artist-hub')}
+            className="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/15 text-gray-200 hover:bg-white/10 transition-colors text-sm font-medium"
+          >
+            <Music className="w-4 h-4 shrink-0" />
+            Artist Hub
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/venue-hub')}
+            className="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/15 text-gray-200 hover:bg-white/10 transition-colors text-sm font-medium"
+          >
+            <MapPin className="w-4 h-4 shrink-0" />
+            Venue Hub
+          </button>
           <button
             type="button"
             onClick={() => navigate(MY_SHOWS_PATH)}

@@ -277,7 +277,19 @@ export function useFollow() {
   )
 
   const isFollowing = useCallback(
-    (userId: string) => following.has(userId),
+    (userId: string) => {
+      const id = userId.trim()
+      if (!id) return false
+      if (following.has(id)) return true
+      const lower = id.toLowerCase()
+      for (const key of following) {
+        if (key.startsWith('venue-') || key.startsWith('artist-') || key.startsWith('artist-name:')) {
+          continue
+        }
+        if (key.toLowerCase() === lower) return true
+      }
+      return false
+    },
     [following],
   )
 

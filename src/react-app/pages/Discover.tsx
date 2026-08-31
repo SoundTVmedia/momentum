@@ -16,6 +16,8 @@ import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import { PeopleFollowButton } from '@/react-app/components/FollowSearchActionLabel';
+import { useFollow } from '@/react-app/hooks/useFollow';
 import type { ClipWithUser } from '@/shared/types';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import DiscoverSectionTitle from '@/react-app/components/DiscoverSectionTitle';
@@ -135,6 +137,8 @@ function discoverShowsSearchOnly(params: URLSearchParams): boolean {
 export default function DiscoverPage() {
   const navigate = useNavigate();
   const isMobileViewport = useIsMobileViewport();
+  const { toggleFollow, isFollowing, isLoading: isFollowLoading, hydrated: followHydrated } =
+    useFollow();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState<SearchResults | null>(null);
@@ -590,27 +594,39 @@ export default function DiscoverPage() {
                 <DiscoverSectionTitle icon={Users} iconClassName="text-green-400" title="Feedback Users" />
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {results.users.map((u) => (
-                    <button
+                    <div
                       key={u.mocha_user_id}
-                      type="button"
-                      onClick={() => navigate(`/users/${u.mocha_user_id}`)}
                       className="glass-panel border border-green-500/20 rounded-xl p-4 hover:border-green-400/50 transition-all text-center"
                     >
-                      <div className="flex justify-center mb-3">
-                        <UserAvatar
-                          imageUrl={u.profile_image_url}
-                          displayName={u.display_name}
-                          seed={u.mocha_user_id}
-                          alt={u.display_name || 'User'}
-                          sizeClass="w-20 h-20"
-                          letterClassName="text-2xl font-semibold"
-                        />
-                      </div>
-                      <div className="text-white font-medium text-sm truncate">
-                        {u.display_name || 'Anonymous'}
-                      </div>
-                      <div className="text-gray-400 text-xs">{u.clip_count} clips</div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/users/${u.mocha_user_id}`)}
+                        className="w-full"
+                      >
+                        <div className="flex justify-center mb-3">
+                          <UserAvatar
+                            imageUrl={u.profile_image_url}
+                            displayName={u.display_name}
+                            seed={u.mocha_user_id}
+                            alt={u.display_name || 'User'}
+                            sizeClass="w-20 h-20"
+                            letterClassName="text-2xl font-semibold"
+                          />
+                        </div>
+                        <div className="text-white font-medium text-sm truncate">
+                          {u.display_name || 'Anonymous'}
+                        </div>
+                        <div className="text-gray-400 text-xs">{u.clip_count} clips</div>
+                      </button>
+                      <PeopleFollowButton
+                        displayName={u.display_name}
+                        following={isFollowing(u.mocha_user_id)}
+                        loading={isFollowLoading(u.mocha_user_id)}
+                        disabled={!followHydrated}
+                        onToggle={() => void toggleFollow(u.mocha_user_id)}
+                        className="mt-3 inline-flex items-center justify-center rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 hover:bg-white/15 disabled:opacity-50"
+                      />
+                    </div>
                   ))}
                 </div>
               </section>

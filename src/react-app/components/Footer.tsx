@@ -30,7 +30,9 @@ export default function Footer() {
   return (
     <footer className="glass-chrome border-t border-white/10">
       <div className="md:hidden px-4 py-10 text-center text-xs text-gray-500 space-y-3">
-        <div className="flex justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
+          <FooterResourceLink to="/artist-hub">Artist Hub</FooterResourceLink>
+          <FooterResourceLink to="/venue-hub">Venue Hub</FooterResourceLink>
           <FooterResourceLink to="/support">Support</FooterResourceLink>
           <FooterResourceLink to="/privacy">Privacy</FooterResourceLink>
           <FooterResourceLink to="/terms">Terms</FooterResourceLink>

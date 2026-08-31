@@ -7,6 +7,8 @@ import { artistPath, globalSongPath, venuePath } from '@/shared/app-paths';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import { PeopleFollowButton } from '@/react-app/components/FollowSearchActionLabel';
+import { useFollow } from '@/react-app/hooks/useFollow';
 import {
   advancedSearchHasHits,
   jamBaseEventTicket,
@@ -77,6 +79,8 @@ function SearchDropdownPanel({
   show,
 }: PanelProps) {
   const navigate = useNavigate();
+  const { toggleFollow, isFollowing, isLoading: isFollowLoading, hydrated: followHydrated } =
+    useFollow();
   const hasHits = advancedSearchHasHits(results);
   const showResults = Boolean(results) && (hasHits || revalidating);
 
@@ -148,33 +152,44 @@ function SearchDropdownPanel({
                 <Users className="w-3.5 h-3.5" /> People
               </div>
               {results.users.map((u) => (
-                <button
+                <div
                   key={u.mocha_user_id}
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    navigate(`/users/${u.mocha_user_id}`);
-                  }}
-                  className="w-full px-3 py-2 text-left text-sm text-white hover:bg-white/5 flex items-center gap-2 min-w-0"
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-white/5"
                 >
-                  <UserAvatar
-                    imageUrl={u.profile_image_url}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate(`/users/${u.mocha_user_id}`);
+                    }}
+                    className="min-w-0 flex-1 text-left text-sm text-white flex items-center gap-2"
+                  >
+                    <UserAvatar
+                      imageUrl={u.profile_image_url}
+                      displayName={u.display_name}
+                      seed={u.mocha_user_id}
+                      alt={u.display_name || 'User'}
+                      sizeClass="w-8 h-8"
+                      letterClassName="text-xs font-semibold"
+                      className="flex-shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{u.display_name || 'User'}</div>
+                      {u.clip_count > 0 ? (
+                        <div className="text-gray-500 text-xs truncate">
+                          {u.clip_count} clip{u.clip_count !== 1 ? 's' : ''}
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                  <PeopleFollowButton
                     displayName={u.display_name}
-                    seed={u.mocha_user_id}
-                    alt={u.display_name || 'User'}
-                    sizeClass="w-8 h-8"
-                    letterClassName="text-xs font-semibold"
-                    className="flex-shrink-0"
+                    following={isFollowing(u.mocha_user_id)}
+                    loading={isFollowLoading(u.mocha_user_id)}
+                    disabled={!followHydrated}
+                    onToggle={() => void toggleFollow(u.mocha_user_id)}
                   />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{u.display_name || 'User'}</div>
-                    {u.clip_count > 0 ? (
-                      <div className="text-gray-500 text-xs truncate">
-                        {u.clip_count} clip{u.clip_count !== 1 ? 's' : ''}
-                      </div>
-                    ) : null}
-                  </div>
-                </button>
+                </div>
               ))}
             </div>
           )}

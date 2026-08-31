@@ -5,6 +5,8 @@ import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import { artistPath } from '@/shared/app-paths';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import { FollowSearchActionLabel } from '@/react-app/components/FollowSearchActionLabel';
+import { FOLLOWING_CHANGED_EVENT, useFollow } from '@/react-app/hooks/useFollow';
 
 type UnifiedArtist = { identifier: string; name: string; image: string | null };
 type UnifiedVenue = { identifier: string; name: string; city: string; image: string | null };
@@ -41,6 +43,16 @@ const EMPTY_MANUAL: ManualShow = { artist: '', venue: '', city: '', date: '', no
 
 export default function UnifiedFavoritesAdd() {
   const navigate = useNavigate();
+  const {
+    toggleFollow,
+    toggleFollowArtist,
+    toggleFollowVenue,
+    isFollowing,
+    isFollowingArtist,
+    isArtistFollowLoading,
+    isLoading: isUserFollowLoading,
+    hydrated: followHydrated,
+  } = useFollow();
   const [query, setQuery] = useState('');
   const debounced = useDebounce(query.trim(), 350);
   const [loading, setLoading] = useState(false);
@@ -50,6 +62,8 @@ export default function UnifiedFavoritesAdd() {
   const [friends, setFriends] = useState<UnifiedFriend[]>([]);
   const [songs, setSongs] = useState<UnifiedSong[]>([]);
   const [followedArtists, setFollowedArtists] = useState<FollowedArtist[]>([]);
+  const [followedVenueNames, setFollowedVenueNames] = useState<Set<string>>(new Set());
+  const [followedSongSlugs, setFollowedSongSlugs] = useState<Set<string>>(new Set());
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,47 +118,75 @@ export default function UnifiedFavoritesAdd() {
     setStatus(message);
     setError(null);
     window.dispatchEvent(new CustomEvent('favorite-artists-changed'));
-    window.dispatchEvent(new CustomEvent('following-changed'));
+    window.dispatchEvent(new CustomEvent(FOLLOWING_CHANGED_EVENT));
   }, []);
 
-  const loadFollowedArtists = useCallback(async () => {
+  const loadFollowedCatalog = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' });
-      if (!res.ok) return;
-      const data = (await res.json()) as { artists?: { name?: string | null; image_url?: string | null }[] };
-      setFollowedArtists(
-        (data.artists ?? [])
-          .map((row) => ({
-            name: (row.name ?? '').trim(),
-            image_url: row.image_url ?? null,
-          }))
-          .filter((row) => row.name),
-      );
+      const [artistsRes, listRes, songsRes] = await Promise.all([
+        apiFetch('/api/users/me/favorite-artists', { cache: 'no-store' }),
+        apiFetch('/api/users/me/following/list', { cache: 'no-store' }),
+        apiFetch('/api/users/me/favorites?type=song', { cache: 'no-store' }),
+      ]);
+      if (artistsRes.ok) {
+        const data = (await artistsRes.json()) as {
+          artists?: { name?: string | null; image_url?: string | null }[];
+        };
+        setFollowedArtists(
+          (data.artists ?? [])
+            .map((row) => ({
+              name: (row.name ?? '').trim(),
+              image_url: row.image_url ?? null,
+            }))
+            .filter((row) => row.name),
+        );
+      }
+      if (listRes.ok) {
+        const data = (await listRes.json()) as { venues?: { name?: string | null }[] };
+        setFollowedVenueNames(
+          new Set(
+            (data.venues ?? [])
+              .map((row) => (row.name ?? '').trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        );
+      }
+      if (songsRes.ok) {
+        const data = (await songsRes.json()) as { favorites?: { entity_key?: string }[] };
+        setFollowedSongSlugs(
+          new Set(
+            (data.favorites ?? [])
+              .map((row) => (row.entity_key ?? '').trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        );
+      }
     } catch {
-      /* keep current list */
+      /* keep current lists */
     }
   }, []);
 
   useEffect(() => {
-    void loadFollowedArtists();
-    const refresh = () => void loadFollowedArtists();
+    void loadFollowedCatalog();
+    const refresh = () => void loadFollowedCatalog();
     window.addEventListener('favorite-artists-changed', refresh);
-    return () => window.removeEventListener('favorite-artists-changed', refresh);
-  }, [loadFollowedArtists]);
+    window.addEventListener(FOLLOWING_CHANGED_EVENT, refresh);
+    return () => {
+      window.removeEventListener('favorite-artists-changed', refresh);
+      window.removeEventListener(FOLLOWING_CHANGED_EVENT, refresh);
+    };
+  }, [loadFollowedCatalog]);
 
   const addArtist = async (name: string) => {
     setBusyKey(`artist:${name}`);
     try {
-      const res = await apiFetch('/api/users/me/favorites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'artist', name }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      added(`Added ${name}`);
-      void loadFollowedArtists();
+      const result = await toggleFollowArtist(0, name);
+      if (!result.success) throw new Error('Could not update artist follow');
+      setStatus(result.following ? `Following ${name}` : `Unfollowed ${name}`);
+      setError(null);
+      void loadFollowedCatalog();
     } catch (err) {
-      setError(apiFetchErrorMessage(err, 'Could not add artist'));
+      setError(apiFetchErrorMessage(err, 'Could not update artist follow'));
     } finally {
       setBusyKey(null);
     }
@@ -153,14 +195,13 @@ export default function UnifiedFavoritesAdd() {
   const addFriend = async (friend: UnifiedFriend) => {
     setBusyKey(`friend:${friend.mocha_user_id}`);
     try {
-      const res = await apiFetch(`/api/users/${encodeURIComponent(friend.mocha_user_id)}/follow`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!res.ok) throw new Error(await res.text());
-      added(`Following ${friend.display_name || 'friend'}`);
+      const result = await toggleFollow(friend.mocha_user_id);
+      if (!result.success) throw new Error('Could not update follow');
+      const label = friend.display_name || 'friend';
+      setStatus(result.following ? `Following ${label}` : `Unfollowed ${label}`);
+      setError(null);
     } catch (err) {
-      setError(apiFetchErrorMessage(err, 'Could not follow user'));
+      setError(apiFetchErrorMessage(err, 'Could not update follow'));
     } finally {
       setBusyKey(null);
     }
@@ -168,16 +209,26 @@ export default function UnifiedFavoritesAdd() {
 
   const addSong = async (song: UnifiedSong) => {
     setBusyKey(`song:${song.slug}`);
+    const already = followedSongSlugs.has(song.slug.toLowerCase());
     try {
-      const res = await apiFetch('/api/users/me/favorites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'song', name: song.title || song.slug }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      added(`Following ${song.title}`);
+      if (already) {
+        const res = await apiFetch(
+          `/api/users/me/favorites/song/${encodeURIComponent(song.slug)}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) throw new Error(await res.text());
+        added(`Unfollowed ${song.title}`);
+      } else {
+        const res = await apiFetch('/api/users/me/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'song', name: song.title || song.slug }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        added(`Following ${song.title}`);
+      }
     } catch (err) {
-      setError(apiFetchErrorMessage(err, 'Could not save song'));
+      setError(apiFetchErrorMessage(err, already ? 'Could not unfollow song' : 'Could not save song'));
     } finally {
       setBusyKey(null);
     }
@@ -186,19 +237,13 @@ export default function UnifiedFavoritesAdd() {
   const addVenue = async (venue: UnifiedVenue) => {
     setBusyKey(`venue:${venue.identifier || venue.name}`);
     try {
-      const res = await apiFetch('/api/users/me/favorites', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'venue',
-          name: venue.name,
-          jambase_id: venue.identifier || undefined,
-        }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      added(`Following ${venue.name}`);
+      const result = await toggleFollowVenue(0, venue.name, venue.identifier || null);
+      if (!result.success) throw new Error('Could not update venue follow');
+      setStatus(result.following ? `Following ${venue.name}` : `Unfollowed ${venue.name}`);
+      setError(null);
+      void loadFollowedCatalog();
     } catch (err) {
-      setError(apiFetchErrorMessage(err, 'Could not add venue'));
+      setError(apiFetchErrorMessage(err, 'Could not update venue follow'));
     } finally {
       setBusyKey(null);
     }
@@ -289,7 +334,6 @@ export default function UnifiedFavoritesAdd() {
   };
 
   const hasResults = artists.length + venues.length + shows.length + friends.length + songs.length > 0;
-  const followedNameSet = new Set(followedArtists.map((a) => a.name.toLowerCase()));
 
   return (
     <div>
@@ -351,13 +395,15 @@ export default function UnifiedFavoritesAdd() {
           </h3>
           <ul className="space-y-2">
             {artists.map((artist) => {
-              const alreadyFollowing = followedNameSet.has(artist.name.toLowerCase());
+              const alreadyFollowing = isFollowingArtist(0, artist.name);
+              const artistBusy =
+                busyKey === `artist:${artist.name}` || isArtistFollowLoading(0, artist.name);
               return (
               <li key={artist.identifier || artist.name}>
                 <button
                   type="button"
                   onClick={() => void addArtist(artist.name)}
-                  disabled={busyKey === `artist:${artist.name}` || alreadyFollowing}
+                  disabled={!followHydrated || artistBusy}
                   className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-50"
                 >
                   {artist.image ? (
@@ -368,11 +414,7 @@ export default function UnifiedFavoritesAdd() {
                     </span>
                   )}
                   <span className="min-w-0 flex-1 truncate font-medium text-white">{artist.name}</span>
-                  {alreadyFollowing ? (
-                    <span className="shrink-0 text-xs font-medium text-momentum-flare">Following</span>
-                  ) : (
-                    <Plus className="h-4 w-4 shrink-0 text-momentum-flare" />
-                  )}
+                  <FollowSearchActionLabel following={alreadyFollowing} loading={artistBusy} />
                 </button>
               </li>
               );
@@ -388,12 +430,16 @@ export default function UnifiedFavoritesAdd() {
             Friends
           </h3>
           <ul className="space-y-2">
-            {friends.map((friend) => (
+            {friends.map((friend) => {
+              const alreadyFollowing = isFollowing(friend.mocha_user_id);
+              const friendBusy =
+                busyKey === `friend:${friend.mocha_user_id}` || isUserFollowLoading(friend.mocha_user_id);
+              return (
               <li key={friend.mocha_user_id}>
                 <button
                   type="button"
                   onClick={() => void addFriend(friend)}
-                  disabled={busyKey === `friend:${friend.mocha_user_id}`}
+                  disabled={!followHydrated || friendBusy}
                   className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-50"
                 >
                   <UserAvatar
@@ -415,10 +461,11 @@ export default function UnifiedFavoritesAdd() {
                       </span>
                     ) : null}
                   </span>
-                  <Plus className="h-4 w-4 shrink-0 text-momentum-flare" />
+                  <FollowSearchActionLabel following={alreadyFollowing} loading={friendBusy} />
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
       ) : null}
@@ -430,12 +477,15 @@ export default function UnifiedFavoritesAdd() {
             Songs
           </h3>
           <ul className="space-y-2">
-            {songs.map((song) => (
+            {songs.map((song) => {
+              const alreadyFollowing = followedSongSlugs.has(song.slug.toLowerCase());
+              const songBusy = busyKey === `song:${song.slug}`;
+              return (
               <li key={song.slug}>
                 <button
                   type="button"
                   onClick={() => void addSong(song)}
-                  disabled={busyKey === `song:${song.slug}`}
+                  disabled={songBusy}
                   className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-50"
                 >
                   <span className="min-w-0 flex-1">
@@ -444,10 +494,11 @@ export default function UnifiedFavoritesAdd() {
                       <span className="block truncate text-xs text-gray-400">{song.artist_name}</span>
                     ) : null}
                   </span>
-                  <Plus className="h-4 w-4 shrink-0 text-momentum-flare" />
+                  <FollowSearchActionLabel following={alreadyFollowing} loading={songBusy} />
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
       ) : null}
@@ -459,12 +510,15 @@ export default function UnifiedFavoritesAdd() {
             Venues
           </h3>
           <ul className="space-y-2">
-            {venues.map((venue) => (
+            {venues.map((venue) => {
+              const alreadyFollowing = followedVenueNames.has(venue.name.trim().toLowerCase());
+              const venueBusy = busyKey === `venue:${venue.identifier || venue.name}`;
+              return (
               <li key={venue.identifier || venue.name}>
                 <button
                   type="button"
                   onClick={() => void addVenue(venue)}
-                  disabled={busyKey === `venue:${venue.identifier || venue.name}`}
+                  disabled={!followHydrated || venueBusy}
                   className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left hover:bg-white/10 disabled:opacity-50"
                 >
                   <span className="min-w-0 flex-1">
@@ -473,10 +527,11 @@ export default function UnifiedFavoritesAdd() {
                       <span className="block truncate text-xs text-gray-400">{venue.city}</span>
                     ) : null}
                   </span>
-                  <Plus className="h-4 w-4 shrink-0 text-momentum-flare" />
+                  <FollowSearchActionLabel following={alreadyFollowing} loading={venueBusy} />
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
       ) : null}

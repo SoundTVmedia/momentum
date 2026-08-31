@@ -322,7 +322,6 @@ export default function HomeScreen() {
 
         <HorizontalShowCarousel
           title="Shows Tonight"
-          subtitle="Happening near you today"
           events={tonight}
           emptyMessage="Allow location to see shows tonight near you."
           onPressEvent={openShowEvent}
@@ -330,11 +329,6 @@ export default function HomeScreen() {
 
         <HorizontalShowCarousel
           title="Upcoming Shows"
-          subtitle={
-            user
-              ? 'Upcoming shows at venues near you'
-              : 'Upcoming shows at venues near you from JamBase'
-          }
           events={nearby}
           emptyMessage="Allow location to see upcoming nearby shows."
           onPressEvent={openShowEvent}

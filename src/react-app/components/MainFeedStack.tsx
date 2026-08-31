@@ -126,9 +126,7 @@ export default function MainFeedStack({
           viewAllHref={BROWSE_NEARBY_SHOWS_PATH}
           viewAllLabel="View all shows"
           sectionTitleOverride="Upcoming Shows"
-          sectionSubtitleOverride={
-            user ? undefined : 'Upcoming shows at venues near you from JamBase'
-          }
+          sectionSubtitleOverride=""
         />
       ) : null}
 

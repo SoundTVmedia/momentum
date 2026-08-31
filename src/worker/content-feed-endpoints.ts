@@ -86,7 +86,7 @@ export async function postClassifyClipContent(c: Context) {
 }
 
 const FRIENDS_FEED_USER_FOLLOWS_SQL = `
-  SELECT following_id FROM follows
+  SELECT LOWER(following_id) FROM follows
   WHERE follower_id = ?
     AND following_id NOT LIKE 'venue-%'
     AND following_id NOT LIKE 'artist-%'
@@ -120,7 +120,7 @@ export async function getFriendsFeed(c: Context) {
     WHERE ${publicVisibleSql}
       AND (
         clips.mocha_user_id = ?
-        OR clips.mocha_user_id IN (${FRIENDS_FEED_USER_FOLLOWS_SQL})
+        OR LOWER(clips.mocha_user_id) IN (${FRIENDS_FEED_USER_FOLLOWS_SQL})
       )
     ORDER BY clips.created_at DESC
     LIMIT ? OFFSET ?`,

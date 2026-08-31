@@ -211,6 +211,24 @@ ion-header.app-top-header {
 
 @media (min-width: 768px) {
   .app-header-wordmark {
+    font-size: 1.739rem;
+    margin-right: 1.25rem;
+  }
+
+  .app-header-brand-rule {
+    height: 1.7rem;
+    margin-right: 1.75rem;
+  }
+
+  .app-header-mark {
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 0.45rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-header-wordmark {
     font-size: 2.088rem;
     margin-right: 2.25rem;
   }
@@ -493,6 +511,23 @@ ion-searchbar.app-searchbar-hero {
 
 .hero-search-submit ion-icon {
   font-size: 1.25rem;
+}
+
+.app-header-search .hero-search-pill {
+  min-height: 2.4rem;
+}
+
+.app-header-search .hero-search-mark {
+  width: 2.65rem;
+}
+
+.app-header-search .hero-search-input {
+  font-size: 0.875rem;
+  padding-inline: 0.65rem;
+}
+
+.app-header-search .hero-search-submit {
+  width: 2.4rem;
 }
 
 ion-segment.app-feed-segment {

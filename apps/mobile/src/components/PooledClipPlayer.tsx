@@ -67,6 +67,7 @@ export function PooledClipPlayer({
           }
         }, 280);
       } else {
+        player.muted = true;
         player.pause();
       }
     } catch {

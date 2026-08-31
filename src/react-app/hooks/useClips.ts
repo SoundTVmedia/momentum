@@ -11,6 +11,7 @@ import {
   USER_BLOCKS_CHANGED_EVENT,
   userBlocksChangedDetail,
 } from '@/react-app/lib/user-block-events'
+import { FOLLOWING_CHANGED_EVENT } from '@/react-app/hooks/useFollow'
 
 interface UseClipsOptions {
   feedType?: 'latest' | 'most_liked' | 'most_viewed'
@@ -208,6 +209,20 @@ export function useClips(options: UseClipsOptions = {}) {
     window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged)
     return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged)
   }, [fetchClips, mine])
+
+  useEffect(() => {
+    if (feedScope !== 'friends' || mine) return
+    const onFollowingChanged = () => {
+      setPage(1)
+      void fetchClips(1, false)
+    }
+    window.addEventListener(FOLLOWING_CHANGED_EVENT, onFollowingChanged)
+    window.addEventListener('favorite-artists-changed', onFollowingChanged)
+    return () => {
+      window.removeEventListener(FOLLOWING_CHANGED_EVENT, onFollowingChanged)
+      window.removeEventListener('favorite-artists-changed', onFollowingChanged)
+    }
+  }, [feedScope, mine, fetchClips])
 
   useEffect(() => {
     const onSkipped = (event: Event) => {

@@ -32,7 +32,6 @@ export default function TonightShowsSection({
   className = '',
 }: TonightShowsSectionProps) {
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
-  const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,11 +56,6 @@ export default function TonightShowsSection({
         }
         const data = (await response.json()) as TonightShowsApi;
         setEvents(Array.isArray(data.events) ? data.events : []);
-        const label =
-          typeof data.location?.label === 'string' && data.location.label.trim()
-            ? data.location.label.trim()
-            : null;
-        setLocationLabel(label);
         const notice =
           typeof data.jambaseNotice === 'string' && data.jambaseNotice.trim()
             ? data.jambaseNotice.trim()
@@ -101,9 +95,6 @@ export default function TonightShowsSection({
     void load();
   }, [load]);
 
-  const areaLabel =
-    locationLabel && locationLabel.length > 0 ? locationLabel : 'you';
-
   if (loading) {
     return (
       <div className={`${HOME_FEED_SECTION_CLASS} flex justify-center py-8 ${className}`}>
@@ -117,7 +108,6 @@ export default function TonightShowsSection({
       <section className={`${HOME_FEED_SECTION_CLASS} ${className}`}>
         <SectionHeading
           title="Shows Tonight"
-          subtitle={`Shows happening near ${areaLabel} today — mark Going up to 4 hours after doors`}
           size="section"
         />
         <div className="glass-highlight rounded-xl p-8 text-center">
@@ -134,7 +124,6 @@ export default function TonightShowsSection({
     <section className={`${HOME_FEED_SECTION_CLASS} ${className}`}>
       <SectionHeading
         title="Shows Tonight"
-        subtitle={`Shows near ${areaLabel} today — including ones already underway. Mark Going up to 4 hours after start.`}
         size="section"
       />
       <JamBaseEventGrid

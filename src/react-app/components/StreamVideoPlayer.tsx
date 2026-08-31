@@ -19,7 +19,46 @@ export type StreamVideoPlayerHandle = {
   togglePlay: () => void;
   toggleMute: () => void;
   play: () => void;
+  /** Halt decode and audio immediately (modal close). */
+  stop: () => void;
 };
+
+/** Pause clip modal, feed-preview, and prefetch videos so audio cannot leak after close. */
+export function stopAllClipMediaElements(): void {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('video').forEach((node) => {
+    if (!(node instanceof HTMLVideoElement)) return;
+    const inModal = node.closest(
+      '.clip-player-lock-scale, .glass-dropdown, .glass-modal-overlay',
+    );
+    const inPreview = node.closest('.clip-feed-preview');
+    const inPrefetch = node.closest('#clip-playback-prefetch-host');
+    if (!inModal && !inPreview && !inPrefetch) return;
+    try {
+      node.pause();
+      node.muted = true;
+      node.defaultMuted = true;
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+function hardStopVideoElement(video: HTMLVideoElement | null): void {
+  if (!video) return;
+  try {
+    video.autoplay = false;
+    video.pause();
+    video.muted = true;
+    video.defaultMuted = true;
+    video.removeAttribute('src');
+    video.src = '';
+    video.srcObject = null;
+    video.load();
+  } catch {
+    /* already detached */
+  }
+}
 
 export type StreamVideoPlayerPlaybackState = {
   isPlaying: boolean;
@@ -126,6 +165,7 @@ function StreamVideoPlayer(
   const [showControls, setShowControls] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const stoppedRef = useRef(false);
   const onVideoDimensionsRef = useRef(onVideoDimensions);
   onVideoDimensionsRef.current = onVideoDimensions;
 
@@ -259,6 +299,7 @@ function StreamVideoPlayer(
   }, []);
 
   const tryAutoplay = useCallback(() => {
+    if (stoppedRef.current) return;
     if (!autoPlayRef.current) return;
     const video = videoRef.current;
     if (!video || !videoSrc) return;
@@ -318,7 +359,10 @@ function StreamVideoPlayer(
               startFragPrefetch: true,
             });
             hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, tryAutoplay);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              if (cancelled || stoppedRef.current) return;
+              tryAutoplay();
+            });
             hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
               if (data.fatal) {
                 console.error('HLS fatal error', data);
@@ -350,18 +394,18 @@ function StreamVideoPlayer(
 
     return () => {
       cancelled = true;
+      destroyHls();
+      hardStopVideoElement(video);
+      attachedSrcRef.current = null;
     };
   }, [videoSrc, isHls, tryAutoplay, destroyHls, reportPlaybackFailed]);
 
   useEffect(() => {
+    stoppedRef.current = false;
     return () => {
+      stoppedRef.current = true;
       destroyHls();
-      const video = videoRef.current;
-      if (video) {
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-      }
+      hardStopVideoElement(videoRef.current);
       attachedSrcRef.current = null;
     };
   }, [destroyHls]);
@@ -543,10 +587,25 @@ function StreamVideoPlayer(
   };
 
   const play = useCallback(() => {
+    stoppedRef.current = false;
+    autoPlayRef.current = true;
     tryAutoplay();
   }, [tryAutoplay]);
 
-  useImperativeHandle(ref, () => ({ togglePlay, toggleMute, play }), [isPlaying, play]);
+  const stop = useCallback(() => {
+    stoppedRef.current = true;
+    autoPlayRef.current = false;
+    destroyHls();
+    hardStopVideoElement(videoRef.current);
+    attachedSrcRef.current = null;
+    setIsPlaying(false);
+  }, [destroyHls]);
+
+  useImperativeHandle(ref, () => ({ togglePlay, toggleMute, play, stop }), [
+    isPlaying,
+    play,
+    stop,
+  ]);
 
   if (!videoSrc) {
     return (

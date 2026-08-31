@@ -35,7 +35,11 @@ import { useVerticalSwipeUp } from '@/react-app/hooks/useVerticalSwipeUp';
 import { useClipArtistProfile } from '@/react-app/hooks/useClipArtistProfile';
 import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets';
 import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
-import type { StreamVideoPlayerHandle, StreamVideoPlayerPlaybackState } from '@/react-app/components/StreamVideoPlayer';
+import {
+  stopAllClipMediaElements,
+  type StreamVideoPlayerHandle,
+  type StreamVideoPlayerPlaybackState,
+} from '@/react-app/components/StreamVideoPlayer';
 import CommentSection from './CommentSection';
 import ContentActionsMenu from './ContentActionsMenu';
 import { ClipLikeHeart } from './ClipLikeHeart';
@@ -95,7 +99,7 @@ interface ClipModalProps {
 
 export default function ClipModal({
   clip,
-  onClose,
+  onClose: onCloseProp,
   feedNavigation = null,
   onClipUpdated,
 }: ClipModalProps) {
@@ -113,12 +117,29 @@ export default function ClipModal({
     loading: artistProfileLoading,
   } = useClipArtistProfile(clip.artist_name);
   const mobileContainerRef = useRef<HTMLDivElement>(null);
+  const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
+  const desktopPlayerRef = useRef<StreamVideoPlayerHandle>(null);
   const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
+
+  const onClose = useCallback(() => {
+    mobilePlayerRef.current?.stop();
+    desktopPlayerRef.current?.stop();
+    stopAllClipMediaElements();
+    onCloseProp();
+  }, [onCloseProp]);
 
   useEffect(() => {
     setHideBottomNav(true);
     return () => setHideBottomNav(false);
   }, [setHideBottomNav]);
+
+  useEffect(() => {
+    return () => {
+      mobilePlayerRef.current?.stop();
+      desktopPlayerRef.current?.stop();
+      stopAllClipMediaElements();
+    };
+  }, []);
 
   useEffect(() => {
     const onBlocksChanged = (event: Event) => {
@@ -136,8 +157,6 @@ export default function ClipModal({
   }, [clip.mocha_user_id, onClose]);
   const { toggleLike, isLiked } = useClipLike();
   const { toggleSave, isSaved } = useClipSave();
-  const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
-  const desktopPlayerRef = useRef<StreamVideoPlayerHandle>(null);
   const [playback, setPlayback] = useState<StreamVideoPlayerPlaybackState>({
     isPlaying: true,
     isMuted: false,
