@@ -13,7 +13,7 @@ export default function HeroSection() {
       <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
       <div className="absolute inset-0 hero-grad-brand" aria-hidden />
       <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-black/80" aria-hidden />
+      <div className="absolute inset-0 hero-concert-fade" aria-hidden />
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         <div className="absolute -left-20 top-1/4 h-56 w-56 rounded-full bg-momentum-ember/20 blur-3xl hero-light-pulse" />
@@ -22,7 +22,7 @@ export default function HeroSection() {
           style={{ animationDelay: '1.2s' }}
         />
         <div
-          className="absolute left-1/2 -translate-x-1/2 bottom-0 h-40 w-[120%] rounded-full bg-momentum-ink/25 blur-3xl hero-light-pulse"
+          className="absolute left-1/2 -translate-x-1/2 bottom-0 h-16 w-[120%] rounded-full bg-momentum-ink/15 blur-3xl hero-light-pulse"
           style={{ animationDelay: '2.4s' }}
         />
       </div>
@@ -36,7 +36,7 @@ export default function HeroSection() {
       </div>
 
       <div
-        className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black to-transparent"
+        className="pointer-events-none absolute bottom-0 left-0 right-0 h-5 bg-gradient-to-t from-black/80 to-transparent"
         aria-hidden
       />
     </section>

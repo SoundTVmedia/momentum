@@ -808,15 +808,15 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     -webkit-mask-image: linear-gradient(
       to bottom,
       rgba(0, 0, 0, 1) 0%,
-      rgba(0, 0, 0, 0.85) 55%,
-      rgba(0, 0, 0, 0.2) 88%,
+      rgba(0, 0, 0, 1) 78%,
+      rgba(0, 0, 0, 0.7) 92%,
       transparent 100%
     );
     mask-image: linear-gradient(
       to bottom,
       rgba(0, 0, 0, 1) 0%,
-      rgba(0, 0, 0, 0.85) 55%,
-      rgba(0, 0, 0, 0.2) 88%,
+      rgba(0, 0, 0, 1) 78%,
+      rgba(0, 0, 0, 0.7) 92%,
       transparent 100%
     );
   }
@@ -850,12 +850,12 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 
   .hero-clip-montage__slide.is-active {
-    opacity: 0.58;
+    opacity: 0.82;
   }
 
   .hero-clip-montage--single .hero-clip-montage__slide.is-active,
   .hero-clip-montage--static .hero-clip-montage__slide.is-active {
-    opacity: 0.5;
+    opacity: 0.78;
   }
 
   .hero-clip-montage--static .hero-clip-montage__slide {
@@ -928,7 +928,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 
   .hero-video-backdrop.is-ready {
-    opacity: 0.58;
+    opacity: 0.82;
     filter: saturate(1.45) contrast(1.14) brightness(1.06);
   }
 
@@ -949,14 +949,23 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     opacity: 0.85;
   }
 
-  /* Blue-tint scrim so the photo melts into the neon gradient shell */
+  /* Dark fade sits in the lower third so the concert video stays visible */
+  .hero-concert-fade {
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 72%,
+      rgba(0, 0, 0, 0.28) 90%,
+      rgba(0, 0, 0, 0.62) 100%
+    );
+  }
   .hero-concert-scrim {
     background: linear-gradient(
-      165deg,
-      rgba(3, 7, 18, 0.58) 0%,
-      rgba(59, 130, 246, 0.32) 42%,
-      rgba(99, 102, 241, 0.26) 68%,
-      rgba(3, 7, 18, 0.82) 100%
+      180deg,
+      rgba(3, 7, 18, 0.04) 0%,
+      rgba(59, 130, 246, 0.04) 55%,
+      rgba(99, 102, 241, 0.1) 82%,
+      rgba(3, 7, 18, 0.45) 100%
     );
     mix-blend-mode: multiply;
   }
@@ -964,10 +973,10 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   .hero-grad-brand {
     background-image: linear-gradient(
       to bottom left,
-      rgba(34, 211, 238, 0.22) 0%,
-      rgba(59, 130, 246, 0.18) 38%,
-      rgba(99, 102, 241, 0.26) 72%,
-      rgba(3, 7, 18, 0.55) 100%
+      rgba(34, 211, 238, 0.04) 0%,
+      rgba(59, 130, 246, 0.05) 50%,
+      rgba(99, 102, 241, 0.1) 84%,
+      rgba(3, 7, 18, 0.28) 100%
     );
     background-size: 220% 220%;
     animation: hero-grad-brand-shift 22s ease-in-out infinite alternate;
