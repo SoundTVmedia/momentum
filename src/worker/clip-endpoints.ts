@@ -15,6 +15,11 @@ import { resolveClipEventTitle } from '../shared/event-title';
 import { createRealtimeService } from './realtime-service';
 import { getStaffProfile, isSuperAdmin } from './admin-auth';
 import { mochaUserIdKey } from './mocha-user-id';
+import {
+  CLIP_BELONGS_TO_SHOW_BIND_COUNT,
+  clipBelongsToEventTitleSql,
+  clipBelongsToRequestedShowSql,
+} from './past-show-sql';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, blockKey } from './user-blocks';
 import {
   describeMusicRecognitionConfig,
@@ -664,42 +669,31 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
   let scope: Scope = 'artist';
   let results: { results?: unknown[] } = { results: [] };
 
-  if (eventTitle) {
+  const showIdentity = showId || jambaseEventId;
+
+  if (showIdentity) {
     scope = 'show';
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
        WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
-       AND clips.event_title = ?
+       AND ${clipBelongsToRequestedShowSql()}
        ORDER BY clips.created_at ASC
        LIMIT 50`,
     )
-      .bind(eventTitle)
+      .bind(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showIdentity))
       .all();
-  } else if (showId && artistName) {
+  } else if (eventTitle) {
     scope = 'show';
     results = await c.env.DB.prepare(
       `${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
        WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
-       AND clips.artist_name = ?
-       AND clips.show_id = ?
+       AND ${clipBelongsToEventTitleSql()}
        ORDER BY clips.created_at ASC
        LIMIT 50`,
     )
-      .bind(artistName, showId)
-      .all();
-  } else if (jambaseEventId) {
-    scope = 'show';
-    results = await c.env.DB.prepare(
-      `${CLIP_WITH_USER_SELECT}
-       ${CLIP_WITH_USER_FROM}
-       WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
-       AND clips.jambase_event_id = ?
-       ORDER BY clips.created_at ASC
-       LIMIT 50`,
-    )
-      .bind(jambaseEventId)
+      .bind(eventTitle, eventTitle, eventTitle)
       .all();
   } else if (artistName && venueName && timestamp) {
     scope = 'show';

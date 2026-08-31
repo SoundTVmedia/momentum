@@ -13,10 +13,8 @@ import {
 } from '../shared/show-marks';
 import {
   jamBaseEventHasStarted,
-  jamBaseEventHoursFromStart,
-  jamBaseEventInProgress,
+  jamBaseEventImThereEligible,
   jamBaseEventUpcomingOrInProgress,
-  JAMBASE_EVENT_ONGOING_HOURS_AFTER_START,
 } from '../shared/jambase-event-day';
 import {
   jamBaseApiKeyConfigured,
@@ -215,13 +213,7 @@ function tempMarkFromInput(input: ShowMarkUpsertInput): UserShowMark {
 function goingMarkAllowed(input: ShowMarkUpsertInput): boolean {
   const ev = showMarkToJamBaseEvent(tempMarkFromInput(input));
   if (jamBaseEventUpcomingOrInProgress(ev)) return true;
-  if (jamBaseEventInProgress(ev)) return true;
-  const hours = jamBaseEventHoursFromStart(ev, Date.now());
-  return (
-    hours != null &&
-    hours >= 0 &&
-    hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START
-  );
+  return jamBaseEventImThereEligible(ev);
 }
 
 async function enrichMarkWithJamBaseEvent(

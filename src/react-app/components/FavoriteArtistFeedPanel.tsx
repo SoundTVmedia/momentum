@@ -288,12 +288,9 @@ export default function FavoriteArtistFeedPanel({
         <div className="flex flex-col items-start gap-2 text-left">
           {variant === 'feed' ? (
             <>
-              <SectionHeading
-                title="Your favorites in one place"
-                subtitle="Follow your favorite artists, friends, venues, and songs."
-                className="mb-0"
-                subtitleClassName="whitespace-nowrap"
-              />
+              <p className="fb-section-subtitle mb-0 whitespace-nowrap">
+                Follow your favorite artists, friends, venues, and songs.
+              </p>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <button
                   type="button"

@@ -4,6 +4,7 @@ import {
   jamBaseEventSameCalendarDay,
   jamBaseEventUpcomingOrInProgress,
   jamBaseEventInProgress,
+  jamBaseEventImThereEligible,
   jamBaseEventHasStarted,
 } from './jambase-event-day';
 import { isJamBaseEventOnOrAfterToday } from './jambase-events';
@@ -294,16 +295,92 @@ export function allowedShowMarkStatusForEvent(
   return null;
 }
 
-/** Button copy: "I'm there" for in-progress shows, otherwise Going / Went. */
+export type ShowMarkAction = 'going' | 'im_there' | 'attended';
+
+export function showMarkActionLabel(action: ShowMarkAction): string {
+  if (action === 'im_there') return "I'm there";
+  if (action === 'attended') return 'I went';
+  return "I'm going";
+}
+
+export function showMarkActionStatus(action: ShowMarkAction): ShowMarkStatus {
+  return action === 'attended' ? 'attended' : 'going';
+}
+
+/**
+ * Which first-person actions a card should offer.
+ * Upcoming: I'm going. During the show: I'm there + I went. After: I went.
+ */
+export function availableShowMarkActionsForEvent(
+  ev: Record<string, unknown>,
+  now: Date = new Date(),
+  statusOverride?: ShowMarkStatus,
+): ShowMarkAction[] {
+  if (statusOverride === 'attended') return ['attended'];
+  const nowMs = now.getTime();
+  if (statusOverride === 'going') {
+    return jamBaseEventImThereEligible(ev, nowMs) ? ['im_there'] : ['going'];
+  }
+  if (jamBaseEventImThereEligible(ev, nowMs)) return ['im_there', 'attended'];
+  if (isUpcomingJamBaseEvent(ev, now)) return ['going'];
+  if (isPastJamBaseEvent(ev, now) || jamBaseEventHasStarted(ev, nowMs)) return ['attended'];
+  return ['going'];
+}
+
+/** Button copy: "I'm there" for in-progress shows, otherwise I'm going / I went. */
 export function showMarkButtonLabelForEvent(
   ev: Record<string, unknown>,
   status: ShowMarkStatus,
   now: Date = new Date(),
 ): string {
   if (status === 'going') {
-    return jamBaseEventInProgress(ev, now.getTime()) ? "I'm there" : 'Going';
+    return jamBaseEventImThereEligible(ev, now.getTime()) ? "I'm there" : "I'm going";
   }
-  return 'Went';
+  return 'I went';
+}
+
+export function isShowMarkActionActive(
+  action: ShowMarkAction,
+  ev: Record<string, unknown>,
+  mark: UserShowMark | null | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!mark) return false;
+  if (action === 'attended') return isAttendedShowMarkActive(mark);
+  if (action === 'im_there') {
+    return mark.status === 'going' && jamBaseEventImThereEligible(ev, nowMs);
+  }
+  return mark.status === 'going' && !jamBaseEventImThereEligible(ev, nowMs);
+}
+
+export type ShowMarkCardStatus = 'going' | 'im_there' | 'attended';
+
+/** Status chip on a show card for the current user's mark. */
+export function showMarkCardStatus(
+  ev: Record<string, unknown>,
+  mark: UserShowMark | null | undefined,
+  nowMs: number = Date.now(),
+): ShowMarkCardStatus | null {
+  if (!mark) return null;
+  if (mark.status === 'attended') return 'attended';
+  if (mark.status !== 'going') return null;
+  return jamBaseEventImThereEligible(ev, nowMs) ? 'im_there' : 'going';
+}
+
+export function showMarkCardStatusLabel(status: ShowMarkCardStatus): string {
+  return showMarkActionLabel(status);
+}
+
+/** True when the Going / I'm there button should look selected. */
+export function isGoingShowMarkActive(mark: UserShowMark | null | undefined): boolean {
+  return mark?.status === 'going';
+}
+
+/** True when the Went button should look selected. */
+export function isAttendedShowMarkActive(mark: UserShowMark | null | undefined): boolean {
+  if (!mark) return false;
+  if (mark.status === 'attended') return true;
+  return showMarkShouldPromoteGoingToAttended(mark);
 }
 
 export function isUpcomingShowMarkStartDate(
@@ -321,13 +398,15 @@ export function isUpcomingShowMark(mark: UserShowMark, nowMs: number = Date.now(
   return jamBaseEventUpcomingOrInProgress(showMarkToJamBaseEvent(mark), nowMs);
 }
 
-/** Going marks whose doors time has passed — belong on the Went list. */
+/** Going marks whose I'm-there window has ended — belong on the Went list. */
 export function showMarkShouldPromoteGoingToAttended(
   mark: UserShowMark,
   nowMs: number = Date.now(),
 ): boolean {
   if (mark.status !== 'going') return false;
-  return jamBaseEventHasStarted(showMarkToJamBaseEvent(mark), nowMs);
+  const ev = showMarkToJamBaseEvent(mark);
+  if (jamBaseEventImThereEligible(ev, nowMs)) return false;
+  return jamBaseEventHasStarted(ev, nowMs);
 }
 
 /** List buckets after auto-promotion (Going = not started yet; Went = attended + started shows). */

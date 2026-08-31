@@ -9,7 +9,7 @@ import SectionHeading from '@/react-app/components/SectionHeading';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { jamBaseEventTicketUrl } from '@/shared/jambase-events';
-import { isUpcomingShowMark, showMarkToJamBaseEvent, type UserShowMark } from '@/shared/show-marks';
+import { isUpcomingShowMark, showMarkCardStatus, showMarkCardStatusLabel, showMarkToJamBaseEvent, type UserShowMark } from '@/shared/show-marks';
 
 type FriendGoingGroup = {
   mocha_user_id: string;
@@ -68,7 +68,7 @@ function FriendGoingCard({
         </button>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-momentum-flare/40 bg-momentum-flare/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-momentum-flare">
           <Check className="w-3 h-3" aria-hidden />
-          Going
+          {showMarkCardStatusLabel(showMarkCardStatus(event, mark) ?? 'going')}
         </span>
       </div>
       <p className="font-semibold text-white leading-snug line-clamp-2 flex-1">{title}</p>

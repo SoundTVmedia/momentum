@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -74,6 +74,75 @@ describe('CLIP_SHOW_KEY_SQL', () => {
       { show_id: 'phish|madison square garden|2025-04-20' },
       { show_id: 'phish|madison square garden|2025-04-21' },
     ]);
+  });
+});
+
+describe('clipBelongsToRequestedShowSql', () => {
+  const databases: DatabaseSync[] = [];
+
+  afterEach(() => {
+    for (const db of databases.splice(0)) db.close();
+  });
+
+  function createDb(): DatabaseSync {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        artist_name TEXT,
+        venue_name TEXT,
+        timestamp TEXT,
+        jambase_event_id TEXT,
+        show_id TEXT,
+        event_title TEXT
+      )
+    `);
+    return db;
+  }
+
+  it('returns every clip for a show even when show_id and jambase ids differ', () => {
+    const db = createDb();
+    const insert = db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES (?, 'Phish', 'Madison Square Garden', '2025-04-20T01:00:00.000Z', ?, ?, ?)
+    `);
+    insert.run(1, 'jambase:123', 'phish-msg-2025-04-20', 'Phish at Madison Square Garden');
+    insert.run(2, 'jambase:123', 'jambase:123', 'Phish');
+    insert.run(3, 'jambase:999', 'other-show', 'Other Night');
+
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const showBinds = Array.from(
+      { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+      () => 'phish-msg-2025-04-20',
+    );
+    const eventBinds = Array.from(
+      { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+      () => 'jambase:123',
+    );
+    const byComposite = db.prepare(sql).all(...showBinds) as Array<{ id: number }>;
+    const byEventId = db.prepare(sql).all(...eventBinds) as Array<{ id: number }>;
+
+    expect(byComposite).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(byEventId).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it('includes clips that share a title-linked show identity', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Phish', 'MSG', '2025-04-20T01:00:00.000Z', 'jambase:123', 'jambase:123', 'Phish at MSG'),
+        (2, 'Phish', 'MSG', '2025-04-20T03:00:00.000Z', 'jambase:123', 'phish-msg-2025-04-20', NULL)
+    `).run();
+
+    const rows = db
+      .prepare(`SELECT id FROM clips WHERE ${clipBelongsToEventTitleSql()} ORDER BY id`)
+      .all('Phish at MSG', 'Phish at MSG', 'Phish at MSG') as Array<{ id: number }>;
+
+    expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
   });
 });
 

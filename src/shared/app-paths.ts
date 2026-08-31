@@ -111,11 +111,8 @@ export function apiEventClipsPath(eventTitle: string | null | undefined): string
   return `/api/event-clips/${encodeURIComponent(title)}/clips`;
 }
 
-/** Route to the show clips page for a stored mark (event title preferred, else artist + show id). */
+/** Route to the show clips page for a stored mark (artist + show id preferred). */
 export function showMarkClipsPath(mark: ShowMarkClipsInput): string | null {
-  const title = mark.event_title?.trim();
-  if (title) return eventClipsPath(title);
-
   const artist = mark.artist_name?.trim();
   const showId =
     mark.jambase_event_id?.trim() ||
@@ -126,6 +123,9 @@ export function showMarkClipsPath(mark: ShowMarkClipsInput): string | null {
       timestamp: mark.start_date,
     });
   if (artist && showId) return showClipsPath(artist, showId);
+
+  const title = mark.event_title?.trim();
+  if (title) return eventClipsPath(title);
 
   return null;
 }

@@ -7,6 +7,7 @@ import {
   jamBaseEventCameraCaptureDay,
   jamBaseEventFeedVisible,
   jamBaseEventInProgress,
+  jamBaseEventImThereEligible,
   jamBaseEventUpcomingOrInProgress,
   jamBaseEventAfterToday,
   jamBaseGeoEventDateFromForUpcomingFeed,
@@ -199,6 +200,18 @@ describe('jamBaseEventInProgress', () => {
     };
     const nowMs = Date.parse('2026-06-21T00:00:00.000Z');
     expect(jamBaseEventInProgress(morningShow, nowMs)).toBe(false);
+  });
+});
+
+describe('jamBaseEventImThereEligible', () => {
+  const event = {
+    startDate: '2026-08-28T20:00:00',
+    location: { name: 'Brooklyn Steel' },
+  };
+
+  it('includes tonight\'s show after UTC midnight when timezone is missing', () => {
+    const nowMs = Date.parse('2026-08-29T00:25:00.000Z');
+    expect(jamBaseEventImThereEligible(event, nowMs)).toBe(true);
   });
 });
 

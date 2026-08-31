@@ -17,6 +17,11 @@ import {
 } from '@/shared/jambase-events';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import { jamBaseEventInProgress } from '@/shared/jambase-event-day';
+import { useShowMarks } from '@/react-app/hooks/useShowMarks';
+import {
+  showMarkCardStatus,
+  showMarkCardStatusLabel,
+} from '@/shared/show-marks';
 
 export interface JamBaseEventGridProps {
   maxEvents?: number;
@@ -116,6 +121,7 @@ function JamBaseEventCard({
   onVenue: (name: string) => void;
   showInProgressBadge?: boolean;
 }) {
+  const { getMarkForEvent } = useShowMarks();
   const title = typeof event.name === 'string' ? event.name : 'Show';
   const start = typeof event.startDate === 'string' ? event.startDate : '';
   const image = displayMediaUrl(jamBaseEventCardImageUrl(event));
@@ -123,7 +129,14 @@ function JamBaseEventCard({
   const head = headlinerName(event);
   const vn = venueLabel(event);
   const vLine = venueCityLine(event);
+  const eventId = typeof event.identifier === 'string' ? event.identifier : null;
+  const markStatus = showMarkCardStatus(event, eventId ? getMarkForEvent(eventId) : null);
   const inProgress = showInProgressBadge && jamBaseEventInProgress(event);
+  const statusBadge = markStatus
+    ? showMarkCardStatusLabel(markStatus)
+    : inProgress
+      ? 'In progress'
+      : null;
 
   return (
     <div
@@ -145,9 +158,9 @@ function JamBaseEventCard({
               className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
             />
             <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-1.5">
-              {inProgress ? (
+              {statusBadge ? (
                 <span className="px-2 py-1 bg-momentum-flare/90 rounded-full text-xs text-white font-semibold uppercase tracking-wide">
-                  In progress
+                  {statusBadge}
                 </span>
               ) : null}
               <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
@@ -165,9 +178,9 @@ function JamBaseEventCard({
               className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
             />
             <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-              {inProgress ? (
+              {statusBadge ? (
                 <span className="px-2 py-1 bg-momentum-flare/90 rounded-full text-xs text-white font-semibold uppercase tracking-wide">
-                  In progress
+                  {statusBadge}
                 </span>
               ) : null}
               <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">

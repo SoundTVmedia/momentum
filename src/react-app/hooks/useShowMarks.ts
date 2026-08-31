@@ -6,7 +6,6 @@ import type { ShowMarkStatus, ShowMarkUpsertInput, UserShowMark } from '@/shared
 import {
   partitionShowMarksForLists,
   isActiveShowMarkForCapture,
-  showMarkShouldPromoteGoingToAttended,
 } from '@/shared/show-marks';
 
 export const SHOW_MARKS_CHANGED_EVENT = 'show-marks-changed';
@@ -133,21 +132,13 @@ export function useShowMarks() {
     await fetchMarksShared(user.id, true);
   }, [user?.id]);
 
-  const marksWithEffectiveStatus = useMemo(
-    () =>
-      marks.map((m) =>
-        showMarkShouldPromoteGoingToAttended(m) ? { ...m, status: 'attended' as const } : m,
-      ),
-    [marks],
-  );
-
   const marksByEventId = useMemo(() => {
     const map = new Map<string, UserShowMark>();
-    for (const m of marksWithEffectiveStatus) {
+    for (const m of marks) {
       map.set(m.jambase_event_id, m);
     }
     return map;
-  }, [marksWithEffectiveStatus]);
+  }, [marks]);
 
   const listBuckets = useMemo(() => partitionShowMarksForLists(marks), [marks]);
 

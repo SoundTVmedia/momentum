@@ -12,6 +12,9 @@ import {
   pickShowMarkForLibraryUpload,
   isActiveShowMarkForCapture,
   showMarkButtonLabelForEvent,
+  availableShowMarkActionsForEvent,
+  showMarkCardStatus,
+  showMarkCardStatusLabel,
   showMarkToJamBaseEvent,
   upcomingGoingMarkEvents,
   type UserShowMark,
@@ -171,7 +174,68 @@ describe('allowedShowMarkStatusForEvent', () => {
         'going',
         new Date('2026-06-10T12:00:00'),
       ),
-    ).toBe('Going');
+    ).toBe("I'm going");
+    expect(
+      showMarkButtonLabelForEvent(
+        { startDate: '2026-06-01T20:00:00' },
+        'attended',
+        new Date('2026-06-10T12:00:00'),
+      ),
+    ).toBe('I went');
+  });
+});
+
+describe('availableShowMarkActionsForEvent', () => {
+  it('offers I\'m going before the show', () => {
+    expect(
+      availableShowMarkActionsForEvent(
+        { startDate: '2026-06-15T20:00:00' },
+        new Date('2026-06-10T12:00:00'),
+      ),
+    ).toEqual(['going']);
+  });
+
+  it('offers I\'m there and I went during the show', () => {
+    const inProgress = {
+      startDate: '2026-06-10T19:30:00',
+      location: { address: { 'x-timezone': 'America/New_York' } },
+    };
+    expect(
+      availableShowMarkActionsForEvent(inProgress, new Date('2026-06-11T01:00:00.000Z')),
+    ).toEqual(['im_there', 'attended']);
+  });
+
+  it('offers I went after the show', () => {
+    expect(
+      availableShowMarkActionsForEvent(
+        { startDate: '2026-06-01T20:00:00' },
+        new Date('2026-06-10T12:00:00'),
+      ),
+    ).toEqual(['attended']);
+  });
+});
+
+describe('showMarkCardStatus', () => {
+  it('labels a marked in-progress show as I\'m there', () => {
+    const ev = {
+      startDate: '2026-06-10T19:30:00',
+      location: { address: { 'x-timezone': 'America/New_York' } },
+    };
+    const going = mark({
+      start_date: '2026-06-10T19:30:00',
+      venue_timezone: 'America/New_York',
+    });
+    const nowMs = Date.parse('2026-06-11T01:00:00.000Z');
+    expect(showMarkCardStatus(ev, going, nowMs)).toBe('im_there');
+    expect(showMarkCardStatusLabel('im_there')).toBe("I'm there");
+  });
+
+  it('labels a marked upcoming show as Going', () => {
+    const ev = { startDate: '2026-06-15T20:00:00' };
+    const going = mark({ start_date: '2026-06-15T20:00:00' });
+    expect(showMarkCardStatus(ev, going, Date.parse('2026-06-10T12:00:00.000Z'))).toBe('going');
+    expect(showMarkCardStatusLabel('going')).toBe("I'm going");
+    expect(showMarkCardStatusLabel('attended')).toBe('I went');
   });
 });
 
@@ -319,8 +383,18 @@ describe('showMarkShouldPromoteGoingToAttended', () => {
     },
   };
 
-  it('promotes going marks after doors time', () => {
+  it('keeps in-progress going marks off the Went list', () => {
     const nowMs = Date.parse('2026-06-21T00:00:00.000Z'); // 8pm Eastern June 20
+    expect(
+      showMarkShouldPromoteGoingToAttended(
+        mark({ start_date: event.startDate, venue_timezone: 'America/New_York' }),
+        nowMs,
+      ),
+    ).toBe(false);
+  });
+
+  it('promotes going marks after the I\'m there window ends', () => {
+    const nowMs = Date.parse('2026-06-21T10:00:00.000Z'); // 6am Eastern June 21
     expect(
       showMarkShouldPromoteGoingToAttended(
         mark({ start_date: event.startDate, venue_timezone: 'America/New_York' }),
@@ -352,10 +426,15 @@ describe('isActiveShowMarkForCapture', () => {
 });
 
 describe('partitionShowMarksForLists', () => {
-  it('moves started going marks into attended', () => {
+  it('keeps in-progress going marks on Going and moves finished shows to Went', () => {
     const started = mark({
       jambase_event_id: 'started',
       start_date: '2026-06-20T19:30:00',
+      venue_timezone: 'America/New_York',
+    });
+    const finished = mark({
+      jambase_event_id: 'finished',
+      start_date: '2026-06-20T09:00:00',
       venue_timezone: 'America/New_York',
     });
     const future = mark({
@@ -366,9 +445,12 @@ describe('partitionShowMarksForLists', () => {
     const went = mark({ jambase_event_id: 'went', status: 'attended' });
     const nowMs = Date.parse('2026-06-21T00:00:00.000Z');
 
-    const { going, attended } = partitionShowMarksForLists([started, future, went], nowMs);
-    expect(going.map((m) => m.jambase_event_id)).toEqual(['future']);
-    expect(attended.map((m) => m.jambase_event_id)).toEqual(['started', 'went']);
+    const { going, attended } = partitionShowMarksForLists(
+      [started, finished, future, went],
+      nowMs,
+    );
+    expect(going.map((m) => m.jambase_event_id)).toEqual(['started', 'future']);
+    expect(attended.map((m) => m.jambase_event_id)).toEqual(['finished', 'went']);
     expect(attended[0]?.status).toBe('attended');
   });
 });

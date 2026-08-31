@@ -345,6 +345,24 @@ export function jamBaseEventInProgress(
 }
 
 /**
+ * "I'm there" on a show card: started tonight and still within the capture window.
+ * Includes evening shows after UTC midnight when JamBase omitted venue timezone.
+ */
+export function jamBaseEventImThereEligible(
+  ev: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (jamBaseEventInProgress(ev, nowMs, userLat, userLon)) return true;
+  const hours = jamBaseEventHoursFromStart(ev, nowMs, userLat, userLon);
+  if (hours == null || hours < 0 || hours > JAMBASE_CAMERA_EVENT_MAX_HOURS_AFTER_START) {
+    return false;
+  }
+  return jamBaseEventMatchesCapture(ev, nowMs, userLat, userLon);
+}
+
+/**
  * Nearby/event-list feeds: same venue-local calendar day, including shows that already
  * started today up to {@link JAMBASE_EVENT_ONGOING_HOURS_AFTER_START}h after start.
  */

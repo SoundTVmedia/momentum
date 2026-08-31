@@ -1,11 +1,11 @@
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { publicVisibleClipFilterSql } from './content-feed-sql';
 import { Context } from 'hono';
-import { resolveArtistNameForClipsQuery, resolveVenueNameForClipsQuery } from './artist-venue-pages';
+import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
-import { CLIP_SHOW_KEY_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql } from './past-show-sql';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { isUserFollowTargetId } from './follow-endpoints';
 
@@ -645,13 +645,16 @@ export async function getShowClips(c: Context) {
   if (artistNameParam === undefined) {
     return c.json({ error: 'artistName is required' }, 400);
   }
-  const artistName = await resolveArtistNameForClipsQuery(
-    c.env.DB,
-    c.env.JAMBASE_API_KEY,
-    artistNameParam,
-    jamBaseQuotaFromEnv(c.env)
-  );
-  const showId = c.req.param('showId');
+  const showIdParam = c.req.param('showId');
+  let showId = typeof showIdParam === 'string' ? showIdParam : '';
+  try {
+    showId = decodeURIComponent(showId).trim();
+  } catch {
+    showId = showId.trim();
+  }
+  if (!showId) {
+    return c.json({ error: 'showId is required' }, 400);
+  }
   const sortBy = c.req.query('sort_by') || 'time_posted';
   const requestedPage = Number.parseInt(c.req.query('page') || '1', 10);
   const requestedLimit = Number.parseInt(c.req.query('limit') || '20', 10);
@@ -670,12 +673,13 @@ export async function getShowClips(c: Context) {
         user_profiles.profile_image_url as user_avatar
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-      WHERE clips.artist_name = ?
-      AND ${CLIP_SHOW_KEY_SQL} = ?
+      WHERE ${clipBelongsToRequestedShowSql()}
       AND ${PUBLIC_VISIBLE_CLIP_SQL}
     `;
 
-    const bindings: any[] = [artistName, showId];
+    const bindings: unknown[] = [
+      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showId),
+    ];
 
     // Apply sorting
     switch (sortBy) {
@@ -745,11 +749,11 @@ export async function getEventClips(c: Context) {
         user_profiles.profile_image_url as user_avatar
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-      WHERE clips.event_title = ?
+      WHERE ${clipBelongsToEventTitleSql()}
       AND ${PUBLIC_VISIBLE_CLIP_SQL}
     `;
 
-    const bindings: unknown[] = [eventTitle];
+    const bindings: unknown[] = [eventTitle, eventTitle, eventTitle];
 
     switch (sortBy) {
       case 'most_liked':

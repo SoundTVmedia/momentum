@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipShowClipsPath, pastShowClipsPath } from './app-paths';
+import { clipShowClipsPath, pastShowClipsPath, showMarkClipsPath } from './app-paths';
 
 describe('pastShowClipsPath', () => {
   it('routes identical event titles on consecutive dates to distinct shows', () => {
@@ -72,5 +72,19 @@ describe('clipShowClipsPath', () => {
         venue_name: 'Madison Square Garden',
       }),
     ).toBe('/events/clips/Phish%20at%20Madison%20Square%20Garden');
+  });
+});
+
+describe('showMarkClipsPath', () => {
+  it('prefers the artist show page over a title-only event page', () => {
+    expect(
+      showMarkClipsPath({
+        event_title: 'Phish at Madison Square Garden',
+        artist_name: 'Phish',
+        venue_name: 'Madison Square Garden',
+        jambase_event_id: 'jambase:123',
+        start_date: '2025-04-20T01:00:00.000Z',
+      }),
+    ).toBe('/artists/phish/shows/jambase%3A123/clips');
   });
 });
