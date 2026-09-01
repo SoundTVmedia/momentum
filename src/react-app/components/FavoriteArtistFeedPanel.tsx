@@ -28,6 +28,7 @@ import {
   HOME_FEED_SECTION_CLASS,
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import {
   USER_BLOCKS_CHANGED_EVENT,
   userBlocksChangedDetail,
@@ -229,6 +230,12 @@ export default function FavoriteArtistFeedPanel({
     window.addEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
     return () => window.removeEventListener(USER_BLOCKS_CHANGED_EVENT, onBlocksChanged);
   }, [user, fetchSlice]);
+
+  const reloadSilent = useCallback(() => {
+    if (!user) return;
+    return Promise.all([loadHubLists(), fetchSlice(0, false)]);
+  }, [user, loadHubLists, fetchSlice]);
+  useAppPullRefresh(reloadSilent, Boolean(user));
 
   useEffect(() => {
     if (!scrollIntoViewOnMount || loading || !hasFollows) return;

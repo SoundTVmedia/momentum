@@ -24,13 +24,14 @@ import {
   Loader2,
   Upload,
 } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import { useClipLike } from '@/react-app/hooks/useClipLike';
 import { useClipSave } from '@/react-app/hooks/useClipSave';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
+import { useTrackpadFeedSwipe } from '@/react-app/hooks/useTrackpadFeedSwipe';
 import { useVerticalSwipeUp } from '@/react-app/hooks/useVerticalSwipeUp';
 import { useClipArtistProfile } from '@/react-app/hooks/useClipArtistProfile';
 import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets';
@@ -47,9 +48,10 @@ import ClipEditModal from './ClipEditModal';
 import ClipModalMaximizedVideo from './ClipModalMaximizedVideo';
 import ClipModalBuyMerch from './ClipModalBuyMerch';
 import ClipModalBuyTickets from './ClipModalBuyTickets';
+import { openExternalKeepClipPlaying } from '@/react-app/lib/open-external-keep-clip-playing';
 import ClipModalTicketSheet from './ClipModalTicketSheet';
 import { canRunClipSongIdentify } from '@/shared/clip-song-identify';
-import { clipBelongsToUser } from '@/shared/mocha-user-id';
+import { clipBelongsToUser, navigableMochaUserId } from '@/shared/mocha-user-id';
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
 import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
 import { metadataFieldsFromClip } from '@/react-app/lib/clipFormFields';
@@ -116,6 +118,7 @@ export default function ClipModal({
     websiteUrl: artistWebsiteUrl,
     loading: artistProfileLoading,
   } = useClipArtistProfile(clip.artist_name);
+  const gestureSurfaceRef = useRef<HTMLDivElement>(null);
   const mobileContainerRef = useRef<HTMLDivElement>(null);
   const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
   const desktopPlayerRef = useRef<StreamVideoPlayerHandle>(null);
@@ -271,14 +274,14 @@ export default function ClipModal({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  const mobileSwipeEnabled =
-    canFeedNav && mobileViewport && !mobileCommentsOpen && !ticketSheetOpen;
+  const gesturesIdle = !mobileCommentsOpen && !ticketSheetOpen;
+
+  const mobileSwipeEnabled = canFeedNav && mobileViewport && gesturesIdle;
 
   const ticketSwipeEnabled =
-    mobileViewport &&
-    !mobileCommentsOpen &&
-    !ticketSheetOpen &&
-    !!nearestTicketShow?.ticketUrl;
+    mobileViewport && gesturesIdle && !!nearestTicketShow?.ticketUrl;
+
+  const trackpadSwipeEnabled = gesturesIdle;
 
   const ticketEventTitle =
     nearestTicketShow && typeof nearestTicketShow.event.name === 'string'
@@ -332,6 +335,16 @@ export default function ClipModal({
     onSwipeUp: openTicketSheet,
   });
 
+  useTrackpadFeedSwipe({
+    enabled: trackpadSwipeEnabled,
+    containerRef: gestureSurfaceRef,
+    onPrev: goPrev,
+    onNext: goNext,
+    onSwipeUp: openTicketSheet,
+    horizontalEnabled: canFeedNav,
+    verticalEnabled: !!nearestTicketShow?.ticketUrl,
+  });
+
   useEffect(() => {
     // Current clip is the visible player — only warm neighbors in hidden decoders.
     if (prevClip) prefetchModalPlayback(prevClip);
@@ -373,6 +386,15 @@ export default function ClipModal({
   }, [clip, artistImageUrl]);
 
   const activePlayerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
+
+  const openExternalFromClip = useCallback(async (url: string) => {
+    try {
+      await (mobileViewport ? mobilePlayerRef.current : desktopPlayerRef.current)?.enterPictureInPicture();
+    } catch {
+      /* still open the shop if PiP is unavailable */
+    }
+    await openExternalKeepClipPlaying(url);
+  }, [mobileViewport]);
 
   useEffect(() => {
     const playerRef = mobileViewport ? mobilePlayerRef : desktopPlayerRef;
@@ -525,6 +547,19 @@ export default function ClipModal({
     window.open(url, '_blank', 'width=550,height=420');
   };
 
+  const posterUserId = navigableMochaUserId(clip.mocha_user_id);
+
+  const goUser = (event?: SyntheticEvent) => {
+    event?.stopPropagation();
+    if (!posterUserId) return;
+    onClose();
+    navigate(`/users/${posterUserId}`);
+  };
+
+  const stopUserGesture = (event: SyntheticEvent) => {
+    event.stopPropagation();
+  };
+
   const goArtist = () => {
     onClose();
     if (clip.artist_name) navigate(artistPath(clip.artist_name));
@@ -565,25 +600,54 @@ export default function ClipModal({
     <>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-16 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
         <div className="pointer-events-auto flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <UserAvatar
-              imageUrl={clip.user_avatar}
-              displayName={clip.user_display_name}
-              seed={clip.mocha_user_id}
-              alt={clip.user_display_name || 'User'}
-              sizeClass="w-9 h-9"
-              letterClassName="text-xs font-semibold"
-              className="border-2 border-white/30 shrink-0"
-            />
-            <div className="min-w-0">
-              <p className="fb-clip-user truncate text-sm">
-                {clip.user_display_name || 'Anonymous'}
-              </p>
-              <p className="text-xs text-white/70">
-                {formatRelativeTime(clipPostedAt(clip))}
-              </p>
+          {posterUserId ? (
+            <button
+              type="button"
+              onClick={goUser}
+              onPointerDown={stopUserGesture}
+              onTouchStart={stopUserGesture}
+              className="flex min-w-0 items-center gap-2 text-left transition-opacity hover:opacity-90"
+              aria-label={`View ${clip.user_display_name || 'user'} profile`}
+            >
+              <UserAvatar
+                imageUrl={clip.user_avatar}
+                displayName={clip.user_display_name}
+                seed={clip.mocha_user_id}
+                alt={clip.user_display_name || 'User'}
+                sizeClass="w-9 h-9"
+                letterClassName="text-xs font-semibold"
+                className="border-2 border-white/30 shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="fb-clip-user truncate text-sm">
+                  {clip.user_display_name || 'Anonymous'}
+                </p>
+                <p className="text-xs text-white/70">
+                  {formatRelativeTime(clipPostedAt(clip))}
+                </p>
+              </div>
+            </button>
+          ) : (
+            <div className="flex min-w-0 items-center gap-2">
+              <UserAvatar
+                imageUrl={clip.user_avatar}
+                displayName={clip.user_display_name}
+                seed={clip.mocha_user_id}
+                alt={clip.user_display_name || 'User'}
+                sizeClass="w-9 h-9"
+                letterClassName="text-xs font-semibold"
+                className="border-2 border-white/30 shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="fb-clip-user truncate text-sm">
+                  {clip.user_display_name || 'Anonymous'}
+                </p>
+                <p className="text-xs text-white/70">
+                  {formatRelativeTime(clipPostedAt(clip))}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {editClipButton}
             {downloadClipButton}
@@ -677,6 +741,7 @@ export default function ClipModal({
             <ClipModalBuyMerch
               websiteUrl={artistWebsiteUrl}
               loading={artistProfileLoading}
+              onOpen={openExternalFromClip}
             />
             <ClipModalBuyTickets
               show={nearestTicketShow}
@@ -830,10 +895,14 @@ export default function ClipModal({
     ) : null;
 
   const modal = (
-    <div className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay touch-manipulation overflow-hidden overflow-y-hidden">
+    <div
+      ref={gestureSurfaceRef}
+      className="fixed inset-0 z-[250] flex animate-fade-in glass-modal-overlay touch-manipulation overflow-hidden overflow-y-hidden"
+    >
       {/* ——— Mobile: full-viewport video + overlays ——— */}
       <div
         ref={mobileContainerRef}
+        data-clip-swipe-surface=""
         className={`clip-player-lock-scale relative flex h-[100svh] max-h-[100svh] w-full flex-col overflow-hidden overflow-y-hidden md:hidden overscroll-none touch-pan-x ${
           mobileSwipeEnabled || ticketSwipeEnabled ? 'touch-none' : ''
         }`}
@@ -857,6 +926,7 @@ export default function ClipModal({
         {mobileCommentsOpen ? (
           <div
             className="absolute inset-0 z-30 flex flex-col glass-modal-overlay"
+            data-no-clip-swipe=""
             role="dialog"
             aria-label="Comments"
           >
@@ -894,6 +964,7 @@ export default function ClipModal({
             ticketUrl={nearestTicketShow.ticketUrl}
             eventTitle={ticketEventTitle}
             onClose={closeTicketSheet}
+            onOpenTickets={openExternalFromClip}
           />
         ) : null}
       </div>
@@ -901,7 +972,10 @@ export default function ClipModal({
       {/* ——— Desktop ——— */}
       <div className="mx-auto hidden h-full w-full max-w-6xl items-center justify-center p-4 md:flex">
         <div className="flex h-full max-h-[90vh] w-full overflow-hidden overflow-y-hidden rounded-2xl glass-dropdown animate-scale-in">
-          <div className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black">
+          <div
+            className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black"
+            data-clip-swipe-surface=""
+          >
             <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
               <button
                 type="button"
@@ -977,36 +1051,69 @@ export default function ClipModal({
                 ticketUrl={nearestTicketShow.ticketUrl}
                 eventTitle={ticketEventTitle}
                 onClose={closeTicketSheet}
+                onOpenTickets={openExternalFromClip}
               />
             ) : null}
           </div>
 
-          <div className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50">
+          <div
+            className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50"
+            data-no-clip-swipe=""
+          >
             <div className="flex-shrink-0 border-b border-white/10 p-4">
               {editClipButton ? (
                 <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
                   {editClipButton}
                 </div>
               ) : null}
-              <div className="mb-3 flex items-center space-x-3">
-                <UserAvatar
-                  imageUrl={clip.user_avatar}
-                  displayName={clip.user_display_name}
-                  seed={clip.mocha_user_id}
-                  alt={clip.user_display_name || 'User'}
-                  sizeClass="w-10 h-10"
-                  letterClassName="text-sm font-semibold"
-                  className="border-2 border-momentum-ember/40 flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <div className="truncate text-base font-medium text-white">
-                    {clip.user_display_name || 'Anonymous'}
+              {posterUserId ? (
+                <button
+                  type="button"
+                  onClick={goUser}
+                  onPointerDown={stopUserGesture}
+                  onTouchStart={stopUserGesture}
+                  className="mb-3 flex items-center space-x-3 text-left transition-opacity hover:opacity-80"
+                  aria-label={`View ${clip.user_display_name || 'user'} profile`}
+                >
+                  <UserAvatar
+                    imageUrl={clip.user_avatar}
+                    displayName={clip.user_display_name}
+                    seed={clip.mocha_user_id}
+                    alt={clip.user_display_name || 'User'}
+                    sizeClass="w-10 h-10"
+                    letterClassName="text-sm font-semibold"
+                    className="border-2 border-momentum-ember/40 flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate text-base font-medium text-white">
+                      {clip.user_display_name || 'Anonymous'}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      {formatRelativeTime(clipPostedAt(clip))}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-400">
-                    {formatRelativeTime(clipPostedAt(clip))}
+                </button>
+              ) : (
+                <div className="mb-3 flex items-center space-x-3">
+                  <UserAvatar
+                    imageUrl={clip.user_avatar}
+                    displayName={clip.user_display_name}
+                    seed={clip.mocha_user_id}
+                    alt={clip.user_display_name || 'User'}
+                    sizeClass="w-10 h-10"
+                    letterClassName="text-sm font-semibold"
+                    className="border-2 border-momentum-ember/40 flex-shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate text-base font-medium text-white">
+                      {clip.user_display_name || 'Anonymous'}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      {formatRelativeTime(clipPostedAt(clip))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-2">
                 {eventTitle ? (
@@ -1089,6 +1196,7 @@ export default function ClipModal({
                   websiteUrl={artistWebsiteUrl}
                   loading={artistProfileLoading}
                   className="w-full"
+                  onOpen={openExternalFromClip}
                 />
                 <ClipModalBuyTickets
                   show={nearestTicketShow}

@@ -4,6 +4,8 @@ import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import { MapPin, Calendar, Music, Loader2, UserPlus, UserMinus, Users } from 'lucide-react';
 import Header from '@/react-app/components/Header';
+import SocialClickoutLinks from '@/react-app/components/SocialClickoutLinks';
+import { parseSocialLinksRecord } from '@/react-app/lib/social-link-icon';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import PastShowsSection from '@/react-app/components/PastShowsSection';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
@@ -23,6 +25,7 @@ interface Venue {
   image_url: string | null;
   capacity: number | null;
   jambase_id?: string | null;
+  social_links?: string | Record<string, string> | null;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +102,7 @@ export default function VenuePage() {
   }
 
   const { venue, clips, upcomingEvents } = data;
+  const socialLinks = parseSocialLinksRecord(venue.social_links);
   const venueCapacity =
     venue.capacity != null && Number.isFinite(Number(venue.capacity))
       ? Number(venue.capacity)
@@ -151,6 +155,15 @@ export default function VenuePage() {
                   </p>
                 </div>
               )}
+
+              {Object.keys(socialLinks).length > 0 ? (
+                <div className={venueCapacity != null || venue.address || venue.location ? 'mt-4' : undefined}>
+                  <SocialClickoutLinks
+                    links={socialLinks}
+                    hoverClassName="hover:text-momentum-flare"
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

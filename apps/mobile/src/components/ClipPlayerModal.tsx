@@ -25,6 +25,7 @@ import { useClipArtistProfile } from '@/src/hooks/useClipArtistProfile';
 import { useClipPlaybackTickets } from '@/src/hooks/useClipPlaybackTickets';
 import { restoreForMediaPlayback } from 'feedback-audio-session';
 import { artistPath, venuePath } from '@shared/app-paths';
+import { navigableMochaUserId } from '@shared/mocha-user-id';
 import { jamBaseEventTitle } from '@shared/event-title';
 import { colors, spacing, typography } from '@/src/theme/tokens';
 
@@ -72,6 +73,7 @@ function ClipSlide({
 }) {
   const src = useMemo(() => clipSource(clip), [clip]);
   const poster = useMemo(() => resolveClipPosterUrl(clip), [clip]);
+  const posterUserId = navigableMochaUserId(clip.mocha_user_id);
 
   const title = clip.song_title?.trim() || clip.artist_name?.trim() || 'Clip';
 
@@ -82,9 +84,22 @@ function ClipSlide({
           {title}
         </Text>
         {clip.user_display_name ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {clip.user_display_name}
-          </Text>
+          posterUserId ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onNavigateEntity(`/users/${posterUserId}`);
+              }}
+            >
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {clip.user_display_name}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.subtitle} numberOfLines={1}>
+              {clip.user_display_name}
+            </Text>
+          )
         ) : null}
         <View style={styles.entityRow}>
           {clip.artist_name ? (
@@ -192,7 +207,7 @@ export function ClipPlayerModal({
     (href: string) => {
       onClose();
       setTimeout(() => {
-        router.push(href as `/artists/${string}` | `/venues/${string}`);
+        router.push(href as `/artists/${string}` | `/venues/${string}` | `/users/${string}`);
       }, 50);
     },
     [onClose, router],

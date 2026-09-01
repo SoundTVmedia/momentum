@@ -3,8 +3,10 @@ import { useParams, useNavigate } from 'react-router';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import PastShowsSection from '@/react-app/components/PastShowsSection';
-import { Music, MapPin, Ticket, Loader2, ExternalLink, UserPlus, UserMinus, Radio, ShoppingBag, Play } from 'lucide-react';
+import { Music, MapPin, Ticket, Loader2, ExternalLink, UserPlus, UserMinus, Radio, Play } from 'lucide-react';
 import Header from '@/react-app/components/Header';
+import SocialClickoutLinks from '@/react-app/components/SocialClickoutLinks';
+import { socialLinkIcon } from '@/react-app/lib/social-link-icon';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import NearbyShowsCTA from '@/react-app/components/NearbyShowsCTA';
@@ -185,6 +187,9 @@ export default function ArtistPage() {
 
   const { artist, clips, tourDates } = data;
   const socialLinks = parseArtistSocialLinks(artist.social_links);
+  const WebsiteIcon = socialLinkIcon('website');
+  const SpotifyIcon = socialLinkIcon('spotify');
+  const MerchIcon = socialLinkIcon('merch');
 
   return (
     <div className="min-h-screen text-white">
@@ -232,41 +237,7 @@ export default function ArtistPage() {
                 </p>
               )}
 
-              {/* Social Links */}
-              {Object.keys(socialLinks).length > 0 && (
-                <div className="flex items-center space-x-4">
-                  {socialLinks.instagram && (
-                    <a
-                      href={socialLinks.instagram}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-momentum-rose transition-colors"
-                    >
-                      <ExternalLink className="w-5 h-5" />
-                    </a>
-                  )}
-                  {socialLinks.twitter && (
-                    <a
-                      href={socialLinks.twitter}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-momentum-rose transition-colors"
-                    >
-                      <ExternalLink className="w-5 h-5" />
-                    </a>
-                  )}
-                  {socialLinks.website && (
-                    <a
-                      href={socialLinks.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-400 hover:text-momentum-rose transition-colors"
-                    >
-                      <ExternalLink className="w-5 h-5" />
-                    </a>
-                  )}
-                </div>
-              )}
+              <SocialClickoutLinks links={socialLinks} />
             </div>
           </div>
         </div>
@@ -396,7 +367,7 @@ export default function ArtistPage() {
                     rel="noopener noreferrer"
                     className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
                   >
-                    <ExternalLink className="w-5 h-5 text-momentum-rose group-hover:scale-110 transition-transform" />
+                    <WebsiteIcon className="w-5 h-5 text-momentum-rose group-hover:scale-110 transition-transform" />
                     <span className="text-white font-medium">Official Website</span>
                   </a>
                 )}
@@ -407,7 +378,7 @@ export default function ArtistPage() {
                     rel="noopener noreferrer"
                     className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
                   >
-                    <Music className="w-5 h-5 text-green-400 group-hover:scale-110 transition-transform" />
+                    <SpotifyIcon className="w-5 h-5 text-green-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white font-medium">Listen on Spotify</span>
                   </a>
                 )}
@@ -429,7 +400,7 @@ export default function ArtistPage() {
                     rel="noopener noreferrer"
                     className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors group"
                   >
-                    <ShoppingBag className="w-5 h-5 text-momentum-ember group-hover:scale-110 transition-transform" />
+                    <MerchIcon className="w-5 h-5 text-momentum-ember group-hover:scale-110 transition-transform" />
                     <span className="text-white font-medium">Shop Merch</span>
                   </a>
                 )}

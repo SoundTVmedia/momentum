@@ -8,6 +8,7 @@ import HorizontalClipCarousel, {
 import SectionHeading from '@/react-app/components/SectionHeading';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import { jamBaseEventTicketUrl } from '@/shared/jambase-events';
 import { isUpcomingShowMark, showMarkCardStatus, showMarkCardStatusLabel, showMarkToJamBaseEvent, type UserShowMark } from '@/shared/show-marks';
 
@@ -106,14 +107,14 @@ export default function GoingShowsFeedSection() {
   >({});
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user) {
       setFriends([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     try {
       const friendsRes = await fetch('/api/shows/friends-going?limit=40', {
         credentials: 'include',
@@ -130,7 +131,7 @@ export default function GoingShowsFeedSection() {
             ? data.eventsByEventId
             : {},
         );
-      } else {
+      } else if (!opts?.silent) {
         setFriends([]);
         setEventsByEventId({});
       }
@@ -146,6 +147,9 @@ export default function GoingShowsFeedSection() {
     if (isPending) return;
     void load();
   }, [isPending, load]);
+
+  const reloadSilent = useCallback(() => load({ silent: true }), [load]);
+  useAppPullRefresh(reloadSilent, Boolean(user));
 
   const friendCards = useMemo(() => {
     const cards: { key: string; friend: FriendGoingGroup; mark: UserShowMark }[] = [];

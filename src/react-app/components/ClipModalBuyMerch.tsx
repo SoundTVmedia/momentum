@@ -4,12 +4,14 @@ type ClipModalBuyMerchProps = {
   websiteUrl: string | null;
   loading: boolean;
   className?: string;
+  onOpen?: (url: string) => void | Promise<void>;
 };
 
 export default function ClipModalBuyMerch({
   websiteUrl,
   loading,
   className = '',
+  onOpen,
 }: ClipModalBuyMerchProps) {
   if (loading || !websiteUrl) {
     return null;
@@ -27,7 +29,12 @@ export default function ClipModalBuyMerch({
       aria-label="Buy merch on the artist website"
       onPointerDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!onOpen) return;
+        e.preventDefault();
+        void onOpen(websiteUrl);
+      }}
     >
       <ShoppingBag className="h-4 w-4 shrink-0 text-momentum-ember" aria-hidden />
       <span className="min-w-0 flex-1 text-left">

@@ -12,6 +12,7 @@ import {
   userBlocksChangedDetail,
 } from '@/react-app/lib/user-block-events'
 import { FOLLOWING_CHANGED_EVENT } from '@/react-app/hooks/useFollow'
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh'
 
 interface UseClipsOptions {
   feedType?: 'latest' | 'most_liked' | 'most_viewed'
@@ -127,7 +128,7 @@ export function useClips(options: UseClipsOptions = {}) {
         if (generation !== fetchGenerationRef.current) return
         setError(err instanceof Error ? err.message : 'Unknown error')
         console.error('Failed to fetch clips:', err)
-        if (!append) {
+        if (!append && !preserveExisting) {
           setClips([])
           setHasMore(false)
         }
@@ -154,6 +155,13 @@ export function useClips(options: UseClipsOptions = {}) {
     setPage(1)
     void fetchClips(1, false)
   }, [fetchClips])
+
+  const refreshInPlace = useCallback(() => {
+    setPage(1)
+    return fetchClips(1, false, true)
+  }, [fetchClips])
+
+  useAppPullRefresh(refreshInPlace)
 
   const removeClip = useCallback((clipId: number) => {
     setClips((prev) =>

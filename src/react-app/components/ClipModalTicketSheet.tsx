@@ -15,6 +15,7 @@ type ClipModalTicketSheetProps = {
   ticketUrl: string;
   eventTitle: string;
   onClose: () => void;
+  onOpenTickets?: (url: string) => void | Promise<void>;
 };
 
 export default function ClipModalTicketSheet({
@@ -22,6 +23,7 @@ export default function ClipModalTicketSheet({
   ticketUrl,
   eventTitle,
   onClose,
+  onOpenTickets,
 }: ClipModalTicketSheetProps) {
   const startDate = typeof event.startDate === 'string' ? event.startDate : null;
   const venueName = jamBaseEventVenueName(event);
@@ -31,6 +33,7 @@ export default function ClipModalTicketSheet({
   return (
     <div
       className="absolute inset-0 z-40 flex flex-col bg-slate-950 animate-fade-in"
+      data-no-clip-swipe=""
       role="dialog"
       aria-label={`Buy tickets — ${eventTitle}`}
     >
@@ -78,12 +81,23 @@ export default function ClipModalTicketSheet({
           <div className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-4 text-center">
             <Ticket className="mx-auto mb-2 h-8 w-8 text-momentum-flare" aria-hidden />
             <p className="text-sm text-gray-300">
-              Ticket checkout opens in your browser — ticket sites don&apos;t allow in-app
-              checkout.
+              Ticket checkout opens in your browser. The clip keeps playing in a
+              picture-in-picture window so you can still listen while you buy.
             </p>
           </div>
 
-          <EventTicketActions ticketUrl={ticketUrl} eventTitle={eventTitle} className="w-full" />
+          <EventTicketActions
+            ticketUrl={ticketUrl}
+            eventTitle={eventTitle}
+            className="w-full"
+            onGetTicketsClick={
+              onOpenTickets
+                ? () => {
+                    void onOpenTickets(ticketUrl);
+                  }
+                : undefined
+            }
+          />
         </div>
       </div>
     </div>

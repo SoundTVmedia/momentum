@@ -7,6 +7,7 @@ import {
   normalizeNotificationId,
   resolveNotificationKey,
 } from '@/react-app/lib/notification-ids'
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh'
 
 export interface Notification {
   id: number
@@ -192,6 +193,9 @@ export function useNotifications() {
     }, 15000)
     return () => window.clearInterval(interval)
   }, [userId, fetchNotifications])
+
+  const reloadSilent = useCallback(() => fetchNotifications(false), [fetchNotifications])
+  useAppPullRefresh(reloadSilent, Boolean(userId))
 
   return {
     notifications,

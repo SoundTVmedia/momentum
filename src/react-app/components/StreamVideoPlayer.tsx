@@ -14,6 +14,11 @@ import {
 } from '@/react-app/lib/clipPlaybackPrefetch';
 import { tryVideoPlayPreferSound, playVideoWithSoundOnGesture } from '@/react-app/utils/videoAutoplay';
 import { restoreNativeMediaPlaybackAudio, shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
+import {
+  enterClipPictureInPicture,
+  exitClipPictureInPicture,
+  isVideoInPictureInPicture,
+} from '@/react-app/lib/clip-picture-in-picture';
 
 export type StreamVideoPlayerHandle = {
   togglePlay: () => void;
@@ -21,6 +26,7 @@ export type StreamVideoPlayerHandle = {
   play: () => void;
   /** Halt decode and audio immediately (modal close). */
   stop: () => void;
+  enterPictureInPicture: () => Promise<boolean>;
 };
 
 /** Pause clip modal, feed-preview, and prefetch videos so audio cannot leak after close. */
@@ -34,6 +40,7 @@ export function stopAllClipMediaElements(): void {
     const inPreview = node.closest('.clip-feed-preview');
     const inPrefetch = node.closest('#clip-playback-prefetch-host');
     if (!inModal && !inPreview && !inPrefetch) return;
+    if (isVideoInPictureInPicture(node)) return;
     try {
       node.pause();
       node.muted = true;
@@ -595,16 +602,24 @@ function StreamVideoPlayer(
   const stop = useCallback(() => {
     stoppedRef.current = true;
     autoPlayRef.current = false;
+    void exitClipPictureInPicture(videoRef.current);
     destroyHls();
     hardStopVideoElement(videoRef.current);
     attachedSrcRef.current = null;
     setIsPlaying(false);
   }, [destroyHls]);
 
-  useImperativeHandle(ref, () => ({ togglePlay, toggleMute, play, stop }), [
+  const enterPictureInPicture = useCallback(async () => {
+    stoppedRef.current = false;
+    autoPlayRef.current = true;
+    return enterClipPictureInPicture(videoRef.current);
+  }, []);
+
+  useImperativeHandle(ref, () => ({ togglePlay, toggleMute, play, stop, enterPictureInPicture }), [
     isPlaying,
     play,
     stop,
+    enterPictureInPicture,
   ]);
 
   if (!videoSrc) {
@@ -633,6 +648,7 @@ function StreamVideoPlayer(
         autoPlay={autoPlay}
         loop={loop}
         playsInline
+        disablePictureInPicture={false}
         muted={isMuted}
         className={`absolute inset-0 h-full w-full bg-black ${videoObjectFit === 'cover' ? 'object-cover' : 'object-contain'}`}
         preload="auto"

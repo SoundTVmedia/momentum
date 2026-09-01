@@ -7,6 +7,7 @@ import QuickCaptureOverlay from '@/react-app/components/QuickCaptureOverlay';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { MOBILE_PAGE_INSET_BOTTOM_CLASS } from '@/react-app/lib/mobileBottomNavLayout';
+import AppPullToRefresh from '@/react-app/components/AppPullToRefresh';
 import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
 import {
   forceStopNativeCaptureSession,
@@ -64,12 +65,14 @@ export default function AppRouteChrome() {
 
   return (
     <>
+      <AppPullToRefresh>
       <div
         className={`app-route-outlet ${showMobileNavInset ? MOBILE_PAGE_INSET_BOTTOM_CLASS : ''}`}
         aria-hidden={hideRouteContentForNativeCapture ? true : undefined}
       >
         <Outlet />
       </div>
+      </AppPullToRefresh>
       <MobileBottomNav />
       {(!onCaptureReviewRoute || isCaptureReopenPending()) && (
         <QuickCaptureOverlay {...quickCapture} />

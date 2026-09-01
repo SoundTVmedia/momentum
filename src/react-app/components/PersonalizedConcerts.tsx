@@ -23,6 +23,7 @@ import {
   PAGE_CAROUSEL_BLEED,
 } from '@/react-app/lib/homeFeedLayout';
 import { displayMediaUrl } from '@/shared/media-proxy';
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 
 export type ShowsSectionMode = 'favorite-artists' | 'nearby' | 'auto';
 
@@ -297,6 +298,61 @@ export default function PersonalizedConcerts({
       window.removeEventListener('favorite-artists-changed', refresh);
     };
   }, [isLoggedIn, resolvedMode]);
+
+  const reloadInPlace = useCallback(async () => {
+    if (authPending) return;
+    if (resolvedMode === 'favorite-artists' && !isLoggedIn) return;
+    try {
+      if (resolvedMode === 'favorite-artists') {
+        const response = await fetch('/api/personalization/concerts?limit=40', {
+          credentials: 'include',
+        });
+        const data = (await response.json()) as ConcertsApi;
+        setPayload({
+          personalized: Boolean(data.personalized),
+          concerts: Array.isArray(data.concerts) ? data.concerts : [],
+          events: Array.isArray(data.events) ? data.events : [],
+          source: data.source,
+          message: typeof data.message === 'string' ? data.message : undefined,
+        });
+        return;
+      }
+      const device = await readDeviceCoordsForNearbyShows();
+      const response = await fetch(
+        nearbyShowsApiUrl({
+          limit: nearbyFetchLimit,
+          latitude: device?.latitude,
+          longitude: device?.longitude,
+        }),
+        {
+          credentials: 'include',
+          signal: AbortSignal.timeout(22_000),
+        },
+      );
+      const data = (await response.json()) as ConcertsApi & {
+        jambaseNotice?: string | null;
+      };
+      const notice =
+        typeof data.jambaseNotice === 'string' && data.jambaseNotice.trim()
+          ? data.jambaseNotice.trim()
+          : null;
+      setPayload({
+        personalized: true,
+        concerts: [],
+        events: Array.isArray(data.events) ? data.events : [],
+        source: 'jambase',
+        location: data.location,
+        message:
+          notice ??
+          ((data.events?.length ?? 0) === 0
+            ? 'No upcoming shows found near your area.'
+            : undefined),
+      });
+    } catch (error) {
+      console.error('Failed to refresh concerts:', error);
+    }
+  }, [authPending, isLoggedIn, resolvedMode, nearbyFetchLimit]);
+  useAppPullRefresh(reloadInPlace);
 
   const locationLabel =
     typeof payload?.location?.label === 'string' && payload.location.label.trim()

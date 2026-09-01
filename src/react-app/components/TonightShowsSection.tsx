@@ -5,6 +5,7 @@ import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { BROWSE_TONIGHT_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import {
   readDeviceCoordsForNearbyShows,
   tonightShowsApiUrl,
@@ -35,8 +36,9 @@ export default function TonightShowsSection({
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) setLoading(true);
     let lastError: unknown = null;
 
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -82,6 +84,11 @@ export default function TonightShowsSection({
       }
     }
 
+    if (silent) {
+      setLoading(false);
+      return;
+    }
+
     setEvents([]);
     setMessage(
       isFetchTimeoutError(lastError)
@@ -94,6 +101,9 @@ export default function TonightShowsSection({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const reloadSilent = useCallback(() => load({ silent: true }), [load]);
+  useAppPullRefresh(reloadSilent);
 
   if (loading) {
     return (

@@ -60,6 +60,7 @@ const config: CapacitorConfig = {
         'Feedback uses your location to match concert clips to nearby venues and JamBase shows.',
       NSLocationAlwaysAndWhenInUseUsageDescription:
         'Feedback uses your location to match concert clips to nearby venues and JamBase shows.',
+      UIBackgroundModes: ['audio'],
       ...(isValidGoogleIosOAuthClientId(googleIosClientId)
         ? { GIDClientID: googleIosClientId }
         : {}),

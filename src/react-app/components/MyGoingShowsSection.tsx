@@ -7,6 +7,7 @@ import SectionHeading from '@/react-app/components/SectionHeading';
 import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import { upcomingGoingMarkEvents, type UserShowMark } from '@/shared/show-marks';
 
 type MyGoingShowsSectionProps = {
@@ -23,21 +24,21 @@ export default function MyGoingShowsSection({
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user) {
       setEvents([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     try {
       const res = await fetch(
         '/api/users/me/show-marks?status=going&enrich=jambase',
         { credentials: 'include' },
       );
       if (!res.ok) {
-        setEvents([]);
+        if (!opts?.silent) setEvents([]);
         return;
       }
       const data = (await res.json()) as {
@@ -49,7 +50,7 @@ export default function MyGoingShowsSection({
       setEvents(upcomingGoingMarkEvents(marks, enriched));
     } catch (e) {
       console.error('MyGoingShowsSection load failed', e);
-      setEvents([]);
+      if (!opts?.silent) setEvents([]);
     } finally {
       setLoading(false);
     }
@@ -59,6 +60,9 @@ export default function MyGoingShowsSection({
     if (isPending) return;
     void load();
   }, [isPending, load]);
+
+  const reloadSilent = useCallback(() => load({ silent: true }), [load]);
+  useAppPullRefresh(reloadSilent, Boolean(user));
 
   useEffect(() => {
     let debounceId: ReturnType<typeof setTimeout> | null = null;

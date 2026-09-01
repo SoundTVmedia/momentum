@@ -143,6 +143,15 @@ body {
   transform: none !important;
 }
 
+html.app-ptr-enabled,
+html.app-ptr-enabled body {
+  overscroll-behavior-y: none;
+}
+
+.app-ptr-sheet {
+  min-height: 100%;
+}
+
 ion-app.momentum-ion-app {
   position: relative;
   display: block;
