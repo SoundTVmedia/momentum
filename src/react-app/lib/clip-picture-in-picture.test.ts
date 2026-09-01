@@ -27,7 +27,7 @@ describe('enterClipPictureInPicture', () => {
       webkitPresentationMode: 'inline',
     })
     setMode.mockImplementation((mode: string) => {
-      ;(video as { webkitPresentationMode: string }).webkitPresentationMode = mode
+      ;(video as unknown as { webkitPresentationMode: string }).webkitPresentationMode = mode
     })
 
     await expect(enterClipPictureInPicture(video)).resolves.toBe(true)
