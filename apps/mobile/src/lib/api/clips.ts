@@ -277,6 +277,33 @@ export async function fetchVenuePage(venueSlug: string): Promise<VenuePagePayloa
   return apiJson<VenuePagePayload>(`/api/venues/${encodeURIComponent(venueSlug)}`);
 }
 
+export type FestivalPagePayload = {
+  festival: {
+    name: string;
+    slug: string;
+    image_url: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    venue_name: string | null;
+    city_line: string | null;
+    ticket_url: string | null;
+    website_url: string | null;
+    jambase_event_id: string | null;
+  };
+  artists: Array<{
+    name: string;
+    image_url: string | null;
+    jambase_id: string | null;
+    is_headliner: boolean;
+  }>;
+  clips: ClipsPage['clips'];
+  jambase_attribution?: boolean;
+};
+
+export async function fetchFestivalPage(festivalSlug: string): Promise<FestivalPagePayload> {
+  return apiJson<FestivalPagePayload>(`/api/festivals/${encodeURIComponent(festivalSlug)}`);
+}
+
 export async function fetchNotifications(): Promise<NotificationsResponse> {
   return apiJson<NotificationsResponse>('/api/notifications');
 }

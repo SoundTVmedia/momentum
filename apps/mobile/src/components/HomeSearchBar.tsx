@@ -11,7 +11,8 @@ import {
 import { useRouter } from 'expo-router';
 import { fetchAdvancedSearch } from '@/src/lib/api/clips';
 import type { ClipFeedItem } from '@/src/lib/api/types';
-import { artistPath, venuePath } from '@shared/app-paths';
+import { artistPath, festivalPath, venuePath } from '@shared/app-paths';
+import { isJamBaseFestivalEvent } from '@shared/jambase-festival';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 
 type Props = {
@@ -194,6 +195,7 @@ export function HomeSearchBar({ onSelectClip }: Props) {
           {events.slice(0, 4).map((ev, index) => {
             const title = typeof ev.name === 'string' ? ev.name : 'Event';
             const id = typeof ev.identifier === 'string' ? ev.identifier : `event-${index}`;
+            const festival = isJamBaseFestivalEvent(ev);
             const offers = ev.offers;
             const ticket =
               Array.isArray(offers) && offers[0] && typeof offers[0] === 'object'
@@ -207,6 +209,10 @@ export function HomeSearchBar({ onSelectClip }: Props) {
                 style={styles.row}
                 onPress={() => {
                   setOpen(false);
+                  if (festival) {
+                    router.push(festivalPath(title) as `/festivals/${string}`);
+                    return;
+                  }
                   if (ticket) {
                     void Linking.openURL(ticket);
                   } else {
@@ -214,7 +220,7 @@ export function HomeSearchBar({ onSelectClip }: Props) {
                   }
                 }}
               >
-                <Text style={styles.rowKind}>Event</Text>
+                <Text style={styles.rowKind}>{festival ? 'Festival' : 'Event'}</Text>
                 <Text style={styles.rowTitle} numberOfLines={1}>
                   {title}
                 </Text>

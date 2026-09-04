@@ -3,7 +3,7 @@ import { Calendar, MapPin, Clock, Loader2 } from 'lucide-react';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { useNavigate } from 'react-router';
-import { artistPath, venuePath } from '@/shared/app-paths';
+import { artistPath, festivalPath, venuePath } from '@/shared/app-paths';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
@@ -15,6 +15,7 @@ import {
   jamBaseEventCardImageUrl,
   jamBaseEventHeadliner,
 } from '@/shared/jambase-events';
+import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import { jamBaseEventInProgress } from '@/shared/jambase-event-day';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
@@ -114,11 +115,13 @@ function JamBaseEventCard({
   event,
   onArtist,
   onVenue,
+  onFestival,
   showInProgressBadge = false,
 }: {
   event: Record<string, unknown>;
   onArtist: (name: string) => void;
   onVenue: (name: string) => void;
+  onFestival: (name: string) => void;
   showInProgressBadge?: boolean;
 }) {
   const { getMarkForEvent } = useShowMarks();
@@ -126,7 +129,8 @@ function JamBaseEventCard({
   const start = typeof event.startDate === 'string' ? event.startDate : '';
   const image = displayMediaUrl(jamBaseEventCardImageUrl(event));
   const ticket = primaryTicketUrl(event);
-  const head = headlinerName(event);
+  const festival = isJamBaseFestivalEvent(event);
+  const head = festival ? null : headlinerName(event);
   const vn = venueLabel(event);
   const vLine = venueCityLine(event);
   const eventId = typeof event.identifier === 'string' ? event.identifier : null;
@@ -137,18 +141,24 @@ function JamBaseEventCard({
     : inProgress
       ? 'In progress'
       : null;
+  const genreBadge = festival ? 'Festival' : headlinerGenre(event);
+
+  const openHero = () => {
+    if (festival) onFestival(title);
+    else if (head) onArtist(head);
+  };
 
   return (
     <div
       className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
       <div className={EVENT_CAROUSEL_IMAGE_CLASS}>
-        {head ? (
+        {festival || head ? (
           <button
             type="button"
-            onClick={() => onArtist(head)}
+            onClick={openHero}
             className="relative block h-full w-full text-left"
-            aria-label={`View ${head}`}
+            aria-label={festival ? `View ${title}` : `View ${head}`}
           >
             <img
               src={image}
@@ -164,7 +174,7 @@ function JamBaseEventCard({
                 </span>
               ) : null}
               <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
-                {headlinerGenre(event)}
+                {genreBadge}
               </span>
             </div>
           </button>
@@ -184,7 +194,7 @@ function JamBaseEventCard({
                 </span>
               ) : null}
               <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
-                {headlinerGenre(event)}
+                {genreBadge}
               </span>
             </div>
           </>
@@ -192,9 +202,19 @@ function JamBaseEventCard({
       </div>
 
       <div className="p-4 flex flex-col flex-1 min-h-0">
-        <h3 className="font-bold text-base text-white mb-1.5 group-hover:text-momentum-flare transition-colors line-clamp-2 shrink-0 leading-tight">
-          {title}
-        </h3>
+        {festival ? (
+          <button
+            type="button"
+            onClick={() => onFestival(title)}
+            className="font-bold text-base text-white mb-1.5 hover:text-momentum-flare transition-colors line-clamp-2 shrink-0 leading-tight text-left w-full"
+          >
+            {title}
+          </button>
+        ) : (
+          <h3 className="font-bold text-base text-white mb-1.5 group-hover:text-momentum-flare transition-colors line-clamp-2 shrink-0 leading-tight">
+            {title}
+          </h3>
+        )}
 
         <div className="space-y-1.5 mb-2 text-sm flex-1 leading-tight">
           {head ? (
@@ -339,6 +359,7 @@ export default function JamBaseEventGrid({
       event={event}
       onArtist={(name) => navigate(artistPath(name))}
       onVenue={(name) => navigate(venuePath(name))}
+      onFestival={(name) => navigate(festivalPath(name))}
       showInProgressBadge={showInProgressBadge}
     />
   );

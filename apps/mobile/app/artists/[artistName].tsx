@@ -26,8 +26,9 @@ import {
   toggleFollowTarget,
 } from '@/src/lib/api/follow';
 import type { ClipFeedItem, ShowEvent } from '@/src/lib/api/types';
-import { venuePath } from '@shared/app-paths';
+import { festivalPath, venuePath } from '@shared/app-paths';
 import { jamBaseEventVenueName } from '@shared/jambase-events';
+import { isJamBaseFestivalEvent } from '@shared/jambase-festival';
 import { colors, spacing, typography } from '@/src/theme/tokens';
 
 function tourDatesToEvents(
@@ -238,6 +239,16 @@ export default function ArtistScreen() {
           events={upcoming}
           emptyMessage="No upcoming shows listed yet."
           onPressEvent={(event) => {
+            if (isJamBaseFestivalEvent(event as Record<string, unknown>)) {
+              const name =
+                (typeof event.name === 'string' && event.name.trim()) ||
+                (typeof event.title === 'string' && event.title.trim()) ||
+                '';
+              if (name) {
+                router.push(festivalPath(name) as `/festivals/${string}`);
+                return;
+              }
+            }
             const venue =
               (typeof event.venue_name === 'string' && event.venue_name.trim()) ||
               (event.location && typeof event.location === 'object'

@@ -15,6 +15,7 @@ import SavedClipsPage from "@/react-app/pages/SavedClips";
 import LikedClipsPage from "@/react-app/pages/LikedClips";
 import ArtistPage from "@/react-app/pages/ArtistPage";
 import VenuePage from "@/react-app/pages/VenuePage";
+import FestivalPage from "@/react-app/pages/FestivalPage";
 import AdminPage from "@/react-app/pages/Admin";
 import UserProfilePage from "@/react-app/pages/UserProfile";
 import DiscoverPage from "@/react-app/pages/Discover";
@@ -103,6 +104,7 @@ export default function App() {
               <Route path="/liked" element={<LikedClipsPage />} />
               <Route path="/artists/:artistName" element={<ArtistPage />} />
               <Route path="/venues/:venueName" element={<VenuePage />} />
+              <Route path="/festivals/:festivalName" element={<FestivalPage />} />
               <Route path="/users/:userId" element={<UserProfilePage />} />
               <Route path="/discover" element={<DiscoverPage />} />
               <Route path="/browse/clips/:feedType" element={<BrowseClipsFeedPage />} />

@@ -32,8 +32,9 @@ import type {
   UserShowMark,
 } from '@/src/lib/api/types';
 import { primeLocationOnUserGesture } from '@/src/lib/location';
-import { artistPath, venuePath } from '@shared/app-paths';
+import { artistPath, festivalPath, venuePath } from '@shared/app-paths';
 import { jamBaseEventVenueName } from '@shared/jambase-events';
+import { isJamBaseFestivalEvent } from '@shared/jambase-festival';
 import { colors, spacing, typography } from '@/src/theme/tokens';
 
 type SortBy = 'latest' | 'most_liked' | 'most_viewed';
@@ -172,6 +173,16 @@ export default function HomeScreen() {
   };
 
   const openShowEvent = (event: ShowEvent) => {
+    if (isJamBaseFestivalEvent(event as Record<string, unknown>)) {
+      const name =
+        (typeof event.name === 'string' && event.name.trim()) ||
+        (typeof event.title === 'string' && event.title.trim()) ||
+        '';
+      if (name) {
+        router.push(festivalPath(name) as `/festivals/${string}`);
+        return;
+      }
+    }
     const venue =
       (typeof event.venue_name === 'string' && event.venue_name.trim()) ||
       (event.location && typeof event.location === 'object'

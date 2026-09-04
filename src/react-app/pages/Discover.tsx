@@ -33,6 +33,7 @@ import { apiFetch } from '@/react-app/lib/apiFetch';
 import { nearbyShowsApiUrl, readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import { globalSongPath } from '@/shared/app-paths';
+import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
 import {
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
@@ -577,12 +578,25 @@ export default function DiscoverPage() {
               </section>
             )}
 
-            {results.jambase && results.jambase.events.length > 0 && (
+            {results.jambase && results.jambase.events.filter(isJamBaseFestivalEvent).length > 0 && (
+              <section className={HOME_FEED_SECTION_CLASS}>
+                <DiscoverSectionTitle title="Festivals" />
+                <JamBaseEventGrid
+                  layout="carousel"
+                  preloadedEvents={results.jambase.events.filter(isJamBaseFestivalEvent)}
+                  maxEvents={20}
+                  carouselAriaLabel="Search result festivals"
+                />
+              </section>
+            )}
+
+            {results.jambase &&
+              results.jambase.events.filter((ev) => !isJamBaseFestivalEvent(ev)).length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle title="Shows" />
                 <JamBaseEventGrid
                   layout="carousel"
-                  preloadedEvents={results.jambase.events}
+                  preloadedEvents={results.jambase.events.filter((ev) => !isJamBaseFestivalEvent(ev))}
                   maxEvents={20}
                   carouselAriaLabel="Search result shows"
                 />

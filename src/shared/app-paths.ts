@@ -1,3 +1,4 @@
+import { festivalCanonicalSlug } from './jambase-festival';
 import { slugifyEntityName } from './jambase-slug';
 import { computeLegacyClipShowKey, computeShowId } from './show-id';
 import { resolveClipEventTitle } from './event-title';
@@ -28,6 +29,16 @@ export function artistPath(name: string | null | undefined): string {
 export function venuePath(name: string | null | undefined): string {
   const slug = slugifyEntityName(name);
   return slug ? `/venues/${slug}` : '/venues';
+}
+
+export function festivalPath(name: string | null | undefined): string {
+  const slug = festivalCanonicalSlug(name) || slugifyEntityName(name);
+  return slug ? `/festivals/${slug}` : '/festivals';
+}
+
+export function apiFestivalPath(name: string | null | undefined): string {
+  const slug = festivalCanonicalSlug(name) || slugifyEntityName(name);
+  return slug ? `/api/festivals/${slug}` : '/api/festivals';
 }
 
 export function apiArtistPath(name: string | null | undefined): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipShowClipsPath, pastShowClipsPath, showMarkClipsPath } from './app-paths';
+import { clipShowClipsPath, festivalPath, apiFestivalPath, pastShowClipsPath, showMarkClipsPath } from './app-paths';
 
 describe('pastShowClipsPath', () => {
   it('routes identical event titles on consecutive dates to distinct shows', () => {
@@ -72,6 +72,15 @@ describe('clipShowClipsPath', () => {
         venue_name: 'Madison Square Garden',
       }),
     ).toBe('/events/clips/Phish%20at%20Madison%20Square%20Garden');
+  });
+});
+
+describe('festivalPath', () => {
+  it('uses a year-stripped festival slug', () => {
+    expect(festivalPath('Bonnaroo Music Festival 2026')).toBe('/festivals/bonnaroo-music-festival');
+    expect(apiFestivalPath('Bonnaroo Music Festival 2026')).toBe(
+      '/api/festivals/bonnaroo-music-festival',
+    );
   });
 });
 

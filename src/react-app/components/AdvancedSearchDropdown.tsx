@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, MapPin, Music, Ticket, Users } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, globalSongPath, venuePath } from '@/shared/app-paths';
+import { artistPath, festivalPath, globalSongPath, venuePath } from '@/shared/app-paths';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import UserAvatar from '@/react-app/components/UserAvatar';
@@ -15,6 +15,7 @@ import {
   type AdvancedSearchPayload,
 } from '@/react-app/lib/advanced-search';
 import { displayMediaUrl } from '@/shared/media-proxy';
+import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
 
 export type SearchDropdownSection =
   | 'clips'
@@ -274,12 +275,26 @@ function SearchDropdownPanel({
                   typeof ev.identifier === 'string' ? ev.identifier : String(ev.startDate);
                 const title = typeof ev.name === 'string' ? ev.name : 'Show';
                 const ticket = jamBaseEventTicket(ev);
+                const festival = isJamBaseFestivalEvent(ev);
                 return (
                   <div
                     key={id}
                     className="px-3 py-2 border-t border-white/5 flex items-center gap-2"
                   >
-                    <span className="text-sm text-gray-200 flex-1 min-w-0 truncate">{title}</span>
+                    {festival ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          navigate(festivalPath(title));
+                        }}
+                        className="text-sm text-gray-200 flex-1 min-w-0 truncate text-left hover:text-white"
+                      >
+                        {title}
+                      </button>
+                    ) : (
+                      <span className="text-sm text-gray-200 flex-1 min-w-0 truncate">{title}</span>
+                    )}
                     {ticket ? (
                       <a
                         href={ticket}

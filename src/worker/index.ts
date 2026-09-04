@@ -58,6 +58,7 @@ import * as discovery from "./discovery-endpoints";
 import * as jambase from "./jambase-endpoints";
 import { getJamBaseCacheMetrics } from "./jambase-metrics-endpoint";
 import * as artistVenuePages from "./artist-venue-pages";
+import * as festivalPages from "./festival-pages";
 import * as stripe from "./stripe-endpoints";
 import { handleStripeWebhook } from "./stripe-webhooks";
 import { createStreamService } from "./stream-service";
@@ -2599,6 +2600,17 @@ app.post("/api/artists", authMiddleware, async (c) => {
       .first();
 
     return c.json(newArtist, 201);
+  }
+});
+
+// Get festival by slug — JamBase event + lineup when JAMBASE_API_KEY is set
+app.get("/api/festivals/:festivalName", async (c) => {
+  try {
+    const payload = await festivalPages.buildFestivalPagePayload(c);
+    return c.json(payload);
+  } catch (err) {
+    console.error("Get festival page error:", err);
+    return c.json({ error: "Failed to load festival" }, 500);
   }
 });
 
