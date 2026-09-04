@@ -13,7 +13,7 @@ export default function Home() {
     <div className="min-h-screen text-white">
       <Header />
 
-      <div className="relative z-40 bg-momentum-ink px-[7.5%] py-[0.6375rem] md:hidden">
+      <div className="relative z-40 bg-momentum-ink px-[7.5%] pt-[0.541875rem] pb-[0.6375rem] md:hidden">
         <HeroSearchBar />
       </div>
 
