@@ -54,6 +54,19 @@ export function jamBaseEventListKey(kind: 'artist' | 'venue', jambaseId: string)
   return `${kind}:${jambaseId.trim()}`;
 }
 
+/** `/events?name=` title search (festivals and billed shows). */
+export function jamBaseNameSearchListKey(name: string, eventType?: string): string {
+  const n = jamBaseNameKey(name);
+  const t = (eventType ?? '').trim().toLowerCase() || 'any';
+  return `name:${n}:${t}`;
+}
+
+/** Festival page slug → cached JamBase event ids (year-stripped, same as `/festivals/:slug`). */
+export function jamBaseFestivalPageListKey(slug: string): string {
+  const key = jamBaseNameKey(slug).replace(/-20\d{2}$/, '').replace(/-19\d{2}$/, '');
+  return key ? `festival:${key}` : '';
+}
+
 export function jamBaseGeoListKey(
   path: 'events' | 'venues',
   latitude: number,
@@ -89,6 +102,11 @@ export function classifyJamBaseEndpoint(
     if (params.venueId) return 'GET /events (venue)';
     if (params.geoLatitude && params.geoLongitude) return 'GET /events (geo)';
     if (params.geoMetroId || params.geoCityId) return 'GET /events (metro)';
+    if (params.name) {
+      return params.eventType?.trim().toLowerCase() === 'festival'
+        ? 'GET /events (festival name)'
+        : 'GET /events (name)';
+    }
     return 'GET /events';
   }
   return `GET ${normalized}`;
@@ -126,6 +144,9 @@ export function jamBaseCoalesceKey(
   }
   if (normalized === '/events' && params.venueId) {
     return `events:venue:${params.venueId.trim()}`;
+  }
+  if (normalized === '/events' && params.name) {
+    return jamBaseNameSearchListKey(params.name, params.eventType);
   }
   if (normalized === '/events' && params.geoLatitude && params.geoLongitude) {
     return jamBaseGeoListKey(
@@ -502,6 +523,34 @@ async function readEventList(
   return events;
 }
 
+/** Read a 72h JamBase event-id list (artist/venue calendars, name search, festival pages). */
+export async function lookupCachedEventList(
+  db: D1Database,
+  listKey: string,
+): Promise<Record<string, unknown>[] | null> {
+  if (!listKey.trim()) return null;
+  try {
+    return await readEventList(db, listKey);
+  } catch (e) {
+    console.error('[JamBase] event list lookup failed', e);
+    return null;
+  }
+}
+
+/** Persist an event-id list plus each event payload (same tables as artist/venue calendars). */
+export async function storeCachedEventList(
+  db: D1Database,
+  listKey: string,
+  events: Record<string, unknown>[],
+): Promise<void> {
+  if (!listKey.trim() || events.length === 0) return;
+  try {
+    await upsertEventList(db, listKey, events);
+  } catch (e) {
+    console.error('[JamBase] event list store failed', e);
+  }
+}
+
 async function readCachedEventById(
   db: D1Database,
   eventId: string,
@@ -613,6 +662,14 @@ export async function readJamBaseResponseCache(
         params.eventDateFrom || '',
       );
       const events = await readEventList(db, key);
+      if (events) return { events, success: true } as JamBaseCachedJson;
+      return null;
+    }
+    if (normalized === '/events' && params.name) {
+      const events = await readEventList(
+        db,
+        jamBaseNameSearchListKey(params.name, params.eventType),
+      );
       if (events) return { events, success: true } as JamBaseCachedJson;
       return null;
     }
@@ -753,6 +810,13 @@ export async function storeJamBaseResponseCache(
           params.eventDateFrom || '',
         );
         await upsertEventList(db, key, events, fetchedAt);
+      } else if (params.name) {
+        await upsertEventList(
+          db,
+          jamBaseNameSearchListKey(params.name, params.eventType),
+          events,
+          fetchedAt,
+        );
       } else {
         for (const ev of events) {
           await upsertCachedEvent(db, ev, fetchedAt);

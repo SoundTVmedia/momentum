@@ -11,7 +11,11 @@ import {
 } from './jambase-client';
 import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
 import { cacheJsonProxy, noCache } from './performance-utils';
-import { buildTightJamBaseEventResults } from './jambase-events-search';
+import {
+  buildTightJamBaseEventResults,
+  dedupeJamBaseEvents,
+  fetchJamBaseEventsByEventName,
+} from './jambase-events-search';
 import {
   normalizedSlugFromRouteParam,
   searchPhraseFromSlug,
@@ -452,19 +456,37 @@ export async function searchEvents(c: Context) {
 
     const jbQ = jamBaseQuotaFromEnv(c.env);
     if (c.req.query('loose') === '1') {
-      const data = await jamBaseFetch<{ events?: unknown[] }>(
-        key,
-        '/events',
-        {
-          artistName: q,
-          eventDateFrom: c.req.query('eventDateFrom') || jamBaseEventDateFromToday(),
-          page: c.req.query('page') || '1',
+      const fromDate = c.req.query('eventDateFrom') || jamBaseEventDateFromToday();
+      const [byArtist, byTitle] = await Promise.all([
+        jamBaseFetch<{ events?: unknown[] }>(
+          key,
+          '/events',
+          {
+            artistName: q,
+            eventDateFrom: fromDate,
+            page: c.req.query('page') || '1',
+            perPage: String(max),
+          },
+          jbQ
+        ),
+        fetchJamBaseEventsByEventName(key, q, jbQ, {
           perPage: String(max),
-        },
-        jbQ
-      );
+          page: c.req.query('page') || '1',
+          eventDateFrom: fromDate,
+        }),
+      ]);
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
-      return c.json({ events: rewriteEventList(data?.events, clientMediaOrigin(c)) });
+      return c.json({
+        events: rewriteEventList(
+          dedupeJamBaseEvents([
+            ...((byArtist?.events ?? []).filter(
+              (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
+            )),
+            ...byTitle,
+          ]),
+          clientMediaOrigin(c),
+        ),
+      });
     }
 
     const events = await buildTightJamBaseEventResults(key, q, max, jbQ);

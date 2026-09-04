@@ -2607,6 +2607,7 @@ app.post("/api/artists", authMiddleware, async (c) => {
 app.get("/api/festivals/:festivalName", async (c) => {
   try {
     const payload = await festivalPages.buildFestivalPagePayload(c);
+    cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600, staleWhileRevalidate: 7200 });
     return c.json(payload);
   } catch (err) {
     console.error("Get festival page error:", err);

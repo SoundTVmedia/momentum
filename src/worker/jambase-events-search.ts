@@ -3,6 +3,7 @@ import {
   jamBaseEventDateFromToday,
   type JamBaseQuotaContext,
 } from './jambase-client';
+import { isJamBaseFestivalEvent } from '../shared/jambase-festival';
 import {
   normalizedSlugFromRouteParam,
   searchPhraseFromSlug,
@@ -27,16 +28,53 @@ function eventMatchesQuery(ev: Record<string, unknown>, qLower: string): boolean
   return false;
 }
 
+export function jamBaseEventIdentifier(ev: Record<string, unknown>): string {
+  const raw = ev.identifier;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (typeof raw === 'number' && Number.isFinite(raw)) return `jambase:${raw}`;
+  return '';
+}
+
 export function dedupeJamBaseEvents(events: Record<string, unknown>[]): Record<string, unknown>[] {
   const seen = new Set<string>();
   const out: Record<string, unknown>[] = [];
   for (const ev of events) {
-    const id = typeof ev.identifier === 'string' ? ev.identifier : JSON.stringify(ev);
+    const id = jamBaseEventIdentifier(ev) || JSON.stringify(ev);
     if (seen.has(id)) continue;
     seen.add(id);
     out.push(ev);
   }
   return out;
+}
+
+/** JamBase `/events?name=` — title search for festivals and billed show names (not artistName). */
+export async function fetchJamBaseEventsByEventName(
+  apiKey: string,
+  name: string,
+  quota?: JamBaseQuotaContext,
+  opts?: {
+    eventType?: 'festival' | 'concert';
+    perPage?: string;
+    page?: string;
+    eventDateFrom?: string;
+  },
+): Promise<Record<string, unknown>[]> {
+  const trimmed = name.trim();
+  if (!trimmed) return [];
+  const params: Record<string, string> = {
+    name: trimmed,
+    perPage: opts?.perPage ?? '24',
+    page: opts?.page ?? '1',
+    eventDateFrom: opts?.eventDateFrom || jamBaseEventDateFromToday(),
+  };
+  if (opts?.eventType) params.eventType = opts.eventType;
+  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+    apiKey,
+    '/events',
+    params,
+    quota,
+  );
+  return data?.events ?? [];
 }
 
 /** Same JamBase `artistName` / `venueName` input used by tight event search (slug-aware). */
@@ -138,11 +176,28 @@ export async function buildTightJamBaseEventResults(
       )
     );
 
-  const batchResults = await Promise.all([...artistEventCalls, ...venueEventCalls]);
+  const titlePerPage = String(Math.min(24, Math.max(maxResults, 8)));
+  const wantFestivalTitle =
+    isJamBaseFestivalEvent({ name: q }) || isJamBaseFestivalEvent({ name: phrase });
+  const [batchResults, titledEvents, festivalEvents] = await Promise.all([
+    Promise.all([...artistEventCalls, ...venueEventCalls]),
+    fetchJamBaseEventsByEventName(apiKey, phrase, quota, {
+      perPage: titlePerPage,
+      eventDateFrom: fromDate,
+    }),
+    wantFestivalTitle
+      ? fetchJamBaseEventsByEventName(apiKey, phrase, quota, {
+          eventType: 'festival',
+          perPage: titlePerPage,
+          eventDateFrom: fromDate,
+        })
+      : Promise.resolve([]),
+  ]);
   let merged: Record<string, unknown>[] = [];
   for (const res of batchResults) {
     merged.push(...(res?.events ?? []));
   }
+  merged.push(...titledEvents, ...festivalEvents);
 
   merged = dedupeJamBaseEvents(merged);
   merged = merged.filter((ev) => eventMatchesQuery(ev, qLower));
@@ -195,19 +250,39 @@ export async function buildFastJamBaseEventResults(
   const phrase = jamBaseArtistVenueSearchPhrase(q);
   const fromDate = jamBaseEventDateFromToday();
 
-  const fallback = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
-    apiKey,
-    '/events',
-    {
-      artistName: phrase,
+  const perPage = String(Math.min(24, Math.max(maxResults, 8)));
+  const wantFestivalTitle =
+    isJamBaseFestivalEvent({ name: q }) || isJamBaseFestivalEvent({ name: phrase });
+  const [byArtist, byTitle, byFestival] = await Promise.all([
+    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      apiKey,
+      '/events',
+      {
+        artistName: phrase,
+        eventDateFrom: fromDate,
+        perPage,
+        page: '1',
+      },
+      quota,
+    ),
+    fetchJamBaseEventsByEventName(apiKey, phrase, quota, {
+      perPage,
       eventDateFrom: fromDate,
-      perPage: String(Math.min(24, Math.max(maxResults, 8))),
-      page: '1',
-    },
-    quota,
-  );
+    }),
+    wantFestivalTitle
+      ? fetchJamBaseEventsByEventName(apiKey, phrase, quota, {
+          eventType: 'festival',
+          perPage,
+          eventDateFrom: fromDate,
+        })
+      : Promise.resolve([]),
+  ]);
 
-  let merged = dedupeJamBaseEvents(fallback?.events ?? []);
+  let merged = dedupeJamBaseEvents([
+    ...(byArtist?.events ?? []),
+    ...byTitle,
+    ...byFestival,
+  ]);
   merged = merged.filter((ev) => eventMatchesQuery(ev, qLower));
   merged.sort((a, b) => {
     const da = typeof a.startDate === 'string' ? a.startDate : '';

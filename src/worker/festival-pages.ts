@@ -3,6 +3,7 @@ import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import {
   festivalPageFromEvents,
   festivalSlugMatches,
+  festivalTitleSearchPhrases,
   isJamBaseFestivalEvent,
   pickFestivalGroupForSlug,
   type FestivalLineupArtist,
@@ -18,7 +19,11 @@ import { rewriteJamBaseEventImages, rewriteMediaUrlForClient } from '../shared/m
 import { clientMediaOrigin } from './client-media-origin';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import {
-  jamBaseFetch,
+  jamBaseFestivalPageListKey,
+  lookupCachedEventList,
+  storeCachedEventList,
+} from './jambase-cache';
+import {
   jamBaseQuotaFromEnv,
   type JamBaseQuotaContext,
 } from './jambase-client';
@@ -27,12 +32,11 @@ import {
   fetchJamBaseEventsByArtistName,
   fetchJamBaseEventsByVenueName,
 } from './jambase-endpoints';
-import { dedupeJamBaseEvents } from './jambase-events-search';
-
-function asEventList(raw: unknown[] | undefined): Record<string, unknown>[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null);
-}
+import {
+  jamBaseEventIdentifier,
+  dedupeJamBaseEvents,
+  fetchJamBaseEventsByEventName,
+} from './jambase-events-search';
 
 async function searchFestivalEvents(
   apiKey: string,
@@ -40,19 +44,29 @@ async function searchFestivalEvents(
   phrase: string,
 ): Promise<Record<string, unknown>[]> {
   const fromDate = jamBaseVenueEventLookbackDateFrom();
-  const direct = await jamBaseFetch<{ events?: unknown[] }>(
-    apiKey,
-    '/events',
-    {
-      artistName: phrase,
-      eventDateFrom: fromDate,
-      perPage: '50',
-      page: '1',
-    },
-    quota,
-  );
+  const phrases = festivalTitleSearchPhrases(phrase);
+  let merged: Record<string, unknown>[] = [];
 
-  let merged = asEventList(direct?.events);
+  for (const title of phrases) {
+    const fests = await fetchJamBaseEventsByEventName(apiKey, title, quota, {
+      eventType: 'festival',
+      perPage: '50',
+      eventDateFrom: fromDate,
+    });
+    merged = dedupeJamBaseEvents([...merged, ...fests]);
+    if (merged.length > 0) break;
+  }
+
+  if (merged.length === 0) {
+    for (const title of phrases) {
+      const titled = await fetchJamBaseEventsByEventName(apiKey, title, quota, {
+        perPage: '50',
+        eventDateFrom: fromDate,
+      });
+      merged = dedupeJamBaseEvents([...merged, ...titled]);
+      if (merged.length > 0) break;
+    }
+  }
 
   const slugHits = merged.filter((ev) =>
     festivalSlugMatches(typeof ev.name === 'string' ? ev.name : '', slugifyEntityName(phrase)),
@@ -90,9 +104,25 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
   const db = c.env.DB;
   const jbQ = jamBaseQuotaFromEnv(c.env);
   const mediaOrigin = clientMediaOrigin(c);
+  const festivalListKey = jamBaseFestivalPageListKey(slug);
 
   let group: Record<string, unknown>[] = [];
-  if (apiKey?.trim() && phrase) {
+  let fromFestivalCache = false;
+  if (db && festivalListKey) {
+    const cached = await lookupCachedEventList(db, festivalListKey);
+    if (cached && cached.length > 0) {
+      group = pickFestivalGroupForSlug(cached, slug);
+      if (group.length === 0) {
+        group = cached.filter((ev) =>
+          festivalSlugMatches(typeof ev.name === 'string' ? ev.name : '', slug),
+        );
+      }
+      if (group.length === 0) group = cached;
+      fromFestivalCache = group.length > 0;
+    }
+  }
+
+  if (group.length === 0 && apiKey?.trim() && phrase) {
     const events = await searchFestivalEvents(apiKey, jbQ, phrase);
     group = pickFestivalGroupForSlug(events, slug);
     if (group.length === 0) {
@@ -102,19 +132,23 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
     }
   }
 
-  if (group.length > 0 && apiKey?.trim()) {
+  if (group.length > 0 && !fromFestivalCache && apiKey?.trim()) {
     const richest = [...group].sort((a, b) => {
       const ap = Array.isArray(a.performer) ? a.performer.length : 0;
       const bp = Array.isArray(b.performer) ? b.performer.length : 0;
       return bp - ap;
     })[0];
-    const id = typeof richest?.identifier === 'string' ? richest.identifier : '';
+    const id = jamBaseEventIdentifier(richest ?? {});
     if (id) {
       const full = await fetchJamBaseEventById(apiKey, jbQ, id);
       if (full) {
-        group = [full, ...group.filter((ev) => ev.identifier !== id)];
+        group = [full, ...group.filter((ev) => jamBaseEventIdentifier(ev) !== id)];
       }
     }
+  }
+
+  if (!fromFestivalCache && db && festivalListKey && group.length > 0) {
+    await storeCachedEventList(db, festivalListKey, group);
   }
 
   const rewrittenGroup = group.map((ev) => rewriteJamBaseEventImages(ev, mediaOrigin));

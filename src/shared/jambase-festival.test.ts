@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   festivalCanonicalSlug,
   festivalPageFromEvents,
+  festivalPageToJamBaseEvent,
+  festivalTitleSearchPhrases,
   festivalSlugMatches,
   formatFestivalDateRange,
   isJamBaseFestivalEvent,
@@ -9,6 +11,7 @@ import {
   mergeFestivalLineups,
   pickFestivalGroupForSlug,
 } from './jambase-festival';
+import { jamBaseEventToShowMarkInput } from './show-marks';
 
 const lineup = (names: string[], headliner = names[0]) =>
   names.map((name) => ({
@@ -28,6 +31,7 @@ describe('isJamBaseFestivalEvent', () => {
   it('detects known festival brands without fest in the name', () => {
     expect(isJamBaseFestivalEvent({ name: 'Coachella' })).toBe(true);
     expect(isJamBaseFestivalEvent({ name: 'Bonnaroo' })).toBe(true);
+    expect(isJamBaseFestivalEvent({ name: 'Shaky Knees 2026' })).toBe(true);
   });
 
   it('detects @type Festival', () => {
@@ -52,6 +56,12 @@ describe('isJamBaseFestivalEvent', () => {
 describe('festivalCanonicalSlug', () => {
   it('drops a trailing year so annual editions share a page', () => {
     expect(festivalCanonicalSlug('Bonnaroo Music Festival 2026')).toBe('bonnaroo-music-festival');
+  });
+});
+
+describe('festivalTitleSearchPhrases', () => {
+  it('tries the full phrase and a year-stripped variant', () => {
+    expect(festivalTitleSearchPhrases('shaky knees 2026')).toEqual(['shaky knees 2026', 'shaky knees']);
   });
 });
 
@@ -138,6 +148,61 @@ describe('festivalPageFromEvents', () => {
     expect(page?.festival.website_url).toContain('govball.com');
     expect(page?.festival.venue_name).toBe('Flushing Meadows');
     expect(page?.artists.map((a) => a.name)).toContain('SZA');
+  });
+});
+
+describe('festivalPageToJamBaseEvent', () => {
+  it('maps festival page fields onto a JamBase event for show marks', () => {
+    const ev = festivalPageToJamBaseEvent({
+      name: 'Shaky Knees',
+      slug: 'shaky-knees',
+      image_url: 'https://img.example/fest.jpg',
+      start_date: '2026-09-18',
+      end_date: '2026-09-20',
+      venue_name: 'Piedmont Park',
+      city_line: 'Atlanta, GA',
+      ticket_url: 'https://ticketmaster.com/sk',
+      website_url: 'https://shakyknees.com',
+      jambase_event_id: 'jambase:15698172',
+    });
+    expect(ev).toMatchObject({
+      identifier: 'jambase:15698172',
+      name: 'Shaky Knees',
+      startDate: '2026-09-18',
+      endDate: '2026-09-20',
+      location: {
+        name: 'Piedmont Park',
+        address: {
+          addressLocality: 'Atlanta',
+          addressRegion: { alternateName: 'GA' },
+        },
+      },
+    });
+    expect(jamBaseEventToShowMarkInput(ev!, 'going')).toMatchObject({
+      status: 'going',
+      jambase_event_id: 'jambase:15698172',
+      event_title: 'Shaky Knees',
+      venue_name: 'Piedmont Park',
+      venue_location: 'Atlanta, GA',
+      start_date: '2026-09-18',
+    });
+  });
+
+  it('returns null without a JamBase event id', () => {
+    expect(
+      festivalPageToJamBaseEvent({
+        name: 'Unknown Fest',
+        slug: 'unknown',
+        image_url: null,
+        start_date: null,
+        end_date: null,
+        venue_name: null,
+        city_line: null,
+        ticket_url: null,
+        website_url: null,
+        jambase_event_id: null,
+      }),
+    ).toBeNull();
   });
 });
 

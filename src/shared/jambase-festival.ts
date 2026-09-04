@@ -6,7 +6,7 @@ const FESTIVAL_TYPE_RE = /festival/i;
 /** Matches "festival", "fest", "Summerfest", "Jazz Fest", etc. */
 const FESTIVAL_NAME_RE = /fest(?:ival)?s?\b/i;
 const FESTIVAL_BRAND_RE =
-  /\b(?:lollapalooza|coachella|bonnaroo|gov(?:ernors)? ball|outside lands|burning man|sxsw|electric forest|rolling loud|ultra music|tomorrowland|glastonbury|acl)\b/i;
+  /\b(?:lollapalooza|coachella|bonnaroo|gov(?:ernors)? ball|outside lands|burning man|sxsw|electric forest|rolling loud|ultra music|tomorrowland|glastonbury|acl|shaky knees)\b/i;
 const LINEUP_FESTIVAL_MIN_PERFORMERS = 8;
 const SLUG_CONTAINS_MIN = 6;
 const CLUSTER_MAX_GAP_MS = 16 * 24 * 60 * 60 * 1000;
@@ -81,6 +81,20 @@ export function isJamBaseFestivalEvent(ev: JamBaseEventRecord | null | undefined
 export function festivalCanonicalSlug(name: string | null | undefined): string {
   const slug = slugifyEntityName(name);
   return slug.replace(/-20\d{2}$/, '').replace(/-19\d{2}$/, '');
+}
+
+/** JamBase `name=` keyword queries — keep the year, then also try without it. */
+export function festivalTitleSearchPhrases(raw: string): string[] {
+  const phrase = raw.trim().replace(/\s+/g, ' ');
+  if (!phrase) return [];
+  const withoutYear = phrase.replace(/\s+(?:19|20)\d{2}$/i, '').trim();
+  const out: string[] = [];
+  for (const item of [phrase, withoutYear]) {
+    if (!item) continue;
+    if (out.some((existing) => existing.toLowerCase() === item.toLowerCase())) continue;
+    out.push(item);
+  }
+  return out;
 }
 
 export function festivalPathSlugFromEvent(ev: JamBaseEventRecord): string {
@@ -331,7 +345,12 @@ export function festivalPageFromEvents(group: JamBaseEventRecord[]): {
     .filter((v): v is string => Boolean(v))
     .sort();
   const eventIds = group
-    .map((ev) => (typeof ev.identifier === 'string' ? ev.identifier.trim() : ''))
+    .map((ev) => {
+      const raw = ev.identifier;
+      if (typeof raw === 'string' && raw.trim()) return raw.trim();
+      if (typeof raw === 'number' && Number.isFinite(raw)) return `jambase:${raw}`;
+      return '';
+    })
     .filter(Boolean);
   const ticket =
     group.map((ev) => jamBaseEventTicketUrl(ev)).find((url) => url && !/jambase\.com/i.test(url)) ??
@@ -353,5 +372,39 @@ export function festivalPageFromEvents(group: JamBaseEventRecord[]): {
     },
     artists: mergeFestivalLineups(group),
     eventIds,
+  };
+}
+
+/** JamBase-shaped event so festival pages can reuse show-mark ("I'm going") buttons. */
+export function festivalPageToJamBaseEvent(
+  festival: FestivalPageFestival,
+): Record<string, unknown> | null {
+  const id = festival.jambase_event_id?.trim();
+  if (!id) return null;
+
+  const cityParts = (festival.city_line ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const locality = cityParts[0] || undefined;
+  const region = cityParts.slice(1).join(', ') || undefined;
+
+  return {
+    identifier: id,
+    name: festival.name,
+    '@type': 'Festival',
+    startDate: festival.start_date ?? undefined,
+    endDate: festival.end_date ?? undefined,
+    image: festival.image_url ?? undefined,
+    location: {
+      name: festival.venue_name ?? undefined,
+      address:
+        locality || region
+          ? {
+              addressLocality: locality,
+              addressRegion: region ? { alternateName: region } : undefined,
+            }
+          : undefined,
+    },
   };
 }

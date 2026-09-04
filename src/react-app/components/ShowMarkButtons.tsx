@@ -18,6 +18,8 @@ type ShowMarkButtonsProps = {
   compact?: boolean;
   /** Past-show cards always use I went instead of inferring from event date. */
   statusOverride?: ShowMarkStatus;
+  /** Hero CTAs (festival/show pages) match Get Tickets sizing. */
+  size?: 'card' | 'hero';
 };
 
 function signInPrompt(action: ShowMarkAction): string {
@@ -31,6 +33,7 @@ export default function ShowMarkButtons({
   className = '',
   compact = false,
   statusOverride,
+  size = 'card',
 }: ShowMarkButtonsProps) {
   const { user } = useAuth();
   const { getMarkForEvent, toggleMark, hydrated } = useShowMarks();
@@ -57,7 +60,11 @@ export default function ShowMarkButtons({
     }
   };
 
-  const pad = compact ? 'px-2 py-1' : 'px-2.5 py-1.5';
+  const pad = compact
+    ? 'px-2 py-1'
+    : size === 'hero'
+      ? 'px-4 py-2.5 text-sm font-semibold'
+      : 'px-2.5 py-1.5';
   const stretch = !compact && actions.length === 1;
 
   return (
@@ -81,7 +88,8 @@ export default function ShowMarkButtons({
             disabled={pending !== null}
             onClick={() => void handleAction(action)}
             className={[
-              'inline-flex items-center justify-center gap-1 rounded-lg border text-xs font-medium transition-colors',
+              'inline-flex items-center justify-center gap-1 rounded-lg border font-medium transition-colors',
+              compact || size !== 'hero' ? 'text-xs' : '',
               pad,
               stretch ? 'w-full' : 'flex-1 min-w-0',
               active

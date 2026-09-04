@@ -7,10 +7,12 @@ import {
   jamBaseCoalesceKey,
   jamBaseEventIsPast,
   jamBaseEventListKey,
+  jamBaseFestivalPageListKey,
   jamBaseGeoListKey,
   jamBaseInflightSize,
   jamBaseListCacheIsFresh,
   jamBaseNameKey,
+  jamBaseNameSearchListKey,
   JAMBASE_EVENT_CACHE_TTL_MS,
 } from './jambase-cache';
 import { JAMBASE_NIGHTLY_CRON } from './jambase-prefetch';
@@ -47,6 +49,12 @@ describe('JamBase cache policy', () => {
       'GET /geographies/cities',
     );
     expect(classifyJamBaseEndpoint('/events/id/jambase:55')).toBe('GET /events/:id');
+    expect(classifyJamBaseEndpoint('/events', { name: 'Shaky Knees' })).toBe(
+      'GET /events (name)',
+    );
+    expect(
+      classifyJamBaseEndpoint('/events', { name: 'Bonnaroo', eventType: 'festival' }),
+    ).toBe('GET /events (festival name)');
   });
 
   it('coalesces equivalent resources even when perPage differs', () => {
@@ -57,6 +65,21 @@ describe('JamBase cache policy', () => {
       jamBaseCoalesceKey('/events', { artistId: 'jambase:1', perPage: '50' }),
     );
     expect(jamBaseEventListKey('artist', 'jambase:1')).toBe('artist:jambase:1');
+    expect(jamBaseNameSearchListKey('Shaky Knees', 'festival')).toBe(
+      'name:shaky-knees:festival',
+    );
+    expect(jamBaseFestivalPageListKey('shaky-knees-2026')).toBe('festival:shaky-knees');
+    expect(jamBaseFestivalPageListKey('Shaky Knees')).toBe('festival:shaky-knees');
+    expect(
+      jamBaseCoalesceKey('/events', { name: 'Shaky Knees', eventType: 'festival', perPage: '8' }),
+    ).toBe(
+      jamBaseCoalesceKey('/events', {
+        name: 'shaky knees',
+        eventType: 'festival',
+        perPage: '50',
+        eventDateFrom: '2026-09-04',
+      }),
+    );
     expect(jamBaseCityKey('Austin', 'us')).toBe('austin|US');
     expect(jamBaseGeoListKey('events', 40.7505, -73.9934, '15', '2026-08-25')).toBe(
       'events:40.75:-73.99:15:2026-08-25',

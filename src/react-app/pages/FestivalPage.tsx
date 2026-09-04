@@ -4,13 +4,19 @@ import { Calendar, ExternalLink, Globe, Loader2, MapPin, Music } from 'lucide-re
 import Header from '@/react-app/components/Header';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
+import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import ClipModal from '@/react-app/components/ClipModal';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import { HOME_FEED_SECTION_CLASS, PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { artistPath, apiFestivalPath, venuePath } from '@/shared/app-paths';
-import { formatFestivalDateRange, type FestivalLineupArtist, type FestivalPageFestival } from '@/shared/jambase-festival';
+import {
+  festivalPageToJamBaseEvent,
+  formatFestivalDateRange,
+  type FestivalLineupArtist,
+  type FestivalPageFestival,
+} from '@/shared/jambase-festival';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import type { ClipWithUser } from '@/shared/types';
 
@@ -75,6 +81,7 @@ export default function FestivalPage() {
   const { festival, artists, clips } = data;
   const dateLabel = formatFestivalDateRange(festival.start_date, festival.end_date);
   const locationLabel = [festival.venue_name, festival.city_line].filter(Boolean).join(' · ');
+  const markEvent = festivalPageToJamBaseEvent(festival);
 
   return (
     <div className="min-h-screen text-white">
@@ -117,7 +124,11 @@ export default function FestivalPage() {
                   )}
                 </div>
               ) : null}
-              <div className="flex flex-col sm:flex-row sm:items-stretch gap-3 max-w-xl">
+              <div className="flex flex-col gap-3 max-w-xl">
+                {markEvent ? (
+                  <ShowMarkButtons event={markEvent} size="hero" className="w-full" />
+                ) : null}
+                <div className="flex flex-col sm:flex-row sm:items-stretch gap-3">
                 {festival.ticket_url ? (
                   <EventTicketActions
                     ticketUrl={festival.ticket_url}
@@ -137,6 +148,7 @@ export default function FestivalPage() {
                     <ExternalLink className="w-3 h-3 shrink-0 opacity-80" />
                   </a>
                 ) : null}
+                </div>
               </div>
             </div>
           </div>
