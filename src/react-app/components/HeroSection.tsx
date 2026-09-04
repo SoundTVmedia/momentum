@@ -27,7 +27,7 @@ export default function HeroSection() {
         />
       </div>
 
-      <div className="relative z-10 flex min-h-[16.5rem] flex-col justify-center px-4 py-10 sm:min-h-[19.5rem] sm:px-6 sm:py-14 lg:min-h-[22rem] lg:px-8">
+      <div className="relative z-10 flex min-h-[13.2rem] flex-col justify-center px-4 pt-8 pb-10 sm:min-h-[15.6rem] sm:px-6 sm:py-14 lg:min-h-[17.6rem] lg:px-8">
         <div className="mx-auto w-full max-w-7xl">
           <h1 className="font-headline hero-headline-grad text-center text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
             Where Live Music Lives

@@ -88,14 +88,14 @@ export default function FestivalPage() {
       <Header />
 
       <div className="relative bg-gradient-to-b from-momentum-ember/25 to-black border-b border-momentum-ember/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-[3.2rem] pb-16 md:py-16">
           <div className="flex flex-col md:flex-row items-start md:items-center space-y-6 md:space-y-0 md:space-x-8">
             <img
               src={displayMediaUrl(festival.image_url || FALLBACK_FEST_IMAGE)}
               alt={festival.name}
               referrerPolicy="no-referrer"
               decoding="async"
-              className="w-48 h-48 rounded-xl object-cover border-4 border-momentum-flare/40 shadow-xl shadow-momentum-ember/25"
+              className="h-[9.6rem] w-[9.6rem] rounded-xl object-cover border-4 border-momentum-flare/40 shadow-xl shadow-momentum-ember/25"
             />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-momentum-flare mb-2">
