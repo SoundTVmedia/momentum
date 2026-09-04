@@ -158,6 +158,37 @@ export default function FestivalPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className={PAGE_BLOCK_CLASS}>
           <SectionHeading
+            title="Live Moments"
+            subtitle="Fan-captured moments from this festival"
+            badge={
+              <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
+                {clips.length} clips
+              </span>
+            }
+          />
+          {clips.length > 0 ? (
+            <div className={HOME_FEED_SECTION_CLASS}>
+              <ClipFeedCarousel
+                clips={clips}
+                className={PAGE_CAROUSEL_BLEED}
+                ariaLabel={`Clips from ${festival.name}`}
+                onOpenClip={(clip, visible) => {
+                  setSelectedClip(clip);
+                  setModalFeed(visible);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="text-center py-12 glass-panel border border-momentum-flare/20 rounded-xl">
+              <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400 text-lg">Nothing here yet</p>
+              <p className="text-gray-500 mt-2">Drop the first clip from {festival.name}!</p>
+            </div>
+          )}
+        </div>
+
+        <div className={PAGE_BLOCK_CLASS}>
+          <SectionHeading
             title="Lineup"
             subtitle={
               artists.length > 0
@@ -206,37 +237,6 @@ export default function FestivalPage() {
             <div className="text-center py-12 glass-panel border border-momentum-flare/20 rounded-xl">
               <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
               <p className="text-gray-400 text-lg">Lineup not listed yet</p>
-            </div>
-          )}
-        </div>
-
-        <div className={PAGE_BLOCK_CLASS}>
-          <SectionHeading
-            title="Live Moments"
-            subtitle="Fan-captured moments from this festival"
-            badge={
-              <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
-                {clips.length} clips
-              </span>
-            }
-          />
-          {clips.length > 0 ? (
-            <div className={HOME_FEED_SECTION_CLASS}>
-              <ClipFeedCarousel
-                clips={clips}
-                className={PAGE_CAROUSEL_BLEED}
-                ariaLabel={`Clips from ${festival.name}`}
-                onOpenClip={(clip, visible) => {
-                  setSelectedClip(clip);
-                  setModalFeed(visible);
-                }}
-              />
-            </div>
-          ) : (
-            <div className="text-center py-12 glass-panel border border-momentum-flare/20 rounded-xl">
-              <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">Nothing here yet</p>
-              <p className="text-gray-500 mt-2">Drop the first clip from {festival.name}!</p>
             </div>
           )}
         </div>

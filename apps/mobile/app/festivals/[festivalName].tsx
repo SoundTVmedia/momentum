@@ -150,6 +150,14 @@ export default function FestivalScreen() {
           ) : null}
         </View>
 
+        <HorizontalClipCarousel
+          title="Live Moments"
+          subtitle="Fan-captured moments from this festival"
+          clips={clips}
+          onPressClip={(clip) => setPlayer({ clip, clips })}
+          emptyMessage={`Nothing here yet — drop the first clip from ${festival.name}.`}
+        />
+
         <Text style={styles.sectionTitle}>Lineup</Text>
         {artists.length > 0 ? (
           <View style={styles.lineup}>
@@ -176,14 +184,6 @@ export default function FestivalScreen() {
         ) : (
           <Text style={styles.empty}>Lineup not listed yet.</Text>
         )}
-
-        <HorizontalClipCarousel
-          title="Live Moments"
-          subtitle="Fan-captured moments from this festival"
-          clips={clips}
-          onPressClip={(clip) => setPlayer({ clip, clips })}
-          emptyMessage={`Nothing here yet — drop the first clip from ${festival.name}.`}
-        />
 
         {data.jambase_attribution ? (
           <Text style={styles.attribution}>Festival listings powered by JamBase</Text>
