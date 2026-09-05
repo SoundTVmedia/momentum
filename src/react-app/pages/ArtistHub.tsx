@@ -9,6 +9,7 @@ import Header from '@/react-app/components/Header';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
+import { hydrateFavoriteArtistImages } from '@/react-app/lib/hydrate-favorite-artist-images';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { artistPath } from '@/shared/app-paths';
 
@@ -38,10 +39,13 @@ export default function ArtistHubPage() {
       if (!response.ok) throw new Error('Could not load favorite artists');
       const data = (await response.json()) as { artists?: FavoriteArtist[] };
       const next = (data.artists ?? []).filter((artist) => artist.name?.trim());
-      setArtists(next);
-      setFavoriteNames(next.map((artist) => artist.name));
+      const withPhotos = await hydrateFavoriteArtistImages(next);
+      setArtists(withPhotos);
+      setFavoriteNames(withPhotos.map((artist) => artist.name));
       setSelectedName((current) =>
-        current && next.some((artist) => artist.name === current) ? current : next[0]?.name ?? '',
+        current && withPhotos.some((artist) => artist.name === current)
+          ? current
+          : withPhotos[0]?.name ?? '',
       );
       setError(null);
     } catch (err) {

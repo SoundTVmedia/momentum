@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { displayMediaUrl } from '@/shared/media-proxy';
 
 export const FALLBACK_ARTIST_IMAGE =
@@ -19,6 +20,13 @@ export default function ArtistImageCard({
   selected = false,
   onClick,
 }: ArtistImageCardProps) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+  }, [imageUrl]);
+
+  const src = displayMediaUrl((broken ? '' : imageUrl?.trim()) || FALLBACK_ARTIST_IMAGE);
+
   return (
     <button
       type="button"
@@ -32,10 +40,13 @@ export default function ArtistImageCard({
     >
       <div className="relative aspect-square overflow-hidden">
         <img
-          src={displayMediaUrl(imageUrl?.trim() || FALLBACK_ARTIST_IMAGE)}
+          src={src}
           alt={name}
           referrerPolicy="no-referrer"
           decoding="async"
+          onError={() => {
+            if (!broken && imageUrl?.trim()) setBroken(true);
+          }}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
