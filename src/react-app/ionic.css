@@ -274,10 +274,10 @@ ion-button.app-header-signin::part(native) {
 ion-header.app-top-header ion-toolbar.app-toolbar {
   --background: var(--glass-chrome-bg, rgba(3, 7, 18, 0.78));
   --border-width: 0;
-  --min-height: 4.785rem;
+  --min-height: 4.719rem;
   --padding-start: 1.1rem;
   --padding-end: 1.1rem;
-  --padding-top: 0.44rem;
+  --padding-top: 0.374rem;
   --padding-bottom: 0.44rem;
   backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
