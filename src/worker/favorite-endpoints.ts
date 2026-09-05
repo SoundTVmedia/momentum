@@ -47,11 +47,11 @@ async function fillMissingFavoriteArtistImages(
        AND LOWER(TRIM(name)) IN (${placeholders})`,
     )
       .bind(...names.map((name) => name.toLowerCase()))
-      .all<{ name: string; image_url: string }>();
+      .all();
 
     const byName = new Map<string, string>();
-    for (const row of local.results ?? []) {
-      const key = normalizeArtistDisplayName(row.name).toLowerCase();
+    for (const row of (local.results ?? []) as Array<{ name?: string; image_url?: string | null }>) {
+      const key = normalizeArtistDisplayName(String(row.name ?? '')).toLowerCase();
       if (key && row.image_url?.trim()) byName.set(key, row.image_url.trim());
     }
 
