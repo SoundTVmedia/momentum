@@ -7,6 +7,7 @@ import EventTicketActions from '@/react-app/components/EventTicketActions';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import ClipModal from '@/react-app/components/ClipModal';
+import ArtistImageCard from '@/react-app/components/ArtistImageCard';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import { HOME_FEED_SECTION_CLASS, PAGE_BLOCK_CLASS, PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
@@ -22,8 +23,6 @@ import type { ClipWithUser } from '@/shared/types';
 
 const FALLBACK_FEST_IMAGE =
   'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&h=800&fit=crop';
-const FALLBACK_ARTIST_IMAGE =
-  'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop';
 
 interface FestivalData {
   festival: FestivalPageFestival;
@@ -206,31 +205,13 @@ export default function FestivalPage() {
           {artists.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {artists.map((artist) => (
-                <button
+                <ArtistImageCard
                   key={artist.jambase_id ?? artist.name}
-                  type="button"
+                  name={artist.name}
+                  imageUrl={artist.image_url}
+                  badge={artist.is_headliner ? 'Headliner' : null}
                   onClick={() => navigate(artistPath(artist.name))}
-                  className="text-left glass-panel border border-momentum-rose/25 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-colors group"
-                >
-                  <div className="relative aspect-square overflow-hidden">
-                    <img
-                      src={displayMediaUrl(artist.image_url?.trim() || FALLBACK_ARTIST_IMAGE)}
-                      alt={artist.name}
-                      referrerPolicy="no-referrer"
-                      decoding="async"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3">
-                      {artist.is_headliner ? (
-                        <span className="inline-block mb-1 px-2 py-0.5 rounded-full bg-momentum-flare/90 text-[10px] font-semibold uppercase tracking-wide">
-                          Headliner
-                        </span>
-                      ) : null}
-                      <div className="text-white font-semibold text-sm truncate">{artist.name}</div>
-                    </div>
-                  </div>
-                </button>
+                />
               ))}
             </div>
           ) : (

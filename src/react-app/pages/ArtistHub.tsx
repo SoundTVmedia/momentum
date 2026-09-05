@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@getmocha/users-service/react';
 import { Link } from 'react-router';
 import { Loader2, Music, Save } from 'lucide-react';
+import ArtistImageCard from '@/react-app/components/ArtistImageCard';
 import ConcertFeed from '@/react-app/components/ConcertFeed';
 import FavoriteArtistsJamBaseField from '@/react-app/components/FavoriteArtistsJamBaseField';
 import Header from '@/react-app/components/Header';
@@ -145,20 +146,15 @@ export default function ArtistHubPage() {
 
             {artists.length > 0 ? (
               <>
-                <div className="mb-8 flex flex-wrap gap-2">
+                <div className="mb-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {artists.map((artist) => (
-                    <button
+                    <ArtistImageCard
                       key={`${artist.artist_id ?? 0}-${artist.name}`}
-                      type="button"
+                      name={artist.name}
+                      imageUrl={artist.image_url}
+                      selected={selectedName === artist.name}
                       onClick={() => setSelectedName(artist.name)}
-                      className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                        selectedName === artist.name
-                          ? 'border-momentum-flare bg-momentum-flare/20 text-white'
-                          : 'border-white/15 text-gray-300 hover:border-white/35'
-                      }`}
-                    >
-                      {artist.name}
-                    </button>
+                    />
                   ))}
                 </div>
 
