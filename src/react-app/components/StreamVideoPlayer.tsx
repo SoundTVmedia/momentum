@@ -6,7 +6,6 @@ import {
   isHlsPlaybackUrl,
   NATIVE_HLS_START_MBPS,
   resolveModalPlaybackSource,
-  stripStreamBandwidthHint,
   withStreamBandwidthHint,
 } from '@/shared/clip-playback';
 import { recordClipView } from '@/react-app/lib/recordClipView';
@@ -240,8 +239,6 @@ function StreamVideoPlayer(
   const durationSecRef = useRef(0);
   const telemetryFlushedRef = useRef(false);
   const sessionClipIdRef = useRef<number | null>(null);
-  const abrPromotedRef = useRef(false);
-  const promotingAbrRef = useRef(false);
   const onPlaybackFailedRef = useRef(onPlaybackFailed);
   onPlaybackFailedRef.current = onPlaybackFailed;
   const tryNextFallbackRef = useRef<() => boolean>(() => false);
@@ -259,8 +256,6 @@ function StreamVideoPlayer(
     r2FallbackUsedRef.current = false;
     reportedFailureRef.current = false;
     stallRetryUsedRef.current = false;
-    abrPromotedRef.current = false;
-    promotingAbrRef.current = false;
     setLoadError(false);
     setFirstFrameReady(false);
     attachedSrcRef.current = null;
@@ -441,8 +436,6 @@ function StreamVideoPlayer(
       stallStartedAtRef.current = 0;
       telemetryFlushedRef.current = false;
       stallRetryUsedRef.current = false;
-      abrPromotedRef.current = false;
-      promotingAbrRef.current = false;
       sessionClipIdRef.current = clipId;
       renditionRef.current = classifyPlaybackRendition(videoSrc, null);
       durationSecRef.current =
@@ -562,45 +555,7 @@ function StreamVideoPlayer(
       const h = video.videoHeight;
       if (w > 0 && h > 0) onVideoDimensionsRef.current?.({ width: w, height: h });
     };
-    const tryPromoteNativeAbr = () => {
-      if (abrPromotedRef.current || promotingAbrRef.current || stoppedRef.current) return;
-      if (firstFrameAtRef.current <= 0) return;
-      if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return;
-      if (!isHls || !isHlsPlaybackUrl(videoSrc)) return;
-      if (!video.canPlayType('application/vnd.apple.mpegurl')) return;
-      const live = video.currentSrc || video.src || '';
-      if (!live.toLowerCase().includes('clientbandwidthhint')) return;
-      const full = stripStreamBandwidthHint(videoSrc);
-      const hinted = withStreamBandwidthHint(videoSrc, NATIVE_HLS_START_MBPS);
-      if (!full || full === hinted) return;
-
-      abrPromotedRef.current = true;
-      promotingAbrRef.current = true;
-      const t = video.currentTime;
-      const keepMuted = video.muted;
-      video.src = full;
-      try {
-        if (Number.isFinite(t) && t > 0.05) video.currentTime = t;
-      } catch {
-        /* Safari may reject until metadata */
-      }
-      video.muted = keepMuted;
-      void video
-        .play()
-        .catch(() => {
-          promotingAbrRef.current = false;
-          video.src = hinted;
-          void video.play().catch(() => {});
-        })
-        .then(() => {
-          promotingAbrRef.current = false;
-        });
-    };
     const markFirstFrame = () => {
-      if (promotingAbrRef.current) {
-        setIsLoading(false);
-        return;
-      }
       setIsLoading(false);
       setFirstFrameReady(true);
       if (firstFrameAtRef.current <= 0 && loadStartedAtRef.current > 0) {
@@ -616,12 +571,11 @@ function StreamVideoPlayer(
         rebufferMsRef.current += Math.max(0, Date.now() - stallStartedAtRef.current);
         stallStartedAtRef.current = 0;
       }
-      tryPromoteNativeAbr();
     };
     const handlePlay = () => {
       setIsPlaying(true);
       markFirstFrame();
-      if (clipId && !promotingAbrRef.current) {
+      if (clipId) {
         const now = Date.now();
         if (now - lastPlayViewAtRef.current > 350) {
           lastPlayViewAtRef.current = now;
@@ -636,7 +590,6 @@ function StreamVideoPlayer(
       durationSecRef.current = d;
       const prev = lastTimeRef.current;
       lastTimeRef.current = t;
-      tryPromoteNativeAbr();
 
       if (loop && prev > d * 0.88 && t < 0.4) {
         const keepMuted = userMutePreferenceRef.current ?? video.muted;
@@ -657,7 +610,6 @@ function StreamVideoPlayer(
     };
     const handlePause = () => setIsPlaying(false);
     const handleWaiting = () => {
-      if (promotingAbrRef.current) return;
       setIsLoading(true);
       if (firstFrameAtRef.current > 0 && stallStartedAtRef.current <= 0) {
         stallStartedAtRef.current = Date.now();
@@ -668,12 +620,6 @@ function StreamVideoPlayer(
       markFirstFrame();
     };
     const handleError = () => {
-      if (promotingAbrRef.current) {
-        promotingAbrRef.current = false;
-        video.src = withStreamBandwidthHint(videoSrc, NATIVE_HLS_START_MBPS);
-        void video.play().catch(() => {});
-        return;
-      }
       if (tryNextFallbackRef.current()) return;
       const code = video.error?.code ?? 4;
       setLoadError(true);
@@ -712,7 +658,7 @@ function StreamVideoPlayer(
       video.removeEventListener('error', handleError);
       video.removeEventListener('ended', handleEnded);
     };
-  }, [videoSrc, loop, clipId, bumpView, reportPlaybackFailed, networkSrc, isHls]);
+  }, [videoSrc, loop, clipId, bumpView, reportPlaybackFailed, networkSrc]);
 
   useEffect(() => {
     if (!videoSrc || loadError) return;
@@ -737,7 +683,6 @@ function StreamVideoPlayer(
       timer = window.setTimeout(() => {
         timer = null;
         const video = videoRef.current;
-        if (promotingAbrRef.current) return;
         if (!video || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
         if (video.paused && firstFrameAtRef.current > 0) return;
         recoverStallOnce();

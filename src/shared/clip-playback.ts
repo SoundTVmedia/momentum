@@ -49,7 +49,7 @@ export function streamHlsUrl(videoId: string): string {
   return `${STREAM_DELIVERY_ORIGIN}/${videoId}/manifest/video.m3u8`;
 }
 
-/** Opening bitrate for native HLS (`clientBandwidthHint`). Safari cannot set hls.js startLevel. */
+/** Native HLS stays on this hint for the whole clip — swapping `video.src` after first frame flashes on WKWebView. */
 export const NATIVE_HLS_START_MBPS = 0.8;
 
 function isStreamHlsDeliveryUrl(url: string): boolean {
@@ -71,7 +71,7 @@ export function withStreamBandwidthHint(url: string, mbps: number): string {
   }
 }
 
-/** Remove `clientBandwidthHint` so ABR can climb after first frame. */
+/** Remove `clientBandwidthHint` from a Stream HLS URL. */
 export function stripStreamBandwidthHint(url: string): string {
   const u = url.trim();
   if (!u) return u;
