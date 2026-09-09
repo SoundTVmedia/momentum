@@ -87,11 +87,7 @@ const ClipModalMaximizedVideo = forwardRef<
           video_url={clip.video_url}
           thumbnail_url={clip.thumbnail_url}
           r2_raw_key={clip.r2_raw_key}
-          video_duration={
-            typeof (clip as { video_duration?: unknown }).video_duration === 'number'
-              ? (clip as { video_duration: number }).video_duration
-              : null
-          }
+          video_duration={clip.video_duration}
           autoPlay
           loop
           controlsPlacement="hidden"

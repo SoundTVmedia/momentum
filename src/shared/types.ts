@@ -73,6 +73,7 @@ export const ClipSchema = z.object({
   recording_orientation: z.string().nullable().optional(),
   video_resolution_w: z.number().int().nullable().optional(),
   video_resolution_h: z.number().int().nullable().optional(),
+  video_duration: z.number().nullable().optional(),
   stream_video_id: z.string().nullable().optional(),
   stream_playback_url: z.string().nullable().optional(),
   stream_thumbnail_url: z.string().nullable().optional(),
