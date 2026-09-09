@@ -1,5 +1,9 @@
-const PART_RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 15_000, 30_000, 45_000];
-export const MAX_UPLOAD_ATTEMPTS = PART_RETRY_DELAYS_MS.length + 1;
+import { getNetworkReachability } from './network-utils';
+import { UPLOAD_RETRY_CONFIG } from './upload-retry-config';
+
+/** In-flight part retries only — job-level backoff lives in upload-retry-config.ts. */
+const PART_RETRY_DELAYS_MS = [2_000, 4_000] as const;
+export const MAX_UPLOAD_ATTEMPTS = UPLOAD_RETRY_CONFIG.quickAttemptCount;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -7,7 +11,6 @@ function sleep(ms: number): Promise<void> {
 
 export function isTransientUploadError(err: unknown): boolean {
   if (err instanceof Error && err.message === 'Upload cancelled') return false;
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
   if (err instanceof TypeError) return true;
   if (err instanceof Error) {
     const m = err.message.toLowerCase();
@@ -43,6 +46,12 @@ export async function withUploadBackoff<T>(
     if (opts?.signal?.aborted) {
       throw new Error('Upload cancelled');
     }
+    const reachable = await getNetworkReachability();
+    if (!reachable.connected) {
+      throw lastErr instanceof Error
+        ? lastErr
+        : new TypeError('Network error during part upload');
+    }
     try {
       return await fn();
     } catch (err) {
@@ -50,8 +59,12 @@ export async function withUploadBackoff<T>(
       if (!isTransientUploadError(err) || attempt >= MAX_UPLOAD_ATTEMPTS - 1) {
         throw err;
       }
+      const stillReachable = await getNetworkReachability();
+      if (!stillReachable.connected) {
+        throw err;
+      }
       opts?.onRetry?.(attempt + 1, err);
-      await sleep(PART_RETRY_DELAYS_MS[attempt] ?? 45_000);
+      await sleep(PART_RETRY_DELAYS_MS[attempt] ?? UPLOAD_RETRY_CONFIG.quickRetryDelayMs);
     }
   }
   throw lastErr;

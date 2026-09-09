@@ -68,7 +68,7 @@ function buildClipCreateBody(
     song_title: showFields.song_title,
     genre_name: showFields.genre_name,
     status: 'published',
-    timestamp: job.recordingAtIso || undefined,
+    timestamp: job.captureTimestampMissing ? undefined : job.recordingAtIso || undefined,
     jambase_event_id: showFields.jambase_event_id ?? undefined,
     jambase_artist_id: showFields.jambase_artist_id ?? undefined,
     jambase_venue_id: showFields.jambase_venue_id ?? undefined,

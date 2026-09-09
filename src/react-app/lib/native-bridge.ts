@@ -269,14 +269,16 @@ export async function saveNativeVideoUriToGallery(
 
 /**
  * Capacitor hook for a native background uploader (URLSession / WorkManager).
- * Expo RN uploads use FileSystem BACKGROUND sessions in multipart.ts instead.
+ * Durable file persist + part uploads live in @feedback/background-upload.
  */
 export function scheduleNativeBackgroundUpload(jobId: string, cachePath?: string): void {
   if (!isNativeApp()) return;
-  const bridge = (
-    window as Window & {
-      MomentumUploadBridge?: { schedule?: (id: string, path?: string) => void };
-    }
-  ).MomentumUploadBridge;
-  bridge?.schedule?.(jobId, cachePath);
+  void import('@feedback/background-upload')
+    .then(({ BackgroundUpload }) =>
+      BackgroundUpload.persistVideoFile({
+        jobId,
+        sourcePath: cachePath,
+      }),
+    )
+    .catch(() => undefined);
 }

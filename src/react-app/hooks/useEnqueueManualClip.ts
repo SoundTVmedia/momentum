@@ -46,8 +46,8 @@ export function useEnqueueManualClip() {
         return { ok: false, error: classification.error };
       }
 
-      const recordingAtIso =
-        meta.recordedAtIso || new Date(file.lastModified || Date.now()).toISOString();
+      const recordingAtIso = meta.recordedAtIso;
+      const captureTimestampMissing = !meta.recordedAtIso;
       const captureGeo =
         meta.latitude != null && meta.longitude != null
           ? {
@@ -82,6 +82,7 @@ export function useEnqueueManualClip() {
           },
           jambaseLink: null,
           recordingAtIso,
+          captureTimestampMissing,
           captureGeo,
           videoMetadata: {
             recording_orientation: meta.recording_orientation ?? undefined,

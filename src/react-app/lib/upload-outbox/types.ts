@@ -7,6 +7,7 @@ export type OutboxJobStatus =
   | 'uploading'
   | 'completing'
   | 'processing'
+  | 'waiting'
   | 'paused'
   | 'published'
   | 'failed';
@@ -42,8 +43,15 @@ export type UploadOutboxJob = ClipUploadJobPayload & {
   gallerySaved?: boolean;
   /** Best-effort gallery / share / device cache */
   savedToDevice?: boolean;
+  /** Native filesystem path that survives app kill / device restart (Application Support). */
+  nativeVideoUri?: string;
   /** Auto-retry counter for transient upload failures */
   uploadRetryCount?: number;
+  /**
+   * True when the clip has no capture timestamp from file metadata.
+   * Do not fall back to upload/post time for show matching.
+   */
+  captureTimestampMissing?: boolean;
 };
 
 export type PersistedOutboxMeta = Omit<UploadOutboxJob, 'videoFile' | 'videoBlob' | 'thumbnailFile' | 'captureAudioBlob'>;

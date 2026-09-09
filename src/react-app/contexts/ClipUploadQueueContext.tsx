@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth } from '@getmocha/users-service/react';
+import { App } from '@capacitor/app';
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import {
   cacheOutboxBlobs,
@@ -43,23 +44,37 @@ import {
 import { jobFromPayload, runOutboxJob } from '@/react-app/lib/upload-outbox/runner';
 import type { PersistedOutboxMeta, UploadOutboxJob } from '@/react-app/lib/upload-outbox/types';
 import { persistClipInBackground } from '@/react-app/lib/upload-outbox/background-persist';
-import { isNetworkAvailable } from '@/react-app/lib/upload-outbox/network-utils';
+import {
+  getNetworkReachability,
+  initUploadReachability,
+  subscribeReachability,
+} from '@/react-app/lib/upload-outbox/network-utils';
+import {
+  loadNativeOutboxMeta,
+  nativeOutboxFileExists,
+  persistDurableVideoFile,
+  persistNativeOutboxMeta,
+  recoverDurableVideoPath,
+} from '@/react-app/lib/upload-outbox/native-outbox';
+import {
+  delayMsForUploadAttempt,
+  UPLOAD_RETRY_CONFIG,
+} from '@/react-app/lib/upload-outbox/upload-retry-config';
 import {
   acquireUploadWakeLock,
   bindUploadWakeLockVisibility,
   releaseUploadWakeLock,
 } from '@/react-app/lib/upload-outbox/upload-wake-lock';
 import { notifyClipUploadSuccess } from '@/react-app/lib/upload-outbox/upload-success-notification';
+import { writeVideoToNativeCache } from '@/react-app/lib/native-bridge';
 import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName';
 import type { ExtendedMochaUser } from '@/shared/types';
 
-const MAX_QUEUE_SIZE = 5;
+const MAX_QUEUE_SIZE = UPLOAD_RETRY_CONFIG.maxQueueSize;
+const MAX_CONCURRENT_UPLOADS = UPLOAD_RETRY_CONFIG.maxConcurrentUploads;
 const DONE_TTL_MS = 8000;
-const AUTO_RETRY_BASE_MS = 5_000;
-const AUTO_RETRY_MAX_MS = 120_000;
 const UPLOAD_STALL_MS = 180_000;
 const PROCESSING_WATCHDOG_MS = 600_000;
-const QUEUE_POLL_MS = 10_000;
 const BLOB_WAIT_AFTER_REFRESH_MS = 45_000;
 const BLOB_WAIT_POLL_MS = 500;
 const BLOB_WAIT_MAX_ATTEMPTS = 90;
@@ -80,6 +95,7 @@ type ClipUploadQueueValue = {
     opts?: EnqueueClipOptions,
   ) => string | null;
   restartJob: (id: string) => void;
+  dismissJob: (id: string) => void;
 };
 
 const ClipUploadQueueContext = createContext<ClipUploadQueueValue | null>(null);
@@ -111,7 +127,7 @@ function jobIsReadyToUpload(job: UploadOutboxJob): boolean {
   if (job.uploadMethod === 'url') {
     return Boolean(job.videoUrl?.trim()) || Boolean(job.blobsReady);
   }
-  return Boolean(job.blobsReady || job.sessionId?.trim());
+  return Boolean(job.blobsReady || job.sessionId?.trim() || job.nativeVideoUri?.trim());
 }
 
 function scheduleAutoRetry(
@@ -129,7 +145,7 @@ function scheduleAutoRetry(
   const timer = window.setTimeout(() => {
     refs.autoRetryTimers.current.delete(jobId);
     const job = refs.jobs.current.find((j) => j.id === jobId);
-    if (!job || job.status !== 'paused') return;
+    if (!job || (job.status !== 'paused' && job.status !== 'waiting' && job.status !== 'queued')) return;
     updateJob(jobId, { status: 'queued', error: null });
     queueMicrotask(() => refs.processNext.current());
   }, delayMs);
@@ -147,15 +163,38 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
     job = { ...job, status: 'queued' };
   }
 
+  const nativePath = job.nativeVideoUri?.trim() || '';
+  let nativeFileOk = nativePath ? await nativeOutboxFileExists(nativePath) : false;
+  if (!nativeFileOk) {
+    const recovered = await recoverDurableVideoPath(job.id, job.fileName);
+    if (recovered) {
+      job = { ...job, nativeVideoUri: recovered };
+      nativeFileOk = true;
+    }
+  }
+
   const blobs = await resolveOutboxBlobs(job.id);
   if (blobs?.video) {
     registerClipBlob(job.id, blobs.video);
     return {
       ...job,
       blobsReady: true,
-      gallerySaved: true,
+      gallerySaved: job.gallerySaved ?? true,
       captureAudioBlob: blobs.captureAudio ?? job.captureAudioBlob ?? null,
       status: job.status === 'failed' ? 'queued' : job.status,
+      error: null,
+    };
+  }
+
+  if (nativeFileOk) {
+    return {
+      ...job,
+      blobsReady: true,
+      nativeVideoUri: job.nativeVideoUri?.trim() || nativePath,
+      status: job.status === 'failed' ? 'queued' : job.status,
+      error: null,
+    };
+  }
       error: null,
     };
   }
@@ -212,36 +251,41 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
     return { ...job, status: 'queued', error: null };
   }
 
+  // Keep the job. Never silently drop — the clip may still be in Photos.
   return {
     ...job,
     blobsReady: false,
-    status: 'failed',
-    error: 'Clip video is not on this device anymore. Record and post again if needed.',
+    status: 'paused',
+    error:
+      'Waiting to restore this clip from the device. It is still in your queue — retry after the app finishes saving.',
   };
 }
 
-/** FIFO: one clip at a time; paused jobs wait for their retry timer. */
-function nextUploadJob(jobs: UploadOutboxJob[]): UploadOutboxJob | undefined {
+function isBlockingInFlightStatus(status: UploadOutboxJob['status']): boolean {
+  return (
+    status === 'uploading' ||
+    status === 'classifying' ||
+    status === 'completing' ||
+    status === 'processing'
+  );
+}
+
+/** Oldest first. Multiple jobs may upload at once up to MAX_CONCURRENT_UPLOADS. */
+function nextUploadJobs(jobs: UploadOutboxJob[], inFlightCount: number): UploadOutboxJob[] {
+  const slots = Math.max(0, MAX_CONCURRENT_UPLOADS - inFlightCount);
+  if (slots <= 0) return [];
   const sorted = [...jobs].sort((a, b) => a.createdAt - b.createdAt);
+  const picked: UploadOutboxJob[] = [];
   for (const j of sorted) {
-    if (j.status === 'published') continue;
-    if (j.status === 'failed') {
-      continue;
-    }
-    if (
-      j.status === 'uploading' ||
-      j.status === 'classifying' ||
-      j.status === 'completing' ||
-      j.status === 'processing' ||
-      j.status === 'paused'
-    ) {
-      return undefined;
-    }
+    if (j.status === 'published' || j.status === 'failed' || j.status === 'paused') continue;
+    if (j.status === 'waiting') continue;
+    if (isBlockingInFlightStatus(j.status)) continue;
     if (j.status === 'queued' && jobIsReadyToUpload(j)) {
-      return j;
+      picked.push(j);
+      if (picked.length >= slots) break;
     }
   }
-  return undefined;
+  return picked;
 }
 
 export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
@@ -251,12 +295,12 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
-  const processingRef = useRef(false);
-  const abortRef = useRef<AbortController | null>(null);
+  const processingIdsRef = useRef<Set<string>>(new Set());
+  const abortByJobRef = useRef<Map<string, AbortController>>(new Map());
   const autoRetryTimersRef = useRef<Map<string, number>>(new Map());
   const processNextRef = useRef<() => void>(() => {});
-  const abortForStallRef = useRef(false);
-  const processingStartedAtRef = useRef<number | null>(null);
+  const abortForStallRef = useRef<Set<string>>(new Set());
+  const processingStartedAtRef = useRef<Map<string, number>>(new Map());
   const notifiedPublishedRef = useRef<Set<string>>(new Set());
 
   const notifyPublishedIfNeeded = useCallback(
@@ -268,6 +312,13 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         markCaptureSharedForBlob(publishedVideo);
       }
       void notifyClipUploadSuccess(welcomeName);
+      if (job.captureTimestampMissing && job.clipId != null && !isActiveCaptureHandoff()) {
+        window.dispatchEvent(
+          new CustomEvent('feedback:needs-show-picker', {
+            detail: { jobId: job.id, clipId: job.clipId },
+          }),
+        );
+      }
       // Earlier clips finishing upload must not wipe a newer in-progress capture session.
       if (isActiveCaptureHandoff()) return;
       blockCaptureReviewRecovery();
@@ -286,12 +337,15 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const persist = useCallback(async (next: ClipUploadQueueJob[]) => {
-    const active = next.filter((j) => j.status !== 'published');
+    const active = next.filter(
+      (j) => j.status !== 'published' || Boolean(j.captureTimestampMissing),
+    );
     try {
       await saveOutboxMeta(active.map(toPersisted));
     } catch (err) {
       console.warn('ClipUploadQueue saveOutboxMeta:', err);
     }
+    void persistNativeOutboxMeta(active.map(toPersisted));
   }, []);
 
   const updateJob = useCallback(
@@ -322,10 +376,18 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const meta = await loadOutboxMeta();
+        const nativeMeta = await loadNativeOutboxMeta();
         if (cancelled) return;
 
+        const merged = new Map<string, PersistedOutboxMeta>();
+        for (const row of nativeMeta) merged.set(row.id, row);
+        for (const row of meta) {
+          const existing = merged.get(row.id);
+          merged.set(row.id, existing ? { ...existing, ...row, nativeVideoUri: row.nativeVideoUri || existing.nativeVideoUri } : row);
+        }
+
         const revivedJobs: UploadOutboxJob[] = [];
-        for (const m of meta) {
+        for (const m of merged.values()) {
           const job = await hydrateJobFromStorage(m);
           if (job.status === 'published') {
             notifiedPublishedRef.current.add(job.id);
@@ -347,161 +409,194 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const processNext = useCallback(async () => {
-    if (processingRef.current || !hydrated) return;
+    if (!hydrated) return;
 
-    const pending = nextUploadJob(jobsRef.current);
-    if (!pending) return;
-
-    if (!isNetworkAvailable()) {
-      if (pending.status === 'uploading') {
-        updateJob(pending.id, {
-          status: 'paused',
-          error:
-            "You're offline. Your clip is saved on this device — upload will continue when you're back online.",
+    const reachability = await getNetworkReachability();
+    if (!reachability.connected) {
+      const waitingIds: string[] = [];
+      for (const j of jobsRef.current) {
+        if (j.status === 'queued') {
+          waitingIds.push(j.id);
+        }
+      }
+      if (waitingIds.length > 0) {
+        setJobs((prev) => {
+          const next = prev.map((j) =>
+            waitingIds.includes(j.id)
+              ? {
+                  ...j,
+                  status: 'waiting' as const,
+                  error: 'Waiting for connection',
+                }
+              : j,
+          );
+          jobsRef.current = next;
+          void persist(next);
+          return next;
         });
       }
       return;
     }
 
-    processingRef.current = true;
-    try {
-      if (pending.uploadMethod !== 'url') {
-        const blobs = await waitForOutboxBlobs(pending.id, {
-          attempts: BLOB_WAIT_MAX_ATTEMPTS,
-          delayMs: BLOB_WAIT_POLL_MS,
-        });
-        if (!blobs?.video && !pending.sessionId?.trim()) {
-          updateJob(pending.id, {
-            status: 'paused',
-            blobsReady: false,
-            error: 'Waiting for video on this device — upload will start shortly.',
+    const pendingList = nextUploadJobs(jobsRef.current, processingIdsRef.current.size);
+    for (const pending of pendingList) {
+      if (processingIdsRef.current.has(pending.id)) continue;
+      processingIdsRef.current.add(pending.id);
+      void runOneJob(pending);
+    }
+
+    async function runOneJob(pending: ClipUploadQueueJob) {
+      try {
+        if (pending.uploadMethod !== 'url' && !pending.nativeVideoUri?.trim()) {
+          const blobs = await waitForOutboxBlobs(pending.id, {
+            attempts: BLOB_WAIT_MAX_ATTEMPTS,
+            delayMs: BLOB_WAIT_POLL_MS,
           });
-          scheduleAutoRetry(
-            pending.id,
-            8_000,
-            {
-              autoRetryTimers: autoRetryTimersRef,
-              jobs: jobsRef,
-              processNext: processNextRef,
-            },
-            clearAutoRetryTimer,
-            updateJob,
-          );
+          if (!blobs?.video && !pending.sessionId?.trim()) {
+            updateJob(pending.id, {
+              status: 'paused',
+              blobsReady: false,
+              error: 'Waiting for video on this device — upload will start shortly.',
+            });
+            scheduleAutoRetry(
+              pending.id,
+              8_000,
+              {
+                autoRetryTimers: autoRetryTimersRef,
+                jobs: jobsRef,
+                processNext: processNextRef,
+              },
+              clearAutoRetryTimer,
+              updateJob,
+            );
+            return;
+          }
+          if (blobs?.video) {
+            registerClipBlob(pending.id, blobs.video);
+            updateJob(pending.id, { blobsReady: true });
+          }
+        }
+
+        const stillOnline = await getNetworkReachability();
+        if (!stillOnline.connected) {
+          updateJob(pending.id, {
+            status: 'waiting',
+            error: 'Waiting for connection',
+          });
           return;
         }
-        if (blobs?.video) {
-          registerClipBlob(pending.id, blobs.video);
-          updateJob(pending.id, { blobsReady: true });
-        }
-      }
 
-      processingStartedAtRef.current = Date.now();
-      const controller = new AbortController();
-      abortRef.current = controller;
+        processingStartedAtRef.current.set(pending.id, Date.now());
+        const controller = new AbortController();
+        abortByJobRef.current.set(pending.id, controller);
 
-      await acquireUploadWakeLock();
+        await acquireUploadWakeLock();
 
-      updateJob(pending.id, {
-        status: 'uploading',
-        error: null,
-        progress: pending.progress || 0,
-      });
+        updateJob(pending.id, {
+          status: 'uploading',
+          error: null,
+          progress: pending.progress || 0,
+        });
 
-      let lastActivityAt = Date.now();
-      let lastProgressValue = pending.progress || 0;
-      const stallTimer = window.setInterval(() => {
-        if (Date.now() - lastActivityAt < UPLOAD_STALL_MS) return;
-        abortForStallRef.current = true;
-        controller.abort();
-      }, 5_000);
-      const progressHeartbeat = window.setInterval(() => {
-        const current = jobsRef.current.find((j) => j.id === pending.id);
-        if (!current) return;
-        if (
-          current.status === 'uploading' ||
-          current.status === 'classifying' ||
-          current.status === 'completing' ||
-          current.status === 'processing'
-        ) {
-          lastActivityAt = Date.now();
-        }
-      }, 15_000);
-
-      try {
-        await runOutboxJob(
-          jobsRef.current.find((j) => j.id === pending.id) ?? pending,
-          (patch) => {
+        let lastActivityAt = Date.now();
+        let lastProgressValue = pending.progress || 0;
+        const stallTimer = window.setInterval(() => {
+          if (Date.now() - lastActivityAt < UPLOAD_STALL_MS) return;
+          abortForStallRef.current.add(pending.id);
+          controller.abort();
+        }, 5_000);
+        const progressHeartbeat = window.setInterval(() => {
+          const current = jobsRef.current.find((j) => j.id === pending.id);
+          if (!current) return;
+          if (isBlockingInFlightStatus(current.status)) {
             lastActivityAt = Date.now();
-            if (patch.progress != null && patch.progress > lastProgressValue) {
-              lastProgressValue = patch.progress;
-            }
-            if (patch.status === 'published') {
-              updateJob(pending.id, { ...patch, blobsReady: true });
-              notifyPublishedIfNeeded({ ...pending, ...patch, blobsReady: true });
-              return;
-            }
-            updateJob(pending.id, patch);
-          },
-          controller.signal,
-        );
-        updateJob(pending.id, { status: 'published', progress: 100 });
-        notifyPublishedIfNeeded(
-          jobsRef.current.find((j) => j.id === pending.id) ?? { ...pending, status: 'published', progress: 100 },
-        );
-        clearAutoRetryTimer(pending.id);
-        releaseClipBlob(pending.id);
-        removeJobLater(pending.id);
-      } catch (err) {
-        let message = formatUploadError(err);
-        if (abortForStallRef.current) {
-          abortForStallRef.current = false;
-          message =
-            'Slow connection — your clip is saved on this device. Upload will continue when the connection improves.';
-        }
-        const current = jobsRef.current.find((j) => j.id === pending.id);
-        const retryCount = (current?.uploadRetryCount ?? 0) + 1;
-        if (isRetryableUploadError(message) || isRecoverableSaveError(message)) {
-          updateJob(pending.id, {
-            status: 'paused',
-            error: message,
-            uploadRetryCount: retryCount,
-          });
-          const delay = Math.min(
-            AUTO_RETRY_MAX_MS,
-            AUTO_RETRY_BASE_MS * 2 ** Math.max(0, retryCount - 1),
-          );
-          scheduleAutoRetry(
-            pending.id,
-            delay,
-            {
-              autoRetryTimers: autoRetryTimersRef,
-              jobs: jobsRef,
-              processNext: processNextRef,
+          }
+        }, 15_000);
+
+        try {
+          await runOutboxJob(
+            jobsRef.current.find((j) => j.id === pending.id) ?? pending,
+            (patch) => {
+              lastActivityAt = Date.now();
+              if (patch.progress != null && patch.progress > lastProgressValue) {
+                lastProgressValue = patch.progress;
+              }
+              if (patch.status === 'published') {
+                updateJob(pending.id, { ...patch, blobsReady: true });
+                notifyPublishedIfNeeded({ ...pending, ...patch, blobsReady: true });
+                return;
+              }
+              updateJob(pending.id, patch);
             },
-            clearAutoRetryTimer,
-            updateJob,
+            controller.signal,
           );
-        } else {
+          updateJob(pending.id, { status: 'published', progress: 100 });
+          notifyPublishedIfNeeded(
+            jobsRef.current.find((j) => j.id === pending.id) ?? {
+              ...pending,
+              status: 'published',
+              progress: 100,
+            },
+          );
           clearAutoRetryTimer(pending.id);
-          updateJob(pending.id, { status: 'failed', error: message });
-        }
-      } finally {
-        window.clearInterval(stallTimer);
-        window.clearInterval(progressHeartbeat);
-        await releaseUploadWakeLock();
-        processingStartedAtRef.current = null;
-        abortRef.current = null;
-        const jobAfterRun = jobsRef.current.find((j) => j.id === pending.id);
-        if (jobAfterRun?.status !== 'paused') {
+          releaseClipBlob(pending.id);
+          const finished = jobsRef.current.find((j) => j.id === pending.id);
+          if (!finished?.captureTimestampMissing) {
+            removeJobLater(pending.id);
+          }
+        } catch (err) {
+          let message = formatUploadError(err);
+          if (abortForStallRef.current.has(pending.id)) {
+            abortForStallRef.current.delete(pending.id);
+            message =
+              'Slow connection — your clip is saved on this device. Upload will continue when the connection improves.';
+          }
+          const online = await getNetworkReachability();
+          if (!online.connected) {
+            updateJob(pending.id, {
+              status: 'waiting',
+              error: 'Waiting for connection',
+            });
+            return;
+          }
+          const current = jobsRef.current.find((j) => j.id === pending.id);
+          const retryCount = (current?.uploadRetryCount ?? 0) + 1;
+          if (isRetryableUploadError(message) || isRecoverableSaveError(message)) {
+            updateJob(pending.id, {
+              status: 'paused',
+              error: message,
+              uploadRetryCount: retryCount,
+            });
+            scheduleAutoRetry(
+              pending.id,
+              delayMsForUploadAttempt(retryCount),
+              {
+                autoRetryTimers: autoRetryTimersRef,
+                jobs: jobsRef,
+                processNext: processNextRef,
+              },
+              clearAutoRetryTimer,
+              updateJob,
+            );
+          } else {
+            clearAutoRetryTimer(pending.id);
+            updateJob(pending.id, { status: 'failed', error: message });
+          }
+        } finally {
+          window.clearInterval(stallTimer);
+          window.clearInterval(progressHeartbeat);
+          await releaseUploadWakeLock();
+          processingStartedAtRef.current.delete(pending.id);
+          abortByJobRef.current.delete(pending.id);
           queueMicrotask(() => {
             void processNext();
           });
         }
+      } finally {
+        processingIdsRef.current.delete(pending.id);
       }
-    } finally {
-      processingRef.current = false;
     }
-  }, [clearAutoRetryTimer, hydrated, notifyPublishedIfNeeded, removeJobLater, updateJob]);
+  }, [clearAutoRetryTimer, hydrated, notifyPublishedIfNeeded, persist, removeJobLater, updateJob]);
 
   processNextRef.current = () => {
     void processNext();
@@ -512,8 +607,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       const retryable = jobsRef.current.filter(
         (j) =>
           jobIsReadyToUpload(j) &&
-          j.status === 'failed' &&
-          (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)),
+          (j.status === 'waiting' ||
+            (j.status === 'failed' &&
+              (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)))),
       );
       if (retryable.length === 0) return;
 
@@ -521,8 +617,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         const next = prev.map((j) => {
           const shouldRetry =
             jobIsReadyToUpload(j) &&
-            j.status === 'failed' &&
-            (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error));
+            (j.status === 'waiting' ||
+              (j.status === 'failed' &&
+                (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error))));
           if (!shouldRetry) return j;
           return {
             ...j,
@@ -601,36 +698,17 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     };
 
     window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
-  }, [hydrated, resumeRetryableJobs]);
+    const unsubReachability = subscribeReachability((status) => {
+      if (!status.connected) return;
+      onOnline();
+    });
+    return () => {
+      window.removeEventListener('online', onOnline);
+      unsubReachability();
+    };
+  }, [hydrated, processNext, resumeRetryableJobs]);
 
-  useEffect(() => {
-    if (!hydrated) return;
-
-    const interval = window.setInterval(() => {
-      if (!isNetworkAvailable()) return;
-
-      for (const j of jobsRef.current) {
-        if (j.status === 'paused' && !autoRetryTimersRef.current.has(j.id)) {
-          if (isBlobWaitPauseError(j.error)) continue;
-          updateJob(j.id, { status: 'queued', error: null });
-        }
-      }
-
-      const hasWork = jobsRef.current.some(
-        (j) =>
-          jobIsReadyToUpload(j) &&
-          (j.status === 'queued' ||
-            (j.status === 'failed' &&
-              (isRetryableUploadError(j.error) || isRecoverableSaveError(j.error)))),
-      );
-      if (!hasWork || processingRef.current) return;
-      resumeRetryableJobs(true);
-      void processNext();
-    }, QUEUE_POLL_MS);
-
-    return () => window.clearInterval(interval);
-  }, [hydrated, processNext, resumeRetryableJobs, updateJob]);
+  useEffect(() => initUploadReachability(), []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -643,41 +721,43 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       });
     };
     window.addEventListener('pageshow', onPageShow);
-    return () => window.removeEventListener('pageshow', onPageShow);
+    let appHandle: { remove: () => Promise<void> } | undefined;
+    void App.addListener('appStateChange', (state) => {
+      if (!state.isActive) return;
+      onPageShow();
+    }).then((handle) => {
+      appHandle = handle;
+    });
+    return () => {
+      window.removeEventListener('pageshow', onPageShow);
+      void appHandle?.remove();
+    };
   }, [hydrated, processNext, reattemptPausedBlobJobs, resumeRetryableJobs]);
 
   useEffect(() => bindUploadWakeLockVisibility(), []);
 
-  /** Recover if a upload handler never finishes (hung fetch, crashed tab, etc.). */
+  /** Recover if an upload handler never finishes (hung fetch, crashed tab, etc.). */
   useEffect(() => {
     if (!hydrated) return;
 
     const interval = window.setInterval(() => {
-      if (!processingRef.current || processingStartedAtRef.current == null) return;
-      if (Date.now() - processingStartedAtRef.current < PROCESSING_WATCHDOG_MS) return;
-
-      console.warn('ClipUploadQueue: processing watchdog — resetting stuck upload');
-      abortForStallRef.current = true;
-      abortRef.current?.abort();
-      processingRef.current = false;
-      processingStartedAtRef.current = null;
-
-      const stuck = jobsRef.current.find(
-        (j) =>
-          j.status === 'uploading' ||
-          j.status === 'classifying' ||
-          j.status === 'completing' ||
-          j.status === 'processing',
-      );
-      if (stuck) {
-        updateJob(stuck.id, {
+      const now = Date.now();
+      let resetAny = false;
+      for (const [jobId, startedAt] of processingStartedAtRef.current) {
+        if (now - startedAt < PROCESSING_WATCHDOG_MS) continue;
+        console.warn('ClipUploadQueue: processing watchdog — resetting stuck upload', jobId);
+        abortForStallRef.current.add(jobId);
+        abortByJobRef.current.get(jobId)?.abort();
+        processingIdsRef.current.delete(jobId);
+        processingStartedAtRef.current.delete(jobId);
+        updateJob(jobId, {
           status: 'paused',
           error:
             'Slow connection — your clip is saved on this device. Upload will continue when the connection improves.',
         });
         scheduleAutoRetry(
-          stuck.id,
-          AUTO_RETRY_BASE_MS,
+          jobId,
+          delayMsForUploadAttempt(1),
           {
             autoRetryTimers: autoRetryTimersRef,
             jobs: jobsRef,
@@ -686,11 +766,13 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
           clearAutoRetryTimer,
           updateJob,
         );
+        resetAny = true;
       }
-
-      queueMicrotask(() => {
-        void processNext();
-      });
+      if (resetAny) {
+        queueMicrotask(() => {
+          void processNext();
+        });
+      }
     }, 30_000);
 
     return () => window.clearInterval(interval);
@@ -747,11 +829,15 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         captureAudio: payload.captureAudioBlob ?? null,
       });
 
+      const nativeVideoUri = opts?.nativeVideoUri?.trim() || payload.nativeVideoUri?.trim() || undefined;
+
       const readyJob: UploadOutboxJob = {
         ...job,
         blobsReady: true,
         status: 'queued',
         error: null,
+        nativeVideoUri: nativeVideoUri ?? job.nativeVideoUri,
+        captureTimestampMissing: payload.captureTimestampMissing ?? job.captureTimestampMissing,
       };
 
       setJobs((prev) => {
@@ -765,8 +851,6 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         void processNext();
       });
 
-      const nativeVideoUri = opts?.nativeVideoUri?.trim() || undefined;
-
       void (async () => {
         try {
           await persistOutboxVideo(
@@ -778,13 +862,29 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         } catch (err) {
           console.warn('ClipUploadQueue persistOutboxVideo:', err);
         }
+        let sourcePath = nativeVideoUri;
+        if (!sourcePath) {
+          try {
+            sourcePath = await writeVideoToNativeCache(videoBlob, job.fileName);
+          } catch (err) {
+            console.warn('ClipUploadQueue writeVideoToNativeCache:', err);
+          }
+        }
+        const durablePath = await persistDurableVideoFile({
+          jobId: job.id,
+          sourcePath,
+          fileName: job.fileName,
+        });
+        if (durablePath && durablePath !== nativeVideoUri) {
+          updateJob(job.id, { nativeVideoUri: durablePath });
+        }
         await clearPendingCapture();
         void persistClipInBackground({
           jobId: job.id,
           video: videoBlob,
           fileName: job.fileName,
           thumbnailFile: payload.thumbnailFile,
-          nativeVideoUri,
+          nativeVideoUri: durablePath ?? nativeVideoUri,
           onGallerySaved: (saved) => {
             updateJob(job.id, { gallerySaved: true, savedToDevice: saved });
           },
@@ -803,16 +903,12 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
         const job = jobsRef.current.find((j) => j.id === id);
         if (!job) return;
 
-        const activeOnJob =
-          job.status === 'uploading' ||
-          job.status === 'classifying' ||
-          job.status === 'completing' ||
-          job.status === 'processing';
-        if (processingRef.current && activeOnJob) {
-          abortForStallRef.current = false;
-          abortRef.current?.abort();
-          processingRef.current = false;
-          processingStartedAtRef.current = null;
+        const activeOnJob = isBlockingInFlightStatus(job.status);
+        if (activeOnJob) {
+          abortForStallRef.current.delete(id);
+          abortByJobRef.current.get(id)?.abort();
+          processingIdsRef.current.delete(id);
+          processingStartedAtRef.current.delete(id);
         }
 
         if (job.uploadMethod !== 'url') {
@@ -829,16 +925,19 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
               });
             }
           }
-          if (!blobs?.video) {
+          const nativeOk = await nativeOutboxFileExists(job.nativeVideoUri);
+          if (!blobs?.video && !nativeOk) {
             updateJob(id, {
-              status: 'failed',
+              status: 'paused',
               blobsReady: false,
               error:
-                'Clip video is not on this device anymore. Record and post again if needed.',
+                'Waiting to restore this clip from the device. It is still in your queue — retry after the app finishes saving.',
             });
             return;
           }
-          registerClipBlob(id, blobs.video);
+          if (blobs?.video) {
+            registerClipBlob(id, blobs.video);
+          }
         }
 
         updateJob(id, {
@@ -860,6 +959,22 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
     [clearAutoRetryTimer, processNext, updateJob],
   );
 
+  const dismissJob = useCallback(
+    (id: string) => {
+      clearAutoRetryTimer(id);
+      setJobs((prev) => {
+        const next = prev.filter((j) => j.id !== id);
+        jobsRef.current = next;
+        void persist(next);
+        return next;
+      });
+      void deleteOutboxJob(id).catch(() => {
+        /* ignore */
+      });
+    },
+    [clearAutoRetryTimer, persist],
+  );
+
   const activeCount = useMemo(
     () =>
       jobs.filter(
@@ -869,7 +984,8 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
           j.status === 'uploading' ||
           j.status === 'completing' ||
           j.status === 'processing' ||
-          j.status === 'paused',
+          j.status === 'paused' ||
+          j.status === 'waiting',
       ).length,
     [jobs],
   );
@@ -880,8 +996,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
       activeCount,
       enqueue,
       restartJob,
+      dismissJob,
     }),
-    [jobs, activeCount, enqueue, restartJob],
+    [jobs, activeCount, enqueue, restartJob, dismissJob],
   );
 
   return <ClipUploadQueueContext.Provider value={value}>{children}</ClipUploadQueueContext.Provider>;
@@ -895,6 +1012,7 @@ export function useClipUploadQueue(): ClipUploadQueueValue {
       activeCount: 0,
       enqueue: () => null,
       restartJob: () => {},
+      dismissJob: () => {},
     };
   }
   return ctx;

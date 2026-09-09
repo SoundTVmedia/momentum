@@ -69,8 +69,9 @@ export default function MobileBottomNav() {
       job.status === 'uploading' ||
       job.status === 'completing' ||
       job.status === 'processing' ||
-      job.status === 'paused' ||
-      job.status === 'failed',
+        job.status === 'paused' ||
+        job.status === 'waiting' ||
+        job.status === 'failed',
   ).length;
 
   const selectedTab = (() => {

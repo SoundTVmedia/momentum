@@ -18,6 +18,8 @@ type ClipEditModalProps = {
   onSaved: (updated: ClipWithUser) => void;
   /** When true, saves via admin API and allows JamBase show linking. */
   asSuperadmin?: boolean;
+  /** JamBase artist/venue search for the uploader (queue missing-timestamp flow). */
+  enableShowSearch?: boolean;
 };
 
 function readClipString(clip: EditableClip, key: string): string {
@@ -35,6 +37,7 @@ export default function ClipEditModal({
   onClose,
   onSaved,
   asSuperadmin = false,
+  enableShowSearch = false,
 }: ClipEditModalProps) {
   const { searchArtists, searchVenues } = useJamBase();
   const [artistName, setArtistName] = useState('');
@@ -58,6 +61,7 @@ export default function ClipEditModal({
   const [venueSearchPending, setVenueSearchPending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const showSearch = asSuperadmin || enableShowSearch;
 
   const debouncedArtistSearch = useDebounce(artistSearch, 300);
   const debouncedVenueSearch = useDebounce(venueSearch, 300);
@@ -84,7 +88,7 @@ export default function ClipEditModal({
   }, [clip]);
 
   useEffect(() => {
-    if (!asSuperadmin || debouncedArtistSearch.length < 2) {
+    if (!showSearch || debouncedArtistSearch.length < 2) {
       setArtistSuggestions([]);
       return;
     }
@@ -100,10 +104,10 @@ export default function ClipEditModal({
     return () => {
       cancelled = true;
     };
-  }, [asSuperadmin, debouncedArtistSearch, searchArtists]);
+  }, [showSearch, debouncedArtistSearch, searchArtists]);
 
   useEffect(() => {
-    if (!asSuperadmin || debouncedVenueSearch.length < 2) {
+    if (!showSearch || debouncedVenueSearch.length < 2) {
       setVenueSuggestions([]);
       return;
     }
@@ -119,7 +123,7 @@ export default function ClipEditModal({
     return () => {
       cancelled = true;
     };
-  }, [asSuperadmin, debouncedVenueSearch, location, searchVenues]);
+  }, [showSearch, debouncedVenueSearch, location, searchVenues]);
 
   const currentFields = {
     artist_name: artistName,
@@ -214,7 +218,7 @@ export default function ClipEditModal({
           hashtags,
           song_title: songTitle,
           genre_name: genreName,
-          ...(asSuperadmin
+          ...(asSuperadmin || enableShowSearch
             ? {
                 event_title: eventTitle,
                 jambase_event_id: jambaseEventId,
@@ -260,7 +264,9 @@ export default function ClipEditModal({
           <p className="text-sm text-gray-400">
             {asSuperadmin
               ? 'Update metadata and JamBase show links for any clip. Video files are not changed here.'
-              : 'Update how this moment appears in the feed. Video files are not changed here.'}
+              : enableShowSearch
+                ? 'This file had no capture timestamp, so we did not guess a show. Pick the artist and venue.'
+                : 'Update how this moment appears in the feed. Video files are not changed here.'}
           </p>
 
           {asSuperadmin ? (
@@ -300,9 +306,9 @@ export default function ClipEditModal({
 
           <div>
             <label htmlFor="edit-artist" className="mb-1 block text-sm font-medium text-gray-300">
-              Artist {asSuperadmin ? <span className="font-normal text-gray-500">(JamBase search)</span> : null}
+              Artist {showSearch ? <span className="font-normal text-gray-500">(JamBase search)</span> : null}
             </label>
-            {asSuperadmin ? (
+            {showSearch ? (
               <div className="relative">
                 <input
                   id="edit-artist"
@@ -352,9 +358,9 @@ export default function ClipEditModal({
 
           <div>
             <label htmlFor="edit-venue" className="mb-1 block text-sm font-medium text-gray-300">
-              Venue {asSuperadmin ? <span className="font-normal text-gray-500">(JamBase search)</span> : null}
+              Venue {showSearch ? <span className="font-normal text-gray-500">(JamBase search)</span> : null}
             </label>
-            {asSuperadmin ? (
+            {showSearch ? (
               <div className="relative">
                 <input
                   id="edit-venue"

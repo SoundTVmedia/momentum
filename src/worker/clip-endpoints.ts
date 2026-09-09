@@ -520,17 +520,27 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
     (typeof existingRow.venue_name === 'string' ? existingRow.venue_name : null);
   const resolvedTimestamp =
     typeof existingRow.timestamp === 'string' ? existingRow.timestamp : null;
+  const jambaseEventId =
+    trimOrNull(body.jambase_event_id) ??
+    (typeof existingRow.jambase_event_id === 'string' ? existingRow.jambase_event_id : null);
+  const jambaseArtistId =
+    trimOrNull(body.jambase_artist_id) ??
+    (typeof existingRow.jambase_artist_id === 'string' ? existingRow.jambase_artist_id : null);
+  const jambaseVenueId =
+    trimOrNull(body.jambase_venue_id) ??
+    (typeof existingRow.jambase_venue_id === 'string' ? existingRow.jambase_venue_id : null);
   const showId = computeShowId({
-    jambase_event_id:
-      typeof existingRow.jambase_event_id === 'string' ? existingRow.jambase_event_id : null,
+    jambase_event_id: jambaseEventId,
     artist_name: resolvedArtist,
     venue_name: resolvedVenue,
     timestamp: resolvedTimestamp,
   });
-  const eventTitle = resolveClipEventTitle({
-    artist_name: resolvedArtist,
-    venue_name: resolvedVenue,
-  });
+  const eventTitle =
+    trimOrNull(body.event_title) ??
+    resolveClipEventTitle({
+      artist_name: resolvedArtist,
+      venue_name: resolvedVenue,
+    });
 
   await c.env.DB.prepare(
     `UPDATE clips SET
@@ -545,6 +555,9 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       genre_slug = ?,
       show_id = ?,
       event_title = ?,
+      jambase_event_id = ?,
+      jambase_artist_id = ?,
+      jambase_venue_id = ?,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ?`
   )
@@ -560,6 +573,9 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       genre_slug,
       showId,
       eventTitle,
+      jambaseEventId,
+      jambaseArtistId,
+      jambaseVenueId,
       canonicalId,
     )
     .run();

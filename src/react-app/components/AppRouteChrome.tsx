@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect } from 'react';
-import { Outlet, useLocation } from 'react-router';
+import { Outlet, useLocation, useNavigate } from 'react-router';
 import ClipDeepLinkHandler from '@/react-app/components/ClipDeepLinkHandler';
 import PerfDebugOverlay from '@/react-app/components/PerfDebugOverlay';
 import MobileBottomNav from '@/react-app/components/MobileBottomNav';
@@ -29,6 +29,7 @@ function shouldHideBottomNavForPath(pathname: string): boolean {
 export default function AppRouteChrome() {
   const { hideBottomNav, setHideBottomNav } = useMobileChrome();
   const { pathname, search } = useLocation();
+  const navigate = useNavigate();
   const quickCapture = useQuickCapture();
   const showMobileNavInset = !hideBottomNav && !shouldHideBottomNavForPath(pathname);
   const onCaptureReviewRoute =
@@ -52,6 +53,16 @@ export default function AppRouteChrome() {
     }
     return acquireNativeCaptureChromeLock();
   }, [hideRouteContentForNativeCapture]);
+
+  useEffect(() => {
+    const onNeedsShow = () => {
+      if (isCaptureSessionBusy() || isCaptureHandoffBusy() || isCaptureReopenPending()) return;
+      if (pathname === '/upload-queue') return;
+      navigate('/upload-queue');
+    };
+    window.addEventListener('feedback:needs-show-picker', onNeedsShow);
+    return () => window.removeEventListener('feedback:needs-show-picker', onNeedsShow);
+  }, [navigate, pathname]);
 
   useEffect(() => {
     if (!shouldUseNativeIosCapture()) return;

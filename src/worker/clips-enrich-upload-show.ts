@@ -296,7 +296,8 @@ export async function enrichDraftClipRowIfNeeded(
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return false;
 
   const ts = typeof row.timestamp === 'string' ? row.timestamp : '';
-  const captureMs = Number.isFinite(Date.parse(ts)) ? Date.parse(ts) : Date.now();
+  const captureMs = Date.parse(ts);
+  if (!Number.isFinite(captureMs)) return false;
 
   const enrichment = await enrichClipShowTagsFromMetadata(env, mochaUserId, {
     lat,

@@ -1,0 +1,32 @@
+{
+  "name": "@feedback/background-upload",
+  "version": "0.1.0",
+  "description": "OS reachability, durable outbox files, and background URLSession / WorkManager uploads",
+  "license": "MIT",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "FeedbackBackgroundUpload.podspec",
+    "android/",
+    "ios/",
+    "src/"
+  ],
+  "peerDependencies": {
+    "@capacitor/core": ">=7.0.0"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  }
+}

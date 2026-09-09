@@ -1,6 +1,5 @@
 import type { UploadOutboxJob } from './types';
-import { isBlobWaitPauseError, isRetryableUploadError } from './blob-store';
-import { isRecoverableSaveError } from './clip-blob-registry';
+import { isBlobWaitPauseError } from './blob-store';
 import { isNetworkAvailable } from './network-utils';
 
 export function uploadJobLabel(job: UploadOutboxJob): string {
@@ -8,7 +7,15 @@ export function uploadJobLabel(job: UploadOutboxJob): string {
 }
 
 export function uploadJobStatusText(job: UploadOutboxJob): string {
-  if (job.status === 'published') return 'Posted';
+  if (job.status === 'published') {
+    if (job.captureTimestampMissing) {
+      return 'Posted — choose a show (no capture time on this file)';
+    }
+    return 'Posted';
+  }
+  if (job.status === 'waiting') {
+    return 'Waiting for connection';
+  }
   if (job.status === 'paused') {
     if (isBlobWaitPauseError(job.error)) {
       return 'Restoring clip from this device…';
@@ -16,17 +23,14 @@ export function uploadJobStatusText(job: UploadOutboxJob): string {
     return 'Waiting to retry — saved on this device';
   }
   if (job.status === 'failed') {
-    if (isRetryableUploadError(job.error) || isRecoverableSaveError(job.error)) {
-      return 'Retrying automatically…';
-    }
     return job.error ?? 'Upload failed';
   }
   if (job.status === 'queued' && !isNetworkAvailable()) {
-    return 'Saved on device — waiting for connection…';
+    return 'Waiting for connection';
   }
-  if (job.status === 'queued') return 'Waiting in queue…';
+  if (job.status === 'queued') return 'Pending';
   if (job.status === 'classifying') return 'Identifying song…';
-  if (job.status === 'uploading') return 'Uploading video…';
+  if (job.status === 'uploading') return `Uploading ${Math.max(0, Math.min(100, job.progress))}%`;
   if (job.status === 'completing') return 'Finishing upload…';
   if (job.status === 'processing') return 'Processing…';
   return 'Uploading…';
@@ -39,16 +43,26 @@ export function uploadJobIsActive(job: UploadOutboxJob): boolean {
     job.status === 'uploading' ||
     job.status === 'completing' ||
     job.status === 'processing' ||
-    job.status === 'paused'
+    job.status === 'paused' ||
+    job.status === 'waiting'
   );
 }
 
 export function uploadJobShowProgress(job: UploadOutboxJob): boolean {
-  return uploadJobIsActive(job) || job.status === 'failed';
+  return (
+    job.status === 'uploading' ||
+    job.status === 'classifying' ||
+    job.status === 'completing' ||
+    job.status === 'processing'
+  );
 }
 
 export function uploadJobCanRestart(job: UploadOutboxJob): boolean {
-  return job.status === 'failed' || job.status === 'paused';
+  return job.status === 'failed';
+}
+
+export function uploadJobNeedsShowPicker(job: UploadOutboxJob): boolean {
+  return job.status === 'published' && Boolean(job.captureTimestampMissing);
 }
 
 /** Oldest first — matches FIFO upload order (active clip is next at the top). */

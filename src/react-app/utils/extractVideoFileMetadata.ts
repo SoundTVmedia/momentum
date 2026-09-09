@@ -192,7 +192,8 @@ function probeVideoElement(file: File): Promise<{
 
 /**
  * Extract GPS, recorded-at, and dimensions from a local video file.
- * Uses embedded QuickTime/MP4 metadata when present; falls back to `File.lastModified`.
+ * Uses embedded QuickTime/MP4 metadata when present.
+ * Does not fall back to File.lastModified or upload time for capture instant.
  */
 export async function extractVideoFileMetadata(file: File): Promise<ExtractedVideoFileMetadata> {
   const [bytes, videoProbe] = await Promise.all([readProbeBytes(file), probeVideoElement(file)]);
@@ -201,7 +202,7 @@ export async function extractVideoFileMetadata(file: File): Promise<ExtractedVid
   const embeddedGps = findEmbeddedGps(bytes);
 
   const lastMod = file.lastModified > 0 ? new Date(file.lastModified) : null;
-  const recordedAt = embeddedAt ?? lastMod;
+  const recordedAt = embeddedAt;
   const recordedAtSource: ExtractedVideoFileMetadata['recordedAtSource'] = embeddedAt
     ? 'embedded'
     : lastMod

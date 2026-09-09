@@ -5,6 +5,7 @@ import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { withUploadBackoff } from './upload-retry';
 import { uploadFetch, PART_UPLOAD_FETCH_TIMEOUT_MS } from './upload-fetch';
 import type { UploadOutboxJob } from './types';
+import { canUseNativeBackgroundParts, uploadNativeFileMultipart } from './native-part-upload';
 
 /** Map outbox payload → POST /api/uploads/init body (clip metadata + file info). */
 export function buildUploadInitBody(
@@ -29,7 +30,7 @@ export function buildUploadInitBody(
 
   return {
     fileName: file.name,
-    fileSize: file.size,
+    fileSize: file.size > 0 ? file.size : ('fileSize' in payload ? (payload as UploadOutboxJob).fileSize : 0),
     contentType: file.type || 'video/webm',
     artist_name: showFields.artist_name,
     venue_name: showFields.venue_name,
@@ -38,7 +39,8 @@ export function buildUploadInitBody(
     hashtags: showFields.hashtags,
     song_title: showFields.song_title,
     genre_name: showFields.genre_name,
-    timestamp: payload.recordingAtIso || undefined,
+    timestamp: payload.captureTimestampMissing ? undefined : payload.recordingAtIso || undefined,
+    capture_timestamp_missing: payload.captureTimestampMissing ? true : undefined,
     jambase_event_id: showFields.jambase_event_id ?? undefined,
     jambase_artist_id: showFields.jambase_artist_id ?? undefined,
     jambase_venue_id: showFields.jambase_venue_id ?? undefined,
@@ -245,8 +247,26 @@ export async function uploadFileMultipart(options: {
   partUrls: string[] | null;
   onProgress?: (pct: number) => void;
   signal?: AbortSignal;
+  jobId?: string;
+  nativeFilePath?: string | null;
+  fileSize?: number;
 }): Promise<void> {
-  const { sessionId, file, uploadMode, partUrls, onProgress, signal } = options;
+  const { sessionId, file, uploadMode, partUrls, onProgress, signal, jobId, nativeFilePath } =
+    options;
+  const size = options.fileSize && options.fileSize > 0 ? options.fileSize : file.size;
+
+  if (jobId && (await canUseNativeBackgroundParts(nativeFilePath))) {
+    await uploadNativeFileMultipart({
+      jobId,
+      sessionId,
+      filePath: nativeFilePath!.trim(),
+      fileSize: size,
+      onProgress,
+      signal,
+    });
+    return;
+  }
+
   const mode = effectiveUploadMode(uploadMode);
   const { totalParts, partSize } = computePartPlan(file.size);
 

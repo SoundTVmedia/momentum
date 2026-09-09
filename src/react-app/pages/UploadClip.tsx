@@ -1486,9 +1486,19 @@ export default function UploadClip() {
     const at =
       recordingAtIso ||
       libraryFileMeta?.recordedAtIso ||
-      (formData.video_file ? new Date(formData.video_file.lastModified).toISOString() : null) ||
       (typeof nav?.recordingStartedAt === 'string' ? nav.recordingStartedAt : null) ||
-      new Date().toISOString();
+      null;
+
+    if (!at) {
+      if (uploadSource === 'library') {
+        beginEditingTags();
+        setResolveNotice(
+          'No capture timestamp in this video file — add artist and venue below. We will not guess a show from upload time.',
+        );
+      }
+      setShowResolveLoading(false);
+      return;
+    }
 
     let cancelled = false;
     setShowResolveLoading(true);
@@ -1496,7 +1506,14 @@ export default function UploadClip() {
       try {
         let geo = captureGeo;
       if (uploadSource === 'library') {
-        const captureMs = Number.isFinite(Date.parse(at)) ? Date.parse(at) : Date.now();
+        const captureMs = Date.parse(at);
+        if (!Number.isFinite(captureMs)) {
+          beginEditingTags();
+          setResolveNotice(
+            'No capture timestamp in this video file — add artist and venue below. We will not guess a show from upload time.',
+          );
+          return;
+        }
         if (
           showMarksHydrated &&
           (!geo || !Number.isFinite(geo.latitude) || !Number.isFinite(geo.longitude))
@@ -2198,6 +2215,9 @@ export default function UploadClip() {
       },
       jambaseLink: link,
       recordingAtIso,
+      captureTimestampMissing:
+        uploadSource === 'library' && !libraryFileMeta?.recordedAtIso,
+      nativeVideoUri: nativeVideoUriRef.current ?? undefined,
       captureGeo,
       videoMetadata,
     };
@@ -2210,6 +2230,8 @@ export default function UploadClip() {
       captureGeo,
       videoMetadata,
       location.state,
+      uploadSource,
+      libraryFileMeta?.recordedAtIso,
     ],
   );
 
@@ -2495,6 +2517,7 @@ export default function UploadClip() {
           !shareForm.song_title?.trim(),
       },
       uploadMethod === 'file' ? videoBlobUrl : null,
+      { nativeVideoUri: nativeVideoUriRef.current },
     );
     if (!jobId) {
       setError(

@@ -101,7 +101,7 @@ async function resolveThumbnailFile(
 async function runFileUploadJob(
   job: UploadOutboxJob,
   file: File,
-  blobs: NonNullable<Awaited<ReturnType<typeof resolveOutboxBlobs>>>,
+  blobs: Awaited<ReturnType<typeof resolveOutboxBlobs>>,
   onPatch: (patch: Partial<UploadOutboxJob>) => void,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -111,12 +111,14 @@ async function runFileUploadJob(
   let partUrls = job.partUrls;
   let attachedThumb: { url: string; key: string } | null = null;
 
-  jobForUpload = await enrichJobWithAcrIfNeeded(
-    job,
-    blobs.video,
-    blobs.captureAudio ?? job.captureAudioBlob,
-    onPatch,
-  );
+  if (blobs?.video) {
+    jobForUpload = await enrichJobWithAcrIfNeeded(
+      job,
+      blobs.video,
+      blobs.captureAudio ?? job.captureAudioBlob,
+      onPatch,
+    );
+  }
 
   onPatch({ status: 'uploading', progress: Math.max(jobForUpload.progress, 5) });
 
@@ -172,6 +174,9 @@ async function runFileUploadJob(
         uploadMode: effectiveUploadMode(uploadMode),
         partUrls,
         signal,
+        jobId: job.id,
+        nativeFilePath: job.nativeVideoUri ?? jobForUpload.nativeVideoUri,
+        fileSize: job.fileSize,
         onProgress: (pct) => onPatch({ progress: Math.round(8 + pct * 0.77) }),
       });
 
@@ -181,7 +186,7 @@ async function runFileUploadJob(
         const thumbFile = await resolveThumbnailFile(job, file);
         if (thumbFile) {
           attachedThumb = await attachThumbnailToSession(sessionId!, thumbFile, signal);
-          if (!blobs.thumbnail) {
+          if (!blobs?.thumbnail) {
             await persistOutboxThumbnail(job.id, thumbFile);
           }
         }
@@ -206,8 +211,8 @@ async function runFileUploadJob(
             ...jobForUpload,
             clipId: jobForUpload.clipId ?? job.clipId,
           },
-          blobs.video,
-          blobs.captureAudio ?? job.captureAudioBlob,
+          blobs?.video ?? file,
+          blobs?.captureAudio ?? job.captureAudioBlob,
         );
         jobForUpload = applyFormPatch(jobForUpload, afterPatch);
         onPatch({
@@ -252,7 +257,8 @@ export async function runOutboxJob(
   }
 
   const blobs = await resolveOutboxBlobs(job.id);
-  if (!blobs?.video) {
+  const hasNativeFile = Boolean(job.nativeVideoUri?.trim());
+  if (!blobs?.video && !hasNativeFile) {
     if (job.sessionId?.trim()) {
       try {
         const status = await fetchUploadSessionStatus(job.sessionId, signal);
@@ -297,7 +303,11 @@ export async function runOutboxJob(
     );
   }
 
-  const file = job.videoFile ?? blobToUploadFile(blobs.video, job.id);
+  const file =
+    job.videoFile ??
+    (blobs?.video
+      ? blobToUploadFile(blobs.video, job.id)
+      : new File([], job.fileName, { type: job.contentType || 'video/mp4' }));
 
   await runFileUploadJob(job, file, blobs, onPatch, signal);
 
@@ -344,6 +354,8 @@ export function jobFromPayload(
     gallerySaved: payload.uploadMethod === 'url',
     classificationPending: payload.classificationPending ?? false,
     songIdentifyPending: payload.songIdentifyPending,
+    captureTimestampMissing: payload.captureTimestampMissing ?? false,
+    nativeVideoUri: payload.nativeVideoUri,
   };
 }
 

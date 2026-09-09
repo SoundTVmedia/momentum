@@ -1,23 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CloudUpload, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import UploadQueueJobCard from '@/react-app/components/UploadQueueJobCard';
-import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
-import { sortUploadJobsForDisplay } from '@/react-app/lib/upload-outbox/upload-queue-status';
+import ClipEditModal from '@/react-app/components/ClipEditModal';
+import {
+  useClipUploadQueue,
+  type ClipUploadQueueJob,
+} from '@/react-app/contexts/ClipUploadQueueContext';
+import {
+  sortUploadJobsForDisplay,
+  uploadJobNeedsShowPicker,
+} from '@/react-app/lib/upload-outbox/upload-queue-status';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import { useEnqueueManualClip } from '@/react-app/hooks/useEnqueueManualClip';
 import { pickLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
+import { isActiveCaptureHandoff } from '@/react-app/lib/upload-outbox/capture-handoff';
+import type { ClipWithUser } from '@/shared/types';
 
 export default function UploadQueuePage() {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
-  const { jobs, restartJob } = useClipUploadQueue();
+  const { jobs, restartJob, dismissJob } = useClipUploadQueue();
   const isMobile = useIsMobileViewport();
   const enqueueManualClip = useEnqueueManualClip();
   const [pickError, setPickError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  const [pickerClip, setPickerClip] = useState<ClipWithUser | null>(null);
+  const [pickerJobId, setPickerJobId] = useState<string | null>(null);
+  const attemptedPickerRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     document.title = 'Upload Queue';
@@ -34,6 +46,35 @@ export default function UploadQueuePage() {
     if (Notification.permission !== 'default') return;
     void Notification.requestPermission().catch(() => {});
   }, []);
+
+  const openShowPicker = async (job: ClipUploadQueueJob) => {
+    if (job.clipId == null) {
+      setPickError('This clip is still finishing — try Choose show again in a moment.');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/clips/${job.clipId}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Could not load clip');
+      const clip = (await res.json()) as ClipWithUser;
+      setPickerClip(clip);
+      setPickerJobId(job.id);
+    } catch (err) {
+      setPickError(err instanceof Error ? err.message : 'Could not open the show picker');
+    }
+  };
+
+  useEffect(() => {
+    if (pickerClip || isActiveCaptureHandoff()) return;
+    const next = jobs.find(
+      (job) =>
+        uploadJobNeedsShowPicker(job) &&
+        job.clipId != null &&
+        !attemptedPickerRef.current.has(job.id),
+    );
+    if (!next) return;
+    attemptedPickerRef.current.add(next.id);
+    void openShowPicker(next);
+  }, [jobs, pickerClip]);
 
   if (isPending) {
     return (
@@ -71,6 +112,7 @@ export default function UploadQueuePage() {
         job.status === 'completing' ||
         job.status === 'processing' ||
         job.status === 'paused' ||
+        job.status === 'waiting' ||
         job.status === 'failed' ||
         job.status === 'published',
     ),
@@ -86,7 +128,7 @@ export default function UploadQueuePage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Upload Queue</h1>
             <p className="text-gray-400 text-sm sm:text-base">
               Clips you shared keep uploading here in the background. You can keep recording while they
-              finish.
+              finish. With no signal they wait for a connection instead of retrying.
             </p>
           </div>
           <button
@@ -126,11 +168,32 @@ export default function UploadQueuePage() {
         ) : (
           <div className="space-y-3">
             {visibleJobs.map((job) => (
-              <UploadQueueJobCard key={job.id} job={job} onRestart={restartJob} />
+              <UploadQueueJobCard
+                key={job.id}
+                job={job}
+                onRestart={restartJob}
+                onPickShow={(next) => void openShowPicker(next)}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {pickerClip ? (
+        <ClipEditModal
+          clip={pickerClip}
+          enableShowSearch
+          onClose={() => {
+            setPickerClip(null);
+            setPickerJobId(null);
+          }}
+          onSaved={() => {
+            if (pickerJobId) dismissJob(pickerJobId);
+            setPickerClip(null);
+            setPickerJobId(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,8 +1,9 @@
-import { AlertCircle, Check, Loader2, RotateCcw } from 'lucide-react';
+import { AlertCircle, Check, Loader2, RotateCcw, WifiOff } from 'lucide-react';
 import type { ClipUploadQueueJob } from '@/react-app/contexts/ClipUploadQueueContext';
 import {
   uploadJobCanRestart,
   uploadJobLabel,
+  uploadJobNeedsShowPicker,
   uploadJobShowProgress,
   uploadJobStatusText,
 } from '@/react-app/lib/upload-outbox/upload-queue-status';
@@ -10,6 +11,7 @@ import {
 type UploadQueueJobCardProps = {
   job: ClipUploadQueueJob;
   onRestart: (id: string) => void;
+  onPickShow?: (job: ClipUploadQueueJob) => void;
 };
 
 function UploadProgressRing({
@@ -17,7 +19,7 @@ function UploadProgressRing({
   tone,
 }: {
   progress: number;
-  tone: 'active' | 'paused' | 'failed' | 'published';
+  tone: 'active' | 'waiting' | 'paused' | 'failed' | 'published';
 }) {
   const size = 56;
   const stroke = 4;
@@ -29,20 +31,24 @@ function UploadProgressRing({
   const trackClass =
     tone === 'failed'
       ? 'stroke-red-500/25'
-      : tone === 'paused'
-        ? 'stroke-amber-500/25'
-        : tone === 'published'
-          ? 'stroke-green-500/25'
-          : 'stroke-white/15';
+      : tone === 'waiting'
+        ? 'stroke-sky-500/25'
+        : tone === 'paused'
+          ? 'stroke-amber-500/25'
+          : tone === 'published'
+            ? 'stroke-green-500/25'
+            : 'stroke-white/15';
 
   const arcClass =
     tone === 'failed'
       ? 'stroke-red-400'
-      : tone === 'paused'
-        ? 'stroke-amber-400'
-        : tone === 'published'
-          ? 'stroke-green-400'
-          : 'stroke-momentum-flare';
+      : tone === 'waiting'
+        ? 'stroke-sky-400'
+        : tone === 'paused'
+          ? 'stroke-amber-400'
+          : tone === 'published'
+            ? 'stroke-green-400'
+            : 'stroke-momentum-flare';
 
   return (
     <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
@@ -78,6 +84,8 @@ function UploadProgressRing({
           <Check className="h-5 w-5 text-green-400" aria-hidden />
         ) : tone === 'failed' ? (
           <AlertCircle className="h-5 w-5 text-red-400" aria-hidden />
+        ) : tone === 'waiting' ? (
+          <WifiOff className="h-5 w-5 text-sky-300" aria-hidden />
         ) : (
           <Loader2 className="h-5 w-5 animate-spin text-white" aria-hidden />
         )}
@@ -86,26 +94,36 @@ function UploadProgressRing({
   );
 }
 
-export default function UploadQueueJobCard({ job, onRestart }: UploadQueueJobCardProps) {
+export default function UploadQueueJobCard({
+  job,
+  onRestart,
+  onPickShow,
+}: UploadQueueJobCardProps) {
   const label = uploadJobLabel(job);
   const statusText = uploadJobStatusText(job);
   const showProgress = uploadJobShowProgress(job);
   const canRestart = uploadJobCanRestart(job);
+  const needsShow = uploadJobNeedsShowPicker(job);
   const isPublished = job.status === 'published';
   const isFailed = job.status === 'failed';
+  const isWaiting = job.status === 'waiting' || (job.status === 'queued' && statusText === 'Waiting for connection');
   const isPaused = job.status === 'paused';
 
   const ringTone = isPublished
     ? 'published'
     : isFailed
       ? 'failed'
-      : isPaused
-        ? 'paused'
-        : 'active';
+      : isWaiting
+        ? 'waiting'
+        : isPaused
+          ? 'paused'
+          : 'active';
 
   const ringProgress = isPublished
     ? 100
-    : Math.max(job.progress, job.status === 'queued' ? 8 : 12);
+    : job.status === 'queued' || job.status === 'waiting'
+      ? 0
+      : Math.max(job.progress, 12);
 
   return (
     <div
@@ -114,9 +132,11 @@ export default function UploadQueueJobCard({ job, onRestart }: UploadQueueJobCar
           ? 'border-green-500/40 bg-green-950/50'
           : isFailed
             ? 'border-red-500/40 bg-red-950/40'
-            : isPaused
-              ? 'border-amber-500/40 bg-amber-950/40'
-              : 'border-white/15 bg-black/50'
+            : isWaiting
+              ? 'border-sky-500/40 bg-sky-950/40'
+              : isPaused
+                ? 'border-amber-500/40 bg-amber-950/40'
+                : 'border-white/15 bg-black/50'
       }`}
     >
       <div className="flex gap-3">
@@ -132,9 +152,11 @@ export default function UploadQueueJobCard({ job, onRestart }: UploadQueueJobCar
                     ? 'text-green-200/90'
                     : isFailed
                       ? 'text-red-200/90'
-                      : isPaused
-                        ? 'text-amber-200/90'
-                        : 'text-gray-400'
+                      : isWaiting
+                        ? 'text-sky-200/90'
+                        : isPaused
+                          ? 'text-amber-200/90'
+                          : 'text-gray-400'
                 }`}
               >
                 {statusText}
@@ -154,10 +176,22 @@ export default function UploadQueueJobCard({ job, onRestart }: UploadQueueJobCar
                 className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                Restart
+                Retry
               </button>
             </div>
           )}
+
+          {needsShow && onPickShow ? (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => onPickShow(job)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-momentum-flare/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-momentum-flare"
+              >
+                Choose show
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

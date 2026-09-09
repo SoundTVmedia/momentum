@@ -83,14 +83,19 @@ export async function resolveClipCreateFields(
     recording_orientation,
     video_resolution_w,
     video_resolution_h,
+    capture_timestamp_missing,
   } = body;
 
   const postedArtistName = typeof artist_name === 'string' ? artist_name.trim() : '';
   const postedVenueName = typeof venue_name === 'string' ? venue_name.trim() : '';
+  const captureTimestampMissing =
+    capture_timestamp_missing === true ||
+    capture_timestamp_missing === 1 ||
+    !(typeof timestamp === 'string' && timestamp.trim());
   const resolvedTimestamp =
-    typeof timestamp === 'string' && timestamp.trim()
-      ? timestamp
-      : new Date().toISOString();
+    !captureTimestampMissing && typeof timestamp === 'string' && timestamp.trim()
+      ? timestamp.trim()
+      : '';
   const hasManualShowTags = hasManualShowArtistVenue(postedArtistName, postedVenueName);
 
   let classification: ResolvedClipInsert['classification'] = null;
@@ -261,12 +266,14 @@ export async function resolveClipCreateFields(
 
   if (
     !hasManualShowTags &&
+    !captureTimestampMissing &&
     fields.geolocation_latitude != null &&
     fields.geolocation_longitude != null
   ) {
-    const captureMs = Number.isFinite(Date.parse(resolvedTimestamp))
-      ? Date.parse(resolvedTimestamp)
-      : Date.now();
+    const captureMs = Date.parse(resolvedTimestamp);
+    if (!Number.isFinite(captureMs)) {
+      /* skip auto show match — no capture time */
+    } else {
     const enrichment = await enrichClipShowTagsFromMetadata(c.env, uid, {
       lat: fields.geolocation_latitude,
       lon: fields.geolocation_longitude,
@@ -286,6 +293,7 @@ export async function resolveClipCreateFields(
           timestamp: resolvedTimestamp,
         });
       }
+    }
     }
   }
 

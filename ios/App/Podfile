@@ -46,6 +46,7 @@ def capacitor_pods
   pod 'CapgoCapacitorSocialLogin', :path => '../../node_modules/@capgo/capacitor-social-login'
   pod 'FeedbackNativeAudioCapture', :path => '../../packages/native-audio-capture'
   pod 'FeedbackShazamkit', :path => '../../packages/shazamkit'
+  pod 'FeedbackBackgroundUpload', :path => '../../packages/background-upload'
 end
 
 target 'App' do
@@ -63,7 +64,7 @@ post_install do |installer|
       config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
 
       # Vendor pods — silence deprecation / unused-variable noise we cannot patch sustainably.
-      next if ['FeedbackNativeAudioCapture', 'FeedbackShazamkit'].include?(target.name)
+      next if ['FeedbackNativeAudioCapture', 'FeedbackShazamkit', 'FeedbackBackgroundUpload'].include?(target.name)
 
       config.build_settings['SWIFT_SUPPRESS_WARNINGS'] = 'YES'
       config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
