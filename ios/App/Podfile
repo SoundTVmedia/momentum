@@ -44,9 +44,9 @@ def capacitor_pods
   pod 'CapacitorPushNotifications', :path => '../../node_modules/@capacitor/push-notifications'
   pod 'CapgoCameraPreview', :path => '../../node_modules/@capgo/camera-preview'
   pod 'CapgoCapacitorSocialLogin', :path => '../../node_modules/@capgo/capacitor-social-login'
+  pod 'FeedbackBackgroundUpload', :path => '../../packages/background-upload'
   pod 'FeedbackNativeAudioCapture', :path => '../../packages/native-audio-capture'
   pod 'FeedbackShazamkit', :path => '../../packages/shazamkit'
-  pod 'FeedbackBackgroundUpload', :path => '../../packages/background-upload'
 end
 
 target 'App' do
