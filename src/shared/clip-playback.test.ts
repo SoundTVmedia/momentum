@@ -19,6 +19,9 @@ import {
   streamMp4Url,
   streamVideoIdFromClip,
   playbackDurationBucket,
+  withStreamBandwidthHint,
+  stripStreamBandwidthHint,
+  NATIVE_HLS_START_MBPS,
 } from './clip-playback';
 
 const UID = 'a1b2c3d4e5f6789012345678abcdef01';
@@ -141,6 +144,28 @@ describe('clip-playback', () => {
         r2_raw_key: 'clips/user/video/abc.mp4',
       }),
     ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
+  });
+
+  it('adds and strips Stream clientBandwidthHint on HLS URLs only', () => {
+    const hls = `https://videodelivery.net/${UID}/manifest/video.m3u8`;
+    const hinted = withStreamBandwidthHint(hls, NATIVE_HLS_START_MBPS);
+    expect(hinted).toBe(`${hls}?clientBandwidthHint=0.8`);
+    expect(stripStreamBandwidthHint(hinted)).toBe(hls);
+    expect(withStreamBandwidthHint('/api/files/clip.m3u8', 0.8)).toBe('/api/files/clip.m3u8');
+    expect(
+      resolveModalPlaybackSource({ stream_video_id: UID }).src,
+    ).toBe(hls);
+  });
+
+  it('prefetches the lowest BANDWIDTH HLS variant, not the first listed', () => {
+    const manifest = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080
+high.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360
+low.m3u8`;
+    expect(
+      resolveHlsPrefetchUrls(manifest, `https://videodelivery.net/${UID}/manifest/video.m3u8`),
+    ).toEqual([`https://videodelivery.net/${UID}/manifest/low.m3u8`]);
   });
 
   it('parses HLS media segment URLs from a manifest', () => {

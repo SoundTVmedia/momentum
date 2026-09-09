@@ -75,6 +75,7 @@ import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 import { formatCount } from '@/react-app/lib/formatCount';
 import { cancelModalPrefetchExcept, prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
 import { clipShareUrl } from '@/shared/clip-share';
 import { buildClipShareMeta } from '@/shared/clip-share-meta';
 import { applyClipShareMetaToDocument } from '@/react-app/lib/applyClipShareMetaToDocument';
@@ -346,10 +347,10 @@ export default function ClipModal({
   });
 
   useEffect(() => {
-    // Warm the next 1–2 clips only. Fast swipe aborts anything else still in flight.
+    // Native: next clip only. Web: next + next-next. Fast swipe aborts the rest.
     if (nextClip) prefetchModalPlayback(nextClip);
-    if (nextNextClip) prefetchModalPlayback(nextNextClip);
-    cancelModalPrefetchExcept([nextClip, nextNextClip]);
+    if (!isNativeApp() && nextNextClip) prefetchModalPlayback(nextNextClip);
+    cancelModalPrefetchExcept(isNativeApp() ? [nextClip] : [nextClip, nextNextClip]);
   }, [nextClip, nextNextClip]);
 
   useEffect(() => {

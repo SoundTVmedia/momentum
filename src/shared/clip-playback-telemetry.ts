@@ -38,6 +38,7 @@ export function classifyPlaybackRendition(
     return sanitizePlaybackRendition(`hls:${Math.round(hlsHeight)}`);
   }
   const u = url.trim().toLowerCase();
+  if (u.includes('clientbandwidthhint')) return 'hls:hint';
   if (u.includes('.m3u8') || u.includes('/manifest/video.m3u8')) return 'hls';
   if (u.includes('videodelivery.net') || u.includes('cloudflarestream.com')) return 'mp4';
   if (u.includes('/api/files/')) return 'r2';

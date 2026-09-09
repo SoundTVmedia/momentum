@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import ClipVideoStill from '@/react-app/components/ClipVideoStill';
 import { type ClipPlaybackFields } from '@/shared/clip-playback';
 import { prefetchFeedPreviewMp4, releaseWarmedDecoder } from '@/react-app/lib/clipPlaybackPrefetch';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
 import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
 import {
   clearFeedPreviewPlayback,
@@ -92,7 +93,7 @@ export default function ClipFeedPreviewMedia({
     crossOrigin,
     cacheExtractedPoster,
   } = useClipPosterSrc(clipFields);
-  const previewVideoSrc = posterOnly ? null : stillVideoSrc;
+  const previewVideoSrc = posterOnly || isNativeApp() ? null : stillVideoSrc;
 
   const hoverFromParent = mediaHoveredProp !== undefined;
   const hovering = hoverFromParent ? mediaHoveredProp : internalHovering;

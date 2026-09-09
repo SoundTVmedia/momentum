@@ -1,11 +1,14 @@
 import {
   isHlsPlaybackUrl,
+  NATIVE_HLS_START_MBPS,
   resolveFeedPreviewVideoSrc,
   resolveHlsPrefetchUrls,
   resolveModalPrefetchPlan,
   STREAM_DELIVERY_ORIGIN,
   type ClipPlaybackFields,
+  withStreamBandwidthHint,
 } from '@/shared/clip-playback';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
 
 /** Next + next-next. The visible player owns the current clip. */
 const MAX_WARM_VIDEOS = 2;
@@ -29,7 +32,10 @@ function canUseNativeHls(): boolean {
 function urlsForClip(clip: ClipPlaybackFields): string[] {
   const plan = resolveModalPrefetchPlan(clip);
   const urls: string[] = [];
-  if (plan.hlsUrl) urls.push(plan.hlsUrl);
+  if (plan.hlsUrl) {
+    urls.push(plan.hlsUrl);
+    urls.push(withStreamBandwidthHint(plan.hlsUrl, NATIVE_HLS_START_MBPS));
+  }
   if (plan.progressiveUrl) urls.push(plan.progressiveUrl);
   const preview = resolveFeedPreviewVideoSrc(clip);
   if (preview) urls.push(preview);
@@ -200,6 +206,7 @@ function startHlsPrefetch(hlsUrl: string): void {
 
 /** Warm feed preview URL through a real decoder — first GOPs only, never the whole file. */
 export function prefetchFeedPreviewMp4(src: string | null | undefined): void {
+  if (isNativeApp()) return;
   const url = typeof src === 'string' ? src.trim() : '';
   if (!url) return;
   if (isHlsPlaybackUrl(url)) {
@@ -229,11 +236,14 @@ export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
   if (typeof document === 'undefined') return;
   const plan = resolveModalPrefetchPlan(clip);
   if (plan.hlsUrl) {
+    const hlsUrl = canUseNativeHls()
+      ? withStreamBandwidthHint(plan.hlsUrl, NATIVE_HLS_START_MBPS)
+      : plan.hlsUrl;
     if (canUseNativeHls()) {
-      warmMediaElement(plan.hlsUrl);
+      warmMediaElement(hlsUrl);
       return;
     }
-    startHlsPrefetch(plan.hlsUrl);
+    startHlsPrefetch(hlsUrl);
     return;
   }
   if (plan.progressiveUrl) {

@@ -49,6 +49,42 @@ export function streamHlsUrl(videoId: string): string {
   return `${STREAM_DELIVERY_ORIGIN}/${videoId}/manifest/video.m3u8`;
 }
 
+/** Opening bitrate for native HLS (`clientBandwidthHint`). Safari cannot set hls.js startLevel. */
+export const NATIVE_HLS_START_MBPS = 0.8;
+
+function isStreamHlsDeliveryUrl(url: string): boolean {
+  const u = url.trim().toLowerCase();
+  if (!isHlsPlaybackUrl(u)) return false;
+  return u.includes('videodelivery.net') || u.includes('cloudflarestream.com');
+}
+
+/** Add Cloudflare Stream `clientBandwidthHint` so native HLS starts on a low rung. */
+export function withStreamBandwidthHint(url: string, mbps: number): string {
+  const u = url.trim();
+  if (!u || !isStreamHlsDeliveryUrl(u) || !Number.isFinite(mbps) || mbps <= 0) return u;
+  try {
+    const parsed = new URL(u);
+    parsed.searchParams.set('clientBandwidthHint', String(mbps));
+    return parsed.toString();
+  } catch {
+    return u;
+  }
+}
+
+/** Remove `clientBandwidthHint` so ABR can climb after first frame. */
+export function stripStreamBandwidthHint(url: string): string {
+  const u = url.trim();
+  if (!u) return u;
+  try {
+    const parsed = new URL(u);
+    if (!parsed.searchParams.has('clientBandwidthHint')) return u;
+    parsed.searchParams.delete('clientBandwidthHint');
+    return parsed.toString();
+  } catch {
+    return u;
+  }
+}
+
 /**
  * Where a Stream progressive MP4 *would* live.
  *
@@ -211,13 +247,22 @@ export function resolveHlsPrefetchUrls(manifest: string, manifestUrl: string): s
   const toAbsolute = (line: string) =>
     line.startsWith('http') ? line : new URL(line, base).href;
 
+  const variants: Array<{ bandwidth: number; height: number; url: string }> = [];
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
-      const next = lines[i + 1]?.trim();
-      if (next && !next.startsWith('#')) {
-        return [toAbsolute(next)];
-      }
-    }
+    if (!lines[i].startsWith('#EXT-X-STREAM-INF')) continue;
+    const next = lines[i + 1]?.trim();
+    if (!next || next.startsWith('#')) continue;
+    const bw = Number(lines[i].match(/BANDWIDTH=(\d+)/i)?.[1]);
+    const height = Number(lines[i].match(/RESOLUTION=\d+x(\d+)/i)?.[1]);
+    variants.push({
+      bandwidth: Number.isFinite(bw) ? bw : Number.POSITIVE_INFINITY,
+      height: Number.isFinite(height) ? height : Number.POSITIVE_INFINITY,
+      url: toAbsolute(next),
+    });
+  }
+  if (variants.length > 0) {
+    variants.sort((a, b) => a.bandwidth - b.bandwidth || a.height - b.height);
+    return [variants[0].url];
   }
 
   const segments: string[] = [];
