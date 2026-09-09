@@ -283,10 +283,12 @@ export default function UserProfilePage() {
                         <ContentActionsMenu
                           targetType="profile"
                           targetId={userId}
-                          authorId={data.blocked ? null : userId}
+                          authorId={userId}
                           authorName={profile.display_name}
+                          initiallyBlocked={!!data.blocked}
                           buttonClassName="p-3 rounded-xl bg-white/10 border border-white/15 text-gray-300 hover:text-white transition-colors"
                           onBlocked={() => void fetchUserProfile()}
+                          onUnblocked={() => void fetchUserProfile()}
                         />
                       ) : null}
                     </div>
