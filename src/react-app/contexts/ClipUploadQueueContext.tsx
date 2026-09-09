@@ -195,9 +195,6 @@ async function hydrateJobFromStorage(meta: PersistedOutboxMeta): Promise<UploadO
       error: null,
     };
   }
-      error: null,
-    };
-  }
 
   if (job.uploadMethod === 'url' && job.videoUrl?.trim()) {
     return { ...job, blobsReady: true, gallerySaved: true };
