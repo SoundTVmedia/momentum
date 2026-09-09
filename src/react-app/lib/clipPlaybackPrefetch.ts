@@ -1,12 +1,10 @@
 import {
   isHlsPlaybackUrl,
-  NATIVE_HLS_START_MBPS,
   resolveFeedPreviewVideoSrc,
   resolveHlsPrefetchUrls,
   resolveModalPrefetchPlan,
   STREAM_DELIVERY_ORIGIN,
   type ClipPlaybackFields,
-  withStreamBandwidthHint,
 } from '@/shared/clip-playback';
 import { isNativeApp } from '@/react-app/lib/native-bridge';
 
@@ -24,7 +22,19 @@ const warmByUrl = new Map<string, WarmEntry>();
 const hlsPrefetchAbort = new Map<string, AbortController>();
 const prefetchedHlsManifests = new Set<string>();
 
-function canUseNativeHls(): boolean {
+/** Desktop MSE, or iOS 17.1+ ManagedMediaSource — hls.js can ABR without swapping `video.src`. */
+export function hlsJsLikelySupported(): boolean {
+  if (typeof window === 'undefined') return false;
+  if ('ManagedMediaSource' in window) return true;
+  const mediaSource = window.MediaSource;
+  return (
+    typeof mediaSource !== 'undefined' &&
+    typeof mediaSource.isTypeSupported === 'function' &&
+    mediaSource.isTypeSupported('video/mp4; codecs="avc1.42E01E,mp4a.40.2"')
+  );
+}
+
+export function canUseNativeHls(): boolean {
   if (typeof document === 'undefined') return false;
   return Boolean(document.createElement('video').canPlayType('application/vnd.apple.mpegurl'));
 }
@@ -34,7 +44,6 @@ function urlsForClip(clip: ClipPlaybackFields): string[] {
   const urls: string[] = [];
   if (plan.hlsUrl) {
     urls.push(plan.hlsUrl);
-    urls.push(withStreamBandwidthHint(plan.hlsUrl, NATIVE_HLS_START_MBPS));
   }
   if (plan.progressiveUrl) urls.push(plan.progressiveUrl);
   const preview = resolveFeedPreviewVideoSrc(clip);
@@ -210,8 +219,8 @@ export function prefetchFeedPreviewMp4(src: string | null | undefined): void {
   const url = typeof src === 'string' ? src.trim() : '';
   if (!url) return;
   if (isHlsPlaybackUrl(url)) {
-    if (canUseNativeHls()) warmMediaElement(url);
-    else startHlsPrefetch(url);
+    if (hlsJsLikelySupported() || !canUseNativeHls()) startHlsPrefetch(url);
+    else warmMediaElement(url);
     return;
   }
   warmMediaElement(url);
@@ -236,14 +245,11 @@ export function prefetchModalPlayback(clip: ClipPlaybackFields): void {
   if (typeof document === 'undefined') return;
   const plan = resolveModalPrefetchPlan(clip);
   if (plan.hlsUrl) {
-    const hlsUrl = canUseNativeHls()
-      ? withStreamBandwidthHint(plan.hlsUrl, NATIVE_HLS_START_MBPS)
-      : plan.hlsUrl;
-    if (canUseNativeHls()) {
-      warmMediaElement(hlsUrl);
+    if (hlsJsLikelySupported() || !canUseNativeHls()) {
+      startHlsPrefetch(plan.hlsUrl);
       return;
     }
-    startHlsPrefetch(hlsUrl);
+    warmMediaElement(plan.hlsUrl);
     return;
   }
   if (plan.progressiveUrl) {

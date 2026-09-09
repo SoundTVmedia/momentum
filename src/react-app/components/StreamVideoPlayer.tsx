@@ -4,12 +4,11 @@ import type Hls from 'hls.js';
 import {
   type ClipPlaybackFields,
   isHlsPlaybackUrl,
-  NATIVE_HLS_START_MBPS,
   resolveModalPlaybackSource,
-  withStreamBandwidthHint,
 } from '@/shared/clip-playback';
 import { recordClipView } from '@/react-app/lib/recordClipView';
 import {
+  hlsJsLikelySupported,
   markPlaybackSessionFast,
   releaseWarmedDecoder,
   resolvePrefetchedPlaybackSrc,
@@ -95,13 +94,10 @@ async function loadHlsConstructor(): Promise<typeof Hls> {
   return hlsModulePromise;
 }
 
-/** Preload hls.js on non-Safari browsers (Safari uses native HLS). */
+/** Preload hls.js when MSE/MMS can run it (includes iOS 17.1+ WKWebView). */
 export function warmHlsPlaybackModule(): void {
-  if (typeof navigator === 'undefined') return;
-  const ua = navigator.userAgent;
-  const ios = /iPad|iPhone|iPod/.test(ua);
-  const safari = /^((?!chrome|android).)*safari/i.test(ua);
-  if (ios || safari) return;
+  if (typeof window === 'undefined') return;
+  if (!hlsJsLikelySupported()) return;
   void loadHlsConstructor();
 }
 
@@ -229,6 +225,7 @@ function StreamVideoPlayer(
   const mp4FallbackUsedRef = useRef(false);
   const r2FallbackRef = useRef(resolvedModal.r2FallbackSrc ?? null);
   const r2FallbackUsedRef = useRef(false);
+  const nativeHlsAttemptedRef = useRef(false);
   const reportedFailureRef = useRef(false);
   const stallRetryUsedRef = useRef(false);
   const firstFrameAtRef = useRef(0);
@@ -254,6 +251,7 @@ function StreamVideoPlayer(
     mp4FallbackUsedRef.current = false;
     r2FallbackRef.current = next.r2FallbackSrc ?? null;
     r2FallbackUsedRef.current = false;
+    nativeHlsAttemptedRef.current = false;
     reportedFailureRef.current = false;
     stallRetryUsedRef.current = false;
     setLoadError(false);
@@ -453,17 +451,16 @@ function StreamVideoPlayer(
 
       const useHls = isHls && isHlsPlaybackUrl(videoSrc);
 
-      if (useHls && video.canPlayType('application/vnd.apple.mpegurl')) {
+      const attachNativeHls = () => {
         destroyHls();
-        const startSrc = withStreamBandwidthHint(videoSrc, NATIVE_HLS_START_MBPS);
-        video.src = startSrc;
+        nativeHlsAttemptedRef.current = true;
+        video.src = videoSrc;
         attachedSrcRef.current = videoSrc;
-        renditionRef.current = 'hls:hint';
+        renditionRef.current = classifyPlaybackRendition(videoSrc, null);
         tryAutoplay();
-        return;
-      }
+      };
 
-      if (useHls) {
+      if (useHls && hlsJsLikelySupported()) {
         try {
           const Hls = await loadHlsConstructor();
           if (cancelled) return;
@@ -475,6 +472,7 @@ function StreamVideoPlayer(
               window.matchMedia('(max-width: 767px)').matches;
             const hls = new Hls({
               enableWorker: !mobile,
+              preferManagedMediaSource: true,
               lowLatencyMode: false,
               startLevel: 0,
               abrEwmaDefaultEstimate: 500_000,
@@ -493,15 +491,29 @@ function StreamVideoPlayer(
               }
               tryAutoplay();
             });
-            hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
-              if (data.fatal) {
-                console.error('HLS fatal error', data);
-                if (tryNextFallbackRef.current()) return;
-                const code = videoRef.current?.error?.code ?? 4;
-                setLoadError(true);
-                setIsLoading(false);
-                reportPlaybackFailed(code);
+            hls.on(Hls.Events.LEVEL_SWITCHED, (_e: unknown, data: { level: number }) => {
+              const level = hls.levels[data.level];
+              if (level?.height) {
+                renditionRef.current = classifyPlaybackRendition(videoSrc, level.height);
               }
+            });
+            hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
+              if (!data.fatal) return;
+              console.error('HLS fatal error', data);
+              if (cancelled || stoppedRef.current) return;
+              destroyHls();
+              if (
+                !nativeHlsAttemptedRef.current &&
+                video.canPlayType('application/vnd.apple.mpegurl')
+              ) {
+                attachNativeHls();
+                return;
+              }
+              if (tryNextFallbackRef.current()) return;
+              const code = videoRef.current?.error?.code ?? 4;
+              setLoadError(true);
+              setIsLoading(false);
+              reportPlaybackFailed(code);
             });
             hls.loadSource(videoSrc);
             hlsRef.current = hls;
@@ -512,6 +524,11 @@ function StreamVideoPlayer(
         } catch (e) {
           console.error('Failed to load hls.js', e);
         }
+      }
+
+      if (useHls && video.canPlayType('application/vnd.apple.mpegurl')) {
+        attachNativeHls();
+        return;
       }
 
       destroyHls();
@@ -566,7 +583,6 @@ function StreamVideoPlayer(
         durationSecRef.current = video.duration;
       }
       releaseWarmedDecoder(networkSrc);
-      releaseWarmedDecoder(withStreamBandwidthHint(networkSrc, NATIVE_HLS_START_MBPS));
       if (stallStartedAtRef.current > 0) {
         rebufferMsRef.current += Math.max(0, Date.now() - stallStartedAtRef.current);
         stallStartedAtRef.current = 0;

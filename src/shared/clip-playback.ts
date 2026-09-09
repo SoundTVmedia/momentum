@@ -49,7 +49,10 @@ export function streamHlsUrl(videoId: string): string {
   return `${STREAM_DELIVERY_ORIGIN}/${videoId}/manifest/video.m3u8`;
 }
 
-/** Native HLS stays on this hint for the whole clip — swapping `video.src` after first frame flashes on WKWebView. */
+/**
+ * Stream `clientBandwidthHint` locks the master to one rung — do not put this on
+ * the playing URL. Kept for tests and any one-shot fetch that must pin quality.
+ */
 export const NATIVE_HLS_START_MBPS = 0.8;
 
 function isStreamHlsDeliveryUrl(url: string): boolean {
@@ -58,7 +61,7 @@ function isStreamHlsDeliveryUrl(url: string): boolean {
   return u.includes('videodelivery.net') || u.includes('cloudflarestream.com');
 }
 
-/** Add Cloudflare Stream `clientBandwidthHint` so native HLS starts on a low rung. */
+/** Add Cloudflare Stream `clientBandwidthHint` (single rendition closest to `mbps`). */
 export function withStreamBandwidthHint(url: string, mbps: number): string {
   const u = url.trim();
   if (!u || !isStreamHlsDeliveryUrl(u) || !Number.isFinite(mbps) || mbps <= 0) return u;
