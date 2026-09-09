@@ -12,6 +12,11 @@ import {
   releaseWarmedDecoder,
   resolvePrefetchedPlaybackSrc,
 } from '@/react-app/lib/clipPlaybackPrefetch';
+import { reportClipPlaybackTelemetry } from '@/react-app/lib/clipPlaybackTelemetry';
+import {
+  classifyPlaybackRendition,
+  truncatePlaybackUrl,
+} from '@/shared/clip-playback-telemetry';
 import { tryVideoPlayPreferSound, playVideoWithSoundOnGesture } from '@/react-app/utils/videoAutoplay';
 import { restoreNativeMediaPlaybackAudio, shouldUseNativeIosCapture } from '@/react-app/lib/native-capture';
 import {
@@ -125,7 +130,7 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
 }
 
 /**
- * Full clip player: confirmed Stream MP4 first, HLS fallback, then R2.
+ * Full clip player: Stream HLS first (low start rung, ABR climbs), then Stream MP4, then R2.
  */
 const StreamVideoPlayer = forwardRef<StreamVideoPlayerHandle, StreamVideoPlayerProps>(
 function StreamVideoPlayer(
@@ -138,6 +143,7 @@ function StreamVideoPlayer(
   video_url,
   thumbnail_url,
   r2_raw_key,
+  video_duration,
   streamVideoId,
   playbackUrl,
   fallbackUrl,
@@ -172,6 +178,7 @@ function StreamVideoPlayer(
   const [showControls, setShowControls] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [firstFrameReady, setFirstFrameReady] = useState(false);
   const stoppedRef = useRef(false);
   const onVideoDimensionsRef = useRef(onVideoDimensions);
   onVideoDimensionsRef.current = onVideoDimensions;
@@ -190,6 +197,7 @@ function StreamVideoPlayer(
       video_url: video_url ?? fallbackUrl,
       thumbnail_url,
       r2_raw_key,
+      video_duration,
     }),
     [
       stream_video_id,
@@ -203,6 +211,7 @@ function StreamVideoPlayer(
       fallbackUrl,
       thumbnail_url,
       r2_raw_key,
+      video_duration,
     ],
   );
 
@@ -214,9 +223,20 @@ function StreamVideoPlayer(
   );
   const hlsFallbackRef = useRef(resolvedModal.hlsFallbackSrc ?? null);
   const hlsFallbackUsedRef = useRef(false);
+  const mp4FallbackRef = useRef(resolvedModal.mp4FallbackSrc ?? null);
+  const mp4FallbackUsedRef = useRef(false);
   const r2FallbackRef = useRef(resolvedModal.r2FallbackSrc ?? null);
   const r2FallbackUsedRef = useRef(false);
   const reportedFailureRef = useRef(false);
+  const stallRetryUsedRef = useRef(false);
+  const firstFrameAtRef = useRef(0);
+  const stallCountRef = useRef(0);
+  const rebufferMsRef = useRef(0);
+  const stallStartedAtRef = useRef(0);
+  const renditionRef = useRef('unknown');
+  const durationSecRef = useRef(0);
+  const telemetryFlushedRef = useRef(false);
+  const sessionClipIdRef = useRef<number | null>(null);
   const onPlaybackFailedRef = useRef(onPlaybackFailed);
   onPlaybackFailedRef.current = onPlaybackFailed;
   const tryNextFallbackRef = useRef<() => boolean>(() => false);
@@ -228,10 +248,14 @@ function StreamVideoPlayer(
     setPlaybackIsHls(next.isHls && isHlsPlaybackUrl(src));
     hlsFallbackRef.current = next.hlsFallbackSrc ?? null;
     hlsFallbackUsedRef.current = false;
+    mp4FallbackRef.current = next.mp4FallbackSrc ?? null;
+    mp4FallbackUsedRef.current = false;
     r2FallbackRef.current = next.r2FallbackSrc ?? null;
     r2FallbackUsedRef.current = false;
     reportedFailureRef.current = false;
+    stallRetryUsedRef.current = false;
     setLoadError(false);
+    setFirstFrameReady(false);
     attachedSrcRef.current = null;
   }, [clipFields]);
 
@@ -266,8 +290,23 @@ function StreamVideoPlayer(
     destroyHls();
     setLoadError(false);
     setIsLoading(true);
+    setFirstFrameReady(false);
     setPlaybackSrc(fallback);
     setPlaybackIsHls(true);
+    return true;
+  }, [destroyHls]);
+
+  const tryMp4Fallback = useCallback(() => {
+    const fallback = mp4FallbackRef.current;
+    if (!fallback || mp4FallbackUsedRef.current) return false;
+    mp4FallbackUsedRef.current = true;
+    attachedSrcRef.current = null;
+    destroyHls();
+    setLoadError(false);
+    setIsLoading(true);
+    setFirstFrameReady(false);
+    setPlaybackSrc(fallback);
+    setPlaybackIsHls(false);
     return true;
   }, [destroyHls]);
 
@@ -279,6 +318,7 @@ function StreamVideoPlayer(
     destroyHls();
     setLoadError(false);
     setIsLoading(true);
+    setFirstFrameReady(false);
     setPlaybackSrc(fallback);
     setPlaybackIsHls(false);
     return true;
@@ -295,9 +335,67 @@ function StreamVideoPlayer(
 
   tryNextFallbackRef.current = () => {
     if (tryHlsFallback()) return true;
+    if (tryMp4Fallback()) return true;
     if (tryR2Fallback()) return true;
     return false;
   };
+
+  const recoverStallOnce = useCallback((): boolean => {
+    if (stallRetryUsedRef.current) return false;
+    stallRetryUsedRef.current = true;
+    const video = videoRef.current;
+    const hls = hlsRef.current;
+    if (hls) {
+      try {
+        hls.recoverMediaError();
+      } catch {
+        try {
+          hls.startLoad();
+        } catch {
+          /* ignore */
+        }
+      }
+      return true;
+    }
+    if (video && videoSrc) {
+      const t = video.currentTime;
+      try {
+        if (Number.isFinite(t) && t > 0.2) video.currentTime = t;
+        void video.play().catch(() => {});
+      } catch {
+        /* ignore */
+      }
+      return true;
+    }
+    return false;
+  }, [videoSrc]);
+
+  const flushTelemetry = useCallback(() => {
+    if (telemetryFlushedRef.current) return;
+    const id = sessionClipIdRef.current;
+    const ttff = firstFrameAtRef.current;
+    if (!id || ttff <= 0) return;
+    telemetryFlushedRef.current = true;
+    if (stallStartedAtRef.current > 0) {
+      rebufferMsRef.current += Math.max(0, Date.now() - stallStartedAtRef.current);
+      stallStartedAtRef.current = 0;
+    }
+    const storedDur =
+      typeof video_duration === 'number' && Number.isFinite(video_duration) && video_duration > 0
+        ? video_duration
+        : 0;
+    reportClipPlaybackTelemetry({
+      id,
+      ttff,
+      stalls: stallCountRef.current,
+      rebuf: rebufferMsRef.current,
+      url: truncatePlaybackUrl(videoSrc || networkSrc || ''),
+      rend: renditionRef.current,
+      dur: durationSecRef.current > 0 ? durationSecRef.current : storedDur,
+    });
+  }, [networkSrc, videoSrc, video_duration]);
+  const flushTelemetryRef = useRef(flushTelemetry);
+  flushTelemetryRef.current = flushTelemetry;
 
   const playbackAudioRestore = useCallback(async () => {
     if (shouldUseNativeIosCapture()) {
@@ -328,7 +426,20 @@ function StreamVideoPlayer(
 
     if (attachedSrcRef.current !== videoSrc) {
       setIsLoading(true);
+      setFirstFrameReady(false);
       loadStartedAtRef.current = Date.now();
+      firstFrameAtRef.current = 0;
+      stallCountRef.current = 0;
+      rebufferMsRef.current = 0;
+      stallStartedAtRef.current = 0;
+      telemetryFlushedRef.current = false;
+      stallRetryUsedRef.current = false;
+      sessionClipIdRef.current = clipId;
+      renditionRef.current = classifyPlaybackRendition(videoSrc, null);
+      durationSecRef.current =
+        typeof video_duration === 'number' && Number.isFinite(video_duration) && video_duration > 0
+          ? video_duration
+          : 0;
     }
 
     const setup = async () => {
@@ -360,14 +471,22 @@ function StreamVideoPlayer(
               window.matchMedia('(max-width: 767px)').matches;
             const hls = new Hls({
               enableWorker: !mobile,
-              lowLatencyMode: !mobile,
-              maxBufferLength: mobile ? 4 : 8,
-              maxMaxBufferLength: mobile ? 10 : 16,
+              lowLatencyMode: false,
+              startLevel: 0,
+              abrEwmaDefaultEstimate: 500_000,
+              maxBufferLength: 4,
+              maxMaxBufferLength: 8,
+              maxBufferSize: 6 * 1000 * 1000,
+              capLevelToPlayerSize: true,
               startFragPrefetch: true,
             });
             hls.attachMedia(video);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
               if (cancelled || stoppedRef.current) return;
+              const start = hls.levels[hls.currentLevel] ?? hls.levels[0];
+              if (start?.height) {
+                renditionRef.current = classifyPlaybackRendition(videoSrc, start.height);
+              }
               tryAutoplay();
             });
             hls.on(Hls.Events.ERROR, (_e: unknown, data: { fatal?: boolean }) => {
@@ -401,16 +520,18 @@ function StreamVideoPlayer(
 
     return () => {
       cancelled = true;
+      flushTelemetryRef.current();
       destroyHls();
       hardStopVideoElement(video);
       attachedSrcRef.current = null;
     };
-  }, [videoSrc, isHls, tryAutoplay, destroyHls, reportPlaybackFailed]);
+  }, [videoSrc, isHls, tryAutoplay, destroyHls, reportPlaybackFailed, video_duration, clipId]);
 
   useEffect(() => {
     stoppedRef.current = false;
     return () => {
       stoppedRef.current = true;
+      flushTelemetryRef.current();
       destroyHls();
       hardStopVideoElement(videoRef.current);
       attachedSrcRef.current = null;
@@ -430,9 +551,25 @@ function StreamVideoPlayer(
       const h = video.videoHeight;
       if (w > 0 && h > 0) onVideoDimensionsRef.current?.({ width: w, height: h });
     };
+    const markFirstFrame = () => {
+      setIsLoading(false);
+      setFirstFrameReady(true);
+      if (firstFrameAtRef.current <= 0 && loadStartedAtRef.current > 0) {
+        firstFrameAtRef.current = Math.max(0, Date.now() - loadStartedAtRef.current);
+        if (firstFrameAtRef.current < 1500) markPlaybackSessionFast();
+      }
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        durationSecRef.current = video.duration;
+      }
+      releaseWarmedDecoder(networkSrc);
+      if (stallStartedAtRef.current > 0) {
+        rebufferMsRef.current += Math.max(0, Date.now() - stallStartedAtRef.current);
+        stallStartedAtRef.current = 0;
+      }
+    };
     const handlePlay = () => {
       setIsPlaying(true);
-      setIsLoading(false);
+      markFirstFrame();
       if (clipId) {
         const now = Date.now();
         if (now - lastPlayViewAtRef.current > 350) {
@@ -445,6 +582,7 @@ function StreamVideoPlayer(
       const d = video.duration;
       const t = video.currentTime;
       if (!Number.isFinite(d) || d <= 0) return;
+      durationSecRef.current = d;
       const prev = lastTimeRef.current;
       lastTimeRef.current = t;
 
@@ -466,13 +604,15 @@ function StreamVideoPlayer(
       }
     };
     const handlePause = () => setIsPlaying(false);
-    const handleWaiting = () => setIsLoading(true);
-    const handleCanPlay = () => {
-      setIsLoading(false);
-      if (loadStartedAtRef.current > 0 && Date.now() - loadStartedAtRef.current < 1500) {
-        markPlaybackSessionFast();
+    const handleWaiting = () => {
+      setIsLoading(true);
+      if (firstFrameAtRef.current > 0 && stallStartedAtRef.current <= 0) {
+        stallStartedAtRef.current = Date.now();
+        stallCountRef.current += 1;
       }
-      releaseWarmedDecoder(networkSrc);
+    };
+    const handleCanPlay = () => {
+      markFirstFrame();
     };
     const handleError = () => {
       if (tryNextFallbackRef.current()) return;
@@ -520,14 +660,37 @@ function StreamVideoPlayer(
     const timeout = window.setTimeout(() => {
       const video = videoRef.current;
       if (!video || video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      if (recoverStallOnce()) return;
       if (tryNextFallbackRef.current()) return;
       const code = video.error?.code ?? 4;
       setLoadError(true);
       setIsLoading(false);
       reportPlaybackFailed(Number.isFinite(code) ? code : 4);
-    }, 18000);
+    }, 8000);
     return () => window.clearTimeout(timeout);
-  }, [videoSrc, loadError, reportPlaybackFailed]);
+  }, [videoSrc, loadError, reportPlaybackFailed, recoverStallOnce]);
+
+  useEffect(() => {
+    if (!videoSrc || loadError) return;
+    let timer: number | null = null;
+    const onWaiting = () => {
+      if (timer != null) return;
+      timer = window.setTimeout(() => {
+        timer = null;
+        const video = videoRef.current;
+        if (!video || video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return;
+        if (video.paused && firstFrameAtRef.current > 0) return;
+        recoverStallOnce();
+      }, 2500);
+    };
+    const video = videoRef.current;
+    if (!video) return;
+    video.addEventListener('waiting', onWaiting);
+    return () => {
+      if (timer != null) window.clearTimeout(timer);
+      video.removeEventListener('waiting', onWaiting);
+    };
+  }, [videoSrc, loadError, recoverStallOnce]);
 
   useEffect(() => {
     if (videoSrc) return;
@@ -602,6 +765,7 @@ function StreamVideoPlayer(
   const stop = useCallback(() => {
     stoppedRef.current = true;
     autoPlayRef.current = false;
+    flushTelemetryRef.current();
     void exitClipPictureInPicture(videoRef.current);
     destroyHls();
     hardStopVideoElement(videoRef.current);
@@ -654,9 +818,21 @@ function StreamVideoPlayer(
         preload="auto"
       />
 
+      {displayPoster && !firstFrameReady && !loadError ? (
+        <img
+          src={displayPoster}
+          alt=""
+          className={`absolute inset-0 z-[1] h-full w-full pointer-events-none ${
+            videoObjectFit === 'cover' ? 'object-cover' : 'object-contain'
+          }`}
+          decoding="async"
+          fetchPriority="high"
+        />
+      ) : null}
+
       {isLoading && !loadError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
-          <Loader2 className="w-12 h-12 text-momentum-ember animate-spin" />
+        <div className="absolute inset-0 z-[2] flex items-center justify-center pointer-events-none">
+          <Loader2 className="w-10 h-10 text-white/80 animate-spin drop-shadow" />
         </div>
       )}
 
@@ -674,7 +850,7 @@ function StreamVideoPlayer(
 
       {controlsPlacement !== 'hidden' ? (
         <div
-          className={`absolute inset-0 transition-opacity duration-300 ${
+          className={`absolute inset-0 z-[3] transition-opacity duration-300 ${
             showControls ? 'opacity-100' : 'opacity-0'
           }`}
         >

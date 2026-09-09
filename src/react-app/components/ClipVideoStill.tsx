@@ -179,6 +179,16 @@ export default function ClipVideoStill({ src, className = '', onCaptured }: Clip
       markFrame();
       capture();
       video.pause();
+      releaseRef.current?.();
+      releaseRef.current = null;
+      if (capturedRef.current) {
+        try {
+          video.removeAttribute('src');
+          video.load();
+        } catch {
+          /* ignore */
+        }
+      }
     };
 
     const onError = () => {

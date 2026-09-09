@@ -7,12 +7,12 @@ type Props = {
   isActive: boolean;
   modalVisible: boolean;
   appActive: boolean;
-  /** Fast/5G: ask AVPlayer to hold the whole ≤60s clip. */
+  /** Fast/5G: hold a few extra seconds — never the whole file. */
   prefetchFull?: boolean;
 };
 
-const HEAD_BUFFER_SECONDS = 8;
-const FULL_BUFFER_SECONDS = 60;
+const HEAD_BUFFER_SECONDS = 4;
+const FULL_BUFFER_SECONDS = 8;
 
 function applyBufferOptions(
   instance: { bufferOptions: { preferredForwardBufferDuration?: number; waitsToMinimizeStalling?: boolean } },

@@ -18,6 +18,7 @@ import {
   resolveR2ProgressiveSrc,
   streamMp4Url,
   streamVideoIdFromClip,
+  playbackDurationBucket,
 } from './clip-playback';
 
 const UID = 'a1b2c3d4e5f6789012345678abcdef01';
@@ -82,7 +83,7 @@ describe('clip-playback', () => {
     ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
   });
 
-  it('prefetches only the confirmed Stream MP4 — never HLS — when MP4 will play', () => {
+  it('prefetches Stream HLS even when a progressive MP4 also exists', () => {
     const mp4 = `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`;
     expect(
       resolveModalPrefetchPlan({
@@ -90,7 +91,10 @@ describe('clip-playback', () => {
         stream_mp4_url: mp4,
         stream_mp4_status: 'ready',
       }),
-    ).toEqual({ progressiveUrl: mp4, hlsUrl: null });
+    ).toEqual({
+      progressiveUrl: null,
+      hlsUrl: `https://videodelivery.net/${UID}/manifest/video.m3u8`,
+    });
   });
 
   it('prefetches HLS only when the Stream MP4 is not ready yet', () => {
@@ -100,7 +104,7 @@ describe('clip-playback', () => {
     });
   });
 
-  it('uses the confirmed Stream MP4 first for modal, with HLS then R2 as fallbacks', () => {
+  it('starts modal playback on Stream HLS and keeps MP4 then R2 as fallbacks', () => {
     const mp4 = `https://customer-abc.cloudflarestream.com/${UID}/downloads/default.mp4`;
     const modal = resolveModalPlaybackSource({
       stream_video_id: UID,
@@ -109,10 +113,11 @@ describe('clip-playback', () => {
       video_url: '/api/files/x.mp4',
       r2_raw_key: 'clips/user/video/abc.mp4',
     });
-    expect(modal.isHls).toBe(false);
-    expect(modal.src).toBe(mp4);
+    expect(modal.isHls).toBe(true);
+    expect(modal.src).toBe(`https://videodelivery.net/${UID}/manifest/video.m3u8`);
     expect(modal.streamVideoId).toBe(UID);
-    expect(modal.hlsFallbackSrc).toBe(`https://videodelivery.net/${UID}/manifest/video.m3u8`);
+    expect(modal.hlsFallbackSrc).toBeNull();
+    expect(modal.mp4FallbackSrc).toBe(mp4);
     expect(modal.r2FallbackSrc).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
     expect(streamVideoIdFromClip({ stream_video_id: UID })).toBe(UID);
   });
@@ -241,6 +246,16 @@ seg-1.ts`;
     expect(
       resolveClipDownloadUrl({ stream_video_id: UID, r2_raw_key: 'clips/user/video/abc.mp4' }),
     ).toBe('/api/files/clips%2Fuser%2Fvideo%2Fabc.mp4');
+  });
+
+  it('buckets clip duration for playback telemetry', () => {
+    expect(playbackDurationBucket(0)).toBe('0-15s');
+    expect(playbackDurationBucket(15)).toBe('0-15s');
+    expect(playbackDurationBucket(15.1)).toBe('15-30s');
+    expect(playbackDurationBucket(30)).toBe('15-30s');
+    expect(playbackDurationBucket(45)).toBe('30-45s');
+    expect(playbackDurationBucket(60)).toBe('45-60s');
+    expect(playbackDurationBucket(60.01)).toBe('60s+');
   });
 
   it('builds a readable download filename from artist and venue', () => {

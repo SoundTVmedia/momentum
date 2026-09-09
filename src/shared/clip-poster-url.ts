@@ -21,6 +21,8 @@ export type ClipPlaybackFields = {
   r2_raw_key?: string | null;
   /** Worker/cron marked this clip as having no valid Stream/R2 playback. */
   playback_unplayable?: number | boolean | null;
+  /** Stored media duration in seconds when the API includes it. */
+  video_duration?: number | null;
 };
 
 /**

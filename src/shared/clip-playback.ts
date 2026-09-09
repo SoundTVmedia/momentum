@@ -27,8 +27,18 @@ import {
   streamVideoIdFromClip,
 } from './clip-poster-url';
 
-/** Momentum clips are capped at 60s — Stream MP4-first modal playback is safe for all. */
-export const MODAL_MP4_FIRST_MAX_DURATION_SEC = 60;
+/** Duration buckets for playback telemetry (inclusive upper bound except 60s+). */
+export const PLAYBACK_DURATION_BUCKETS = ['0-15s', '15-30s', '30-45s', '45-60s', '60s+'] as const;
+export type PlaybackDurationBucket = (typeof PLAYBACK_DURATION_BUCKETS)[number];
+
+export function playbackDurationBucket(durationSec: number): PlaybackDurationBucket {
+  const d = Number.isFinite(durationSec) ? durationSec : 0;
+  if (d <= 15) return '0-15s';
+  if (d <= 30) return '15-30s';
+  if (d <= 45) return '30-45s';
+  if (d <= 60) return '45-60s';
+  return '60s+';
+}
 
 export function isHlsPlaybackUrl(url: string): boolean {
   const u = url.trim().toLowerCase();
@@ -81,21 +91,23 @@ export function resolveFeedPreviewVideoSrc(clip: ClipPlaybackFields): string | n
 }
 
 export type ModalPlaybackSource = {
-  /** Primary src for the player (Stream MP4 when available, else HLS / R2 progressive). */
+  /** Primary src: Stream HLS when a Stream id exists, else progressive / R2. */
   src: string;
   poster: string;
   isHls: boolean;
   streamVideoId: string | null;
-  /** Adaptive HLS URL when modal starts on Stream MP4 (fallback if MP4 fails). */
+  /** Adaptive HLS URL when the primary src is not already HLS. */
   hlsFallbackSrc?: string | null;
-  /** Original R2 / progressive file when Stream MP4 and HLS both fail. */
+  /** Confirmed Stream progressive MP4 if HLS fails. */
+  mp4FallbackSrc?: string | null;
+  /** Original R2 / progressive file when Stream HLS and MP4 both fail. */
   r2FallbackSrc?: string | null;
 };
 
 /**
  * What to warm on the network before the user opens a clip.
- * When the confirmed Stream MP4 will play, skip HLS entirely so manifest/segment
- * fetches do not steal first-frame bandwidth or keep the radio awake.
+ * Stream clips prefetch HLS (first segments only). Progressive-only clips
+ * warm the MP4 URL without downloading the whole file.
  */
 export type ModalPrefetchPlan = {
   progressiveUrl: string | null;
@@ -137,8 +149,8 @@ function withDistinctR2Fallback(
 }
 
 /**
- * Full-quality modal playback: Stream MP4 first for fast start on short clips,
- * HLS adaptive as fallback; direct URL for R2-only clips.
+ * Modal playback: Stream HLS first so the first frame is a small low rung and
+ * ABR can climb. Confirmed Stream MP4 then R2 are fallbacks, not the start path.
  */
 export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlaybackSource {
   const streamId = streamVideoIdFromClip(clip);
@@ -146,16 +158,15 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
 
   if (streamId) {
     const hls = resolveStreamHlsUrl(clip, streamId);
-    // Start on the progressive MP4 only once Cloudflare has generated it;
-    // otherwise HLS is the one Stream URL that is live immediately.
     const mp4 = readyStreamMp4Url(clip);
     return withDistinctR2Fallback(
       {
-        src: mp4 ?? hls,
+        src: hls,
         poster,
-        isHls: !mp4,
+        isHls: true,
         streamVideoId: streamId,
-        hlsFallbackSrc: mp4 ? hls : null,
+        hlsFallbackSrc: null,
+        mp4FallbackSrc: mp4 && mp4 !== hls ? mp4 : null,
       },
       clip,
     );
@@ -171,6 +182,7 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
         isHls: false,
         streamVideoId: null,
         hlsFallbackSrc: null,
+        mp4FallbackSrc: null,
       },
       clip,
     );
@@ -182,6 +194,7 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
       isHls: isHlsPlaybackUrl(fallback),
       streamVideoId: null,
       hlsFallbackSrc: null,
+      mp4FallbackSrc: null,
     },
     clip,
   );

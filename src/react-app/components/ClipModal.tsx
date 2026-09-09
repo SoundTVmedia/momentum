@@ -74,7 +74,7 @@ import { genreSlugFromName } from '@/shared/genre-tag';
 import { songSlugFromTitle } from '@/shared/song-tag';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 import { formatCount } from '@/react-app/lib/formatCount';
-import { prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
+import { cancelModalPrefetchExcept, prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
 import { clipShareUrl } from '@/shared/clip-share';
 import { buildClipShareMeta } from '@/shared/clip-share-meta';
 import { applyClipShareMetaToDocument } from '@/react-app/lib/applyClipShareMetaToDocument';
@@ -346,11 +346,11 @@ export default function ClipModal({
   });
 
   useEffect(() => {
-    // Current clip is the visible player — only warm neighbors in hidden decoders.
-    if (prevClip) prefetchModalPlayback(prevClip);
+    // Warm the next 1–2 clips only. Fast swipe aborts anything else still in flight.
     if (nextClip) prefetchModalPlayback(nextClip);
     if (nextNextClip) prefetchModalPlayback(nextNextClip);
-  }, [nextClip, nextNextClip, prevClip]);
+    cancelModalPrefetchExcept([nextClip, nextNextClip]);
+  }, [nextClip, nextNextClip]);
 
   useEffect(() => {
     setShowShareMenu(false);

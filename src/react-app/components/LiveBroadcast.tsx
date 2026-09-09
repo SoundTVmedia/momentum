@@ -227,6 +227,12 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
                       video_url={currentClip.video_url}
                       thumbnail_url={currentClip.thumbnail_url}
                       r2_raw_key={currentClip.r2_raw_key}
+                      video_duration={
+                        typeof (currentClip as { video_duration?: unknown }).video_duration ===
+                        'number'
+                          ? (currentClip as { video_duration: number }).video_duration
+                          : null
+                      }
                       autoPlay
                       clipId={clipNumericId(currentClip)}
                       onPlaybackFailed={(failure) => {

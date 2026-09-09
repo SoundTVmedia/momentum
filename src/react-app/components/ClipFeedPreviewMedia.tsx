@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import ClipVideoStill from '@/react-app/components/ClipVideoStill';
 import { type ClipPlaybackFields } from '@/shared/clip-playback';
-import { prefetchFeedPreviewMp4 } from '@/react-app/lib/clipPlaybackPrefetch';
+import { prefetchFeedPreviewMp4, releaseWarmedDecoder } from '@/react-app/lib/clipPlaybackPrefetch';
 import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
 import {
   clearFeedPreviewPlayback,
@@ -119,6 +119,9 @@ export default function ClipFeedPreviewMedia({
     if (inView && previewVideoSrc) {
       prefetchFeedPreviewMp4(previewVideoSrc);
     }
+    return () => {
+      if (previewVideoSrc) releaseWarmedDecoder(previewVideoSrc);
+    };
   }, [inView, previewVideoSrc]);
 
   useEffect(() => {

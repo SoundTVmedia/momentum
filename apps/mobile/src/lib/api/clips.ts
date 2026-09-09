@@ -87,6 +87,12 @@ export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlayb
     hlsFallbackSrc: source.hlsFallbackSrc
       ? absoluteMediaUrl(source.hlsFallbackSrc)
       : source.hlsFallbackSrc,
+    mp4FallbackSrc: source.mp4FallbackSrc
+      ? absoluteMediaUrl(source.mp4FallbackSrc)
+      : source.mp4FallbackSrc,
+    r2FallbackSrc: source.r2FallbackSrc
+      ? absoluteMediaUrl(source.r2FallbackSrc)
+      : source.r2FallbackSrc,
   };
 }
 

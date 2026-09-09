@@ -161,6 +161,14 @@ export const RateLimits = {
   // General requests
   GENERAL: { windowMs: 60 * 1000, maxRequests: 60 }, // 60 per minute
 
+  /** Per-clip playback samples (sendBeacon on swipe). Shared so path uniqueness cannot bypass. */
+  PLAYBACK_TELEMETRY: {
+    windowMs: 60 * 1000,
+    maxRequests: 90,
+    sharedBucket: 'playback-telemetry',
+    message: 'Too many playback samples — wait a moment.',
+  },
+
   /**
    * JamBase/Unsplash image proxy — home/discover carousels load many images at once.
    * Shared per IP so unique path tokens do not bypass the cap, but high enough for feeds.

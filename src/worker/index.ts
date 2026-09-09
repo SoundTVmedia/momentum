@@ -111,6 +111,10 @@ import {
   getRelatedClipsForShare,
 } from "./clip-endpoints";
 import { postClipPlaybackFailure } from "./clip-playback-failure-endpoints";
+import {
+  getPlaybackPerformance,
+  postClipPlaybackTelemetry,
+} from "./clip-playback-telemetry-endpoints";
 import { postResolveShowForClip } from "./clips-resolve-show";
 import { postCameraVenuesForClip } from "./clips-camera-venues";
 import * as showMarks from "./user-show-marks-endpoints";
@@ -1252,6 +1256,11 @@ app.get("/api/media/proxy/v3/b/:token", rateLimiter(RateLimits.MEDIA_PROXY), pro
 // Match clip time + location to JamBase shows (personalized radius)
 app.post("/api/clips/resolve-show", authMiddleware, rateLimiter(RateLimits.API), postResolveShowForClip);
 app.post("/api/clips/camera-venues", authMiddleware, rateLimiter(RateLimits.API), postCameraVenuesForClip);
+app.post(
+  "/api/clips/playback-telemetry",
+  rateLimiter(RateLimits.PLAYBACK_TELEMETRY),
+  postClipPlaybackTelemetry,
+);
 app.get(
   "/api/clips/identify-music/config",
   authMiddleware,
@@ -3820,6 +3829,11 @@ app.post(
   optionalAuthMiddleware,
   rateLimiter(RateLimits.API),
   postClipPlaybackFailure,
+);
+app.get(
+  "/api/admin/playback-performance",
+  authMiddleware,
+  getPlaybackPerformance,
 );
 app.post("/api/comments/:commentId/report", authMiddleware, reports.reportComment);
 app.post("/api/users/:userId/report", authMiddleware, reports.reportUserProfile);
