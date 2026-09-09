@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog, ClipboardList, Database, Gauge } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog, ClipboardList, Database, Gauge, ChevronDown, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNavigate } from 'react-router';
 import LiveSessionManager from './LiveSessionManager';
@@ -13,6 +13,36 @@ import SuperadminClipModerationPanel from './SuperadminClipModerationPanel';
 import PlaybackPerformancePanel from './PlaybackPerformancePanel';
 import JamBaseQuotaPanel from './JamBaseQuotaPanel';
 import type { ExtendedMochaUser } from '@/shared/types';
+
+type AdminTab =
+  | 'sessions'
+  | 'moderation'
+  | 'analytics'
+  | 'playback'
+  | 'content'
+  | 'verification'
+  | 'applications'
+  | 'roles'
+  | 'clips'
+  | 'jambase';
+
+const ADMIN_TABS: {
+  id: AdminTab;
+  label: string;
+  icon: LucideIcon;
+  superAdminOnly?: boolean;
+}[] = [
+  { id: 'sessions', label: 'Live Sessions', icon: Calendar },
+  { id: 'moderation', label: 'Chat Moderation', icon: MessageSquare },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'playback', label: 'Playback Performance', icon: Gauge, superAdminOnly: true },
+  { id: 'jambase', label: 'JamBase', icon: Database },
+  { id: 'content', label: 'Content Moderation', icon: Shield },
+  { id: 'roles', label: 'User Roles', icon: UserCog },
+  { id: 'clips', label: 'Clip Moderation', icon: Trash2, superAdminOnly: true },
+  { id: 'applications', label: 'Applications', icon: ClipboardList },
+  { id: 'verification', label: 'Verification', icon: CheckCircle },
+];
 
 interface LiveSession {
   id: number;
@@ -34,13 +64,50 @@ export default function AdminDashboard() {
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [loading, setLoading] = useState(true);
   const isSuperAdmin = extendedUser?.profile?.is_superadmin === 1;
-  const [activeTab, setActiveTab] = useState<'sessions' | 'moderation' | 'analytics' | 'playback' | 'content' | 'verification' | 'applications' | 'roles' | 'clips' | 'jambase'>('sessions');
+  const [activeTab, setActiveTab] = useState<AdminTab>('sessions');
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  const tabMenuRef = useRef<HTMLDivElement>(null);
   const [selectedSession, setSelectedSession] = useState<LiveSession | null>(null);
   const [showSessionManager, setShowSessionManager] = useState(false);
+
+  const visibleTabs = useMemo(
+    () => ADMIN_TABS.filter((tab) => !tab.superAdminOnly || isSuperAdmin),
+    [isSuperAdmin],
+  );
+  const currentTab = visibleTabs.find((tab) => tab.id === activeTab) ?? visibleTabs[0];
+  const CurrentTabIcon = currentTab?.icon ?? Calendar;
 
   useEffect(() => {
     fetchSessions();
   }, []);
+
+  useEffect(() => {
+    if (!tabMenuOpen) return;
+    const onDocDown = (event: MouseEvent) => {
+      if (
+        tabMenuRef.current &&
+        event.target instanceof Node &&
+        !tabMenuRef.current.contains(event.target)
+      ) {
+        setTabMenuOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTabMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [tabMenuOpen]);
+
+  useEffect(() => {
+    if (currentTab && currentTab.id !== activeTab) {
+      setActiveTab(currentTab.id);
+    }
+  }, [activeTab, currentTab]);
 
   const fetchSessions = async () => {
     try {
@@ -151,142 +218,53 @@ export default function AdminDashboard() {
             <Shield className="w-12 h-12 text-momentum-flare" />
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex space-x-4 border-b border-white/10">
+          <div ref={tabMenuRef} className="relative">
             <button
-              onClick={() => setActiveTab('sessions')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'sessions'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
+              type="button"
+              onClick={() => setTabMenuOpen((open) => !open)}
+              aria-expanded={tabMenuOpen}
+              aria-haspopup="menu"
+              aria-label={`Admin section: ${currentTab?.label ?? 'Live Sessions'}`}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/15 hover:border-white/40 transition-colors"
             >
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5" />
-                <span>Live Sessions</span>
-              </div>
+              <CurrentTabIcon className="w-5 h-5 text-momentum-flare shrink-0" aria-hidden />
+              <span>{currentTab?.label ?? 'Live Sessions'}</span>
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-gray-300 transition-transform ${tabMenuOpen ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
             </button>
-            <button
-              onClick={() => setActiveTab('moderation')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'moderation'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <MessageSquare className="w-5 h-5" />
-                <span>Chat Moderation</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'analytics'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <BarChart3 className="w-5 h-5" />
-                <span>Analytics</span>
-              </div>
-            </button>
-            {isSuperAdmin && (
-              <button
-                onClick={() => setActiveTab('playback')}
-                className={`px-6 py-3 font-semibold transition-colors ${
-                  activeTab === 'playback'
-                    ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                    : 'text-gray-400 hover:text-white'
-                }`}
+            {tabMenuOpen ? (
+              <div
+                role="menu"
+                className="absolute left-0 top-full z-50 mt-2 min-w-[16rem] overflow-hidden rounded-xl glass-dropdown py-1 shadow-xl"
               >
-                <div className="flex items-center space-x-2">
-                  <Gauge className="w-5 h-5" />
-                  <span>Playback Performance</span>
-                </div>
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab('jambase')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'jambase'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Database className="w-5 h-5" />
-                <span>JamBase</span>
+                {visibleTabs.map((tab) => {
+                  const selected = tab.id === activeTab;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setTabMenuOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition-colors ${
+                        selected
+                          ? 'bg-white/10 text-momentum-flare'
+                          : 'text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" aria-hidden />
+                      <span className="font-semibold">{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('content')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'content'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Shield className="w-5 h-5" />
-                <span>Content Moderation</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('roles')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'roles'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <UserCog className="w-5 h-5" />
-                <span>User Roles</span>
-              </div>
-            </button>
-            {isSuperAdmin && (
-              <button
-                onClick={() => setActiveTab('clips')}
-                className={`px-6 py-3 font-semibold transition-colors ${
-                  activeTab === 'clips'
-                    ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <Trash2 className="w-5 h-5" />
-                  <span>Clip Moderation</span>
-                </div>
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab('applications')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'applications'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <ClipboardList className="w-5 h-5" />
-                <span>Applications</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('verification')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'verification'
-                  ? 'text-momentum-flare border-b-2 border-momentum-flare'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5" />
-                <span>Verification</span>
-              </div>
-            </button>
+            ) : null}
           </div>
         </div>
 

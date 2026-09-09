@@ -131,16 +131,33 @@
  * is a fixed containing block that would clip the existing page layout.
  */
 html {
-  height: auto;
+  height: auto !important;
+  overflow-x: clip;
+  overflow-y: auto !important;
 }
 
 body {
   position: relative !important;
   height: auto !important;
   max-height: none !important;
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
   overflow-y: auto !important;
   transform: none !important;
+}
+
+@media (min-width: 768px) {
+  html,
+  body,
+  ion-app.momentum-ion-app,
+  #root {
+    touch-action: auto;
+    overscroll-behavior-y: auto;
+  }
+
+  #root {
+    overflow-x: clip;
+    overflow-y: visible;
+  }
 }
 
 html.app-ptr-enabled,
@@ -167,6 +184,22 @@ ion-header.app-top-header {
   top: 0;
   z-index: 50;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+/*
+ * Ionic applies --ion-safe-area-top on the first toolbar. With Capacitor
+ * contentInset: automatic that inset is 0 on first paint (WKWebView already
+ * offsets the page), then becomes env(safe-area-inset-top) after scroll and
+ * stays stacked when you return to top. Keep Ionic's extra inset at 0 and
+ * only restore it while the sticky header overlaps the status bar.
+ */
+ion-header.app-top-header ion-toolbar.app-toolbar {
+  --ion-safe-area-top: 0px;
+}
+
+ion-header.app-top-header:not(.app-header-native) ion-toolbar.app-toolbar,
+ion-header.app-top-header.app-header-native.app-header-stuck ion-toolbar.app-toolbar {
+  --ion-safe-area-top: env(safe-area-inset-top, 0px);
 }
 
 .app-header-wordmark {

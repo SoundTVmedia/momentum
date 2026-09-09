@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { isNativeApp } from '@/react-app/lib/native-bridge'
 import { useAuth } from '@getmocha/users-service/react'
 import {
   IonButton,
@@ -31,11 +32,25 @@ export default function Header() {
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null
   const unreadCount = useUnreadNotificationCount()
   const [showNotifications, setShowNotifications] = useState(false)
+  const nativeHeader = isNativeApp()
+  const [headerStuck, setHeaderStuck] = useState(false)
+
+  useEffect(() => {
+    const syncStuck = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0
+      setHeaderStuck(y > 2)
+    }
+    syncStuck()
+    window.addEventListener('scroll', syncStuck, { passive: true })
+    return () => window.removeEventListener('scroll', syncStuck)
+  }, [])
 
   return (
     <>
     {!hideSiteChrome ? (
-    <IonHeader className="app-top-header ion-no-border">
+    <IonHeader
+      className={`app-top-header ion-no-border${nativeHeader ? ' app-header-native' : ''}${headerStuck ? ' app-header-stuck' : ''}`}
+    >
       <IonToolbar className="app-toolbar">
         <div className="flex w-full min-w-0 items-center justify-between gap-2 md:gap-3">
           <div className="flex min-w-0 shrink-0 items-center">

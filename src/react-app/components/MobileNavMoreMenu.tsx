@@ -23,6 +23,9 @@ export default function MobileNavMoreMenu({ user }: MobileNavMoreMenuProps) {
     { label: 'Artist Hub', path: '/artist-hub' },
     { label: 'Venue Hub', path: '/venue-hub' },
     { label: partnerLabel, path: partnerPath },
+    { label: 'Support', path: '/support' },
+    { label: 'Privacy', path: '/privacy' },
+    { label: 'Terms', path: '/terms' },
   ]
   const isActive = items.some((item) => pathname === item.path)
 
@@ -102,7 +105,11 @@ export default function MobileNavMoreMenu({ user }: MobileNavMoreMenuProps) {
                     navigate(item.path)
                   }}
                   className={`flex w-full items-center px-3 py-2.5 text-left text-sm text-white hover:bg-white/10 ${
-                    index > 0 ? 'border-t border-white/10' : ''
+                    item.path === '/support'
+                      ? 'border-t border-white/20'
+                      : index > 0
+                        ? 'border-t border-white/10'
+                        : ''
                   } ${pathname === item.path ? 'bg-white/5 text-momentum-flare' : ''}`}
                 >
                   {item.label}
