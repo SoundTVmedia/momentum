@@ -48,8 +48,15 @@ export default function Header() {
               <span className="app-header-mark" aria-hidden>
                 <img src="/favicon.svg" alt="" width={36} height={36} />
               </span>
-              <div className="app-header-wordmark truncate whitespace-nowrap font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
-                FEEDBACK
+              <div className="app-header-wordmark font-headline" aria-hidden>
+                {'FEEDBACK'.split('').map((letter, index) => (
+                  <span
+                    key={`${letter}-${index}`}
+                    style={{ '--wordmark-i': index } as React.CSSProperties}
+                  >
+                    {letter}
+                  </span>
+                ))}
               </div>
             </button>
             <span className="app-header-brand-rule hidden lg:block" aria-hidden />

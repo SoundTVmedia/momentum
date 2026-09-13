@@ -10,9 +10,13 @@ import {
   type ClipPlaybackFields,
 } from '@/shared/clip-playback';
 
-type HeroClipSlide = {
+export type HeroClipSlide = {
+  id?: number;
   src: string;
   poster: string;
+  mochaUserId: string;
+  displayName: string;
+  avatarUrl: string | null;
 };
 
 function usePrefersReducedMotion(): boolean {
@@ -33,157 +37,188 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-function clipToSlide(clip: ClipPlaybackFields): HeroClipSlide | null {
+export function clipToHeroSlide(clip: ClipPlaybackFields & {
+  id?: number;
+  mocha_user_id?: string;
+  user_display_name?: string | null;
+  user_avatar?: string | null;
+}): HeroClipSlide | null {
   if (clip.playback_unplayable) return null;
   const src = resolveFeedPreviewVideoSrc(clip);
   if (!src) return null;
   const posterRaw = resolveClipPosterUrl(clip, HERO_CONCERT_FALLBACK_IMAGE);
+  const name = clip.user_display_name?.trim();
+  const avatar = clip.user_avatar?.trim();
   return {
+    id: typeof clip.id === 'number' ? clip.id : undefined,
     src,
     poster: displayMediaUrl(posterRaw) || HERO_CONCERT_FALLBACK_IMAGE,
+    mochaUserId: clip.mocha_user_id?.trim() || '',
+    displayName: name || 'Fan',
+    avatarUrl: avatar ? displayMediaUrl(avatar) || avatar : null,
   };
 }
 
-export default function HeroConcertBackdrop() {
-  const reducedMotion = usePrefersReducedMotion();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [slides, setSlides] = useState<HeroClipSlide[]>([]);
-  const [active, setActive] = useState(0);
-  const [videoReady, setVideoReady] = useState(false);
-  const [libraryReady, setLibraryReady] = useState(false);
-  const advancingRef = useRef(false);
+type HeroConcertBackdropProps = {
+  slides?: HeroClipSlide[];
+  playing?: boolean;
+};
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/clips?limit=8&sort_by=trending', {
-          credentials: 'include',
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { clips?: ClipPlaybackFields[] };
-        const next: HeroClipSlide[] = [];
-        for (const clip of data.clips ?? []) {
-          const slide = clipToSlide(clip);
-          if (!slide) continue;
-          next.push(slide);
-          if (next.length >= 6) break;
-        }
-        if (!cancelled && next.length > 0) {
-          setSlides(next);
-          setActive(0);
-        }
-      } catch {
-        /* keep stock fallback */
-      } finally {
-        if (!cancelled) setLibraryReady(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+/**
+ * Library clips (or stock fallback) as a full-bleed backdrop.
+ * The outgoing clip stays on top until the next one can play, so the
+ * background never drops to black between clips.
+ */
+export default function HeroConcertBackdrop({
+  slides = [],
+  playing = true,
+}: HeroConcertBackdropProps) {
+  const reducedMotion = usePrefersReducedMotion();
+  const layerARef = useRef<HTMLVideoElement>(null);
+  const layerBRef = useRef<HTMLVideoElement>(null);
+  const [active, setActive] = useState(0);
+  const [liveLayer, setLiveLayer] = useState<0 | 1>(0);
+  const [layerA, setLayerA] = useState({ src: HERO_VIDEO_SRC, poster: HERO_CONCERT_FALLBACK_IMAGE });
+  const [layerB, setLayerB] = useState({ src: HERO_VIDEO_SRC, poster: HERO_CONCERT_FALLBACK_IMAGE });
+  const advancingRef = useRef(false);
+  const pendingSwap = useRef<0 | 1 | null>(null);
+  const pendingPoster = useRef(HERO_CONCERT_FALLBACK_IMAGE);
+  const primedRef = useRef(false);
+  const [displayedPoster, setDisplayedPoster] = useState(HERO_CONCERT_FALLBACK_IMAGE);
 
   const usingLibrary = slides.length > 0;
-  const activeSlide = usingLibrary ? slides[active] : null;
-  const videoSrc = activeSlide?.src ?? HERO_VIDEO_SRC;
-  const posterSrc = activeSlide?.poster ?? HERO_CONCERT_FALLBACK_IMAGE;
 
   useEffect(() => {
-    setVideoReady(false);
-  }, [videoSrc]);
+    if (!usingLibrary || primedRef.current) return;
+    primedRef.current = true;
+    const first = slides[0];
+    pendingPoster.current = first.poster;
+    pendingSwap.current = 1;
+    setActive(0);
+    setLayerB({ src: first.src, poster: first.poster });
+  }, [usingLibrary, slides]);
+
+  const liveSrc = liveLayer === 0 ? layerA.src : layerB.src;
 
   useEffect(() => {
     if (reducedMotion) return;
-    const video = videoRef.current;
-    if (!video) return;
+    const videos = [layerARef.current, layerBRef.current];
+    videos.forEach((video, index) => {
+      if (!video) return;
+      if (playing && index === liveLayer) {
+        void video.play().catch(() => {
+          /* Autoplay may be blocked until a user gesture */
+        });
+      } else {
+        video.pause();
+      }
+    });
+  }, [reducedMotion, playing, liveLayer, liveSrc]);
 
-    const tryPlay = () => {
-      void video.play().catch(() => {
-        /* Autoplay may be blocked until a user gesture elsewhere on the page */
-      });
-    };
-
-    tryPlay();
-    video.addEventListener('canplay', tryPlay);
-    return () => video.removeEventListener('canplay', tryPlay);
-  }, [reducedMotion, videoSrc]);
-
-  const advance = () => {
-    if (slides.length < 2 || advancingRef.current) return;
-    advancingRef.current = true;
-    setActive((i) => (i + 1) % slides.length);
+  const promoteLayer = (layer: 0 | 1) => {
+    if (pendingSwap.current !== layer) return;
+    pendingSwap.current = null;
+    advancingRef.current = false;
+    setLiveLayer(layer);
+    setDisplayedPoster(pendingPoster.current);
   };
 
-  useEffect(() => {
+  const advance = () => {
+    if (slides.length < 2 || advancingRef.current || !playing) return;
+    advancingRef.current = true;
+    const next = (active + 1) % slides.length;
+    const hidden: 0 | 1 = liveLayer === 0 ? 1 : 0;
+    const nextSlide = slides[next];
+    pendingPoster.current = nextSlide.poster;
+    pendingSwap.current = hidden;
+    setActive(next);
+    if (hidden === 0) setLayerA({ src: nextSlide.src, poster: nextSlide.poster });
+    else setLayerB({ src: nextSlide.src, poster: nextSlide.poster });
+  };
+
+  const failAdvance = () => {
+    pendingSwap.current = null;
     advancingRef.current = false;
-  }, [active, videoSrc]);
+    advance();
+  };
 
   if (reducedMotion) {
     const stills = usingLibrary ? slides.map((s) => s.poster) : [HERO_CONCERT_FALLBACK_IMAGE];
     return (
-      <div
-        className={`hero-clip-montage ${stills.length === 1 ? 'hero-clip-montage--single hero-clip-montage--static' : 'hero-clip-montage--static'}`}
-      >
-        {stills.map((src, index) => (
-          <div
-            key={`${src}-${index}`}
-            className={`hero-clip-montage__slide ${index === 0 ? 'is-active' : ''}`}
-          >
-            <img
-              src={src}
-              alt=""
-              className="hero-clip-montage__media"
-              width={1920}
-              height={720}
-              decoding="async"
-              fetchPriority={index === 0 ? 'high' : 'low'}
-            />
-          </div>
-        ))}
+      <div className="hero-clip-montage hero-clip-montage--static">
+        <div className="hero-clip-montage__slide is-active">
+          <img
+            src={stills[0]}
+            alt=""
+            className="hero-clip-montage__media"
+            width={1920}
+            height={720}
+            decoding="async"
+            fetchPriority="high"
+          />
+        </div>
       </div>
     );
   }
 
+  const loopSingle = !usingLibrary || slides.length === 1;
+
   return (
     <>
-      {(!videoReady || !libraryReady) && (
-        <img
-          src={posterSrc}
-          alt=""
-          className="hero-concert-photo__img"
-          width={1920}
-          height={720}
-          decoding="async"
-          fetchPriority="high"
-        />
-      )}
+      <img
+        src={displayedPoster}
+        alt=""
+        className="hero-concert-photo__img"
+        width={1920}
+        height={720}
+        decoding="async"
+        fetchPriority="high"
+      />
       <div className="hero-video-backdrop-wrap">
         <video
-          ref={videoRef}
-          key={videoSrc}
-          className={`hero-video-backdrop ${videoReady ? 'is-ready' : ''}`}
-          src={videoSrc}
-          poster={posterSrc}
+          ref={layerARef}
+          className={`hero-video-backdrop ${liveLayer === 0 ? 'is-live' : ''}`}
+          src={layerA.src}
+          poster={layerA.poster}
           muted
-          loop={!usingLibrary || slides.length === 1}
+          loop={loopSingle && liveLayer === 0}
           playsInline
-          autoPlay
+          autoPlay={playing && liveLayer === 0}
           preload="auto"
           disablePictureInPicture
           controls={false}
           controlsList="nodownload nofullscreen noremoteplayback"
           aria-hidden
-          onLoadedData={() => setVideoReady(true)}
-          onCanPlay={() => setVideoReady(true)}
+          onLoadedData={() => promoteLayer(0)}
+          onCanPlay={() => promoteLayer(0)}
           onEnded={advance}
-          onError={advance}
+          onError={failAdvance}
           onTimeUpdate={(e) => {
-            if (!usingLibrary || slides.length < 2) return;
-            if (e.currentTarget.currentTime >= 8) {
-              e.currentTarget.pause();
-              advance();
-            }
+            if (!usingLibrary || slides.length < 2 || liveLayer !== 0) return;
+            if (e.currentTarget.currentTime >= 8) advance();
+          }}
+        />
+        <video
+          ref={layerBRef}
+          className={`hero-video-backdrop ${liveLayer === 1 ? 'is-live' : ''}`}
+          src={layerB.src}
+          poster={layerB.poster}
+          muted
+          loop={loopSingle && liveLayer === 1}
+          playsInline
+          autoPlay={playing && liveLayer === 1}
+          preload="auto"
+          disablePictureInPicture
+          controls={false}
+          controlsList="nodownload nofullscreen noremoteplayback"
+          aria-hidden
+          onLoadedData={() => promoteLayer(1)}
+          onCanPlay={() => promoteLayer(1)}
+          onEnded={advance}
+          onError={failAdvance}
+          onTimeUpdate={(e) => {
+            if (!usingLibrary || slides.length < 2 || liveLayer !== 1) return;
+            if (e.currentTarget.currentTime >= 8) advance();
           }}
         />
       </div>

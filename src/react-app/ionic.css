@@ -204,8 +204,58 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
 }
 
 .app-header-wordmark {
+  display: inline-flex;
+  align-items: center;
+  overflow: visible;
+  line-height: 1;
   font-size: 1.565rem;
   margin-right: 1.35rem;
+}
+
+.app-header-wordmark span {
+  display: inline-block;
+  background-image: linear-gradient(
+    to right,
+    var(--momentum-ember),
+    var(--momentum-flare),
+    var(--momentum-ember)
+  );
+  background-size: 800% 100%;
+  background-position: calc(var(--wordmark-i, 0) * 100% / 7) 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  transform-origin: 50% 50%;
+  /* Spectrum wave: every letter loops at the current speed, staggered in phase. */
+  animation: app-header-wordmark-stretch 3.792s ease-in-out infinite;
+  animation-delay: calc(var(--wordmark-i, 0) * -0.474s);
+  animation-fill-mode: both;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@keyframes app-header-wordmark-stretch {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  25% {
+    transform: scaleY(1.58);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+  75% {
+    transform: scaleY(0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header-wordmark span {
+    animation: none;
+    transform: none;
+  }
 }
 
 .app-header-brand-rule {
@@ -311,10 +361,17 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
   --min-height: 4.719rem;
   --padding-start: 1.1rem;
   --padding-end: 1.1rem;
-  --padding-top: 0.374rem;
-  --padding-bottom: 0.44rem;
+  --padding-top: 0.43rem;
+  --padding-bottom: 0.506rem;
+  overflow: visible;
   backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur-chrome, 32px)) saturate(180%);
+}
+
+ion-header.app-top-header,
+ion-header.app-top-header ion-toolbar.app-toolbar::part(container),
+ion-header.app-top-header ion-toolbar.app-toolbar::part(content) {
+  overflow: visible;
 }
 
 @media (min-width: 640px) {
@@ -328,6 +385,13 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
   ion-header.app-top-header ion-toolbar.app-toolbar {
     --padding-start: 2.2rem;
     --padding-end: 2.2rem;
+  }
+}
+
+@media (max-width: 767px) {
+  ion-header.app-top-header ion-toolbar.app-toolbar {
+    --padding-bottom: 0.115rem;
+    --min-height: 3.35rem;
   }
 }
 
@@ -427,98 +491,11 @@ ion-searchbar.app-searchbar-hero {
   border-color: #ffffff;
 }
 
-.hero-search-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 3.2rem;
-  background: #ffffff;
-  border-top-right-radius: 0.7rem;
-  border-bottom-right-radius: 0.7rem;
-}
-
-.hero-search-spectrum {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 2px;
-  width: 1.15rem;
-  height: 1.05rem;
-}
-
-.hero-search-spectrum span {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  border-radius: 1px;
-  background: #000000;
-  transform-origin: center bottom;
-  animation: hero-search-spectrum-bar 0.9s ease-in-out infinite;
-}
-
-.hero-search-spectrum span:nth-child(1) {
-  animation-duration: 0.72s;
-  animation-delay: -0.35s;
-}
-
-.hero-search-spectrum span:nth-child(2) {
-  animation-duration: 1.05s;
-  animation-delay: -0.15s;
-}
-
-.hero-search-spectrum span:nth-child(3) {
-  animation-duration: 0.8s;
-  animation-delay: -0.55s;
-}
-
-.hero-search-spectrum span:nth-child(4) {
-  animation-duration: 0.95s;
-  animation-delay: -0.05s;
-}
-
-.hero-search-spectrum span:nth-child(5) {
-  animation-duration: 0.68s;
-  animation-delay: -0.42s;
-}
-
-@keyframes hero-search-spectrum-bar {
-  0%,
-  100% {
-    transform: scaleY(0.28);
-  }
-  50% {
-    transform: scaleY(1);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-search-spectrum span {
-    animation: none;
-  }
-
-  .hero-search-spectrum span:nth-child(1) {
-    transform: scaleY(0.4);
-  }
-  .hero-search-spectrum span:nth-child(2) {
-    transform: scaleY(0.72);
-  }
-  .hero-search-spectrum span:nth-child(3) {
-    transform: scaleY(1);
-  }
-  .hero-search-spectrum span:nth-child(4) {
-    transform: scaleY(0.55);
-  }
-  .hero-search-spectrum span:nth-child(5) {
-    transform: scaleY(0.82);
-  }
-}
-
 .hero-search-input {
   flex: 1;
   min-width: 0;
   margin: 0;
-  padding: 0 0.75rem;
+  padding: 0 0.75rem 0 1.05rem;
   border: 0;
   outline: none;
   background: transparent;
@@ -560,13 +537,9 @@ ion-searchbar.app-searchbar-hero {
   min-height: 2.4rem;
 }
 
-.app-header-search .hero-search-mark {
-  width: 2.65rem;
-}
-
 .app-header-search .hero-search-input {
   font-size: 0.875rem;
-  padding-inline: 0.65rem;
+  padding-inline: 1rem 0.65rem;
 }
 
 .app-header-search .hero-search-submit {

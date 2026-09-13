@@ -84,15 +84,6 @@ export default function HeroSearchBar({
       >
         <div ref={containerRef} className="relative z-10">
           <div className="hero-search-pill">
-            <span className="hero-search-mark" aria-hidden>
-              <span className="hero-search-spectrum">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-              </span>
-            </span>
             <input
               type="search"
               className="hero-search-input"
