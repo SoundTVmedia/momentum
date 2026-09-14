@@ -922,7 +922,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   .hero-carousel__fill {
     position: relative;
     overflow: hidden;
-    min-height: 13.5rem;
+    min-height: 12rem;
     background: #030712;
   }
 
