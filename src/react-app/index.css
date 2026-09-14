@@ -917,24 +917,24 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   /*
    * Keep the home hero short on mobile so “From The Scene” / personalized
    * feed content clears the fold beneath the sticky header + search bar.
-   * Heights are 10% above the prior 11.592 / 19.32 / 23.184rem set.
+   * Heights are 10% above the prior 12.751 / 21.252 / 25.502rem set.
    */
   .hero-carousel__fill {
     position: relative;
     overflow: hidden;
-    min-height: 12.751rem;
+    min-height: 14.026rem;
     background: #030712;
   }
 
   @media (min-width: 640px) {
     .hero-carousel__fill {
-      min-height: 21.252rem;
+      min-height: 23.377rem;
     }
   }
 
   @media (min-width: 1024px) {
     .hero-carousel__fill {
-      min-height: 25.502rem;
+      min-height: 28.052rem;
     }
   }
 
