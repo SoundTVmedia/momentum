@@ -25,6 +25,27 @@ export function jamBaseEventHeadliner(ev: JamBaseEventRecord): Record<string, un
   return typeof pick === 'object' && pick !== null ? (pick as Record<string, unknown>) : null;
 }
 
+export function jamBaseEventId(ev: JamBaseEventRecord): string {
+  const raw = ev.identifier;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (typeof raw === 'number' && Number.isFinite(raw)) return `jambase:${raw}`;
+  return '';
+}
+
+export function jamBaseEventArtistName(ev: JamBaseEventRecord): string {
+  const head = jamBaseEventHeadliner(ev);
+  if (typeof head?.name === 'string' && head.name.trim()) return head.name.trim();
+  if (Array.isArray(ev.performer)) {
+    for (const p of ev.performer) {
+      if (typeof p === 'object' && p !== null) {
+        const name = (p as Record<string, unknown>).name;
+        if (typeof name === 'string' && name.trim()) return name.trim();
+      }
+    }
+  }
+  return typeof ev.name === 'string' ? ev.name.trim() : '';
+}
+
 /** Event image URL from JamBase payload (event → venue → headliner), or null if none. */
 export function jamBaseEventImageUrl(ev: JamBaseEventRecord): string | null {
   const eventImg = typeof ev.image === 'string' ? ev.image.trim() : '';

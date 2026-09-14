@@ -1,8 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  HERO_CONCERT_FALLBACK_IMAGE,
-  HERO_VIDEO_SRC,
-} from '@/react-app/data/heroStockConcert';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import {
   resolveClipPosterUrl,
@@ -18,6 +14,8 @@ export type HeroClipSlide = {
   displayName: string;
   avatarUrl: string | null;
 };
+
+const EMPTY_LAYER = { src: '', poster: '' };
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
@@ -46,13 +44,14 @@ export function clipToHeroSlide(clip: ClipPlaybackFields & {
   if (clip.playback_unplayable) return null;
   const src = resolveFeedPreviewVideoSrc(clip);
   if (!src) return null;
-  const posterRaw = resolveClipPosterUrl(clip, HERO_CONCERT_FALLBACK_IMAGE);
+  const posterRaw = resolveClipPosterUrl(clip);
+  const poster = posterRaw ? displayMediaUrl(posterRaw) : '';
   const name = clip.user_display_name?.trim();
   const avatar = clip.user_avatar?.trim();
   return {
     id: typeof clip.id === 'number' ? clip.id : undefined,
     src,
-    poster: displayMediaUrl(posterRaw) || HERO_CONCERT_FALLBACK_IMAGE,
+    poster,
     mochaUserId: clip.mocha_user_id?.trim() || '',
     displayName: name || 'Fan',
     avatarUrl: avatar ? displayMediaUrl(avatar) || avatar : null,
@@ -65,9 +64,9 @@ type HeroConcertBackdropProps = {
 };
 
 /**
- * Library clips (or stock fallback) as a full-bleed backdrop.
- * Clips hard-cut back-to-back (no opacity fade): the next clip is preloaded
- * on the hidden layer, then swapped with visibility only.
+ * Library clips as a full-bleed backdrop. Never uses stock/placeholder media.
+ * Clips hard-cut back-to-back: the next clip is preloaded on the hidden layer,
+ * then swapped with visibility only.
  */
 export default function HeroConcertBackdrop({
   slides = [],
@@ -78,13 +77,13 @@ export default function HeroConcertBackdrop({
   const layerBRef = useRef<HTMLVideoElement>(null);
   const [active, setActive] = useState(0);
   const [liveLayer, setLiveLayer] = useState<0 | 1>(0);
-  const [layerA, setLayerA] = useState({ src: HERO_VIDEO_SRC, poster: HERO_CONCERT_FALLBACK_IMAGE });
-  const [layerB, setLayerB] = useState({ src: HERO_VIDEO_SRC, poster: HERO_CONCERT_FALLBACK_IMAGE });
+  const [layerA, setLayerA] = useState(EMPTY_LAYER);
+  const [layerB, setLayerB] = useState(EMPTY_LAYER);
   const advancingRef = useRef(false);
   const pendingSwap = useRef<0 | 1 | null>(null);
-  const pendingPoster = useRef(HERO_CONCERT_FALLBACK_IMAGE);
+  const pendingPoster = useRef('');
   const primedRef = useRef(false);
-  const [displayedPoster, setDisplayedPoster] = useState(HERO_CONCERT_FALLBACK_IMAGE);
+  const [displayedPoster, setDisplayedPoster] = useState('');
 
   const usingLibrary = slides.length > 0;
 
@@ -93,9 +92,11 @@ export default function HeroConcertBackdrop({
     primedRef.current = true;
     const first = slides[0];
     pendingPoster.current = first.poster;
-    pendingSwap.current = 1;
+    setDisplayedPoster(first.poster);
     setActive(0);
-    setLayerB({ src: first.src, poster: first.poster });
+    setLiveLayer(0);
+    setLayerA({ src: first.src, poster: first.poster });
+    if (slides[1]) setLayerB({ src: slides[1].src, poster: slides[1].poster });
   }, [usingLibrary, slides]);
 
   const liveSrc = liveLayer === 0 ? layerA.src : layerB.src;
@@ -122,7 +123,6 @@ export default function HeroConcertBackdrop({
     setLiveLayer(layer);
     setDisplayedPoster(pendingPoster.current);
 
-    // Preload the following clip on the hidden layer so the next hard-cut is instant.
     if (slides.length < 2) return;
     const promotedSrc = layer === 0 ? layerA.src : layerB.src;
     const promotedIndex = slides.findIndex((slide) => slide.src === promotedSrc);
@@ -132,7 +132,6 @@ export default function HeroConcertBackdrop({
     const hidden: 0 | 1 = layer === 0 ? 1 : 0;
     const nextSlide = slides[next];
     pendingPoster.current = nextSlide.poster;
-    // Don't mark pendingSwap yet — advance() will claim it when cutting.
     if (hidden === 0) setLayerA({ src: nextSlide.src, poster: nextSlide.poster });
     else setLayerB({ src: nextSlide.src, poster: nextSlide.poster });
   };
@@ -145,7 +144,6 @@ export default function HeroConcertBackdrop({
     const nextSlide = slides[next];
     const hiddenAlreadyNext = hidden === 0 ? layerA.src === nextSlide.src : layerB.src === nextSlide.src;
 
-    // Hard-cut immediately when the next clip is already buffered.
     if (hiddenAlreadyNext && hiddenVideo && hiddenVideo.readyState >= 2) {
       advancingRef.current = true;
       pendingPoster.current = nextSlide.poster;
@@ -175,13 +173,16 @@ export default function HeroConcertBackdrop({
     advance();
   };
 
+  if (!usingLibrary) return null;
+
   if (reducedMotion) {
-    const stills = usingLibrary ? slides.map((s) => s.poster) : [HERO_CONCERT_FALLBACK_IMAGE];
+    const poster = slides[0]?.poster;
+    if (!poster) return null;
     return (
       <div className="hero-clip-montage hero-clip-montage--static">
         <div className="hero-clip-montage__slide is-active">
           <img
-            src={stills[0]}
+            src={poster}
             alt=""
             className="hero-clip-montage__media"
             width={1920}
@@ -194,66 +195,72 @@ export default function HeroConcertBackdrop({
     );
   }
 
-  const loopSingle = !usingLibrary || slides.length === 1;
+  const loopSingle = slides.length === 1;
 
   return (
     <>
-      <img
-        src={displayedPoster}
-        alt=""
-        className="hero-concert-photo__img"
-        width={1920}
-        height={720}
-        decoding="async"
-        fetchPriority="high"
-      />
+      {displayedPoster ? (
+        <img
+          src={displayedPoster}
+          alt=""
+          className="hero-concert-photo__img"
+          width={1920}
+          height={720}
+          decoding="async"
+          fetchPriority="high"
+        />
+      ) : null}
       <div className="hero-video-backdrop-wrap">
-        <video
-          ref={layerARef}
-          className={`hero-video-backdrop ${liveLayer === 0 ? 'is-live' : ''}`}
-          src={layerA.src}
-          poster={layerA.poster}
-          muted
-          loop={loopSingle && liveLayer === 0}
-          playsInline
-          autoPlay={playing && liveLayer === 0}
-          preload="auto"
-          disablePictureInPicture
-          controls={false}
-          controlsList="nodownload nofullscreen noremoteplayback"
-          aria-hidden
-          onLoadedData={() => promoteLayer(0)}
-          onCanPlay={() => promoteLayer(0)}
-          onEnded={advance}
-          onError={failAdvance}
-          onTimeUpdate={(e) => {
-            if (!usingLibrary || slides.length < 2 || liveLayer !== 0) return;
-            if (e.currentTarget.currentTime >= 8) advance();
-          }}
-        />
-        <video
-          ref={layerBRef}
-          className={`hero-video-backdrop ${liveLayer === 1 ? 'is-live' : ''}`}
-          src={layerB.src}
-          poster={layerB.poster}
-          muted
-          loop={loopSingle && liveLayer === 1}
-          playsInline
-          autoPlay={playing && liveLayer === 1}
-          preload="auto"
-          disablePictureInPicture
-          controls={false}
-          controlsList="nodownload nofullscreen noremoteplayback"
-          aria-hidden
-          onLoadedData={() => promoteLayer(1)}
-          onCanPlay={() => promoteLayer(1)}
-          onEnded={advance}
-          onError={failAdvance}
-          onTimeUpdate={(e) => {
-            if (!usingLibrary || slides.length < 2 || liveLayer !== 1) return;
-            if (e.currentTarget.currentTime >= 8) advance();
-          }}
-        />
+        {layerA.src ? (
+          <video
+            ref={layerARef}
+            className={`hero-video-backdrop ${liveLayer === 0 ? 'is-live' : ''}`}
+            src={layerA.src}
+            poster={layerA.poster || undefined}
+            muted
+            loop={loopSingle && liveLayer === 0}
+            playsInline
+            autoPlay={playing && liveLayer === 0}
+            preload="auto"
+            disablePictureInPicture
+            controls={false}
+            controlsList="nodownload nofullscreen noremoteplayback"
+            aria-hidden
+            onLoadedData={() => promoteLayer(0)}
+            onCanPlay={() => promoteLayer(0)}
+            onEnded={advance}
+            onError={failAdvance}
+            onTimeUpdate={(e) => {
+              if (slides.length < 2 || liveLayer !== 0) return;
+              if (e.currentTarget.currentTime >= 8) advance();
+            }}
+          />
+        ) : null}
+        {layerB.src ? (
+          <video
+            ref={layerBRef}
+            className={`hero-video-backdrop ${liveLayer === 1 ? 'is-live' : ''}`}
+            src={layerB.src}
+            poster={layerB.poster || undefined}
+            muted
+            loop={loopSingle && liveLayer === 1}
+            playsInline
+            autoPlay={playing && liveLayer === 1}
+            preload="auto"
+            disablePictureInPicture
+            controls={false}
+            controlsList="nodownload nofullscreen noremoteplayback"
+            aria-hidden
+            onLoadedData={() => promoteLayer(1)}
+            onCanPlay={() => promoteLayer(1)}
+            onEnded={advance}
+            onError={failAdvance}
+            onTimeUpdate={(e) => {
+              if (slides.length < 2 || liveLayer !== 1) return;
+              if (e.currentTarget.currentTime >= 8) advance();
+            }}
+          />
+        ) : null}
       </div>
     </>
   );

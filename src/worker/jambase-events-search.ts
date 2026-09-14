@@ -1,14 +1,21 @@
 import {
   jamBaseFetch,
+  jamBaseEventDateFromDaysAgo,
   jamBaseEventDateFromToday,
   type JamBaseQuotaContext,
 } from './jambase-client';
+import { jamBaseEventUpcomingOrInProgress } from '../shared/jambase-event-day';
 import { isJamBaseFestivalEvent } from '../shared/jambase-festival';
 import {
   normalizedSlugFromRouteParam,
   searchPhraseFromSlug,
   slugifyEntityName,
 } from '../shared/jambase-slug';
+
+/** Recent archive window so first-page results are not decades-old tours. */
+const RECENT_PAST_LOOKBACK_DAYS = 120;
+/** Broader archive window for older shows (may return earlier dates first). */
+const ARCHIVE_LOOKBACK_DAYS = 730;
 
 function eventMatchesQuery(ev: Record<string, unknown>, qLower: string): boolean {
   const name = typeof ev.name === 'string' ? ev.name.toLowerCase() : '';
@@ -57,6 +64,7 @@ export async function fetchJamBaseEventsByEventName(
     perPage?: string;
     page?: string;
     eventDateFrom?: string;
+    eventDateTo?: string;
   },
 ): Promise<Record<string, unknown>[]> {
   const trimmed = name.trim();
@@ -67,6 +75,7 @@ export async function fetchJamBaseEventsByEventName(
     page: opts?.page ?? '1',
     eventDateFrom: opts?.eventDateFrom || jamBaseEventDateFromToday(),
   };
+  if (opts?.eventDateTo) params.eventDateTo = opts.eventDateTo;
   if (opts?.eventType) params.eventType = opts.eventType;
   const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
     apiKey,
@@ -91,6 +100,99 @@ export type JamBasePreloadedArtistVenueLists = {
   venueList: { venues?: Record<string, unknown>[] } | null;
 };
 
+function eventStartKey(ev: Record<string, unknown>): string {
+  return typeof ev.startDate === 'string' ? ev.startDate : '';
+}
+
+/** Upcoming first (soonest), then archived (most recent first). */
+export function sortJamBaseEventsUpcomingThenPast(
+  events: Record<string, unknown>[],
+  nowMs: number = Date.now(),
+): Record<string, unknown>[] {
+  const upcoming: Record<string, unknown>[] = [];
+  const past: Record<string, unknown>[] = [];
+  for (const ev of events) {
+    if (jamBaseEventUpcomingOrInProgress(ev, nowMs)) upcoming.push(ev);
+    else past.push(ev);
+  }
+  upcoming.sort((a, b) => eventStartKey(a).localeCompare(eventStartKey(b)));
+  past.sort((a, b) => eventStartKey(b).localeCompare(eventStartKey(a)));
+  return [...upcoming, ...past];
+}
+
+async function fetchJamBaseEventsByArtistOrVenueName(
+  apiKey: string,
+  phrase: string,
+  quota: JamBaseQuotaContext | undefined,
+  fromDate: string,
+  perPage: string,
+): Promise<Record<string, unknown>[]> {
+  const [byArtist, byVenue, byTitle] = await Promise.all([
+    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      apiKey,
+      '/events',
+      {
+        artistName: phrase,
+        eventDateFrom: fromDate,
+        perPage,
+        page: '1',
+      },
+      quota,
+    ),
+    jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+      apiKey,
+      '/events',
+      {
+        venueName: phrase,
+        eventDateFrom: fromDate,
+        perPage,
+        page: '1',
+      },
+      quota,
+    ),
+    fetchJamBaseEventsByEventName(apiKey, phrase, quota, {
+      perPage,
+      eventDateFrom: fromDate,
+    }),
+  ]);
+  return dedupeJamBaseEvents([
+    ...(byArtist?.events ?? []),
+    ...(byVenue?.events ?? []),
+    ...byTitle,
+  ]);
+}
+
+/**
+ * Past JamBase concerts for Find a Show. Uses a recent window (so first-page hits
+ * are last season, not a 10-year-old tour) plus a 2-year artist/title lookback.
+ */
+export async function buildPastJamBaseEventResults(
+  apiKey: string,
+  query: string,
+  maxResults = 18,
+  quota?: JamBaseQuotaContext,
+): Promise<Record<string, unknown>[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const qLower = q.toLowerCase();
+  const phrase = jamBaseArtistVenueSearchPhrase(q);
+  const recentFrom = jamBaseEventDateFromDaysAgo(RECENT_PAST_LOOKBACK_DAYS);
+  const archiveFrom = jamBaseEventDateFromDaysAgo(ARCHIVE_LOOKBACK_DAYS);
+  const perPage = String(Math.min(40, Math.max(maxResults, 16)));
+
+  const [recent, archive] = await Promise.all([
+    fetchJamBaseEventsByArtistOrVenueName(apiKey, phrase, quota, recentFrom, perPage),
+    fetchJamBaseEventsByArtistOrVenueName(apiKey, phrase, quota, archiveFrom, perPage),
+  ]);
+
+  const nowMs = Date.now();
+  let merged = dedupeJamBaseEvents([...recent, ...archive]).filter(
+    (ev) => eventMatchesQuery(ev, qLower) && !jamBaseEventUpcomingOrInProgress(ev, nowMs),
+  );
+  merged.sort((a, b) => eventStartKey(b).localeCompare(eventStartKey(a)));
+  return merged.slice(0, maxResults);
+}
+
 /**
  * Stricter event discovery: resolve top artist + venue matches, fetch their calendars,
  * dedupe, then keep events that match the query text (name, venue, or performer).
@@ -103,13 +205,14 @@ export async function buildTightJamBaseEventResults(
   query: string,
   maxResults = 18,
   quota?: JamBaseQuotaContext,
-  preloaded?: JamBasePreloadedArtistVenueLists | null
+  preloaded?: JamBasePreloadedArtistVenueLists | null,
+  eventDateFrom?: string,
 ): Promise<unknown[]> {
   const q = query.trim();
   if (q.length < 2) return [];
   const qLower = q.toLowerCase();
   const phrase = jamBaseArtistVenueSearchPhrase(q);
-  const fromDate = jamBaseEventDateFromToday();
+  const fromDate = eventDateFrom || jamBaseEventDateFromToday();
 
   let artistList: { artists?: Record<string, unknown>[] } | null;
   let venueList: { venues?: Record<string, unknown>[] } | null;

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import { useAuth } from '@getmocha/users-service/react';
 import HeroConcertBackdrop, {
   clipToHeroSlide,
   type HeroClipSlide,
 } from '@/react-app/components/HeroConcertBackdrop';
+import FindAShowModal from '@/react-app/components/FindAShowModal';
 import JamBaseWordmark from '@/react-app/components/JamBaseWordmark';
 import { JAMBASE_HOME_URL } from '@/react-app/components/PoweredByJamBase';
-import { HERO_CONCERT_FALLBACK_IMAGE } from '@/react-app/data/heroStockConcert';
 import ClipModal from '@/react-app/components/ClipModal';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
@@ -19,9 +20,11 @@ const SLIDE_MS = 6000;
 
 function slidesFromClips(clips: ClipWithUser[] | undefined, max = 8): HeroClipSlide[] {
   const next: HeroClipSlide[] = [];
+  const seen = new Set<string>();
   for (const clip of clips ?? []) {
     const slide = clipToHeroSlide(clip);
-    if (!slide) continue;
+    if (!slide || seen.has(slide.src)) continue;
+    seen.add(slide.src);
     next.push(slide);
     if (next.length >= max) break;
   }
@@ -92,7 +95,7 @@ function FeaturedClipSlide({
     }
   }, [playing, slide?.src]);
 
-  const poster = slide?.poster ?? HERO_CONCERT_FALLBACK_IMAGE;
+  const poster = slide?.poster ?? '';
   const name = slide?.displayName ?? clip?.user_display_name?.trim() ?? 'Fan';
   const canOpen = clip != null && slide != null;
   const profileHref = slide?.mochaUserId ? `/users/${slide.mochaUserId}` : undefined;
@@ -190,14 +193,16 @@ function FeaturedClipSlide({
 
   return (
     <div className="hero-carousel__fill min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem]">
-      <img
-        src={poster}
-        alt=""
-        className="hero-concert-photo__img"
-        width={1920}
-        height={720}
-        decoding="async"
-      />
+      {poster ? (
+        <img
+          src={poster}
+          alt=""
+          className="hero-concert-photo__img"
+          width={1920}
+          height={720}
+          decoding="async"
+        />
+      ) : null}
       {slide ? (
         <div className="hero-video-backdrop-wrap">
           <video
@@ -256,6 +261,7 @@ function FeaturedClipSlide({
 }
 
 export default function HeroSection() {
+  const { user } = useAuth();
   const reducedMotion = usePrefersReducedMotion();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -263,14 +269,16 @@ export default function HeroSection() {
   const [slidesB, setSlidesB] = useState<HeroClipSlide[]>([]);
   const [featured, setFeatured] = useState<ClipWithUser | null>(null);
   const [clipModal, setClipModal] = useState<ClipWithUser | null>(null);
+  const [findShowOpen, setFindShowOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const ignoreClickRef = useRef(false);
 
   const loadHeroClips = useCallback(async () => {
     try {
-      const [viewedRes, likedRes] = await Promise.all([
+      const [viewedRes, likedRes, latestRes] = await Promise.all([
         fetch('/api/clips?limit=10&sort_by=most_viewed', { credentials: 'include' }),
         fetch('/api/clips?limit=24&sort_by=most_liked', { credentials: 'include' }),
+        fetch('/api/clips?limit=16&sort_by=latest', { credentials: 'include' }),
       ]);
       const viewedData = viewedRes.ok
         ? ((await viewedRes.json()) as { clips?: ClipWithUser[] })
@@ -278,8 +286,15 @@ export default function HeroSection() {
       const likedData = likedRes.ok
         ? ((await likedRes.json()) as { clips?: ClipWithUser[] })
         : { clips: [] };
+      const latestData = latestRes.ok
+        ? ((await latestRes.json()) as { clips?: ClipWithUser[] })
+        : { clips: [] };
       const pool = slidesFromClips(
-        [...(viewedData.clips ?? []), ...(likedData.clips ?? [])],
+        [
+          ...(viewedData.clips ?? []),
+          ...(likedData.clips ?? []),
+          ...(latestData.clips ?? []),
+        ],
         16,
       );
       // Independent shuffles so slide 1 and 2 start on different clips each load.
@@ -288,10 +303,12 @@ export default function HeroSection() {
         setSlidesB(shuffleCopy(pool).slice(0, 5));
       }
       setFeatured(
-        pickRandomPlayable(likedData.clips) ?? pickRandomPlayable(viewedData.clips),
+        pickRandomPlayable(likedData.clips) ??
+          pickRandomPlayable(viewedData.clips) ??
+          pickRandomPlayable(latestData.clips),
       );
     } catch {
-      /* stock fallback in backdrop */
+      /* keep solid backdrop until clips load */
     }
   }, []);
 
@@ -302,12 +319,12 @@ export default function HeroSection() {
   useAppPullRefresh(loadHeroClips);
 
   useEffect(() => {
-    if (paused || reducedMotion || clipModal) return;
+    if (paused || reducedMotion || clipModal || findShowOpen) return;
     const timer = window.setTimeout(() => {
       setIndex((current) => (current + 1) % SLIDE_COUNT);
     }, SLIDE_MS);
     return () => window.clearTimeout(timer);
-  }, [index, paused, reducedMotion, clipModal]);
+  }, [index, paused, reducedMotion, clipModal, findShowOpen]);
 
   const goTo = (next: number) => {
     setIndex((next + SLIDE_COUNT) % SLIDE_COUNT);
@@ -369,15 +386,36 @@ export default function HeroSection() {
                 Where Live Music Lives
               </h1>
               <div className="mt-2 flex flex-wrap items-center justify-center gap-3 sm:mt-6">
-                <Link
-                  to="/auth"
-                  className="inline-flex items-center justify-center rounded-full px-6 py-2 text-sm font-semibold text-white momentum-grad-interactive shadow-lg shadow-momentum-ember/25 hover:scale-[1.03] transition-transform sm:px-8 sm:py-3 sm:text-base"
-                >
-                  Get Started
-                </Link>
+                {user ? (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    className="inline-flex items-center justify-center rounded-full px-6 py-2 text-sm font-semibold text-white momentum-grad-interactive shadow-lg shadow-momentum-ember/25 hover:scale-[1.03] transition-transform sm:px-8 sm:py-3 sm:text-base"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (consumeSwipeClick()) return;
+                      setFindShowOpen(true);
+                    }}
+                  >
+                    Find a Show
+                  </button>
+                ) : (
+                  <Link
+                    to="/auth"
+                    className="inline-flex items-center justify-center rounded-full px-6 py-2 text-sm font-semibold text-white momentum-grad-interactive shadow-lg shadow-momentum-ember/25 hover:scale-[1.03] transition-transform sm:px-8 sm:py-3 sm:text-base"
+                    onClick={(e) => {
+                      if (consumeSwipeClick()) e.preventDefault();
+                    }}
+                  >
+                    Get Started
+                  </Link>
+                )}
                 <Link
                   to="/how-it-works"
                   className="inline-flex items-center justify-center rounded-full border border-white/40 bg-white/10 px-6 py-2 text-sm font-semibold text-white backdrop-blur-sm hover:bg-white/20 transition-colors sm:px-8 sm:py-3 sm:text-base"
+                  onClick={(e) => {
+                    if (consumeSwipeClick()) e.preventDefault();
+                  }}
                 >
                   Take the Tour
                 </Link>
@@ -448,6 +486,7 @@ export default function HeroSection() {
       {clipModal ? (
         <ClipModal clip={clipModal} onClose={() => setClipModal(null)} />
       ) : null}
+      {findShowOpen ? <FindAShowModal onClose={() => setFindShowOpen(false)} /> : null}
     </section>
   );
 }

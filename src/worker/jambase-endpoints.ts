@@ -1,6 +1,7 @@
 import { Context } from 'hono';
 import {
   jamBaseFetch,
+  jamBaseEventDateFromDaysAgo,
   jamBaseEventDateFromToday,
   jamBaseApiKeyConfigured,
   jamBaseMissingKeyNotice,
@@ -12,9 +13,11 @@ import {
 import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
 import { cacheJsonProxy, noCache } from './performance-utils';
 import {
+  buildPastJamBaseEventResults,
   buildTightJamBaseEventResults,
   dedupeJamBaseEvents,
   fetchJamBaseEventsByEventName,
+  sortJamBaseEventsUpcomingThenPast,
 } from './jambase-events-search';
 import {
   normalizedSlugFromRouteParam,
@@ -441,6 +444,7 @@ export async function getVenueById(c: Context) {
 export async function searchEvents(c: Context) {
   const q = (c.req.query('q') || '').trim();
   const max = Math.min(parseInt(c.req.query('perPage') || c.req.query('limit') || '20', 10) || 20, 40);
+  const includePast = c.req.query('includePast') === '1';
 
   if (q.length < 2) {
     cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
@@ -456,7 +460,9 @@ export async function searchEvents(c: Context) {
 
     const jbQ = jamBaseQuotaFromEnv(c.env);
     if (c.req.query('loose') === '1') {
-      const fromDate = c.req.query('eventDateFrom') || jamBaseEventDateFromToday();
+      const fromDate =
+        c.req.query('eventDateFrom') ||
+        (includePast ? jamBaseEventDateFromDaysAgo(730) : jamBaseEventDateFromToday());
       const [byArtist, byTitle] = await Promise.all([
         jamBaseFetch<{ events?: unknown[] }>(
           key,
@@ -475,21 +481,31 @@ export async function searchEvents(c: Context) {
           eventDateFrom: fromDate,
         }),
       ]);
+      const looseEvents = dedupeJamBaseEvents([
+        ...((byArtist?.events ?? []).filter(
+          (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
+        )),
+        ...byTitle,
+      ]);
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({
         events: rewriteEventList(
-          dedupeJamBaseEvents([
-            ...((byArtist?.events ?? []).filter(
-              (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
-            )),
-            ...byTitle,
-          ]),
+          includePast ? sortJamBaseEventsUpcomingThenPast(looseEvents) : looseEvents,
           clientMediaOrigin(c),
         ),
       });
     }
 
-    const events = await buildTightJamBaseEventResults(key, q, max, jbQ);
+    const [upcomingRaw, past] = await Promise.all([
+      buildTightJamBaseEventResults(key, q, max, jbQ),
+      includePast ? buildPastJamBaseEventResults(key, q, max, jbQ) : Promise.resolve([]),
+    ]);
+    const upcoming = upcomingRaw.filter(
+      (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
+    );
+    const events = includePast
+      ? sortJamBaseEventsUpcomingThenPast(dedupeJamBaseEvents([...upcoming, ...past]))
+      : upcoming;
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({ events: rewriteEventList(events, clientMediaOrigin(c)) });
   } catch (error) {

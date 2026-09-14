@@ -382,6 +382,14 @@ export function jamBaseEventDateFromToday(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+/** UTC `YYYY-MM-DD` this many days before now (artist/venue event lists, not geo). */
+export function jamBaseEventDateFromDaysAgo(days: number, nowMs: number = Date.now()): string {
+  const safeDays = Number.isFinite(days) && days > 0 ? Math.trunc(days) : 0;
+  const d = new Date(nowMs);
+  d.setUTCDate(d.getUTCDate() - safeDays);
+  return d.toISOString().split('T')[0];
+}
+
 export function jamBaseApiKeyConfigured(apiKey: string | undefined): boolean {
   return normalizeJamBaseApiKey(apiKey).length > 0;
 }
