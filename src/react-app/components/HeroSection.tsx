@@ -5,6 +5,7 @@ import HeroConcertBackdrop, {
   type HeroClipSlide,
 } from '@/react-app/components/HeroConcertBackdrop';
 import JamBaseWordmark from '@/react-app/components/JamBaseWordmark';
+import NetflixWordmark from '@/react-app/components/NetflixWordmark';
 import { JAMBASE_HOME_URL } from '@/react-app/components/PoweredByJamBase';
 import { HERO_CONCERT_FALLBACK_IMAGE } from '@/react-app/data/heroStockConcert';
 import ClipModal from '@/react-app/components/ClipModal';
@@ -215,7 +216,16 @@ function FeaturedClipSlide({
         />
       ) : null}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 via-black/25 to-transparent pb-8 pt-16 sm:pb-11">
-        <div className="pointer-events-auto flex max-w-[min(22rem,calc(100%-5.5rem))] flex-col items-start gap-1 px-4 text-left sm:px-6">
+        <div className="pointer-events-auto flex max-w-[min(22rem,calc(100%-5.5rem))] flex-col items-start gap-1.5 px-4 text-left sm:px-6">
+          <p className="font-headline hero-headline-grad text-left text-xl leading-tight tracking-tight sm:text-2xl md:text-3xl">
+            Featured Clip
+          </p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/75 sm:text-[0.7rem]">
+              Sponsored by
+            </span>
+            <NetflixWordmark className="h-3 w-auto text-white sm:h-3.5" />
+          </div>
           {userRow}
           {showRow}
           {artistRow}
