@@ -141,7 +141,7 @@ function FeaturedClipSlide({
           onClick={onPlay}
         />
       ) : null}
-      <div className="pointer-events-none relative z-20 flex min-h-[20rem] flex-col items-center justify-center px-4 py-10 sm:min-h-[24rem] sm:px-6 lg:min-h-[26rem]">
+      <div className="pointer-events-none relative z-20 flex min-h-[13.5rem] flex-col items-center justify-center px-4 py-6 sm:min-h-[20rem] sm:px-6 sm:py-10 lg:min-h-[24rem]">
         <p className="font-headline hero-headline-grad text-center text-3xl sm:text-4xl md:text-5xl leading-tight tracking-tight">
           Featured Clip
         </p>
@@ -149,7 +149,7 @@ function FeaturedClipSlide({
           <Link
             to={profileHref}
             onClick={onNavClick}
-            className="pointer-events-auto mt-5 flex items-center justify-center gap-3 rounded-full px-2 py-1 hover:opacity-90"
+            className="pointer-events-auto mt-3 flex items-center justify-center gap-3 rounded-full px-2 py-1 hover:opacity-90 sm:mt-5"
           >
             <UserAvatar
               imageUrl={slide.avatarUrl}
@@ -164,7 +164,7 @@ function FeaturedClipSlide({
             </span>
           </Link>
         ) : slide ? (
-          <div className="mt-5 flex items-center justify-center gap-3">
+          <div className="mt-3 flex items-center justify-center gap-3 sm:mt-5">
             <UserAvatar
               imageUrl={slide.avatarUrl}
               displayName={name}
@@ -184,7 +184,7 @@ function FeaturedClipSlide({
           <Link
             to={showHref}
             onClick={onNavClick}
-            className="absolute bottom-10 left-4 z-20 max-w-[min(22rem,calc(100%-5.5rem))] text-left drop-shadow-lg sm:bottom-11 sm:left-6"
+            className="absolute bottom-8 left-4 z-20 max-w-[min(22rem,calc(100%-5.5rem))] text-left drop-shadow-lg sm:bottom-11 sm:left-6"
             aria-label={`Open show page for ${eventTitle || artistName}`}
           >
             {eventTitle ? (
@@ -197,7 +197,7 @@ function FeaturedClipSlide({
             ) : null}
           </Link>
         ) : (
-          <div className="absolute bottom-10 left-4 z-20 max-w-[min(22rem,calc(100%-5.5rem))] text-left drop-shadow-lg sm:bottom-11 sm:left-6">
+          <div className="absolute bottom-8 left-4 z-20 max-w-[min(22rem,calc(100%-5.5rem))] text-left drop-shadow-lg sm:bottom-11 sm:left-6">
             {eventTitle ? (
               <p className="text-sm font-bold leading-snug text-white line-clamp-2 sm:text-base">
                 {eventTitle}
@@ -311,11 +311,11 @@ export default function HeroSection() {
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
             <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-            <div className="relative z-10 flex min-h-[20rem] flex-col items-center justify-center px-4 py-10 sm:min-h-[24rem] sm:px-6 lg:min-h-[26rem] lg:px-8">
+            <div className="relative z-10 flex min-h-[13.5rem] flex-col items-center justify-center px-4 py-6 sm:min-h-[20rem] sm:px-6 sm:py-10 lg:min-h-[24rem] lg:px-8">
               <h1 className="font-headline hero-headline-grad text-center text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
                 Where Live Music Lives
               </h1>
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3 sm:mt-6">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 sm:mt-6">
                 <Link
                   to="/auth"
                   className="inline-flex items-center justify-center rounded-full px-7 py-2.5 text-sm font-semibold text-white momentum-grad-interactive shadow-lg shadow-momentum-ember/25 hover:scale-[1.03] transition-transform sm:px-8 sm:py-3 sm:text-base"
@@ -343,12 +343,12 @@ export default function HeroSection() {
             </div>
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
             <div className="absolute inset-0 hero-jambase-wash" aria-hidden />
-            <div className="relative z-10 flex min-h-[20rem] flex-col items-center justify-center px-4 py-10 text-center sm:min-h-[24rem] sm:px-6 lg:min-h-[26rem]">
+            <div className="relative z-10 flex min-h-[13.5rem] flex-col items-center justify-center px-4 py-6 text-center sm:min-h-[20rem] sm:px-6 sm:py-10 lg:min-h-[24rem]">
               <p className="font-headline hero-headline-grad w-full min-w-0 max-w-4xl px-1 text-center text-[1.35rem] leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-[2.75rem]">
                 Go See Live Music,
                 <span className="block">and Use Feedback to Capture it All</span>
               </p>
-              <div className="mt-5 flex flex-col items-center sm:mt-6">
+              <div className="mt-4 flex flex-col items-center sm:mt-6">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/80 sm:text-[0.7rem]">
                   Proudly Powered By
                 </p>
