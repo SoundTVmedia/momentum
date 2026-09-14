@@ -66,8 +66,8 @@ type HeroConcertBackdropProps = {
 
 /**
  * Library clips (or stock fallback) as a full-bleed backdrop.
- * The outgoing clip stays on top until the next one can play, so the
- * background never drops to black between clips.
+ * Clips hard-cut back-to-back (no opacity fade): the next clip is preloaded
+ * on the hidden layer, then swapped with visibility only.
  */
 export default function HeroConcertBackdrop({
   slides = [],
@@ -121,14 +121,47 @@ export default function HeroConcertBackdrop({
     advancingRef.current = false;
     setLiveLayer(layer);
     setDisplayedPoster(pendingPoster.current);
+
+    // Preload the following clip on the hidden layer so the next hard-cut is instant.
+    if (slides.length < 2) return;
+    const promotedSrc = layer === 0 ? layerA.src : layerB.src;
+    const promotedIndex = slides.findIndex((slide) => slide.src === promotedSrc);
+    const index = promotedIndex >= 0 ? promotedIndex : active;
+    if (promotedIndex >= 0 && promotedIndex !== active) setActive(promotedIndex);
+    const next = (index + 1) % slides.length;
+    const hidden: 0 | 1 = layer === 0 ? 1 : 0;
+    const nextSlide = slides[next];
+    pendingPoster.current = nextSlide.poster;
+    // Don't mark pendingSwap yet — advance() will claim it when cutting.
+    if (hidden === 0) setLayerA({ src: nextSlide.src, poster: nextSlide.poster });
+    else setLayerB({ src: nextSlide.src, poster: nextSlide.poster });
   };
 
   const advance = () => {
     if (slides.length < 2 || advancingRef.current || !playing) return;
-    advancingRef.current = true;
-    const next = (active + 1) % slides.length;
     const hidden: 0 | 1 = liveLayer === 0 ? 1 : 0;
+    const hiddenVideo = hidden === 0 ? layerARef.current : layerBRef.current;
+    const next = (active + 1) % slides.length;
     const nextSlide = slides[next];
+    const hiddenAlreadyNext = hidden === 0 ? layerA.src === nextSlide.src : layerB.src === nextSlide.src;
+
+    // Hard-cut immediately when the next clip is already buffered.
+    if (hiddenAlreadyNext && hiddenVideo && hiddenVideo.readyState >= 2) {
+      advancingRef.current = true;
+      pendingPoster.current = nextSlide.poster;
+      pendingSwap.current = hidden;
+      setActive(next);
+      promoteLayer(hidden);
+      try {
+        hiddenVideo.currentTime = 0;
+      } catch {
+        /* ignore seek errors on some streams */
+      }
+      void hiddenVideo.play().catch(() => {});
+      return;
+    }
+
+    advancingRef.current = true;
     pendingPoster.current = nextSlide.poster;
     pendingSwap.current = hidden;
     setActive(next);

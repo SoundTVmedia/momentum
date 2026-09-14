@@ -10,7 +10,7 @@ import { HERO_CONCERT_FALLBACK_IMAGE } from '@/react-app/data/heroStockConcert';
 import ClipModal from '@/react-app/components/ClipModal';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import type { ClipWithUser } from '@/shared/types';
-import { clipShowClipsPath } from '@/shared/app-paths';
+import { artistPath, clipShowClipsPath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
 
 const SLIDE_COUNT = 3;
@@ -31,14 +31,12 @@ function playableClips(clips: ClipWithUser[] | undefined): ClipWithUser[] {
   return (clips ?? []).filter((clip) => clipToHeroSlide(clip));
 }
 
-function pickMostLikedRecent(clips: ClipWithUser[] | undefined): ClipWithUser | null {
+/** Different featured clip on each cold load. */
+function pickRandomPlayable(clips: ClipWithUser[] | undefined): ClipWithUser | null {
   const playable = playableClips(clips);
   if (playable.length === 0) return null;
-  return [...playable].sort((a, b) => {
-    const likes = (b.likes_count ?? 0) - (a.likes_count ?? 0);
-    if (likes !== 0) return likes;
-    return Date.parse(b.created_at) - Date.parse(a.created_at);
-  })[0];
+  const index = Math.floor(Math.random() * playable.length);
+  return playable[index] ?? null;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -90,6 +88,8 @@ function FeaturedClipSlide({
   const artistName = clip?.artist_name?.trim() || null;
   const showHref = clip ? clipShowClipsPath(clip) : '';
   const canLinkShow = Boolean(showHref && showHref !== '/');
+  const artistHref = artistName ? artistPath(artistName) : '';
+  const canLinkArtist = Boolean(artistHref && artistHref !== '/artists');
 
   const onPlay = () => {
     if (consumeSwipeClick()) return;
@@ -100,11 +100,84 @@ function FeaturedClipSlide({
     if (consumeSwipeClick()) {
       e.preventDefault();
       e.stopPropagation();
+      return;
     }
+    e.stopPropagation();
   };
 
+  const userRow = slide ? (
+    profileHref ? (
+      <Link
+        to={profileHref}
+        onClick={onNavClick}
+        className="flex max-w-full items-center gap-2.5 rounded-full py-0.5 hover:opacity-90"
+        aria-label={`Open profile for ${name}`}
+      >
+        <UserAvatar
+          imageUrl={slide.avatarUrl}
+          displayName={name}
+          seed={slide.mochaUserId}
+          alt={name}
+          sizeClass="h-9 w-9 sm:h-10 sm:w-10"
+          letterClassName="text-sm font-semibold"
+        />
+        <span className="min-w-0 truncate text-sm font-semibold text-white drop-shadow sm:text-base">
+          {name}
+        </span>
+      </Link>
+    ) : (
+      <div className="flex max-w-full items-center gap-2.5">
+        <UserAvatar
+          imageUrl={slide.avatarUrl}
+          displayName={name}
+          seed={slide.mochaUserId}
+          alt={name}
+          sizeClass="h-9 w-9 sm:h-10 sm:w-10"
+          letterClassName="text-sm font-semibold"
+        />
+        <span className="min-w-0 truncate text-sm font-semibold text-white drop-shadow sm:text-base">
+          {name}
+        </span>
+      </div>
+    )
+  ) : null;
+
+  const showRow = eventTitle ? (
+    canLinkShow ? (
+      <Link
+        to={showHref}
+        onClick={onNavClick}
+        className="block max-w-full truncate whitespace-nowrap text-sm font-bold text-white drop-shadow hover:opacity-90 sm:text-base"
+        aria-label={`Open show page for ${eventTitle}`}
+      >
+        {eventTitle}
+      </Link>
+    ) : (
+      <p className="max-w-full truncate whitespace-nowrap text-sm font-bold text-white drop-shadow sm:text-base">
+        {eventTitle}
+      </p>
+    )
+  ) : null;
+
+  const artistRow = artistName ? (
+    canLinkArtist ? (
+      <Link
+        to={artistHref}
+        onClick={onNavClick}
+        className="block max-w-full truncate text-xs font-semibold text-white/90 drop-shadow hover:opacity-90 sm:text-sm"
+        aria-label={`Open artist page for ${artistName}`}
+      >
+        {artistName}
+      </Link>
+    ) : (
+      <p className="max-w-full truncate text-xs font-semibold text-white/90 drop-shadow sm:text-sm">
+        {artistName}
+      </p>
+    )
+  ) : null;
+
   return (
-    <div className="hero-carousel__fill">
+    <div className="hero-carousel__fill min-h-[11.592rem] sm:min-h-[19.32rem] lg:min-h-[23.184rem]">
       <img
         src={poster}
         alt=""
@@ -141,74 +214,13 @@ function FeaturedClipSlide({
           onClick={onPlay}
         />
       ) : null}
-      <div className="pointer-events-none relative z-20 flex min-h-[10.08rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[16.8rem] sm:px-6 sm:py-8 lg:min-h-[20.16rem]">
-        <p className="font-headline hero-headline-grad text-center text-2xl sm:text-4xl md:text-5xl leading-tight tracking-tight">
-          Featured Clip
-        </p>
-        {slide && profileHref ? (
-          <Link
-            to={profileHref}
-            onClick={onNavClick}
-            className="pointer-events-auto mt-2 flex items-center justify-center gap-3 rounded-full px-2 py-1 hover:opacity-90 sm:mt-5"
-          >
-            <UserAvatar
-              imageUrl={slide.avatarUrl}
-              displayName={name}
-              seed={slide.mochaUserId}
-              alt={name}
-              sizeClass="h-10 w-10 sm:h-11 sm:w-11"
-              letterClassName="text-sm font-semibold"
-            />
-            <span className="max-w-[16rem] truncate text-sm font-semibold text-white drop-shadow sm:text-base">
-              {name}
-            </span>
-          </Link>
-        ) : slide ? (
-          <div className="mt-2 flex items-center justify-center gap-3 sm:mt-5">
-            <UserAvatar
-              imageUrl={slide.avatarUrl}
-              displayName={name}
-              seed={slide.mochaUserId}
-              alt={name}
-              sizeClass="h-10 w-10 sm:h-11 sm:w-11"
-              letterClassName="text-sm font-semibold"
-            />
-            <span className="max-w-[16rem] truncate text-sm font-semibold text-white drop-shadow sm:text-base">
-              {name}
-            </span>
-          </div>
-        ) : null}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 via-black/25 to-transparent pb-8 pt-16 sm:pb-11">
+        <div className="pointer-events-auto flex max-w-[min(22rem,calc(100%-5.5rem))] flex-col items-start gap-1 px-4 text-left sm:px-6">
+          {userRow}
+          {showRow}
+          {artistRow}
+        </div>
       </div>
-      {eventTitle || artistName ? (
-        canLinkShow ? (
-          <Link
-            to={showHref}
-            onClick={onNavClick}
-            className="absolute bottom-6 left-4 z-20 max-w-[min(22rem,calc(100%-5.5rem))] text-left drop-shadow-lg sm:bottom-11 sm:left-6"
-            aria-label={`Open show page for ${eventTitle || artistName}`}
-          >
-            {eventTitle ? (
-              <p className="text-sm font-bold leading-snug text-white line-clamp-2 sm:text-base">
-                {eventTitle}
-              </p>
-            ) : null}
-            {artistName ? (
-              <p className="mt-0.5 text-xs font-semibold text-white/90 sm:text-sm">{artistName}</p>
-            ) : null}
-          </Link>
-        ) : (
-          <div className="absolute bottom-6 left-4 z-20 max-w-[min(22rem,calc(100%-5.5rem))] text-left drop-shadow-lg sm:bottom-11 sm:left-6">
-            {eventTitle ? (
-              <p className="text-sm font-bold leading-snug text-white line-clamp-2 sm:text-base">
-                {eventTitle}
-              </p>
-            ) : null}
-            {artistName ? (
-              <p className="mt-0.5 text-xs font-semibold text-white/90 sm:text-sm">{artistName}</p>
-            ) : null}
-          </div>
-        )
-      ) : null}
     </div>
   );
 }
@@ -241,7 +253,7 @@ export default function HeroSection() {
         const viewedSlides = slidesFromClips(viewedData.clips, 10);
         if (viewedSlides.length > 0) setSlides(viewedSlides);
         setFeatured(
-          pickMostLikedRecent(likedData.clips) ?? pickMostLikedRecent(viewedData.clips),
+          pickRandomPlayable(likedData.clips) ?? pickRandomPlayable(viewedData.clips),
         );
       } catch {
         /* stock fallback in backdrop */
@@ -311,7 +323,7 @@ export default function HeroSection() {
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
             <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-            <div className="relative z-10 flex min-h-[10.08rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[16.8rem] sm:px-6 sm:py-8 lg:min-h-[20.16rem] lg:px-8">
+            <div className="relative z-10 flex min-h-[11.592rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[19.32rem] sm:px-6 sm:py-8 lg:min-h-[23.184rem] lg:px-8">
               <h1 className="font-headline hero-headline-grad text-center text-2xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
                 Where Live Music Lives
               </h1>
@@ -343,7 +355,7 @@ export default function HeroSection() {
             </div>
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
             <div className="absolute inset-0 hero-jambase-wash" aria-hidden />
-            <div className="relative z-10 flex min-h-[10.08rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[16.8rem] sm:px-6 sm:py-8 lg:min-h-[20.16rem]">
+            <div className="relative z-10 flex min-h-[11.592rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[19.32rem] sm:px-6 sm:py-8 lg:min-h-[23.184rem]">
               <p className="font-headline hero-headline-grad w-full min-w-0 max-w-4xl px-1 text-center text-[1.15rem] leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-[2.75rem]">
                 Go See Live Music,
                 <span className="block">and Use Feedback to Capture it All</span>

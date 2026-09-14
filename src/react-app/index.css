@@ -854,8 +854,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     position: absolute;
     inset: 0;
     opacity: 0;
-    transition: opacity 1.35s ease-in-out;
-    will-change: opacity;
+    transition: none;
   }
 
   .hero-clip-montage__slide.is-active {
@@ -868,7 +867,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 
   .hero-clip-montage--static .hero-clip-montage__slide {
-    transition: opacity 2.2s ease-in-out;
+    transition: none;
   }
 
   .hero-clip-montage__media {
@@ -918,24 +917,24 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   /*
    * Keep the home hero short on mobile so “From The Scene” / personalized
    * feed content clears the fold beneath the sticky header + search bar.
-   * Heights are 20% above the prior 8.4 / 14 / 16.8rem set.
+   * Heights are 15% above the prior 10.08 / 16.8 / 20.16rem set.
    */
   .hero-carousel__fill {
     position: relative;
     overflow: hidden;
-    min-height: 10.08rem;
+    min-height: 11.592rem;
     background: #030712;
   }
 
   @media (min-width: 640px) {
     .hero-carousel__fill {
-      min-height: 16.8rem;
+      min-height: 19.32rem;
     }
   }
 
   @media (min-width: 1024px) {
     .hero-carousel__fill {
-      min-height: 20.16rem;
+      min-height: 23.184rem;
     }
   }
 
@@ -955,15 +954,18 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     pointer-events: none;
     z-index: 0;
     filter: saturate(1.45) contrast(1.14) brightness(1.06);
+    transition: none;
   }
 
   .hero-video-backdrop.is-live {
     z-index: 1;
     visibility: visible;
+    opacity: 1;
   }
 
   .hero-video-backdrop:not(.is-live) {
     visibility: hidden;
+    opacity: 1;
   }
 
   /* Wide viewports: portrait source must scale by width to avoid side gaps */
