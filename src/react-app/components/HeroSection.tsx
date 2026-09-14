@@ -31,14 +31,12 @@ function playableClips(clips: ClipWithUser[] | undefined): ClipWithUser[] {
   return (clips ?? []).filter((clip) => clipToHeroSlide(clip));
 }
 
-function pickMostLikedRecent(clips: ClipWithUser[] | undefined): ClipWithUser | null {
+/** Different featured clip on each cold load. */
+function pickRandomPlayable(clips: ClipWithUser[] | undefined): ClipWithUser | null {
   const playable = playableClips(clips);
   if (playable.length === 0) return null;
-  return [...playable].sort((a, b) => {
-    const likes = (b.likes_count ?? 0) - (a.likes_count ?? 0);
-    if (likes !== 0) return likes;
-    return Date.parse(b.created_at) - Date.parse(a.created_at);
-  })[0];
+  const index = Math.floor(Math.random() * playable.length);
+  return playable[index] ?? null;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -255,7 +253,7 @@ export default function HeroSection() {
         const viewedSlides = slidesFromClips(viewedData.clips, 10);
         if (viewedSlides.length > 0) setSlides(viewedSlides);
         setFeatured(
-          pickMostLikedRecent(likedData.clips) ?? pickMostLikedRecent(viewedData.clips),
+          pickRandomPlayable(likedData.clips) ?? pickRandomPlayable(viewedData.clips),
         );
       } catch {
         /* stock fallback in backdrop */
