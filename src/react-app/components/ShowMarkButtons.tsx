@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Upload } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
+import { useNavigate } from 'react-router';
 import {
   availableShowMarkActionsForEvent,
+  isAttendedShowMarkActive,
   jamBaseEventToShowMarkInput,
   isShowMarkActionActive,
   showMarkActionLabel,
@@ -10,6 +12,7 @@ import {
   type ShowMarkAction,
   type ShowMarkStatus,
 } from '@/shared/show-marks';
+import { archivalUploadNavState } from '@/react-app/lib/archival-upload';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 
 type ShowMarkButtonsProps = {
@@ -20,6 +23,8 @@ type ShowMarkButtonsProps = {
   statusOverride?: ShowMarkStatus;
   /** Hero CTAs (festival/show pages) match Get Tickets sizing. */
   size?: 'card' | 'hero';
+  /** Show pages: after I went, offer archival clip upload for this show. */
+  showUploadClip?: boolean;
 };
 
 function signInPrompt(action: ShowMarkAction): string {
@@ -34,7 +39,9 @@ export default function ShowMarkButtons({
   compact = false,
   statusOverride,
   size = 'card',
+  showUploadClip = false,
 }: ShowMarkButtonsProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { getMarkForEvent, toggleMark, hydrated } = useShowMarks();
   const [pending, setPending] = useState<ShowMarkAction | null>(null);
@@ -42,8 +49,10 @@ export default function ShowMarkButtons({
   const eventId = typeof event.identifier === 'string' ? event.identifier : null;
   const actions = availableShowMarkActionsForEvent(event, new Date(), statusOverride);
   const current = eventId ? getMarkForEvent(eventId) : null;
+  const attendedActive = isAttendedShowMarkActive(current);
+  const offerUpload = Boolean(showUploadClip && user && attendedActive && current);
 
-  if (!eventId || actions.length === 0) return null;
+  if (!eventId || (actions.length === 0 && !offerUpload)) return null;
 
   const handleAction = async (action: ShowMarkAction) => {
     if (!user) {
@@ -65,7 +74,7 @@ export default function ShowMarkButtons({
     : size === 'hero'
       ? 'px-4 py-2.5 text-sm font-semibold'
       : 'px-2.5 py-1.5';
-  const stretch = !compact && actions.length === 1;
+  const stretch = !compact && actions.length === 1 && !offerUpload;
 
   return (
     <div
@@ -107,6 +116,23 @@ export default function ShowMarkButtons({
           </button>
         );
       })}
+      {offerUpload && current ? (
+        <button
+          type="button"
+          onClick={() =>
+            navigate('/upload?archive=true', { state: archivalUploadNavState(current) })
+          }
+          className={[
+            'inline-flex items-center justify-center gap-1 rounded-lg font-semibold text-white momentum-grad-interactive',
+            compact || size !== 'hero' ? 'text-xs' : '',
+            pad,
+            stretch ? 'w-full' : 'flex-1 min-w-0',
+          ].join(' ')}
+        >
+          <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          <span>Upload clip</span>
+        </button>
+      ) : null}
     </div>
   );
 }

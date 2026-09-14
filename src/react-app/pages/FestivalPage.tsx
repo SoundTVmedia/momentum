@@ -125,7 +125,7 @@ export default function FestivalPage() {
               ) : null}
               <div className="flex flex-col gap-3 max-w-xl">
                 {markEvent ? (
-                  <ShowMarkButtons event={markEvent} size="hero" className="w-full" />
+                  <ShowMarkButtons event={markEvent} showUploadClip size="hero" className="w-full" />
                 ) : null}
                 <div className="flex flex-col sm:flex-row sm:items-stretch gap-3">
                 {festival.ticket_url ? (

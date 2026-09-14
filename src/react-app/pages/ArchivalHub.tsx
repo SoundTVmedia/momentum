@@ -3,6 +3,7 @@ import { Archive, Calendar, FileVideo, Loader2, MapPin, PenLine, Sparkles } from
 import { Link, useNavigate } from 'react-router';
 import Header from '@/react-app/components/Header';
 import SectionHeading from '@/react-app/components/SectionHeading';
+import { archivalUploadNavState } from '@/react-app/lib/archival-upload';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import type { UserShowMark } from '@/shared/show-marks';
 
@@ -28,24 +29,7 @@ export default function ArchivalHubPage() {
   const { attendedMarks, loading, hydrated } = useShowMarks();
 
   const startUpload = (mark?: UserShowMark) => {
-    navigate('/upload?archive=true', {
-      state: {
-        fromPhotoLibrary: true,
-        ...(mark
-          ? {
-              showData: {
-                jambase_event_id: mark.jambase_event_id,
-                jambase_venue_id: mark.jambase_venue_id ?? undefined,
-                jambase_artist_id: mark.jambase_artist_id ?? undefined,
-                event_title: mark.event_title ?? undefined,
-                artist_name: mark.artist_name ?? undefined,
-                venue_name: mark.venue_name ?? undefined,
-                location: mark.venue_location ?? undefined,
-              },
-            }
-          : {}),
-      },
-    });
+    navigate('/upload?archive=true', { state: archivalUploadNavState(mark) });
   };
 
   return (

@@ -135,7 +135,7 @@ export default function EventClipsPage() {
                 {clips.length} moment{clips.length !== 1 ? 's' : ''}
               </span>
               {markEvent ? (
-                <ShowMarkButtons event={markEvent} className="shrink-0" />
+                <ShowMarkButtons event={markEvent} showUploadClip className="shrink-0" />
               ) : null}
             </div>
             <select
