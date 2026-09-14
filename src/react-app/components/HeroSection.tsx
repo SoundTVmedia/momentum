@@ -141,7 +141,7 @@ function FeaturedClipSlide({
           onClick={onPlay}
         />
       ) : null}
-      <div className="pointer-events-none relative z-20 flex min-h-[8.4rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[14rem] sm:px-6 sm:py-8 lg:min-h-[16.8rem]">
+      <div className="pointer-events-none relative z-20 flex min-h-[10.08rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[16.8rem] sm:px-6 sm:py-8 lg:min-h-[20.16rem]">
         <p className="font-headline hero-headline-grad text-center text-2xl sm:text-4xl md:text-5xl leading-tight tracking-tight">
           Featured Clip
         </p>
@@ -311,7 +311,7 @@ export default function HeroSection() {
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
             <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-            <div className="relative z-10 flex min-h-[8.4rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[14rem] sm:px-6 sm:py-8 lg:min-h-[16.8rem] lg:px-8">
+            <div className="relative z-10 flex min-h-[10.08rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[16.8rem] sm:px-6 sm:py-8 lg:min-h-[20.16rem] lg:px-8">
               <h1 className="font-headline hero-headline-grad text-center text-2xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
                 Where Live Music Lives
               </h1>
@@ -343,7 +343,7 @@ export default function HeroSection() {
             </div>
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
             <div className="absolute inset-0 hero-jambase-wash" aria-hidden />
-            <div className="relative z-10 flex min-h-[8.4rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[14rem] sm:px-6 sm:py-8 lg:min-h-[16.8rem]">
+            <div className="relative z-10 flex min-h-[10.08rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[16.8rem] sm:px-6 sm:py-8 lg:min-h-[20.16rem]">
               <p className="font-headline hero-headline-grad w-full min-w-0 max-w-4xl px-1 text-center text-[1.15rem] leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-[2.75rem]">
                 Go See Live Music,
                 <span className="block">and Use Feedback to Capture it All</span>
