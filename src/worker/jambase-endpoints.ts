@@ -33,6 +33,7 @@ import {
   rewriteMediaUrlForClient,
 } from '../shared/media-proxy';
 import { clientMediaOrigin } from './client-media-origin';
+import { libraryEventsForFindAShow } from './library-show-search';
 
 function rewriteEventList(events: unknown[] | undefined, origin: string): unknown[] {
   if (!Array.isArray(events)) return [];
@@ -452,10 +453,15 @@ export async function searchEvents(c: Context) {
   }
 
   try {
+    const origin = clientMediaOrigin(c);
+    const libraryPromise = includePast
+      ? libraryEventsForFindAShow(c.env.DB, q, max)
+      : Promise.resolve([] as Record<string, unknown>[]);
     const key = c.env.JAMBASE_API_KEY;
     if (!key?.trim()) {
+      const library = await libraryPromise;
       cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
-      return c.json({ events: [] });
+      return c.json({ events: rewriteEventList(library, origin) });
     }
 
     const jbQ = jamBaseQuotaFromEnv(c.env);
@@ -463,7 +469,7 @@ export async function searchEvents(c: Context) {
       const fromDate =
         c.req.query('eventDateFrom') ||
         (includePast ? jamBaseEventDateFromDaysAgo(730) : jamBaseEventDateFromToday());
-      const [byArtist, byTitle] = await Promise.all([
+      const [byArtist, byTitle, library] = await Promise.all([
         jamBaseFetch<{ events?: unknown[] }>(
           key,
           '/events',
@@ -480,8 +486,10 @@ export async function searchEvents(c: Context) {
           page: c.req.query('page') || '1',
           eventDateFrom: fromDate,
         }),
+        libraryPromise,
       ]);
       const looseEvents = dedupeJamBaseEvents([
+        ...library,
         ...((byArtist?.events ?? []).filter(
           (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
         )),
@@ -491,23 +499,24 @@ export async function searchEvents(c: Context) {
       return c.json({
         events: rewriteEventList(
           includePast ? sortJamBaseEventsUpcomingThenPast(looseEvents) : looseEvents,
-          clientMediaOrigin(c),
+          origin,
         ),
       });
     }
 
-    const [upcomingRaw, past] = await Promise.all([
+    const [upcomingRaw, past, library] = await Promise.all([
       buildTightJamBaseEventResults(key, q, max, jbQ),
       includePast ? buildPastJamBaseEventResults(key, q, max, jbQ) : Promise.resolve([]),
+      libraryPromise,
     ]);
     const upcoming = upcomingRaw.filter(
       (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
     );
     const events = includePast
-      ? sortJamBaseEventsUpcomingThenPast(dedupeJamBaseEvents([...upcoming, ...past]))
+      ? sortJamBaseEventsUpcomingThenPast(dedupeJamBaseEvents([...library, ...upcoming, ...past]))
       : upcoming;
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
-    return c.json({ events: rewriteEventList(events, clientMediaOrigin(c)) });
+    return c.json({ events: rewriteEventList(events, origin) });
   } catch (error) {
     console.error('JamBase event search error:', error);
     return c.json({ error: 'Failed to search events', events: [] }, 500);

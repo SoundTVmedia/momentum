@@ -5,7 +5,7 @@ import { Calendar, Loader2, MapPin, Search, X } from 'lucide-react';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import { displayMediaUrl } from '@/shared/media-proxy';
-import { showClipsPath } from '@/shared/app-paths';
+import { pastShowClipsPath, showClipsPath } from '@/shared/app-paths';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
   formatJamBaseEventDate,
@@ -17,6 +17,7 @@ import {
   jamBaseEventVenueName,
 } from '@/shared/jambase-events';
 import { artistAtVenueTitle, jamBaseEventTitle } from '@/shared/event-title';
+import { isFeedbackLibraryShow } from '@/shared/library-shows';
 import { computeShowId } from '@/shared/show-id';
 
 type FindAShowModalProps = {
@@ -41,6 +42,18 @@ function eventShowHref(ev: Record<string, unknown>): string {
   const artistName = jamBaseEventArtistName(ev);
   const venueName = jamBaseEventVenueName(ev);
   const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
+  if (isFeedbackLibraryShow(ev)) {
+    const libraryShowId =
+      typeof ev['x-feedbackShowId'] === 'string' ? ev['x-feedbackShowId'] : jamBaseEventId(ev);
+    return pastShowClipsPath({
+      show_id: libraryShowId,
+      jambase_event_id: jamBaseEventId(ev) || null,
+      artist_name: artistName,
+      venue_name: venueName === 'Venue TBA' ? null : venueName,
+      show_date: startDate || null,
+      event_title: jamBaseEventTitle(ev),
+    });
+  }
   const showId =
     jamBaseEventId(ev) ||
     computeShowId({
@@ -115,11 +128,12 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
     const venueLabel = venueName === 'Venue TBA' ? '' : venueName;
     const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
     const eventId = jamBaseEventId(ev);
-    const upcoming = jamBaseEventUpcomingOrInProgress(ev);
+    const libraryShow = isFeedbackLibraryShow(ev);
+    const upcoming = !libraryShow && jamBaseEventUpcomingOrInProgress(ev);
 
     onClose();
 
-    if (upcoming) {
+    if (libraryShow || upcoming) {
       navigate(eventShowHref(ev));
       return;
     }
@@ -172,8 +186,8 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
         </div>
 
         <p className="mb-3 text-sm text-gray-400">
-          Search upcoming and past JamBase shows. Pick a past date to upload a clip from a show
-          that already happened.
+          Search upcoming JamBase dates and past shows from the FEEDBACK library. Pick a past
+          JamBase date to upload a clip from a show that already happened.
         </p>
 
         <div className="relative mb-4">
@@ -208,7 +222,8 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
                 const artistName = jamBaseEventArtistName(ev);
                 const venueName = jamBaseEventVenueName(ev);
                 const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
-                const upcoming = jamBaseEventUpcomingOrInProgress(ev);
+                const upcoming =
+                  !isFeedbackLibraryShow(ev) && jamBaseEventUpcomingOrInProgress(ev);
                 const image = jamBaseEventImageUrl(ev);
                 const title =
                   jamBaseEventTitle(ev) ??

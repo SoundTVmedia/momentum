@@ -357,7 +357,7 @@ export default function HeroSection() {
 
   return (
     <section
-      className="hero-carousel relative z-30 overflow-hidden bg-momentum-ink"
+      className="hero-carousel relative z-10 overflow-hidden bg-momentum-ink"
       aria-label="Home highlights"
       aria-roledescription="carousel"
       onMouseEnter={() => setPaused(true)}

@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
 import { HEADER_ACTION_BUTTON_CLASS } from '@/react-app/components/HeaderGradientPill'
 import type { ExtendedMochaUser } from '@/shared/types'
@@ -32,20 +33,53 @@ export default function BecomeNavDropdown({ user }: BecomeNavDropdownProps) {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
 
   const items = BECOME_ITEMS.filter((item) => item.isVisible(user))
   const isActive = items.some((item) => pathname === item.path)
 
-  useEffect(() => {
-    const onDocDown = (e: MouseEvent) => {
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) {
+      setMenuPos(null)
+      return
+    }
+    const update = () => {
       const el = rootRef.current
-      if (!el || !open) return
-      if (e.target instanceof Node && !el.contains(e.target)) {
-        setOpen(false)
-      }
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      setMenuPos({
+        top: rect.bottom + 8,
+        right: Math.max(8, window.innerWidth - rect.right),
+      })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [open])
+
+  useEffect(() => {
+    setOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    const onDocDown = (e: MouseEvent | TouchEvent) => {
+      if (!open) return
+      const target = e.target
+      if (!(target instanceof Node)) return
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', onDocDown)
-    return () => document.removeEventListener('mousedown', onDocDown)
+    document.addEventListener('touchstart', onDocDown)
+    return () => {
+      document.removeEventListener('mousedown', onDocDown)
+      document.removeEventListener('touchstart', onDocDown)
+    }
   }, [open])
 
   if (items.length === 0) return null
@@ -70,29 +104,34 @@ export default function BecomeNavDropdown({ user }: BecomeNavDropdownProps) {
         />
       </button>
 
-      {open ? (
-        <div
-          role="menu"
-          className="absolute top-full right-0 mt-2 min-w-[10rem] overflow-hidden rounded-lg glass-dropdown shadow-xl z-50"
-        >
-          {items.map((item, index) => (
-            <button
-              key={item.key}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false)
-                navigate(item.path)
-              }}
-              className={`flex w-full items-center px-3 py-2.5 text-left text-sm text-white hover:bg-white/10 ${
-                index > 0 ? 'border-t border-white/10' : ''
-              } ${pathname === item.path ? 'bg-white/5 text-momentum-flare' : ''}`}
+      {open && menuPos
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              className="fixed min-w-[10rem] overflow-hidden rounded-lg glass-dropdown shadow-xl z-[200]"
+              style={{ top: menuPos.top, right: menuPos.right }}
             >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+              {items.map((item, index) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false)
+                    navigate(item.path)
+                  }}
+                  className={`flex w-full items-center px-3 py-2.5 text-left text-sm text-white hover:bg-white/10 ${
+                    index > 0 ? 'border-t border-white/10' : ''
+                  } ${pathname === item.path ? 'bg-white/5 text-momentum-flare' : ''}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
