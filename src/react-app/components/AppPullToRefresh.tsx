@@ -83,6 +83,11 @@ export default function AppPullToRefresh({ children }: AppPullToRefreshProps) {
       refreshingRef.current = false
       setRefreshing(false)
       setPullPx(0)
+      // Pull-overscroll can leave WKWebView contentInset / scroll offset elevated.
+      // Snap back to the cold-start top so header spacing matches a fresh launch.
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
     }
 
     const onTouchStart = (event: TouchEvent) => {
@@ -181,7 +186,7 @@ export default function AppPullToRefresh({ children }: AppPullToRefreshProps) {
       <div
         className="app-ptr-sheet"
         style={{
-          transform: pull > 0 ? `translate3d(0, ${pull}px, 0)` : undefined,
+          transform: pull > 0 ? `translate3d(0, ${pull}px, 0)` : 'none',
         }}
       >
         {children}
