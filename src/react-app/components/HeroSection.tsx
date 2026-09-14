@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import HeroConcertBackdrop, {
   clipToHeroSlide,
@@ -10,12 +10,13 @@ import { JAMBASE_HOME_URL } from '@/react-app/components/PoweredByJamBase';
 import { HERO_CONCERT_FALLBACK_IMAGE } from '@/react-app/data/heroStockConcert';
 import ClipModal from '@/react-app/components/ClipModal';
 import UserAvatar from '@/react-app/components/UserAvatar';
+import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import type { ClipWithUser } from '@/shared/types';
 import { artistPath, clipShowClipsPath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
 
 const SLIDE_COUNT = 3;
-const SLIDE_MS = 8000;
+const SLIDE_MS = 6000;
 
 function slidesFromClips(clips: ClipWithUser[] | undefined, max = 8): HeroClipSlide[] {
   const next: HeroClipSlide[] = [];
@@ -28,11 +29,22 @@ function slidesFromClips(clips: ClipWithUser[] | undefined, max = 8): HeroClipSl
   return next;
 }
 
+function shuffleCopy<T>(items: T[]): T[] {
+  const next = [...items];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = next[i];
+    next[i] = next[j]!;
+    next[j] = tmp!;
+  }
+  return next;
+}
+
 function playableClips(clips: ClipWithUser[] | undefined): ClipWithUser[] {
   return (clips ?? []).filter((clip) => clipToHeroSlide(clip));
 }
 
-/** Different featured clip on each cold load. */
+/** Different featured clip on each cold load / pull-refresh. */
 function pickRandomPlayable(clips: ClipWithUser[] | undefined): ClipWithUser | null {
   const playable = playableClips(clips);
   if (playable.length === 0) return null;
@@ -239,40 +251,47 @@ export default function HeroSection() {
   const reducedMotion = usePrefersReducedMotion();
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [slides, setSlides] = useState<HeroClipSlide[]>([]);
+  const [slidesA, setSlidesA] = useState<HeroClipSlide[]>([]);
+  const [slidesB, setSlidesB] = useState<HeroClipSlide[]>([]);
   const [featured, setFeatured] = useState<ClipWithUser | null>(null);
   const [clipModal, setClipModal] = useState<ClipWithUser | null>(null);
   const touchStartX = useRef<number | null>(null);
   const ignoreClickRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const [viewedRes, likedRes] = await Promise.all([
-          fetch('/api/clips?limit=10&sort_by=most_viewed', { credentials: 'include' }),
-          fetch('/api/clips?limit=24&sort_by=most_liked', { credentials: 'include' }),
-        ]);
-        const viewedData = viewedRes.ok
-          ? ((await viewedRes.json()) as { clips?: ClipWithUser[] })
-          : { clips: [] };
-        const likedData = likedRes.ok
-          ? ((await likedRes.json()) as { clips?: ClipWithUser[] })
-          : { clips: [] };
-        if (cancelled) return;
-        const viewedSlides = slidesFromClips(viewedData.clips, 10);
-        if (viewedSlides.length > 0) setSlides(viewedSlides);
-        setFeatured(
-          pickRandomPlayable(likedData.clips) ?? pickRandomPlayable(viewedData.clips),
-        );
-      } catch {
-        /* stock fallback in backdrop */
+  const loadHeroClips = useCallback(async () => {
+    try {
+      const [viewedRes, likedRes] = await Promise.all([
+        fetch('/api/clips?limit=10&sort_by=most_viewed', { credentials: 'include' }),
+        fetch('/api/clips?limit=24&sort_by=most_liked', { credentials: 'include' }),
+      ]);
+      const viewedData = viewedRes.ok
+        ? ((await viewedRes.json()) as { clips?: ClipWithUser[] })
+        : { clips: [] };
+      const likedData = likedRes.ok
+        ? ((await likedRes.json()) as { clips?: ClipWithUser[] })
+        : { clips: [] };
+      const pool = slidesFromClips(
+        [...(viewedData.clips ?? []), ...(likedData.clips ?? [])],
+        16,
+      );
+      // Independent shuffles so slide 1 and 2 start on different clips each load.
+      if (pool.length > 0) {
+        setSlidesA(shuffleCopy(pool));
+        setSlidesB(shuffleCopy(pool).slice(0, 5));
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      setFeatured(
+        pickRandomPlayable(likedData.clips) ?? pickRandomPlayable(viewedData.clips),
+      );
+    } catch {
+      /* stock fallback in backdrop */
+    }
   }, []);
+
+  useEffect(() => {
+    void loadHeroClips();
+  }, [loadHeroClips]);
+
+  useAppPullRefresh(loadHeroClips);
 
   useEffect(() => {
     if (paused || reducedMotion || clipModal) return;
@@ -328,7 +347,11 @@ export default function HeroSection() {
         <div className="hero-carousel__slide" aria-hidden={index !== 0}>
           <div className="hero-carousel__fill">
             <div className="absolute inset-0 hero-concert-photo" aria-hidden>
-              <HeroConcertBackdrop slides={slides} playing={index === 0 && !reducedMotion} />
+              <HeroConcertBackdrop
+                key={slidesA[0]?.src ?? 'slide-a'}
+                slides={slidesA}
+                playing={index === 0 && !reducedMotion}
+              />
             </div>
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
@@ -359,7 +382,8 @@ export default function HeroSection() {
           <div className="hero-carousel__fill" style={{ backgroundColor: '#001a30' }}>
             <div className="absolute inset-0 hero-concert-photo" aria-hidden>
               <HeroConcertBackdrop
-                slides={slides.slice(0, 5)}
+                key={slidesB[0]?.src ?? 'slide-b'}
+                slides={slidesB}
                 playing={index === 1 && !reducedMotion}
               />
             </div>
