@@ -167,6 +167,7 @@ html.app-ptr-enabled body {
 
 .app-ptr-sheet {
   min-height: 100%;
+  transform: none;
 }
 
 ion-app.momentum-ion-app {
@@ -188,7 +189,9 @@ ion-header.app-top-header {
 
 /*
  * Always inset the toolbar below the status bar (time, notch, signal, battery).
- * Set the Ionic variable once so it cannot stack a second inset after scroll.
+ * Set the Ionic variable once so it cannot stack a second inset after scroll or
+ * pull-to-refresh. Pair with ios.contentInset: 'never' so WKWebView does not
+ * also apply a variable contentInset that grows after overscroll.
  * Mobile uses max() so Capacitor webviews that report 0 for env() still clear
  * the Dynamic Island / status bar.
  */

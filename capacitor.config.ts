@@ -46,7 +46,7 @@ const config: CapacitorConfig = {
   // Baked into ios/App/App/capacitor.config.json at sync — used to gate native Google SDK vs browser OAuth.
   ...(googleIosClientId ? { googleIosOAuthClientId: googleIosClientId } : {}),
   ios: {
-    contentInset: 'automatic',
+    contentInset: 'never',
     infoPlist: {
       NSCameraUsageDescription:
         'Feedback uses the camera to record concert clips in the app.',
