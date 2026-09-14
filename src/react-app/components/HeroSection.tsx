@@ -5,7 +5,6 @@ import HeroConcertBackdrop, {
   type HeroClipSlide,
 } from '@/react-app/components/HeroConcertBackdrop';
 import JamBaseWordmark from '@/react-app/components/JamBaseWordmark';
-import NetflixWordmark from '@/react-app/components/NetflixWordmark';
 import { JAMBASE_HOME_URL } from '@/react-app/components/PoweredByJamBase';
 import { HERO_CONCERT_FALLBACK_IMAGE } from '@/react-app/data/heroStockConcert';
 import ClipModal from '@/react-app/components/ClipModal';
@@ -190,7 +189,7 @@ function FeaturedClipSlide({
   ) : null;
 
   return (
-    <div className="hero-carousel__fill min-h-[12.751rem] sm:min-h-[21.252rem] lg:min-h-[25.502rem]">
+    <div className="hero-carousel__fill min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem]">
       <img
         src={poster}
         alt=""
@@ -234,9 +233,18 @@ function FeaturedClipSlide({
           </p>
           <div className="flex items-center gap-1.5">
             <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/75 sm:text-[0.7rem]">
-              Sponsored by
+              Brought to you by
             </span>
-            <NetflixWordmark className="h-3 w-auto text-white sm:h-3.5" />
+            <a
+              href={JAMBASE_HOME_URL}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              aria-label="JamBase"
+              className="text-white hover:text-white/90"
+              onClick={onNavClick}
+            >
+              <JamBaseWordmark className="h-3 w-auto sm:h-3.5" />
+            </a>
           </div>
           {userRow}
           {showRow}
@@ -356,7 +364,7 @@ export default function HeroSection() {
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
             <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-            <div className="relative z-10 flex min-h-[12.751rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[21.252rem] sm:px-6 sm:py-8 lg:min-h-[25.502rem] lg:px-8">
+            <div className="relative z-10 flex min-h-[14.026rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[23.377rem] sm:px-6 sm:py-8 lg:min-h-[28.052rem] lg:px-8">
               <h1 className="font-headline hero-headline-grad text-center text-2xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
                 Where Live Music Lives
               </h1>
@@ -389,7 +397,7 @@ export default function HeroSection() {
             </div>
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
             <div className="absolute inset-0 hero-jambase-wash" aria-hidden />
-            <div className="relative z-10 flex min-h-[12.751rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[21.252rem] sm:px-6 sm:py-8 lg:min-h-[25.502rem]">
+            <div className="relative z-10 flex min-h-[14.026rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[23.377rem] sm:px-6 sm:py-8 lg:min-h-[28.052rem]">
               <p className="font-headline hero-headline-grad w-full min-w-0 max-w-4xl px-1 text-center text-[1.15rem] leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-[2.75rem]">
                 Go See Live Music,
                 <span className="block">and Use Feedback to Capture it All</span>
