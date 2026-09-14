@@ -13,11 +13,10 @@ import {
   jamBaseEventHeadliner,
   jamBaseEventId,
   jamBaseEventImageUrl,
-  jamBaseEventTitle,
   jamBaseEventVenueCityLine,
   jamBaseEventVenueName,
 } from '@/shared/jambase-events';
-import { artistAtVenueTitle } from '@/shared/event-title';
+import { artistAtVenueTitle, jamBaseEventTitle } from '@/shared/event-title';
 import { computeShowId } from '@/shared/show-id';
 
 type FindAShowModalProps = {
