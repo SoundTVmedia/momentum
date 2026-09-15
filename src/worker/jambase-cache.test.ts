@@ -64,15 +64,41 @@ describe('JamBase cache policy', () => {
     expect(jamBaseCoalesceKey('/events', { artistId: 'jambase:1', perPage: '10' })).toBe(
       jamBaseCoalesceKey('/events', { artistId: 'jambase:1', perPage: '50' }),
     );
-    expect(jamBaseEventListKey('artist', 'jambase:1')).toBe('artist:jambase:1');
-    expect(jamBaseNameSearchListKey('Shaky Knees', 'festival')).toBe(
-      'name:shaky-knees:festival',
+    expect(
+      jamBaseCoalesceKey('/events', {
+        artistId: 'jambase:1',
+        eventDateFrom: '2024-09-15',
+        expandPastEvents: 'true',
+      }),
+    ).not.toBe(
+      jamBaseCoalesceKey('/events', {
+        artistId: 'jambase:1',
+        eventDateFrom: '2026-09-15',
+        expandPastEvents: 'true',
+      }),
     );
+    expect(jamBaseEventListKey('artist', 'jambase:1')).toBe('artist:jambase:1');
+    expect(
+      jamBaseEventListKey('artist', 'jambase:1', {
+        eventDateFrom: '2024-09-15',
+        expandPastEvents: 'true',
+        page: '1',
+      }),
+    ).toBe('artist:jambase:1:2024-09-15:true:1');
+    expect(jamBaseNameSearchListKey('Shaky Knees', 'festival')).toBe(
+      'name:shaky-knees:festival:any:off',
+    );
+    expect(jamBaseNameSearchListKey('Shaky Knees', 'festival', '2024-09-15')).toBe(
+      'name:shaky-knees:festival:2024-09-15:off',
+    );
+    expect(
+      jamBaseNameSearchListKey('Shaky Knees', 'festival', '2024-09-15', 'true'),
+    ).toBe('name:shaky-knees:festival:2024-09-15:true');
     expect(jamBaseFestivalPageListKey('shaky-knees-2026')).toBe('festival:shaky-knees');
     expect(jamBaseFestivalPageListKey('Shaky Knees')).toBe('festival:shaky-knees');
     expect(
       jamBaseCoalesceKey('/events', { name: 'Shaky Knees', eventType: 'festival', perPage: '8' }),
-    ).toBe(
+    ).not.toBe(
       jamBaseCoalesceKey('/events', {
         name: 'shaky knees',
         eventType: 'festival',

@@ -42,4 +42,22 @@ describe('jamBaseShowPageUrl', () => {
   it('rejects off-site URLs', () => {
     expect(jamBaseShowPageUrl({ url: 'https://www.setlist.fm/setlist/phish/2026/msg.html' })).toBeNull();
   });
+
+  it('reads JamBase /show/ URLs from sameAs', () => {
+    expect(
+      jamBaseShowPageUrl({
+        sameAs: [{ url: 'https://www.jambase.com/show/phish-madison-square-garden-20260725' }],
+      }),
+    ).toBe('https://www.jambase.com/show/phish-madison-square-garden-20260725');
+  });
+
+  it('constructs a concert page URL from artist, venue, and date', () => {
+    expect(
+      jamBaseShowPageUrl({
+        startDate: '2026-07-25T20:00:00',
+        performer: [{ name: 'Phish', 'x-isHeadliner': true }],
+        location: { name: 'Madison Square Garden' },
+      }),
+    ).toBe('https://www.jambase.com/show/phish-madison-square-garden-20260725');
+  });
 });

@@ -109,7 +109,8 @@ export async function loadOrHydrateStoredShowPage(
   fetchEvent: () => Promise<Record<string, unknown> | null>,
 ): Promise<StoredShowPage | null> {
   const stored = await loadStoredShowPage(db, showId);
-  if (stored && (stored.setlist.length > 0 || stored.htmlChecked)) return stored;
+  if (stored && stored.setlist.length > 0) return stored;
+  if (stored && stored.htmlChecked && jamBaseShowPageUrl(stored.event)) return stored;
 
   const needFetch = !stored || !jamBaseShowPageUrl(stored.event);
   const fetched = needFetch ? await fetchEvent() : null;

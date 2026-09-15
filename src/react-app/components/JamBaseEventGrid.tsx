@@ -214,7 +214,7 @@ function JamBaseEventCard({
         </div>
 
         <div className="mt-auto pt-2 space-y-2 w-full">
-          <ShowMarkButtons event={event} />
+          <ShowMarkButtons event={event} showUploadClip />
           {ticket ? (
             <EventTicketActions ticketUrl={ticket} eventTitle={title} className="w-full" />
           ) : null}

@@ -13,10 +13,14 @@ import {
   jamBaseEventVenueName,
 } from '../shared/jambase-events';
 import { jamBaseEventIsConcluded } from '../shared/jambase-event-day';
-import { jamBaseEventSetlist, serializeStoredSetlist } from '../shared/jambase-setlist';
-import { eventWithJamBaseHtmlSetlist } from './jambase-show-html';
+import {
+  applyStoredSetlistToEvent,
+  jamBaseEventSetlist,
+  serializeStoredSetlist,
+} from '../shared/jambase-setlist';
 import { jamBaseEventTitle, artistAtVenueTitle } from '../shared/event-title';
 import { showNightKey } from '../shared/show-night-key';
+import { loadSetlistFromJamBaseShowHtml } from './jambase-show-html';
 
 function eventArtistId(ev: Record<string, unknown>): string | null {
   const perf = ev.performer;
@@ -130,7 +134,9 @@ export async function createLibraryShow(c: Context<{ Bindings: Env }>) {
   let ev: Record<string, unknown> | null = null;
   if (key) {
     try {
-      ev = await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), eventIdRaw);
+      ev = await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), eventIdRaw, {
+        skipResponseCache: true,
+      });
     } catch (err) {
       console.error('createLibraryShow fetch event', err);
     }
@@ -140,7 +146,8 @@ export async function createLibraryShow(c: Context<{ Bindings: Env }>) {
     return c.json({ error: 'JamBase event not found' }, 404);
   }
 
-  ev = await eventWithJamBaseHtmlSetlist(ev);
+  const storedSetlist = await loadSetlistFromJamBaseShowHtml(ev);
+  ev = applyStoredSetlistToEvent(ev, storedSetlist);
 
   const eventId = jamBaseEventId(ev) || eventIdRaw;
   if (!jamBaseEventIsConcluded(ev)) {
@@ -159,7 +166,7 @@ export async function createLibraryShow(c: Context<{ Bindings: Env }>) {
       return c.json(alreadyAddedPayload(existing), 409);
     }
 
-    const row = libraryShowRowFromEvent(ev, uid, true);
+    const row = libraryShowRowFromEvent(ev, uid, storedSetlist.htmlChecked === true);
     if (!row) {
       return c.json({ error: 'Event is missing artist or id' }, 400);
     }

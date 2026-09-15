@@ -51,15 +51,31 @@ export function jamBaseCityKey(city: string, countryIso2: string): string {
   return `${city.trim().toLowerCase()}|${countryIso2.trim().toUpperCase().slice(0, 2) || 'US'}`;
 }
 
-export function jamBaseEventListKey(kind: 'artist' | 'venue', jambaseId: string): string {
-  return `${kind}:${jambaseId.trim()}`;
+export function jamBaseEventListKey(
+  kind: 'artist' | 'venue',
+  jambaseId: string,
+  window?: { eventDateFrom?: string; expandPastEvents?: string; page?: string },
+): string {
+  const base = `${kind}:${jambaseId.trim()}`;
+  const from = window?.eventDateFrom?.trim() || '';
+  const expand = window?.expandPastEvents?.trim() || '';
+  const page = window?.page?.trim() || '';
+  if (!from && !expand && (!page || page === '1')) return base;
+  return `${base}:${from}:${expand}:${page || '1'}`;
 }
 
 /** `/events?name=` title search (festivals and billed shows). */
-export function jamBaseNameSearchListKey(name: string, eventType?: string): string {
+export function jamBaseNameSearchListKey(
+  name: string,
+  eventType?: string,
+  eventDateFrom?: string,
+  expandPastEvents?: string,
+): string {
   const n = jamBaseNameKey(name);
   const t = (eventType ?? '').trim().toLowerCase() || 'any';
-  return `name:${n}:${t}`;
+  const from = (eventDateFrom ?? '').trim() || 'any';
+  const expand = (expandPastEvents ?? '').trim() || 'off';
+  return `name:${n}:${t}:${from}:${expand}`;
 }
 
 /** Festival page slug → cached JamBase event ids (year-stripped, same as `/festivals/:slug`). */
@@ -141,13 +157,18 @@ export function jamBaseCoalesceKey(
     return `search:venue:${jamBaseNameKey(params.venueName)}`;
   }
   if (normalized === '/events' && params.artistId) {
-    return `events:artist:${params.artistId.trim()}`;
+    return `events:artist:${jamBaseEventListKey('artist', params.artistId, params)}`;
   }
   if (normalized === '/events' && params.venueId) {
-    return `events:venue:${params.venueId.trim()}`;
+    return `events:venue:${jamBaseEventListKey('venue', params.venueId, params)}`;
   }
   if (normalized === '/events' && params.name) {
-    return jamBaseNameSearchListKey(params.name, params.eventType);
+    return jamBaseNameSearchListKey(
+      params.name,
+      params.eventType,
+      params.eventDateFrom,
+      params.expandPastEvents,
+    );
   }
   if (normalized === '/events' && params.geoLatitude && params.geoLongitude) {
     return jamBaseGeoListKey(
@@ -670,12 +691,12 @@ export async function readJamBaseResponseCache(
     }
 
     if (normalized === '/events' && params.artistId) {
-      const events = await readEventList(db, jamBaseEventListKey('artist', params.artistId));
+      const events = await readEventList(db, jamBaseEventListKey('artist', params.artistId, params));
       if (events) return { events, success: true } as JamBaseCachedJson;
       return null;
     }
     if (normalized === '/events' && params.venueId) {
-      const events = await readEventList(db, jamBaseEventListKey('venue', params.venueId));
+      const events = await readEventList(db, jamBaseEventListKey('venue', params.venueId, params));
       if (events) return { events, success: true } as JamBaseCachedJson;
       return null;
     }
@@ -694,7 +715,12 @@ export async function readJamBaseResponseCache(
     if (normalized === '/events' && params.name) {
       const events = await readEventList(
         db,
-        jamBaseNameSearchListKey(params.name, params.eventType),
+        jamBaseNameSearchListKey(
+          params.name,
+          params.eventType,
+          params.eventDateFrom,
+          params.expandPastEvents,
+        ),
       );
       if (events) return { events, success: true } as JamBaseCachedJson;
       return null;
@@ -824,9 +850,9 @@ export async function storeJamBaseResponseCache(
     if (normalized === '/events') {
       const events = recordsFromList((json as { events?: unknown }).events);
       if (params.artistId) {
-        await upsertEventList(db, jamBaseEventListKey('artist', params.artistId), events, fetchedAt);
+        await upsertEventList(db, jamBaseEventListKey('artist', params.artistId, params), events, fetchedAt);
       } else if (params.venueId) {
-        await upsertEventList(db, jamBaseEventListKey('venue', params.venueId), events, fetchedAt);
+        await upsertEventList(db, jamBaseEventListKey('venue', params.venueId, params), events, fetchedAt);
       } else if (params.geoLatitude && params.geoLongitude) {
         const key = jamBaseGeoListKey(
           'events',
@@ -839,7 +865,12 @@ export async function storeJamBaseResponseCache(
       } else if (params.name) {
         await upsertEventList(
           db,
-          jamBaseNameSearchListKey(params.name, params.eventType),
+          jamBaseNameSearchListKey(
+            params.name,
+            params.eventType,
+            params.eventDateFrom,
+            params.expandPastEvents,
+          ),
           events,
           fetchedAt,
         );

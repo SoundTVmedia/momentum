@@ -716,7 +716,9 @@ export async function getShowClips(c: Context) {
       const key = normalizeJamBaseApiKey(c.env.JAMBASE_API_KEY);
       if (!key) return null;
       try {
-        return await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), id);
+        return await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), id, {
+          skipResponseCache: true,
+        });
       } catch (err) {
         console.error('getShowClips fetch event', err);
         return null;
@@ -812,7 +814,9 @@ export async function getEventClips(c: Context) {
           const key = normalizeJamBaseApiKey(c.env.JAMBASE_API_KEY);
           if (!key) return null;
           try {
-            return await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), clipEventId);
+            return await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), clipEventId, {
+              skipResponseCache: true,
+            });
           } catch {
             return null;
           }

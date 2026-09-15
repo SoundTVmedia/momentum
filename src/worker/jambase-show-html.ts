@@ -55,10 +55,13 @@ export async function loadSetlistFromJamBaseShowHtml(
   }
   const pageUrl = jamBaseShowPageUrl(ev);
   if (!pageUrl) {
-    return { songs: [], url: null, htmlChecked: true };
+    return { songs: [], url: null, htmlChecked: false };
   }
   const html = await fetchJamBaseShowHtml(pageUrl);
-  const songs = html ? parseJamBaseShowHtmlSetlist(html) : [];
+  if (html == null) {
+    return { songs: [], url: null, htmlChecked: false };
+  }
+  const songs = parseJamBaseShowHtmlSetlist(html);
   return { songs, url: null, htmlChecked: true };
 }
 

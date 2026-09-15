@@ -8,6 +8,7 @@ import {
   jamBaseQuotaFromEnv,
   jamBaseUpstreamFailureNotice,
   type JamBaseFetchDiag,
+  type JamBaseFetchOptions,
   type JamBaseQuotaContext,
 } from './jambase-client';
 import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
@@ -18,7 +19,7 @@ import {
   buildTightJamBaseEventResults,
   dedupeJamBaseEvents,
   fetchJamBaseEventsByEventName,
-  mixFindAShowEvents,
+  mixFindAShowArchiveFirst,
   JAMBASE_ARCHIVE_LOOKBACK_DAYS,
 } from './jambase-events-search';
 import {
@@ -461,7 +462,9 @@ export async function getEventById(c: Context) {
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const stored = await loadOrHydrateStoredShowPage(c.env.DB, eventId, async () => {
       try {
-        return await fetchJamBaseEventById(c.env.JAMBASE_API_KEY, jbQ, eventId);
+        return await fetchJamBaseEventById(c.env.JAMBASE_API_KEY, jbQ, eventId, {
+          skipResponseCache: true,
+        });
       } catch (err) {
         console.error('getEventById hydrate fetch', err);
         return null;
@@ -508,7 +511,7 @@ export async function searchEvents(c: Context) {
       const past =
         q.length >= 2
           ? await buildPastJamBaseEventResults(key, q, max, jbQ, { page })
-          : await browseRecentPastJamBaseEvents(key, max, jbQ, { page });
+          : await browseRecentPastJamBaseEvents(key, max, jbQ, { page, db: c.env.DB });
       const flagged = await markEventsAlreadyInLibrary(c.env.DB, past);
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({
@@ -528,7 +531,7 @@ export async function searchEvents(c: Context) {
     }
 
     const jbQ = jamBaseQuotaFromEnv(c.env);
-    if (c.req.query('loose') === '1') {
+    if (c.req.query('loose') === '1' && !includePast) {
       const fromDate =
         c.req.query('eventDateFrom') ||
         (includePast ? jamBaseEventDateFromDaysAgo(JAMBASE_ARCHIVE_LOOKBACK_DAYS) : jamBaseEventDateFromToday());
@@ -558,7 +561,14 @@ export async function searchEvents(c: Context) {
         )),
         ...byTitle,
       ]);
-      const mixed = includePast ? mixFindAShowEvents(looseEvents, max) : looseEvents;
+      const mixed = includePast
+        ? mixFindAShowArchiveFirst(
+            looseEvents.filter((ev) => !jamBaseEventUpcomingOrInProgress(ev)),
+            library,
+            looseEvents.filter((ev) => jamBaseEventUpcomingOrInProgress(ev)),
+            max,
+          )
+        : looseEvents;
       const flagged = await markEventsAlreadyInLibrary(c.env.DB, mixed);
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({
@@ -576,7 +586,7 @@ export async function searchEvents(c: Context) {
       (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
     );
     const events = includePast
-      ? mixFindAShowEvents(dedupeJamBaseEvents([...library, ...(pastOnly ? [] : upcoming), ...past]), max)
+      ? mixFindAShowArchiveFirst(past, library, pastOnly ? [] : upcoming, max)
       : upcoming;
     const flagged = await markEventsAlreadyInLibrary(c.env.DB, events);
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
@@ -683,6 +693,7 @@ export async function fetchJamBaseEventById(
   apiKey: string,
   jbQ: JamBaseQuotaContext | undefined,
   eventId: string,
+  options?: JamBaseFetchOptions,
 ): Promise<Record<string, unknown> | null> {
   const id = eventId.trim();
   if (!id) return null;
@@ -693,7 +704,7 @@ export async function fetchJamBaseEventById(
   ];
 
   for (const path of paths) {
-    const data = await jamBaseFetch<Record<string, unknown>>(apiKey, path, {}, jbQ);
+    const data = await jamBaseFetch<Record<string, unknown>>(apiKey, path, {}, jbQ, undefined, options);
     if (!data) continue;
     const ev = unwrapJamBaseEventPayload(data);
     if (ev) return ev;

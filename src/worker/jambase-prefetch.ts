@@ -203,7 +203,11 @@ export async function prefetchJamBaseFavoriteCalendars(env: Env): Promise<JamBas
     if (budget.remaining <= 0) break;
     const artistId = await resolveArtistJamBaseId(db, apiKey, jbQ, name, budget);
     if (!artistId) continue;
-    const listKey = jamBaseEventListKey('artist', artistId);
+    const listKey = jamBaseEventListKey('artist', artistId, {
+      eventDateFrom: dateFrom,
+      expandPastEvents: 'true',
+      page: '1',
+    });
     if (await listIsFresh(db, listKey)) {
       result.skippedFresh += 1;
       continue;
@@ -229,7 +233,11 @@ export async function prefetchJamBaseFavoriteCalendars(env: Env): Promise<JamBas
     if (budget.remaining <= 0) break;
     const venueId = await resolveVenueJamBaseId(db, apiKey, jbQ, venue, budget);
     if (!venueId) continue;
-    const listKey = jamBaseEventListKey('venue', venueId);
+    const listKey = jamBaseEventListKey('venue', venueId, {
+      eventDateFrom: dateFrom,
+      expandPastEvents: 'true',
+      page: '1',
+    });
     if (await listIsFresh(db, listKey)) {
       result.skippedFresh += 1;
       continue;

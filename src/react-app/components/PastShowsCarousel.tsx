@@ -111,7 +111,7 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                 )}
                 <div className="mt-auto space-y-2">
                   {markEvent ? (
-                    <ShowMarkButtons event={markEvent} statusOverride="attended" />
+                    <ShowMarkButtons event={markEvent} statusOverride="attended" showUploadClip />
                   ) : null}
                   <button
                     type="button"

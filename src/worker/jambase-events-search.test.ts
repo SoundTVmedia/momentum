@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mixFindAShowEvents } from './jambase-events-search';
+import { mixFindAShowArchiveFirst, mixFindAShowEvents } from './jambase-events-search';
 
 function ev(id: string, startDate: string): Record<string, unknown> {
   return { identifier: id, startDate };
@@ -36,5 +36,20 @@ describe('mixFindAShowEvents', () => {
     const mixed = mixFindAShowEvents(upcoming, 10, nowMs);
     expect(mixed).toHaveLength(10);
     expect(mixed.every((e) => String(e.identifier).startsWith('up-'))).toBe(true);
+  });
+});
+
+describe('mixFindAShowArchiveFirst', () => {
+  const nowMs = Date.parse('2026-06-14T16:00:00.000Z');
+
+  it('puts JamBase archive nights ahead of library-only nights', () => {
+    const mixed = mixFindAShowArchiveFirst(
+      [ev('jb-1', '2026-05-20T20:00:00'), ev('jb-2', '2026-05-18T20:00:00')],
+      [ev('lib-1', '2026-05-22T20:00:00'), ev('jb-1', '2026-05-20T20:00:00')],
+      [ev('up-1', '2026-07-01T20:00:00')],
+      8,
+      nowMs,
+    );
+    expect(mixed.map((e) => e.identifier)).toEqual(['jb-1', 'jb-2', 'lib-1', 'up-1']);
   });
 });
