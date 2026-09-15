@@ -9,6 +9,7 @@ import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { artistPath, venuePath } from '@/shared/app-paths';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
+import EventShowRating from '@/react-app/components/EventShowRating';
 import { searchPhraseFromSlug, normalizedSlugFromRouteParam, titleCaseWords } from '@/shared/jambase-slug';
 import {
   fetchAllShowClips,
@@ -110,9 +111,14 @@ export default function ShowClipsPage() {
 
         {/* Show Header */}
         <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-6">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4">
-            {artistLabel || artistName}
-          </h1>
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <h1 className="min-w-0 flex-1 text-3xl sm:text-4xl md:text-5xl font-bold text-white">
+              {artistLabel || artistName}
+            </h1>
+            <EventShowRating
+              showId={typeof markEvent?.identifier === 'string' ? markEvent.identifier : showId}
+            />
+          </div>
           
           <div className="flex flex-wrap gap-4 text-gray-300 mb-4">
             {showDate && (

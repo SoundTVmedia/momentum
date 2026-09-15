@@ -8,15 +8,17 @@ interface StarRatingProps {
   onRate?: (rating: number) => void;
   readonly?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  className?: string;
 }
 
-export default function StarRating({ 
-  rating, 
-  averageRating, 
-  ratingCount, 
-  onRate, 
+export default function StarRating({
+  rating,
+  averageRating,
+  ratingCount,
+  onRate,
   readonly = false,
-  size = 'md'
+  size = 'md',
+  className = '',
 }: StarRatingProps) {
   const [hoverRating, setHoverRating] = useState<number | null>(null);
 
@@ -26,23 +28,26 @@ export default function StarRating({
     lg: 'w-6 h-6'
   };
 
-  const displayRating = hoverRating || rating || 0;
+  const interactive = Boolean(onRate) && !readonly;
+  const displayRating =
+    hoverRating || rating || (averageRating && averageRating > 0 ? Math.round(averageRating) : 0);
 
   return (
-    <div className="flex flex-col space-y-1">
+    <div className={`flex flex-col space-y-1 ${className}`.trim()}>
       <div className="flex items-center space-x-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
             key={star}
             type="button"
-            onClick={() => !readonly && onRate?.(star)}
-            onMouseEnter={() => !readonly && setHoverRating(star)}
-            onMouseLeave={() => !readonly && setHoverRating(null)}
-            disabled={readonly}
+            onClick={() => interactive && onRate?.(star)}
+            onMouseEnter={() => interactive && setHoverRating(star)}
+            onMouseLeave={() => interactive && setHoverRating(null)}
+            disabled={!interactive}
+            aria-label={`Rate ${star} star${star === 1 ? '' : 's'}`}
             className={`transition-all ${
-              readonly 
-                ? 'cursor-default' 
-                : 'cursor-pointer hover:scale-110'
+              interactive
+                ? 'cursor-pointer hover:scale-110'
+                : 'cursor-default'
             }`}
           >
             <Star

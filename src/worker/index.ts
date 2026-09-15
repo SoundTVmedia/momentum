@@ -73,6 +73,7 @@ import * as gdpr from "./gdpr-endpoints";
 import * as ticketmaster from "./ticketmaster-endpoints";
 import * as googleMaps from "./google-maps-endpoints";
 import * as rating from "./rating-endpoints";
+import * as showRating from "./show-rating-endpoints";
 import * as favorite from "./favorite-endpoints";
 import * as follow from "./follow-endpoints";
 import * as profile from "./profile-endpoints";
@@ -3973,6 +3974,9 @@ app.get("/api/maps/autocomplete", rateLimiter(RateLimits.SEARCH), googleMaps.aut
 // Clip Rating Endpoints
 app.post("/api/clips/:id/rate", authMiddleware, rating.rateClip);
 app.get("/api/clips/:id/rating", authMiddleware, rating.getUserClipRating);
+
+app.get("/api/shows/:showId/rating", optionalAuthMiddleware, showRating.getShowRating);
+app.post("/api/shows/:showId/rate", authMiddleware, showRating.rateShow);
 
 // Favorite Artists & Clips Endpoints
 app.get("/api/users/me/show-marks", authMiddleware, showMarksRateLimit, showMarks.getMyShowMarks);

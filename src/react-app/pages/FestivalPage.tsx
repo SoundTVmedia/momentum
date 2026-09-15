@@ -5,6 +5,7 @@ import Header from '@/react-app/components/Header';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
+import EventShowRating from '@/react-app/components/EventShowRating';
 import ClipFeedCarousel from '@/react-app/components/ClipFeedCarousel';
 import ClipModal from '@/react-app/components/ClipModal';
 import ArtistImageCard from '@/react-app/components/ArtistImageCard';
@@ -97,10 +98,15 @@ export default function FestivalPage() {
               className="h-[9.6rem] w-[9.6rem] rounded-xl object-cover border-4 border-momentum-flare/40 shadow-xl shadow-momentum-ember/25"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-momentum-flare mb-2">
-                Festival
-              </p>
-              <h1 className="fb-hero-title mb-4">{festival.name}</h1>
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-momentum-flare mb-2">
+                    Festival
+                  </p>
+                  <h1 className="fb-hero-title">{festival.name}</h1>
+                </div>
+                <EventShowRating showId={festival.jambase_event_id} />
+              </div>
               {dateLabel ? (
                 <div className="flex items-center space-x-2 mb-2 text-gray-300">
                   <Calendar className="w-5 h-5 text-gray-400 shrink-0" />

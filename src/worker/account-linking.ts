@@ -229,6 +229,7 @@ export const MOCHA_USER_ID_TABLES = [
   'daily_active_users',
   'verification_requests',
   'clip_ratings',
+  'show_ratings',
   'user_bans',
   'user_privacy_settings',
   'account_deletion_requests',
