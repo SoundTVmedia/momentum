@@ -5,7 +5,9 @@ import { useAuth } from '@getmocha/users-service/react';
 import Header from '@/react-app/components/Header';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
-import { artistPath } from '@/shared/app-paths';
+import { Link } from 'react-router';
+import { showClipsPath } from '@/shared/app-paths';
+import { computeShowId } from '@/shared/show-id';
 import { Calendar, MapPin } from 'lucide-react';
 import { displayMediaUrl } from '@/shared/media-proxy';
 
@@ -26,19 +28,20 @@ type ConcertsApi = {
   message?: string;
 };
 
-function D1ConcertBrowseCard({
-  concert,
-  onArtist,
-}: {
-  concert: D1Concert;
-  onArtist: (name: string) => void;
-}) {
+function D1ConcertBrowseCard({ concert }: { concert: D1Concert }) {
+  const showHref = showClipsPath(
+    concert.artist_name,
+    computeShowId({
+      artist_name: concert.artist_name,
+      venue_name: concert.venue_name,
+      timestamp: concert.date,
+    }),
+  );
 
   return (
     <div className="group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-colors flex h-full min-h-[19rem] w-full flex-col">
-      <button
-        type="button"
-        onClick={() => onArtist(concert.artist_name)}
+      <Link
+        to={showHref}
         className="relative shrink-0 h-40 overflow-hidden block w-full text-left"
         aria-label={`View ${concert.artist_name}`}
       >
@@ -51,16 +54,15 @@ function D1ConcertBrowseCard({
         ) : (
           <div className="w-full h-full bg-white/5" aria-hidden />
         )}
-      </button>
+      </Link>
 
       <div className="p-5 flex flex-col flex-1 min-h-0">
-        <button
-          type="button"
-          onClick={() => onArtist(concert.artist_name)}
+        <Link
+          to={showHref}
           className="text-lg font-bold text-white truncate text-left hover:text-momentum-flare/90 transition-colors"
         >
           {concert.artist_name}
-        </button>
+        </Link>
 
         <div className="space-y-1.5 text-sm flex-1 mt-2 leading-tight">
           <div className="flex items-start space-x-2 text-gray-300">
@@ -174,11 +176,7 @@ export default function BrowseFavoriteShowsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {d1Concerts.map((concert) => (
-              <D1ConcertBrowseCard
-                key={concert.id}
-                concert={concert}
-                onArtist={(name) => navigate(artistPath(name))}
-              />
+              <D1ConcertBrowseCard key={concert.id} concert={concert} />
             ))}
           </div>
         )}

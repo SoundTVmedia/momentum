@@ -5,7 +5,7 @@ import { Calendar, Loader2, MapPin, Search, X } from 'lucide-react';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import { displayMediaUrl } from '@/shared/media-proxy';
-import { pastShowClipsPath, showClipsPath } from '@/shared/app-paths';
+import { jamBaseEventShowPath } from '@/shared/app-paths';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
   formatJamBaseEventDate,
@@ -18,7 +18,6 @@ import {
 } from '@/shared/jambase-events';
 import { artistAtVenueTitle, jamBaseEventTitle } from '@/shared/event-title';
 import { isFeedbackLibraryShow } from '@/shared/library-shows';
-import { computeShowId } from '@/shared/show-id';
 
 type FindAShowModalProps = {
   onClose: () => void;
@@ -36,33 +35,6 @@ function eventArtistId(ev: Record<string, unknown>): string | undefined {
   return typeof head?.identifier === 'string' && head.identifier.trim()
     ? head.identifier.trim()
     : undefined;
-}
-
-function eventShowHref(ev: Record<string, unknown>): string {
-  const artistName = jamBaseEventArtistName(ev);
-  const venueName = jamBaseEventVenueName(ev);
-  const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
-  if (isFeedbackLibraryShow(ev)) {
-    const libraryShowId =
-      typeof ev['x-feedbackShowId'] === 'string' ? ev['x-feedbackShowId'] : jamBaseEventId(ev);
-    return pastShowClipsPath({
-      show_id: libraryShowId,
-      jambase_event_id: jamBaseEventId(ev) || null,
-      artist_name: artistName,
-      venue_name: venueName === 'Venue TBA' ? null : venueName,
-      show_date: startDate || null,
-      event_title: jamBaseEventTitle(ev),
-    });
-  }
-  const showId =
-    jamBaseEventId(ev) ||
-    computeShowId({
-      jambase_event_id: jamBaseEventId(ev) || null,
-      artist_name: artistName,
-      venue_name: venueName === 'Venue TBA' ? null : venueName,
-      timestamp: startDate,
-    });
-  return showClipsPath(artistName, showId);
 }
 
 export default function FindAShowModal({ onClose }: FindAShowModalProps) {
@@ -134,7 +106,7 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
     onClose();
 
     if (libraryShow || upcoming) {
-      navigate(eventShowHref(ev));
+      navigate(jamBaseEventShowPath(ev));
       return;
     }
 

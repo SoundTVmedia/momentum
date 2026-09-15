@@ -185,24 +185,21 @@ ion-header.app-top-header {
   top: 0;
   z-index: 80;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  overflow-anchor: none;
 }
 
 /*
- * Always inset the toolbar below the status bar (time, notch, signal, battery).
- * Set the Ionic variable once so it cannot stack a second inset after scroll or
- * pull-to-refresh. Pair with ios.contentInset: 'never' so WKWebView does not
- * also apply a variable contentInset that grows after overscroll.
- * Mobile uses max() so Capacitor webviews that report 0 for env() still clear
- * the Dynamic Island / status bar.
+ * Keep status-bar clearance as a constant Ionic inset. Using env(safe-area-inset-top)
+ * on a sticky header lets iOS add the same inset again after scroll, which grows a
+ * blank band above the logo. Pair with ios.contentInset: 'never'.
  */
 ion-header.app-top-header ion-toolbar.app-toolbar {
-  --ion-safe-area-top: constant(safe-area-inset-top);
-  --ion-safe-area-top: env(safe-area-inset-top, 0px);
+  --ion-safe-area-top: 0px;
 }
 
 @media (max-width: 767px) {
   ion-header.app-top-header ion-toolbar.app-toolbar {
-    --ion-safe-area-top: max(3.7rem, env(safe-area-inset-top, 0px));
+    --ion-safe-area-top: 3.7rem;
   }
 }
 

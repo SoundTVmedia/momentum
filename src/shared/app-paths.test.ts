@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { clipShowClipsPath, festivalPath, apiFestivalPath, pastShowClipsPath, showMarkClipsPath } from './app-paths';
+import {
+  clipShowClipsPath,
+  festivalPath,
+  apiFestivalPath,
+  jamBaseEventShowPath,
+  pastShowClipsPath,
+  showMarkClipsPath,
+} from './app-paths';
 
 describe('pastShowClipsPath', () => {
   it('routes identical event titles on consecutive dates to distinct shows', () => {
@@ -81,6 +88,29 @@ describe('festivalPath', () => {
     expect(apiFestivalPath('Bonnaroo Music Festival 2026')).toBe(
       '/api/festivals/bonnaroo-music-festival',
     );
+  });
+});
+
+describe('jamBaseEventShowPath', () => {
+  it('routes a JamBase concert to the artist show clips page', () => {
+    expect(
+      jamBaseEventShowPath({
+        identifier: 'jambase:123',
+        name: 'Phish at Madison Square Garden',
+        startDate: '2026-07-04T20:00:00',
+        performer: [{ name: 'Phish', 'x-isHeadliner': true }],
+        location: { name: 'Madison Square Garden' },
+      }),
+    ).toBe('/artists/phish/shows/jambase%3A123/clips');
+  });
+
+  it('routes a festival event to the festival page', () => {
+    expect(
+      jamBaseEventShowPath({
+        identifier: 'jambase:fest',
+        name: 'Bonnaroo Music Festival 2026',
+      }),
+    ).toBe('/festivals/bonnaroo-music-festival');
   });
 });
 

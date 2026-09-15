@@ -5,13 +5,14 @@ import {
   readDeviceCoordsForNearbyShows,
 } from '@/react-app/lib/nearby-shows-url';
 import { Calendar, MapPin, Loader2, Heart } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
-import { artistPath } from '@/shared/app-paths';
+import { showClipsPath } from '@/shared/app-paths';
+import { computeShowId } from '@/shared/show-id';
 import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
@@ -71,15 +72,21 @@ type ConcertsApi = {
 };
 
 function D1ConcertCard({ concert }: { concert: D1Concert }) {
-  const navigate = useNavigate();
+  const showHref = showClipsPath(
+    concert.artist_name,
+    computeShowId({
+      artist_name: concert.artist_name,
+      venue_name: concert.venue_name,
+      timestamp: concert.date,
+    }),
+  );
 
   return (
     <div
       className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/50 transition-colors ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
-      <button
-        type="button"
-        onClick={() => navigate(artistPath(concert.artist_name))}
+      <Link
+        to={showHref}
         className={`block w-full text-left ${EVENT_CAROUSEL_IMAGE_CLASS}`}
         aria-label={`View ${concert.artist_name}`}
       >
@@ -94,16 +101,15 @@ function D1ConcertCard({ concert }: { concert: D1Concert }) {
         ) : (
           <div className="w-full h-full bg-white/5" aria-hidden />
         )}
-      </button>
+      </Link>
 
       <div className="p-5 flex flex-col flex-1 min-h-0">
-        <button
-          type="button"
-          onClick={() => navigate(artistPath(concert.artist_name))}
+        <Link
+          to={showHref}
           className="text-lg font-bold text-white truncate text-left hover:text-momentum-flare/90 transition-colors"
         >
           {concert.artist_name}
-        </button>
+        </Link>
 
         <div className="space-y-1.5 text-sm flex-1 mt-2 leading-tight">
           <div className="flex items-start space-x-2 text-gray-300">

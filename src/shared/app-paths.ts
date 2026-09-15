@@ -1,7 +1,13 @@
-import { festivalCanonicalSlug } from './jambase-festival';
+import { festivalCanonicalSlug, isJamBaseFestivalEvent } from './jambase-festival';
 import { slugifyEntityName } from './jambase-slug';
 import { computeLegacyClipShowKey, computeShowId } from './show-id';
-import { resolveClipEventTitle } from './event-title';
+import { jamBaseEventTitle, resolveClipEventTitle } from './event-title';
+import {
+  jamBaseEventArtistName,
+  jamBaseEventId,
+  jamBaseEventVenueName,
+} from './jambase-events';
+import { isFeedbackLibraryShow } from './library-shows';
 
 export type ShowMarkClipsInput = {
   event_title?: string | null;
@@ -65,6 +71,43 @@ export function showClipsPath(
   const id = typeof showId === 'string' ? showId.trim() : '';
   if (!artistSlug || !id) return artistPath(artistName);
   return `/artists/${artistSlug}/shows/${encodeURIComponent(id)}/clips`;
+}
+
+/** Show clips page (or festival page) for a JamBase-shaped event card. */
+export function jamBaseEventShowPath(ev: Record<string, unknown>): string {
+  if (isJamBaseFestivalEvent(ev)) {
+    const name = jamBaseEventTitle(ev) || (typeof ev.name === 'string' ? ev.name : '');
+    const path = festivalPath(name);
+    if (path !== '/festivals') return path;
+  }
+
+  const artistName = jamBaseEventArtistName(ev);
+  const venueName = jamBaseEventVenueName(ev);
+  const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
+  const eventId = jamBaseEventId(ev);
+
+  if (isFeedbackLibraryShow(ev)) {
+    const libraryShowId =
+      typeof ev['x-feedbackShowId'] === 'string' ? ev['x-feedbackShowId'] : eventId;
+    return pastShowClipsPath({
+      show_id: libraryShowId,
+      jambase_event_id: eventId || null,
+      artist_name: artistName,
+      venue_name: venueName === 'Venue TBA' ? null : venueName,
+      show_date: startDate || null,
+      event_title: jamBaseEventTitle(ev),
+    });
+  }
+
+  const showId =
+    eventId ||
+    computeShowId({
+      jambase_event_id: eventId || null,
+      artist_name: artistName,
+      venue_name: venueName === 'Venue TBA' ? null : venueName,
+      timestamp: startDate,
+    });
+  return showClipsPath(artistName, showId);
 }
 
 export function apiShowClipsPath(

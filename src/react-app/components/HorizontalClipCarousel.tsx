@@ -160,11 +160,10 @@ const HorizontalClipCarousel = forwardRef<HTMLDivElement, HorizontalClipCarousel
       applyNavState(targetIndex, items.length);
       isNavigatingRef.current = true;
 
-      items[targetIndex].scrollIntoView({
-        behavior,
-        inline: 'start',
-        block: 'nearest',
-      });
+      const target = items[targetIndex];
+      const nextLeft =
+        el.scrollLeft + (target.getBoundingClientRect().left - el.getBoundingClientRect().left);
+      el.scrollTo({ left: nextLeft, behavior });
 
       if (behavior === 'smooth') {
         window.setTimeout(() => {

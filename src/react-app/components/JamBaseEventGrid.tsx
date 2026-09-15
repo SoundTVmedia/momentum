@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Calendar, MapPin, Clock, Loader2 } from 'lucide-react';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
-import { useNavigate } from 'react-router';
-import { artistPath, festivalPath, venuePath } from '@/shared/app-paths';
+import { Link, useNavigate } from 'react-router';
+import { artistPath, jamBaseEventShowPath, venuePath } from '@/shared/app-paths';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
@@ -115,13 +115,11 @@ function JamBaseEventCard({
   event,
   onArtist,
   onVenue,
-  onFestival,
   showInProgressBadge = false,
 }: {
   event: Record<string, unknown>;
   onArtist: (name: string) => void;
   onVenue: (name: string) => void;
-  onFestival: (name: string) => void;
   showInProgressBadge?: boolean;
 }) {
   const { getMarkForEvent } = useShowMarks();
@@ -142,79 +140,45 @@ function JamBaseEventCard({
       ? 'In progress'
       : null;
   const genreBadge = festival ? 'Festival' : headlinerGenre(event);
-
-  const openHero = () => {
-    if (festival) onFestival(title);
-    else if (head) onArtist(head);
-  };
+  const showHref = jamBaseEventShowPath(event);
 
   return (
     <div
       className={`group glass-panel rounded-xl overflow-hidden hover:border-momentum-flare/45 transition-colors duration-300 ${EVENT_CAROUSEL_CARD_CLASS}`}
     >
       <div className={EVENT_CAROUSEL_IMAGE_CLASS}>
-        {festival || head ? (
-          <button
-            type="button"
-            onClick={openHero}
-            className="relative block h-full w-full text-left"
-            aria-label={festival ? `View ${title}` : `View ${head}`}
-          >
-            <img
-              src={image}
-              alt=""
-              referrerPolicy="no-referrer"
-              decoding="async"
-              className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
-            />
-            <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-1.5">
-              {statusBadge ? (
-                <span className="px-2 py-1 bg-momentum-flare/90 rounded-full text-xs text-white font-semibold uppercase tracking-wide">
-                  {statusBadge}
-                </span>
-              ) : null}
-              <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
-                {genreBadge}
+        <Link
+          to={showHref}
+          className="relative block h-full w-full text-left"
+          aria-label={`View ${title}`}
+        >
+          <img
+            src={image}
+            alt=""
+            referrerPolicy="no-referrer"
+            decoding="async"
+            className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+          />
+          <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-1.5">
+            {statusBadge ? (
+              <span className="px-2 py-1 bg-momentum-flare/90 rounded-full text-xs text-white font-semibold uppercase tracking-wide">
+                {statusBadge}
               </span>
-            </div>
-          </button>
-        ) : (
-          <>
-            <img
-              src={image}
-              alt={title}
-              referrerPolicy="no-referrer"
-              decoding="async"
-              className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
-            />
-            <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-              {statusBadge ? (
-                <span className="px-2 py-1 bg-momentum-flare/90 rounded-full text-xs text-white font-semibold uppercase tracking-wide">
-                  {statusBadge}
-                </span>
-              ) : null}
-              <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
-                {genreBadge}
-              </span>
-            </div>
-          </>
-        )}
+            ) : null}
+            <span className="px-2 py-1 bg-black/70 backdrop-blur-lg rounded-full text-xs text-white font-medium capitalize">
+              {genreBadge}
+            </span>
+          </div>
+        </Link>
       </div>
 
       <div className="p-4 flex flex-col flex-1 min-h-0">
-        {festival ? (
-          <button
-            type="button"
-            onClick={() => onFestival(title)}
-            className="font-bold text-base text-white mb-1.5 hover:text-momentum-flare transition-colors line-clamp-2 shrink-0 leading-tight text-left w-full"
-          >
-            {title}
-          </button>
-        ) : (
-          <h3 className="font-bold text-base text-white mb-1.5 group-hover:text-momentum-flare transition-colors line-clamp-2 shrink-0 leading-tight">
-            {title}
-          </h3>
-        )}
+        <Link
+          to={showHref}
+          className="font-bold text-base text-white mb-1.5 hover:text-momentum-flare transition-colors line-clamp-2 shrink-0 leading-tight text-left w-full"
+        >
+          {title}
+        </Link>
 
         <div className="space-y-1.5 mb-2 text-sm flex-1 leading-tight">
           {head ? (
@@ -359,7 +323,6 @@ export default function JamBaseEventGrid({
       event={event}
       onArtist={(name) => navigate(artistPath(name))}
       onVenue={(name) => navigate(venuePath(name))}
-      onFestival={(name) => navigate(festivalPath(name))}
       showInProgressBadge={showInProgressBadge}
     />
   );
