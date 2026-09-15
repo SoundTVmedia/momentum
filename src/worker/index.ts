@@ -88,7 +88,7 @@ import * as superadminModeration from "./superadmin-moderation-endpoints";
 import * as reports from "./report-endpoints";
 import { submitSupportRequest } from "./support-endpoints";
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, isBlockedBetween, getBlockDirections, blockKey } from "./user-blocks";
-import { CLIP_SHOW_KEY_SQL, latestSceneClipFreshSql } from "./past-show-sql";
+import { CLIP_NIGHT_KEY_SQL, groupedPastShowsSelectSql, latestSceneClipFreshSql } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -4072,32 +4072,25 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
 
   try {
     const previousShows = await c.env.DB.prepare(
-      `SELECT 
-        ${CLIP_SHOW_KEY_SQL} as show_id,
-        MAX(clips.event_title) as event_title,
-        MAX(clips.artist_name) as artist_name,
-        MIN(clips.timestamp) as show_date,
-        MAX(clips.venue_name) as venue_name,
-        MAX(clips.location) as venue_location,
-        MAX(CASE WHEN clips.jambase_event_id IS NOT NULL AND TRIM(clips.jambase_event_id) != '' THEN clips.jambase_event_id END) as jambase_event_id,
-        MAX(CASE WHEN clips.jambase_venue_id IS NOT NULL AND TRIM(clips.jambase_venue_id) != '' THEN clips.jambase_venue_id END) as jambase_venue_id,
-        MAX(CASE WHEN clips.jambase_artist_id IS NOT NULL AND TRIM(clips.jambase_artist_id) != '' THEN clips.jambase_artist_id END) as jambase_artist_id,
-        COUNT(DISTINCT clips.id) as clip_count,
-        AVG(clips.average_rating) as average_show_rating,
-        MAX(clips.thumbnail_url) as thumbnail_url
+      `SELECT ${groupedPastShowsSelectSql()}
       FROM clips
       WHERE clips.artist_name = ?
       AND ${PUBLIC_VISIBLE_CLIP_SQL}
       AND clips.event_title IS NOT NULL
       AND TRIM(clips.event_title) != ''
-      GROUP BY ${CLIP_SHOW_KEY_SQL}
+      GROUP BY ${CLIP_NIGHT_KEY_SQL}
       ORDER BY show_date DESC
       LIMIT ?`
     )
       .bind(artistName, limit)
       .all();
 
-    return c.json({ shows: previousShows.results || [] });
+    const shows = previousShows.results || [];
+    // #region agent log
+    fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00acaf'},body:JSON.stringify({sessionId:'00acaf',runId:'post-fix',hypothesisId:'A',location:'src/worker/index.ts:previous-shows',message:'artist previous shows grouped by night',data:{artistName,showCount:shows.length,shows:shows.map((row)=>{const s=row as Record<string,unknown>;return {show_id:s.show_id,show_date:s.show_date,clip_count:s.clip_count,jambase_event_id:s.jambase_event_id,venue_name:s.venue_name};})},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    return c.json({ shows });
   } catch (error) {
     console.error('Get artist previous shows error:', error);
     return c.json({ error: 'Failed to get previous shows' }, 500);

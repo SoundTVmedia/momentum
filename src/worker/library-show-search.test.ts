@@ -89,6 +89,48 @@ describe('library show search', () => {
     expect(cap[0]?.event_title).toBe('Goose at The Cap');
   });
 
+  it('merges same-night library shows that used mixed JamBase and composite ids', () => {
+    const db = createDb();
+    db.prepare(
+      `INSERT INTO clips
+        (id, artist_name, venue_name, location, timestamp, jambase_event_id, show_id, event_title, thumbnail_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      1,
+      'Ariana Grande',
+      'Barclays Center',
+      'Brooklyn, NY',
+      '2026-07-14T00:44:57.227Z',
+      'jambase:14852021',
+      'jambase:14852021',
+      'Ariana Grande at Barclays Center',
+      'https://cdn.example/a.jpg',
+    );
+    db.prepare(
+      `INSERT INTO clips
+        (id, artist_name, venue_name, location, timestamp, jambase_event_id, show_id, event_title, thumbnail_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      2,
+      'Ariana Grande',
+      'Barclays Center',
+      'New York, NY',
+      '2026-07-14T00:32:47.000Z',
+      null,
+      'ariana-grande-barclays-center-2026-07-14',
+      'Ariana Grande at Barclays Center',
+      'https://cdn.example/b.jpg',
+    );
+
+    const ariana = db
+      .prepare(LIBRARY_SHOW_SEARCH_SQL)
+      .all('%ariana%', '%ariana%', '%ariana%', '%ariana%', 10) as LibraryShowSearchRow[];
+    expect(ariana).toHaveLength(1);
+    expect(ariana[0]?.show_id).toBe('jambase:14852021');
+    expect(ariana[0]?.clip_count).toBe(2);
+    expect(ariana[0]?.jambase_event_id).toBe('jambase:14852021');
+  });
+
   it('maps a library show onto a Find a Show event row', () => {
     const event = libraryShowToJamBaseEvent({
       show_id: 'phish-msg-2024-12-31',

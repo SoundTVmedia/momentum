@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_NIGHT_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowsSelectSql, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -77,6 +77,73 @@ describe('CLIP_SHOW_KEY_SQL', () => {
   });
 });
 
+describe('CLIP_NIGHT_KEY_SQL', () => {
+  const databases: DatabaseSync[] = [];
+
+  afterEach(() => {
+    for (const db of databases.splice(0)) db.close();
+  });
+
+  function createDb(): DatabaseSync {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        artist_name TEXT,
+        venue_name TEXT,
+        timestamp TEXT,
+        jambase_event_id TEXT,
+        jambase_venue_id TEXT,
+        jambase_artist_id TEXT,
+        show_id TEXT,
+        event_title TEXT,
+        location TEXT,
+        thumbnail_url TEXT,
+        average_rating REAL
+      )
+    `);
+    return db;
+  }
+
+  it('merges JamBase show ids with composite slugs from the same night', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (127, 'Ariana Grande', 'Barclays Center', '2026-07-14T00:44:57.227Z', 'jambase:14852021', 'jambase:14852021', 'Ariana Grande at Barclays Center'),
+        (131, 'Ariana Grande', 'Barclays Center', '2026-07-14T00:32:47.000Z', NULL, 'ariana-grande-barclays-center-2026-07-14', 'Ariana Grande at Barclays Center'),
+        (200, 'Ryan Bingham', 'Irving Plaza', '2026-06-10T01:00:00.000Z', 'jambase:15658983', 'jambase:15658983', 'Ryan Bingham at Irving Plaza'),
+        (201, 'Ryan Bingham', 'Irving Plaza', '2026-06-10T02:00:00.000Z', NULL, 'ryan-bingham-irving-plaza-2026-06-10', 'Ryan Bingham at Irving Plaza'),
+        (300, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden'),
+        (301, 'Phish', 'Madison Square Garden', '2026-07-26T01:00:00.000Z', 'jambase:15668776', 'jambase:15668776', 'Phish at Madison Square Garden')
+    `).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_NIGHT_KEY_SQL}
+        ORDER BY show_date ASC
+      `)
+      .all() as Array<{ show_id: string; clip_count: number; artist_name: string }>;
+
+    expect(
+      rows.map((row) => ({
+        show_id: row.show_id,
+        clip_count: row.clip_count,
+        artist_name: row.artist_name,
+      })),
+    ).toEqual([
+      { show_id: 'jambase:15658983', clip_count: 2, artist_name: 'Ryan Bingham' },
+      { show_id: 'jambase:14852021', clip_count: 2, artist_name: 'Ariana Grande' },
+      { show_id: 'jambase:15668773', clip_count: 1, artist_name: 'Phish' },
+      { show_id: 'jambase:15668776', clip_count: 1, artist_name: 'Phish' },
+    ]);
+  });
+});
+
 describe('clipBelongsToRequestedShowSql', () => {
   const databases: DatabaseSync[] = [];
 
@@ -106,11 +173,11 @@ describe('clipBelongsToRequestedShowSql', () => {
     const insert = db.prepare(`
       INSERT INTO clips
         (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES (?, 'Phish', 'Madison Square Garden', '2025-04-20T01:00:00.000Z', ?, ?, ?)
+      VALUES (?, 'Phish', ?, ?, ?, ?, ?)
     `);
-    insert.run(1, 'jambase:123', 'phish-msg-2025-04-20', 'Phish at Madison Square Garden');
-    insert.run(2, 'jambase:123', 'jambase:123', 'Phish');
-    insert.run(3, 'jambase:999', 'other-show', 'Other Night');
+    insert.run(1, 'Madison Square Garden', '2025-04-20T01:00:00.000Z', 'jambase:123', 'phish-msg-2025-04-20', 'Phish at Madison Square Garden');
+    insert.run(2, 'Madison Square Garden', '2025-04-20T03:00:00.000Z', 'jambase:123', 'jambase:123', 'Phish');
+    insert.run(3, 'The Sphere', '2025-04-20T01:00:00.000Z', 'jambase:999', 'other-show', 'Other Night');
 
     const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
     const showBinds = Array.from(
@@ -126,6 +193,37 @@ describe('clipBelongsToRequestedShowSql', () => {
 
     expect(byComposite).toEqual([{ id: 1 }, { id: 2 }]);
     expect(byEventId).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it('includes same-night clips that never stored a JamBase event id', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (127, 'Ariana Grande', 'Barclays Center', '2026-07-14T00:44:57.227Z', 'jambase:14852021', 'jambase:14852021', 'Ariana Grande at Barclays Center'),
+        (128, 'Ariana Grande', 'Barclays Center', '2026-07-14T02:32:25.797Z', 'jambase:14852021', 'jambase:14852021', 'Ariana Grande at Barclays Center'),
+        (130, 'Ariana Grande', 'Barclays Center', '2026-07-14T02:47:04.993Z', 'jambase:14852021', 'jambase:14852021', 'Ariana Grande at Barclays Center'),
+        (131, 'Ariana Grande', 'Barclays Center', '2026-07-14T00:32:47.000Z', NULL, 'ariana-grande-barclays-center-2026-07-14', 'Ariana Grande at Barclays Center')
+    `).run();
+
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const byEventId = db
+      .prepare(sql)
+      .all(
+        ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:14852021'),
+      ) as Array<{ id: number }>;
+    const byComposite = db
+      .prepare(sql)
+      .all(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'ariana-grande-barclays-center-2026-07-14',
+        ),
+      ) as Array<{ id: number }>;
+
+    expect(byEventId).toEqual([{ id: 127 }, { id: 128 }, { id: 130 }, { id: 131 }]);
+    expect(byComposite).toEqual([{ id: 127 }, { id: 128 }, { id: 130 }, { id: 131 }]);
   });
 
   it('includes clips that share a title-linked show identity', () => {

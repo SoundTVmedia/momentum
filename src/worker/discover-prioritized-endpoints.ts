@@ -5,7 +5,7 @@ import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
-import { CLIP_SHOW_KEY_SQL, CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql } from './past-show-sql';
+import { CLIP_NIGHT_KEY_SQL, CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowsSelectSql } from './past-show-sql';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { isUserFollowTargetId } from './follow-endpoints';
 
@@ -703,6 +703,9 @@ export async function getShowClips(c: Context) {
     const hiddenAuthors = await getHiddenUserIdsForRequest(c);
     const visible = withoutBlockedAuthors(rows as Record<string, unknown>[], hiddenAuthors);
     const hasMore = visible.length > limit;
+    // #region agent log
+    fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00acaf'},body:JSON.stringify({sessionId:'00acaf',runId:'post-fix',hypothesisId:'A',location:'src/worker/discover-prioritized-endpoints.ts:getShowClips',message:'show page clips after night merge',data:{showId,clipCount:visible.length,clips:visible.slice(0,20).map((row)=>{const c=row as Record<string,unknown>;return {id:c.id,show_id:c.show_id,jambase_event_id:c.jambase_event_id,timestamp:c.timestamp,venue_name:c.venue_name};})},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     return c.json({
       clips: hasMore ? visible.slice(0, limit) : visible,
@@ -816,25 +819,13 @@ export async function getVenueArchive(c: Context) {
 
   try {
     let query = `
-      SELECT 
-        ${CLIP_SHOW_KEY_SQL} as show_id,
-        MAX(clips.event_title) as event_title,
-        MAX(clips.artist_name) as artist_name,
-        MIN(clips.timestamp) as show_date,
-        MAX(clips.venue_name) as venue_name,
-        MAX(clips.location) as venue_location,
-        MAX(CASE WHEN clips.jambase_event_id IS NOT NULL AND TRIM(clips.jambase_event_id) != '' THEN clips.jambase_event_id END) as jambase_event_id,
-        MAX(CASE WHEN clips.jambase_venue_id IS NOT NULL AND TRIM(clips.jambase_venue_id) != '' THEN clips.jambase_venue_id END) as jambase_venue_id,
-        MAX(CASE WHEN clips.jambase_artist_id IS NOT NULL AND TRIM(clips.jambase_artist_id) != '' THEN clips.jambase_artist_id END) as jambase_artist_id,
-        COUNT(DISTINCT clips.id) as clip_count,
-        AVG(clips.average_rating) as average_show_rating,
-        MAX(clips.thumbnail_url) as thumbnail_url
+      SELECT ${groupedPastShowsSelectSql()}
       FROM clips
       WHERE clips.venue_name = ?
       AND ${PUBLIC_VISIBLE_CLIP_SQL}
       AND clips.event_title IS NOT NULL
       AND TRIM(clips.event_title) != ''
-      GROUP BY ${CLIP_SHOW_KEY_SQL}
+      GROUP BY ${CLIP_NIGHT_KEY_SQL}
     `;
 
     const bindings: any[] = [venueName];
@@ -856,12 +847,16 @@ export async function getVenueArchive(c: Context) {
     const shows = await c.env.DB.prepare(query)
       .bind(...bindings)
       .all();
+    const results = shows.results || [];
+    // #region agent log
+    fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00acaf'},body:JSON.stringify({sessionId:'00acaf',runId:'post-fix',hypothesisId:'A',location:'src/worker/discover-prioritized-endpoints.ts:getVenueArchive',message:'venue archive grouped by night',data:{venueName,showCount:results.length,shows:results.map((row)=>{const s=row as Record<string,unknown>;return {show_id:s.show_id,artist_name:s.artist_name,show_date:s.show_date,clip_count:s.clip_count,jambase_event_id:s.jambase_event_id};})},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     return c.json({
-      shows: shows.results || [],
+      shows: results,
       page,
       limit,
-      hasMore: (shows.results || []).length === limit
+      hasMore: results.length === limit
     });
   } catch (error) {
     console.error('Get venue archive error:', error);

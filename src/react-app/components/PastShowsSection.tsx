@@ -39,6 +39,9 @@ export default function PastShowsSection({
         if (response.ok) {
           const data = (await response.json()) as { shows?: PastShowSummary[] };
           const allShows = data.shows ?? [];
+          // #region agent log
+          fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00acaf'},body:JSON.stringify({sessionId:'00acaf',runId:'post-fix',hypothesisId:'A',location:'src/react-app/components/PastShowsSection.tsx:fetch',message:'past shows carousel payload',data:{fetchUrl:requestUrl,showCount:allShows.length,shows:allShows.map((show)=>({show_id:show.show_id,show_date:show.show_date,clip_count:show.clip_count,jambase_event_id:show.jambase_event_id,venue_name:show.venue_name,event_title:show.event_title}))},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           setShows(allShows);
           setDisplayedShows(allShows.slice(0, PAGE_SIZE));
           setPage(1);
