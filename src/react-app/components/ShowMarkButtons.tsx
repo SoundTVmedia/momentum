@@ -73,15 +73,19 @@ export default function ShowMarkButtons({
 
   const pad = compact
     ? 'px-2 py-1'
-    : size === 'hero'
+    : size === 'hero' || showUploadClip
       ? 'px-4 py-2.5 text-sm font-semibold'
       : 'px-2.5 py-1.5';
   const stretch = !compact && actions.length === 1 && !offerUpload;
+  const iconClass =
+    size === 'hero' || showUploadClip ? 'w-4 h-4 shrink-0' : 'w-3.5 h-3.5 shrink-0';
+  const smallType = compact || (size !== 'hero' && !showUploadClip);
 
   return (
     <div
       className={[
-        'inline-flex flex-wrap items-center gap-1.5',
+        'inline-flex items-center gap-1.5',
+        offerUpload ? 'flex-nowrap' : 'flex-wrap',
         stretch ? 'w-full' : '',
         className,
       ]
@@ -92,6 +96,7 @@ export default function ShowMarkButtons({
       {actions.map((action) => {
         const active = isShowMarkActionActive(action, event, current);
         const busy = pending === action;
+        const attendedFilled = action === 'attended' && active;
         return (
           <button
             key={action}
@@ -99,22 +104,26 @@ export default function ShowMarkButtons({
             disabled={pending !== null}
             onClick={() => void handleAction(action)}
             className={[
-              'inline-flex items-center justify-center gap-1 rounded-lg border font-medium transition-colors',
-              compact || size !== 'hero' ? 'text-xs' : '',
+              'inline-flex items-center justify-center gap-1 rounded-lg border font-medium transition-colors whitespace-nowrap',
+              smallType ? 'text-xs' : '',
               pad,
-              stretch ? 'w-full' : 'flex-1 min-w-0',
-              active
-                ? 'border-momentum-flare bg-momentum-flare/20 text-momentum-flare'
-                : 'border-white/20 bg-white/5 text-gray-300 hover:border-momentum-flare/50 hover:text-white',
+              stretch ? 'w-full' : offerUpload ? 'shrink-0' : 'flex-1 min-w-0',
+              attendedFilled
+                ? 'border-transparent bg-gradient-to-r from-momentum-flare to-momentum-rose text-white font-semibold shadow-lg'
+                : active
+                  ? 'border-momentum-flare bg-momentum-flare text-white'
+                  : showUploadClip && action === 'attended'
+                    ? 'border-momentum-flare bg-momentum-flare text-white hover:opacity-90'
+                    : 'border-white/20 bg-white/5 text-gray-300 hover:border-momentum-flare/50 hover:text-white',
             ].join(' ')}
             aria-pressed={active}
           >
             {busy ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              <Loader2 className={`${iconClass} animate-spin`} />
             ) : active ? (
-              <Check className="w-3.5 h-3.5 shrink-0" />
+              <Check className={iconClass} />
             ) : null}
-            <span>{showMarkActionLabel(action)}</span>
+            <span className="whitespace-nowrap">{showMarkActionLabel(action)}</span>
           </button>
         );
       })}
@@ -125,14 +134,13 @@ export default function ShowMarkButtons({
             navigate('/upload?archive=true', { state: archivalUploadNavState(current) })
           }
           className={[
-            'inline-flex items-center justify-center gap-1 rounded-lg font-semibold text-white momentum-grad-interactive',
-            compact || size !== 'hero' ? 'text-xs' : '',
+            'inline-flex items-center justify-center gap-1 rounded-lg font-semibold text-white momentum-grad-interactive whitespace-nowrap shrink-0',
+            smallType ? 'text-xs' : '',
             pad,
-            stretch ? 'w-full' : 'flex-1 min-w-0',
           ].join(' ')}
         >
-          <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden />
-          <span>Upload clip</span>
+          <Upload className={iconClass} aria-hidden />
+          <span className="whitespace-nowrap">Upload clip</span>
         </button>
       ) : null}
     </div>
