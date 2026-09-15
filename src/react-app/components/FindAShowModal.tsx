@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
-import { Calendar, Loader2, MapPin, Search, X } from 'lucide-react';
+import { Calendar, Loader2, MapPin, Plus, Search, X } from 'lucide-react';
+import { useAuth } from '@getmocha/users-service/react';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import { displayMediaUrl } from '@/shared/media-proxy';
-import { jamBaseEventShowPath } from '@/shared/app-paths';
+import { jamBaseEventShowPath, pastShowClipsPath } from '@/shared/app-paths';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
   formatJamBaseEventDate,
@@ -17,10 +18,14 @@ import {
   jamBaseEventVenueName,
 } from '@/shared/jambase-events';
 import { artistAtVenueTitle, jamBaseEventTitle } from '@/shared/event-title';
-import { isFeedbackLibraryShow } from '@/shared/library-shows';
+import { isAlreadyInLibraryShow, isFeedbackLibraryShow } from '@/shared/library-shows';
+import type { PastShowSummary } from '@/react-app/components/PastShowsCarousel';
 
 type FindAShowModalProps = {
   onClose: () => void;
+  mode?: 'search' | 'addPastShow';
+  initialQuery?: string;
+  onAdded?: (show: PastShowSummary) => void;
 };
 
 function eventVenueId(ev: Record<string, unknown>): string | undefined {
@@ -37,14 +42,26 @@ function eventArtistId(ev: Record<string, unknown>): string | undefined {
     : undefined;
 }
 
-export default function FindAShowModal({ onClose }: FindAShowModalProps) {
+function showHrefFromEvent(ev: Record<string, unknown>): string {
+  return jamBaseEventShowPath(ev);
+}
+
+export default function FindAShowModal({
+  onClose,
+  mode = 'search',
+  initialQuery = '',
+  onAdded,
+}: FindAShowModalProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const addPastShow = mode === 'addPastShow';
   const inputRef = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const debounced = useDebounce(query.trim(), 350);
   const [events, setEvents] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -70,15 +87,25 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
     setLoading(true);
     setError(null);
 
+    const searchQs = addPastShow
+      ? `/api/jambase/search/events?q=${encodeURIComponent(debounced)}&includePast=1&pastOnly=1&limit=24`
+      : `/api/jambase/search/events?q=${encodeURIComponent(debounced)}&includePast=1&limit=24`;
+
     void (async () => {
       try {
-        const res = await apiFetch(
-          `/api/jambase/search/events?q=${encodeURIComponent(debounced)}&includePast=1&limit=24`,
-          { cache: 'no-store' },
-        );
+        const res = await apiFetch(searchQs, { cache: 'no-store' });
         if (!res.ok) throw new Error('Search failed');
         const data = (await res.json()) as { events?: Record<string, unknown>[] };
-        if (!cancelled) setEvents(data.events ?? []);
+        if (!cancelled) {
+          const rows = data.events ?? [];
+          setEvents(
+            addPastShow
+              ? rows.filter(
+                  (ev) => isAlreadyInLibraryShow(ev) || !jamBaseEventUpcomingOrInProgress(ev),
+                )
+              : rows,
+          );
+        }
       } catch (err) {
         if (!cancelled) {
           setEvents([]);
@@ -92,9 +119,102 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
     return () => {
       cancelled = true;
     };
-  }, [debounced]);
+  }, [debounced, addPastShow]);
+
+  const openExistingShow = (ev: Record<string, unknown>) => {
+    onClose();
+    navigate(showHrefFromEvent(ev));
+  };
+
+  const addPastEvent = async (ev: Record<string, unknown>) => {
+    const eventId = jamBaseEventId(ev);
+    if (isAlreadyInLibraryShow(ev)) {
+      openExistingShow(ev);
+      return;
+    }
+    if (jamBaseEventUpcomingOrInProgress(ev)) {
+      setError("Upcoming shows can't be added as past shows.");
+      return;
+    }
+    if (!user) {
+      setError('Sign in to add a past show.');
+      return;
+    }
+    if (!eventId) {
+      setError('This JamBase event is missing an id.');
+      return;
+    }
+
+    setAddingId(eventId);
+    setError(null);
+    try {
+      const res = await apiFetch('/api/library-shows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jambase_event_id: eventId, event: ev }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        alreadyAdded?: boolean;
+        show?: PastShowSummary;
+      };
+      if (res.status === 409 && data.show) {
+        onAdded?.(data.show);
+        onClose();
+        navigate(
+          pastShowClipsPath({
+            show_id: data.show.show_id,
+            jambase_event_id: data.show.jambase_event_id,
+            artist_name: data.show.artist_name,
+            venue_name: data.show.venue_name,
+            show_date: data.show.show_date,
+            event_title: data.show.event_title,
+          }),
+        );
+        return;
+      }
+      if (!res.ok) {
+        setError(data.error || 'Could not add this show');
+        return;
+      }
+      if (data.show) onAdded?.(data.show);
+      onClose();
+      const artistName = jamBaseEventArtistName(ev);
+      const venueName = jamBaseEventVenueName(ev);
+      navigate(
+        data.show
+          ? pastShowClipsPath({
+              show_id: data.show.show_id,
+              jambase_event_id: data.show.jambase_event_id,
+              artist_name: data.show.artist_name,
+              venue_name: data.show.venue_name,
+              show_date: data.show.show_date,
+              event_title: data.show.event_title,
+            })
+          : jamBaseEventShowPath({
+              ...ev,
+              identifier: eventId,
+              performer: ev.performer,
+              location: {
+                ...(typeof ev.location === 'object' && ev.location ? ev.location : {}),
+                name: venueName,
+              },
+              name: jamBaseEventTitle(ev) ?? artistAtVenueTitle(artistName, venueName),
+            }),
+      );
+    } catch (err) {
+      setError(apiFetchErrorMessage(err, 'Could not add this show'));
+    } finally {
+      setAddingId(null);
+    }
+  };
 
   const openEvent = (ev: Record<string, unknown>) => {
+    if (addPastShow) {
+      void addPastEvent(ev);
+      return;
+    }
+
     const artistName = jamBaseEventArtistName(ev);
     const venueName = jamBaseEventVenueName(ev);
     const venueLabel = venueName === 'Venue TBA' ? '' : venueName;
@@ -158,8 +278,9 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
         </div>
 
         <p className="mb-3 text-sm text-gray-400">
-          Past shows are listed first (JamBase dates go back about two years; FEEDBACK library
-          clips can be older). Upcoming dates include a ticket link on the show page.
+          {addPastShow
+            ? 'Search JamBase’s archive of past events. Shows already in Feedback can’t be added again.'
+            : 'Past shows are listed first (JamBase dates go back about two years; FEEDBACK library clips can be older). Upcoming dates include a ticket link on the show page.'}
         </p>
 
         <div className="relative mb-4">
@@ -177,17 +298,18 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {error ? <p className="mb-3 text-sm text-red-400">{error}</p> : null}
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
               <Loader2 className="h-5 w-5 animate-spin" />
               Searching shows…
             </div>
-          ) : error ? (
-            <p className="py-6 text-sm text-red-400">{error}</p>
           ) : debounced.length < 2 ? (
             <p className="py-6 text-sm text-gray-500">Type at least two letters to search.</p>
           ) : events.length === 0 ? (
-            <p className="py-6 text-sm text-gray-500">No matching shows.</p>
+            <p className="py-6 text-sm text-gray-500">
+              {error ? 'Could not search shows.' : 'No matching shows.'}
+            </p>
           ) : (
             <ul className="space-y-2">
               {events.map((ev, index) => {
@@ -196,19 +318,22 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
                 const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
                 const upcoming =
                   !isFeedbackLibraryShow(ev) && jamBaseEventUpcomingOrInProgress(ev);
+                const alreadyAdded = isAlreadyInLibraryShow(ev);
                 const image = jamBaseEventImageUrl(ev);
                 const title =
                   jamBaseEventTitle(ev) ??
                   artistAtVenueTitle(artistName, venueName) ??
                   (artistName || 'Show');
                 const key = jamBaseEventId(ev) || `${title}-${startDate}-${index}`;
+                const busy = addingId === jamBaseEventId(ev);
 
                 return (
                   <li key={key}>
                     <button
                       type="button"
                       onClick={() => openEvent(ev)}
-                      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left hover:bg-white/10"
+                      disabled={busy}
+                      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left hover:bg-white/10 disabled:opacity-70"
                     >
                       {image ? (
                         <img
@@ -233,15 +358,36 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
                           {formatJamBaseEventDate(startDate)}
                         </span>
                       </span>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${
-                          upcoming
-                            ? 'bg-white/10 text-white/80'
-                            : 'bg-momentum-ember/25 text-momentum-flare'
-                        }`}
-                      >
-                        {upcoming ? 'Upcoming' : 'Past'}
-                      </span>
+                      {addPastShow ? (
+                        <span
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${
+                            alreadyAdded
+                              ? 'bg-white/10 text-white/80'
+                              : 'bg-momentum-flare text-white'
+                          }`}
+                        >
+                          {busy ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : alreadyAdded ? (
+                            'Added'
+                          ) : (
+                            <>
+                              <Plus className="h-3 w-3" />
+                              Add
+                            </>
+                          )}
+                        </span>
+                      ) : (
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide ${
+                            upcoming
+                              ? 'bg-white/10 text-white/80'
+                              : 'bg-momentum-ember/25 text-momentum-flare'
+                          }`}
+                        >
+                          {upcoming ? 'Upcoming' : 'Past'}
+                        </span>
+                      )}
                     </button>
                   </li>
                 );

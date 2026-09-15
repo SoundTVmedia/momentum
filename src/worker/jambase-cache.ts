@@ -1,5 +1,6 @@
 import { slugifyEntityName } from '../shared/jambase-slug';
 import { jamBaseEventHeadliner, jamBaseEventVenueCoords } from '../shared/jambase-events';
+import { serializeStoredSetlist } from '../shared/jambase-setlist';
 
 type JamBaseCachedJson = Record<string, unknown> & { success?: boolean };
 
@@ -439,23 +440,48 @@ export async function upsertCachedEvent(
   const start = eventStartDate(ev);
   const artistId = eventArtistId(ev);
   const venueId = eventVenueId(ev);
+  const payload = JSON.stringify(ev);
+  const setlistJson = serializeStoredSetlist(ev);
   try {
     await db
       .prepare(
         `INSERT INTO jambase_events
-           (jambase_event_id, payload, start_date, artist_jambase_id, venue_jambase_id, fetched_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+           (jambase_event_id, payload, start_date, artist_jambase_id, venue_jambase_id, fetched_at, setlist_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(jambase_event_id) DO UPDATE SET
            payload = excluded.payload,
            start_date = excluded.start_date,
            artist_jambase_id = excluded.artist_jambase_id,
            venue_jambase_id = excluded.venue_jambase_id,
-           fetched_at = excluded.fetched_at`,
+           fetched_at = excluded.fetched_at,
+           setlist_json = excluded.setlist_json`,
       )
-      .bind(id, JSON.stringify(ev), start, artistId, venueId, fetchedAt)
+      .bind(id, payload, start, artistId, venueId, fetchedAt, setlistJson)
       .run();
   } catch (e) {
-    console.error('[JamBase] event upsert failed', e);
+    const message = e instanceof Error ? e.message : String(e);
+    if (!/no such column: setlist_json/i.test(message)) {
+      console.error('[JamBase] event upsert failed', e);
+    } else {
+      try {
+        await db
+          .prepare(
+            `INSERT INTO jambase_events
+               (jambase_event_id, payload, start_date, artist_jambase_id, venue_jambase_id, fetched_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(jambase_event_id) DO UPDATE SET
+               payload = excluded.payload,
+               start_date = excluded.start_date,
+               artist_jambase_id = excluded.artist_jambase_id,
+               venue_jambase_id = excluded.venue_jambase_id,
+               fetched_at = excluded.fetched_at`,
+          )
+          .bind(id, payload, start, artistId, venueId, fetchedAt)
+          .run();
+      } catch (inner) {
+        console.error('[JamBase] event upsert failed', inner);
+      }
+    }
   }
   const loc = ev.location;
   if (loc && typeof loc === 'object' && loc !== null) {

@@ -5,9 +5,12 @@ import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
-import { CLIP_NIGHT_KEY_SQL, CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowsSelectSql } from './past-show-sql';
+import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql } from './past-show-sql';
+import { listPastShowsForEntity } from './past-show-list';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { isUserFollowTargetId } from './follow-endpoints';
+import { SHOW_CLIPS_RECORDED_ORDER_BY_SQL } from './clip-order-by';
+import { loadStoredShowPage } from './stored-show-page';
 
 /**
  * Get prioritized shows for discovery feed
@@ -689,7 +692,7 @@ export async function getShowClips(c: Context) {
         break;
       case 'time_posted':
       default:
-        query += ' ORDER BY clips.created_at ASC';
+        query += ` ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}`;
         break;
     }
 
@@ -703,9 +706,20 @@ export async function getShowClips(c: Context) {
     const hiddenAuthors = await getHiddenUserIdsForRequest(c);
     const visible = withoutBlockedAuthors(rows as Record<string, unknown>[], hiddenAuthors);
     const hasMore = visible.length > limit;
+    const pageClips = hasMore ? visible.slice(0, limit) : visible;
+    const clipEventId =
+      typeof pageClips[0]?.jambase_event_id === 'string'
+        ? String(pageClips[0].jambase_event_id).trim()
+        : '';
+    const show =
+      (await loadStoredShowPage(c.env.DB, showId)) ??
+      (clipEventId && clipEventId !== showId
+        ? await loadStoredShowPage(c.env.DB, clipEventId)
+        : null);
 
     return c.json({
-      clips: hasMore ? visible.slice(0, limit) : visible,
+      clips: pageClips,
+      show,
       page,
       limit,
       hasMore,
@@ -762,7 +776,7 @@ export async function getEventClips(c: Context) {
         break;
       case 'time_posted':
       default:
-        query += ' ORDER BY clips.created_at ASC';
+        query += ` ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}`;
         break;
     }
 
@@ -778,9 +792,15 @@ export async function getEventClips(c: Context) {
       (clips.results || []) as Record<string, unknown>[],
       hiddenAuthors,
     );
+    const clipEventId =
+      typeof visible[0]?.jambase_event_id === 'string'
+        ? String(visible[0].jambase_event_id).trim()
+        : '';
+    const show = clipEventId ? await loadStoredShowPage(c.env.DB, clipEventId) : null;
 
     return c.json({
       clips: visible,
+      show,
       event_title: eventTitle,
       page,
       limit,
@@ -809,42 +829,18 @@ export async function getVenueArchive(c: Context) {
   if (!venueName.trim()) {
     return c.json({ shows: [], page: 1, limit: 0, hasMore: false });
   }
-  const sortBy = c.req.query('sort_by') || 'date_played';
+  const sortBy = c.req.query('sort_by') === 'average_rating' ? 'average_rating' : 'date_played';
   const page = parseInt(c.req.query('page') || '1');
   const limit = Math.min(parseInt(c.req.query('limit') || '20'), 48);
   const offset = (page - 1) * limit;
 
   try {
-    let query = `
-      SELECT ${groupedPastShowsSelectSql()}
-      FROM clips
-      WHERE clips.venue_name = ?
-      AND ${PUBLIC_VISIBLE_CLIP_SQL}
-      AND clips.event_title IS NOT NULL
-      AND TRIM(clips.event_title) != ''
-      GROUP BY ${CLIP_NIGHT_KEY_SQL}
-    `;
-
-    const bindings: any[] = [venueName];
-
-    // Apply sorting
-    switch (sortBy) {
-      case 'average_rating':
-        query += ' ORDER BY average_show_rating DESC';
-        break;
-      case 'date_played':
-      default:
-        query += ' ORDER BY show_date DESC';
-        break;
-    }
-
-    query += ' LIMIT ? OFFSET ?';
-    bindings.push(String(limit), String(offset));
-
-    const shows = await c.env.DB.prepare(query)
-      .bind(...bindings)
-      .all();
-    const results = shows.results || [];
+    const results = await listPastShowsForEntity(c.env.DB, {
+      venueName,
+      limit,
+      offset,
+      sortBy,
+    });
 
     return c.json({
       shows: results,

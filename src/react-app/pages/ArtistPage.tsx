@@ -275,6 +275,7 @@ export default function ArtistPage() {
           <PastShowsSection
             fetchUrl={`${apiArtistPath(artistNameParam)}/previous-shows`}
             variant="artist"
+            searchQuery={artist.name || artistNameParam}
           />
         ) : null}
 

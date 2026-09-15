@@ -18,6 +18,7 @@ import {
   enrichClipShowTagsFromMetadata,
   mergeEnrichmentIntoClipFields,
 } from './clips-enrich-upload-show';
+import { rejectIfClipDoesNotMatchTargetShow } from './clip-show-metadata-gate';
 
 export type ClipCreateBody = Record<string, unknown>;
 
@@ -294,6 +295,21 @@ export async function resolveClipCreateFields(
         });
       }
     }
+    }
+  }
+
+  const targetedEventId = fields.resolvedJambaseEventId?.trim() || '';
+  if (targetedEventId) {
+    const gate = await rejectIfClipDoesNotMatchTargetShow(c, {
+      jambaseEventId: targetedEventId,
+      recordedAtIso: captureTimestampMissing ? null : fields.resolvedTimestamp,
+      latitude: fields.geolocation_latitude,
+      longitude: fields.geolocation_longitude,
+      artistName: fields.resolvedArtist,
+      venueName: fields.resolvedVenue,
+    });
+    if (!gate.ok) {
+      return { ok: false, status: 422, error: gate.error };
     }
   }
 

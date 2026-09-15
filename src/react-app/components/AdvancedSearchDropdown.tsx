@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, MapPin, Music, Ticket, Users } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, festivalPath, globalSongPath, venuePath } from '@/shared/app-paths';
+import { artistPath, festivalPath, globalSongPath, jamBaseEventShowPath, venuePath } from '@/shared/app-paths';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import UserAvatar from '@/react-app/components/UserAvatar';
@@ -276,6 +276,7 @@ function SearchDropdownPanel({
                 const title = typeof ev.name === 'string' ? ev.name : 'Show';
                 const ticket = jamBaseEventTicket(ev);
                 const festival = isJamBaseFestivalEvent(ev);
+                const showHref = jamBaseEventShowPath(ev);
                 return (
                   <div
                     key={id}
@@ -287,6 +288,17 @@ function SearchDropdownPanel({
                         onClick={() => {
                           onClose();
                           navigate(festivalPath(title));
+                        }}
+                        className="text-sm text-gray-200 flex-1 min-w-0 truncate text-left hover:text-white"
+                      >
+                        {title}
+                      </button>
+                    ) : showHref ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          navigate(showHref);
                         }}
                         className="text-sm text-gray-200 flex-1 min-w-0 truncate text-left hover:text-white"
                       >

@@ -1,6 +1,7 @@
-import { ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import PastShowsCarousel, { type PastShowSummary } from '@/react-app/components/PastShowsCarousel';
+import FindAShowModal from '@/react-app/components/FindAShowModal';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 
@@ -9,6 +10,8 @@ interface PastShowsSectionProps {
   variant: 'artist' | 'venue';
   /** Venue archive supports sort; artist feed uses API default order. */
   showSort?: boolean;
+  /** Prefills Find a Show when adding a past show from this page. */
+  searchQuery?: string;
 }
 
 const PAGE_SIZE = 12;
@@ -17,12 +20,15 @@ export default function PastShowsSection({
   fetchUrl,
   variant,
   showSort = false,
+  searchQuery = '',
 }: PastShowsSectionProps) {
   const [shows, setShows] = useState<PastShowSummary[]>([]);
   const [displayedShows, setDisplayedShows] = useState<PastShowSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'date_played' | 'average_rating'>('date_played');
   const [page, setPage] = useState(1);
+  const [findOpen, setFindOpen] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -56,7 +62,7 @@ export default function PastShowsSection({
     })();
 
     return () => ac.abort();
-  }, [fetchUrl, sortBy, showSort]);
+  }, [fetchUrl, sortBy, showSort, reloadToken]);
 
   const loadMore = () => {
     const nextPage = page + 1;
@@ -64,34 +70,31 @@ export default function PastShowsSection({
     setPage(nextPage);
   };
 
-  if (loading) {
-    return (
-      <section className={HOME_FEED_SECTION_CLASS}>
-        <SectionHeading
-          title="Past Shows"
-          subtitle="Browse clips from previous concerts"
-          size="page"
-        />
-        <div className="flex justify-center py-10">
-          <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
-        </div>
-      </section>
-    );
-  }
-
-  if (shows.length === 0) {
-    return null;
-  }
+  const addButton = (
+    <button
+      type="button"
+      onClick={() => setFindOpen(true)}
+      className="inline-flex items-center gap-1.5 rounded-full bg-momentum-flare px-4 py-1.5 text-sm font-semibold text-white hover:scale-[1.02] transition-transform shrink-0"
+    >
+      <Plus className="h-4 w-4" aria-hidden />
+      add a past show
+    </button>
+  );
 
   return (
     <section className={`${HOME_FEED_SECTION_CLASS} space-y-4`}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <SectionHeading
           title="Past Shows"
-          subtitle="Browse clips grouped by show"
+          subtitle={
+            shows.length === 0 && !loading
+              ? 'Add a concert from the JamBase archive'
+              : 'Browse clips grouped by show'
+          }
           size="page"
+          badge={addButton}
         />
-        {showSort ? (
+        {showSort && shows.length > 0 ? (
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as 'date_played' | 'average_rating')}
@@ -103,19 +106,43 @@ export default function PastShowsSection({
         ) : null}
       </div>
 
-      <PastShowsCarousel shows={displayedShows} variant={variant} />
-
-      {displayedShows.length < shows.length ? (
-        <div className="flex justify-center pt-2">
-          <button
-            type="button"
-            onClick={loadMore}
-            className="px-8 py-3 bg-gradient-to-r from-momentum-ember to-momentum-flare rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
-          >
-            <span>Load More Shows</span>
-            <ChevronDown className="w-5 h-5" />
-          </button>
+      {loading ? (
+        <div className="flex justify-center py-10">
+          <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" />
         </div>
+      ) : shows.length === 0 ? (
+        <div className="text-center py-10 glass-panel border border-momentum-rose/20 rounded-xl">
+          <p className="text-gray-400">No past shows yet</p>
+          <p className="text-gray-500 text-sm mt-1">
+            Use add a past show to create a show page from JamBase.
+          </p>
+        </div>
+      ) : (
+        <>
+          <PastShowsCarousel shows={displayedShows} variant={variant} />
+
+          {displayedShows.length < shows.length ? (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={loadMore}
+                className="px-8 py-3 bg-gradient-to-r from-momentum-ember to-momentum-flare rounded-xl text-white font-semibold hover:scale-105 transition-transform flex items-center space-x-2"
+              >
+                <span>Load More Shows</span>
+                <ChevronDown className="w-5 h-5" />
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {findOpen ? (
+        <FindAShowModal
+          mode="addPastShow"
+          initialQuery={searchQuery}
+          onClose={() => setFindOpen(false)}
+          onAdded={() => setReloadToken((n) => n + 1)}
+        />
       ) : null}
     </section>
   );

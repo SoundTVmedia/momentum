@@ -118,7 +118,7 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                     onClick={() => navigate(showHref)}
                     className="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-momentum-flare to-momentum-rose text-white text-sm font-semibold hover:scale-[1.02] transition-transform"
                   >
-                    View Show Clips
+                    {show.clip_count > 0 ? 'View Show Clips' : 'View Show'}
                   </button>
                 </div>
               </div>

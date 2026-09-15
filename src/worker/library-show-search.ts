@@ -1,6 +1,21 @@
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
-import { FEEDBACK_LIBRARY_SHOW_FLAG } from '../shared/library-shows';
-import { CLIP_NIGHT_KEY_SQL, groupedPastShowsSelectSql } from './past-show-sql';
+import {
+  ALREADY_IN_LIBRARY_FLAG,
+  FEEDBACK_LIBRARY_SHOW_FLAG,
+} from '../shared/library-shows';
+import {
+  jamBaseEventArtistName,
+  jamBaseEventId,
+  jamBaseEventVenueName,
+} from '../shared/jambase-events';
+import { showNightKey } from '../shared/show-night-key';
+import {
+  CLIP_NIGHT_KEY_SQL,
+  groupedPastShowsSelectSql,
+  libraryShowStubSelectSql,
+  mergeClipAndLibraryPastShows,
+  type PastShowListRow,
+} from './past-show-sql';
 
 export type LibraryShowSearchRow = {
   show_id: string | null;
@@ -30,6 +45,20 @@ export const LIBRARY_SHOW_SEARCH_SQL = `
   GROUP BY ${CLIP_NIGHT_KEY_SQL}
   HAVING ${CLIP_NIGHT_KEY_SQL} IS NOT NULL
   ORDER BY show_date DESC
+  LIMIT ?
+`;
+
+/** Bind the same LIKE four times, then LIMIT. */
+export const LIBRARY_SHOW_STUB_SEARCH_SQL = `
+  SELECT ${libraryShowStubSelectSql({ includeAverageRating: false })}
+  FROM library_shows
+  WHERE (
+    IFNULL(library_shows.event_title, '') LIKE ? COLLATE NOCASE
+    OR IFNULL(library_shows.artist_name, '') LIKE ? COLLATE NOCASE
+    OR IFNULL(library_shows.venue_name, '') LIKE ? COLLATE NOCASE
+    OR IFNULL(library_shows.venue_location, '') LIKE ? COLLATE NOCASE
+  )
+  ORDER BY library_shows.start_date DESC
   LIMIT ?
 `;
 
@@ -76,7 +105,21 @@ export async function searchLibraryShows(
     .prepare(LIBRARY_SHOW_SEARCH_SQL)
     .bind(like, like, like, like, String(limit))
     .all();
-  return (rows.results ?? []) as LibraryShowSearchRow[];
+  const clipShows = (rows.results ?? []) as PastShowListRow[];
+
+  let stubShows: PastShowListRow[] = [];
+  try {
+    const stubs = await db
+      .prepare(LIBRARY_SHOW_STUB_SEARCH_SQL)
+      .bind(like, like, like, like, String(limit))
+      .all();
+    stubShows = (stubs.results ?? []) as PastShowListRow[];
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!/no such table: library_shows/i.test(message)) throw err;
+  }
+
+  return mergeClipAndLibraryPastShows(clipShows, stubShows, limit) as LibraryShowSearchRow[];
 }
 
 export async function libraryEventsForFindAShow(
@@ -91,4 +134,102 @@ export async function libraryEventsForFindAShow(
     console.error('Library show search error:', err);
     return [];
   }
+}
+
+export async function markEventsAlreadyInLibrary(
+  db: D1Database,
+  events: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+  if (events.length === 0) return events;
+  const ids = events
+    .map((ev) => jamBaseEventId(ev))
+    .filter((id): id is string => Boolean(id));
+  const nights = events
+    .map((ev) =>
+      showNightKey(
+        jamBaseEventArtistName(ev),
+        jamBaseEventVenueName(ev) === 'Venue TBA' ? '' : jamBaseEventVenueName(ev),
+        typeof ev.startDate === 'string' ? ev.startDate : null,
+      ),
+    )
+    .filter((key): key is string => Boolean(key));
+
+  const existingIds = new Set<string>();
+  const existingNights = new Set<string>();
+
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => '?').join(',');
+    try {
+      const clipIds = await db
+        .prepare(
+          `SELECT DISTINCT TRIM(jambase_event_id) as id
+           FROM clips
+           WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+           AND NULLIF(TRIM(jambase_event_id), '') IS NOT NULL
+           AND TRIM(jambase_event_id) IN (${placeholders})`,
+        )
+        .bind(...ids)
+        .all<{ id: string }>();
+      for (const row of clipIds.results ?? []) {
+        if (row.id) existingIds.add(row.id);
+      }
+    } catch (err) {
+      console.error('markEventsAlreadyInLibrary clips', err);
+    }
+    try {
+      const stubIds = await db
+        .prepare(
+          `SELECT jambase_event_id as id
+           FROM library_shows
+           WHERE jambase_event_id IN (${placeholders})`,
+        )
+        .bind(...ids)
+        .all<{ id: string }>();
+      for (const row of stubIds.results ?? []) {
+        if (row.id) existingIds.add(row.id);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/no such table: library_shows/i.test(message)) {
+        console.error('markEventsAlreadyInLibrary stubs', err);
+      }
+    }
+  }
+
+  if (nights.length > 0) {
+    const placeholders = nights.map(() => '?').join(',');
+    try {
+      const clipNights = await db
+        .prepare(
+          `SELECT DISTINCT ${CLIP_NIGHT_KEY_SQL} as night_key
+           FROM clips
+           WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+           AND ${CLIP_NIGHT_KEY_SQL} IN (${placeholders})`,
+        )
+        .bind(...nights)
+        .all<{ night_key: string }>();
+      for (const row of clipNights.results ?? []) {
+        if (row.night_key) existingNights.add(row.night_key);
+      }
+    } catch (err) {
+      console.error('markEventsAlreadyInLibrary nights', err);
+    }
+  }
+
+  for (const ev of events) {
+    if (ev[FEEDBACK_LIBRARY_SHOW_FLAG] === true) {
+      ev[ALREADY_IN_LIBRARY_FLAG] = true;
+      continue;
+    }
+    const id = jamBaseEventId(ev);
+    const night = showNightKey(
+      jamBaseEventArtistName(ev),
+      jamBaseEventVenueName(ev) === 'Venue TBA' ? '' : jamBaseEventVenueName(ev),
+      typeof ev.startDate === 'string' ? ev.startDate : null,
+    );
+    if ((id && existingIds.has(id)) || (night && existingNights.has(night))) {
+      ev[ALREADY_IN_LIBRARY_FLAG] = true;
+    }
+  }
+  return events;
 }

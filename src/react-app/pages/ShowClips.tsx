@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Calendar, MapPin, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, ListMusic, MapPin, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
@@ -17,6 +17,7 @@ import {
   jamBaseEventVenueCityLine,
   jamBaseEventVenueName,
 } from '@/shared/jambase-events';
+import { jamBaseEventSetlist, jamBaseEventSetlistUrl, type StoredShowPage } from '@/shared/jambase-setlist';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import EventShowRating from '@/react-app/components/EventShowRating';
@@ -33,7 +34,8 @@ export default function ShowClipsPage() {
     ? titleCaseWords(searchPhraseFromSlug(normalizedSlugFromRouteParam(artistName)))
     : '';
   const [clips, setClips] = useState<ClipWithUser[]>([]);
-  const [jbEvent, setJbEvent] = useState<Record<string, unknown> | null>(null);
+  const [storedShow, setStoredShow] = useState<StoredShowPage | null>(null);
+  const [fallbackEvent, setFallbackEvent] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<ShowClipsSort>('time_posted');
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
@@ -43,6 +45,7 @@ export default function ShowClipsPage() {
   useEffect(() => {
     if (!artistName || !showId) {
       setClips([]);
+      setStoredShow(null);
       setLoading(false);
       return;
     }
@@ -50,6 +53,8 @@ export default function ShowClipsPage() {
     const generation = ++fetchGenerationRef.current;
     const controller = new AbortController();
     setClips([]);
+    setStoredShow(null);
+    setFallbackEvent(null);
     setSelectedClip(null);
     setShowModalFeed(null);
     setLoading(true);
@@ -60,9 +65,10 @@ export default function ShowClipsPage() {
       sortBy,
       signal: controller.signal,
     })
-      .then((allClips) => {
+      .then((result) => {
         if (controller.signal.aborted || generation !== fetchGenerationRef.current) return;
-        setClips(allClips);
+        setClips(result.clips);
+        setStoredShow(result.show);
       })
       .catch((error) => {
         if (controller.signal.aborted || generation !== fetchGenerationRef.current) return;
@@ -81,9 +87,14 @@ export default function ShowClipsPage() {
     typeof clips[0]?.jambase_event_id === 'string' ? clips[0].jambase_event_id.trim() : '';
 
   useEffect(() => {
+    if (loading) return;
+    if (storedShow) {
+      setFallbackEvent(null);
+      return;
+    }
     const lookupId = clipEventId || (typeof showId === 'string' ? showId.trim() : '');
     if (!lookupId) {
-      setJbEvent(null);
+      setFallbackEvent(null);
       return;
     }
     const ac = new AbortController();
@@ -93,20 +104,20 @@ export default function ShowClipsPage() {
           signal: ac.signal,
         });
         if (!res.ok) {
-          if (!ac.signal.aborted) setJbEvent(null);
+          if (!ac.signal.aborted) setFallbackEvent(null);
           return;
         }
         const data = (await res.json()) as { event?: Record<string, unknown> };
         if (!ac.signal.aborted) {
-          setJbEvent(data.event && typeof data.event === 'object' ? data.event : null);
+          setFallbackEvent(data.event && typeof data.event === 'object' ? data.event : null);
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return;
-        if (!ac.signal.aborted) setJbEvent(null);
+        if (!ac.signal.aborted) setFallbackEvent(null);
       }
     })();
     return () => ac.abort();
-  }, [showId, clipEventId]);
+  }, [loading, storedShow, showId, clipEventId]);
 
   const clipEvent =
     clips.length > 0
@@ -125,7 +136,7 @@ export default function ShowClipsPage() {
           jambase_artist_id: clips[0].jambase_artist_id,
         })
       : null;
-  const markEvent = jbEvent ?? clipEvent;
+  const markEvent = storedShow?.event ?? fallbackEvent ?? clipEvent;
   const pastShow = Boolean(markEvent && jamBaseEventIsConcluded(markEvent));
   const upcoming = Boolean(markEvent && jamBaseEventUpcomingOrInProgress(markEvent));
   const ticketUrl = upcoming && markEvent ? jamBaseEventTicketUrl(markEvent) : null;
@@ -137,6 +148,11 @@ export default function ShowClipsPage() {
     (markEvent && jamBaseEventVenueCityLine(markEvent)) ||
     (clips.length > 0 ? clips[0].location : '');
   const startDate = typeof markEvent?.startDate === 'string' ? markEvent.startDate : '';
+  const setlist =
+    storedShow && storedShow.setlist.length > 0
+      ? storedShow.setlist
+      : jamBaseEventSetlist(markEvent);
+  const setlistUrl = storedShow?.setlist_url || jamBaseEventSetlistUrl(markEvent);
   const showDate = startDate
     ? formatJamBaseEventDate(startDate)
     : clips.length > 0 && clips[0].timestamp
@@ -209,7 +225,7 @@ export default function ShowClipsPage() {
               onChange={(e) => setSortBy(e.target.value as ShowClipsSort)}
               className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-momentum-flare"
             >
-              <option value="time_posted">Time Posted</option>
+              <option value="time_posted">Recorded (setlist order)</option>
               <option value="most_liked">Most Liked</option>
             </select>
           </div>
@@ -221,6 +237,40 @@ export default function ShowClipsPage() {
             />
           ) : null}
         </div>
+
+        {pastShow && (setlist.length > 0 || setlistUrl) ? (
+          <section className="glass-panel border border-momentum-rose/20 rounded-xl p-6 sm:p-8 mb-6">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-white mb-3">
+              <ListMusic className="h-5 w-5 text-momentum-flare" aria-hidden />
+              Setlist
+            </h2>
+            {setlist.length > 0 ? (
+              <ol className="space-y-1.5 text-sm text-gray-300">
+                {setlist.map((song, index) => (
+                  <li key={`${song.title}-${index}`} className="flex gap-3">
+                    <span className="w-6 shrink-0 text-gray-500 tabular-nums">{index + 1}.</span>
+                    <span>
+                      {song.title}
+                      {song.artist ? (
+                        <span className="text-gray-500"> — {song.artist}</span>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            {setlistUrl ? (
+              <a
+                href={setlistUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-block text-sm text-momentum-flare hover:underline"
+              >
+                View full setlist
+              </a>
+            ) : null}
+          </section>
+        ) : null}
 
         {/* Clips Grid */}
         {loading ? (

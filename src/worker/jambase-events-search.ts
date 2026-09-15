@@ -11,6 +11,7 @@ import {
   searchPhraseFromSlug,
   slugifyEntityName,
 } from '../shared/jambase-slug';
+import { libraryEventsForFindAShow } from './library-show-search';
 
 /** Recent archive window so first-page results are not decades-old tours. */
 export const JAMBASE_RECENT_PAST_LOOKBACK_DAYS = 120;
@@ -423,4 +424,36 @@ export async function buildFastJamBaseEventResults(
     return da.localeCompare(db);
   });
   return merged.slice(0, maxResults);
+}
+
+function asEventRecords(events: unknown[]): Record<string, unknown>[] {
+  return events.filter(
+    (ev): ev is Record<string, unknown> => typeof ev === 'object' && ev != null && !Array.isArray(ev),
+  );
+}
+
+/**
+ * Universal search / typeahead: upcoming matches plus past JamBase archive
+ * and shows already saved in our library.
+ */
+export async function eventsForUniversalSearch(
+  apiKey: string,
+  query: string,
+  upcoming: unknown[],
+  maxResults: number,
+  quota?: JamBaseQuotaContext,
+  db?: D1Database,
+): Promise<Record<string, unknown>[]> {
+  const q = query.trim();
+  if (q.length < 2 || maxResults <= 0) return [];
+  const [past, library] = await Promise.all([
+    apiKey
+      ? buildPastJamBaseEventResults(apiKey, q, maxResults, quota)
+      : Promise.resolve([] as Record<string, unknown>[]),
+    db ? libraryEventsForFindAShow(db, q, maxResults) : Promise.resolve([] as Record<string, unknown>[]),
+  ]);
+  return mixFindAShowEvents(
+    dedupeJamBaseEvents([...library, ...asEventRecords(upcoming), ...past]),
+    maxResults,
+  );
 }

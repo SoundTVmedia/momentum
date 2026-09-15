@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { FEEDBACK_LIBRARY_SHOW_FLAG } from '../shared/library-shows';
 import {
   LIBRARY_SHOW_SEARCH_SQL,
+  LIBRARY_SHOW_STUB_SEARCH_SQL,
   libraryShowToJamBaseEvent,
   type LibraryShowSearchRow,
 } from './library-show-search';
@@ -151,5 +152,42 @@ describe('library show search', () => {
     expect(event['x-feedbackShowId']).toBe('phish-msg-2024-12-31');
     expect(event['x-clipCount']).toBe(4);
     expect(event.name).toBe('Phish NYE');
+  });
+
+  it('finds user-added JamBase stubs without clips', () => {
+    const db = createDb();
+    db.exec(`
+      CREATE TABLE library_shows (
+        jambase_event_id TEXT PRIMARY KEY,
+        artist_name TEXT,
+        venue_name TEXT,
+        venue_location TEXT,
+        start_date TEXT,
+        event_title TEXT,
+        thumbnail_url TEXT,
+        jambase_artist_id TEXT,
+        jambase_venue_id TEXT
+      )
+    `);
+    db.prepare(
+      `INSERT INTO library_shows
+        (jambase_event_id, artist_name, venue_name, venue_location, start_date, event_title, thumbnail_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      'jambase:dead-sphere',
+      'Dead & Company',
+      'Sphere',
+      'Las Vegas, NV',
+      '2024-05-16T20:00:00',
+      'Dead & Company at Sphere',
+      'https://cdn.example/sphere.jpg',
+    );
+
+    const rows = db
+      .prepare(LIBRARY_SHOW_STUB_SEARCH_SQL)
+      .all('%sphere%', '%sphere%', '%sphere%', '%sphere%', 10) as LibraryShowSearchRow[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.show_id).toBe('jambase:dead-sphere');
+    expect(rows[0]?.clip_count).toBe(0);
   });
 });

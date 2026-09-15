@@ -13,17 +13,24 @@ function normalizedNameKey(name: string): string {
   return normalizeArtistDisplayName(name).toLowerCase();
 }
 
+/** Exact or substring match after JamBase-style name normalization. */
+export function displayNamesClose(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = normalizeArtistDisplayName(left ?? '');
+  const b = normalizeArtistDisplayName(right ?? '');
+  if (!a || !b) return false;
+  const ak = normalizedNameKey(a);
+  const hk = normalizedNameKey(b);
+  if (ak === hk) return true;
+  return ak.includes(hk) || hk.includes(ak);
+}
+
 /** True when ACR-identified artist matches the show headliner (exact or substring). */
 export function headlinerMatchesAcrArtist(
   acrArtist: string,
   headlinerName: string | null | undefined,
 ): boolean {
-  const a = normalizeArtistDisplayName(acrArtist);
-  const h = normalizeArtistDisplayName(headlinerName ?? '');
-  if (!a || !h) return false;
-  const ak = normalizedNameKey(a);
-  const hk = normalizedNameKey(h);
-  if (ak === hk) return true;
-  if (ak.includes(hk) || hk.includes(ak)) return true;
-  return false;
+  return displayNamesClose(acrArtist, headlinerName);
 }

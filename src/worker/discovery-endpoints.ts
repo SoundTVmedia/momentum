@@ -14,6 +14,7 @@ import { cacheJsonProxy } from './performance-utils';
 import {
   buildFastJamBaseEventResults,
   buildTightJamBaseEventResults,
+  eventsForUniversalSearch,
   jamBaseArtistVenueSearchPhrase,
 } from './jambase-events-search';
 import { resolveDiscoverLocation } from './discover-location';
@@ -115,11 +116,12 @@ async function fetchJamBaseCompactCatalog(
   apiKey: string,
   query: string,
   jbQ: JamBaseQuotaContext | undefined,
+  db?: D1Database,
 ): Promise<{ artists: unknown[]; venues: unknown[]; events: unknown[]; failed: boolean }> {
   const phrase = jamBaseArtistVenueSearchPhrase(query);
   const aDiag: JamBaseFetchDiag = {};
   const vDiag: JamBaseFetchDiag = {};
-  const [a, v, events] = await Promise.all([
+  const [a, v, upcoming] = await Promise.all([
     jamBaseFetch<{ artists?: unknown[] }>(
       apiKey,
       '/artists',
@@ -136,6 +138,7 @@ async function fetchJamBaseCompactCatalog(
     ),
     buildFastJamBaseEventResults(apiKey, query, 6, jbQ),
   ]);
+  const events = await eventsForUniversalSearch(apiKey, query, upcoming, 8, jbQ, db);
   return {
     artists: a?.artists ?? [],
     venues: v?.venues ?? [],
@@ -288,11 +291,25 @@ async function runGeoScopedAdvancedSearch(
                 compact ? 6 : 20,
               )
             : Promise.resolve([] as Record<string, unknown>[]),
-        ]).then(([venues, events]) => ({
-          venues: filterJamBaseRecordsInRadius(venues, geoAnchor, radiusMiles),
-          events: filterJamBaseRecordsInRadius(events, geoAnchor, radiusMiles),
-          failed: false,
-        }))
+        ]).then(async ([venues, events]) => {
+          const nearby = filterJamBaseRecordsInRadius(events, geoAnchor, radiusMiles);
+          const mixed =
+            opts.trimmedQuery.trim().length >= 2
+              ? await eventsForUniversalSearch(
+                  jbKeyTrimmed,
+                  opts.trimmedQuery,
+                  nearby,
+                  compact ? 8 : 20,
+                  jbQ,
+                  c.env.DB,
+                )
+              : nearby;
+          return {
+            venues: filterJamBaseRecordsInRadius(venues, geoAnchor, radiusMiles),
+            events: mixed,
+            failed: false,
+          };
+        })
       : Promise.resolve({
           venues: [] as Record<string, unknown>[],
           events: [] as Record<string, unknown>[],
@@ -539,7 +556,7 @@ export async function advancedSearch(c: Context) {
   const jbPromise =
     trimmedQuery.length >= 2 && jbKeyTrimmed
       ? compact
-        ? fetchJamBaseCompactCatalog(jbKeyTrimmed, trimmedQuery, jbQ).then((jb) => ({
+        ? fetchJamBaseCompactCatalog(jbKeyTrimmed, trimmedQuery, jbQ, c.env.DB).then((jb) => ({
             artists: jb.artists,
             venues: jb.venues,
             events: jb.events,
@@ -568,10 +585,18 @@ export async function advancedSearch(c: Context) {
                 vDiag,
               ),
             ]);
-            const eventList = await buildTightJamBaseEventResults(jbKeyTrimmed, q, eventCap, jbQ, {
+            const upcoming = await buildTightJamBaseEventResults(jbKeyTrimmed, q, eventCap, jbQ, {
               artistList: a as { artists?: Record<string, unknown>[] } | null,
               venueList: v as { venues?: Record<string, unknown>[] } | null,
             });
+            const eventList = await eventsForUniversalSearch(
+              jbKeyTrimmed,
+              q,
+              upcoming,
+              eventCap,
+              jbQ,
+              c.env.DB,
+            );
             return {
               artists: a?.artists ?? [],
               venues: v?.venues ?? [],

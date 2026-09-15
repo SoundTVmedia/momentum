@@ -34,7 +34,8 @@ import {
   rewriteMediaUrlForClient,
 } from '../shared/media-proxy';
 import { clientMediaOrigin } from './client-media-origin';
-import { libraryEventsForFindAShow } from './library-show-search';
+import { libraryEventsForFindAShow, markEventsAlreadyInLibrary } from './library-show-search';
+import { loadStoredShowPage } from './stored-show-page';
 
 function rewriteEventList(events: unknown[] | undefined, origin: string): unknown[] {
   if (!Array.isArray(events)) return [];
@@ -456,6 +457,13 @@ export async function getEventById(c: Context) {
   if (!eventId) return c.json({ error: 'eventId is required' }, 400);
 
   try {
+    const stored = await loadStoredShowPage(c.env.DB, eventId);
+    if (stored) {
+      cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
+      return c.json({
+        event: rewriteJamBaseEventImages(stored.event, clientMediaOrigin(c)),
+      });
+    }
     const jbQ = jamBaseQuotaFromEnv(c.env);
     const ev = await fetchJamBaseEventById(c.env.JAMBASE_API_KEY, jbQ, eventId);
     if (!ev) return c.json({ error: 'Event not found' }, 404);
@@ -470,7 +478,8 @@ export async function getEventById(c: Context) {
 export async function searchEvents(c: Context) {
   const q = (c.req.query('q') || '').trim();
   const max = Math.min(parseInt(c.req.query('perPage') || c.req.query('limit') || '20', 10) || 20, 40);
-  const includePast = c.req.query('includePast') === '1';
+  const pastOnly = c.req.query('pastOnly') === '1';
+  const includePast = pastOnly || c.req.query('includePast') === '1';
 
   if (q.length < 2) {
     cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
@@ -484,7 +493,7 @@ export async function searchEvents(c: Context) {
       : Promise.resolve([] as Record<string, unknown>[]);
     const key = c.env.JAMBASE_API_KEY;
     if (!key?.trim()) {
-      const library = await libraryPromise;
+      const library = await markEventsAlreadyInLibrary(c.env.DB, await libraryPromise);
       cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
       return c.json({ events: rewriteEventList(library, origin) });
     }
@@ -520,18 +529,17 @@ export async function searchEvents(c: Context) {
         )),
         ...byTitle,
       ]);
+      const mixed = includePast ? mixFindAShowEvents(looseEvents, max) : looseEvents;
+      const flagged = await markEventsAlreadyInLibrary(c.env.DB, mixed);
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({
-        events: rewriteEventList(
-          includePast ? mixFindAShowEvents(looseEvents, max) : looseEvents,
-          origin,
-        ),
+        events: rewriteEventList(flagged, origin),
       });
     }
 
-    const upcomingMax = includePast ? Math.max(6, Math.floor(max / 4)) : max;
+    const upcomingMax = includePast && !pastOnly ? Math.max(6, Math.floor(max / 4)) : max;
     const [upcomingRaw, past, library] = await Promise.all([
-      buildTightJamBaseEventResults(key, q, upcomingMax, jbQ),
+      pastOnly ? Promise.resolve([]) : buildTightJamBaseEventResults(key, q, upcomingMax, jbQ),
       includePast ? buildPastJamBaseEventResults(key, q, max, jbQ) : Promise.resolve([]),
       libraryPromise,
     ]);
@@ -539,10 +547,11 @@ export async function searchEvents(c: Context) {
       (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
     );
     const events = includePast
-      ? mixFindAShowEvents(dedupeJamBaseEvents([...library, ...upcoming, ...past]), max)
+      ? mixFindAShowEvents(dedupeJamBaseEvents([...library, ...(pastOnly ? [] : upcoming), ...past]), max)
       : upcoming;
+    const flagged = await markEventsAlreadyInLibrary(c.env.DB, events);
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
-    return c.json({ events: rewriteEventList(events, origin) });
+    return c.json({ events: rewriteEventList(flagged, origin) });
   } catch (error) {
     console.error('JamBase event search error:', error);
     return c.json({ error: 'Failed to search events', events: [] }, 500);

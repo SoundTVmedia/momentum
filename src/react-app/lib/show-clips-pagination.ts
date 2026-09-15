@@ -1,4 +1,5 @@
 import type { ClipWithUser } from '@/shared/types';
+import type { StoredShowPage } from '@/shared/jambase-setlist';
 import { apiShowClipsPath } from '@/shared/app-paths';
 
 export const SHOW_CLIPS_PAGE_SIZE = 20;
@@ -17,9 +18,29 @@ interface FetchShowClipsPageOptions {
 export interface ShowClipsPage {
   clips: ClipWithUser[];
   hasMore: boolean;
+  show: StoredShowPage | null;
 }
 
 type FetchAllShowClipsOptions = Omit<FetchShowClipsPageOptions, 'page'>;
+
+function parseStoredShow(value: unknown): StoredShowPage | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (!row.event || typeof row.event !== 'object' || Array.isArray(row.event)) return null;
+  const setlist = Array.isArray(row.setlist)
+    ? row.setlist.filter(
+        (song): song is { title: string; artist?: string } =>
+          Boolean(song && typeof song === 'object' && typeof (song as { title?: unknown }).title === 'string'),
+      )
+    : [];
+  const setlistUrl =
+    typeof row.setlist_url === 'string' && row.setlist_url.trim() ? row.setlist_url.trim() : null;
+  return {
+    event: row.event as Record<string, unknown>,
+    setlist,
+    setlist_url: setlistUrl,
+  };
+}
 
 export async function fetchShowClipsPage({
   artistName,
@@ -46,6 +67,7 @@ export async function fetchShowClipsPage({
   return {
     clips: Array.isArray(data.clips) ? data.clips : [],
     hasMore: Boolean(data.hasMore),
+    show: parseStoredShow(data.show),
   };
 }
 
@@ -66,15 +88,17 @@ export function appendUniqueShowClips(
 
 export async function fetchAllShowClips(
   options: FetchAllShowClipsOptions,
-): Promise<ClipWithUser[]> {
+): Promise<{ clips: ClipWithUser[]; show: StoredShowPage | null }> {
   let clips: ClipWithUser[] = [];
+  let show: StoredShowPage | null = null;
 
   for (let page = 1; ; page += 1) {
     const result = await fetchShowClipsPage({ ...options, page });
+    if (result.show) show = result.show;
     clips = appendUniqueShowClips(clips, result.clips);
 
     if (!result.hasMore || result.clips.length === 0) {
-      return clips;
+      return { clips, show };
     }
   }
 }

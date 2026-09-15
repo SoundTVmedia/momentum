@@ -1,3 +1,5 @@
+import { showNightKey } from '../shared/show-night-key';
+
 /**
  * Canonical SQL identity for a clip's show.
  *
@@ -65,6 +67,83 @@ export function groupedPastShowsSelectSql(options?: { includeAverageRating?: boo
         MAX(CASE WHEN clips.jambase_artist_id IS NOT NULL AND TRIM(clips.jambase_artist_id) != '' THEN clips.jambase_artist_id END) as jambase_artist_id,
         COUNT(DISTINCT clips.id) as clip_count,${averageRatingSql}
         MAX(clips.thumbnail_url) as thumbnail_url`;
+}
+
+export type PastShowListRow = {
+  show_id: string | null;
+  event_title: string | null;
+  artist_name: string | null;
+  show_date: string | null;
+  venue_name: string | null;
+  venue_location: string | null;
+  jambase_event_id: string | null;
+  jambase_venue_id: string | null;
+  jambase_artist_id: string | null;
+  clip_count: number;
+  average_show_rating?: number | null;
+  thumbnail_url: string | null;
+};
+
+export function libraryShowStubSelectSql(options?: { includeAverageRating?: boolean }): string {
+  const averageRatingSql =
+    options?.includeAverageRating === false ? '' : `
+        NULL as average_show_rating,`;
+  return `
+        library_shows.jambase_event_id as show_id,
+        library_shows.event_title as event_title,
+        library_shows.artist_name as artist_name,
+        library_shows.start_date as show_date,
+        library_shows.venue_name as venue_name,
+        library_shows.venue_location as venue_location,
+        library_shows.jambase_event_id as jambase_event_id,
+        library_shows.jambase_venue_id as jambase_venue_id,
+        library_shows.jambase_artist_id as jambase_artist_id,
+        0 as clip_count,${averageRatingSql}
+        library_shows.thumbnail_url as thumbnail_url`;
+}
+
+export function libraryShowNightKeySql(): string {
+  return `(CASE
+    WHEN NULLIF(TRIM(library_shows.artist_name), '') IS NULL THEN NULL
+    WHEN NULLIF(TRIM(library_shows.venue_name), '') IS NULL THEN NULL
+    WHEN NULLIF(TRIM(library_shows.start_date), '') IS NULL THEN NULL
+    ELSE LOWER(TRIM(library_shows.artist_name)) || '|' ||
+      LOWER(REPLACE(REPLACE(TRIM(library_shows.venue_name), CHAR(39), ''), CHAR(8217), '')) || '|' ||
+      strftime('%Y-%m-%d', datetime(replace(replace(substr(TRIM(library_shows.start_date), 1, 19), 'T', ' '), 'Z', '')))
+  END)`;
+}
+
+export function mergeClipAndLibraryPastShows(
+  clipShows: PastShowListRow[],
+  libraryShows: PastShowListRow[],
+  limit: number,
+  sortBy: 'date_played' | 'average_rating' = 'date_played',
+): PastShowListRow[] {
+  const seenIds = new Set<string>();
+  const seenNights = new Set<string>();
+  const out: PastShowListRow[] = [];
+
+  const take = (row: PastShowListRow) => {
+    const id = (row.jambase_event_id || row.show_id || '').trim();
+    const night = showNightKey(row.artist_name, row.venue_name, row.show_date);
+    if (id && seenIds.has(id)) return;
+    if (night && seenNights.has(night)) return;
+    if (id) seenIds.add(id);
+    if (night) seenNights.add(night);
+    out.push(row);
+  };
+
+  for (const row of clipShows) take(row);
+  for (const row of libraryShows) take(row);
+
+  if (sortBy === 'average_rating') {
+    out.sort(
+      (a, b) => (Number(b.average_show_rating) || 0) - (Number(a.average_show_rating) || 0),
+    );
+  } else {
+    out.sort((a, b) => (b.show_date || '').localeCompare(a.show_date || ''));
+  }
+  return out.slice(0, Math.max(0, limit));
 }
 
 /**

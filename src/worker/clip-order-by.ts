@@ -20,3 +20,9 @@ export const CLIP_RECORDED_AT_SQL =
  * uploading them.
  */
 export const SONG_CLIPS_ORDER_BY_SQL = `ORDER BY ${CLIP_RECORDED_AT_SQL} DESC, clips.created_at DESC`;
+
+/**
+ * Show pages: oldest recorded clip first so the grid follows the set.
+ * Falls back to posted time when capture metadata is missing.
+ */
+export const SHOW_CLIPS_RECORDED_ORDER_BY_SQL = `ORDER BY ${CLIP_RECORDED_AT_SQL} ASC, clips.created_at ASC, clips.id ASC`;

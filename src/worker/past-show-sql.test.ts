@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_NIGHT_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowsSelectSql, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_NIGHT_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -408,5 +408,84 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
       .all() as Array<{ id: number }>;
 
     expect(rows).toEqual([]);
+  });
+});
+
+describe('mergeClipAndLibraryPastShows', () => {
+  it('keeps clip cards and drops library stubs for the same night', () => {
+    const merged = mergeClipAndLibraryPastShows(
+      [
+        {
+          show_id: 'jambase:1',
+          event_title: 'Phish at MSG',
+          artist_name: 'Phish',
+          show_date: '2024-07-14T20:00:00',
+          venue_name: "Madison Square Garden",
+          venue_location: 'New York, NY',
+          jambase_event_id: 'jambase:1',
+          jambase_venue_id: null,
+          jambase_artist_id: null,
+          clip_count: 3,
+          thumbnail_url: 'https://cdn.example/a.jpg',
+        },
+      ],
+      [
+        {
+          show_id: 'jambase:1',
+          event_title: 'Phish at MSG',
+          artist_name: 'Phish',
+          show_date: '2024-07-14T20:00:00',
+          venue_name: "Madison Square Garden",
+          venue_location: 'New York, NY',
+          jambase_event_id: 'jambase:1',
+          jambase_venue_id: null,
+          jambase_artist_id: null,
+          clip_count: 0,
+          thumbnail_url: 'https://cdn.example/stub.jpg',
+        },
+        {
+          show_id: 'jambase:2',
+          event_title: 'Phish at The Mann',
+          artist_name: 'Phish',
+          show_date: '2023-07-14T20:00:00',
+          venue_name: 'The Mann',
+          venue_location: 'Philadelphia, PA',
+          jambase_event_id: 'jambase:2',
+          jambase_venue_id: null,
+          jambase_artist_id: null,
+          clip_count: 0,
+          thumbnail_url: null,
+        },
+      ],
+      12,
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged[0]?.jambase_event_id).toBe('jambase:1');
+    expect(merged[0]?.clip_count).toBe(3);
+    expect(merged[1]?.jambase_event_id).toBe('jambase:2');
+  });
+});
+
+describe('libraryShowNightKeySql', () => {
+  it('matches the clip night key for the same artist, venue, and date', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec(`
+      CREATE TABLE library_shows (
+        jambase_event_id TEXT,
+        artist_name TEXT,
+        venue_name TEXT,
+        start_date TEXT
+      );
+    `);
+    db.prepare(
+      `INSERT INTO library_shows (jambase_event_id, artist_name, venue_name, start_date)
+       VALUES ('jambase:1', 'Phish', 'Madison Square Garden', '2024-07-14T20:00:00')`,
+    ).run();
+    const row = db
+      .prepare(`SELECT ${libraryShowNightKeySql()} as night_key FROM library_shows`)
+      .get() as { night_key: string };
+    expect(row.night_key).toBe('phish|madison square garden|2024-07-14');
+    db.close();
   });
 });

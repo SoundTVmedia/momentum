@@ -42,7 +42,7 @@ describe('show clips pagination', () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(requestedPages).toEqual([1, 2, 3]);
-    expect(loaded.map(({ id }) => id)).toEqual(available.map(({ id }) => id));
+    expect(loaded.clips.map(({ id }) => id)).toEqual(available.map(({ id }) => id));
   });
 
   it('does not duplicate a clip repeated across page boundaries', () => {
@@ -79,7 +79,7 @@ describe('show clips pagination', () => {
       showId: 'jambase:15668773',
       sortBy: 'time_posted',
       fetchImpl,
-    })).resolves.toEqual([]);
+    })).resolves.toEqual({ clips: [], show: null });
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 

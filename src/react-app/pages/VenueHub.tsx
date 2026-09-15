@@ -187,6 +187,7 @@ export default function VenueHubPage() {
                   fetchUrl={`${apiVenuePath(selected.name)}/archive`}
                   variant="venue"
                   showSort
+                  searchQuery={selected.name}
                 />
               </section>
             ) : null}

@@ -126,11 +126,8 @@ import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import { useEnqueueManualClip } from '@/react-app/hooks/useEnqueueManualClip';
 import { LIBRARY_VIDEO_ACCEPT, pickLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
-import {
-  jamBaseEventToShowMarkInput,
-  pickShowMarkForLibraryUpload,
-  showMarkToClipCandidate,
-} from '@/shared/show-marks';
+import { jamBaseEventToShowMarkInput, pastShowSummaryToJamBaseEvent, pickShowMarkForLibraryUpload, showMarkToClipCandidate } from '@/shared/show-marks';
+import { clipMetadataMatchesShow } from '@/shared/clip-show-metadata-match';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill } from '@/shared/clip-resolve-show-match';
 
@@ -2458,6 +2455,50 @@ export default function UploadClip() {
     if (!classification.ok) {
       setError(classification.error);
       return;
+    }
+
+    const navShow = (location.state as { showData?: Record<string, unknown> } | null)?.showData;
+    const targetedEventId =
+      (typeof shareJambaseLink?.event === 'string' && shareJambaseLink.event.trim()) ||
+      (typeof navShow?.jambase_event_id === 'string' && navShow.jambase_event_id.trim()) ||
+      '';
+    if (targetedEventId) {
+      const matchEvent = pastShowSummaryToJamBaseEvent({
+        event_title:
+          (typeof navShow?.event_title === 'string' && navShow.event_title) ||
+          shareForm.artist_name,
+        artist_name:
+          (typeof navShow?.artist_name === 'string' && navShow.artist_name) ||
+          shareForm.artist_name,
+        show_date: typeof navShow?.start_date === 'string' ? navShow.start_date : '',
+        venue_name:
+          (typeof navShow?.venue_name === 'string' && navShow.venue_name) ||
+          shareForm.venue_name,
+        venue_location:
+          (typeof navShow?.location === 'string' && navShow.location) || shareForm.location,
+        jambase_event_id: targetedEventId,
+        jambase_venue_id:
+          typeof navShow?.jambase_venue_id === 'string' ? navShow.jambase_venue_id : null,
+        jambase_artist_id:
+          typeof navShow?.jambase_artist_id === 'string' ? navShow.jambase_artist_id : null,
+      });
+      if (matchEvent) {
+        if (typeof navShow?.start_date === 'string' && navShow.start_date.trim()) {
+          matchEvent.startDate = navShow.start_date.trim();
+        }
+        const match = clipMetadataMatchesShow({
+          event: matchEvent,
+          recordedAtIso: recordingAtIso,
+          latitude: libraryFileMeta?.latitude ?? captureGeo?.latitude ?? null,
+          longitude: libraryFileMeta?.longitude ?? captureGeo?.longitude ?? null,
+          artistName: shareForm.artist_name,
+          venueName: shareForm.venue_name,
+        });
+        if (!match.ok) {
+          setError(match.message);
+          return;
+        }
+      }
     }
 
     const manualAfterSticky = clipManualShowPostReady(shareForm);

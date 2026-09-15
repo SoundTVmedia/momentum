@@ -7,7 +7,6 @@ import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
-import { apiFetch } from '@/react-app/lib/apiFetch';
 import { apiEventClipsPath, artistPath, venuePath } from '@/shared/app-paths';
 import { jamBaseEventTitle } from '@/shared/event-title';
 import { jamBaseEventIsConcluded, jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
@@ -17,6 +16,7 @@ import {
   jamBaseEventVenueCityLine,
   jamBaseEventVenueName,
 } from '@/shared/jambase-events';
+import type { StoredShowPage } from '@/shared/jambase-setlist';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import EventShowRating from '@/react-app/components/EventShowRating';
@@ -35,7 +35,7 @@ export default function EventClipsPage() {
   const navigate = useNavigate();
   const eventTitle = decodeEventTitleParam(eventTitleParam);
   const [clips, setClips] = useState<ClipWithUser[]>([]);
-  const [jbEvent, setJbEvent] = useState<Record<string, unknown> | null>(null);
+  const [storedShow, setStoredShow] = useState<StoredShowPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'time_posted' | 'most_liked'>('time_posted');
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
@@ -44,6 +44,7 @@ export default function EventClipsPage() {
   useEffect(() => {
     if (!eventTitle) {
       setClips([]);
+      setStoredShow(null);
       setLoading(false);
       return;
     }
@@ -58,10 +59,19 @@ export default function EventClipsPage() {
           { signal: ac.signal },
         );
         if (response.ok) {
-          const data = (await response.json()) as { clips?: ClipWithUser[] };
+          const data = (await response.json()) as {
+            clips?: ClipWithUser[];
+            show?: StoredShowPage | null;
+          };
           setClips(data.clips ?? []);
+          setStoredShow(
+            data.show && typeof data.show === 'object' && data.show.event
+              ? data.show
+              : null,
+          );
         } else {
           setClips([]);
+          setStoredShow(null);
         }
       } catch (err) {
         if (!(err instanceof DOMException && err.name === 'AbortError')) {
@@ -74,36 +84,6 @@ export default function EventClipsPage() {
 
     return () => ac.abort();
   }, [eventTitle, sortBy]);
-
-  const clipEventId =
-    typeof clips[0]?.jambase_event_id === 'string' ? clips[0].jambase_event_id.trim() : '';
-
-  useEffect(() => {
-    if (!clipEventId) {
-      setJbEvent(null);
-      return;
-    }
-    const ac = new AbortController();
-    void (async () => {
-      try {
-        const res = await apiFetch(`/api/jambase/events/id/${encodeURIComponent(clipEventId)}`, {
-          signal: ac.signal,
-        });
-        if (!res.ok) {
-          if (!ac.signal.aborted) setJbEvent(null);
-          return;
-        }
-        const data = (await res.json()) as { event?: Record<string, unknown> };
-        if (!ac.signal.aborted) {
-          setJbEvent(data.event && typeof data.event === 'object' ? data.event : null);
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        if (!ac.signal.aborted) setJbEvent(null);
-      }
-    })();
-    return () => ac.abort();
-  }, [clipEventId]);
 
   const artistName = clips.length > 0 ? clips[0].artist_name : null;
   const clipEvent =
@@ -119,7 +99,7 @@ export default function EventClipsPage() {
           jambase_artist_id: clips[0].jambase_artist_id,
         })
       : null;
-  const markEvent = jbEvent ?? clipEvent;
+  const markEvent = storedShow?.event ?? clipEvent;
   const pastShow = Boolean(markEvent && jamBaseEventIsConcluded(markEvent));
   const upcoming = Boolean(markEvent && jamBaseEventUpcomingOrInProgress(markEvent));
   const ticketUrl = upcoming && markEvent ? jamBaseEventTicketUrl(markEvent) : null;
@@ -201,7 +181,7 @@ export default function EventClipsPage() {
               onChange={(e) => setSortBy(e.target.value as 'time_posted' | 'most_liked')}
               className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-momentum-flare"
             >
-              <option value="time_posted">Time Posted</option>
+              <option value="time_posted">Recorded (setlist order)</option>
               <option value="most_liked">Most Liked</option>
             </select>
           </div>

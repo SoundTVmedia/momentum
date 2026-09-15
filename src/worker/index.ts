@@ -88,7 +88,7 @@ import * as superadminModeration from "./superadmin-moderation-endpoints";
 import * as reports from "./report-endpoints";
 import { submitSupportRequest } from "./support-endpoints";
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, isBlockedBetween, getBlockDirections, blockKey } from "./user-blocks";
-import { CLIP_NIGHT_KEY_SQL, groupedPastShowsSelectSql, latestSceneClipFreshSql } from "./past-show-sql";
+import { latestSceneClipFreshSql } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -121,6 +121,8 @@ import { postCameraVenuesForClip } from "./clips-camera-venues";
 import * as showMarks from "./user-show-marks-endpoints";
 import * as userFavorites from "./user-favorites-endpoints";
 import * as archivalShows from "./archival-show-endpoints";
+import * as libraryShows from "./library-show-endpoints";
+import { listPastShowsForEntity } from "./past-show-list";
 import {
   getClipIdentifyMusicConfig,
   postClipIdentifyMusicAudD,
@@ -1353,7 +1355,8 @@ app.post("/api/clips", authMiddleware, async (c) => {
     typeof artist_name === 'string' ? artist_name.trim() : '';
   const postedVenueName =
     typeof venue_name === 'string' ? venue_name.trim() : '';
-  const resolvedTimestamp = timestamp || new Date().toISOString();
+  const resolvedTimestamp =
+    typeof timestamp === 'string' && timestamp.trim() ? timestamp.trim() : '';
   const hasManualShowTags = hasManualShowArtistVenue(postedArtistName, postedVenueName);
 
   if (!isDraft) {
@@ -3993,6 +3996,7 @@ app.delete("/api/users/me/favorites/:type/:entityKey", authMiddleware, userFavor
 app.get("/api/search/unified-favorites", authMiddleware, rateLimiter(RateLimits.SEARCH), userFavorites.unifiedFavoritesSearch);
 app.post("/api/archival-shows/match", authMiddleware, archivalShows.matchArchivalShow);
 app.post("/api/archival-shows", authMiddleware, archivalShows.createArchivalShow);
+app.post("/api/library-shows", authMiddleware, rateLimiter(RateLimits.API), libraryShows.createLibraryShow);
 app.post("/api/clips/:id/favorite", authMiddleware, favorite.favoriteClip);
 app.get("/api/clips/:id/favorited", authMiddleware, favorite.checkClipFavorited);
 app.get("/api/users/me/favorite-clips-by-artist", authMiddleware, favorite.getFavoriteClipsByArtist);
@@ -4071,21 +4075,11 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '12'), 48);
 
   try {
-    const previousShows = await c.env.DB.prepare(
-      `SELECT ${groupedPastShowsSelectSql()}
-      FROM clips
-      WHERE clips.artist_name = ?
-      AND ${PUBLIC_VISIBLE_CLIP_SQL}
-      AND clips.event_title IS NOT NULL
-      AND TRIM(clips.event_title) != ''
-      GROUP BY ${CLIP_NIGHT_KEY_SQL}
-      ORDER BY show_date DESC
-      LIMIT ?`
-    )
-      .bind(artistName, limit)
-      .all();
-
-    return c.json({ shows: previousShows.results || [] });
+    const shows = await listPastShowsForEntity(c.env.DB, {
+      artistName,
+      limit,
+    });
+    return c.json({ shows });
   } catch (error) {
     console.error('Get artist previous shows error:', error);
     return c.json({ error: 'Failed to get previous shows' }, 500);

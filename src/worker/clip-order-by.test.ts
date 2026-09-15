@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { SONG_CLIPS_ORDER_BY_SQL } from './clip-order-by';
+import { SHOW_CLIPS_RECORDED_ORDER_BY_SQL, SONG_CLIPS_ORDER_BY_SQL } from './clip-order-by';
 
 type Row = { id: string };
 
@@ -58,5 +58,23 @@ describe('SONG_CLIPS_ORDER_BY_SQL', () => {
     ]);
     expect(ids).toHaveLength(2);
     expect(ids).toContain('garbage-capture');
+  });
+});
+
+describe('SHOW_CLIPS_RECORDED_ORDER_BY_SQL', () => {
+  it('orders show clips from oldest recorded to newest', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('CREATE TABLE clips (id TEXT, timestamp TEXT, created_at TEXT)');
+    const insert = db.prepare('INSERT INTO clips VALUES (?, ?, ?)');
+    insert.run('encore', '2026-08-22T03:00:00.000Z', '2026-01-01 00:00:00');
+    insert.run('opener', '2026-08-22T01:00:00.000Z', '2026-08-24 12:00:00');
+    insert.run('mid-set', '2026-08-22T02:00:00.000Z', '2026-08-23 00:00:00');
+    const ids = (
+      db.prepare(`SELECT clips.id FROM clips ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}`).all() as Array<{
+        id: string;
+      }>
+    ).map((row) => row.id);
+    db.close();
+    expect(ids).toEqual(['opener', 'mid-set', 'encore']);
   });
 });
