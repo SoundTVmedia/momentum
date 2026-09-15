@@ -8,6 +8,7 @@ import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { MOBILE_PAGE_INSET_BOTTOM_CLASS } from '@/react-app/lib/mobileBottomNavLayout';
 import AppPullToRefresh from '@/react-app/components/AppPullToRefresh';
+import AppTopInsetStabilizer from '@/react-app/components/AppTopInsetStabilizer';
 import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
 import {
   forceStopNativeCaptureSession,
@@ -76,6 +77,7 @@ export default function AppRouteChrome() {
 
   return (
     <>
+      <AppTopInsetStabilizer />
       <AppPullToRefresh>
       <div
         className={`app-route-outlet ${showMobileNavInset ? MOBILE_PAGE_INSET_BOTTOM_CLASS : ''}`}

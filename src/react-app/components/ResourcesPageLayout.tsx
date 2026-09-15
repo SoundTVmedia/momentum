@@ -2,15 +2,10 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import Header from '@/react-app/components/Header'
 import Footer from '@/react-app/components/Footer'
+import { scrollWindowToTop } from '@/react-app/lib/scroll-window'
 
 type ResourcesPageLayoutProps = {
   children: ReactNode
-}
-
-function scrollWindowToTop() {
-  window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-  document.documentElement.scrollTop = 0
-  document.body.scrollTop = 0
 }
 
 export default function ResourcesPageLayout({ children }: ResourcesPageLayoutProps) {
