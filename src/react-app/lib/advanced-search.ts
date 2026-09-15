@@ -1,4 +1,5 @@
 import type { ClipWithUser } from '@/shared/types';
+import { discoverResultsAreVenueIntent } from '@/shared/discover-search-intent';
 
 export type AdvancedSearchPayload = {
   clips: ClipWithUser[];
@@ -27,6 +28,20 @@ export type AdvancedSearchPayload = {
     artist_name: string | null;
     clip_count: number;
   }[];
+  pastShows?: {
+    event_title: string;
+    artist_name: string;
+    show_date: string;
+    show_id?: string | null;
+    venue_name?: string | null;
+    venue_location?: string | null;
+    jambase_event_id?: string | null;
+    jambase_venue_id?: string | null;
+    jambase_artist_id?: string | null;
+    clip_count: number;
+    average_show_rating?: number;
+    thumbnail_url: string | null;
+  }[];
   jambase?: {
     artists: Record<string, unknown>[];
     venues: Record<string, unknown>[];
@@ -54,17 +69,19 @@ export function jamBaseEventTicket(ev: Record<string, unknown>): string | null {
   return typeof u === 'string' ? u : null;
 }
 
-export function advancedSearchHasHits(data: AdvancedSearchPayload | null): boolean {
+export function advancedSearchHasHits(data: AdvancedSearchPayload | null, query = ''): boolean {
   if (!data) return false;
+  const venueIntent = discoverResultsAreVenueIntent(query, data);
   return (
     data.clips.length > 0 ||
     data.artists.length > 0 ||
-    data.venues.length > 0 ||
+    (venueIntent && data.venues.length > 0) ||
     data.users.length > 0 ||
     (data.songs?.length ?? 0) > 0 ||
+    (data.pastShows?.length ?? 0) > 0 ||
     (data.jambase !== undefined &&
       (data.jambase.artists.length > 0 ||
-        data.jambase.venues.length > 0 ||
+        (venueIntent && data.jambase.venues.length > 0) ||
         data.jambase.events.length > 0))
   );
 }

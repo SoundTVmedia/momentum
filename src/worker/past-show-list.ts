@@ -156,6 +156,29 @@ export async function loadClipPastShows(
   return (rows.results ?? []) as PastShowListRow[];
 }
 
+export async function loadClipPastShowsForSong(
+  db: D1Database,
+  songSlug: string,
+  limit: number,
+): Promise<PastShowListRow[]> {
+  const slug = songSlug.trim();
+  if (!slug || limit <= 0) return [];
+
+  const sql = `
+    SELECT ${groupedPastShowsSelectSql({ includeAverageRating: true })}
+    FROM clips
+    WHERE clips.song_slug = ?
+    AND ${PUBLIC_VISIBLE_CLIP_SQL}
+    AND clips.event_title IS NOT NULL
+    AND TRIM(clips.event_title) != ''
+    GROUP BY ${CLIP_NIGHT_KEY_SQL}
+    ORDER BY show_date DESC
+    LIMIT ?
+  `;
+  const rows = await db.prepare(sql).bind(slug, String(limit)).all();
+  return (rows.results ?? []) as PastShowListRow[];
+}
+
 export async function listPastShowsForEntity(
   db: D1Database,
   opts: {

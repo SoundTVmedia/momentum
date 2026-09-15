@@ -8,7 +8,12 @@ import {
   isTourQuery,
   markTourPending,
   resolveProductTourSteps,
+  type TourAnchorId,
 } from './productTour';
+
+function hasAnchor(visible: TourAnchorId[], anchor: TourAnchorId): boolean {
+  return visible.includes(anchor);
+}
 
 function installSessionStorageMock(): void {
   const store = new Map<string, string>();
@@ -65,16 +70,19 @@ describe('isTourQuery', () => {
 describe('resolveProductTourSteps', () => {
   it('uses capture instead of upcoming shows when the camera tab is visible', () => {
     const steps = resolveProductTourSteps((anchor) =>
-      [
-        TOUR_ANCHORS.findAShow,
-        TOUR_ANCHORS.search,
-        TOUR_ANCHORS.follow,
-        TOUR_ANCHORS.fromTheScene,
-        TOUR_ANCHORS.capture,
-        TOUR_ANCHORS.upcomingShows,
-        TOUR_ANCHORS.uploadQueue,
-        TOUR_ANCHORS.profile,
-      ].includes(anchor),
+      hasAnchor(
+        [
+          TOUR_ANCHORS.findAShow,
+          TOUR_ANCHORS.search,
+          TOUR_ANCHORS.follow,
+          TOUR_ANCHORS.fromTheScene,
+          TOUR_ANCHORS.capture,
+          TOUR_ANCHORS.upcomingShows,
+          TOUR_ANCHORS.uploadQueue,
+          TOUR_ANCHORS.profile,
+        ],
+        anchor,
+      ),
     );
     expect(steps.map((step) => step.id)).toEqual([
       'find-a-show',
@@ -89,15 +97,18 @@ describe('resolveProductTourSteps', () => {
 
   it('uses upcoming shows on desktop when capture is hidden', () => {
     const steps = resolveProductTourSteps((anchor) =>
-      [
-        TOUR_ANCHORS.findAShow,
-        TOUR_ANCHORS.search,
-        TOUR_ANCHORS.follow,
-        TOUR_ANCHORS.fromTheScene,
-        TOUR_ANCHORS.upcomingShows,
-        TOUR_ANCHORS.uploadQueue,
-        TOUR_ANCHORS.profile,
-      ].includes(anchor),
+      hasAnchor(
+        [
+          TOUR_ANCHORS.findAShow,
+          TOUR_ANCHORS.search,
+          TOUR_ANCHORS.follow,
+          TOUR_ANCHORS.fromTheScene,
+          TOUR_ANCHORS.upcomingShows,
+          TOUR_ANCHORS.uploadQueue,
+          TOUR_ANCHORS.profile,
+        ],
+        anchor,
+      ),
     );
     expect(steps.map((step) => step.id)).toEqual([
       'find-a-show',

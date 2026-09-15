@@ -50,6 +50,9 @@ import {
 } from './search-users';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { songSlugFromTitle, songTitleFromSlug } from '../shared/song-tag';
+import { searchQueryTargetsName } from '../shared/discover-search-intent';
+import { listPastShowsForEntity, loadClipPastShowsForSong } from './past-show-list';
+import type { PastShowListRow } from './past-show-sql';
 
 function rewriteEventListForClient(
   events: unknown[],
@@ -66,6 +69,120 @@ type SearchSongRow = {
   artist_name: string | null;
   clip_count: number;
 };
+
+type DiscoverPastShowRow = {
+  event_title: string;
+  artist_name: string;
+  show_date: string;
+  show_id: string | null;
+  venue_name: string | null;
+  venue_location: string | null;
+  jambase_event_id: string | null;
+  jambase_venue_id: string | null;
+  jambase_artist_id: string | null;
+  clip_count: number;
+  average_show_rating?: number;
+  thumbnail_url: string | null;
+};
+
+function pastShowRowToDiscover(row: PastShowListRow): DiscoverPastShowRow | null {
+  const eventTitle = row.event_title?.trim();
+  const artistName = row.artist_name?.trim();
+  const showDate = row.show_date?.trim();
+  if (!eventTitle || !artistName || !showDate) return null;
+  return {
+    event_title: eventTitle,
+    artist_name: artistName,
+    show_date: showDate,
+    show_id: row.show_id,
+    venue_name: row.venue_name,
+    venue_location: row.venue_location,
+    jambase_event_id: row.jambase_event_id,
+    jambase_venue_id: row.jambase_venue_id,
+    jambase_artist_id: row.jambase_artist_id,
+    clip_count: Number(row.clip_count) || 0,
+    average_show_rating: row.average_show_rating ?? undefined,
+    thumbnail_url: row.thumbnail_url,
+  };
+}
+
+function dedupeDiscoverPastShows(rows: PastShowListRow[]): PastShowListRow[] {
+  const seen = new Set<string>();
+  const out: PastShowListRow[] = [];
+  for (const row of rows) {
+    const key =
+      (row.show_id || row.jambase_event_id || '').trim() ||
+      `${row.artist_name}|${row.venue_name}|${row.show_date}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out.sort((a, b) => String(b.show_date ?? '').localeCompare(String(a.show_date ?? '')));
+}
+
+function jamBaseVenueNameRows(items: unknown[]): Array<{ name: string }> {
+  return items
+    .filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+    )
+    .map((row) => (typeof row.name === 'string' ? row.name.trim() : ''))
+    .filter(Boolean)
+    .map((name) => ({ name }));
+}
+
+async function pastShowsForDiscoverSearch(
+  db: D1Database,
+  query: string,
+  artists: Array<{ name: string }>,
+  songs: SearchSongRow[],
+  venues: Array<{ name: string }>,
+  limit: number,
+): Promise<DiscoverPastShowRow[]> {
+  if (limit <= 0) return [];
+
+  const artistNames = [
+    ...artists.filter((row) => searchQueryTargetsName(query, row.name)).map((row) => row.name.trim()),
+    ...songs
+      .filter((row) => searchQueryTargetsName(query, row.title) && row.artist_name?.trim())
+      .map((row) => row.artist_name!.trim()),
+  ];
+  const uniqueArtists = [...new Set(artistNames)].slice(0, 3);
+  const targetedSongs = songs
+    .filter((row) => searchQueryTargetsName(query, row.title) && row.slug.trim())
+    .slice(0, 2);
+  const uniqueVenues = [
+    ...new Set(
+      venues
+        .filter((row) => searchQueryTargetsName(query, row.name))
+        .map((row) => row.name.trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 2);
+
+  const entityCount =
+    uniqueArtists.length + targetedSongs.length || uniqueVenues.length;
+  if (entityCount === 0) return [];
+
+  const perEntity = Math.max(4, Math.ceil(limit / entityCount));
+  const batches = await Promise.all([
+    ...(uniqueArtists.length > 0 || targetedSongs.length > 0
+      ? [
+          ...uniqueArtists.map((name) =>
+            listPastShowsForEntity(db, { artistName: name, limit: perEntity }),
+          ),
+          ...targetedSongs.map((song) => loadClipPastShowsForSong(db, song.slug, perEntity)),
+        ]
+      : uniqueVenues.map((name) =>
+          listPastShowsForEntity(db, { venueName: name, limit: perEntity }),
+        )),
+  ]);
+
+  return dedupeDiscoverPastShows(batches.flat())
+    .slice(0, limit)
+    .map(pastShowRowToDiscover)
+    .filter((row): row is DiscoverPastShowRow => row != null);
+}
 
 async function searchLibrarySongs(
   db: D1Database,
@@ -370,6 +487,19 @@ async function runGeoScopedAdvancedSearch(
   if (hiddenAuthors.size > 0) {
     c.header('Cache-Control', 'private, no-store, must-revalidate');
   }
+  const pastShows = (
+    await pastShowsForDiscoverSearch(
+      c.env.DB,
+      opts.trimmedQuery,
+      enrichedArtists,
+      songs,
+      [...enrichedVenues, ...jamBaseVenueNameRows(jbVenueCatalog)],
+      compact ? 4 : 12,
+    )
+  ).map((row) => ({
+    ...row,
+    thumbnail_url: rewriteMediaUrlForClient(row.thumbnail_url, mediaOrigin),
+  }));
   return c.json({
     clips: withoutBlockedAuthors(
       (clips.results || []) as Record<string, unknown>[],
@@ -399,6 +529,7 @@ async function runGeoScopedAdvancedSearch(
       label: geoAnchor.label,
       radius_miles: radiusMiles,
     },
+    pastShows,
   });
 }
 
@@ -424,6 +555,7 @@ export async function advancedSearch(c: Context) {
       users: [],
       songs: [],
       jambase: { artists: [], venues: [], events: [] },
+      pastShows: [],
     });
   }
 
@@ -670,6 +802,20 @@ export async function advancedSearch(c: Context) {
       return row;
     });
 
+  const pastShows = (
+    await pastShowsForDiscoverSearch(
+      c.env.DB,
+      trimmedQuery,
+      searchArtists,
+      songs,
+      [...enrichedVenues, ...jamBaseVenueNameRows(jambase.venues)],
+      compact ? 4 : 12,
+    )
+  ).map((row) => ({
+    ...row,
+    thumbnail_url: rewriteMediaUrlForClient(row.thumbnail_url, mediaOrigin),
+  }));
+
   return c.json({
     clips: withoutBlockedAuthors(
       (clips.results || []) as Record<string, unknown>[],
@@ -688,6 +834,7 @@ export async function advancedSearch(c: Context) {
       events: rewriteEventListForClient(jambase.events, mediaOrigin),
     },
     jambaseNotice,
+    pastShows,
   });
 }
 

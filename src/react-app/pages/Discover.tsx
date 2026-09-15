@@ -27,6 +27,7 @@ import DiscoverArtistCarousel, {
 import DiscoverVenueCarousel, {
   discoverVenueFromJamBase,
 } from '@/react-app/components/DiscoverVenueCarousel';
+import PastShowsCarousel from '@/react-app/components/PastShowsCarousel';
 import DiscoverTrendingMusicSection from '@/react-app/components/DiscoverTrendingMusicSection';
 import DiscoverSearchGeoBanner from '@/react-app/components/DiscoverSearchGeoBanner';
 import { apiFetch } from '@/react-app/lib/apiFetch';
@@ -34,6 +35,15 @@ import { nearbyShowsApiUrl, readDeviceCoordsForNearbyShows } from '@/react-app/l
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import { globalSongPath } from '@/shared/app-paths';
 import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
+import { jamBaseEventArtistName, jamBaseEventVenueName } from '@/shared/jambase-events';
+import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
+import {
+  discoverResultsAreVenueIntent,
+  jamBaseSearchRecordName,
+  normalizeSearchName,
+  searchQueryTargetsName,
+} from '@/shared/discover-search-intent';
+import { displayNamesClose } from '@/shared/artist-name-match';
 import {
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
@@ -73,6 +83,20 @@ interface SearchResults {
     title: string;
     artist_name: string | null;
     clip_count: number;
+  }[];
+  pastShows?: {
+    event_title: string;
+    artist_name: string;
+    show_date: string;
+    show_id?: string | null;
+    venue_name?: string | null;
+    venue_location?: string | null;
+    jambase_event_id?: string | null;
+    jambase_venue_id?: string | null;
+    jambase_artist_id?: string | null;
+    clip_count: number;
+    average_show_rating?: number;
+    thumbnail_url: string | null;
   }[];
   jambase?: {
     artists: Record<string, unknown>[];
@@ -133,6 +157,61 @@ function discoverHasActiveQuery(params: URLSearchParams): boolean {
 
 function discoverShowsSearchOnly(params: URLSearchParams): boolean {
   return params.get('focus') === '1' || discoverHasActiveQuery(params);
+}
+
+function discoverVenueIntent(query: string, data: SearchResults): boolean {
+  return discoverResultsAreVenueIntent(query, data);
+}
+
+function targetedDiscoverArtistNames(query: string, data: SearchResults): string[] {
+  const names = [
+    ...data.artists
+      .filter((artist) => searchQueryTargetsName(query, artist.name))
+      .map((artist) => artist.name),
+    ...(data.songs ?? [])
+      .filter((song) => searchQueryTargetsName(query, song.title) && song.artist_name?.trim())
+      .map((song) => song.artist_name!.trim()),
+  ];
+  return [...new Set(names)];
+}
+
+function targetedDiscoverVenues(query: string, data: SearchResults) {
+  return data.venues.filter((venue) => searchQueryTargetsName(query, venue.name));
+}
+
+function targetedJamBaseVenues(query: string, data: SearchResults): Record<string, unknown>[] {
+  return (data.jambase?.venues ?? []).filter((venue) =>
+    searchQueryTargetsName(query, jamBaseSearchRecordName(venue)),
+  );
+}
+
+function upcomingShowsForDiscover(
+  query: string,
+  data: SearchResults,
+): Record<string, unknown>[] {
+  const events = (data.jambase?.events ?? []).filter(
+    (event) => !isJamBaseFestivalEvent(event) && jamBaseEventUpcomingOrInProgress(event),
+  );
+  if (discoverVenueIntent(query, data)) {
+    const venueNames = [
+      ...targetedDiscoverVenues(query, data).map((venue) => venue.name),
+      ...targetedJamBaseVenues(query, data).map(jamBaseSearchRecordName),
+    ];
+    if (venueNames.length === 0) return events;
+    return events.filter((event) => {
+      const venue = jamBaseEventVenueName(event);
+      return (
+        searchQueryTargetsName(query, venue) ||
+        venueNames.some((name) => displayNamesClose(name, venue))
+      );
+    });
+  }
+  const artists = targetedDiscoverArtistNames(query, data);
+  if (artists.length === 0) return events;
+  return events.filter((event) => {
+    const performer = jamBaseEventArtistName(event);
+    return artists.some((name) => searchQueryTargetsName(name, performer) || searchQueryTargetsName(query, performer));
+  });
 }
 
 export default function DiscoverPage() {
@@ -387,6 +466,30 @@ export default function DiscoverPage() {
     return <Navigate to="/" replace />;
   }
 
+  const venueIntent = results ? discoverVenueIntent(debouncedQuery, results) : false;
+  const upcomingShows = results ? upcomingShowsForDiscover(debouncedQuery, results) : [];
+  const pastShows = results?.pastShows ?? [];
+  const visibleVenues = (() => {
+    if (!venueIntent || !results) return [];
+    const d1 = targetedDiscoverVenues(debouncedQuery, results).map((venue) => ({
+      name: venue.name,
+      image_url: venue.image_url,
+      location: venue.location,
+      clip_count: venue.clip_count,
+      jambase_id: venue.jambase_id ?? null,
+    }));
+    const seen = new Set(d1.map((venue) => normalizeSearchName(venue.name)));
+    const jambase = targetedJamBaseVenues(debouncedQuery, results)
+      .map(discoverVenueFromJamBase)
+      .filter((venue) => {
+        const key = normalizeSearchName(venue.name);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    return [...d1, ...jambase];
+  })();
+
   return (
     <div className="min-h-screen text-white">
       <Header />
@@ -528,26 +631,19 @@ export default function DiscoverPage() {
               </section>
             )}
 
-            {results.venues.length > 0 && (
+            {visibleVenues.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
                 <DiscoverSectionTitle title="Venues" />
-                <DiscoverVenueCarousel
-                  venues={results.venues.map((venue) => ({
-                    name: venue.name,
-                    image_url: venue.image_url,
-                    location: venue.location,
-                    clip_count: venue.clip_count,
-                    jambase_id: venue.jambase_id ?? null,
-                  }))}
-                />
+                <DiscoverVenueCarousel venues={visibleVenues} />
               </section>
             )}
 
-            {results.jambase && results.jambase.venues.length > 0 && (
+            {pastShows.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
-                <DiscoverSectionTitle title="Venues" />
-                <DiscoverVenueCarousel
-                  venues={results.jambase.venues.map(discoverVenueFromJamBase)}
+                <DiscoverSectionTitle title="Past Shows" />
+                <PastShowsCarousel
+                  shows={pastShows}
+                  variant={venueIntent ? 'venue' : 'artist'}
                 />
               </section>
             )}
@@ -590,15 +686,14 @@ export default function DiscoverPage() {
               </section>
             )}
 
-            {results.jambase &&
-              results.jambase.events.filter((ev) => !isJamBaseFestivalEvent(ev)).length > 0 && (
+            {upcomingShows.length > 0 && (
               <section className={HOME_FEED_SECTION_CLASS}>
-                <DiscoverSectionTitle title="Shows" />
+                <DiscoverSectionTitle title="Upcoming Shows" />
                 <JamBaseEventGrid
                   layout="carousel"
-                  preloadedEvents={results.jambase.events.filter((ev) => !isJamBaseFestivalEvent(ev))}
+                  preloadedEvents={upcomingShows}
                   maxEvents={20}
-                  carouselAriaLabel="Search result shows"
+                  carouselAriaLabel="Upcoming shows matching this search"
                 />
               </section>
             )}

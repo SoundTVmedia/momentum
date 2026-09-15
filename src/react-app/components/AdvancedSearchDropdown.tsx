@@ -16,6 +16,11 @@ import {
 } from '@/react-app/lib/advanced-search';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
+import {
+  discoverResultsAreVenueIntent,
+  jamBaseSearchRecordName,
+  searchQueryTargetsName,
+} from '@/shared/discover-search-intent';
 
 export type SearchDropdownSection =
   | 'clips'
@@ -59,6 +64,7 @@ type Props = {
 };
 
 type PanelProps = {
+  query: string;
   loading: boolean;
   revalidating: boolean;
   results: AdvancedSearchPayload | null;
@@ -70,6 +76,7 @@ type PanelProps = {
 };
 
 function SearchDropdownPanel({
+  query,
   loading,
   revalidating,
   results,
@@ -82,7 +89,18 @@ function SearchDropdownPanel({
   const navigate = useNavigate();
   const { toggleFollow, isFollowing, isLoading: isFollowLoading, hydrated: followHydrated } =
     useFollow();
-  const hasHits = advancedSearchHasHits(results);
+  const hasHits = advancedSearchHasHits(results, query);
+  const venueIntent = results ? discoverResultsAreVenueIntent(query, results) : false;
+  const visibleVenues =
+    venueIntent && results
+      ? results.venues.filter((venue) => searchQueryTargetsName(query, venue.name))
+      : [];
+  const visibleJamBaseVenues =
+    venueIntent && results?.jambase
+      ? results.jambase.venues.filter((venue) =>
+          searchQueryTargetsName(query, jamBaseSearchRecordName(venue)),
+        )
+      : [];
   const showResults = Boolean(results) && (hasHits || revalidating);
 
   return (
@@ -221,12 +239,12 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
-          {show('venues') && results.venues.length > 0 && (
+          {show('venues') && visibleVenues.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-glacier/90 uppercase tracking-wide flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" /> Venues (Feedback)
               </div>
-              {results.venues.map((v) => (
+              {visibleVenues.map((v) => (
                 <button
                   key={v.name}
                   type="button"
@@ -242,12 +260,12 @@ function SearchDropdownPanel({
               ))}
             </div>
           )}
-          {show('venues') && results.jambase && results.jambase.venues.length > 0 && (
+          {show('venues') && visibleJamBaseVenues.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-glacier/90 uppercase tracking-wide flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" /> Venues
               </div>
-              {results.jambase.venues.map((v) => {
+              {visibleJamBaseVenues.map((v) => {
                 const name = typeof v.name === 'string' ? v.name : 'Venue';
                 return (
                   <button
@@ -417,6 +435,7 @@ export default function AdvancedSearchDropdown({
   const show = (section: SearchDropdownSection) => allowed.has(section);
 
   const panelProps = {
+    query,
     loading,
     revalidating,
     results,
