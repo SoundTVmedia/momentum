@@ -13,6 +13,7 @@ import {
 import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
 import { cacheJsonProxy, noCache } from './performance-utils';
 import {
+  browseRecentPastJamBaseEvents,
   buildPastJamBaseEventResults,
   buildTightJamBaseEventResults,
   dedupeJamBaseEvents,
@@ -35,7 +36,7 @@ import {
 } from '../shared/media-proxy';
 import { clientMediaOrigin } from './client-media-origin';
 import { libraryEventsForFindAShow, markEventsAlreadyInLibrary } from './library-show-search';
-import { loadStoredShowPage } from './stored-show-page';
+import { loadOrHydrateStoredShowPage } from './stored-show-page';
 
 function rewriteEventList(events: unknown[] | undefined, origin: string): unknown[] {
   if (!Array.isArray(events)) return [];
@@ -457,14 +458,21 @@ export async function getEventById(c: Context) {
   if (!eventId) return c.json({ error: 'eventId is required' }, 400);
 
   try {
-    const stored = await loadStoredShowPage(c.env.DB, eventId);
+    const jbQ = jamBaseQuotaFromEnv(c.env);
+    const stored = await loadOrHydrateStoredShowPage(c.env.DB, eventId, async () => {
+      try {
+        return await fetchJamBaseEventById(c.env.JAMBASE_API_KEY, jbQ, eventId);
+      } catch (err) {
+        console.error('getEventById hydrate fetch', err);
+        return null;
+      }
+    });
     if (stored) {
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({
         event: rewriteJamBaseEventImages(stored.event, clientMediaOrigin(c)),
       });
     }
-    const jbQ = jamBaseQuotaFromEnv(c.env);
     const ev = await fetchJamBaseEventById(c.env.JAMBASE_API_KEY, jbQ, eventId);
     if (!ev) return c.json({ error: 'Event not found' }, 404);
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
@@ -478,16 +486,37 @@ export async function getEventById(c: Context) {
 export async function searchEvents(c: Context) {
   const q = (c.req.query('q') || '').trim();
   const max = Math.min(parseInt(c.req.query('perPage') || c.req.query('limit') || '20', 10) || 20, 40);
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
   const pastOnly = c.req.query('pastOnly') === '1';
-  const includePast = pastOnly || c.req.query('includePast') === '1';
+  const archiveOnly = c.req.query('archiveOnly') === '1';
+  const includePast = archiveOnly || pastOnly || c.req.query('includePast') === '1';
 
-  if (q.length < 2) {
+  if (!archiveOnly && q.length < 2) {
     cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
     return c.json({ events: [] });
   }
 
   try {
     const origin = clientMediaOrigin(c);
+    if (archiveOnly) {
+      const key = c.env.JAMBASE_API_KEY;
+      if (!key?.trim()) {
+        cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
+        return c.json({ events: [], hasMore: false, page });
+      }
+      const jbQ = jamBaseQuotaFromEnv(c.env);
+      const past =
+        q.length >= 2
+          ? await buildPastJamBaseEventResults(key, q, max, jbQ, { page })
+          : await browseRecentPastJamBaseEvents(key, max, jbQ, { page });
+      const flagged = await markEventsAlreadyInLibrary(c.env.DB, past);
+      cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
+      return c.json({
+        events: rewriteEventList(flagged, origin),
+        hasMore: past.length >= max,
+        page,
+      });
+    }
     const libraryPromise = includePast
       ? libraryEventsForFindAShow(c.env.DB, q, max)
       : Promise.resolve([] as Record<string, unknown>[]);

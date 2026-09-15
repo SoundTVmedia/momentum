@@ -37,7 +37,8 @@ describe('loadStoredShowPage', () => {
       'jambase:1',
     );
     expect(page?.setlist).toEqual([{ title: 'Tweezer' }]);
-    expect(page?.setlist_url).toContain('setlist.fm');
+    expect(page?.setlist_url).toBeNull();
+    expect(page?.htmlChecked).toBe(false);
     expect(page?.event['x-setlist']).toEqual([{ title: 'Tweezer' }]);
   });
 

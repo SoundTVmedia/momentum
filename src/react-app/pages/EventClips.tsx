@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Calendar, MapPin, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, ListMusic, MapPin, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
@@ -16,7 +16,7 @@ import {
   jamBaseEventVenueCityLine,
   jamBaseEventVenueName,
 } from '@/shared/jambase-events';
-import type { StoredShowPage } from '@/shared/jambase-setlist';
+import { jamBaseEventSetlist, type StoredShowPage } from '@/shared/jambase-setlist';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import EventShowRating from '@/react-app/components/EventShowRating';
@@ -121,6 +121,10 @@ export default function EventClipsPage() {
           year: 'numeric',
         })
       : '';
+  const setlist =
+    storedShow && storedShow.setlist.length > 0
+      ? storedShow.setlist
+      : jamBaseEventSetlist(markEvent);
 
   return (
     <div className="min-h-screen text-white">
@@ -193,6 +197,28 @@ export default function EventClipsPage() {
             />
           ) : null}
         </div>
+
+        {pastShow && setlist.length > 0 ? (
+          <section className="glass-panel border border-momentum-rose/20 rounded-xl p-6 sm:p-8 mb-6">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-white mb-3">
+              <ListMusic className="h-5 w-5 text-momentum-flare" aria-hidden />
+              Setlist
+            </h2>
+            <ol className="space-y-1.5 text-sm text-gray-300">
+              {setlist.map((song, index) => (
+                <li key={`${song.title}-${index}`} className="flex gap-3">
+                  <span className="w-6 shrink-0 text-gray-500 tabular-nums">{index + 1}.</span>
+                  <span>
+                    {song.title}
+                    {song.artist ? (
+                      <span className="text-gray-500"> — {song.artist}</span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
 
         {loading ? (
           <div className="flex justify-center py-12">

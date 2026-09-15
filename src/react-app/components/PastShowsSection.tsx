@@ -1,9 +1,11 @@
 import { ChevronDown, Loader2, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import PastShowsCarousel, { type PastShowSummary } from '@/react-app/components/PastShowsCarousel';
 import FindAShowModal from '@/react-app/components/FindAShowModal';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+import { BROWSE_PAST_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 
 interface PastShowsSectionProps {
   fetchUrl: string;
@@ -80,6 +82,10 @@ export default function PastShowsSection({
       add a past show
     </button>
   );
+  const archiveHref =
+    searchQuery.trim().length >= 2
+      ? `${BROWSE_PAST_SHOWS_PATH}?q=${encodeURIComponent(searchQuery.trim())}`
+      : BROWSE_PAST_SHOWS_PATH;
 
   return (
     <section className={`${HOME_FEED_SECTION_CLASS} space-y-4`}>
@@ -116,6 +122,12 @@ export default function PastShowsSection({
           <p className="text-gray-500 text-sm mt-1">
             Use add a past show to create a show page from JamBase.
           </p>
+          <Link
+            to={archiveHref}
+            className="mt-3 inline-block text-sm font-semibold text-momentum-flare hover:underline"
+          >
+            View all past shows
+          </Link>
         </div>
       ) : (
         <>
@@ -133,6 +145,14 @@ export default function PastShowsSection({
               </button>
             </div>
           ) : null}
+          <div className="flex justify-center pt-1">
+            <Link
+              to={archiveHref}
+              className="text-sm font-semibold text-momentum-flare hover:underline"
+            >
+              View all past shows
+            </Link>
+          </div>
         </>
       )}
 

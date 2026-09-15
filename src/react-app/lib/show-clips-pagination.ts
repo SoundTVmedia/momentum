@@ -34,11 +34,16 @@ function parseStoredShow(value: unknown): StoredShowPage | null {
       )
     : [];
   const setlistUrl =
-    typeof row.setlist_url === 'string' && row.setlist_url.trim() ? row.setlist_url.trim() : null;
+    typeof row.setlist_url === 'string' &&
+    row.setlist_url.trim() &&
+    !/setlist\.fm/i.test(row.setlist_url)
+      ? row.setlist_url.trim()
+      : null;
   return {
     event: row.event as Record<string, unknown>,
     setlist,
     setlist_url: setlistUrl,
+    htmlChecked: row.htmlChecked === true,
   };
 }
 

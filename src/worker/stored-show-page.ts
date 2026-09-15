@@ -3,6 +3,11 @@ import {
   setlistFromStoredEvent,
   type StoredShowPage,
 } from '../shared/jambase-setlist';
+import { jamBaseShowPageUrl } from '../shared/jambase-show-html-setlist';
+import {
+  loadSetlistFromJamBaseShowHtml,
+  persistStoredSetlist,
+} from './jambase-show-html';
 
 function parsePayload(raw: string | null | undefined): Record<string, unknown> | null {
   if (!raw?.trim()) return null;
@@ -29,6 +34,7 @@ function pageFromRow(
     event,
     setlist: stored.songs,
     setlist_url: stored.url,
+    htmlChecked: stored.htmlChecked === true,
   };
 }
 
@@ -95,4 +101,30 @@ export async function loadStoredShowPage(
   }
 
   return null;
+}
+
+export async function loadOrHydrateStoredShowPage(
+  db: D1Database,
+  showId: string | null | undefined,
+  fetchEvent: () => Promise<Record<string, unknown> | null>,
+): Promise<StoredShowPage | null> {
+  const stored = await loadStoredShowPage(db, showId);
+  if (stored && (stored.setlist.length > 0 || stored.htmlChecked)) return stored;
+
+  const needFetch = !stored || !jamBaseShowPageUrl(stored.event);
+  const fetched = needFetch ? await fetchEvent() : null;
+  const ev = fetched ?? stored?.event;
+  if (!ev) return stored;
+
+  const hydrated = await loadSetlistFromJamBaseShowHtml(ev);
+  const event = applyStoredSetlistToEvent(ev, hydrated);
+  if (hydrated.htmlChecked) {
+    await persistStoredSetlist(db, event, hydrated);
+  }
+  return {
+    event,
+    setlist: hydrated.songs,
+    setlist_url: null,
+    htmlChecked: hydrated.htmlChecked === true,
+  };
 }

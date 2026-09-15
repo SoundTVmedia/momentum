@@ -115,7 +115,7 @@ export default function ArchivalHubPage() {
                 <div className="glass-panel rounded-2xl p-8 text-center text-gray-300">
                   <p>You have not marked any past shows as Went yet.</p>
                   <Link
-                    to="/discover"
+                    to="/browse/shows/past"
                     className="mt-4 inline-block text-momentum-flare hover:text-white"
                   >
                     Find a past show

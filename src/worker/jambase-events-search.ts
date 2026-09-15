@@ -157,16 +157,22 @@ async function fetchJamBaseEventsByArtistOrVenueName(
   quota: JamBaseQuotaContext | undefined,
   fromDate: string,
   perPage: string,
+  opts?: { page?: string; eventDateTo?: string },
 ): Promise<Record<string, unknown>[]> {
+  const page = opts?.page ?? '1';
+  const params: Record<string, string> = {
+    eventDateFrom: fromDate,
+    perPage,
+    page,
+  };
+  if (opts?.eventDateTo) params.eventDateTo = opts.eventDateTo;
   const [byArtist, byVenue, byTitle] = await Promise.all([
     jamBaseFetch<{ events?: Record<string, unknown>[] }>(
       apiKey,
       '/events',
       {
         artistName: phrase,
-        eventDateFrom: fromDate,
-        perPage,
-        page: '1',
+        ...params,
       },
       quota,
     ),
@@ -175,15 +181,15 @@ async function fetchJamBaseEventsByArtistOrVenueName(
       '/events',
       {
         venueName: phrase,
-        eventDateFrom: fromDate,
-        perPage,
-        page: '1',
+        ...params,
       },
       quota,
     ),
     fetchJamBaseEventsByEventName(apiKey, phrase, quota, {
       perPage,
+      page,
       eventDateFrom: fromDate,
+      eventDateTo: opts?.eventDateTo,
     }),
   ]);
   return dedupeJamBaseEvents([
@@ -202,6 +208,7 @@ export async function buildPastJamBaseEventResults(
   query: string,
   maxResults = 18,
   quota?: JamBaseQuotaContext,
+  opts?: { page?: number },
 ): Promise<Record<string, unknown>[]> {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -209,19 +216,72 @@ export async function buildPastJamBaseEventResults(
   const phrase = jamBaseArtistVenueSearchPhrase(q);
   const recentFrom = jamBaseEventDateFromDaysAgo(JAMBASE_RECENT_PAST_LOOKBACK_DAYS);
   const archiveFrom = jamBaseEventDateFromDaysAgo(JAMBASE_ARCHIVE_LOOKBACK_DAYS);
+  const archiveTo = jamBaseEventDateFromToday();
+  const pageNum = Math.max(1, opts?.page ?? 1);
+  const page = String(pageNum);
   const perPage = String(Math.min(40, Math.max(maxResults, 16)));
 
+  const keepPastMatches = (events: Record<string, unknown>[]): Record<string, unknown>[] => {
+    const nowMs = Date.now();
+    const merged = events.filter(
+      (ev) => eventMatchesQuery(ev, qLower) && !jamBaseEventUpcomingOrInProgress(ev, nowMs),
+    );
+    merged.sort((a, b) => eventStartKey(b).localeCompare(eventStartKey(a)));
+    return merged;
+  };
+
+  if (pageNum > 1) {
+    const archive = await fetchJamBaseEventsByArtistOrVenueName(
+      apiKey,
+      phrase,
+      quota,
+      archiveFrom,
+      perPage,
+      { page, eventDateTo: archiveTo },
+    );
+    return keepPastMatches(archive).slice(0, maxResults);
+  }
+
   const [recent, archive] = await Promise.all([
-    fetchJamBaseEventsByArtistOrVenueName(apiKey, phrase, quota, recentFrom, perPage),
-    fetchJamBaseEventsByArtistOrVenueName(apiKey, phrase, quota, archiveFrom, perPage),
+    fetchJamBaseEventsByArtistOrVenueName(apiKey, phrase, quota, recentFrom, perPage, {
+      page: '1',
+      eventDateTo: archiveTo,
+    }),
+    fetchJamBaseEventsByArtistOrVenueName(apiKey, phrase, quota, archiveFrom, perPage, {
+      page: '1',
+      eventDateTo: archiveTo,
+    }),
   ]);
 
-  const nowMs = Date.now();
-  let merged = dedupeJamBaseEvents([...recent, ...archive]).filter(
-    (ev) => eventMatchesQuery(ev, qLower) && !jamBaseEventUpcomingOrInProgress(ev, nowMs),
+  return keepPastMatches(dedupeJamBaseEvents([...recent, ...archive])).slice(0, maxResults);
+}
+
+/** Recent concluded concerts from JamBase when the archive browse has no search query. */
+export async function browseRecentPastJamBaseEvents(
+  apiKey: string,
+  maxResults = 24,
+  quota?: JamBaseQuotaContext,
+  opts?: { page?: number },
+): Promise<Record<string, unknown>[]> {
+  const page = String(Math.max(1, opts?.page ?? 1));
+  const perPage = String(Math.min(40, Math.max(maxResults, 16)));
+  const data = await jamBaseFetch<{ events?: Record<string, unknown>[] }>(
+    apiKey,
+    '/events',
+    {
+      eventDateFrom: jamBaseEventDateFromDaysAgo(JAMBASE_RECENT_PAST_LOOKBACK_DAYS),
+      eventDateTo: jamBaseEventDateFromToday(),
+      perPage,
+      page,
+    },
+    quota,
   );
-  merged.sort((a, b) => eventStartKey(b).localeCompare(eventStartKey(a)));
-  return merged.slice(0, maxResults);
+  const nowMs = Date.now();
+  const events = (data?.events ?? []).filter(
+    (ev) => ev && typeof ev === 'object' && !jamBaseEventUpcomingOrInProgress(ev, nowMs),
+  );
+  events.sort((a, b) => eventStartKey(b).localeCompare(eventStartKey(a)));
+  return events.slice(0, maxResults);
 }
 
 /**

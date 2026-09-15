@@ -17,7 +17,7 @@ import {
   jamBaseEventVenueCityLine,
   jamBaseEventVenueName,
 } from '@/shared/jambase-events';
-import { jamBaseEventSetlist, jamBaseEventSetlistUrl, type StoredShowPage } from '@/shared/jambase-setlist';
+import { jamBaseEventSetlist, type StoredShowPage } from '@/shared/jambase-setlist';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import EventShowRating from '@/react-app/components/EventShowRating';
@@ -152,7 +152,6 @@ export default function ShowClipsPage() {
     storedShow && storedShow.setlist.length > 0
       ? storedShow.setlist
       : jamBaseEventSetlist(markEvent);
-  const setlistUrl = storedShow?.setlist_url || jamBaseEventSetlistUrl(markEvent);
   const showDate = startDate
     ? formatJamBaseEventDate(startDate)
     : clips.length > 0 && clips[0].timestamp
@@ -238,37 +237,25 @@ export default function ShowClipsPage() {
           ) : null}
         </div>
 
-        {pastShow && (setlist.length > 0 || setlistUrl) ? (
+        {pastShow && setlist.length > 0 ? (
           <section className="glass-panel border border-momentum-rose/20 rounded-xl p-6 sm:p-8 mb-6">
             <h2 className="flex items-center gap-2 text-lg font-semibold text-white mb-3">
               <ListMusic className="h-5 w-5 text-momentum-flare" aria-hidden />
               Setlist
             </h2>
-            {setlist.length > 0 ? (
-              <ol className="space-y-1.5 text-sm text-gray-300">
-                {setlist.map((song, index) => (
-                  <li key={`${song.title}-${index}`} className="flex gap-3">
-                    <span className="w-6 shrink-0 text-gray-500 tabular-nums">{index + 1}.</span>
-                    <span>
-                      {song.title}
-                      {song.artist ? (
-                        <span className="text-gray-500"> — {song.artist}</span>
-                      ) : null}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            ) : null}
-            {setlistUrl ? (
-              <a
-                href={setlistUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-block text-sm text-momentum-flare hover:underline"
-              >
-                View full setlist
-              </a>
-            ) : null}
+            <ol className="space-y-1.5 text-sm text-gray-300">
+              {setlist.map((song, index) => (
+                <li key={`${song.title}-${index}`} className="flex gap-3">
+                  <span className="w-6 shrink-0 text-gray-500 tabular-nums">{index + 1}.</span>
+                  <span>
+                    {song.title}
+                    {song.artist ? (
+                      <span className="text-gray-500"> — {song.artist}</span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
           </section>
         ) : null}
 

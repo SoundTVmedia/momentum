@@ -43,14 +43,35 @@ describe('jamBaseEventSetlistUrl', () => {
 });
 
 describe('stored setlist JSON', () => {
-  it('round-trips songs and a setlist.fm url', () => {
+  it('round-trips songs and never stores a setlist.fm url', () => {
     const json = serializeStoredSetlist({
       workPerformed: [{ name: 'Tweezer' }],
       sameAs: [{ url: 'https://www.setlist.fm/setlist/phish/2024/msg.html' }],
     });
     const stored = parseStoredSetlist(json);
     expect(stored.songs).toEqual([{ title: 'Tweezer' }]);
-    expect(stored.url).toContain('setlist.fm');
+    expect(stored.url).toBeNull();
+    expect(stored.htmlChecked).toBe(false);
+  });
+
+  it('keeps htmlChecked so empty JamBase HTML is not fetched again', () => {
+    const json = serializeStoredSetlist({ identifier: 'jambase:1' }, true);
+    expect(parseStoredSetlist(json)).toEqual({
+      songs: [],
+      url: null,
+      htmlChecked: true,
+    });
+  });
+
+  it('drops stored setlist.fm urls', () => {
+    expect(
+      parseStoredSetlist(
+        JSON.stringify({
+          songs: [{ title: 'Wilson' }],
+          url: 'https://www.setlist.fm/setlist/phish/2024/msg.html',
+        }),
+      ).url,
+    ).toBeNull();
   });
 
   it('reads the legacy library_shows array shape', () => {

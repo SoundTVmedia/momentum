@@ -14,6 +14,7 @@ import {
 } from '../shared/jambase-events';
 import { jamBaseEventIsConcluded } from '../shared/jambase-event-day';
 import { jamBaseEventSetlist, serializeStoredSetlist } from '../shared/jambase-setlist';
+import { eventWithJamBaseHtmlSetlist } from './jambase-show-html';
 import { jamBaseEventTitle, artistAtVenueTitle } from '../shared/event-title';
 import { showNightKey } from '../shared/show-night-key';
 
@@ -50,6 +51,7 @@ function payloadFromBody(body: Record<string, unknown>, eventId: string): Record
 export function libraryShowRowFromEvent(
   ev: Record<string, unknown>,
   addedBy: string,
+  htmlChecked = false,
 ): {
   jambase_event_id: string;
   artist_name: string;
@@ -82,7 +84,7 @@ export function libraryShowRowFromEvent(
     thumbnail_url: jamBaseEventImageUrl(ev),
     jambase_artist_id: eventArtistId(ev),
     jambase_venue_id: eventVenueId(ev),
-    setlist_json: serializeStoredSetlist(ev),
+    setlist_json: serializeStoredSetlist(ev, htmlChecked),
     payload: JSON.stringify(ev),
     added_by: addedBy,
   };
@@ -138,6 +140,8 @@ export async function createLibraryShow(c: Context<{ Bindings: Env }>) {
     return c.json({ error: 'JamBase event not found' }, 404);
   }
 
+  ev = await eventWithJamBaseHtmlSetlist(ev);
+
   const eventId = jamBaseEventId(ev) || eventIdRaw;
   if (!jamBaseEventIsConcluded(ev)) {
     return c.json({ error: 'Only past shows can be added from the archive' }, 400);
@@ -155,7 +159,7 @@ export async function createLibraryShow(c: Context<{ Bindings: Env }>) {
       return c.json(alreadyAddedPayload(existing), 409);
     }
 
-    const row = libraryShowRowFromEvent(ev, uid);
+    const row = libraryShowRowFromEvent(ev, uid, true);
     if (!row) {
       return c.json({ error: 'Event is missing artist or id' }, 400);
     }

@@ -70,6 +70,7 @@ export default function Footer() {
             <h3 className="font-bold text-white">Platform</h3>
             <div className="space-y-2">
               <FooterResourceLink to="/browse/clips/latest">Concert Feed</FooterResourceLink>
+              <FooterResourceLink to="/browse/shows/past">Past Shows</FooterResourceLink>
               <FooterResourceLink to="/artist-hub">Artist Hub</FooterResourceLink>
               <FooterResourceLink to="/venue-hub">Venue Hub</FooterResourceLink>
             </div>

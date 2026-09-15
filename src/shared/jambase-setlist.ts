@@ -99,14 +99,18 @@ export function jamBaseEventSetlistUrl(ev: Record<string, unknown> | null | unde
 export type StoredSetlist = {
   songs: JamBaseSetlistSong[];
   url: string | null;
+  /** True after we already tried the JamBase show-page HTML. */
+  htmlChecked?: boolean;
 };
 
 /** JSON we persist on `library_shows` / `jambase_events.setlist_json`. */
-export function serializeStoredSetlist(ev: Record<string, unknown>): string | null {
+export function serializeStoredSetlist(
+  ev: Record<string, unknown>,
+  htmlChecked = false,
+): string | null {
   const songs = jamBaseEventSetlist(ev);
-  const url = jamBaseEventSetlistUrl(ev);
-  if (songs.length === 0 && !url) return null;
-  return JSON.stringify({ songs, url });
+  if (songs.length === 0 && !htmlChecked) return null;
+  return JSON.stringify({ songs, url: null, htmlChecked });
 }
 
 export function parseStoredSetlist(raw: string | null | undefined): StoredSetlist {
@@ -124,8 +128,12 @@ export function parseStoredSetlist(raw: string | null | undefined): StoredSetlis
       const songs = Array.isArray(row.songs)
         ? row.songs.map(songFromUnknown).filter((s): s is JamBaseSetlistSong => s != null)
         : [];
-      const url = typeof row.url === 'string' && row.url.trim() ? row.url.trim() : null;
-      return { songs, url };
+      const url =
+        typeof row.url === 'string' && row.url.trim() && !/setlist\.fm/i.test(row.url)
+          ? row.url.trim()
+          : null;
+      const htmlChecked = row.htmlChecked === true;
+      return { songs, url, htmlChecked };
     }
   } catch {
     /* ignore malformed cache rows */
@@ -138,11 +146,12 @@ export function setlistFromStoredEvent(
   payload: Record<string, unknown> | null | undefined,
 ): StoredSetlist {
   const stored = parseStoredSetlist(setlistJson);
-  if (stored.songs.length > 0 || stored.url) return stored;
+  if (stored.songs.length > 0 || stored.url || stored.htmlChecked) return stored;
   if (!payload) return { songs: [], url: null };
   return {
     songs: jamBaseEventSetlist(payload),
-    url: jamBaseEventSetlistUrl(payload),
+    url: null,
+    htmlChecked: false,
   };
 }
 
@@ -150,6 +159,7 @@ export type StoredShowPage = {
   event: Record<string, unknown>;
   setlist: JamBaseSetlistSong[];
   setlist_url: string | null;
+  htmlChecked: boolean;
 };
 
 /** Stamp extracted songs onto a cached event so client parsers keep working. */

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router';
+import { useNavigate, Link } from 'react-router';
 import { Calendar, Loader2, MapPin, Plus, Search, X } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
@@ -20,6 +20,7 @@ import {
 import { artistAtVenueTitle, jamBaseEventTitle } from '@/shared/event-title';
 import { isAlreadyInLibraryShow, isFeedbackLibraryShow } from '@/shared/library-shows';
 import type { PastShowSummary } from '@/react-app/components/PastShowsCarousel';
+import { BROWSE_PAST_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 
 type FindAShowModalProps = {
   onClose: () => void;
@@ -88,7 +89,7 @@ export default function FindAShowModal({
     setError(null);
 
     const searchQs = addPastShow
-      ? `/api/jambase/search/events?q=${encodeURIComponent(debounced)}&includePast=1&pastOnly=1&limit=24`
+      ? `/api/jambase/search/events?q=${encodeURIComponent(debounced)}&archiveOnly=1&limit=24`
       : `/api/jambase/search/events?q=${encodeURIComponent(debounced)}&includePast=1&limit=24`;
 
     void (async () => {
@@ -282,6 +283,17 @@ export default function FindAShowModal({
             ? 'Search JamBase’s archive of past events. Shows already in Feedback can’t be added again.'
             : 'Past shows are listed first (JamBase dates go back about two years; FEEDBACK library clips can be older). Upcoming dates include a ticket link on the show page.'}
         </p>
+        <Link
+          to={
+            debounced.length >= 2
+              ? `${BROWSE_PAST_SHOWS_PATH}?q=${encodeURIComponent(debounced)}`
+              : BROWSE_PAST_SHOWS_PATH
+          }
+          onClick={onClose}
+          className="mb-4 inline-block text-sm font-semibold text-momentum-flare hover:underline"
+        >
+          View all past shows
+        </Link>
 
         <div className="relative mb-4">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />

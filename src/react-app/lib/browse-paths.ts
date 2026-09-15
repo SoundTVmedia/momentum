@@ -8,4 +8,5 @@ export const BROWSE_FAVORITE_CLIPS_PATH = '/browse/favorites/clips';
 export const BROWSE_FAVORITE_SHOWS_PATH = '/browse/favorites/shows';
 export const BROWSE_NEARBY_SHOWS_PATH = '/browse/shows/nearby';
 export const BROWSE_TONIGHT_SHOWS_PATH = '/browse/shows/tonight';
+export const BROWSE_PAST_SHOWS_PATH = '/browse/shows/past';
 export const MY_SHOWS_PATH = '/my/shows';

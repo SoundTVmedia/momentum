@@ -24,6 +24,7 @@ import BrowseFavoriteClipsPage from "@/react-app/pages/BrowseFavoriteClips";
 import BrowseFavoriteShowsPage from "@/react-app/pages/BrowseFavoriteShows";
 import BrowseNearbyShowsPage from "@/react-app/pages/BrowseNearbyShows";
 import BrowseTonightShowsPage from "@/react-app/pages/BrowseTonightShows";
+import BrowsePastShowsPage from "@/react-app/pages/BrowsePastShows";
 import MyShowsPage from "@/react-app/pages/MyShowsPage";
 import AmbassadorsPage from "@/react-app/pages/Ambassadors";
 import InfluencersPage from "@/react-app/pages/Influencers";
@@ -112,6 +113,7 @@ export default function App() {
               <Route path="/browse/favorites/shows" element={<BrowseFavoriteShowsPage />} />
               <Route path="/browse/shows/nearby" element={<BrowseNearbyShowsPage />} />
               <Route path="/browse/shows/tonight" element={<BrowseTonightShowsPage />} />
+              <Route path="/browse/shows/past" element={<BrowsePastShowsPage />} />
               <Route path="/my/shows" element={<MyShowsPage />} />
               <Route path="/ambassadors" element={<AmbassadorsPage />} />
               <Route path="/influencers" element={<InfluencersPage />} />

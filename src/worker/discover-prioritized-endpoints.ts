@@ -2,15 +2,16 @@ import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { publicVisibleClipFilterSql } from './content-feed-sql';
 import { Context } from 'hono';
 import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
-import { jamBaseQuotaFromEnv } from './jambase-client';
+import { jamBaseQuotaFromEnv, normalizeJamBaseApiKey } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
 import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql } from './past-show-sql';
 import { listPastShowsForEntity } from './past-show-list';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { isUserFollowTargetId } from './follow-endpoints';
+import { fetchJamBaseEventById } from './jambase-endpoints';
 import { SHOW_CLIPS_RECORDED_ORDER_BY_SQL } from './clip-order-by';
-import { loadStoredShowPage } from './stored-show-page';
+import { loadOrHydrateStoredShowPage } from './stored-show-page';
 
 /**
  * Get prioritized shows for discovery feed
@@ -711,10 +712,20 @@ export async function getShowClips(c: Context) {
       typeof pageClips[0]?.jambase_event_id === 'string'
         ? String(pageClips[0].jambase_event_id).trim()
         : '';
+    const fetchEvent = (id: string) => async () => {
+      const key = normalizeJamBaseApiKey(c.env.JAMBASE_API_KEY);
+      if (!key) return null;
+      try {
+        return await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), id);
+      } catch (err) {
+        console.error('getShowClips fetch event', err);
+        return null;
+      }
+    };
     const show =
-      (await loadStoredShowPage(c.env.DB, showId)) ??
+      (await loadOrHydrateStoredShowPage(c.env.DB, showId, fetchEvent(showId))) ??
       (clipEventId && clipEventId !== showId
-        ? await loadStoredShowPage(c.env.DB, clipEventId)
+        ? await loadOrHydrateStoredShowPage(c.env.DB, clipEventId, fetchEvent(clipEventId))
         : null);
 
     return c.json({
@@ -796,7 +807,17 @@ export async function getEventClips(c: Context) {
       typeof visible[0]?.jambase_event_id === 'string'
         ? String(visible[0].jambase_event_id).trim()
         : '';
-    const show = clipEventId ? await loadStoredShowPage(c.env.DB, clipEventId) : null;
+    const show = clipEventId
+      ? await loadOrHydrateStoredShowPage(c.env.DB, clipEventId, async () => {
+          const key = normalizeJamBaseApiKey(c.env.JAMBASE_API_KEY);
+          if (!key) return null;
+          try {
+            return await fetchJamBaseEventById(key, jamBaseQuotaFromEnv(c.env), clipEventId);
+          } catch {
+            return null;
+          }
+        })
+      : null;
 
     return c.json({
       clips: visible,
