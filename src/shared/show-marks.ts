@@ -310,7 +310,7 @@ export function showMarkActionStatus(action: ShowMarkAction): ShowMarkStatus {
 
 /**
  * Which first-person actions a card should offer.
- * Upcoming: I'm going. During the show: I'm there + I went. After: I went.
+ * Upcoming: I'm going. During the show: I'm there. After: I went.
  */
 export function availableShowMarkActionsForEvent(
   ev: Record<string, unknown>,
@@ -322,7 +322,7 @@ export function availableShowMarkActionsForEvent(
   if (statusOverride === 'going') {
     return jamBaseEventImThereEligible(ev, nowMs) ? ['im_there'] : ['going'];
   }
-  if (jamBaseEventImThereEligible(ev, nowMs)) return ['im_there', 'attended'];
+  if (jamBaseEventImThereEligible(ev, nowMs)) return ['im_there'];
   if (isUpcomingJamBaseEvent(ev, now)) return ['going'];
   if (isPastJamBaseEvent(ev, now) || jamBaseEventHasStarted(ev, nowMs)) return ['attended'];
   return ['going'];

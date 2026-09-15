@@ -196,14 +196,14 @@ describe('availableShowMarkActionsForEvent', () => {
     ).toEqual(['going']);
   });
 
-  it('offers I\'m there and I went during the show', () => {
+  it('offers only I\'m there during the show', () => {
     const inProgress = {
       startDate: '2026-06-10T19:30:00',
       location: { address: { 'x-timezone': 'America/New_York' } },
     };
     expect(
       availableShowMarkActionsForEvent(inProgress, new Date('2026-06-11T01:00:00.000Z')),
-    ).toEqual(['im_there', 'attended']);
+    ).toEqual(['im_there']);
   });
 
   it('offers I went after the show', () => {

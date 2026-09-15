@@ -753,7 +753,7 @@ export default function ClipModal({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute bottom-[calc(5rem+env(safe-area-inset-bottom,0px))] right-2 z-20 flex flex-col items-center gap-4">
+      <div className="pointer-events-none absolute bottom-[max(1rem,env(safe-area-inset-bottom,0px))] right-2 z-20 flex flex-col items-center gap-4">
         <button
           type="button"
           onClick={handleLike}
