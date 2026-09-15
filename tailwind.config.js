@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-/** Active palette: neon-blue — see src/react-app/lib/design-palettes.ts */
+/** Active palette: black-gold — see src/react-app/lib/design-palettes.ts */
 export default {
   darkMode: ['selector', '[data-theme="dark"]'],
   content: [
@@ -43,7 +43,7 @@ export default {
       boxShadow: {
         glass: "var(--glass-shadow)",
         "glass-lg": "var(--glass-shadow-lg)",
-        "glass-glow": "0 0 32px rgba(59, 130, 246, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        "glass-glow": "0 0 32px rgba(201, 162, 39, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
         "glass-chrome": "0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 -1px 0 rgba(0, 0, 0, 0.25)",
       },
       backdropBlur: {

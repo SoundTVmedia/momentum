@@ -424,8 +424,8 @@ export default function HeroSection() {
           </div>
         </div>
 
-        <div className="hero-carousel__slide" aria-hidden={index !== 1} style={{ backgroundColor: '#001a30' }}>
-          <div className="hero-carousel__fill" style={{ backgroundColor: '#001a30' }}>
+        <div className="hero-carousel__slide" aria-hidden={index !== 1} style={{ backgroundColor: '#0A0A0A' }}>
+          <div className="hero-carousel__fill" style={{ backgroundColor: '#0A0A0A' }}>
             <div className="absolute inset-0 hero-concert-photo" aria-hidden>
               <HeroConcertBackdrop
                 key={slidesB[0]?.src ?? 'slide-b'}

@@ -227,8 +227,8 @@ export default function AnalyticsDashboard() {
                 <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
               </linearGradient>
               <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#C9A227" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#C9A227" stopOpacity={0}/>
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
@@ -261,7 +261,7 @@ export default function AnalyticsDashboard() {
             <Area 
               type="monotone" 
               dataKey="views" 
-              stroke="#3b82f6" 
+              stroke="#C9A227" 
               fillOpacity={1} 
               fill="url(#colorViews)"
               name="Views"

@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
   avatarFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(59, 130, 246, 0.25)',
+    backgroundColor: 'rgba(201, 162, 39, 0.25)',
   },
   avatarLetter: {
     color: colors.textBody,

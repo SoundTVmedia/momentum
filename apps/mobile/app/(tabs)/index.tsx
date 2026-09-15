@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     borderColor: colors.glassBorder,
   },
   filterChipActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.22)',
+    backgroundColor: 'rgba(201, 162, 39, 0.22)',
     borderColor: colors.glassBorderAccent,
   },
   filterLabel: {

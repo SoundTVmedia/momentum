@@ -557,7 +557,7 @@ const styles = StyleSheet.create({
     maxWidth: 160,
   },
   pickerChipActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.28)',
+    backgroundColor: 'rgba(201, 162, 39, 0.28)',
     borderColor: colors.glassBorderAccent,
   },
   pickerChipLabel: {

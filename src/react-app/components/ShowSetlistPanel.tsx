@@ -38,12 +38,12 @@ export default function ShowSetlistPanel({ songs, className = '' }: ShowSetlistP
           aria-expanded={open}
           aria-controls={panelId}
           onClick={() => setOpen((current) => !current)}
-          className="inline-flex items-center gap-2 rounded-full border border-momentum-flare/40 bg-momentum-flare/15 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-momentum-flare/25"
+          className="inline-flex items-center gap-2 rounded-full border-2 border-white bg-transparent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10"
         >
-          <ListMusic className="h-4 w-4 text-momentum-flare shrink-0" aria-hidden />
+          <ListMusic className="h-4 w-4 text-white shrink-0" aria-hidden />
           <span>View the Setlist</span>
           <ChevronDown
-            className={`h-4 w-4 shrink-0 text-momentum-flare transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`h-4 w-4 shrink-0 text-white transition-transform ${open ? 'rotate-180' : ''}`}
             aria-hidden
           />
         </button>

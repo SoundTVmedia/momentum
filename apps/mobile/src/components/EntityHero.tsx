@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   imageSquare: {
     borderRadius: radii.lg,
     borderWidth: 3,
-    borderColor: 'rgba(59, 130, 246, 0.45)',
+    borderColor: 'rgba(201, 162, 39, 0.45)',
   },
   info: {
     width: '100%',
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    backgroundColor: 'rgba(201, 162, 39, 0.2)',
   },
   badgeText: {
     color: colors.ember,

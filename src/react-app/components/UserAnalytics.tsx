@@ -180,7 +180,7 @@ export default function UserAnalytics({ userId }: UserAnalyticsProps) {
               <Line 
                 type="monotone" 
                 dataKey="views" 
-                stroke="#3b82f6" 
+                stroke="#C9A227" 
                 strokeWidth={2}
                 name="Views"
               />

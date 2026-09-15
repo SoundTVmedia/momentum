@@ -157,7 +157,7 @@ export default function VerificationAdminPanel() {
                       </a>
                       <button
                         onClick={() => setSelectedRequest(request)}
-                        className="flex items-center space-x-1 text-momentum-flare hover:text-blue-300"
+                        className="flex items-center space-x-1 text-momentum-flare hover:text-momentum-ember"
                       >
                         <Eye className="w-4 h-4" />
                         <span>View Details</span>

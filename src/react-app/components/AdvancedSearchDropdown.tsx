@@ -223,7 +223,7 @@ function SearchDropdownPanel({
           )}
           {show('venues') && results.venues.length > 0 && (
             <div className="border-b border-white/10">
-              <div className="px-3 py-2 text-xs font-semibold text-blue-300/90 uppercase tracking-wide flex items-center gap-1">
+              <div className="px-3 py-2 text-xs font-semibold text-momentum-glacier/90 uppercase tracking-wide flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5" /> Venues (Feedback)
               </div>
               {results.venues.map((v) => (

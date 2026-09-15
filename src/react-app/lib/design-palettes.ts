@@ -11,7 +11,8 @@ export type DesignPaletteId =
   | 'green-option-2'
   | 'neon-blue'
   | 'crimson-pulse'
-  | 'neon-tide';
+  | 'neon-tide'
+  | 'black-gold';
 
 export type DesignPalette = {
   id: DesignPaletteId;
@@ -153,6 +154,27 @@ export const NEON_TIDE: DesignPalette = {
   },
 };
 
+/** Black + white + warm gold (investor deck / market report). ACTIVE. */
+export const BLACK_GOLD: DesignPalette = {
+  id: 'black-gold',
+  label: 'Black gold',
+  description:
+    'Report palette — deep black shell, white type, warm gold replacing electric blue accents.',
+  tailwindGradient:
+    'bg-gradient-to-bl from-[#E4C15A] via-[#C9A227] to-[#8F6B1F]',
+  momentumGrad:
+    'linear-gradient(to bottom left, #E4C15A 0%, #C9A227 50%, #8F6B1F 100%)',
+  tokens: {
+    ember: '#E4C15A',
+    flare: '#C9A227',
+    rose: '#8F6B1F',
+    glacier: '#F0E0A8',
+    copper: '#3D3010',
+    ink: '#0A0A0A',
+    smoke: '#161616',
+  },
+};
+
 export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
   'orange-version': ORANGE_VERSION,
   'green-option-1': GREEN_OPTION_1,
@@ -160,9 +182,10 @@ export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
   'neon-blue': NEON_BLUE,
   'crimson-pulse': CRIMSON_PULSE,
   'neon-tide': NEON_TIDE,
+  'black-gold': BLACK_GOLD,
 };
 
 /** Palette currently wired in tailwind.config.js + index.css */
-export const ACTIVE_PALETTE_ID: DesignPaletteId = 'neon-blue';
+export const ACTIVE_PALETTE_ID: DesignPaletteId = 'black-gold';
 
 export const ACTIVE_PALETTE = DESIGN_PALETTES[ACTIVE_PALETTE_ID];
