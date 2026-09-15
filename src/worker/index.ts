@@ -4085,12 +4085,7 @@ app.get("/api/artists/:artistName/previous-shows", async (c) => {
       .bind(artistName, limit)
       .all();
 
-    const shows = previousShows.results || [];
-    // #region agent log
-    fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00acaf'},body:JSON.stringify({sessionId:'00acaf',runId:'post-fix',hypothesisId:'A',location:'src/worker/index.ts:previous-shows',message:'artist previous shows grouped by night',data:{artistName,showCount:shows.length,shows:shows.map((row)=>{const s=row as Record<string,unknown>;return {show_id:s.show_id,show_date:s.show_date,clip_count:s.clip_count,jambase_event_id:s.jambase_event_id,venue_name:s.venue_name};})},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
-    return c.json({ shows });
+    return c.json({ shows: previousShows.results || [] });
   } catch (error) {
     console.error('Get artist previous shows error:', error);
     return c.json({ error: 'Failed to get previous shows' }, 500);

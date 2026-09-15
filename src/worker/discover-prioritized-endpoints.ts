@@ -703,9 +703,6 @@ export async function getShowClips(c: Context) {
     const hiddenAuthors = await getHiddenUserIdsForRequest(c);
     const visible = withoutBlockedAuthors(rows as Record<string, unknown>[], hiddenAuthors);
     const hasMore = visible.length > limit;
-    // #region agent log
-    fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00acaf'},body:JSON.stringify({sessionId:'00acaf',runId:'post-fix',hypothesisId:'A',location:'src/worker/discover-prioritized-endpoints.ts:getShowClips',message:'show page clips after night merge',data:{showId,clipCount:visible.length,clips:visible.slice(0,20).map((row)=>{const c=row as Record<string,unknown>;return {id:c.id,show_id:c.show_id,jambase_event_id:c.jambase_event_id,timestamp:c.timestamp,venue_name:c.venue_name};})},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     return c.json({
       clips: hasMore ? visible.slice(0, limit) : visible,
@@ -848,9 +845,6 @@ export async function getVenueArchive(c: Context) {
       .bind(...bindings)
       .all();
     const results = shows.results || [];
-    // #region agent log
-    fetch('http://127.0.0.1:7597/ingest/aa27030c-d904-45f1-ad09-1a81e3422637',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00acaf'},body:JSON.stringify({sessionId:'00acaf',runId:'post-fix',hypothesisId:'A',location:'src/worker/discover-prioritized-endpoints.ts:getVenueArchive',message:'venue archive grouped by night',data:{venueName,showCount:results.length,shows:results.map((row)=>{const s=row as Record<string,unknown>;return {show_id:s.show_id,artist_name:s.artist_name,show_date:s.show_date,clip_count:s.clip_count,jambase_event_id:s.jambase_event_id};})},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     return c.json({
       shows: results,
