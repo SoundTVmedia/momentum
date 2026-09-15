@@ -2,6 +2,7 @@ import { Music, Instagram, Twitter, Youtube } from 'lucide-react'
 import { Link } from 'react-router'
 import { SHOW_FEEDBACK_LIVE_SCHEDULE } from '@/shared/feature-flags'
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
+import { scrollWindowToTop } from '@/react-app/lib/scroll-window'
 
 function FooterResourceLink({ to, children }: { to: string; children: string }) {
   return (
@@ -10,9 +11,7 @@ function FooterResourceLink({ to, children }: { to: string; children: string }) 
       className="block text-gray-400 hover:text-white transition-colors"
       onClick={() => {
         history.scrollRestoration = 'manual'
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-        document.documentElement.scrollTop = 0
-        document.body.scrollTop = 0
+        scrollWindowToTop()
       }}
     >
       {children}

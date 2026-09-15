@@ -180,27 +180,55 @@ ion-app.momentum-ion-app {
   background: transparent;
 }
 
-ion-header.app-top-header {
-  position: sticky;
-  top: 0;
-  z-index: 80;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
-  overflow-anchor: none;
-}
-
 /*
- * Keep status-bar clearance as a constant Ionic inset. Using env(safe-area-inset-top)
- * on a sticky header lets iOS add the same inset again after scroll, which grows a
- * blank band above the logo. Pair with ios.contentInset: 'never'.
+ * Pin the app chrome with `fixed` (not sticky). iOS WKWebView applies an extra
+ * safe-area offset to sticky `top: 0` after scroll/overscroll, which grows a blank
+ * band above the logo even when --ion-safe-area-top is a constant. Fixed stays at
+ * the cold-start origin. Pair with ios.contentInset: 'never' and a flow spacer.
  */
-ion-header.app-top-header ion-toolbar.app-toolbar {
-  --ion-safe-area-top: 0px;
+:root {
+  --app-header-safe-top: 0px;
+  --app-header-toolbar-height: 4.719rem;
+  --app-header-flow-height: var(--app-header-toolbar-height);
 }
 
 @media (max-width: 767px) {
-  ion-header.app-top-header ion-toolbar.app-toolbar {
-    --ion-safe-area-top: 3.7rem;
+  :root {
+    --app-header-safe-top: 3.7rem;
+    --app-header-toolbar-height: 3.35rem;
+    --app-header-flow-height: calc(
+      var(--app-header-safe-top) + var(--app-header-toolbar-height)
+    );
   }
+}
+
+ion-header.app-top-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 80;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  overflow-anchor: none;
+  transform: translateZ(0);
+}
+
+.app-header-flow-spacer {
+  display: block;
+  width: 100%;
+  height: var(--app-header-flow-height);
+  flex-shrink: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/*
+ * Status-bar clearance is a locked constant (not env()), so scroll cannot stack a
+ * second inset on the toolbar padding.
+ */
+ion-header.app-top-header ion-toolbar.app-toolbar {
+  --ion-safe-area-top: var(--app-header-safe-top);
 }
 
 .app-header-wordmark {
@@ -321,7 +349,7 @@ ion-button.app-header-signin::part(native) {
 ion-header.app-top-header ion-toolbar.app-toolbar {
   --background: var(--glass-chrome-bg, rgba(3, 7, 18, 0.78));
   --border-width: 0;
-  --min-height: 4.719rem;
+  --min-height: var(--app-header-toolbar-height);
   --padding-start: 1.1rem;
   --padding-end: 1.1rem;
   --padding-top: 0.43rem;
@@ -354,7 +382,6 @@ ion-header.app-top-header ion-toolbar.app-toolbar::part(content) {
 @media (max-width: 767px) {
   ion-header.app-top-header ion-toolbar.app-toolbar {
     --padding-bottom: 0.115rem;
-    --min-height: 3.35rem;
   }
 }
 
@@ -658,7 +685,8 @@ ion-button.app-auth-apple-btn::part(native) {
 }
 
 html.native-quick-capture-open ion-footer.app-tab-footer,
-html.native-quick-capture-open ion-header.app-top-header {
+html.native-quick-capture-open ion-header.app-top-header,
+html.native-quick-capture-open .app-header-flow-spacer {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;

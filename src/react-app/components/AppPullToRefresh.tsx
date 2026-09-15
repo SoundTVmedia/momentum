@@ -4,6 +4,7 @@ import { useLocation } from 'react-router'
 import { Haptics, ImpactStyle } from '@capacitor/haptics'
 import { dispatchAppPullRefresh } from '@/react-app/lib/app-pull-refresh'
 import { isNativeApp } from '@/react-app/lib/native-bridge'
+import { scrollWindowToTop } from '@/react-app/lib/scroll-window'
 
 const PULL_RESISTANCE = 0.38
 const PULL_THRESHOLD = 72
@@ -85,9 +86,7 @@ export default function AppPullToRefresh({ children }: AppPullToRefreshProps) {
       setPullPx(0)
       // Pull-overscroll can leave WKWebView contentInset / scroll offset elevated.
       // Snap back to the cold-start top so header spacing matches a fresh launch.
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-      document.documentElement.scrollTop = 0
-      document.body.scrollTop = 0
+      scrollWindowToTop()
     }
 
     const onTouchStart = (event: TouchEvent) => {
