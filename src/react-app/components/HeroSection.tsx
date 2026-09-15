@@ -16,7 +16,7 @@ import { artistPath, clipShowClipsPath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
 
 const SLIDE_COUNT = 3;
-const SLIDE_MS = 6000;
+const SLIDE_MS = 8000;
 
 function slidesFromClips(clips: ClipWithUser[] | undefined, max = 8): HeroClipSlide[] {
   const next: HeroClipSlide[] = [];
@@ -442,7 +442,7 @@ export default function HeroSection() {
               </p>
               <div className="mt-2 flex flex-col items-center sm:mt-6">
                 <p className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-white/80 sm:text-[0.7rem]">
-                  Proudly Powered By
+                  Powered By
                 </p>
                 <a
                   href={JAMBASE_HOME_URL}

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Calendar, ListMusic, MapPin, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
+import ShowSetlistPanel from '@/react-app/components/ShowSetlistPanel';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiFetch } from '@/react-app/lib/apiFetch';
@@ -237,73 +238,64 @@ export default function ShowClipsPage() {
           ) : null}
         </div>
 
-        {pastShow && setlist.length > 0 ? (
-          <section className="glass-panel border border-momentum-rose/20 rounded-xl p-6 sm:p-8 mb-6">
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-white mb-3">
-              <ListMusic className="h-5 w-5 text-momentum-flare" aria-hidden />
-              Setlist
-            </h2>
-            <ol className="space-y-1.5 text-sm text-gray-300">
-              {setlist.map((song, index) => (
-                <li key={`${song.title}-${index}`} className="flex gap-3">
-                  <span className="w-6 shrink-0 text-gray-500 tabular-nums">{index + 1}.</span>
-                  <span>
-                    {song.title}
-                    {song.artist ? (
-                      <span className="text-gray-500"> — {song.artist}</span>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ) : null}
+        <div
+          className={
+            pastShow && setlist.length > 0
+              ? 'flex flex-col lg:flex-row lg:items-start lg:gap-8'
+              : undefined
+          }
+        >
+          {pastShow && setlist.length > 0 ? (
+            <ShowSetlistPanel songs={setlist} className="mb-6 lg:mb-0 lg:order-2 lg:w-72 xl:w-80 shrink-0" />
+          ) : null}
 
-        {/* Clips Grid */}
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
-          </div>
-        ) : clips.length === 0 ? (
-          <div className="text-center py-12 glass-panel border border-momentum-rose/20 rounded-xl">
-            <p className="text-gray-400 text-lg">
-              {upcoming ? "This show hasn't happened yet." : 'No clips found for this show'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-            {clips.map((clip, index) => (
-              <div
-                key={clipListItemKey(clip, index)}
-                onClick={() => {
-                  setSelectedClip(clip);
-                  setShowModalFeed(clips.length > 1 ? clips : null);
-                }}
-                className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group"
-              >
-                <div className="relative aspect-video">
-                  <ClipPosterImage
-                    clip={clip}
-                    alt="Concert moment"
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                  />
-                </div>
-
-                <div className="p-4">
-                  {clip.content_description && (
-                    <p className="text-gray-300 text-sm line-clamp-2 mb-2">
-                      {clip.content_description}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between text-sm text-gray-400">
-                    <span>{clip.likes_count} likes</span>
-                    <span>{clip.views_count} views</span>
-                  </div>
-                </div>
+          <div className="min-w-0 flex-1 lg:order-1">
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-12 h-12 text-momentum-flare animate-spin" />
               </div>
-            ))}
+            ) : clips.length === 0 ? (
+              <div className="text-center py-12 glass-panel border border-momentum-rose/20 rounded-xl">
+                <p className="text-gray-400 text-lg">
+                  {upcoming ? "This show hasn't happened yet." : 'No clips found for this show'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                {clips.map((clip, index) => (
+                  <div
+                    key={clipListItemKey(clip, index)}
+                    onClick={() => {
+                      setSelectedClip(clip);
+                      setShowModalFeed(clips.length > 1 ? clips : null);
+                    }}
+                    className="glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden hover:border-momentum-rose/50 transition-all cursor-pointer group"
+                  >
+                    <div className="relative aspect-video">
+                      <ClipPosterImage
+                        clip={clip}
+                        alt="Concert moment"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                    </div>
+
+                    <div className="p-4">
+                      {clip.content_description && (
+                        <p className="text-gray-300 text-sm line-clamp-2 mb-2">
+                          {clip.content_description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between text-sm text-gray-400">
+                        <span>{clip.likes_count} likes</span>
+                        <span>{clip.views_count} views</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {selectedClip && (
