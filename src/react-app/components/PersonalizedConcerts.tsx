@@ -44,6 +44,7 @@ export type PersonalizedConcertsProps = {
   /** Override default section title (e.g. home feed "Upcoming Shows"). */
   sectionTitleOverride?: string;
   sectionSubtitleOverride?: string;
+  headerTourAnchor?: string;
 };
 
 interface D1Concert {
@@ -164,6 +165,7 @@ export default function PersonalizedConcerts({
   viewAllLabel = 'View all shows',
   sectionTitleOverride,
   sectionSubtitleOverride,
+  headerTourAnchor,
 }: PersonalizedConcertsProps) {
   const { user, isPending: authPending } = useAuth();
   const carouselBleed =
@@ -402,7 +404,12 @@ export default function PersonalizedConcerts({
           : 'Upcoming shows at venues near you from JamBase');
 
   const sectionHeader = (
-    <SectionHeading title={sectionTitle} subtitle={sectionSubtitle} size="section" />
+    <SectionHeading
+      title={sectionTitle}
+      subtitle={sectionSubtitle}
+      size="section"
+      dataTour={headerTourAnchor}
+    />
   );
 
   if (resolvedMode === 'favorite-artists' && !isLoggedIn) {

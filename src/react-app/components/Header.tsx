@@ -7,7 +7,7 @@ import {
   IonIcon,
   IonToolbar,
 } from '@ionic/react'
-import { logOutOutline, notificationsOutline, peopleOutline, shieldOutline } from 'ionicons/icons'
+import { logOutOutline, notificationsOutline, peopleOutline, shieldOutline, cloudUploadOutline } from 'ionicons/icons'
 import { useLocation, useNavigate } from 'react-router'
 import { useUnreadNotificationCount } from '@/react-app/contexts/NotificationsContext'
 import NotificationAlertBadge from './NotificationAlertBadge'
@@ -21,6 +21,7 @@ import HeroSearchBar from '@/react-app/components/HeroSearchBar'
 import MobileNavMoreMenu from '@/react-app/components/MobileNavMoreMenu'
 import PoweredByJamBase from '@/react-app/components/PoweredByJamBase'
 import { isAdminUser, showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
+import { TOUR_ANCHORS } from '@/react-app/lib/productTour'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -83,8 +84,19 @@ export default function Header() {
                   <IonButton
                     className="hidden md:inline-flex"
                     fill="clear"
+                    color="medium"
+                    onClick={() => navigate('/upload-queue')}
+                    aria-label="Upload queue"
+                    data-tour={TOUR_ANCHORS.uploadQueue}
+                  >
+                    <IonIcon slot="icon-only" icon={cloudUploadOutline} />
+                  </IonButton>
+                  <IonButton
+                    className="hidden md:inline-flex"
+                    fill="clear"
                     onClick={() => navigate(`/users/${user.id}`)}
                     aria-label="Your profile"
+                    data-tour={TOUR_ANCHORS.profile}
                   >
                     <UserAvatar
                       imageUrl={

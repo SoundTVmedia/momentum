@@ -13,6 +13,7 @@ export type SectionHeadingProps = {
   size?: SectionHeadingSize;
   className?: string;
   subtitleClassName?: string;
+  dataTour?: string;
 };
 
 const titleClassBySize: Record<SectionHeadingSize, string> = {
@@ -31,12 +32,14 @@ export default function SectionHeading({
   size = 'section',
   className = '',
   subtitleClassName = '',
+  dataTour,
 }: SectionHeadingProps) {
   const centered = align === 'center';
 
   return (
     <div
       className={`mb-3 md:mb-4 ${centered ? 'text-center' : ''} ${className}`.trim()}
+      data-tour={dataTour}
     >
       <div
         className={`flex flex-wrap items-center gap-2 min-w-0 ${

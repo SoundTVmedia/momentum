@@ -16,6 +16,7 @@ import MyGoingShowsSection from '@/react-app/components/MyGoingShowsSection'
 import SectionHeading from '@/react-app/components/SectionHeading'
 import { BROWSE_NEARBY_SHOWS_PATH } from '@/react-app/lib/browse-paths'
 import { HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout'
+import { TOUR_ANCHORS } from '@/react-app/lib/productTour'
 
 export type MainFeedStackVariant = 'page' | 'home'
 
@@ -127,6 +128,7 @@ export default function MainFeedStack({
           viewAllLabel="View all shows"
           sectionTitleOverride="Upcoming Shows"
           sectionSubtitleOverride=""
+          headerTourAnchor={TOUR_ANCHORS.upcomingShows}
         />
       ) : null}
 

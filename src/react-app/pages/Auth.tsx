@@ -9,6 +9,7 @@ import {
 } from '@/react-app/lib/oauth-client';
 import { nativeIosGoogleOAuthCallbackUrl } from '@/shared/oauth-redirect';
 import { shouldUseNativeInAppOAuth } from '@/react-app/lib/native-oauth';
+import { isTourPending, isTourQuery, markTourPending } from '@/react-app/lib/productTour';
 import GoogleSignInButton from '@/react-app/components/GoogleSignInButton';
 import PoweredByJamBase from '@/react-app/components/PoweredByJamBase';
 import {
@@ -75,7 +76,7 @@ export default function Auth() {
   const [error, setError] = useState<string | null>(null);
   const authModeParam = searchParams.get('mode');
   const [emailMode, setEmailMode] = useState<'signin' | 'signup' | 'forgot'>(() =>
-    authModeParam === 'signup' ? 'signup' : 'signin',
+    authModeParam === 'signup' || isTourQuery(searchParams) ? 'signup' : 'signin',
   );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -83,6 +84,7 @@ export default function Auth() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [forgotMessage, setForgotMessage] = useState<string | null>(null);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const tourAuth = isTourQuery(searchParams) || isTourPending();
 
   // Restore session from device token (works for email-based accounts; OAuth users still need Google)
   useEffect(() => {
@@ -153,10 +155,16 @@ export default function Auth() {
 
   useEffect(() => {
     const mode = searchParams.get('mode');
-    if (mode === 'signup') {
+    if (mode === 'signup' || isTourQuery(searchParams)) {
       setEmailMode('signup');
     } else if (mode === 'signin') {
       setEmailMode('signin');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (isTourQuery(searchParams) || isTourPending()) {
+      markTourPending();
     }
   }, [searchParams]);
 
@@ -201,6 +209,7 @@ export default function Auth() {
   const startGoogleAuth = async () => {
     setError(null);
     setGoogleLoading(true);
+    if (tourAuth) markTourPending();
     try {
       await performGoogleSignIn();
       if (!shouldUseNativeInAppOAuth()) {
@@ -224,6 +233,7 @@ export default function Auth() {
   const startAppleAuth = async () => {
     setError(null);
     setAppleLoading(true);
+    if (tourAuth) markTourPending();
     try {
       await performAppleSignIn();
       if (!shouldUseNativeInAppOAuth()) {
@@ -387,7 +397,9 @@ export default function Auth() {
           )}
 
           <p className="text-center text-[0.95rem] leading-relaxed text-gray-300">
-            To get started, sign in or create account by using your Google or Apple account.
+            {tourAuth
+              ? 'Create an account to take a short tour of Feedback — find shows, follow artists, and capture live moments.'
+              : 'To get started, sign in or create account by using your Google or Apple account.'}
           </p>
 
           <div className="space-y-3">
@@ -422,7 +434,7 @@ export default function Auth() {
                 type="button"
                 onClick={() => {
                   setShowEmailForm(true);
-                  setEmailMode('signin');
+                  setEmailMode(tourAuth ? 'signup' : 'signin');
                   setError(null);
                   setForgotMessage(null);
                 }}

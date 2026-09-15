@@ -1,13 +1,25 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router'
 import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
 import HeroSearchBar from '@/react-app/components/HeroSearchBar'
 import Footer from '@/react-app/components/Footer'
 import MainFeedStack from '@/react-app/components/MainFeedStack'
+import ProductTourOverlay from '@/react-app/components/ProductTourOverlay'
+import { useProductTour } from '@/react-app/hooks/useProductTour'
+import { isTourPending } from '@/react-app/lib/productTour'
 import { useAuth } from '@getmocha/users-service/react'
 
 export default function Home() {
-  const { user } = useAuth()
+  const { user, isPending } = useAuth()
+  const tour = useProductTour()
+
+  useEffect(() => {
+    if (isPending || !user) return
+    if (!isTourPending()) return
+    if (tour.active) return
+    tour.startTour()
+  }, [user, isPending, tour.active, tour.startTour])
 
   return (
     <div className="min-h-screen text-white">
@@ -19,11 +31,22 @@ export default function Home() {
         </div>
       </div>
 
-      <HeroSection />
+      <HeroSection onTakeTour={tour.startTour} tourActive={tour.active} />
 
       <div className="relative z-0 bg-gradient-to-b from-black via-slate-900 to-black">
         <MainFeedStack variant="home" defaultFeedType="latest" />
       </div>
+
+      <ProductTourOverlay
+        active={tour.active}
+        step={tour.step}
+        stepIndex={tour.stepIndex}
+        stepCount={tour.steps.length}
+        targetRect={tour.targetRect}
+        onNext={tour.next}
+        onBack={tour.back}
+        onDismiss={tour.dismissTour}
+      />
 
       {!user && (
         <section className="border-t border-white/10 bg-gradient-to-b from-slate-950 to-black py-10 sm:py-12">

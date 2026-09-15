@@ -8,6 +8,7 @@ import AdvancedSearchDropdown, {
 import ClipModal from '@/react-app/components/ClipModal';
 import { useAdvancedSearch } from '@/react-app/hooks/useAdvancedSearch';
 import type { ClipWithUser } from '@/shared/types';
+import { TOUR_ANCHORS } from '@/react-app/lib/productTour';
 
 export type HeroSearchBarProps = {
   /** Prefill from URL when landing with ?q= */
@@ -83,7 +84,7 @@ export default function HeroSearchBar({
         className={`w-full ${className}`.trim()}
       >
         <div ref={containerRef} className="relative z-10">
-          <div className="hero-search-pill">
+          <div className="hero-search-pill" data-tour={TOUR_ANCHORS.search}>
             <span className="hero-search-mark" aria-hidden>
               <span className="hero-search-spectrum">
                 <span />

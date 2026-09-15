@@ -33,6 +33,7 @@ import {
   USER_BLOCKS_CHANGED_EVENT,
   userBlocksChangedDetail,
 } from '@/react-app/lib/user-block-events';
+import { TOUR_ANCHORS } from '@/react-app/lib/productTour';
 
 type FollowedVenue = { venue_id: number; name: string; clip_count?: number };
 
@@ -302,6 +303,7 @@ export default function FavoriteArtistFeedPanel({
                 <button
                   type="button"
                   onClick={toggleAddArtists}
+                  data-tour={TOUR_ANCHORS.follow}
                   className="inline-flex items-center gap-2 rounded-full border border-white bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15 hover:border-white transition-colors"
                   title={showAddArtists ? 'Close follow' : 'Follow artists, friends, venues, songs, or shows'}
                   aria-expanded={showAddArtists}

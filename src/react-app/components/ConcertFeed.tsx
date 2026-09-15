@@ -24,6 +24,7 @@ import {
   getFeedFilterMeta,
   type FeedFilterValue,
 } from '@/react-app/lib/feedFilterMeta'
+import { TOUR_ANCHORS } from '@/react-app/lib/productTour'
 
 interface ConcertFeedProps {
   feedType?: FeedFilterValue
@@ -54,6 +55,7 @@ export function FeedSectionHeader() {
     <SectionHeading
       title={FROM_THE_SCENE_SECTION.title}
       size="section"
+      dataTour={TOUR_ANCHORS.fromTheScene}
     />
   )
 }

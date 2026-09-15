@@ -32,6 +32,7 @@ import { isAdminUser } from '@/react-app/lib/program-nav';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
+import { TOUR_ANCHORS } from '@/react-app/lib/productTour';
 
 async function tapHaptic() {
   if (!Capacitor.isNativePlatform()) return;
@@ -128,6 +129,7 @@ export default function MobileBottomNav() {
             aria-label={
               uploadQueueCount > 0 ? `Upload Queue, ${uploadQueueCount} uploading` : 'Upload Queue'
             }
+            data-tour={TOUR_ANCHORS.uploadQueue}
           >
             <IonIcon icon={cloudUploadOutline} />
             <IonLabel>Queue</IonLabel>
@@ -144,6 +146,7 @@ export default function MobileBottomNav() {
               quickCapture.openQuickCapture();
             }}
             aria-label="Capture Moment"
+            data-tour={TOUR_ANCHORS.capture}
           >
             <div className="app-capture-fab">
               <IonIcon icon={videocam} className="text-2xl text-white" />
@@ -179,6 +182,7 @@ export default function MobileBottomNav() {
               navigate(user ? profilePath : '/auth');
             }}
             aria-label={user ? 'Profile' : 'Sign in'}
+            data-tour={user ? TOUR_ANCHORS.profile : undefined}
           >
             {user ? (
               <UserAvatar
