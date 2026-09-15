@@ -4,9 +4,19 @@ import { ArrowLeft, Calendar, MapPin, Loader2 } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import ClipModal from '@/react-app/components/ClipModal';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
+import EventTicketActions from '@/react-app/components/EventTicketActions';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
+import { apiFetch } from '@/react-app/lib/apiFetch';
 import { apiEventClipsPath, artistPath, venuePath } from '@/shared/app-paths';
+import { jamBaseEventTitle } from '@/shared/event-title';
+import { jamBaseEventIsConcluded, jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
+import {
+  formatJamBaseEventDate,
+  jamBaseEventTicketUrl,
+  jamBaseEventVenueCityLine,
+  jamBaseEventVenueName,
+} from '@/shared/jambase-events';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import EventShowRating from '@/react-app/components/EventShowRating';
@@ -25,6 +35,7 @@ export default function EventClipsPage() {
   const navigate = useNavigate();
   const eventTitle = decodeEventTitleParam(eventTitleParam);
   const [clips, setClips] = useState<ClipWithUser[]>([]);
+  const [jbEvent, setJbEvent] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'time_posted' | 'most_liked'>('time_posted');
   const [selectedClip, setSelectedClip] = useState<ClipWithUser | null>(null);
@@ -64,20 +75,38 @@ export default function EventClipsPage() {
     return () => ac.abort();
   }, [eventTitle, sortBy]);
 
-  const showDate =
-    clips.length > 0 && clips[0].timestamp
-      ? new Date(clips[0].timestamp).toLocaleDateString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric',
-        })
-      : '';
+  const clipEventId =
+    typeof clips[0]?.jambase_event_id === 'string' ? clips[0].jambase_event_id.trim() : '';
 
-  const venueName = clips.length > 0 ? clips[0].venue_name : '';
-  const location = clips.length > 0 ? clips[0].location : '';
+  useEffect(() => {
+    if (!clipEventId) {
+      setJbEvent(null);
+      return;
+    }
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const res = await apiFetch(`/api/jambase/events/id/${encodeURIComponent(clipEventId)}`, {
+          signal: ac.signal,
+        });
+        if (!res.ok) {
+          if (!ac.signal.aborted) setJbEvent(null);
+          return;
+        }
+        const data = (await res.json()) as { event?: Record<string, unknown> };
+        if (!ac.signal.aborted) {
+          setJbEvent(data.event && typeof data.event === 'object' ? data.event : null);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        if (!ac.signal.aborted) setJbEvent(null);
+      }
+    })();
+    return () => ac.abort();
+  }, [clipEventId]);
+
   const artistName = clips.length > 0 ? clips[0].artist_name : null;
-  const markEvent =
+  const clipEvent =
     clips.length > 0
       ? pastShowSummaryToJamBaseEvent({
           event_title: eventTitle || clips[0].event_title || '',
@@ -90,6 +119,28 @@ export default function EventClipsPage() {
           jambase_artist_id: clips[0].jambase_artist_id,
         })
       : null;
+  const markEvent = jbEvent ?? clipEvent;
+  const pastShow = Boolean(markEvent && jamBaseEventIsConcluded(markEvent));
+  const upcoming = Boolean(markEvent && jamBaseEventUpcomingOrInProgress(markEvent));
+  const ticketUrl = upcoming && markEvent ? jamBaseEventTicketUrl(markEvent) : null;
+  const pageTitle = (markEvent && jamBaseEventTitle(markEvent)) || eventTitle || 'Event';
+  const jbVenue = markEvent ? jamBaseEventVenueName(markEvent) : '';
+  const venueName =
+    jbVenue && jbVenue !== 'Venue TBA' ? jbVenue : clips.length > 0 ? clips[0].venue_name : '';
+  const location =
+    (markEvent && jamBaseEventVenueCityLine(markEvent)) ||
+    (clips.length > 0 ? clips[0].location : '');
+  const startDate = typeof markEvent?.startDate === 'string' ? markEvent.startDate : '';
+  const showDate = startDate
+    ? formatJamBaseEventDate(startDate)
+    : clips.length > 0 && clips[0].timestamp
+      ? new Date(clips[0].timestamp).toLocaleDateString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : '';
 
   return (
     <div className="min-h-screen text-white">
@@ -108,10 +159,11 @@ export default function EventClipsPage() {
         <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <h1 className="min-w-0 flex-1 text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-snug">
-              {eventTitle || 'Event'}
+              {pageTitle}
             </h1>
             <EventShowRating
               showId={typeof markEvent?.identifier === 'string' ? markEvent.identifier : null}
+              pastShow={pastShow}
             />
           </div>
 
@@ -153,6 +205,13 @@ export default function EventClipsPage() {
               <option value="most_liked">Most Liked</option>
             </select>
           </div>
+          {ticketUrl ? (
+            <EventTicketActions
+              ticketUrl={ticketUrl}
+              eventTitle={pageTitle}
+              className="mt-4 w-full max-w-xl"
+            />
+          ) : null}
         </div>
 
         {loading ? (
@@ -161,7 +220,9 @@ export default function EventClipsPage() {
           </div>
         ) : clips.length === 0 ? (
           <div className="text-center py-12 glass-panel border border-momentum-rose/20 rounded-xl">
-            <p className="text-gray-400 text-lg">No clips found for this event</p>
+            <p className="text-gray-400 text-lg">
+              {upcoming ? "This show hasn't happened yet." : 'No clips found for this event'}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">

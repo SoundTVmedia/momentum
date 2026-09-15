@@ -5,6 +5,7 @@ import Header from '@/react-app/components/Header';
 import SectionHeading from '@/react-app/components/SectionHeading';
 import { archivalUploadNavState } from '@/react-app/lib/archival-upload';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
+import { jamBaseEventIsConcluded } from '@/shared/jambase-event-day';
 import type { UserShowMark } from '@/shared/show-marks';
 
 function showTitle(mark: UserShowMark): string {
@@ -27,6 +28,10 @@ export default function ArchivalHubPage() {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
   const { attendedMarks, loading, hydrated } = useShowMarks();
+  const pastAttended = attendedMarks.filter((m) => {
+    if (!m.start_date?.trim()) return true;
+    return jamBaseEventIsConcluded({ startDate: m.start_date });
+  });
 
   const startUpload = (mark?: UserShowMark) => {
     navigate('/upload?archive=true', { state: archivalUploadNavState(mark) });
@@ -106,7 +111,7 @@ export default function ArchivalHubPage() {
                 <div className="flex justify-center py-16">
                   <Loader2 className="h-8 w-8 animate-spin text-momentum-flare" />
                 </div>
-              ) : attendedMarks.length === 0 ? (
+              ) : pastAttended.length === 0 ? (
                 <div className="glass-panel rounded-2xl p-8 text-center text-gray-300">
                   <p>You have not marked any past shows as Went yet.</p>
                   <Link
@@ -118,7 +123,7 @@ export default function ArchivalHubPage() {
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {attendedMarks.map((mark) => (
+                  {pastAttended.map((mark) => (
                     <button
                       key={mark.jambase_event_id}
                       type="button"

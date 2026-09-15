@@ -13,9 +13,15 @@ import {
 } from '../shared/jambase-slug';
 
 /** Recent archive window so first-page results are not decades-old tours. */
-const RECENT_PAST_LOOKBACK_DAYS = 120;
-/** Broader archive window for older shows (may return earlier dates first). */
-const ARCHIVE_LOOKBACK_DAYS = 730;
+export const JAMBASE_RECENT_PAST_LOOKBACK_DAYS = 120;
+/**
+ * Broader Find a Show archive window. JamBase geo `/events` cannot use
+ * `eventDateFrom` before UTC today; artist/venue/title search with this lookback
+ * returns about two years of history.
+ */
+export const JAMBASE_ARCHIVE_LOOKBACK_DAYS = 730;
+/** Share of Find a Show slots reserved for past shows when both exist. */
+export const FIND_A_SHOW_PAST_SHARE = 0.75;
 
 function eventMatchesQuery(ev: Record<string, unknown>, qLower: string): boolean {
   const name = typeof ev.name === 'string' ? ev.name.toLowerCase() : '';
@@ -104,11 +110,10 @@ function eventStartKey(ev: Record<string, unknown>): string {
   return typeof ev.startDate === 'string' ? ev.startDate : '';
 }
 
-/** Upcoming first (soonest), then archived (most recent first). */
-export function sortJamBaseEventsUpcomingThenPast(
+function splitUpcomingAndPast(
   events: Record<string, unknown>[],
-  nowMs: number = Date.now(),
-): Record<string, unknown>[] {
+  nowMs: number,
+): { upcoming: Record<string, unknown>[]; past: Record<string, unknown>[] } {
   const upcoming: Record<string, unknown>[] = [];
   const past: Record<string, unknown>[] = [];
   for (const ev of events) {
@@ -117,7 +122,32 @@ export function sortJamBaseEventsUpcomingThenPast(
   }
   upcoming.sort((a, b) => eventStartKey(a).localeCompare(eventStartKey(b)));
   past.sort((a, b) => eventStartKey(b).localeCompare(eventStartKey(a)));
-  return [...upcoming, ...past];
+  return { upcoming, past };
+}
+
+/**
+ * Find a Show mix: past first, and more past than upcoming when both exist
+ * (about 75% past / 25% upcoming), filling leftover slots from the other bucket.
+ */
+export function mixFindAShowEvents(
+  events: Record<string, unknown>[],
+  max: number,
+  nowMs: number = Date.now(),
+): Record<string, unknown>[] {
+  const limit = Math.max(0, max);
+  if (limit === 0) return [];
+  const { upcoming, past } = splitUpcomingAndPast(events, nowMs);
+  if (past.length === 0 || upcoming.length === 0) {
+    const pastTake = Math.min(past.length, limit);
+    const upcomingTake = Math.min(upcoming.length, limit - pastTake);
+    return [...past.slice(0, pastTake), ...upcoming.slice(0, upcomingTake)];
+  }
+  const preferredUpcoming = Math.max(1, Math.floor(limit * (1 - FIND_A_SHOW_PAST_SHARE)));
+  let upcomingTake = Math.min(upcoming.length, preferredUpcoming, limit);
+  let pastTake = Math.min(past.length, limit - upcomingTake);
+  const leftover = limit - pastTake - upcomingTake;
+  upcomingTake = Math.min(upcoming.length, upcomingTake + leftover);
+  return [...past.slice(0, pastTake), ...upcoming.slice(0, upcomingTake)];
 }
 
 async function fetchJamBaseEventsByArtistOrVenueName(
@@ -176,8 +206,8 @@ export async function buildPastJamBaseEventResults(
   if (q.length < 2) return [];
   const qLower = q.toLowerCase();
   const phrase = jamBaseArtistVenueSearchPhrase(q);
-  const recentFrom = jamBaseEventDateFromDaysAgo(RECENT_PAST_LOOKBACK_DAYS);
-  const archiveFrom = jamBaseEventDateFromDaysAgo(ARCHIVE_LOOKBACK_DAYS);
+  const recentFrom = jamBaseEventDateFromDaysAgo(JAMBASE_RECENT_PAST_LOOKBACK_DAYS);
+  const archiveFrom = jamBaseEventDateFromDaysAgo(JAMBASE_ARCHIVE_LOOKBACK_DAYS);
   const perPage = String(Math.min(40, Math.max(maxResults, 16)));
 
   const [recent, archive] = await Promise.all([

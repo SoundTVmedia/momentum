@@ -186,8 +186,8 @@ export default function FindAShowModal({ onClose }: FindAShowModalProps) {
         </div>
 
         <p className="mb-3 text-sm text-gray-400">
-          Search upcoming JamBase dates and past shows from the FEEDBACK library. Pick a past
-          JamBase date to upload a clip from a show that already happened.
+          Past shows are listed first (JamBase dates go back about two years; FEEDBACK library
+          clips can be older). Upcoming dates include a ticket link on the show page.
         </p>
 
         <div className="relative mb-4">

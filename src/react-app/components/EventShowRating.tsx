@@ -20,16 +20,18 @@ const EMPTY: ShowRatingState = {
 
 type EventShowRatingProps = {
   showId: string | null | undefined;
+  /** Hide the widget on upcoming / in-progress shows. */
+  pastShow?: boolean;
 };
 
-export default function EventShowRating({ showId }: EventShowRatingProps) {
+export default function EventShowRating({ showId, pastShow = false }: EventShowRatingProps) {
   const { user } = useAuth();
   const id = typeof showId === 'string' ? showId.trim() : '';
   const [state, setState] = useState<ShowRatingState>(EMPTY);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    if (!id) return;
+    if (!id || !pastShow) return;
     try {
       const res = await apiFetch(`/api/shows/${encodeURIComponent(id)}/rating`, {
         signal,
@@ -48,10 +50,10 @@ export default function EventShowRating({ showId }: EventShowRatingProps) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('Failed to load show rating:', err);
     }
-  }, [id]);
+  }, [id, pastShow]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || !pastShow) return;
     const ac = new AbortController();
     void load(ac.signal);
     return () => ac.abort();
@@ -65,7 +67,7 @@ export default function EventShowRating({ showId }: EventShowRatingProps) {
     return () => window.removeEventListener(SHOW_MARKS_CHANGED_EVENT, onMarks);
   }, [load]);
 
-  if (!id) return null;
+  if (!id || !pastShow) return null;
 
   const handleRate = async (rating: number) => {
     if (!user) {
@@ -73,7 +75,7 @@ export default function EventShowRating({ showId }: EventShowRatingProps) {
       return;
     }
     if (!state.canRate) {
-      alert('Mark I went to rate this show.');
+      alert('You can only rate shows after they happen. Mark I went first.');
       return;
     }
     setSaving(true);

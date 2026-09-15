@@ -19,6 +19,8 @@ import {
   type FestivalLineupArtist,
   type FestivalPageFestival,
 } from '@/shared/jambase-festival';
+import { jamBaseEventTicketUrl } from '@/shared/jambase-events';
+import { jamBaseEventIsConcluded } from '@/shared/jambase-event-day';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import type { ClipWithUser } from '@/shared/types';
 
@@ -82,6 +84,10 @@ export default function FestivalPage() {
   const dateLabel = formatFestivalDateRange(festival.start_date, festival.end_date);
   const locationLabel = [festival.venue_name, festival.city_line].filter(Boolean).join(' · ');
   const markEvent = festivalPageToJamBaseEvent(festival);
+  const pastShow = Boolean(markEvent && jamBaseEventIsConcluded(markEvent));
+  const ticketUrl = !pastShow
+    ? festival.ticket_url?.trim() || (markEvent ? jamBaseEventTicketUrl(markEvent) : null)
+    : null;
 
   return (
     <div className="min-h-screen text-white">
@@ -105,7 +111,7 @@ export default function FestivalPage() {
                   </p>
                   <h1 className="fb-hero-title">{festival.name}</h1>
                 </div>
-                <EventShowRating showId={festival.jambase_event_id} />
+                <EventShowRating showId={festival.jambase_event_id} pastShow={pastShow} />
               </div>
               {dateLabel ? (
                 <div className="flex items-center space-x-2 mb-2 text-gray-300">
@@ -134,9 +140,9 @@ export default function FestivalPage() {
                   <ShowMarkButtons event={markEvent} showUploadClip size="hero" className="w-full" />
                 ) : null}
                 <div className="flex flex-col sm:flex-row sm:items-stretch gap-3">
-                {festival.ticket_url ? (
+                {ticketUrl ? (
                   <EventTicketActions
-                    ticketUrl={festival.ticket_url}
+                    ticketUrl={ticketUrl}
                     eventTitle={festival.name}
                     className="flex-1"
                   />

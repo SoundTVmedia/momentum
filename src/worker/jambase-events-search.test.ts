@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { mixFindAShowEvents } from './jambase-events-search';
+
+function ev(id: string, startDate: string): Record<string, unknown> {
+  return { identifier: id, startDate };
+}
+
+describe('mixFindAShowEvents', () => {
+  const nowMs = Date.parse('2026-06-14T16:00:00.000Z');
+  const past = Array.from({ length: 20 }, (_, i) =>
+    ev(`past-${i}`, `2026-05-${String(20 - (i % 10)).padStart(2, '0')}T20:00:00`),
+  );
+  const upcoming = Array.from({ length: 20 }, (_, i) =>
+    ev(`up-${i}`, `2026-07-${String(i + 1).padStart(2, '0')}T20:00:00`),
+  );
+
+  it('lists past first and keeps more past than upcoming when both exist', () => {
+    const mixed = mixFindAShowEvents([...upcoming, ...past], 24, nowMs);
+    expect(mixed).toHaveLength(24);
+    const pastIds = mixed.filter((e) => String(e.identifier).startsWith('past-'));
+    const upIds = mixed.filter((e) => String(e.identifier).startsWith('up-'));
+    expect(pastIds).toHaveLength(18);
+    expect(upIds).toHaveLength(6);
+    expect(mixed.slice(0, 18).every((e) => String(e.identifier).startsWith('past-'))).toBe(true);
+  });
+
+  it('fills leftover slots with upcoming when past is short', () => {
+    const mixed = mixFindAShowEvents([...upcoming, ...past.slice(0, 2)], 24, nowMs);
+    expect(mixed[0]?.identifier).toBe('past-0');
+    expect(mixed.filter((e) => String(e.identifier).startsWith('past-'))).toHaveLength(2);
+    expect(mixed.filter((e) => String(e.identifier).startsWith('up-'))).toHaveLength(20);
+    expect(mixed).toHaveLength(22);
+  });
+
+  it('returns only upcoming when there is no past', () => {
+    const mixed = mixFindAShowEvents(upcoming, 10, nowMs);
+    expect(mixed).toHaveLength(10);
+    expect(mixed.every((e) => String(e.identifier).startsWith('up-'))).toBe(true);
+  });
+});

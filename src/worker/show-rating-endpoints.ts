@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { mochaUserIdKey } from './mocha-user-id';
 import { parseStarRating } from '../shared/star-rating';
+import { showMarkAllowsRating } from '../shared/show-marks';
 
 export type ShowRatingPayload = {
   averageRating: number;
@@ -50,16 +51,16 @@ async function loadUserShowRating(
   return parseStarRating(row?.rating);
 }
 
-async function userAttendedShow(db: D1Database, showId: string, uid: string): Promise<boolean> {
+async function userCanRateShow(db: D1Database, showId: string, uid: string): Promise<boolean> {
   const row = (await db
     .prepare(
-      `SELECT 1 AS ok FROM user_show_marks
+      `SELECT status, start_date FROM user_show_marks
        WHERE mocha_user_id = ? AND jambase_event_id = ? AND status = 'attended'
        LIMIT 1`,
     )
     .bind(uid, showId)
-    .first()) as { ok?: number } | null;
-  return Boolean(row);
+    .first()) as { status?: string; start_date?: string | null } | null;
+  return showMarkAllowsRating(row);
 }
 
 async function buildPayload(
@@ -71,7 +72,7 @@ async function buildPayload(
   if (!uid) return { ...stats, userRating: null, canRate: false };
   const [userRating, canRate] = await Promise.all([
     loadUserShowRating(db, showId, uid),
-    userAttendedShow(db, showId, uid),
+    userCanRateShow(db, showId, uid),
   ]);
   return { ...stats, userRating, canRate };
 }
@@ -93,7 +94,7 @@ export async function getShowRating(c: Context) {
   }
 }
 
-/** POST /api/shows/:showId/rate — 1–5 stars; requires I went. */
+/** POST /api/shows/:showId/rate — 1–5 stars; requires I went on a past show. */
 export async function rateShow(c: Context) {
   const mochaUser = c.get('user') as { id?: unknown } | null | undefined;
   if (!mochaUser) return c.json({ error: 'Unauthorized' }, 401);
@@ -118,9 +119,9 @@ export async function rateShow(c: Context) {
   if (!uid) return c.json({ error: 'Unauthorized' }, 401);
 
   try {
-    const attended = await userAttendedShow(c.env.DB, showId, uid);
+    const attended = await userCanRateShow(c.env.DB, showId, uid);
     if (!attended) {
-      return c.json({ error: 'Mark I went to rate this show.' }, 403);
+      return c.json({ error: 'You can only rate shows after they happen. Mark I went first.' }, 403);
     }
 
     await c.env.DB.prepare(

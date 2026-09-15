@@ -12,6 +12,7 @@ import {
   type ShowMarkAction,
   type ShowMarkStatus,
 } from '@/shared/show-marks';
+import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import { archivalUploadNavState } from '@/react-app/lib/archival-upload';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 
@@ -50,7 +51,8 @@ export default function ShowMarkButtons({
   const actions = availableShowMarkActionsForEvent(event, new Date(), statusOverride);
   const current = eventId ? getMarkForEvent(eventId) : null;
   const attendedActive = isAttendedShowMarkActive(current);
-  const offerUpload = Boolean(showUploadClip && user && attendedActive && current);
+  const showOver = !jamBaseEventUpcomingOrInProgress(event);
+  const offerUpload = Boolean(showUploadClip && user && attendedActive && current && showOver);
 
   if (!eventId || (actions.length === 0 && !offerUpload)) return null;
 

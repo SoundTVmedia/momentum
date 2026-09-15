@@ -17,6 +17,7 @@ import {
   showMarkCardStatusLabel,
   showMarkToJamBaseEvent,
   upcomingGoingMarkEvents,
+  showMarkAllowsRating,
   type UserShowMark,
 } from './show-marks';
 
@@ -452,5 +453,28 @@ describe('partitionShowMarksForLists', () => {
     expect(going.map((m) => m.jambase_event_id)).toEqual(['started', 'future']);
     expect(attended.map((m) => m.jambase_event_id)).toEqual(['finished', 'went']);
     expect(attended[0]?.status).toBe('attended');
+  });
+});
+
+describe('showMarkAllowsRating', () => {
+  const nowMs = Date.parse('2026-06-21T16:00:00.000Z');
+
+  it('requires attended status on a concluded show', () => {
+    expect(
+      showMarkAllowsRating(
+        { status: 'attended', start_date: '2026-06-09T20:00:00' },
+        nowMs,
+      ),
+    ).toBe(true);
+    expect(
+      showMarkAllowsRating({ status: 'going', start_date: '2026-06-09T20:00:00' }, nowMs),
+    ).toBe(false);
+    expect(
+      showMarkAllowsRating(
+        { status: 'attended', start_date: '2026-06-25T20:00:00' },
+        nowMs,
+      ),
+    ).toBe(false);
+    expect(showMarkAllowsRating({ status: 'attended', start_date: null }, nowMs)).toBe(false);
   });
 });

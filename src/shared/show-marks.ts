@@ -3,6 +3,7 @@ import {
   jamBaseEventMatchesCapture,
   jamBaseEventSameCalendarDay,
   jamBaseEventUpcomingOrInProgress,
+  jamBaseEventIsConcluded,
   jamBaseEventInProgress,
   jamBaseEventImThereEligible,
   jamBaseEventHasStarted,
@@ -381,6 +382,17 @@ export function isAttendedShowMarkActive(mark: UserShowMark | null | undefined):
   if (!mark) return false;
   if (mark.status === 'attended') return true;
   return showMarkShouldPromoteGoingToAttended(mark);
+}
+
+/** Community ratings only after the show has finished and the user marked I went. */
+export function showMarkAllowsRating(
+  mark: { status?: string | null; start_date?: string | null } | null | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!mark || mark.status !== 'attended') return false;
+  const startDate = mark.start_date?.trim();
+  if (!startDate) return false;
+  return jamBaseEventIsConcluded({ startDate }, nowMs);
 }
 
 export function isUpcomingShowMarkStartDate(

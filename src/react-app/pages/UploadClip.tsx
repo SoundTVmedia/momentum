@@ -131,6 +131,7 @@ import {
   pickShowMarkForLibraryUpload,
   showMarkToClipCandidate,
 } from '@/shared/show-marks';
+import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill } from '@/shared/clip-resolve-show-match';
 
 function isoToDateInputValue(iso: string | null | undefined): string {
@@ -818,7 +819,15 @@ export default function UploadClip() {
       }
     }
 
-    if (showData && (!navFromLibrary || archiveUpload)) {
+    const archiveStart =
+      typeof showData?.start_date === 'string' ? showData.start_date.trim() : '';
+    const archiveIsUpcoming = Boolean(
+      archiveUpload &&
+        archiveStart &&
+        jamBaseEventUpcomingOrInProgress({ startDate: archiveStart }),
+    );
+
+    if (showData && (!navFromLibrary || archiveUpload) && !archiveIsUpcoming) {
       if (archiveUpload) autoShowTagAppliedRef.current = true;
       const cap = navState?.captureGeo;
       const fromGeo = cap ? [cap.city, cap.state].filter(Boolean).join(', ') : '';

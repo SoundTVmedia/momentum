@@ -9,6 +9,7 @@ import {
   jamBaseEventInProgress,
   jamBaseEventImThereEligible,
   jamBaseEventUpcomingOrInProgress,
+  jamBaseEventIsConcluded,
   jamBaseEventAfterToday,
   jamBaseGeoEventDateFromForUpcomingFeed,
   jamBaseGeoEventDateFromForResolveShow,
@@ -302,6 +303,25 @@ describe('jamBaseGeoEventDateFromForResolveShow', () => {
     expect(jamBaseGeoEventDateFromForResolveShow(captureMs, 40.73, -73.99, nowMs)).toBe(
       '2026-06-19',
     );
+  });
+});
+
+describe('jamBaseEventIsConcluded', () => {
+  const event = {
+    startDate: '2026-06-09T20:00:00',
+    location: {
+      name: 'Brooklyn Steel',
+      address: { 'x-timezone': 'America/New_York' },
+    },
+  };
+
+  it('is false for upcoming and in-progress shows', () => {
+    expect(jamBaseEventIsConcluded(event, Date.parse('2026-06-09T20:00:00.000Z'))).toBe(false);
+    expect(jamBaseEventIsConcluded(event, Date.parse('2026-06-10T02:00:00.000Z'))).toBe(false);
+  });
+
+  it('is true after the show window has ended', () => {
+    expect(jamBaseEventIsConcluded(event, Date.parse('2026-06-10T12:00:00.000Z'))).toBe(true);
   });
 });
 

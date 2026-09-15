@@ -17,7 +17,8 @@ import {
   buildTightJamBaseEventResults,
   dedupeJamBaseEvents,
   fetchJamBaseEventsByEventName,
-  sortJamBaseEventsUpcomingThenPast,
+  mixFindAShowEvents,
+  JAMBASE_ARCHIVE_LOOKBACK_DAYS,
 } from './jambase-events-search';
 import {
   normalizedSlugFromRouteParam,
@@ -442,6 +443,30 @@ export async function getVenueById(c: Context) {
   }
 }
 
+/** GET /api/jambase/events/id/:eventId — full event including offers / ticket URL. */
+export async function getEventById(c: Context) {
+  const raw = c.req.param('eventId');
+  if (!raw) return c.json({ error: 'eventId is required' }, 400);
+  let eventId: string;
+  try {
+    eventId = decodeURIComponent(raw).trim();
+  } catch {
+    eventId = raw.trim();
+  }
+  if (!eventId) return c.json({ error: 'eventId is required' }, 400);
+
+  try {
+    const jbQ = jamBaseQuotaFromEnv(c.env);
+    const ev = await fetchJamBaseEventById(c.env.JAMBASE_API_KEY, jbQ, eventId);
+    if (!ev) return c.json({ error: 'Event not found' }, 404);
+    cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
+    return c.json({ event: rewriteJamBaseEventImages(ev, clientMediaOrigin(c)) });
+  } catch (error) {
+    console.error('JamBase event by id error:', error);
+    return c.json({ error: 'Failed to fetch event' }, 500);
+  }
+}
+
 export async function searchEvents(c: Context) {
   const q = (c.req.query('q') || '').trim();
   const max = Math.min(parseInt(c.req.query('perPage') || c.req.query('limit') || '20', 10) || 20, 40);
@@ -468,7 +493,7 @@ export async function searchEvents(c: Context) {
     if (c.req.query('loose') === '1') {
       const fromDate =
         c.req.query('eventDateFrom') ||
-        (includePast ? jamBaseEventDateFromDaysAgo(730) : jamBaseEventDateFromToday());
+        (includePast ? jamBaseEventDateFromDaysAgo(JAMBASE_ARCHIVE_LOOKBACK_DAYS) : jamBaseEventDateFromToday());
       const [byArtist, byTitle, library] = await Promise.all([
         jamBaseFetch<{ events?: unknown[] }>(
           key,
@@ -498,14 +523,15 @@ export async function searchEvents(c: Context) {
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({
         events: rewriteEventList(
-          includePast ? sortJamBaseEventsUpcomingThenPast(looseEvents) : looseEvents,
+          includePast ? mixFindAShowEvents(looseEvents, max) : looseEvents,
           origin,
         ),
       });
     }
 
+    const upcomingMax = includePast ? Math.max(6, Math.floor(max / 4)) : max;
     const [upcomingRaw, past, library] = await Promise.all([
-      buildTightJamBaseEventResults(key, q, max, jbQ),
+      buildTightJamBaseEventResults(key, q, upcomingMax, jbQ),
       includePast ? buildPastJamBaseEventResults(key, q, max, jbQ) : Promise.resolve([]),
       libraryPromise,
     ]);
@@ -513,7 +539,7 @@ export async function searchEvents(c: Context) {
       (e): e is Record<string, unknown> => typeof e === 'object' && e !== null,
     );
     const events = includePast
-      ? sortJamBaseEventsUpcomingThenPast(dedupeJamBaseEvents([...library, ...upcoming, ...past]))
+      ? mixFindAShowEvents(dedupeJamBaseEvents([...library, ...upcoming, ...past]), max)
       : upcoming;
     cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
     return c.json({ events: rewriteEventList(events, origin) });

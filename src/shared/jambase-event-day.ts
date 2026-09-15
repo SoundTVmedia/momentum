@@ -397,6 +397,16 @@ export function jamBaseEventUpcomingOrInProgress(
   return startMs > nowMs;
 }
 
+/** Show has finished (not upcoming and not still in progress). Ratings and archival uploads only. */
+export function jamBaseEventIsConcluded(
+  ev: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  return !jamBaseEventUpcomingOrInProgress(ev, nowMs, userLat, userLon);
+}
+
 /**
  * True when capture instant is on the same venue-local calendar day as the event,
  * including late-night shows that cross midnight (e.g. 8pm show, 1am capture),
