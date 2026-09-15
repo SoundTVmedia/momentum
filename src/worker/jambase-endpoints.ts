@@ -503,20 +503,28 @@ export async function searchEvents(c: Context) {
     const origin = clientMediaOrigin(c);
     if (archiveOnly) {
       const key = c.env.JAMBASE_API_KEY;
+      const libraryPromise =
+        q.length >= 2
+          ? libraryEventsForFindAShow(c.env.DB, q, max)
+          : Promise.resolve([] as Record<string, unknown>[]);
       if (!key?.trim()) {
+        const library = await markEventsAlreadyInLibrary(c.env.DB, await libraryPromise);
         cacheJsonProxy(c, { browserMaxAge: 60, cdnMaxAge: 300 });
-        return c.json({ events: [], hasMore: false, page });
+        return c.json({ events: rewriteEventList(library, origin), hasMore: false, page });
       }
       const jbQ = jamBaseQuotaFromEnv(c.env);
-      const past =
+      const [past, library] = await Promise.all([
         q.length >= 2
-          ? await buildPastJamBaseEventResults(key, q, max, jbQ, { page })
-          : await browseRecentPastJamBaseEvents(key, max, jbQ, { page, db: c.env.DB });
-      const flagged = await markEventsAlreadyInLibrary(c.env.DB, past);
+          ? buildPastJamBaseEventResults(key, q, max, jbQ, { page })
+          : browseRecentPastJamBaseEvents(key, max, jbQ, { page, db: c.env.DB }),
+        libraryPromise,
+      ]);
+      const mixed = mixFindAShowArchiveFirst(past, library, [], max);
+      const flagged = await markEventsAlreadyInLibrary(c.env.DB, mixed);
       cacheJsonProxy(c, { browserMaxAge: 300, cdnMaxAge: 3600 });
       return c.json({
         events: rewriteEventList(flagged, origin),
-        hasMore: past.length >= max,
+        hasMore: past.length >= max || library.length >= max,
         page,
       });
     }

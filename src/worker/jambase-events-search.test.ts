@@ -42,7 +42,7 @@ describe('mixFindAShowEvents', () => {
 describe('mixFindAShowArchiveFirst', () => {
   const nowMs = Date.parse('2026-06-14T16:00:00.000Z');
 
-  it('puts JamBase archive nights ahead of library-only nights', () => {
+  it('puts JamBase archive nights ahead of library-only nights when both fit', () => {
     const mixed = mixFindAShowArchiveFirst(
       [ev('jb-1', '2026-05-20T20:00:00'), ev('jb-2', '2026-05-18T20:00:00')],
       [ev('lib-1', '2026-05-22T20:00:00'), ev('jb-1', '2026-05-20T20:00:00')],
@@ -50,6 +50,22 @@ describe('mixFindAShowArchiveFirst', () => {
       8,
       nowMs,
     );
-    expect(mixed.map((e) => e.identifier)).toEqual(['jb-1', 'jb-2', 'lib-1', 'up-1']);
+    expect(mixed.map((e) => e.identifier)).toEqual(['lib-1', 'jb-1', 'jb-2', 'up-1']);
+  });
+
+  it('reserves past slots for in-app library shows when JamBase fills the archive', () => {
+    const jam = Array.from({ length: 30 }, (_, i) =>
+      ev(`jb-${i}`, `2026-05-${String(20 - (i % 10)).padStart(2, '0')}T20:00:00`),
+    );
+    const library = [
+      ev('lib-msg', '2026-05-28T20:00:00'),
+      ev('lib-sphere', '2026-04-18T20:00:00'),
+    ];
+    const mixed = mixFindAShowArchiveFirst(jam, library, [ev('up-1', '2026-07-01T20:00:00')], 24, nowMs);
+    const ids = mixed.map((e) => String(e.identifier));
+    expect(ids).toContain('lib-msg');
+    expect(ids).toContain('lib-sphere');
+    expect(ids).toContain('up-1');
+    expect(ids.filter((id) => id.startsWith('lib-')).length).toBeGreaterThanOrEqual(2);
   });
 });

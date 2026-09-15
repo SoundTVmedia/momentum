@@ -17,7 +17,7 @@ import {
 } from '@/shared/jambase-events';
 import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
 import { displayMediaUrl } from '@/shared/media-proxy';
-import { jamBaseEventInProgress } from '@/shared/jambase-event-day';
+import { jamBaseEventInProgress, jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import {
   showMarkCardStatus,
@@ -126,7 +126,7 @@ function JamBaseEventCard({
   const title = typeof event.name === 'string' ? event.name : 'Show';
   const start = typeof event.startDate === 'string' ? event.startDate : '';
   const image = displayMediaUrl(jamBaseEventCardImageUrl(event));
-  const ticket = primaryTicketUrl(event);
+  const ticket = jamBaseEventUpcomingOrInProgress(event) ? primaryTicketUrl(event) : null;
   const festival = isJamBaseFestivalEvent(event);
   const head = festival ? null : headlinerName(event);
   const vn = venueLabel(event);

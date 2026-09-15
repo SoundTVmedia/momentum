@@ -154,8 +154,9 @@ export function mixFindAShowEvents(
 }
 
 /**
- * Find a Show results: JamBase archive first, then library-only nights, then upcoming.
- * Library shows no longer crowd out the event archive.
+ * Find a Show results: JamBase archive and in-app library past nights, then upcoming.
+ * Reserves past slots for Feedback library/clip shows so a full JamBase calendar
+ * cannot crowd them out, then fills the rest from the archive.
  */
 export function mixFindAShowArchiveFirst(
   jambasePast: Record<string, unknown>[],
@@ -195,10 +196,25 @@ export function mixFindAShowArchiveFirst(
       ? Math.min(up.length, limit)
       : Math.min(up.length, Math.max(1, Math.floor(limit * (1 - FIND_A_SHOW_PAST_SHARE))), limit);
   const pastSlots = limit - upcomingTake;
-  const jamTake = take(pastJam, pastSlots);
+
+  // Keep in-app past shows visible even when JamBase returns a full archive page.
+  const libReserve =
+    libPast.length === 0
+      ? 0
+      : pastJam.length === 0
+        ? pastSlots
+        : Math.min(
+            libPast.length,
+            pastSlots,
+            Math.max(2, Math.ceil(pastSlots * 0.35)),
+          );
+  const jamTake = take(pastJam, pastSlots - libReserve);
   const libTake = take(libPast, pastSlots - jamTake.length);
-  const upTake = take(up, limit - jamTake.length - libTake.length);
-  return [...jamTake, ...libTake, ...upTake];
+  const pastMerged = [...jamTake, ...libTake].sort((a, b) =>
+    eventStartKey(b).localeCompare(eventStartKey(a)),
+  );
+  const upTake = take(up, limit - pastMerged.length);
+  return [...pastMerged, ...upTake];
 }
 
 /**
