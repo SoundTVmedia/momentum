@@ -125,6 +125,28 @@ html.native-quick-capture-open .momentum-ambient {
   pointer-events: none !important;
 }
 
+/* iOS <video>/iframe layers ignore ancestor visibility:hidden (and
+   .hero-video-backdrop.is-live sets visibility:visible). display:none
+   keeps carousel/hero playback from compositing over the capture HUD. */
+html.native-quick-capture-open .app-route-outlet :is(video, iframe),
+html.capture-overlay-open .app-route-outlet :is(video, iframe),
+html.native-quick-capture-open .hero-video-backdrop,
+html.capture-overlay-open .hero-video-backdrop {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+html.native-quick-capture-open .glass-clip-media-frame,
+html.capture-overlay-open .glass-clip-media-frame {
+  transform: none !important;
+}
+
+html.native-quick-capture-open .native-capture-modal video,
+html.capture-overlay-open .native-capture-modal video {
+  display: block !important;
+  visibility: visible !important;
+}
+
 html.native-quick-capture-open nav.bottom-nav,
 html.native-quick-capture-open ion-footer.app-tab-footer {
   display: none !important;

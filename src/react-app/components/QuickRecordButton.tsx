@@ -74,7 +74,10 @@ import {
   blobSourceKey,
   saveClipToDeviceGallery,
 } from '@/react-app/lib/upload-outbox/gallery-save';
-import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/chrome';
+import {
+  acquireCaptureOverlayMediaLock,
+  acquireNativeCaptureChromeLock,
+} from '@/react-app/lib/native-capture/chrome';
 
 /** Hard cap for in-app capture and gallery uploads (1 minute). */
 const MAX_CLIP_LENGTH_SECONDS = 60;
@@ -2464,6 +2467,11 @@ export default function QuickRecordButton({
   useLayoutEffect(() => {
     if (!shouldUseNativeIosCapture() || !showModal) return;
     return acquireNativeCaptureChromeLock();
+  }, [showModal]);
+
+  useLayoutEffect(() => {
+    if (!showModal) return;
+    return acquireCaptureOverlayMediaLock();
   }, [showModal]);
 
   useLayoutEffect(() => {
