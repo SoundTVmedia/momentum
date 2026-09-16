@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { Film, Loader2, Circle, Square, RefreshCw, MapPin, Music } from 'lucide-react';
+import { Film, Loader2, Circle, Square, RefreshCw, MapPin, Music, ChevronDown } from 'lucide-react';
 import CameraZoomControls from '@/react-app/components/CameraZoomControls';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -2587,9 +2587,10 @@ export default function QuickRecordButton({
   const captureVenueCardClass = isNativeIosCapture
     ? 'native-capture-venue-card flex items-start gap-2 px-0 py-0'
     : 'rounded-xl border border-white/10 bg-white/5 px-3 py-2 flex items-start gap-2';
-  const captureVenueSelectClass = isNativeIosCapture
-    ? 'native-capture-venue-select w-full px-0 py-1 text-[11px] text-white'
-    : 'w-full rounded-lg border border-white/15 bg-black/40 px-2 py-1.5 text-[11px] text-white';
+  const captureVenueSelectWrapClass =
+    'native-capture-venue-select-wrap relative pointer-events-auto rounded-lg border border-white';
+  const captureVenueSelectClass =
+    'native-capture-venue-select w-full appearance-none bg-transparent px-2.5 py-1.5 pr-8 text-[11px] text-white';
   const captureOverlayTextClass = isNativeIosCapture ? 'native-capture-overlay-text' : '';
 
   const captureShowPanel =
@@ -2680,38 +2681,44 @@ export default function QuickRecordButton({
                             ? 'Shows tonight nearby — pick your venue'
                             : 'Show tonight at nearest venue'}
                         </label>
-                        <select
-                          id="capture-venue-picker"
-                          className={captureVenueSelectClass}
-                          value={captureVenuePickerSelectedKey}
-                          onChange={(e) => {
-                            const picked = captureVenuePickerChoices.find(
-                              (v) => captureVenueOptionKey(v) === e.target.value,
-                            );
-                            if (picked) handleCaptureVenuePick(picked);
-                          }}
-                        >
-                          {captureVenuePickerChoices.map((venue) => {
-                            const key = captureVenueOptionKey(venue);
-                            const distLabel =
-                              venue.distance_miles != null &&
-                              Number.isFinite(venue.distance_miles)
-                                ? ` (${venue.distance_miles.toFixed(1)} mi)`
-                                : '';
-                            const label = [
-                              venue.venue_name ?? 'Venue',
-                              venue.artist_name,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ');
-                            return (
-                              <option key={key} value={key}>
-                                {label}
-                                {distLabel}
-                              </option>
-                            );
-                          })}
-                        </select>
+                        <div className={captureVenueSelectWrapClass}>
+                          <select
+                            id="capture-venue-picker"
+                            className={captureVenueSelectClass}
+                            value={captureVenuePickerSelectedKey}
+                            onChange={(e) => {
+                              const picked = captureVenuePickerChoices.find(
+                                (v) => captureVenueOptionKey(v) === e.target.value,
+                              );
+                              if (picked) handleCaptureVenuePick(picked);
+                            }}
+                          >
+                            {captureVenuePickerChoices.map((venue) => {
+                              const key = captureVenueOptionKey(venue);
+                              const distLabel =
+                                venue.distance_miles != null &&
+                                Number.isFinite(venue.distance_miles)
+                                  ? ` (${venue.distance_miles.toFixed(1)} mi)`
+                                  : '';
+                              const label = [
+                                venue.venue_name ?? 'Venue',
+                                venue.artist_name,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ');
+                              return (
+                                <option key={key} value={key}>
+                                  {label}
+                                  {distLabel}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <ChevronDown
+                            className="native-capture-venue-select-chevron pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white"
+                            aria-hidden
+                          />
+                        </div>
                       </div>
                     ) : null}
                   </>

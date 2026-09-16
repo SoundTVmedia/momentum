@@ -173,6 +173,22 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   backdrop-filter: none !important;
 }
 
+.native-capture-venue-select-wrap {
+  border: 1.5px solid #fff !important;
+  border-radius: 0.5rem;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.native-capture-venue-select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.native-capture-venue-select::-ms-expand {
+  display: none;
+}
+
 .native-ios-capture .native-capture-venue-select {
   -webkit-appearance: none;
   appearance: none;
@@ -182,6 +198,11 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   box-shadow: none !important;
   color: #fff;
   pointer-events: auto;
+}
+
+.native-capture-venue-select-chevron {
+  color: #fff;
+  pointer-events: none;
 }
 
 .native-ios-capture .native-capture-overlay-text,
