@@ -7,6 +7,8 @@ import {
   partitionShowMarksForLists,
   showMarkShouldPromoteGoingToAttended,
   pastShowSummaryToJamBaseEvent,
+  isProfilePastShowMark,
+  userShowMarkToPastShowSummary,
   pickGoingShowMarkForCapture,
   pickLastEligibleGoingShowMark,
   pickShowMarkForLibraryUpload,
@@ -39,6 +41,67 @@ function mark(overrides: Partial<UserShowMark>): UserShowMark {
     ...overrides,
   };
 }
+
+describe('userShowMarkToPastShowSummary', () => {
+  it('builds a past-show card from an attended mark', () => {
+    const card = userShowMarkToPastShowSummary(
+      mark({
+        status: 'attended',
+        event_title: 'Phish at MSG',
+        artist_name: 'Phish',
+        venue_name: 'Madison Square Garden',
+        start_date: '2025-04-20T01:00:00.000Z',
+        jambase_event_id: 'jambase:999',
+      }),
+    );
+    expect(card.event_title).toBe('Phish at MSG');
+    expect(card.show_id).toBe('jambase:999');
+    expect(card.show_date).toBe('2025-04-20T01:00:00.000Z');
+    expect(card.venue_name).toBe('Madison Square Garden');
+  });
+
+  it('falls back to artist at venue when the event title is missing', () => {
+    const card = userShowMarkToPastShowSummary(
+      mark({
+        status: 'attended',
+        event_title: null,
+        artist_name: 'Goose',
+        venue_name: 'The Capitol Theatre',
+      }),
+    );
+    expect(card.event_title).toBe('Goose at The Capitol Theatre');
+  });
+});
+
+describe('isProfilePastShowMark', () => {
+  it('includes attended shows with a past start date', () => {
+    expect(
+      isProfilePastShowMark(
+        mark({
+          status: 'attended',
+          start_date: '2025-04-20T20:00:00',
+        }),
+        new Date('2026-09-16T12:00:00'),
+      ),
+    ).toBe(true);
+  });
+
+  it('excludes upcoming attended marks and going marks', () => {
+    const now = new Date('2026-09-16T12:00:00');
+    expect(
+      isProfilePastShowMark(
+        mark({ status: 'attended', start_date: '2026-12-01T20:00:00' }),
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isProfilePastShowMark(
+        mark({ status: 'going', start_date: '2025-04-20T20:00:00' }),
+        now,
+      ),
+    ).toBe(false);
+  });
+});
 
 describe('pastShowSummaryToJamBaseEvent', () => {
   it('prefers jambase_event_id from clip data', () => {

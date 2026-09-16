@@ -3,14 +3,20 @@ import { mochaUserIdKey, normalizeArtistDisplayName } from './favorite-artists-s
 import { isUserFollowTargetId } from './follow-endpoints';
 import {
   isActiveShowMarkForCapture,
+  isProfilePastShowMark,
   isUpcomingJamBaseEvent,
   mergeJamBaseEventWithShowMark,
   showMarkShouldPromoteGoingToAttended,
   showMarkToJamBaseEvent,
+  userShowMarkToPastShowSummary,
   type ShowMarkStatus,
   type ShowMarkUpsertInput,
   type UserShowMark,
 } from '../shared/show-marks';
+import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
+import { getBlockDirections } from './user-blocks';
+import { attachPastShowArtistImages } from './past-show-list';
+import type { PastShowListRow } from './past-show-sql';
 import {
   jamBaseEventHasStarted,
   jamBaseEventImThereEligible,
@@ -314,6 +320,153 @@ export async function getMyShowMarks(c: Context) {
   } catch (e) {
     console.error('getMyShowMarks', e);
     return c.json({ error: 'Failed to load show marks' }, 500);
+  }
+}
+
+function pastShowCardToListRow(card: ReturnType<typeof userShowMarkToPastShowSummary>): PastShowListRow {
+  return {
+    show_id: card.show_id,
+    event_title: card.event_title,
+    artist_name: card.artist_name || null,
+    show_date: card.show_date || null,
+    venue_name: card.venue_name,
+    venue_location: card.venue_location,
+    jambase_event_id: card.jambase_event_id,
+    jambase_venue_id: card.jambase_venue_id,
+    jambase_artist_id: card.jambase_artist_id,
+    clip_count: card.clip_count,
+    thumbnail_url: card.thumbnail_url,
+    artist_image_url: card.artist_image_url,
+  };
+}
+
+async function attachClipStatsToPastShows(
+  db: D1Database,
+  rows: PastShowListRow[],
+): Promise<PastShowListRow[]> {
+  const ids = [
+    ...new Set(
+      rows
+        .map((row) => (row.jambase_event_id || row.show_id || '').trim())
+        .filter((id) => id.length > 0),
+    ),
+  ];
+  if (ids.length === 0) return rows;
+
+  const placeholders = ids.map(() => '?').join(',');
+  try {
+    const result = await db
+      .prepare(
+        `SELECT TRIM(clips.jambase_event_id) as id,
+                COUNT(*) as clip_count,
+                MAX(NULLIF(TRIM(clips.thumbnail_url), '')) as thumbnail_url
+         FROM clips
+         WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+           AND NULLIF(TRIM(clips.jambase_event_id), '') IN (${placeholders})
+         GROUP BY TRIM(clips.jambase_event_id)`,
+      )
+      .bind(...ids)
+      .all();
+
+    const byId = new Map<string, { clip_count: number; thumbnail_url: string | null }>();
+    for (const row of (result.results ?? []) as Array<{
+      id?: unknown;
+      clip_count?: unknown;
+      thumbnail_url?: unknown;
+    }>) {
+      const id = typeof row.id === 'string' ? row.id.trim() : '';
+      if (!id) continue;
+      byId.set(id, {
+        clip_count: Number(row.clip_count) || 0,
+        thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
+      });
+    }
+
+    return rows.map((row) => {
+      const id = (row.jambase_event_id || row.show_id || '').trim();
+      const stats = byId.get(id);
+      if (!stats) return row;
+      return {
+        ...row,
+        clip_count: stats.clip_count,
+        thumbnail_url: row.thumbnail_url || stats.thumbnail_url,
+      };
+    });
+  } catch (e) {
+    console.error('attachClipStatsToPastShows', e);
+    return rows;
+  }
+}
+
+function pastShowListRowToCard(row: PastShowListRow) {
+  return {
+    show_id: row.show_id,
+    event_title: row.event_title?.trim() || 'Show',
+    artist_name: row.artist_name?.trim() || '',
+    show_date: row.show_date?.trim() || '',
+    venue_name: row.venue_name,
+    venue_location: row.venue_location,
+    jambase_event_id: row.jambase_event_id,
+    jambase_venue_id: row.jambase_venue_id,
+    jambase_artist_id: row.jambase_artist_id,
+    clip_count: row.clip_count ?? 0,
+    thumbnail_url: row.thumbnail_url,
+    artist_image_url: row.artist_image_url ?? null,
+  };
+}
+
+/** GET /api/users/:userId/attended-shows — public past shows the user marked as went. */
+export async function getUserAttendedShows(c: Context) {
+  const userIdParam = c.req.param('userId') ?? '';
+  const mochaUser = c.get('user');
+  const targetId =
+    userIdParam === 'me' && mochaUser ? mochaUserIdKey(mochaUser) : userIdParam;
+
+  if (userIdParam === 'me' && !mochaUser) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  if (!isUserFollowTargetId(targetId)) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  const directions = mochaUser
+    ? await getBlockDirections(c.env.DB, mochaUserIdKey(mochaUser), targetId)
+    : { blocked: false, blockedByThem: false };
+  if (directions.blockedByThem) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+  if (directions.blocked) {
+    return c.json({ shows: [] });
+  }
+
+  const parsedLimit = Number(c.req.query('limit'));
+  const limit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 48, 1), 48);
+
+  try {
+    await promoteStartedGoingMarksForUser(c.env.DB, targetId);
+
+    const rows = await c.env.DB.prepare(
+      `SELECT * FROM user_show_marks
+       WHERE mocha_user_id = ? AND status = 'attended'
+       ORDER BY
+         CASE WHEN start_date IS NULL OR start_date = '' THEN 1 ELSE 0 END,
+         start_date DESC
+       LIMIT ?`,
+    )
+      .bind(targetId, limit)
+      .all();
+
+    const marks = ((rows.results ?? []) as Record<string, unknown>[])
+      .map(rowToMark)
+      .filter((mark) => isProfilePastShowMark(mark));
+
+    let shows = marks.map((mark) => pastShowCardToListRow(userShowMarkToPastShowSummary(mark)));
+    shows = await attachClipStatsToPastShows(c.env.DB, shows);
+    shows = await attachPastShowArtistImages(c.env.DB, shows);
+    return c.json({ shows: shows.map(pastShowListRowToCard) });
+  } catch (e) {
+    console.error('getUserAttendedShows', e);
+    return c.json({ error: 'Failed to load past shows' }, 500);
   }
 }
 

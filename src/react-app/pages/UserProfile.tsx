@@ -4,6 +4,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import { Heart, Eye, Video, Users, UserPlus, UserMinus, Loader2, MapPin, Edit, Shield, Star, TrendingUp } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import OwnProfileHub from '@/react-app/components/OwnProfileHub';
+import ProfilePastShowsSection from '@/react-app/components/ProfilePastShowsSection';
 import ClipModal from '@/react-app/components/ClipModal';
 import ContentActionsMenu from '@/react-app/components/ContentActionsMenu';
 import ProfileEditor from '@/react-app/components/ProfileEditor';
@@ -500,6 +501,14 @@ export default function UserProfilePage() {
               {unblocking ? 'Unblocking…' : 'Unblock'}
             </button>
           </div>
+        ) : null}
+
+        {!data.blocked && userId ? (
+          <ProfilePastShowsSection
+            userId={userId}
+            isOwnProfile={isOwnProfile}
+            displayName={profile.display_name}
+          />
         ) : null}
 
         {isOwnProfile && user ? (

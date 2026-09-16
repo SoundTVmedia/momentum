@@ -4004,6 +4004,7 @@ app.get("/api/users/me/favorite-clips-by-artist", authMiddleware, favorite.getFa
 // Enhanced Profile Endpoints
 app.get("/api/users/:userId/stats", optionalAuthMiddleware, profile.getUserStats);
 app.get("/api/users/:userId/favorite-artists-with-clips", optionalAuthMiddleware, profile.getUserFavoriteArtistsWithClips);
+app.get("/api/users/:userId/attended-shows", optionalAuthMiddleware, showMarks.getUserAttendedShows);
 
 // Prioritized Discovery Endpoints
 app.get("/api/discover/prioritized-shows", discoverPrioritized.getPrioritizedShows);

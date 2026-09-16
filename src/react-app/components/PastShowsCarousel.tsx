@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, Music, Video } from 'lucide-react';
+import { Calendar, MapPin, Music, Video } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
@@ -34,7 +34,7 @@ export interface PastShowSummary {
 
 interface PastShowsCarouselProps {
   shows: PastShowSummary[];
-  variant: 'artist' | 'venue';
+  variant: 'artist' | 'venue' | 'user';
 }
 
 function formatShowDate(dateString: string): string {
@@ -113,14 +113,24 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
   return (
     <HorizontalClipCarousel
       stretchItems
-      ariaLabel={variant === 'artist' ? 'Past shows for this artist' : 'Past shows at this venue'}
+      ariaLabel={
+        variant === 'artist'
+          ? 'Past shows for this artist'
+          : variant === 'venue'
+            ? 'Past shows at this venue'
+            : 'Past shows this person went to'
+      }
       className={PAGE_CAROUSEL_BLEED}
     >
       {shows.map((show) => {
+        const venueLine = show.venue_name?.trim() || null;
+        const artistLine = show.artist_name?.trim() || null;
         const secondaryLine =
-          variant === 'artist'
-            ? show.venue_name?.trim() || null
-            : show.artist_name?.trim() || null;
+          variant === 'venue'
+            ? artistLine
+            : venueLine || (variant === 'user' ? artistLine : null);
+        const SecondaryIcon =
+          variant === 'user' && venueLine ? MapPin : Music;
         const markEvent = pastShowSummaryToJamBaseEvent(show);
         const showHref = pastShowClipsPath(show);
         const posterUrl = pastShowCardImageUrl(show, hydratedByArtist);
@@ -171,11 +181,9 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                 </div>
                 {secondaryLine ? (
                   <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-3 min-h-[1rem]">
-                    {variant === 'artist' ? (
-                      <Music className="w-3 h-3 shrink-0" />
-                    ) : (
-                      <Music className="w-3 h-3 shrink-0 text-momentum-rose/80" />
-                    )}
+                    <SecondaryIcon
+                      className={`w-3 h-3 shrink-0 ${variant === 'artist' ? '' : 'text-momentum-rose/80'}`}
+                    />
                     <span className="line-clamp-1">{secondaryLine}</span>
                   </div>
                 ) : (

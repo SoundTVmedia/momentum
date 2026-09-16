@@ -173,6 +173,56 @@ export function jamBaseEventToShowMarkInput(
   };
 }
 
+/** Past-show card fields from an attended (or promoted) user mark. */
+export type UserShowMarkPastShowCard = {
+  show_id: string;
+  event_title: string;
+  artist_name: string;
+  show_date: string;
+  venue_name: string | null;
+  venue_location: string | null;
+  jambase_event_id: string;
+  jambase_venue_id: string | null;
+  jambase_artist_id: string | null;
+  clip_count: number;
+  thumbnail_url: string | null;
+  artist_image_url: string | null;
+};
+
+/** Map a stored show mark onto the past-show carousel card shape. */
+export function userShowMarkToPastShowSummary(mark: UserShowMark): UserShowMarkPastShowCard {
+  const artist = mark.artist_name?.trim() || '';
+  const venue = mark.venue_name?.trim() || '';
+  return {
+    show_id: mark.jambase_event_id,
+    event_title:
+      mark.event_title?.trim() ||
+      [artist, venue].filter(Boolean).join(' at ') ||
+      'Show',
+    artist_name: artist,
+    show_date: mark.start_date?.trim() || '',
+    venue_name: mark.venue_name,
+    venue_location: mark.venue_location,
+    jambase_event_id: mark.jambase_event_id,
+    jambase_venue_id: mark.jambase_venue_id,
+    jambase_artist_id: mark.jambase_artist_id,
+    clip_count: 0,
+    thumbnail_url: null,
+    artist_image_url: null,
+  };
+}
+
+/** Attended marks that belong on a profile past-shows list (excludes future dates). */
+export function isProfilePastShowMark(
+  mark: UserShowMark,
+  now: Date = new Date(),
+): boolean {
+  if (mark.status !== 'attended') return false;
+  const startDate = mark.start_date?.trim();
+  if (!startDate) return true;
+  return !isUpcomingShowMarkStartDate(startDate, now);
+}
+
 /** JamBase-shaped event for grids/carousels from a stored mark. */
 export function showMarkToJamBaseEvent(mark: UserShowMark): Record<string, unknown> {
   const performers =
