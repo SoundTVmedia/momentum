@@ -436,13 +436,6 @@ export default function UploadClip() {
   /** Top nearby venues when auto-apply is skipped (wrong day or >2 mi). */
   const [nearbyVenueChoices, setNearbyVenueChoices] = useState<ClipShowCandidate[]>([]);
 
-  /** ACRCloud song ID on the post-capture screen (short audio snippet from the clip). */
-  const [auddStatus, setAuddStatus] = useState<
-    'idle' | 'loading' | 'done' | 'skipped' | 'nomatch' | 'error'
-  >('idle');
-  const [auddMessage, setAuddMessage] = useState<string | null>(null);
-  const auddAttemptedForSourceKeyRef = useRef<string | null>(null);
-
   const [classifyStatus, setClassifyStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(
     'idle',
   );
@@ -923,13 +916,6 @@ export default function UploadClip() {
         video_resolution_w: metadata.video_resolution_w,
         video_resolution_h: metadata.video_resolution_h,
       });
-    }
-
-    const ap = navState.auddPrefill;
-    if (ap?.sourceKey && !navFromLibrary) {
-      // Live/pre-upload song ID is disabled — caption is manual, identify runs after publish.
-      setAuddStatus('idle');
-      setAuddMessage(null);
     }
 
     // Cancel in-flight async hydration when navigation changes
@@ -1766,8 +1752,6 @@ export default function UploadClip() {
     captionCommittedArtistNameRef.current = '';
     captionCommittedVenueNameRef.current = '';
     setIsEditingTags(false);
-    setAuddStatus('idle');
-    setAuddMessage(null);
   }, []);
 
   useEffect(() => {
@@ -2077,9 +2061,6 @@ export default function UploadClip() {
     setCaptionVideoMuted(true);
     captionCommittedArtistNameRef.current = '';
     captionCommittedVenueNameRef.current = '';
-    auddAttemptedForSourceKeyRef.current = null;
-    setAuddStatus('idle');
-    setAuddMessage(null);
     setClassifyStatus('idle');
     setClassifyResult(null);
     setClassifyMessage(null);
@@ -2440,9 +2421,6 @@ export default function UploadClip() {
     setCaptionVideoPlaying(false);
     setCaptionVideoMuted(true);
     captionCommittedArtistNameRef.current = '';
-    auddAttemptedForSourceKeyRef.current = null;
-    setAuddStatus('idle');
-    setAuddMessage(null);
     void clearLocalCaptureDraft({ discarded: true });
     navigate('/', { replace: true });
   };

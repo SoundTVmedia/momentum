@@ -180,8 +180,6 @@ export default function QuickRecordButton({
   const prevIsOpenRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
-  /** Unused: live song ID is deferred until after upload. */
-  const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -1757,11 +1755,6 @@ export default function QuickRecordButton({
     resetLiveSongIdentification();
   };
 
-  const applyLiveSongDisplayed = (displayed: { artist: string; title: string } | null) => {
-    if (!displayed || (!displayed.artist && !displayed.title)) return;
-    lastLiveSongMatchRef.current = displayed;
-  };
-
   const identifyLiveSegmentBlob = (_blob: Blob) => {
     /* Live song ID is deferred until after upload. */
   };
@@ -2385,7 +2378,6 @@ export default function QuickRecordButton({
       setIsFinishingRecording(false);
       recordingSecondsRef.current = 0;
       setRecordingElapsedSeconds(0);
-      lastLiveSongMatchRef.current = null;
       webCaptureHadAudioRef.current = false;
     } catch (e) {
       console.error('QuickRecordButton: recording complete failed', e);
