@@ -1471,8 +1471,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 }
 
 @media (orientation: landscape) {
-  .admin-header-control,
-  .admin-mobile-entry {
+  .admin-header-control {
     display: inline-flex !important;
   }
 }

@@ -17,7 +17,6 @@ import {
   logInOutline,
   notifications,
   notificationsOutline,
-  shieldOutline,
   videocam,
 } from 'ionicons/icons';
 import { useNavigate, useLocation } from 'react-router';
@@ -28,10 +27,8 @@ import NotificationPanel from '@/react-app/components/NotificationPanel';
 import { hasUnreadNotifications } from '@/react-app/lib/notification-badge';
 import UserAvatar from './UserAvatar';
 import type { ExtendedMochaUser } from '@/shared/types';
-import { isAdminUser } from '@/react-app/lib/program-nav';
 import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
-import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import { TOUR_ANCHORS } from '@/react-app/lib/productTour';
 
 async function tapHaptic() {
@@ -49,8 +46,6 @@ export default function MobileBottomNav() {
   const { hideBottomNav } = useMobileChrome();
   const { user } = useAuth();
   const extendedUser = user as ExtendedMochaUser | null;
-  const isMobileViewport = useIsMobileViewport();
-  const staffUser = isAdminUser(extendedUser);
   const oauthUser = user as { google_user_data?: { picture?: string; name?: string } } | null;
   const unreadCount = useUnreadNotificationCount();
   const { jobs: uploadJobs } = useClipUploadQueue();
@@ -97,17 +92,6 @@ export default function MobileBottomNav() {
   return (
     <>
       <IonFooter className="app-tab-footer ion-no-border bottom-nav">
-        {staffUser ? (
-          <button
-            type="button"
-            onClick={() => navigate('/admin')}
-            title="Admin Dashboard"
-            aria-label="Admin Dashboard"
-            className="admin-mobile-entry absolute -top-12 right-3 z-10 p-2 rounded-full glass-chrome border border-momentum-rose/35 text-momentum-rose hover:text-white hover:bg-momentum-rose/20"
-          >
-            <IonIcon icon={shieldOutline} className="text-xl" />
-          </button>
-        ) : null}
         <IonTabBar className="app-tab-bar" selectedTab={selectedTab}>
           <IonTabButton
             tab="home"
@@ -207,22 +191,6 @@ export default function MobileBottomNav() {
           </IonTabButton>
         </IonTabBar>
       </IonFooter>
-
-      {staffUser && isMobileViewport ? (
-        <button
-          type="button"
-          onClick={() => navigate('/admin')}
-          title="Admin Dashboard"
-          aria-label="Admin Dashboard"
-          className="admin-mobile-entry hidden min-[768px]:inline-flex fixed z-[55] p-2 rounded-full glass-chrome border border-momentum-rose/35 text-momentum-rose hover:text-white hover:bg-momentum-rose/20"
-          style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
-            right: '0.75rem',
-          }}
-        >
-          <IonIcon icon={shieldOutline} className="text-xl" />
-        </button>
-      ) : null}
 
       <IonModal
         className="app-alerts-modal"
