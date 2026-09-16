@@ -25,11 +25,12 @@ export function parseArtistIdFromFollowTarget(target: string): number {
   return Number.isFinite(id) && id > 0 ? Math.trunc(id) : 0;
 }
 
-/** All local/API keys used to track follow state for one artist. */
+/** All local/API keys used to track follow state for one artist.
+ * Never include `artist-0` — that placeholder is shared by every JamBase-only
+ * artist and would mark all of them as followed. */
 export function artistFollowStateKeys(artistId: number, artistName?: string): string[] {
   const keys = new Set<string>();
   if (artistId > 0) keys.add(`artist-${artistId}`);
-  keys.add(artistFollowApiTarget(artistId));
   const trimmed = artistName?.trim();
   if (trimmed) keys.add(artistNameFollowKey(trimmed));
   return [...keys];

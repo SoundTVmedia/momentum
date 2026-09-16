@@ -86,7 +86,11 @@ describe('follow-endpoints', () => {
       sql: 'SELECT following_id FROM follows WHERE follower_id = ?',
       args: ['user-1'],
       firstResult: null,
-      allResults: [{ following_id: 'venue-5' }, { following_id: 'user-2' }],
+      allResults: [
+        { following_id: 'venue-5' },
+        { following_id: 'user-2' },
+        { following_id: 'artist-0' },
+      ],
       runCalls: 0,
     };
     const favNamesStmt: Stmt = {
@@ -124,6 +128,7 @@ describe('follow-endpoints', () => {
     expect(ids).toContain('user-2');
     expect(ids).toContain('artist-3');
     expect(ids).toContain('artist-name:olivia rodrigo');
+    expect(ids).not.toContain('artist-0');
   });
 
   it('getMyFollowingUsers returns profiles for user follows only', async () => {

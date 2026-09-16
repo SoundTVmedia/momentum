@@ -396,7 +396,8 @@ export async function getMyFollowing(c: Context) {
 
     for (const row of followRows.results || []) {
       const fid = String((row as { following_id?: unknown }).following_id ?? '').trim();
-      if (fid) ids.add(fid);
+      if (!fid || fid === 'artist-0' || fid === 'venue-0') continue;
+      ids.add(fid);
     }
 
     const artistNames = await loadCanonicalFavoriteArtistNames(c.env.DB, uid, 50);

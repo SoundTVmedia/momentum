@@ -41,7 +41,13 @@ export function useFollow() {
       if (!res.ok) return
       const data = (await res.json()) as { following_ids?: unknown }
       const ids = Array.isArray(data.following_ids)
-        ? data.following_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        ? data.following_ids.filter(
+            (id): id is string =>
+              typeof id === 'string' &&
+              id.length > 0 &&
+              id !== 'artist-0' &&
+              id !== 'venue-0',
+          )
         : []
       setFollowing(new Set(ids))
       try {
@@ -117,15 +123,18 @@ export function useFollow() {
         return { success: false, following: false }
       }
 
-      if (loading.has(userId)) {
-        return { success: false, following: following.has(userId) }
-      }
-
       const artistName = options?.artistName?.trim()
       const stateKeys = isArtistFollowTarget(userId)
         ? artistFollowStateKeys(parseArtistIdFromFollowTarget(userId), artistName)
         : [userId]
+      if (stateKeys.length === 0) {
+        return { success: false, following: false }
+      }
       const wasFollowing = stateKeys.some((k) => following.has(k))
+
+      if (stateKeys.some((k) => loading.has(k))) {
+        return { success: false, following: wasFollowing }
+      }
 
       setFollowing((prev) => {
         const newSet = new Set(prev)

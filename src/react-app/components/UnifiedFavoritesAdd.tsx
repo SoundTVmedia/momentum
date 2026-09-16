@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Calendar, ImagePlus, Loader2, MapPin, Music, Plus, Search, Ticket, Users } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Calendar, Loader2, MapPin, Music, Plus, Search, Users } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useDebounce } from '@/react-app/hooks/useDebounce';
 import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
@@ -31,16 +31,6 @@ type UnifiedSong = {
 };
 type FollowedArtist = { name: string; image_url: string | null };
 
-type ManualShow = {
-  artist: string;
-  venue: string;
-  city: string;
-  date: string;
-  notes: string;
-};
-
-const EMPTY_MANUAL: ManualShow = { artist: '', venue: '', city: '', date: '', notes: '' };
-
 export default function UnifiedFavoritesAdd() {
   const navigate = useNavigate();
   const {
@@ -67,11 +57,7 @@ export default function UnifiedFavoritesAdd() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manual, setManual] = useState<ManualShow>(EMPTY_MANUAL);
-  const [stubFile, setStubFile] = useState<File | null>(null);
   const [savingShow, setSavingShow] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (debounced.length < 2) {
@@ -249,39 +235,20 @@ export default function UnifiedFavoritesAdd() {
     }
   };
 
-  const uploadStub = async (): Promise<{ url: string | null; key: string | null }> => {
-    if (!stubFile) return { url: null, key: null };
-    const form = new FormData();
-    form.append('file', stubFile);
-    form.append('type', 'thumbnail');
-    const res = await apiFetch('/api/upload', { method: 'POST', body: form });
-    if (!res.ok) throw new Error('Ticket stub upload failed');
-    const data = (await res.json()) as { url?: string; key?: string };
-    return { url: data.url ?? null, key: data.key ?? null };
-  };
-
   const saveShow = async (payload: Record<string, unknown>) => {
     setSavingShow(true);
     setError(null);
     try {
-      const stub = await uploadStub();
       const res = await apiFetch('/api/archival-shows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          stub_image_url: stub.url,
-          stub_r2_key: stub.key,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error || 'Could not save show');
       }
       added('Archival show saved');
-      setManualOpen(false);
-      setManual(EMPTY_MANUAL);
-      setStubFile(null);
     } catch (err) {
       setError(apiFetchErrorMessage(err, 'Could not save show'));
     } finally {
@@ -302,35 +269,6 @@ export default function UnifiedFavoritesAdd() {
     } finally {
       setBusyKey(null);
     }
-  };
-
-  const submitManualShow = async () => {
-    if (!manual.artist.trim() || !manual.venue.trim() || !manual.date.trim()) {
-      setError('Artist, venue, and date are required');
-      return;
-    }
-    const matchRes = await apiFetch('/api/archival-shows/match', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        artist: manual.artist,
-        venue: manual.venue,
-        date: manual.date,
-      }),
-    });
-    const matchBody = (await matchRes.json().catch(() => ({}))) as {
-      match?: { identifier?: string } | null;
-    };
-    const matchedId =
-      typeof matchBody.match?.identifier === 'string' ? matchBody.match.identifier : null;
-    await saveShow({
-      jambase_event_id: matchedId,
-      artist_name: manual.artist,
-      venue_name: manual.venue,
-      city: manual.city,
-      start_date: manual.date,
-      setlist_notes: manual.notes,
-    });
   };
 
   const hasResults = artists.length + venues.length + shows.length + friends.length + songs.length > 0;
@@ -384,7 +322,7 @@ export default function UnifiedFavoritesAdd() {
       ) : null}
 
       {debounced.length >= 2 && !loading && !hasResults ? (
-        <p className="mt-4 text-sm text-gray-400">No catalog matches. You can still add a show below.</p>
+        <p className="mt-4 text-sm text-gray-400">No catalog matches. Try another name.</p>
       ) : null}
 
       {artists.length > 0 ? (
@@ -395,7 +333,11 @@ export default function UnifiedFavoritesAdd() {
           </h3>
           <ul className="space-y-2">
             {artists.map((artist) => {
-              const alreadyFollowing = isFollowingArtist(0, artist.name);
+              const alreadyFollowing =
+                isFollowingArtist(0, artist.name) ||
+                followedArtists.some(
+                  (row) => row.name.trim().toLowerCase() === artist.name.trim().toLowerCase(),
+                );
               const artistBusy =
                 busyKey === `artist:${artist.name}` || isArtistFollowLoading(0, artist.name);
               return (
@@ -564,76 +506,6 @@ export default function UnifiedFavoritesAdd() {
           </ul>
         </section>
       ) : null}
-
-      <div className="mt-6 border-t border-white/10 pt-4">
-        <button
-          type="button"
-          onClick={() => setManualOpen((open) => !open)}
-          className="text-sm font-medium text-momentum-flare hover:text-white"
-        >
-          {manualOpen ? 'Hide manual show form' : 'Add a show that isn’t listed'}
-        </button>
-        {manualOpen ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <input
-              value={manual.artist}
-              onChange={(e) => setManual((m) => ({ ...m, artist: e.target.value }))}
-              placeholder="Artist"
-              className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-base text-white placeholder:text-white/40"
-            />
-            <input
-              value={manual.venue}
-              onChange={(e) => setManual((m) => ({ ...m, venue: e.target.value }))}
-              placeholder="Venue"
-              className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-base text-white placeholder:text-white/40"
-            />
-            <input
-              value={manual.city}
-              onChange={(e) => setManual((m) => ({ ...m, city: e.target.value }))}
-              placeholder="City"
-              className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-base text-white placeholder:text-white/40"
-            />
-            <input
-              type="date"
-              value={manual.date}
-              onChange={(e) => setManual((m) => ({ ...m, date: e.target.value }))}
-              className="rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-base text-white"
-            />
-            <textarea
-              value={manual.notes}
-              onChange={(e) => setManual((m) => ({ ...m, notes: e.target.value }))}
-              placeholder="Setlist notes (optional)"
-              className="sm:col-span-2 min-h-[72px] rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-base text-white placeholder:text-white/40"
-            />
-            <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => setStubFile(e.target.files?.[0] ?? null)}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-sm text-white hover:bg-white/10"
-              >
-                <ImagePlus className="h-4 w-4" />
-                {stubFile ? stubFile.name : 'Upload ticket stub'}
-              </button>
-              <button
-                type="button"
-                disabled={savingShow}
-                onClick={() => void submitManualShow()}
-                className="inline-flex items-center gap-2 rounded-lg momentum-grad-interactive px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {savingShow ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}
-                Save show
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
 
       {status ? <p className="mt-3 text-sm text-emerald-300">{status}</p> : null}
       {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
