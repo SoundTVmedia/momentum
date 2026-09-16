@@ -1,4 +1,4 @@
-import { computeShowId, isJamBaseEventId } from '../shared/show-id';
+import { computeShowId, isJamBaseEventId, majorityCaptureDay, utcYmdFromTimestamp } from '../shared/show-id';
 import { resolveClipEventTitle } from '../shared/event-title';
 import { clipNightKeySql } from './past-show-sql';
 
@@ -88,6 +88,73 @@ async function backfillClipShowIdsBatch(env: Env): Promise<number> {
 }
 
 /**
+ * Detach clips whose capture day does not match the majority night for their
+ * stored JamBase event id (e.g. a Dec Phish MSG clip tagged with a July event).
+ * Clears the wrong JamBase id and assigns a date-based composite show_id.
+ */
+async function detachOutlierJamBaseShowIdsBatch(env: Env): Promise<number> {
+  const captureDaySql = `strftime(
+    '%Y-%m-%d',
+    datetime(replace(replace(substr(TRIM(timestamp), 1, 19), 'T', ' '), 'Z', ''))
+  )`;
+  const mixed = await env.DB.prepare(
+    `SELECT TRIM(jambase_event_id) as event_id
+     FROM clips
+     WHERE NULLIF(TRIM(jambase_event_id), '') IS NOT NULL
+       AND NULLIF(TRIM(timestamp), '') IS NOT NULL
+     GROUP BY TRIM(jambase_event_id)
+     HAVING COUNT(DISTINCT ${captureDaySql}) > 1
+     LIMIT 50`,
+  ).all();
+
+  const eventIds = ((mixed.results || []) as Array<{ event_id: string }>)
+    .map((row) => row.event_id?.trim())
+    .filter((id): id is string => Boolean(id));
+  if (eventIds.length === 0) return 0;
+
+  let updated = 0;
+  for (const eventId of eventIds) {
+    const pending = await env.DB.prepare(
+      `SELECT id, show_id, jambase_event_id, artist_name, venue_name, timestamp, event_title
+       FROM clips
+       WHERE TRIM(jambase_event_id) = ?`,
+    )
+      .bind(eventId)
+      .all();
+    const rows = (pending.results || []) as ClipShowRow[];
+    const majorityDay = majorityCaptureDay(rows.map((row) => row.timestamp));
+    if (!majorityDay) continue;
+
+    for (const row of rows) {
+      const day =
+        typeof row.timestamp === 'string' ? utcYmdFromTimestamp(row.timestamp) : null;
+      if (!day || day === majorityDay) continue;
+
+      const nextShowId = computeShowId({
+        artist_name: row.artist_name,
+        venue_name: row.venue_name,
+        timestamp: row.timestamp,
+      });
+      if (!nextShowId) continue;
+
+      await env.DB.prepare(
+        `UPDATE clips
+         SET jambase_event_id = NULL,
+             show_id = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+        .bind(nextShowId, row.id)
+        .run();
+      updated += 1;
+      if (updated >= BACKFILL_BATCH_SIZE) return updated;
+    }
+  }
+
+  return updated;
+}
+
+/**
  * Promote composite/slug show ids to a sibling JamBase event id from the same
  * concert night (e.g. earliest Ariana clip stored as a slug while later clips
  * stored jambase:14852021).
@@ -162,15 +229,20 @@ async function promoteSiblingJamBaseShowIdsBatch(env: Env): Promise<number> {
 }
 
 /**
- * Backfill clips.show_id and event_title for rows missing them, then promote
- * same-night composite ids to a sibling JamBase event id.
- * Processes several batches per scheduled run until the backlog is cleared.
+ * Backfill clips.show_id / event_title, detach cross-night JamBase outliers,
+ * then promote same-night composite ids to a sibling JamBase event id.
  */
 export async function backfillClipShowIds(env: Env): Promise<number> {
   let totalUpdated = 0;
 
   for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
     const updated = await backfillClipShowIdsBatch(env);
+    totalUpdated += updated;
+    if (updated === 0) break;
+  }
+
+  for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
+    const updated = await detachOutlierJamBaseShowIdsBatch(env);
     totalUpdated += updated;
     if (updated === 0) break;
   }
@@ -191,4 +263,5 @@ export async function backfillClipShowIds(env: Env): Promise<number> {
 /** Exported for unit tests. */
 export const __testing = {
   promoteSiblingJamBaseShowIdsBatch,
+  detachOutlierJamBaseShowIdsBatch,
 };

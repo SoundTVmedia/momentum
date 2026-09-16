@@ -24,9 +24,9 @@ import { shouldPrefetchFullNativeClip } from '@/src/lib/playback/prefetch';
 import { useClipArtistProfile } from '@/src/hooks/useClipArtistProfile';
 import { useClipPlaybackTickets } from '@/src/hooks/useClipPlaybackTickets';
 import { restoreForMediaPlayback } from 'feedback-audio-session';
-import { artistPath, venuePath } from '@shared/app-paths';
+import { artistPath, clipShowClipsPath, venuePath } from '@shared/app-paths';
 import { navigableMochaUserId } from '@shared/mocha-user-id';
-import { jamBaseEventTitle } from '@shared/event-title';
+import { jamBaseEventTitle, resolveClipEventTitle } from '@shared/event-title';
 import { colors, spacing, typography } from '@/src/theme/tokens';
 
 /** Only current ± 1 mount a decoder. Everything else is a poster. */
@@ -76,13 +76,46 @@ function ClipSlide({
   const posterUserId = navigableMochaUserId(clip.mocha_user_id);
 
   const title = clip.song_title?.trim() || clip.artist_name?.trim() || 'Clip';
+  const eventTitle = resolveClipEventTitle({
+    event_title: clip.event_title,
+    artist_name: clip.artist_name,
+    venue_name: clip.venue_name,
+  });
+  const showHref = clipShowClipsPath({
+    event_title: clip.event_title,
+    artist_name: clip.artist_name,
+    venue_name: clip.venue_name,
+    timestamp: clip.timestamp,
+    show_id: clip.show_id,
+    jambase_event_id: clip.jambase_event_id,
+  });
+  const canOpenShow = Boolean(showHref && showHref !== '/' && showHref !== artistPath(clip.artist_name));
 
   return (
     <View style={[styles.slide, { width }]}>
       <View style={styles.slideMeta}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
+        {eventTitle ? (
+          canOpenShow ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onNavigateEntity(showHref);
+              }}
+            >
+              <Text style={styles.eventTitle} numberOfLines={2}>
+                {eventTitle}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.eventTitle} numberOfLines={2}>
+              {eventTitle}
+            </Text>
+          )
+        ) : (
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+        )}
         {clip.user_display_name ? (
           posterUserId ? (
             <Pressable
@@ -207,7 +240,7 @@ export function ClipPlayerModal({
     (href: string) => {
       onClose();
       setTimeout(() => {
-        router.push(href as `/artists/${string}` | `/venues/${string}` | `/users/${string}`);
+        router.push(href as never);
       }, 50);
     },
     [onClose, router],
@@ -427,6 +460,12 @@ const styles = StyleSheet.create({
   title: {
     ...typography.title,
     fontSize: 18,
+  },
+  eventTitle: {
+    ...typography.title,
+    fontSize: 18,
+    color: colors.ember,
+    fontWeight: '700',
   },
   subtitle: {
     ...typography.caption,

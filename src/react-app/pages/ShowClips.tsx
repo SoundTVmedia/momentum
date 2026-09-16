@@ -10,6 +10,7 @@ import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiFetch } from '@/react-app/lib/apiFetch';
 import { artistPath, showClipsPath, venuePath } from '@/shared/app-paths';
+import { isJamBaseEventId, pickClipForShowHeader } from '@/shared/show-id';
 import { jamBaseEventTitle } from '@/shared/event-title';
 import { jamBaseEventIsConcluded, jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
@@ -96,14 +97,19 @@ export default function ShowClipsPage() {
     return () => controller.abort();
   }, [artistName, showId, sortBy, navigate]);
 
-  const clipWithJamBase = clips.find(
-    (clip) => typeof clip.jambase_event_id === 'string' && clip.jambase_event_id.trim(),
-  );
-  const clipEventId =
-    typeof clipWithJamBase?.jambase_event_id === 'string'
-      ? clipWithJamBase.jambase_event_id.trim()
+  const headerClip = pickClipForShowHeader(clips);
+  const clipEventId = (() => {
+    if (typeof showId === 'string' && isJamBaseEventId(showId)) {
+      try {
+        return decodeURIComponent(showId).trim();
+      } catch {
+        return showId.trim();
+      }
+    }
+    return typeof headerClip?.jambase_event_id === 'string'
+      ? headerClip.jambase_event_id.trim()
       : '';
-  const headerClip = clipWithJamBase ?? clips[0];
+  })();
 
   useEffect(() => {
     if (loading) return;
@@ -150,7 +156,10 @@ export default function ShowClipsPage() {
           show_date: headerClip.timestamp ?? '',
           venue_name: headerClip.venue_name,
           venue_location: headerClip.location,
-          jambase_event_id: headerClip.jambase_event_id ?? showId,
+          jambase_event_id:
+            (typeof showId === 'string' && isJamBaseEventId(showId) ? showId : null) ??
+            headerClip.jambase_event_id ??
+            showId,
           jambase_venue_id: headerClip.jambase_venue_id,
           jambase_artist_id: headerClip.jambase_artist_id,
         })

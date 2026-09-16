@@ -70,6 +70,56 @@ export function resolveClipShowNavigationId(input: {
 }
 
 /**
+ * Most common UTC capture day among timestamps (ties → lexicographically earlier day).
+ */
+export function majorityCaptureDay(
+  timestamps: Array<string | null | undefined>,
+): string | null {
+  const counts = new Map<string, number>();
+  for (const ts of timestamps) {
+    if (typeof ts !== 'string' || !ts.trim()) continue;
+    const day = utcYmdFromTimestamp(ts);
+    if (!day) continue;
+    counts.set(day, (counts.get(day) || 0) + 1);
+  }
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [day, count] of counts) {
+    if (count > bestCount || (count === bestCount && best != null && day < best)) {
+      best = day;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+/**
+ * Clip to use for show-page header fallbacks when JamBase metadata is missing.
+ * Prefers the majority capture night so a mis-tagged outlier (e.g. Dec clip
+ * stored under a July JamBase id) does not rewrite the page date.
+ */
+export function pickClipForShowHeader<
+  T extends { timestamp?: string | null; jambase_event_id?: string | null },
+>(clips: T[]): T | undefined {
+  if (clips.length === 0) return undefined;
+  const majorityDay = majorityCaptureDay(clips.map((clip) => clip.timestamp));
+  const pool =
+    majorityDay != null
+      ? clips.filter(
+          (clip) =>
+            typeof clip.timestamp === 'string' &&
+            utcYmdFromTimestamp(clip.timestamp) === majorityDay,
+        )
+      : clips;
+  const fromPool = pool.length > 0 ? pool : clips;
+  return (
+    fromPool.find(
+      (clip) => typeof clip.jambase_event_id === 'string' && clip.jambase_event_id.trim(),
+    ) ?? fromPool[0]
+  );
+}
+
+/**
  * Stable show key for grouping clips from the same concert.
  * Prefers JamBase event id; otherwise artist + venue + UTC capture date slug.
  */

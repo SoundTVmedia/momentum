@@ -3,6 +3,8 @@ import {
   computeLegacyClipShowKey,
   computeShowId,
   isJamBaseEventId,
+  majorityCaptureDay,
+  pickClipForShowHeader,
   resolveClipShowNavigationId,
   utcYmdFromTimestamp,
 } from './show-id';
@@ -102,5 +104,35 @@ describe('show-id', () => {
         timestamp: '2026-07-14T00:32:47.000Z',
       }),
     ).toBe('jambase:14852021');
+  });
+
+  it('picks the majority capture night for show headers', () => {
+    expect(
+      majorityCaptureDay([
+        '2025-12-29T03:24:42.000Z',
+        '2026-07-28T00:55:35.531Z',
+        '2026-07-28T01:20:22.502Z',
+        '2026-07-28T03:36:51.732Z',
+      ]),
+    ).toBe('2026-07-28');
+
+    const header = pickClipForShowHeader([
+      {
+        id: 349,
+        timestamp: '2025-12-29T03:24:42.000Z',
+        jambase_event_id: 'jambase:15668779',
+      },
+      {
+        id: 351,
+        timestamp: '2026-07-28T00:55:35.531Z',
+        jambase_event_id: 'jambase:15668779',
+      },
+      {
+        id: 325,
+        timestamp: '2026-07-28T01:20:22.502Z',
+        jambase_event_id: 'jambase:15668779',
+      },
+    ]);
+    expect(header?.id).toBe(351);
   });
 });
