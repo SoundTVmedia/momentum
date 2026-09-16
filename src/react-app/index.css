@@ -26,6 +26,13 @@ html {
   }
 }
 
+html.clip-player-open,
+html.clip-player-open body {
+  overflow: hidden !important;
+  overflow-y: hidden !important;
+  overscroll-behavior: none;
+}
+
 .clip-player-lock-scale {
   touch-action: pan-x pinch-zoom;
 }

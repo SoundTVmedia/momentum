@@ -63,7 +63,7 @@ const ClipModalMaximizedVideo = forwardRef<
   return (
     <div
       ref={playerRef}
-      className="relative flex h-full w-full min-h-0 items-center justify-center overflow-hidden bg-black"
+      className="relative flex h-full w-full min-h-0 items-center justify-center overflow-hidden overflow-y-hidden bg-black"
       {...swipeHandlers}
     >
       <div

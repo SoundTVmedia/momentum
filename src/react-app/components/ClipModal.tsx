@@ -497,8 +497,10 @@ export default function ClipModal({
   }, [canFeedNav, goPrev, goNext, onClose, ticketSheetOpen, closeTicketSheet]);
 
   useEffect(() => {
+    document.documentElement.classList.add('clip-player-open');
     document.body.style.overflow = 'hidden';
     return () => {
+      document.documentElement.classList.remove('clip-player-open');
       document.body.style.overflow = '';
     };
   }, []);
@@ -972,10 +974,10 @@ export default function ClipModal({
       </div>
 
       {/* ——— Desktop ——— */}
-      <div className="mx-auto hidden h-full w-full max-w-6xl items-center justify-center p-4 md:flex">
-        <div className="flex h-full max-h-[90vh] w-full overflow-hidden overflow-y-hidden rounded-2xl glass-dropdown animate-scale-in">
+      <div className="mx-auto hidden h-full min-h-0 w-full max-w-6xl items-center justify-center overflow-hidden overflow-y-hidden p-4 md:flex">
+        <div className="flex h-full max-h-[90vh] min-h-0 w-full overflow-hidden overflow-y-hidden overscroll-none rounded-2xl glass-dropdown animate-scale-in">
           <div
-            className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center bg-black"
+            className="relative flex min-h-0 w-2/3 flex-shrink-0 items-center justify-center overflow-hidden overflow-y-hidden bg-black"
             data-clip-swipe-surface=""
           >
             <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
@@ -1034,7 +1036,7 @@ export default function ClipModal({
               </button>
             ) : null}
 
-            <div className="relative h-full w-full min-h-0">
+            <div className="relative h-full min-h-0 w-full overflow-hidden overflow-y-hidden">
               {!mobileViewport ? (
                 <ClipModalMaximizedVideo
                   ref={desktopPlayerRef}
@@ -1059,7 +1061,7 @@ export default function ClipModal({
           </div>
 
           <div
-            className="flex min-h-0 w-1/3 flex-col overflow-x-hidden bg-slate-900/50"
+            className="flex min-h-0 w-1/3 flex-col overflow-hidden overflow-y-hidden bg-slate-900/50"
             data-no-clip-swipe=""
           >
             <div className="flex-shrink-0 border-b border-white/10 p-4">
@@ -1218,7 +1220,7 @@ export default function ClipModal({
                 />
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-4">
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
                 <div className="flex items-center space-x-4">
                   <button
                     type="button"
@@ -1336,7 +1338,7 @@ export default function ClipModal({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
               <CommentSection key={clip.id} clipId={clip.id} />
             </div>
           </div>
