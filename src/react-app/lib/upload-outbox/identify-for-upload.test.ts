@@ -2,14 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   formPatchFromAcrMatch,
   resolveSongIdentifyAfterUpload,
-  resolveSongIdentifyForUploadJob,
-  uploadJobDefersSongIdentifyToPublishedClip,
   uploadJobNeedsSongIdentify,
 } from './identify-for-upload';
 import * as applyClipSongRecognition from '@/react-app/lib/applyClipSongRecognition';
 import * as identifySongForUploadedClipModule from '@/react-app/lib/identifySongForUploadedClip';
-import * as nativeBridge from '@/react-app/lib/native-bridge';
-import * as auddIdentify from '@/react-app/utils/auddIdentify';
 import type { UploadOutboxJob } from './types';
 
 function baseJob(overrides: Partial<UploadOutboxJob> = {}): UploadOutboxJob {
@@ -99,22 +95,8 @@ describe('formPatchFromAcrMatch', () => {
   });
 });
 
-describe('resolveSongIdentifyAfterUpload guards', () => {
-  it('is skipped when song title already set or clip id missing', async () => {
-    const video = new Blob([new Uint8Array(8192)], { type: 'video/mp4' });
-    expect(
-      await resolveSongIdentifyAfterUpload(
-        baseJob({ form: { ...baseJob().form, song_title: 'Already' }, clipId: 9 }),
-        video,
-      ),
-    ).toEqual({});
-    expect(await resolveSongIdentifyAfterUpload(baseJob({ clipId: null }), video)).toEqual({});
-  });
-});
-
-describe('device/library uploads', () => {
+describe('resolveSongIdentifyAfterUpload', () => {
   beforeEach(() => {
-    // These helpers time out with window.setTimeout; tests run in node.
     vi.stubGlobal('window', globalThis);
   });
 
@@ -123,42 +105,16 @@ describe('device/library uploads', () => {
     vi.restoreAllMocks();
   });
 
-  const bigVideo = () => new Blob([new Uint8Array(1024)], { type: 'video/quicktime' });
-
-  it('defers a large native library pick to the published clip', () => {
-    vi.spyOn(nativeBridge, 'isNativeApp').mockReturnValue(true);
-    // iPhone library .mov, no in-app recording path.
-    expect(uploadJobDefersSongIdentifyToPublishedClip(baseJob(), 190 * 1024 * 1024)).toBe(true);
-  });
-
-  it('still samples locally for quick capture and for small files', () => {
-    vi.spyOn(nativeBridge, 'isNativeApp').mockReturnValue(true);
+  it('is skipped when song title already set or clip id missing', async () => {
     expect(
-      uploadJobDefersSongIdentifyToPublishedClip(
-        baseJob({ nativeVideoUri: 'file:///cache/cpcp_video_1.mp4' }),
-        190 * 1024 * 1024,
+      await resolveSongIdentifyAfterUpload(
+        baseJob({ form: { ...baseJob().form, song_title: 'Already' }, clipId: 9 }),
       ),
-    ).toBe(false);
-    expect(uploadJobDefersSongIdentifyToPublishedClip(baseJob(), 5 * 1024 * 1024)).toBe(false);
+    ).toEqual({});
+    expect(await resolveSongIdentifyAfterUpload(baseJob({ clipId: null }))).toEqual({});
   });
 
-  it('does not defer on web, where the WebAudio ladder is the only option', () => {
-    vi.spyOn(nativeBridge, 'isNativeApp').mockReturnValue(false);
-    expect(uploadJobDefersSongIdentifyToPublishedClip(baseJob(), 190 * 1024 * 1024)).toBe(false);
-  });
-
-  it('skips the doomed pre-upload pass for a large native library pick', async () => {
-    vi.spyOn(nativeBridge, 'isNativeApp').mockReturnValue(true);
-    const ladder = vi.spyOn(auddIdentify, 'identifyMusicForClip');
-    const video = new Blob([new Uint8Array(1024)], { type: 'video/quicktime' });
-    Object.defineProperty(video, 'size', { value: 190 * 1024 * 1024 });
-
-    expect(await resolveSongIdentifyForUploadJob(baseJob(), video)).toEqual({});
-    expect(ladder).not.toHaveBeenCalled();
-  });
-
-  it('identifies a published device upload via the native download path', async () => {
-    vi.spyOn(nativeBridge, 'isNativeApp').mockReturnValue(true);
+  it('identifies the published clip via ShazamKit→ACR and PATCHes a match', async () => {
     vi.spyOn(identifySongForUploadedClipModule, 'fetchClipPlaybackFieldsById').mockResolvedValue({
       video_url: '/api/files/clips%2Fuser%2Fvideo%2FIMG_4016.mov',
     } as never);
@@ -168,21 +124,18 @@ describe('device/library uploads', () => {
       title: 'Bitch Better Have My Money',
       message: null,
     });
-    const ladder = vi.spyOn(auddIdentify, 'identifyMusicForClip');
     const save = vi
       .spyOn(applyClipSongRecognition, 'saveClipMetadataFields')
       .mockResolvedValue({} as never);
 
-    const patch = await resolveSongIdentifyAfterUpload(baseJob({ clipId: 136 }), bigVideo());
+    const patch = await resolveSongIdentifyAfterUpload(baseJob({ clipId: 136 }));
 
     expect(patch.song_title).toBe('Bitch Better Have My Money');
     expect(patch.artist_name).toBe('Rihanna');
-    expect(ladder).not.toHaveBeenCalled();
     expect(save).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to the local ladder when the published clip misses', async () => {
-    vi.spyOn(nativeBridge, 'isNativeApp').mockReturnValue(true);
+  it('does not PATCH when the published-clip pass misses', async () => {
     vi.spyOn(identifySongForUploadedClipModule, 'fetchClipPlaybackFieldsById').mockResolvedValue({
       video_url: '/api/files/clip.mov',
     } as never);
@@ -190,30 +143,24 @@ describe('device/library uploads', () => {
       status: 'nomatch',
       message: null,
     });
-    const ladder = vi
-      .spyOn(auddIdentify, 'identifyMusicForClip')
-      .mockResolvedValue({ status: 'nomatch', message: null });
+    const save = vi.spyOn(applyClipSongRecognition, 'saveClipMetadataFields');
 
-    expect(await resolveSongIdentifyAfterUpload(baseJob({ clipId: 136 }), bigVideo())).toEqual({});
-    expect(ladder).toHaveBeenCalledTimes(1);
+    expect(await resolveSongIdentifyAfterUpload(baseJob({ clipId: 136 }))).toEqual({});
+    expect(save).not.toHaveBeenCalled();
   });
 
-  it('keeps the local recording path for quick capture', async () => {
-    vi.spyOn(nativeBridge, 'isNativeApp').mockReturnValue(true);
-    const published = vi.spyOn(
-      identifySongForUploadedClipModule,
-      'identifySongForUploadedClip',
-    );
-    const ladder = vi
-      .spyOn(auddIdentify, 'identifyMusicForClip')
+  it('uses the published clip even when a local native recording path exists', async () => {
+    vi.spyOn(identifySongForUploadedClipModule, 'fetchClipPlaybackFieldsById').mockResolvedValue({
+      video_url: '/api/files/clip.mp4',
+    } as never);
+    const published = vi
+      .spyOn(identifySongForUploadedClipModule, 'identifySongForUploadedClip')
       .mockResolvedValue({ status: 'nomatch', message: null });
 
     await resolveSongIdentifyAfterUpload(
       baseJob({ clipId: 42, nativeVideoUri: 'file:///cache/cpcp_video_1.mp4' }),
-      bigVideo(),
     );
 
-    expect(published).not.toHaveBeenCalled();
-    expect(ladder).toHaveBeenCalledTimes(1);
+    expect(published).toHaveBeenCalledTimes(1);
   });
 });

@@ -6,14 +6,6 @@ import { useAuth } from '@getmocha/users-service/react';
 import type { PrimedCaptureGeo } from '@/react-app/utils/primeGeolocationOnUserGesture';
 import type { ClipShowCandidate } from '@/shared/types';
 import { resolveClipEventTitle } from '@/shared/event-title';
-import {
-  identifyMusicWithAudD,
-  auddSourceKey,
-  auddPrefillFromLiveMatch,
-} from '@/react-app/utils/auddIdentify';
-import { identifyLiveAudioWithShazamKit, identifyNativeFileWithShazamKit, logShazamKitAvailability } from '@/react-app/utils/shazamKitIdentify';
-import type { SongPrior } from '@/react-app/utils/liveSongStabilizer';
-import { LiveSongStabilizer } from '@/react-app/utils/liveSongStabilizer';
 import { isAppleMediaRecorderPlatform, pickAudioRecorderMime, pickVideoRecorderMime } from '@/react-app/utils/audioRecorderMime';
 import {
   clearCaptureShowSession,
@@ -60,7 +52,6 @@ import {
   scheduleNativeCaptureFullScreenPreview,
   startNativeVideoRecording,
   stopNativeVideoRecording,
-  startNativeLiveAudioSegments,
   stopNativeLiveAudioSegments,
   setNativeCaptureZoom,
   setNativeCaptureFocus,
@@ -77,6 +68,7 @@ import {
   NATIVE_CAPTURE_MAX_SECONDS,
 } from '@/react-app/lib/native-capture';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
+import { isPrePostContentFeed } from '@/shared/pre-post-clip';
 import { clearCaptureHandoffBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
 import {
   blobSourceKey,
@@ -88,16 +80,7 @@ import { acquireNativeCaptureChromeLock } from '@/react-app/lib/native-capture/c
 const MAX_CLIP_LENGTH_SECONDS = 60;
 const MAX_RECORDING_TIME = MAX_CLIP_LENGTH_SECONDS;
 const HAPTIC_WARNING_TIME = 50;
-/** Parallel mic track for song ID — runs with main recording (stopped when recording ends). */
-/**
- * Live ID: one complete mic recording per segment (not MediaRecorder timeslices — those are
- * often invalid WebM fragments and ACR returns 2004).
- */
-const LIVE_AUDD_SEGMENT_MS = 5_000;
-/** After stop, wait briefly for the in-flight segment identify before caption screen. */
 const LIVE_AUDD_STOP_WAIT_MS = 4_000;
-/** ACRCloud often rejects tiny/incomplete WebM (2004); align with worker MIN_WEBM_BYTES. */
-const MIN_LIVE_AUDD_CHUNK_BYTES = 4096;
 
 interface QuickRecordButtonProps {
   isOpen?: boolean;
@@ -123,8 +106,6 @@ interface QuickRecordButtonProps {
   captureLaunchGeoResolved?: boolean;
   /** When true, do not call getUserMedia until launch-time geolocation has finished (location before camera/mic). */
   deferCameraUntilLaunchGeo?: boolean;
-  /** Optional setlist / venue / time priors for live on-screen song ID (see `LiveSongStabilizer`). */
-  liveSongPriors?: SongPrior[];
 }
 
 export default function QuickRecordButton({
@@ -138,7 +119,6 @@ export default function QuickRecordButton({
   /** When `deferCameraUntilLaunchGeo`, parent must set `true` after launch-time GPS finishes (even if coords are null). */
   captureLaunchGeoResolved = false,
   deferCameraUntilLaunchGeo = false,
-  liveSongPriors,
 }: QuickRecordButtonProps = {}) {
   const navigate = useNavigate();
   const { user, isPending } = useAuth();
@@ -191,7 +171,6 @@ export default function QuickRecordButton({
   const liveAuddAudioMimeRef = useRef('audio/webm');
   /** Set true for whole record tap so preview→record effect cleanup does not stop the live mic pipeline. */
   const isRecordingRef = useRef(false);
-  const liveStabilizerRef = useRef(new LiveSongStabilizer());
   const nativeCaptureActiveRef = useRef(false);
   /** True while finishing a native clip (persist + navigate) — blocks unmount cleanup. */
   const nativeCaptureFinishingRef = useRef(false);
@@ -201,7 +180,7 @@ export default function QuickRecordButton({
   const prevIsOpenRef = useRef(false);
   /** True when web MediaRecorder started with live audio tracks (mic muxed into blob). */
   const webCaptureHadAudioRef = useRef(false);
-  /** Stabilized song/artist used as caption prefill fallback. */
+  /** Unused: live song ID is deferred until after upload. */
   const lastLiveSongMatchRef = useRef<{ artist: string; title: string } | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -772,10 +751,6 @@ export default function QuickRecordButton({
       country: lastGeoRef.current?.country ?? null,
     };
   }, [showModal, isRecording, coordsForNearbyVenues]);
-
-  useEffect(() => {
-    liveStabilizerRef.current.setPriors(liveSongPriors);
-  }, [liveSongPriors]);
 
   /** Use coordinates we already have (launch tap). Does not call geolocation again. */
   const syncLastGeoFromNearbyCoordsRef = () => {
@@ -1709,8 +1684,7 @@ export default function QuickRecordButton({
   };
 
   const resetLiveSongIdentification = () => {
-    liveStabilizerRef.current.reset();
-    lastLiveSongMatchRef.current = null;
+    /* Live song ID is deferred until after upload. */
   };
 
   const waitForLiveAuddInFlight = async (maxMs: number): Promise<void> => {
@@ -1788,30 +1762,8 @@ export default function QuickRecordButton({
     lastLiveSongMatchRef.current = displayed;
   };
 
-  const identifyLiveSegmentBlob = (blob: Blob) => {
-    if (liveAuddStoppedRef.current) return;
-    if (blob.size < MIN_LIVE_AUDD_CHUNK_BYTES) return;
-
-    // ShazamKit must not block the HUD: a 20s catalog round-trip used to
-    // starve ACR and drop later mic segments (liveAuddInFlightRef).
-    void identifyLiveAudioWithShazamKit(blob).then((shazam) => {
-      if (liveAuddStoppedRef.current || shazam?.status !== 'match') return;
-      const { displayed } = liveStabilizerRef.current.observe(shazam);
-      applyLiveSongDisplayed(displayed);
-    });
-
-    if (liveAuddInFlightRef.current) return;
-    liveAuddInFlightRef.current = true;
-    void (async () => {
-      try {
-        const r = await identifyMusicWithAudD(blob);
-        if (liveAuddStoppedRef.current) return;
-        const { displayed } = liveStabilizerRef.current.observe(r);
-        applyLiveSongDisplayed(displayed);
-      } finally {
-        liveAuddInFlightRef.current = false;
-      }
-    })();
+  const identifyLiveSegmentBlob = (_blob: Blob) => {
+    /* Live song ID is deferred until after upload. */
   };
 
   const beginLiveAuddSegment = (stream: MediaStream, audioMime: string) => {
@@ -1877,36 +1829,15 @@ export default function QuickRecordButton({
         if (liveAuddRecorderRef.current === liveRec) {
           liveAuddRecorderRef.current = null;
         }
-      }, LIVE_AUDD_SEGMENT_MS);
+      }, 5_000);
     } catch (e) {
       console.warn('QuickRecordButton: live song segment failed', e);
     }
   };
 
   /** Live song ID from mic — starts when preview has audio (before REC) and during capture. */
-  const startLiveSongPipeline = (stream: MediaStream): boolean => {
-    if (!audioEnabled) return false;
-    if (
-      !liveAuddStoppedRef.current &&
-      (liveAuddRecorderRef.current || liveAuddSegmentTimerRef.current)
-    ) {
-      return true;
-    }
-
-    const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
-    if (liveTracks.length === 0) return false;
-
-    const audioMime = pickAudioRecorderMime();
-    if (!audioMime) return false;
-
-    try {
-      liveAuddStoppedRef.current = false;
-      beginLiveAuddSegment(stream, audioMime);
-      return true;
-    } catch (e) {
-      console.warn('QuickRecordButton: live song pipeline failed', e);
-      return false;
-    }
+  const startLiveSongPipeline = (_stream: MediaStream): boolean => {
+    return false;
   };
 
   /** Start live song ID as soon as camera preview has mic (before user taps record). */
@@ -1961,18 +1892,7 @@ export default function QuickRecordButton({
         setRecordingElapsedSeconds(0);
         lastParallelAuddAudioBlobRef.current = null;
         auddParallelAudioChunksRef.current = [];
-        liveAuddStoppedRef.current = false;
-        logShazamKitAvailability();
-        // Capgo owns the camera mic; emit rolling AAC segments for live HUD song ID.
-        void startNativeLiveAudioSegments((blob) => {
-          if (blob.size > 0) {
-            lastParallelAuddAudioBlobRef.current = blob;
-            auddParallelAudioChunksRef.current.push(blob);
-          }
-          identifyLiveSegmentBlob(blob);
-        }).catch((err) => {
-          console.warn('QuickRecordButton: native live audio segments failed', err);
-        });
+        liveAuddStoppedRef.current = true;
         timerRef.current = setInterval(() => {
           recordingSecondsRef.current += 1;
           const t = recordingSecondsRef.current;
@@ -2083,8 +2003,6 @@ export default function QuickRecordButton({
               };
               ar.start();
               auddParallelAudioRecorderRef.current = ar;
-
-              startLiveSongPipeline(stream);
             }
           }
         } catch (e) {
@@ -2130,20 +2048,10 @@ export default function QuickRecordButton({
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
-          const pendingShazamKit = identifyNativeFileWithShazamKit(videoFilePath);
-          void pendingShazamKit.then((result) => {
-            if (result?.status !== 'match') return;
-            const title = result.title?.trim() ?? '';
-            const artist = result.artist?.trim() ?? '';
-            if (title || artist) {
-              lastLiveSongMatchRef.current = { title, artist };
-            }
-          });
           await handleRecordingComplete(null, {
             nativeVideoPath: videoFilePath,
             nativeAudioTrackCount: stopped.audioTrackCount,
             skipWebAuddRecorder: true,
-            pendingShazamKit,
           });
         } catch (err) {
           console.error('Native stop recording failed:', err);
@@ -2232,7 +2140,6 @@ export default function QuickRecordButton({
       nativeVideoPath?: string;
       nativeAudioTrackCount?: number;
       webStreamHadAudio?: boolean;
-      pendingShazamKit?: Promise<import('@/react-app/utils/auddIdentify').AudDIdentifyResult | null>;
     },
   ) => {
     const skipWebAuddRecorder = Boolean(opts?.skipWebAuddRecorder || opts?.skipAudd);
@@ -2328,14 +2235,6 @@ export default function QuickRecordButton({
       }
       clipGeoAtRecordingStartRef.current = null;
 
-      const sourceKey = blob?.size
-        ? auddSourceKey(blob)
-        : `native:${opts?.nativeVideoPath ?? at}`;
-      const auddPrefill = auddPrefillFromLiveMatch(
-        sourceKey,
-        lastLiveSongMatchRef.current,
-      );
-
       const sticky =
         loadStickyCaptureShowSession({
           lat: geo?.latitude,
@@ -2383,26 +2282,7 @@ export default function QuickRecordButton({
       const artist_name = prefetchShow?.artist_name?.trim() ?? '';
       const venue_name = prefetchShow?.venue_name?.trim() ?? '';
       const locationLine = prefetchShow?.location?.trim() ?? '';
-      let song_title =
-        auddPrefill.status === 'done' && auddPrefill.title.trim()
-          ? auddPrefill.title.trim()
-          : '';
-      if (!song_title && opts?.pendingShazamKit) {
-        try {
-          const nativeMatch = await opts.pendingShazamKit;
-          if (nativeMatch?.status === 'match' && nativeMatch.title?.trim()) {
-            song_title = nativeMatch.title.trim();
-            if (nativeMatch.artist?.trim() || song_title) {
-              lastLiveSongMatchRef.current = {
-                title: song_title,
-                artist: nativeMatch.artist?.trim() ?? '',
-              };
-            }
-          }
-        } catch (err) {
-          console.warn('QuickRecordButton: native file ShazamKit failed', err);
-        }
-      }
+      const song_title = '';
       const jambaseLink = prefetchShow
         ? {
             event: prefetchShow.jambase_event_id,
@@ -2441,7 +2321,7 @@ export default function QuickRecordButton({
           classificationId: classification.classificationId,
           contentFeed: classification.contentFeed,
           classificationPending: classification.classificationPending,
-          songIdentifyPending: !song_title,
+          songIdentifyPending: !isPrePostContentFeed(classification.contentFeed),
           captureAudioBlob,
           form: {
             artist_name,

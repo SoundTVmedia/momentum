@@ -38,14 +38,8 @@ import { useQuickCapture } from '@/react-app/contexts/QuickCaptureContext';
 import { generateVideoThumbnailJpeg } from '@/react-app/utils/videoThumbnail';
 import { playVideoWithSoundOnGesture } from '@/react-app/utils/videoAutoplay';
 import {
-  mergeSongTitleIntoCaption,
   auddSourceKey,
-  identifyMusicForClip,
-  isFatalSongIdentifyError,
-  normalizeIdentifyResult,
-  shouldShowManualSongTitleEntry,
   type AudDNavPrefill,
-  type LiveSongSnapshot,
 } from '@/react-app/utils/auddIdentify';
 import type { JamBaseArtist, JamBaseVenue, ClipShowCandidate } from '@/shared/types';
 import { resolveClipEventTitle } from '@/shared/event-title';
@@ -933,41 +927,9 @@ export default function UploadClip() {
 
     const ap = navState.auddPrefill;
     if (ap?.sourceKey && !navFromLibrary) {
-      if (ap.status === 'done') {
-        const artist = (ap.artist ?? '').trim();
-        const title = (ap.title ?? '').trim();
-        if (artist || title) {
-          setAuddStatus('done');
-          setAuddMessage(ap.message);
-          setFormData((prev) => ({
-            ...prev,
-            artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
-            song_title: prev.song_title?.trim() ? prev.song_title : title || prev.song_title,
-            content_description: title
-              ? mergeSongTitleIntoCaption(prev.content_description, title)
-              : prev.content_description,
-          }));
-          if (artist) {
-            captionCommittedArtistNameRef.current = artist;
-            setArtistSearch(artist);
-          }
-        } else {
-          setAuddStatus('idle');
-          setAuddMessage(null);
-        }
-      } else if (ap.status === 'skipped' || ap.status === 'nomatch') {
-        setAuddStatus('idle');
-        setAuddMessage(null);
-      } else if (ap.status === 'error') {
-        const msg = ap.message ?? '';
-        if (isFatalSongIdentifyError({ status: 'error', message: msg })) {
-          setAuddStatus('error');
-          setAuddMessage(msg || 'Song lookup failed');
-        } else {
-          setAuddStatus('idle');
-          setAuddMessage(null);
-        }
-      }
+      // Live/pre-upload song ID is disabled — caption is manual, identify runs after publish.
+      setAuddStatus('idle');
+      setAuddMessage(null);
     }
 
     // Cancel in-flight async hydration when navigation changes
@@ -1808,39 +1770,6 @@ export default function UploadClip() {
     setAuddMessage(null);
   }, []);
 
-  /** Probe Worker ACR config once on caption screen — surfaces missing keys before song ID runs. */
-  useEffect(() => {
-    if (!showCaptionScreen || !user || isPending) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/clips/identify-music/config', { credentials: 'include' });
-        if (cancelled || !res.ok) return;
-        const data = (await res.json()) as {
-          activeProvider?: string;
-          acrcloud?: { ready?: boolean };
-          hint?: string | null;
-          verify?: string;
-        };
-        if (cancelled) return;
-        if (data.acrcloud?.ready) return;
-        const hint =
-          (typeof data.hint === 'string' && data.hint.trim()) ||
-          (typeof data.verify === 'string' && data.verify.trim()) ||
-          'Song ID (ACRCloud) is not configured on the worker.';
-        setAuddStatus((prev) =>
-          prev === 'done' || prev === 'loading' ? prev : 'error',
-        );
-        setAuddMessage((prev) => (prev?.trim() ? prev : hint));
-      } catch {
-        /* offline / proxy — identify pass will report errors */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [showCaptionScreen, user, isPending]);
-
   useEffect(() => {
     if (!showCaptionScreen || recordingAtIso) return;
     setRecordingAtIso(new Date().toISOString());
@@ -1914,15 +1843,6 @@ export default function UploadClip() {
     clearShowAssociationFields,
   ]);
 
-  /** After 5s with no song match, show manual song entry while identify may still finish. */
-  useEffect(() => {
-    if (!showCaptionScreen || auddStatus !== 'loading') return;
-    const t = window.setTimeout(() => {
-      setAuddStatus((s) => (s === 'loading' ? 'nomatch' : s));
-    }, 5000);
-    return () => clearTimeout(t);
-  }, [showCaptionScreen, auddStatus]);
-
   /** Re-derive main vs rejected when the user picks an artist after ACR identification. */
   useEffect(() => {
     if (classifyStatus !== 'done' || !classifyResult) return;
@@ -1959,125 +1879,6 @@ export default function UploadClip() {
     classifyResult?.content_feed,
     classifyResult?.headliner_matched,
     formData.artist_name,
-  ]);
-
-  /**
-   * Authoritative song ID on the clip details screen (ShazamKit primary on
-   * native iOS, ACRCloud/AudD fallback). Runs for library / manual uploads
-   * before Share. Uses parallel mic audio from in-app capture when available,
-   * then a video snippet; merges live preview matches.
-   */
-  useEffect(() => {
-    if (!showCaptionScreen || !user || isPending) return;
-    if (isPrePostContentFeed(classifyResult?.content_feed)) return;
-    const source = formData.video_blob ?? formData.video_file;
-    if (!source || !(source instanceof Blob)) return;
-
-    const sourceKey = auddSourceKey(source);
-    if (auddAttemptedForSourceKeyRef.current === sourceKey) return;
-
-    const nav = location.state as {
-      captureAudioBlob?: unknown;
-      auddPrefill?: AudDNavPrefill;
-    } | null;
-    const captureAudio =
-      nav?.captureAudioBlob instanceof Blob ? nav.captureAudioBlob : null;
-    const ap = nav?.auddPrefill;
-
-    /** Live capture already stabilized a match — skip the slow full re-identify pass. */
-    if (
-      ap?.sourceKey === sourceKey &&
-      ap.status === 'done' &&
-      (ap.artist?.trim() || ap.title?.trim())
-    ) {
-      auddAttemptedForSourceKeyRef.current = sourceKey;
-      return;
-    }
-
-    auddAttemptedForSourceKeyRef.current = sourceKey;
-    const liveHint: LiveSongSnapshot | null =
-      ap?.status === 'done' && (ap.artist?.trim() || ap.title?.trim())
-        ? { artist: (ap.artist ?? '').trim(), title: (ap.title ?? '').trim() }
-        : null;
-
-    const hasProvisionalSong = Boolean(
-      liveHint?.title || liveHint?.artist || formData.song_title?.trim(),
-    );
-
-    let cancelled = false;
-    if (!hasProvisionalSong) {
-      setAuddStatus('loading');
-      setAuddMessage(null);
-    }
-
-    void (async () => {
-      const result = normalizeIdentifyResult(
-        await identifyMusicForClip(source, {
-          live: liveHint,
-          audio: captureAudio,
-        }),
-      );
-      if (cancelled) return;
-
-      if (userOverrodeAutoTagsRef.current) {
-        setAuddStatus('idle');
-        setAuddMessage(null);
-        return;
-      }
-
-      const hadLivePrefill = Boolean(
-        liveHint?.title?.trim() ||
-          liveHint?.artist?.trim() ||
-          (ap?.status === 'done' && (ap.artist?.trim() || ap.title?.trim())),
-      );
-
-      if (result.status === 'skipped' && result.message?.trim()) {
-        setAuddStatus('error');
-        setAuddMessage(result.message);
-        return;
-      }
-      if (result.status === 'nomatch') {
-        if (!hadLivePrefill) {
-          setAuddStatus('nomatch');
-          setAuddMessage(null);
-        }
-        return;
-      }
-      if (result.status === 'error') {
-        setAuddStatus('error');
-        setAuddMessage(result.message ?? 'Song lookup failed');
-        return;
-      }
-      if (result.status !== 'match') return;
-
-      const { artist, title, message } = result;
-      const titleTrim = typeof title === 'string' ? title.trim() : '';
-      setFormData((prev) => ({
-        ...prev,
-        artist_name: prev.artist_name?.trim() ? prev.artist_name : artist || prev.artist_name,
-        song_title: prev.song_title?.trim() ? prev.song_title : titleTrim || prev.song_title,
-        content_description: mergeSongTitleIntoCaption(prev.content_description, title),
-      }));
-      if (artist) {
-        captionCommittedArtistNameRef.current = artist;
-        setArtistSearch(artist);
-      }
-      setAuddStatus('done');
-      setAuddMessage(message);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    showCaptionScreen,
-    user,
-    isPending,
-    formData.video_blob,
-    formData.video_file,
-    location.state,
-    uploadSource,
-    classifyResult?.content_feed,
   ]);
 
   const handleInputChange = (field: string, value: string) => {
@@ -2944,7 +2745,6 @@ export default function UploadClip() {
     const canPostWithShowDetails = clipManualShowPostReady(formData);
     /** Venue/show fields always visible on main-feed clips — filled in parallel with song ID. */
     const showVenueAndShowFields = !isPrePostClip;
-    const songIdentifyPending = auddStatus === 'loading';
     const displayEventDate = recordingAtIso
       ? new Date(recordingAtIso).toLocaleDateString('en-US', {
           month: 'short',
@@ -2978,10 +2778,8 @@ export default function UploadClip() {
               <p className="text-gray-300 text-sm sm:text-lg">
                 {isPrePostClip
                   ? 'Add a short description and post. This clip goes to your friends-only pre/post feed — we will not link it to an artist or venue.'
-                  : songIdentifyPending
-                    ? 'Identifying song in the background — you can share now; venue and artist may fill in during upload.'
-                    : 'Add details and post. After you share, upload continues in the background so you can record your next clip right away.'}
-                {!isPrePostClip && !songIdentifyPending
+                  : 'Add details and post. After you share, we identify the song in the background so you can record your next clip right away.'}
+                {!isPrePostClip
                   ? uploadSource === 'library'
                     ? ' We read date and location from your video file when available to find a matching show.'
                     : canPostWithShowDetails
@@ -3134,33 +2932,11 @@ export default function UploadClip() {
                   </div>
                 </div>
               )}
-              {showVenueAndShowFields && auddStatus === 'nomatch' && (
+              {showVenueAndShowFields && (
                 <div className="p-3 bg-momentum-flare/10 border border-momentum-flare/30 rounded-lg">
                   <p className="text-momentum-flare/90 text-sm font-medium">
-                    No song match yet — enter the song title below (optional).
+                    Song title is optional — enter it below, or we will identify it after you share.
                   </p>
-                </div>
-              )}
-              {showVenueAndShowFields && auddStatus === 'loading' && (
-                <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg flex items-center gap-2 text-violet-100 text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                  <span>Identifying song…</span>
-                </div>
-              )}
-              {showVenueAndShowFields && auddStatus === 'done' && (
-                <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-lg">
-                  <p className="text-violet-100 text-sm font-medium">
-                    {auddMessage?.trim() || 'Song and artist prefilled below.'}
-                  </p>
-                  <p className="text-gray-400 text-xs mt-1">
-                    Artist and song title are prefilled below — pick a JamBase artist if you want a verified link. Song
-                    title is added as a tag for search.
-                  </p>
-                </div>
-              )}
-              {showVenueAndShowFields && auddStatus === 'error' && auddMessage && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                  <p className="text-red-200 text-sm">{auddMessage}</p>
                 </div>
               )}
               {!BYPASS_CONTENT_FEED_BIFURCATION &&
@@ -3280,25 +3056,13 @@ export default function UploadClip() {
                 </p>
               </div>
 
-              {showVenueAndShowFields && auddStatus !== 'loading' && (
-                <div
-                  className={
-                    shouldShowManualSongTitleEntry(auddStatus)
-                      ? 'rounded-lg border border-momentum-flare/40 bg-momentum-flare/5 p-4 space-y-2'
-                      : 'space-y-2'
-                  }
-                >
+              {showVenueAndShowFields && (
+                <div className="rounded-lg border border-momentum-flare/40 bg-momentum-flare/5 p-4 space-y-2">
                   <label
                     htmlFor="caption-song-title"
-                    className={
-                      shouldShowManualSongTitleEntry(auddStatus)
-                        ? 'flex items-center gap-2 text-white font-medium'
-                        : 'block text-gray-300 font-normal'
-                    }
+                    className="flex items-center gap-2 text-white font-medium"
                   >
-                    {shouldShowManualSongTitleEntry(auddStatus) && (
-                      <Disc3 className="w-5 h-5 text-momentum-flare shrink-0" aria-hidden />
-                    )}
+                    <Disc3 className="w-5 h-5 text-momentum-flare shrink-0" aria-hidden />
                     Song title{' '}
                     <span className="text-gray-500 font-normal text-sm">(optional)</span>
                   </label>
@@ -3308,18 +3072,12 @@ export default function UploadClip() {
                     value={formData.song_title}
                     onChange={(e) => handleInputChange('song_title', e.target.value)}
                     className="w-full px-4 py-3 bg-white/10 border border-white/25 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare transition-colors"
-                    placeholder={
-                      auddStatus === 'done' ? 'What song was playing?' : 'Enter the song name'
-                    }
+                    placeholder="Enter the song name"
                     autoComplete="off"
                   />
-                  {auddStatus === 'done' ? (
-                    <p className="text-gray-400 text-xs">
-                      Adds a tag for search (along with artist and venue). Leave blank if you prefer.
-                    </p>
-                  ) : (
-                    <p className="text-gray-400 text-xs">Optional — adds a tag so fans can find your clip.</p>
-                  )}
+                  <p className="text-gray-400 text-xs">
+                    Optional — adds a tag so fans can find your clip. Leave blank and we will identify it after upload.
+                  </p>
                 </div>
               )}
 

@@ -176,15 +176,14 @@ async function identifySongViaServer(clip: ClipPlaybackFields): Promise<AudDIden
 }
 
 /**
- * Clip-player / edit-modal song ID for a published clip.
+ * Clip-player / edit-modal / post-upload song ID for a published clip.
  *
- * Same native path as capture: download the Cloudflare Stream MP4 with
- * URLSession, then `ShazamKit.recognizeFile` on that local file. Do not
- * Range-fetch Capgo MP4s into WebAudio — WKWebView `decodeAudioData` can hang
- * and never reach the plugin (current production JS still does this).
- * Worker ACRCloud runs only when ShazamKit is unavailable or errors. A clean
- * native no-match after the full-file window scan is final — Range-fetching
- * a Capgo/Photos `.mov` into ACR always returns code 2004.
+ * Download the progressive MP4, then `ShazamKit.recognizeFile` on that local
+ * file. A clean no-match after the full-file scan posts the loudest 11s WAV
+ * to ACRCloud. Worker ACRCloud (`identify-own-song`) runs when ShazamKit is
+ * unavailable, errors, cannot reach the catalog, or exported no WAV — not
+ * after a completed loudest-window ACR no-match (Range-fetching a Capgo
+ * `.mov` into ACR returns code 2004). Callers open manual entry on no-match.
  */
 export async function identifySongForUploadedClip(
   clip: ClipPlaybackFields,
@@ -309,29 +308,34 @@ async function identifySongForUploadedClipUncapped(
       return normalizeIdentifyResult(shazam);
     }
 
-    if (shazam?.status === 'nomatch') {
+    if (shazam?.status === 'nomatch' || shazam?.status === 'error') {
       console.log(
-        '[identify] clip-player shazamkit nomatch after full-file scan',
-        clipId,
+        '[identify] clip-player shazamkit',
+        shazam.status,
+        shazam.status === 'error' ? shazam.message : '',
+        'unavailable=',
+        shazam.matchUnavailable === true,
         'windows=',
         shazam.windowsTried ?? '?',
         'of',
         shazam.windowCount ?? '?',
         'loudest=',
         shazam.loudestStartSeconds ?? '?',
-        'rms=',
-        shazam.loudestRms ?? '?',
-        'cleanNoMatch — catalogs often miss live mixes; opening manual title',
+        'wav=',
+        shazam.wavPath ? 'yes' : 'no',
       );
       const acr = await acrFallbackForLoudestWindow(clipId, shazam.wavPath, report);
       if (acr) return acr;
-      // Shazam read the audio fine and found nothing: that is a real no-match,
-      // not a failure. Say so, so the owner gets the manual field.
-      return NO_MATCH;
+      // Clean catalog miss after the loudest-window ACR pass: open manual entry.
+      // No WAV, catalog unreachable, or a Shazam error still needs Worker ACR.
+      if (shazam.status === 'nomatch' && !shazam.matchUnavailable && shazam.wavPath?.trim()) {
+        return NO_MATCH;
+      }
     }
 
-    // ShazamKit itself could not run (unavailable, unreadable audio, timeout).
-    // The Worker can still read the published file, so let it try.
+    // ShazamKit itself could not run (unavailable, unreadable audio, timeout,
+    // catalog unreachable) or exported no loudest-window WAV. The Worker can
+    // still read the published file, so let it try.
     console.log(
       '[identify] clip-player shazamkit',
       shazam?.status ?? 'unavailable',

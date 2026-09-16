@@ -4,14 +4,11 @@ import {
   effectiveContentFeedForPost,
   hasManualShowArtistVenue,
 } from '@/shared/content-feed';
-import { formPatchFromClassification } from './identify-for-upload';
 import type { UploadOutboxJob } from './types';
-import type { ClipUploadFormFields } from '@/react-app/lib/processClipUpload';
 
 export type ResolvedUploadClassification = {
   classificationId: string;
   contentFeed: 'main' | 'pre_post';
-  formPatch?: Partial<ClipUploadFormFields>;
 };
 
 const CLASSIFY_TIMEOUT_MS = 45_000;
@@ -93,6 +90,5 @@ export async function resolveClassificationForUploadJob(
   return {
     classificationId,
     contentFeed,
-    formPatch: formPatchFromClassification(job, out),
   };
 }

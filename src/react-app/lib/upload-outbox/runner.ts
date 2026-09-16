@@ -27,11 +27,7 @@ import { releaseClipBlob } from './clip-blob-registry';
 import { deleteOutboxJob } from './idb';
 import { withUploadBackoff } from './upload-retry';
 import { uploadFetch } from './upload-fetch';
-import {
-  resolveSongIdentifyAfterUpload,
-  resolveSongIdentifyForUploadJob,
-  uploadJobNeedsSongIdentify,
-} from './identify-for-upload';
+import { resolveSongIdentifyAfterUpload } from './identify-for-upload';
 import { runUrlOutboxJob } from './url-upload';
 import type { UploadInitResponse } from '@/shared/upload';
 
@@ -46,7 +42,6 @@ function applyFormPatch(
 async function enrichJobWithAcrIfNeeded(
   job: UploadOutboxJob,
   video: Blob,
-  captureAudio: Blob | null | undefined,
   onPatch: (patch: Partial<UploadOutboxJob>) => void,
 ): Promise<UploadOutboxJob> {
   let current = job;
@@ -54,32 +49,16 @@ async function enrichJobWithAcrIfNeeded(
   if (uploadJobNeedsClassification(job)) {
     onPatch({ status: 'classifying', progress: 1, error: null });
     const resolved = await resolveClassificationForUploadJob(job, video);
-    current = applyFormPatch(
-      {
-        ...job,
-        classificationId: resolved.classificationId,
-        contentFeed: resolved.contentFeed,
-        classificationPending: false,
-      },
-      resolved.formPatch ?? {},
-    );
+    current = {
+      ...job,
+      classificationId: resolved.classificationId,
+      contentFeed: resolved.contentFeed,
+      classificationPending: false,
+    };
     onPatch({
       classificationId: resolved.classificationId,
       contentFeed: resolved.contentFeed,
       classificationPending: false,
-      ...(Object.keys(resolved.formPatch ?? {}).length > 0 ? { form: current.form } : {}),
-    });
-  }
-
-  if (uploadJobNeedsSongIdentify(current)) {
-    onPatch({ status: 'classifying', progress: Math.max(current.progress, 2), error: null });
-    const formPatch = await resolveSongIdentifyForUploadJob(current, video, captureAudio);
-    current = applyFormPatch(current, formPatch);
-    // Keep songIdentifyPending true when still empty so the camera HUD stays on
-    // "Identifying song…" through upload until the post-publish pass finishes.
-    onPatch({
-      songIdentifyPending: !current.form.song_title?.trim(),
-      ...(Object.keys(formPatch).length > 0 ? { form: current.form } : {}),
     });
   }
 
@@ -112,12 +91,7 @@ async function runFileUploadJob(
   let attachedThumb: { url: string; key: string } | null = null;
 
   if (blobs?.video) {
-    jobForUpload = await enrichJobWithAcrIfNeeded(
-      job,
-      blobs.video,
-      blobs.captureAudio ?? job.captureAudioBlob,
-      onPatch,
-    );
+    jobForUpload = await enrichJobWithAcrIfNeeded(job, blobs.video, onPatch);
   }
 
   onPatch({ status: 'uploading', progress: Math.max(jobForUpload.progress, 5) });
@@ -206,14 +180,10 @@ async function runFileUploadJob(
           songIdentifyPending: true,
           clipId: jobForUpload.clipId ?? job.clipId,
         });
-        const afterPatch = await resolveSongIdentifyAfterUpload(
-          {
-            ...jobForUpload,
-            clipId: jobForUpload.clipId ?? job.clipId,
-          },
-          blobs?.video ?? file,
-          blobs?.captureAudio ?? job.captureAudioBlob,
-        );
+        const afterPatch = await resolveSongIdentifyAfterUpload({
+          ...jobForUpload,
+          clipId: jobForUpload.clipId ?? job.clipId,
+        });
         jobForUpload = applyFormPatch(jobForUpload, afterPatch);
         onPatch({
           songIdentifyPending: false,

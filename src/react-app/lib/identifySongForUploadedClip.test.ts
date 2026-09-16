@@ -179,8 +179,16 @@ describe('identifySongForUploadedClip', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
-  it('does not call the worker after a native full-file no-match', async () => {
+  it('does not call the worker after a native full-file no-match with a loudest-window WAV', async () => {
     vi.spyOn(shazamKitIdentify, 'identifyNativeFileWithShazamKit').mockResolvedValue({
+      status: 'nomatch',
+      message: null,
+      wavPath: 'file:///tmp/clip-136.loudest.wav',
+    });
+    vi.spyOn(nativeBridge, 'readNativeFileAsBlob').mockResolvedValue(
+      new Blob([new Uint8Array(8000)], { type: 'audio/wav' }),
+    );
+    vi.spyOn(auddIdentify, 'identifyMusicWithAudD').mockResolvedValue({
       status: 'nomatch',
       message: null,
     });
@@ -319,5 +327,42 @@ describe('identifySongForUploadedClip', () => {
     );
 
     expect(stages).toEqual(['start', 'download', 'shazamkit-fast', 'shazamkit-scan']);
+  });
+
+  it('falls back to the worker when a native no-match has no loudest-window WAV', async () => {
+    vi.spyOn(shazamKitIdentify, 'identifyNativeFileWithShazamKit').mockResolvedValue({
+      status: 'nomatch',
+      message: null,
+    });
+    const fetchMock = fetchMockWithConfig(true, async () =>
+      json({ ok: true, match: { artist: 'Phish', title: 'Tweezer' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await identifySongForUploadedClip(
+      clip({ id: 143, video_url: 'https://cdn.example.com/IMG_4023.mov' }),
+    );
+
+    expect(result).toMatchObject({ status: 'match', title: 'Tweezer' });
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls.some((u) => u.includes('identify-own-song'))).toBe(true);
+  });
+
+  it('falls back to the worker when Shazam could not reach the catalog', async () => {
+    vi.spyOn(shazamKitIdentify, 'identifyNativeFileWithShazamKit').mockResolvedValue({
+      status: 'nomatch',
+      message: null,
+      matchUnavailable: true,
+    });
+    const fetchMock = fetchMockWithConfig(true, async () =>
+      json({ ok: true, match: { artist: 'Jay-Z', title: '99 Problems' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await identifySongForUploadedClip(
+      clip({ id: 144, video_url: 'https://cdn.example.com/IMG_4024.mov' }),
+    );
+
+    expect(result).toMatchObject({ status: 'match', artist: 'Jay-Z' });
   });
 });

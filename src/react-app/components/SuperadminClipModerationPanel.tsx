@@ -253,6 +253,7 @@ export default function SuperadminClipModerationPanel() {
                   clip={clip}
                   currentFields={metadataFieldsFromClip(clip)}
                   asSuperadmin
+                  allowManualEntry
                   onSaved={(updated) => {
                     setClips((prev) =>
                       prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),

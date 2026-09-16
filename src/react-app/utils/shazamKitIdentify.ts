@@ -21,6 +21,11 @@ export type NativeFileIdentifyResult = AudDIdentifyResult & {
   durationSeconds?: number | null;
   windowsTried?: number | null;
   windowCount?: number | null;
+  /**
+   * True when no window reached the Shazam catalog, so `nomatch` means
+   * "could not ask" rather than "Shazam does not know this song".
+   */
+  matchUnavailable?: boolean;
 };
 
 /** Cap for payloads sent over the Capacitor bridge as base64. */
@@ -282,6 +287,7 @@ export async function identifyNativeFileWithShazamKit(
     loudestStartSeconds?: number | null;
     loudestRms?: number | null;
     wavPath?: string | null;
+    matchUnavailable?: boolean;
   }) => {
     console.log(
       scanWindows ? '[identify] shazamkit scan' : '[identify] shazamkit fast pass',
@@ -299,7 +305,7 @@ export async function identifyNativeFileWithShazamKit(
       result.loudestStartSeconds ?? '?',
       'rms=',
       result.loudestRms ?? '?',
-      result.match ? 'match' : 'nomatch',
+      result.match ? 'match' : result.matchUnavailable ? 'unavailable' : 'nomatch',
     );
   };
   const withMeta = (
@@ -311,6 +317,7 @@ export async function identifyNativeFileWithShazamKit(
       durationSeconds?: number | null;
       windowsTried?: number;
       windowCount?: number;
+      matchUnavailable?: boolean;
     },
   ): NativeFileIdentifyResult => ({
     ...identify,
@@ -320,6 +327,7 @@ export async function identifyNativeFileWithShazamKit(
     durationSeconds: result?.durationSeconds ?? null,
     windowsTried: result?.windowsTried ?? null,
     windowCount: result?.windowCount ?? null,
+    matchUnavailable: result?.matchUnavailable === true,
   });
   try {
     const result = await withTimeout(recognize(), timeoutMs);
