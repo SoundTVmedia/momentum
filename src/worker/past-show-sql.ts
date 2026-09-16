@@ -41,6 +41,44 @@ export function clipNightKeySql(alias = 'clips'): string {
 
 export const CLIP_NIGHT_KEY_SQL = clipNightKeySql('clips');
 
+/**
+ * Past-show card identity for GROUP BY.
+ *
+ * 1. Prefer a stored JamBase event id (keeps multi-night residencies separate).
+ * 2. Otherwise inherit a JamBase id from another clip on the same concert night
+ *    (Don Toliver-style mixed JamBase + composite ids).
+ * 3. Otherwise group by artist + venue + event title so archival uploads with
+ *    wrong capture dates still share one card (Charlie Puth at MSG).
+ * 4. Last resort: artist + venue + capture day.
+ */
+export function clipPastShowGroupKeySql(alias = 'clips'): string {
+  const night = clipNightKeySql(alias);
+  const seedNight = clipNightKeySql('group_seed');
+  return `COALESCE(
+    NULLIF(TRIM(${alias}.jambase_event_id), ''),
+    (
+      SELECT NULLIF(TRIM(group_seed.jambase_event_id), '')
+      FROM clips AS group_seed
+      WHERE NULLIF(TRIM(group_seed.jambase_event_id), '') IS NOT NULL
+        AND ${seedNight} IS NOT NULL
+        AND ${night} IS NOT NULL
+        AND ${seedNight} = ${night}
+      LIMIT 1
+    ),
+    CASE
+      WHEN NULLIF(TRIM(${alias}.event_title), '') IS NULL THEN NULL
+      WHEN NULLIF(TRIM(${alias}.artist_name), '') IS NULL THEN NULL
+      WHEN NULLIF(TRIM(${alias}.venue_name), '') IS NULL THEN NULL
+      ELSE 'title:' || LOWER(TRIM(${alias}.artist_name)) || '|' ||
+        LOWER(REPLACE(REPLACE(TRIM(${alias}.venue_name), CHAR(39), ''), CHAR(8217), '')) || '|' ||
+        LOWER(TRIM(${alias}.event_title))
+    END,
+    ${night}
+  )`;
+}
+
+export const CLIP_PAST_SHOW_GROUP_KEY_SQL = clipPastShowGroupKeySql('clips');
+
 /** Prefer a JamBase event id when a night group contains mixed show identities. */
 export function groupedPastShowIdSql(): string {
   return `COALESCE(
@@ -138,15 +176,31 @@ export function mergeClipAndLibraryPastShows(
 ): PastShowListRow[] {
   const seenIds = new Set<string>();
   const seenNights = new Set<string>();
+  const seenTitles = new Set<string>();
   const out: PastShowListRow[] = [];
+
+  const titleKey = (row: PastShowListRow): string | null => {
+    if (row.jambase_event_id?.trim()) return null;
+    const artist = (row.artist_name ?? '').trim().toLowerCase();
+    const venue = (row.venue_name ?? '')
+      .trim()
+      .replace(/['\u2019]/g, '')
+      .toLowerCase();
+    const title = (row.event_title ?? '').trim().toLowerCase();
+    if (!artist || !venue || !title) return null;
+    return `${artist}|${venue}|${title}`;
+  };
 
   const take = (row: PastShowListRow) => {
     const id = (row.jambase_event_id || row.show_id || '').trim();
     const night = showNightKey(row.artist_name, row.venue_name, row.show_date);
+    const title = titleKey(row);
     if (id && seenIds.has(id)) return;
     if (night && seenNights.has(night)) return;
+    if (title && seenTitles.has(title)) return;
     if (id) seenIds.add(id);
     if (night) seenNights.add(night);
+    if (title) seenTitles.add(title);
     out.push(row);
   };
 
@@ -179,8 +233,9 @@ export const CLIP_SHOW_IDENTITY_BIND_COUNT = 3;
 
 /**
  * All clips for a show page, including rows that stored a composite show_id
- * while others stored the JamBase event id, and clips from the same
- * artist + venue + capture day. Bind the same showId nine times.
+ * while others stored the JamBase event id, same-night siblings, and
+ * title-matched archival clips when no JamBase event id exists.
+ * Bind the same showId nine times.
  */
 export function clipBelongsToRequestedShowSql(): string {
   return `(
@@ -195,11 +250,11 @@ export function clipBelongsToRequestedShowSql(): string {
       )
     )
     OR (
-      ${clipNightKeySql('clips')} IS NOT NULL
-      AND ${clipNightKeySql('clips')} IN (
-        SELECT ${clipNightKeySql('seed')}
+      ${clipPastShowGroupKeySql('clips')} IS NOT NULL
+      AND ${clipPastShowGroupKeySql('clips')} IN (
+        SELECT ${clipPastShowGroupKeySql('seed')}
         FROM clips AS seed
-        WHERE ${clipNightKeySql('seed')} IS NOT NULL
+        WHERE ${clipPastShowGroupKeySql('seed')} IS NOT NULL
           AND ${clipMatchesShowIdentitySql('seed')}
       )
     )

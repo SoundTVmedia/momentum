@@ -134,6 +134,45 @@ describe('library show search', () => {
     expect(ariana[0]?.jambase_event_id).toBe('jambase:14852021');
   });
 
+  it('merges archival Charlie Puth MSG clips that spanned capture days', () => {
+    const db = createDb();
+    const insert = db.prepare(
+      `INSERT INTO clips
+        (id, artist_name, venue_name, location, timestamp, jambase_event_id, show_id, event_title, thumbnail_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    insert.run(
+      27,
+      'Charlie Puth',
+      'Madison Square Garden',
+      'New York, NY',
+      '2026-06-01T18:31:45.000Z',
+      null,
+      'charlie-puth-madison-square-garden-2026-06-01',
+      'Charlie Puth at Madison Square Garden',
+      'https://cdn.example/a.jpg',
+    );
+    insert.run(
+      36,
+      'Charlie Puth',
+      'Madison Square Garden',
+      'New York, NY',
+      '2026-05-30T02:33:49.000Z',
+      null,
+      'charlie-puth-madison-square-garden-2026-05-30',
+      'Charlie Puth at Madison Square Garden',
+      'https://cdn.example/b.jpg',
+    );
+
+    const rows = db
+      .prepare(LIBRARY_SHOW_SEARCH_SQL)
+      .all('%charlie%', '%charlie%', '%charlie%', '%charlie%', 10) as LibraryShowSearchRow[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.clip_count).toBe(2);
+    expect(rows[0]?.event_title).toBe('Charlie Puth at Madison Square Garden');
+    expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
+  });
+
   it('maps a library show onto a Find a Show event row', () => {
     const event = libraryShowToJamBaseEvent({
       show_id: 'phish-msg-2024-12-31',

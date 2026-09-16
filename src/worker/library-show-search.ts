@@ -11,6 +11,7 @@ import {
 import { showNightKey } from '../shared/show-night-key';
 import {
   CLIP_NIGHT_KEY_SQL,
+  CLIP_PAST_SHOW_GROUP_KEY_SQL,
   groupedPastShowsSelectSql,
   libraryShowStubSelectSql,
   mergeClipAndLibraryPastShows,
@@ -42,8 +43,8 @@ export const LIBRARY_SHOW_SEARCH_SQL = `
     OR IFNULL(clips.venue_name, '') LIKE ? COLLATE NOCASE
     OR IFNULL(clips.location, '') LIKE ? COLLATE NOCASE
   )
-  GROUP BY ${CLIP_NIGHT_KEY_SQL}
-  HAVING ${CLIP_NIGHT_KEY_SQL} IS NOT NULL
+  GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+  HAVING ${CLIP_PAST_SHOW_GROUP_KEY_SQL} IS NOT NULL
   ORDER BY show_date DESC
   LIMIT ?
 `;
