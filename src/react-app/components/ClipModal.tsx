@@ -844,7 +844,8 @@ export default function ClipModal({
             targetId={clip.id}
             authorId={clip.mocha_user_id}
             authorName={clip.user_display_name}
-            buttonClassName="text-white"
+            buttonClassName="flex h-7 w-7 items-center justify-center text-white"
+            iconClassName="h-7 w-7"
             openUp
           />
         </div>
@@ -1058,7 +1059,7 @@ export default function ClipModal({
           </div>
 
           <div
-            className="flex w-1/3 flex-col overflow-hidden bg-slate-900/50"
+            className="flex min-h-0 w-1/3 flex-col overflow-x-hidden bg-slate-900/50"
             data-no-clip-swipe=""
           >
             <div className="flex-shrink-0 border-b border-white/10 p-4">
@@ -1067,54 +1068,64 @@ export default function ClipModal({
                   {editClipButton}
                 </div>
               ) : null}
-              {posterUserId ? (
-                <button
-                  type="button"
-                  onClick={goUser}
-                  onPointerDown={stopUserGesture}
-                  onTouchStart={stopUserGesture}
-                  className="mb-3 flex items-center space-x-3 text-left transition-opacity hover:opacity-80"
-                  aria-label={`View ${clip.user_display_name || 'user'} profile`}
-                >
-                  <UserAvatar
-                    imageUrl={clip.user_avatar}
-                    displayName={clip.user_display_name}
-                    seed={clip.mocha_user_id}
-                    alt={clip.user_display_name || 'User'}
-                    sizeClass="w-10 h-10"
-                    letterClassName="text-sm font-semibold"
-                    className="border-2 border-momentum-ember/40 flex-shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="truncate text-base font-medium text-white">
-                      {clip.user_display_name || 'Anonymous'}
+              <div className="mb-3 flex items-start justify-between gap-2">
+                {posterUserId ? (
+                  <button
+                    type="button"
+                    onClick={goUser}
+                    onPointerDown={stopUserGesture}
+                    onTouchStart={stopUserGesture}
+                    className="flex min-w-0 flex-1 items-center space-x-3 text-left transition-opacity hover:opacity-80"
+                    aria-label={`View ${clip.user_display_name || 'user'} profile`}
+                  >
+                    <UserAvatar
+                      imageUrl={clip.user_avatar}
+                      displayName={clip.user_display_name}
+                      seed={clip.mocha_user_id}
+                      alt={clip.user_display_name || 'User'}
+                      sizeClass="w-10 h-10"
+                      letterClassName="text-sm font-semibold"
+                      className="border-2 border-momentum-ember/40 flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-base font-medium text-white">
+                        {clip.user_display_name || 'Anonymous'}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {formatRelativeTime(clipPostedAt(clip))}
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-400">
-                      {formatRelativeTime(clipPostedAt(clip))}
+                  </button>
+                ) : (
+                  <div className="flex min-w-0 flex-1 items-center space-x-3">
+                    <UserAvatar
+                      imageUrl={clip.user_avatar}
+                      displayName={clip.user_display_name}
+                      seed={clip.mocha_user_id}
+                      alt={clip.user_display_name || 'User'}
+                      sizeClass="w-10 h-10"
+                      letterClassName="text-sm font-semibold"
+                      className="border-2 border-momentum-ember/40 flex-shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-base font-medium text-white">
+                        {clip.user_display_name || 'Anonymous'}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {formatRelativeTime(clipPostedAt(clip))}
+                      </div>
                     </div>
                   </div>
-                </button>
-              ) : (
-                <div className="mb-3 flex items-center space-x-3">
-                  <UserAvatar
-                    imageUrl={clip.user_avatar}
-                    displayName={clip.user_display_name}
-                    seed={clip.mocha_user_id}
-                    alt={clip.user_display_name || 'User'}
-                    sizeClass="w-10 h-10"
-                    letterClassName="text-sm font-semibold"
-                    className="border-2 border-momentum-ember/40 flex-shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="truncate text-base font-medium text-white">
-                      {clip.user_display_name || 'Anonymous'}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      {formatRelativeTime(clipPostedAt(clip))}
-                    </div>
-                  </div>
-                </div>
-              )}
+                )}
+                <ContentActionsMenu
+                  targetType="clip"
+                  targetId={clip.id}
+                  authorId={clip.mocha_user_id}
+                  authorName={clip.user_display_name}
+                  buttonClassName="shrink-0 p-2 text-gray-400 hover:text-white transition-colors"
+                  iconClassName="h-5 w-5"
+                />
+              </div>
 
               <div className="space-y-2">
                 {eventTitle ? (
@@ -1207,7 +1218,7 @@ export default function ClipModal({
                 />
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-4">
                 <div className="flex items-center space-x-4">
                   <button
                     type="button"
@@ -1317,6 +1328,8 @@ export default function ClipModal({
                     targetId={clip.id}
                     authorId={clip.mocha_user_id}
                     authorName={clip.user_display_name}
+                    buttonClassName="shrink-0 p-2 text-gray-400 hover:text-white transition-colors"
+                    iconClassName="h-5 w-5"
                     openUp
                   />
                 </div>

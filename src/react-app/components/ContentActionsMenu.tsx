@@ -19,6 +19,8 @@ type ContentActionsMenuProps = {
   initiallyBlocked?: boolean;
   /** Extra classes for the trigger button (icon size, colour). */
   buttonClassName?: string;
+  /** Extra classes for the ··· icon. */
+  iconClassName?: string;
   /** Open the dropdown upward when the trigger sits near the bottom of the viewport. */
   openUp?: boolean;
   onReported?: () => void;
@@ -38,6 +40,7 @@ export default function ContentActionsMenu({
   authorName,
   initiallyBlocked = false,
   buttonClassName = 'p-2 text-gray-400 hover:text-white transition-colors',
+  iconClassName = 'h-5 w-5',
   openUp = false,
   onReported,
   onBlocked,
@@ -178,7 +181,7 @@ export default function ContentActionsMenu({
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <MoreHorizontal className="h-5 w-5" />
+        <MoreHorizontal className={iconClassName} />
       </button>
 
       {open ? (
