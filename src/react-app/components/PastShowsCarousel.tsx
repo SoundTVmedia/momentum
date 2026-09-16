@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Music, Video } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import HorizontalClipCarousel, {
@@ -11,9 +12,9 @@ import {
 import { pastShowClipsPath } from '@/shared/app-paths';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
-import ClipPosterImage from '@/react-app/components/ClipPosterImage';
+import { hydrateFavoriteArtistImages } from '@/react-app/lib/hydrate-favorite-artist-images';
 import { isUsablePosterImageUrl } from '@/shared/clip-poster-url';
-import { jamBaseEventCardImageUrl } from '@/shared/jambase-events';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 export interface PastShowSummary {
   event_title: string;
@@ -28,6 +29,7 @@ export interface PastShowSummary {
   clip_count: number;
   average_show_rating?: number;
   thumbnail_url: string | null;
+  artist_image_url?: string | null;
 }
 
 interface PastShowsCarouselProps {
@@ -45,8 +47,68 @@ function formatShowDate(dateString: string): string {
   });
 }
 
+function usablePastShowImage(url: string | null | undefined): string | null {
+  const trimmed = typeof url === 'string' ? url.trim() : '';
+  return isUsablePosterImageUrl(trimmed) ? trimmed : null;
+}
+
+function pastShowCardImageUrl(
+  show: PastShowSummary,
+  hydratedByArtist: Map<string, string>,
+): string | null {
+  return (
+    usablePastShowImage(show.artist_image_url) ??
+    usablePastShowImage(hydratedByArtist.get(show.artist_name.trim().toLowerCase())) ??
+    usablePastShowImage(show.thumbnail_url)
+  );
+}
+
 export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselProps) {
   const navigate = useNavigate();
+  const [hydratedByArtist, setHydratedByArtist] = useState<Map<string, string>>(
+    () => new Map(),
+  );
+
+  const missingArtistKey = useMemo(
+    () =>
+      [
+        ...new Set(
+          shows
+            .filter((show) => !isUsablePosterImageUrl(show.artist_image_url))
+            .map((show) => show.artist_name.trim())
+            .filter((name) => name.length >= 2),
+        ),
+      ]
+        .sort((a, b) => a.localeCompare(b))
+        .join('|'),
+    [shows],
+  );
+
+  useEffect(() => {
+    const names = missingArtistKey ? missingArtistKey.split('|') : [];
+    if (names.length === 0) {
+      setHydratedByArtist(new Map());
+      return;
+    }
+
+    let cancelled = false;
+    void hydrateFavoriteArtistImages<{ name: string; image_url: string | null }>(
+      names.map((name) => ({ name, image_url: null })),
+    ).then((rows) => {
+      if (cancelled) return;
+      const next = new Map<string, string>();
+      for (const row of rows) {
+        const image = usablePastShowImage(row.image_url);
+        if (!image) continue;
+        next.set(row.name.trim().toLowerCase(), image);
+      }
+      setHydratedByArtist(next);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [missingArtistKey]);
 
   return (
     <HorizontalClipCarousel
@@ -61,12 +123,8 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
             : show.artist_name?.trim() || null;
         const markEvent = pastShowSummaryToJamBaseEvent(show);
         const showHref = pastShowClipsPath(show);
-        const posterUrl = isUsablePosterImageUrl(show.thumbnail_url)
-          ? show.thumbnail_url
-          : jamBaseEventCardImageUrl({
-              ...(markEvent ?? {}),
-              image: show.thumbnail_url,
-            });
+        const posterUrl = pastShowCardImageUrl(show, hydratedByArtist);
+        const imageSrc = posterUrl ? displayMediaUrl(posterUrl) : '';
 
         return (
           <HorizontalClipCarouselItem
@@ -76,14 +134,20 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
             <article className={`${EVENT_CAROUSEL_CARD_CLASS} glass-panel border border-momentum-rose/20 rounded-xl overflow-hidden`}>
               <Link
                 to={showHref}
-                className={`${EVENT_CAROUSEL_IMAGE_CLASS} group block`}
+                className={`${EVENT_CAROUSEL_IMAGE_CLASS} group block bg-white/5`}
                 aria-label={`View clips from ${show.event_title}`}
               >
-                <ClipPosterImage
-                  clip={{ thumbnail_url: posterUrl }}
-                  alt=""
-                  className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+                {imageSrc ? (
+                  <img
+                    src={imageSrc}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    decoding="async"
+                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="h-full w-full animate-pulse bg-white/10" aria-hidden />
+                )}
                 <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
                   <Video className="w-3.5 h-3.5 text-white" />
                   <span className="text-white text-xs font-medium">

@@ -1,5 +1,6 @@
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { displayNamesClose } from '../shared/artist-name-match';
+import { isUsablePosterImageUrl } from '../shared/clip-poster-url';
 import { slugifyEntityName } from '../shared/jambase-slug';
 import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
 import {
@@ -10,6 +11,85 @@ import {
   mergeClipAndLibraryPastShows,
   type PastShowListRow,
 } from './past-show-sql';
+
+function artistImageLookupKeys(name: string | null | undefined): string[] {
+  const trimmed = name?.trim() ?? '';
+  if (!trimmed) return [];
+  const keys = [trimmed.toLowerCase()];
+  const slug = slugifyEntityName(trimmed);
+  if (slug && slug !== keys[0]) keys.push(slug);
+  return keys;
+}
+
+/** Stamp JamBase artist photos onto past-show rows by artist name. */
+export function applyArtistImagesToPastShows(
+  rows: PastShowListRow[],
+  imagesByArtist: Map<string, string>,
+): PastShowListRow[] {
+  if (imagesByArtist.size === 0) return rows;
+  return rows.map((row) => {
+    if (isUsablePosterImageUrl(row.artist_image_url)) return row;
+    for (const key of artistImageLookupKeys(row.artist_name)) {
+      const image = imagesByArtist.get(key);
+      if (isUsablePosterImageUrl(image)) {
+        return { ...row, artist_image_url: image };
+      }
+    }
+    return row;
+  });
+}
+
+function indexArtistImage(map: Map<string, string>, name: string, imageUrl: string) {
+  const image = imageUrl.trim();
+  if (!isUsablePosterImageUrl(image)) return;
+  for (const key of artistImageLookupKeys(name)) {
+    if (!map.has(key)) map.set(key, image);
+  }
+}
+
+/** Fill missing past-show art from `artists.image_url` (JamBase artist photos). */
+export async function attachPastShowArtistImages(
+  db: D1Database,
+  rows: PastShowListRow[],
+): Promise<PastShowListRow[]> {
+  const names = [
+    ...new Set(rows.map((row) => row.artist_name?.trim() ?? '').filter((name) => name.length >= 2)),
+  ];
+  if (names.length === 0) return rows;
+
+  const images = new Map<string, string>();
+  const chunkSize = 30;
+  for (let i = 0; i < names.length; i += chunkSize) {
+    const chunk = names.slice(i, i + chunkSize);
+    const slugs = chunk.map((name) => slugifyEntityName(name)).filter(Boolean);
+    const namePlaceholders = chunk.map(() => '?').join(',');
+    const slugSql =
+      slugs.length > 0
+        ? ` OR LOWER(REPLACE(TRIM(name), ' ', '-')) IN (${slugs.map(() => '?').join(',')})`
+        : '';
+    try {
+      const result = await db
+        .prepare(
+          `SELECT name, image_url FROM artists
+           WHERE TRIM(IFNULL(image_url, '')) != ''
+           AND (
+             LOWER(TRIM(name)) IN (${namePlaceholders})
+             ${slugSql}
+           )`,
+        )
+        .bind(...chunk.map((name) => name.toLowerCase()), ...slugs)
+        .all();
+      for (const row of (result.results ?? []) as Array<{ name?: string; image_url?: string }>) {
+        if (typeof row.name === 'string' && typeof row.image_url === 'string') {
+          indexArtistImage(images, row.name, row.image_url);
+        }
+      }
+    } catch {
+      /* missing artists table or image_url should not hide past shows */
+    }
+  }
+  return applyArtistImagesToPastShows(rows, images);
+}
 
 function isMissingLibraryShowsTable(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
@@ -204,7 +284,7 @@ export async function listPastShowsForEntity(
     fetchLimit,
     opts.sortBy ?? 'date_played',
   );
-  return merged.slice(offset, offset + limit);
+  return attachPastShowArtistImages(db, merged.slice(offset, offset + limit));
 }
 
 export async function findExistingLibraryShow(

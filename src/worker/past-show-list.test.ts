@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { libraryStubMatchesEntity } from './past-show-list';
+import { applyArtistImagesToPastShows, libraryStubMatchesEntity } from './past-show-list';
 import type { PastShowListRow } from './past-show-sql';
 
 function stub(overrides: Partial<PastShowListRow> = {}): PastShowListRow {
@@ -44,5 +44,25 @@ describe('libraryStubMatchesEntity', () => {
         artistId: 'jambase:other',
       }),
     ).toBe(false);
+  });
+});
+
+describe('applyArtistImagesToPastShows', () => {
+  it('fills missing art from the JamBase artist photo keyed by name', () => {
+    const images = new Map([['phish', 'https://www.jambase.com/img/phish.jpg']]);
+    const [row] = applyArtistImagesToPastShows(
+      [stub({ artist_name: 'Phish', thumbnail_url: null })],
+      images,
+    );
+    expect(row?.artist_image_url).toBe('https://www.jambase.com/img/phish.jpg');
+  });
+
+  it('keeps an artist photo that is already on the row', () => {
+    const images = new Map([['phish', 'https://www.jambase.com/img/other.jpg']]);
+    const [row] = applyArtistImagesToPastShows(
+      [stub({ artist_name: 'Phish', artist_image_url: 'https://www.jambase.com/img/phish.jpg' })],
+      images,
+    );
+    expect(row?.artist_image_url).toBe('https://www.jambase.com/img/phish.jpg');
   });
 });

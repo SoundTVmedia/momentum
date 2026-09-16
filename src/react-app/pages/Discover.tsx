@@ -35,7 +35,7 @@ import { nearbyShowsApiUrl, readDeviceCoordsForNearbyShows } from '@/react-app/l
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import { globalSongPath } from '@/shared/app-paths';
 import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
-import { jamBaseEventArtistName, jamBaseEventId, jamBaseEventImageUrl, jamBaseEventVenueCityLine, jamBaseEventVenueName } from '@/shared/jambase-events';
+import { jamBaseEventArtistName, jamBaseEventHeadliner, jamBaseEventId, jamBaseEventImageUrl, jamBaseEventVenueCityLine, jamBaseEventVenueName } from '@/shared/jambase-events';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
   discoverResultsAreVenueIntent,
@@ -98,6 +98,7 @@ interface SearchResults {
     clip_count: number;
     average_show_rating?: number;
     thumbnail_url: string | null;
+    artist_image_url?: string | null;
   }[];
   jambase?: {
     artists: Record<string, unknown>[];
@@ -107,6 +108,34 @@ interface SearchResults {
   jambaseNotice?: string | null;
   locationScoped?: boolean;
   searchGeo?: { label: string; radius_miles: number };
+}
+
+function jamBaseArtistImageFromRecord(record: Record<string, unknown> | null | undefined): string | null {
+  const image = typeof record?.image === 'string' ? record.image.trim() : '';
+  return isUsablePosterImageUrl(image) ? image : null;
+}
+
+function discoverArtistImageUrl(
+  artistName: string,
+  artists: SearchResults['artists'],
+  jamBaseArtists: Record<string, unknown>[],
+): string | null {
+  const name = artistName.trim();
+  if (!name) return null;
+  const fromSearch = artists.find(
+    (artist) =>
+      normalizeSearchName(artist.name) === normalizeSearchName(name) ||
+      displayNamesClose(artist.name, name),
+  );
+  if (isUsablePosterImageUrl(fromSearch?.image_url)) return fromSearch!.image_url;
+  const fromCatalog = jamBaseArtists.find((artist) => {
+    const catalogName = jamBaseSearchRecordName(artist);
+    return (
+      normalizeSearchName(catalogName) === normalizeSearchName(name) ||
+      displayNamesClose(catalogName, name)
+    );
+  });
+  return jamBaseArtistImageFromRecord(fromCatalog);
 }
 
 type DiscoverPastShow = NonNullable<SearchResults['pastShows']>[number];
@@ -129,6 +158,7 @@ function jamBaseClipEventToPastShow(event: Record<string, unknown>): DiscoverPas
   const loc = event.location as Record<string, unknown> | undefined;
   const venueName = jamBaseEventVenueName(event);
   const image = jamBaseEventImageUrl(event);
+  const artistImage = jamBaseArtistImageFromRecord(jamBaseEventHeadliner(event));
   const feedbackId =
     typeof event['x-feedbackShowId'] === 'string' ? event['x-feedbackShowId'].trim() : '';
   return {
@@ -141,7 +171,8 @@ function jamBaseClipEventToPastShow(event: Record<string, unknown>): DiscoverPas
     jambase_event_id: jamBaseEventId(event) || null,
     jambase_venue_id: typeof loc?.identifier === 'string' ? loc.identifier : null,
     clip_count: clipCount,
-    thumbnail_url: isUsablePosterImageUrl(image) ? image : null,
+    thumbnail_url: isUsablePosterImageUrl(image) ? image : artistImage,
+    artist_image_url: artistImage,
   };
 }
 
@@ -159,11 +190,18 @@ function mergeDiscoverPastShows(rows: DiscoverPastShow[]): DiscoverPastShow[] {
       ? existing.thumbnail_url
       : null;
     const nextThumb = isUsablePosterImageUrl(row.thumbnail_url) ? row.thumbnail_url : existingThumb;
+    const existingArtistImage = isUsablePosterImageUrl(existing.artist_image_url)
+      ? existing.artist_image_url
+      : null;
+    const nextArtistImage = isUsablePosterImageUrl(row.artist_image_url)
+      ? row.artist_image_url
+      : existingArtistImage;
     byKey.set(key, {
       ...existing,
       ...row,
       clip_count: Math.max(existing.clip_count, row.clip_count),
       thumbnail_url: nextThumb,
+      artist_image_url: nextArtistImage,
     });
   }
   return [...byKey.values()].sort((a, b) =>
@@ -175,7 +213,18 @@ function clipBackedPastShowsForDiscover(data: SearchResults): DiscoverPastShow[]
   const fromEvents = (data.jambase?.events ?? [])
     .map(jamBaseClipEventToPastShow)
     .filter((row): row is DiscoverPastShow => row != null);
-  return mergeDiscoverPastShows([...(data.pastShows ?? []), ...fromEvents]);
+  return mergeDiscoverPastShows([...(data.pastShows ?? []), ...fromEvents]).map((show) => {
+    if (isUsablePosterImageUrl(show.artist_image_url)) return show;
+    const artistImage = discoverArtistImageUrl(
+      show.artist_name,
+      data.artists,
+      (data.jambase?.artists ?? []).filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === 'object' && !Array.isArray(item),
+      ),
+    );
+    return artistImage ? { ...show, artist_image_url: artistImage } : show;
+  });
 }
 
 type DiscoverForYou = {

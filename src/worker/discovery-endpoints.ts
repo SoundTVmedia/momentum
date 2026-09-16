@@ -51,7 +51,11 @@ import {
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { songSlugFromTitle, songTitleFromSlug } from '../shared/song-tag';
 import { searchQueryTargetsName } from '../shared/discover-search-intent';
-import { listPastShowsForEntity, loadClipPastShowsForSong } from './past-show-list';
+import {
+  attachPastShowArtistImages,
+  listPastShowsForEntity,
+  loadClipPastShowsForSong,
+} from './past-show-list';
 import { searchLibraryShows } from './library-show-search';
 import type { PastShowListRow } from './past-show-sql';
 import { isUsablePosterImageUrl, streamThumbnailUrl } from '../shared/clip-poster-url';
@@ -85,6 +89,7 @@ type DiscoverPastShowRow = {
   clip_count: number;
   average_show_rating?: number;
   thumbnail_url: string | null;
+  artist_image_url?: string | null;
 };
 
 function pastShowRowToDiscover(row: PastShowListRow): DiscoverPastShowRow | null {
@@ -105,6 +110,20 @@ function pastShowRowToDiscover(row: PastShowListRow): DiscoverPastShowRow | null
     clip_count: Number(row.clip_count) || 0,
     average_show_rating: row.average_show_rating ?? undefined,
     thumbnail_url: pastShowThumbnailUrl(row),
+    artist_image_url: isUsablePosterImageUrl(row.artist_image_url)
+      ? row.artist_image_url!.trim()
+      : null,
+  };
+}
+
+function rewritePastShowMedia(
+  row: DiscoverPastShowRow,
+  mediaOrigin: string,
+): DiscoverPastShowRow {
+  return {
+    ...row,
+    thumbnail_url: rewriteMediaUrlForClient(row.thumbnail_url, mediaOrigin),
+    artist_image_url: rewriteMediaUrlForClient(row.artist_image_url, mediaOrigin),
   };
 }
 
@@ -189,9 +208,11 @@ async function pastShowsForDiscoverSearch(
         )),
   ]);
 
-  return dedupeDiscoverPastShows([...libraryHits, ...entityBatches.flat()])
+  const clipped = dedupeDiscoverPastShows([...libraryHits, ...entityBatches.flat()])
     .filter((row) => Number(row.clip_count) > 0)
-    .slice(0, limit)
+    .slice(0, limit);
+  const withArtistImages = await attachPastShowArtistImages(db, clipped);
+  return withArtistImages
     .map(pastShowRowToDiscover)
     .filter((row): row is DiscoverPastShowRow => row != null);
 }
@@ -508,10 +529,7 @@ async function runGeoScopedAdvancedSearch(
       [...enrichedVenues, ...jamBaseVenueNameRows(jbVenueCatalog)],
       compact ? 4 : 12,
     )
-  ).map((row) => ({
-    ...row,
-    thumbnail_url: rewriteMediaUrlForClient(row.thumbnail_url, mediaOrigin),
-  }));
+  ).map((row) => rewritePastShowMedia(row, mediaOrigin));
   return c.json({
     clips: withoutBlockedAuthors(
       (clips.results || []) as Record<string, unknown>[],
@@ -823,10 +841,7 @@ export async function advancedSearch(c: Context) {
       [...enrichedVenues, ...jamBaseVenueNameRows(jambase.venues)],
       compact ? 4 : 12,
     )
-  ).map((row) => ({
-    ...row,
-    thumbnail_url: rewriteMediaUrlForClient(row.thumbnail_url, mediaOrigin),
-  }));
+  ).map((row) => rewritePastShowMedia(row, mediaOrigin));
 
   return c.json({
     clips: withoutBlockedAuthors(

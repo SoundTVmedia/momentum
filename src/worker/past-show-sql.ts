@@ -97,6 +97,8 @@ export type PastShowListRow = {
   average_show_rating?: number | null;
   thumbnail_url: string | null;
   stream_video_id?: string | null;
+  /** JamBase artist photo (`artists.image_url`) when the clip poster is missing. */
+  artist_image_url?: string | null;
 };
 
 export function libraryShowStubSelectSql(options?: { includeAverageRating?: boolean }): string {
