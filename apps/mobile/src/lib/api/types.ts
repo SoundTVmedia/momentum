@@ -25,6 +25,9 @@ export type ClipFeedItem = {
   user_avatar: string | null;
   created_at: string;
   timestamp?: string | null;
+  event_title?: string | null;
+  show_id?: string | null;
+  jambase_event_id?: string | null;
 };
 
 export type ClipsPage = {

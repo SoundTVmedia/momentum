@@ -1,6 +1,6 @@
 import { festivalCanonicalSlug, isJamBaseFestivalEvent } from './jambase-festival';
 import { slugifyEntityName } from './jambase-slug';
-import { computeLegacyClipShowKey, computeShowId } from './show-id';
+import { computeShowId, resolveClipShowNavigationId } from './show-id';
 import { jamBaseEventTitle, resolveClipEventTitle } from './event-title';
 import {
   jamBaseEventArtistName,
@@ -136,14 +136,7 @@ export function pastShowClipsPath(show: PastShowClipsInput): string {
 
 /** The exact show for a clip, with a title-based fallback for legacy clip rows. */
 export function clipShowClipsPath(clip: ClipShowClipsInput): string {
-  const showId =
-    clip.show_id?.trim() ||
-    clip.jambase_event_id?.trim() ||
-    computeLegacyClipShowKey({
-      artist_name: clip.artist_name,
-      venue_name: clip.venue_name,
-      timestamp: clip.timestamp,
-    });
+  const showId = resolveClipShowNavigationId(clip);
   if (clip.artist_name?.trim() && showId) {
     return showClipsPath(clip.artist_name, showId);
   }

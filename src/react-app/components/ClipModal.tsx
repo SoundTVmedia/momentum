@@ -593,10 +593,12 @@ export default function ClipModal({
     venue_name: clip.venue_name,
   });
 
-  const goEvent = () => {
+  const goEvent = (event?: SyntheticEvent) => {
+    event?.stopPropagation();
+    const path = clipShowClipsPath(clip);
+    if (!path || path === '/') return;
     onClose();
-    if (!eventTitle) return;
-    navigate(clipShowClipsPath(clip));
+    navigate(path);
   };
 
   const mobileVideoOverlay = (
@@ -703,6 +705,8 @@ export default function ClipModal({
             <button
               type="button"
               onClick={goEvent}
+              onPointerDown={stopUserGesture}
+              onTouchStart={stopUserGesture}
               className="block max-w-full text-left transition-opacity hover:opacity-80 mb-2"
             >
               <p className="text-xl sm:text-2xl font-bold text-white leading-snug line-clamp-2">{eventTitle}</p>
@@ -1134,6 +1138,8 @@ export default function ClipModal({
                   <button
                     type="button"
                     onClick={goEvent}
+                    onPointerDown={stopUserGesture}
+                    onTouchStart={stopUserGesture}
                     className="flex min-w-0 w-full items-start space-x-2 text-left transition-opacity hover:opacity-80 mb-1"
                   >
                     <Calendar className="h-5 w-5 shrink-0 text-momentum-flare mt-0.5" />

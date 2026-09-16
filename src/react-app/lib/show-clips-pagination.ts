@@ -19,6 +19,7 @@ export interface ShowClipsPage {
   clips: ClipWithUser[];
   hasMore: boolean;
   show: StoredShowPage | null;
+  canonical_show_id: string | null;
 }
 
 type FetchAllShowClipsOptions = Omit<FetchShowClipsPageOptions, 'page'>;
@@ -68,11 +69,18 @@ export async function fetchShowClipsPage({
     throw new Error('Failed to fetch show clips');
   }
 
-  const data = (await response.json()) as Partial<ShowClipsPage>;
+  const data = (await response.json()) as Partial<ShowClipsPage> & {
+    canonical_show_id?: string | null;
+  };
+  const canonical =
+    typeof data.canonical_show_id === 'string' && data.canonical_show_id.trim()
+      ? data.canonical_show_id.trim()
+      : null;
   return {
     clips: Array.isArray(data.clips) ? data.clips : [],
     hasMore: Boolean(data.hasMore),
     show: parseStoredShow(data.show),
+    canonical_show_id: canonical,
   };
 }
 
@@ -93,17 +101,23 @@ export function appendUniqueShowClips(
 
 export async function fetchAllShowClips(
   options: FetchAllShowClipsOptions,
-): Promise<{ clips: ClipWithUser[]; show: StoredShowPage | null }> {
+): Promise<{
+  clips: ClipWithUser[];
+  show: StoredShowPage | null;
+  canonical_show_id: string | null;
+}> {
   let clips: ClipWithUser[] = [];
   let show: StoredShowPage | null = null;
+  let canonicalShowId: string | null = null;
 
   for (let page = 1; ; page += 1) {
     const result = await fetchShowClipsPage({ ...options, page });
     if (result.show) show = result.show;
+    if (result.canonical_show_id) canonicalShowId = result.canonical_show_id;
     clips = appendUniqueShowClips(clips, result.clips);
 
     if (!result.hasMore || result.clips.length === 0) {
-      return { clips, show };
+      return { clips, show, canonical_show_id: canonicalShowId };
     }
   }
 }

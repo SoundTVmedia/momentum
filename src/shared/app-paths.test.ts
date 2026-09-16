@@ -56,6 +56,52 @@ describe('clipShowClipsPath', () => {
     ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-20/clips');
   });
 
+  it('prefers a JamBase event id over a composite slug show id', () => {
+    expect(
+      clipShowClipsPath({
+        event_title: 'Ariana Grande at Barclays Center',
+        artist_name: 'Ariana Grande',
+        venue_name: 'Barclays Center',
+        timestamp: '2026-07-14T00:32:47.000Z',
+        show_id: 'ariana-grande-barclays-center-2026-07-14',
+        jambase_event_id: 'jambase:14852021',
+      }),
+    ).toBe('/artists/ariana-grande/shows/jambase%3A14852021/clips');
+  });
+
+  it('keeps multi-night Phish MSG titles on their own show pages', () => {
+    expect(
+      clipShowClipsPath({
+        event_title: 'Phish at Madison Square Garden',
+        artist_name: 'Phish',
+        venue_name: 'Madison Square Garden',
+        timestamp: '2026-07-28T00:55:35.531Z',
+        show_id: 'jambase:15668779',
+        jambase_event_id: 'jambase:15668779',
+      }),
+    ).toBe('/artists/phish/shows/jambase%3A15668779/clips');
+    expect(
+      clipShowClipsPath({
+        event_title: 'Phish at Madison Square Garden',
+        artist_name: 'Phish',
+        venue_name: 'Madison Square Garden',
+        timestamp: '2026-07-26T03:09:35.744Z',
+        show_id: 'jambase:15668776',
+        jambase_event_id: 'jambase:15668776',
+      }),
+    ).toBe('/artists/phish/shows/jambase%3A15668776/clips');
+    expect(
+      clipShowClipsPath({
+        event_title: 'Phish at Madison Square Garden',
+        artist_name: 'Phish',
+        venue_name: 'Madison Square Garden',
+        timestamp: '2025-12-29T03:24:42.000Z',
+        show_id: 'phish-madison-square-garden-2025-12-29',
+        jambase_event_id: null,
+      }),
+    ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-12-29/clips');
+  });
+
   it('uses the database legacy show key when a clip has no show id', () => {
     expect(
       clipShowClipsPath({

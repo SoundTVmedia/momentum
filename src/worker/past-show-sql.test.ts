@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_NIGHT_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -126,7 +126,7 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       .prepare(`
         SELECT ${groupedPastShowsSelectSql()}
         FROM clips
-        GROUP BY ${CLIP_NIGHT_KEY_SQL}
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
         ORDER BY show_date ASC
       `)
       .all() as Array<{ show_id: string; clip_count: number; artist_name: string }>;
@@ -145,6 +145,46 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     ]);
   });
 
+  it('merges archival clips that share an event title but span capture days', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (27, 'Charlie Puth', 'Madison Square Garden', '2026-06-01T18:31:45.000Z', NULL, 'charlie-puth-madison-square-garden-2026-06-01', 'Charlie Puth at Madison Square Garden'),
+        (28, 'Charlie Puth', 'Madison Square Garden', '2026-06-01T21:06:32.000Z', NULL, 'charlie-puth-madison-square-garden-2026-06-01', 'Charlie Puth at Madison Square Garden'),
+        (36, 'Charlie Puth', 'Madison Square Garden', '2026-05-30T02:33:49.000Z', NULL, 'charlie-puth-madison-square-garden-2026-05-30', 'Charlie Puth at Madison Square Garden'),
+        (300, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden'),
+        (301, 'Phish', 'Madison Square Garden', '2026-07-26T01:00:00.000Z', 'jambase:15668776', 'jambase:15668776', 'Phish at Madison Square Garden')
+    `).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+        ORDER BY artist_name ASC, show_date ASC
+      `)
+      .all() as Array<{ show_id: string; clip_count: number; artist_name: string; show_date: string }>;
+
+    expect(
+      rows.map((row) => ({
+        show_id: row.show_id,
+        clip_count: row.clip_count,
+        artist_name: row.artist_name,
+      })),
+    ).toEqual([
+      {
+        show_id: 'charlie-puth-madison-square-garden-2026-06-01',
+        clip_count: 3,
+        artist_name: 'Charlie Puth',
+      },
+      { show_id: 'jambase:15668773', clip_count: 1, artist_name: 'Phish' },
+      { show_id: 'jambase:15668776', clip_count: 1, artist_name: 'Phish' },
+    ]);
+    expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
+  });
+
   it('prefers a real clip poster over empty thumbnail strings', () => {
     const db = createDb();
     db.prepare(`
@@ -159,7 +199,7 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       .prepare(
         `SELECT ${groupedPastShowsSelectSql()}
          FROM clips
-         GROUP BY ${CLIP_NIGHT_KEY_SQL}`,
+         GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}`,
       )
       .all() as Array<{ thumbnail_url: string | null }>;
 
@@ -250,6 +290,60 @@ describe('clipBelongsToRequestedShowSql', () => {
 
     expect(byEventId).toEqual([{ id: 127 }, { id: 128 }, { id: 130 }, { id: 131 }]);
     expect(byComposite).toEqual([{ id: 127 }, { id: 128 }, { id: 130 }, { id: 131 }]);
+
+    const canonicalBySlug = db
+      .prepare(
+        `SELECT ${groupedPastShowIdSql()} as canonical_show_id
+         FROM clips
+         WHERE ${clipBelongsToRequestedShowSql()}`,
+      )
+      .get(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'ariana-grande-barclays-center-2026-07-14',
+        ),
+      ) as { canonical_show_id: string };
+    expect(canonicalBySlug.canonical_show_id).toBe('jambase:14852021');
+  });
+
+  it('includes archival clips that share an event title across capture days', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (27, 'Charlie Puth', 'Madison Square Garden', '2026-06-01T18:31:45.000Z', NULL, 'charlie-puth-madison-square-garden-2026-06-01', 'Charlie Puth at Madison Square Garden'),
+        (28, 'Charlie Puth', 'Madison Square Garden', '2026-06-01T21:06:32.000Z', NULL, 'charlie-puth-madison-square-garden-2026-06-01', 'Charlie Puth at Madison Square Garden'),
+        (36, 'Charlie Puth', 'Madison Square Garden', '2026-05-30T02:33:49.000Z', NULL, 'charlie-puth-madison-square-garden-2026-05-30', 'Charlie Puth at Madison Square Garden'),
+        (300, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden')
+    `).run();
+
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const byJune = db
+      .prepare(sql)
+      .all(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'charlie-puth-madison-square-garden-2026-06-01',
+        ),
+      ) as Array<{ id: number }>;
+    const byMay = db
+      .prepare(sql)
+      .all(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'charlie-puth-madison-square-garden-2026-05-30',
+        ),
+      ) as Array<{ id: number }>;
+    const byPhishNight = db
+      .prepare(sql)
+      .all(
+        ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15668773'),
+      ) as Array<{ id: number }>;
+
+    expect(byJune).toEqual([{ id: 27 }, { id: 28 }, { id: 36 }]);
+    expect(byMay).toEqual([{ id: 27 }, { id: 28 }, { id: 36 }]);
+    expect(byPhishNight).toEqual([{ id: 300 }]);
   });
 
   it('includes clips that share a title-linked show identity', () => {
@@ -490,6 +584,44 @@ describe('mergeClipAndLibraryPastShows', () => {
     expect(merged[0]?.jambase_event_id).toBe('jambase:1');
     expect(merged[0]?.clip_count).toBe(3);
     expect(merged[1]?.jambase_event_id).toBe('jambase:2');
+  });
+
+  it('drops a second null-JamBase card that only differs by capture day', () => {
+    const merged = mergeClipAndLibraryPastShows(
+      [
+        {
+          show_id: 'charlie-puth-madison-square-garden-2026-06-01',
+          event_title: 'Charlie Puth at Madison Square Garden',
+          artist_name: 'Charlie Puth',
+          show_date: '2026-06-01T18:31:45.000Z',
+          venue_name: 'Madison Square Garden',
+          venue_location: 'New York, NY',
+          jambase_event_id: null,
+          jambase_venue_id: 'jambase:62108',
+          jambase_artist_id: 'jambase:50343',
+          clip_count: 2,
+          thumbnail_url: 'https://cdn.example/a.jpg',
+        },
+        {
+          show_id: 'charlie-puth-madison-square-garden-2026-05-30',
+          event_title: 'Charlie Puth at Madison Square Garden',
+          artist_name: 'Charlie Puth',
+          show_date: '2026-05-30T02:33:49.000Z',
+          venue_name: 'Madison Square Garden',
+          venue_location: 'New York, NY',
+          jambase_event_id: null,
+          jambase_venue_id: 'jambase:62108',
+          jambase_artist_id: 'jambase:50343',
+          clip_count: 1,
+          thumbnail_url: 'https://cdn.example/b.jpg',
+        },
+      ],
+      [],
+      12,
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.show_id).toBe('charlie-puth-madison-square-garden-2026-06-01');
   });
 });
 

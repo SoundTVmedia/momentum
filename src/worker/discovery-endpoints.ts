@@ -138,8 +138,20 @@ function dedupeDiscoverPastShows(rows: PastShowListRow[]): PastShowListRow[] {
   const seen = new Set<string>();
   const out: PastShowListRow[] = [];
   for (const row of rows) {
+    const jamId = (row.jambase_event_id || '').trim();
+    const showId = (row.show_id || '').trim();
+    const artist = (row.artist_name || '').trim().toLowerCase();
+    const venue = (row.venue_name || '')
+      .trim()
+      .replace(/['\u2019]/g, '')
+      .toLowerCase();
+    const title = (row.event_title || '').trim().toLowerCase();
+    const titleKey =
+      !jamId && artist && venue && title ? `title:${artist}|${venue}|${title}` : '';
     const key =
-      (row.show_id || row.jambase_event_id || '').trim() ||
+      jamId ||
+      titleKey ||
+      showId ||
       `${row.artist_name}|${row.venue_name}|${row.show_date}`;
     if (seen.has(key)) continue;
     seen.add(key);
