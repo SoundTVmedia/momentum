@@ -297,22 +297,23 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 
-  /* ── Brand scale (shared) — warm gold → brass → deep gold ── */
-  --momentum-ember: #E4C15A;
-  --momentum-flare: #C9A227;
-  --momentum-rose: #8F6B1F;
-  --momentum-copper: #3D3010;
+  /* ── Brand scale (shared) — Nightstage / Magenta ── */
+  --momentum-ember: #FF2E88;
+  --momentum-flare: #FF2E88;
+  --momentum-rose: #7566E8;
+  --momentum-copper: #2A1024;
+  --momentum-gold: #D6A84B;
   --momentum-teal: var(--momentum-ember);
   --momentum-mint: var(--momentum-flare);
   --momentum-grad: linear-gradient(
     to bottom left,
-    #E4C15A 0%,
-    #C9A227 50%,
-    #8F6B1F 100%
+    #FF2E88 0%,
+    #FF2E88 50%,
+    #7566E8 100%
   );
   --gradient-spotlight: var(--momentum-grad);
-  --gradient-velvet: linear-gradient(135deg, #C9A227 0%, #8F6B1F 100%);
-  --gradient-warm-glow: linear-gradient(135deg, #E4C15A 0%, #F0E0A8 100%);
+  --gradient-velvet: linear-gradient(135deg, #FF2E88 0%, #7566E8 100%);
+  --gradient-warm-glow: linear-gradient(135deg, #FF2E88 0%, #F6F2FA 100%);
 
   --glass-blur: 24px;
   --glass-blur-chrome: 32px;
@@ -321,113 +322,113 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   --mobile-bottom-nav-safe-extra: 0.5rem;
 }
 
-/* ── Dark theme (default) — deep black shell, white type, gold accents ── */
+/* ── Dark theme (default) — Nightstage shell, House Light type, Magenta CTAs ── */
 :root,
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --momentum-glacier: #F0E0A8;
-  --momentum-ink: #0A0A0A;
-  --momentum-smoke: #161616;
+  --momentum-glacier: #F6F2FA;
+  --momentum-ink: #0B0711;
+  --momentum-smoke: #160E1C;
 
-  --shell-bg: #0A0A0A;
-  --shell-bg-mid: #121212;
-  --shell-bg-deep: #1A1A1A;
+  --shell-bg: #0B0711;
+  --shell-bg-mid: #120C1A;
+  --shell-bg-deep: #1A1324;
   --shell-border: rgba(255, 255, 255, 0.1);
 
-  --text-body: #f2f2f2;
+  --text-body: #F6F2FA;
   --text-secondary: #d4d4d4;
   --text-muted: #b0b0b0;
   --text-subtle: #8a8a8a;
   --icon-muted: #c4c4c4;
 
   --shell-body-gradient:
-    radial-gradient(ellipse 80% 50% at 18% -10%, rgba(228, 193, 90, 0.1) 0%, transparent 55%),
-    radial-gradient(ellipse 60% 40% at 88% 12%, rgba(201, 162, 39, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(143, 107, 31, 0.1) 0%, transparent 45%),
-    linear-gradient(to bottom, #0A0A0A 0%, #121212 50%, #0A0A0A 100%);
+    radial-gradient(ellipse 80% 50% at 18% -10%, rgba(255, 46, 136, 0.1) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 88% 12%, rgba(117, 102, 232, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(117, 102, 232, 0.1) 0%, transparent 45%),
+    linear-gradient(to bottom, #0B0711 0%, #120C1A 50%, #0B0711 100%);
 
   --hero-headline-grad: linear-gradient(
     125deg,
-    #ffffff 0%,
-    #F7F2E3 22%,
-    #F0E0A8 48%,
-    #E8D48A 72%,
-    #ffffff 100%
+    #F6F2FA 0%,
+    #FF2E88 22%,
+    #F6F2FA 48%,
+    #7566E8 72%,
+    #F6F2FA 100%
   );
 
   --glass-bg: rgba(255, 255, 255, 0.04);
   --glass-bg-strong: rgba(255, 255, 255, 0.08);
   --glass-border: rgba(255, 255, 255, 0.11);
-  --glass-border-accent: rgba(201, 162, 39, 0.32);
+  --glass-border-accent: rgba(255, 46, 136, 0.32);
   --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --glass-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   --glass-highlight: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.09) 0%,
-    rgba(228, 193, 90, 0.07) 40%,
-    rgba(143, 107, 31, 0.08) 100%
+    rgba(255, 46, 136, 0.07) 40%,
+    rgba(117, 102, 232, 0.08) 100%
   );
-  --glass-chrome-bg: rgba(3, 7, 18, 0.78);
-  --glass-dropdown-bg: rgba(6, 16, 24, 0.92);
-  --glass-modal-overlay: rgba(3, 10, 18, 0.84);
-  --glass-input-text: #f2f2f2;
-  --glass-input-focus-border: rgba(201, 162, 39, 0.5);
-  --glass-input-focus-ring: rgba(228, 193, 90, 0.15);
+  --glass-chrome-bg: rgba(11, 7, 17, 0.78);
+  --glass-dropdown-bg: rgba(16, 10, 24, 0.92);
+  --glass-modal-overlay: rgba(11, 7, 17, 0.84);
+  --glass-input-text: #F6F2FA;
+  --glass-input-focus-border: rgba(255, 46, 136, 0.5);
+  --glass-input-focus-ring: rgba(255, 46, 136, 0.15);
 }
 
-/* ── Light theme — cool-white shell, slate type, deep blue accents ── */
+/* ── Light theme — House Light shell, Nightstage type, Magenta CTAs ── */
 [data-theme='light'] {
   color-scheme: light;
 
-  --momentum-glacier: #A8841C;
-  --momentum-ink: #f8fafc;
-  --momentum-smoke: #F5F0E6;
+  --momentum-glacier: #C4186A;
+  --momentum-ink: #F6F2FA;
+  --momentum-smoke: #EDE6F4;
 
-  --shell-bg: #f8fafc;
-  --shell-bg-mid: #F7F2E3;
-  --shell-bg-deep: #EFE6C8;
-  --shell-border: rgba(0, 0, 0, 0.08);
+  --shell-bg: #F6F2FA;
+  --shell-bg-mid: #EDE6F4;
+  --shell-bg-deep: #E2D8EE;
+  --shell-border: rgba(11, 7, 17, 0.08);
 
-  --text-body: #0f172a;
-  --text-secondary: #334155;
-  --text-muted: #475569;
-  --text-subtle: #64748b;
-  --icon-muted: #475569;
+  --text-body: #0B0711;
+  --text-secondary: #2A2233;
+  --text-muted: #4A4258;
+  --text-subtle: #6B6278;
+  --icon-muted: #4A4258;
 
   --shell-body-gradient:
-    radial-gradient(ellipse 80% 50% at 18% -10%, rgba(228, 193, 90, 0.07) 0%, transparent 55%),
-    radial-gradient(ellipse 60% 40% at 88% 12%, rgba(201, 162, 39, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(143, 107, 31, 0.06) 0%, transparent 45%),
-    linear-gradient(to bottom, #f8fafc 0%, #F7F2E3 50%, #f8fafc 100%);
+    radial-gradient(ellipse 80% 50% at 18% -10%, rgba(255, 46, 136, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 88% 12%, rgba(117, 102, 232, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(117, 102, 232, 0.06) 0%, transparent 45%),
+    linear-gradient(to bottom, #F6F2FA 0%, #EDE6F4 50%, #F6F2FA 100%);
 
   --hero-headline-grad: linear-gradient(
     125deg,
-    #0f172a 0%,
-    #3D3010 22%,
-    #A8841C 48%,
-    #8F6B1F 72%,
-    #0f172a 100%
+    #0B0711 0%,
+    #FF2E88 22%,
+    #0B0711 48%,
+    #7566E8 72%,
+    #0B0711 100%
   );
 
   --glass-bg: rgba(0, 0, 0, 0.03);
   --glass-bg-strong: rgba(0, 0, 0, 0.06);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --glass-border-accent: rgba(201, 162, 39, 0.28);
+  --glass-border: rgba(11, 7, 17, 0.08);
+  --glass-border-accent: rgba(255, 46, 136, 0.28);
   --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.85);
   --glass-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   --glass-highlight: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.92) 0%,
-    rgba(103, 232, 249, 0.35) 40%,
-    rgba(204, 251, 241, 0.5) 100%
+    rgba(255, 46, 136, 0.18) 40%,
+    rgba(117, 102, 232, 0.16) 100%
   );
-  --glass-chrome-bg: rgba(248, 250, 252, 0.88);
+  --glass-chrome-bg: rgba(246, 242, 250, 0.88);
   --glass-dropdown-bg: rgba(255, 255, 255, 0.96);
-  --glass-modal-overlay: rgba(248, 250, 252, 0.88);
-  --glass-input-text: #0f172a;
-  --glass-input-focus-border: rgba(201, 162, 39, 0.55);
-  --glass-input-focus-ring: rgba(201, 162, 39, 0.12);
+  --glass-modal-overlay: rgba(246, 242, 250, 0.88);
+  --glass-input-text: #0B0711;
+  --glass-input-focus-border: rgba(255, 46, 136, 0.55);
+  --glass-input-focus-ring: rgba(255, 46, 136, 0.12);
 }
 
 /* Brand CTAs + surfaces — uses --momentum-grad from :root */
@@ -447,15 +448,15 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   background-size: 200% auto;
   color: #fff;
   box-shadow:
-    0 4px 20px rgba(228, 193, 90, 0.28),
-    0 0 0 1px rgba(143, 107, 31, 0.3);
+    0 4px 20px rgba(255, 46, 136, 0.28),
+    0 0 0 1px rgba(117, 102, 232, 0.3);
   transition: background-position 0.45s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .momentum-ticket-btn:hover {
   background-position: right center;
   box-shadow:
-    0 6px 28px rgba(143, 107, 31, 0.38),
-    0 0 0 1px rgba(103, 232, 249, 0.35);
+    0 6px 28px rgba(117, 102, 232, 0.38),
+    0 0 0 1px rgba(255, 46, 136, 0.35);
 }
 
 .momentum-grad-text {
@@ -466,29 +467,29 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   color: transparent;
 }
 
-/** Hero headline — theme-aware cyan↔blue gradient */
+/** Hero headline — House Light with Magenta / Violet stops */
 .hero-headline-grad {
   background-image: var(--hero-headline-grad);
   background-size: 220% auto;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 2px 16px rgba(201, 162, 39, 0.22));
+  filter: drop-shadow(0 2px 16px rgba(255, 46, 136, 0.22));
 }
 
 .brand-border {
   border-color: var(--glass-border-accent);
 }
 
-/** Role / section accents — black-gold palette */
+/** Role / section accents — Nightstage / Magenta palette */
 .brand-border-subtle {
-  border-color: rgba(228, 193, 90, 0.25);
+  border-color: rgba(255, 46, 136, 0.25);
 }
 .brand-surface-tint {
   background: linear-gradient(
     135deg,
-    rgba(228, 193, 90, 0.12) 0%,
-    rgba(143, 107, 31, 0.08) 100%
+    rgba(255, 46, 136, 0.12) 0%,
+    rgba(117, 102, 232, 0.08) 100%
   );
 }
 
@@ -528,7 +529,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   height: min(480px, 70vw);
   top: -8%;
   left: -12%;
-  background: radial-gradient(circle, rgba(228, 193, 90, 0.22) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 46, 136, 0.22) 0%, transparent 70%);
 }
 
 .momentum-ambient::after {
@@ -536,7 +537,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   height: min(400px, 60vw);
   bottom: 5%;
   right: -8%;
-  background: radial-gradient(circle, rgba(143, 107, 31, 0.24) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(117, 102, 232, 0.24) 0%, transparent 70%);
   animation-delay: -6s;
 }
 
@@ -555,21 +556,21 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #E4C15A, #C9A227, #8F6B1F);
+  background: linear-gradient(to bottom, #FF2E88, #FF2E88, #7566E8);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #8F6B1F, #C9A227, #E4C15A);
+  background: linear-gradient(to bottom, #7566E8, #FF2E88, #FF2E88);
 }
 
 /* Custom animations */
 @keyframes glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(143, 107, 31, 0.4);
+    box-shadow: 0 0 20px rgba(117, 102, 232, 0.4);
   }
   50% {
-    box-shadow: 0 0 40px rgba(228, 193, 90, 0.45);
+    box-shadow: 0 0 40px rgba(255, 46, 136, 0.45);
   }
 }
 
@@ -626,13 +627,13 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 @keyframes neon-pulse {
   0%, 100% {
     box-shadow:
-      0 0 10px rgba(228, 193, 90, 0.5),
-      0 0 20px rgba(143, 107, 31, 0.35);
+      0 0 10px rgba(255, 46, 136, 0.5),
+      0 0 20px rgba(117, 102, 232, 0.35);
   }
   50% {
     box-shadow:
-      0 0 20px rgba(143, 107, 31, 0.55),
-      0 0 40px rgba(103, 232, 249, 0.35);
+      0 0 20px rgba(117, 102, 232, 0.55),
+      0 0 40px rgba(255, 46, 136, 0.35);
   }
 }
 
@@ -697,32 +698,32 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 
   .glass-panel-hover:hover {
-    border-color: rgba(201, 162, 39, 0.45);
-    box-shadow: var(--glass-shadow-lg), 0 0 24px rgba(228, 193, 90, 0.15);
+    border-color: rgba(255, 46, 136, 0.45);
+    box-shadow: var(--glass-shadow-lg), 0 0 24px rgba(255, 46, 136, 0.15);
   }
 
   .glass-highlight {
     background: linear-gradient(
       135deg,
-      rgba(228, 193, 90, 0.14) 0%,
-      rgba(201, 162, 39, 0.08) 50%,
-      rgba(228, 193, 90, 0.1) 100%
+      rgba(255, 46, 136, 0.14) 0%,
+      rgba(255, 46, 136, 0.08) 50%,
+      rgba(255, 46, 136, 0.1) 100%
     );
     backdrop-filter: blur(var(--glass-blur)) saturate(180%);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-    border: 1px solid rgba(228, 193, 90, 0.3);
+    border: 1px solid rgba(255, 46, 136, 0.3);
     box-shadow: var(--glass-shadow);
   }
 
   .glass-banner {
     background: linear-gradient(
       135deg,
-      rgba(228, 193, 90, 0.18) 0%,
-      rgba(201, 162, 39, 0.1) 100%
+      rgba(255, 46, 136, 0.18) 0%,
+      rgba(255, 46, 136, 0.1) 100%
     );
     backdrop-filter: blur(var(--glass-blur)) saturate(170%);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
-    border: 1px solid rgba(228, 193, 90, 0.35);
+    border: 1px solid rgba(255, 46, 136, 0.35);
     box-shadow: var(--glass-shadow);
   }
 
@@ -776,11 +777,11 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   .glass-pill-active {
     background: linear-gradient(
       135deg,
-      rgba(228, 193, 90, 0.25) 0%,
-      rgba(201, 162, 39, 0.15) 100%
+      rgba(255, 46, 136, 0.25) 0%,
+      rgba(255, 46, 136, 0.15) 100%
     );
-    border-color: rgba(201, 162, 39, 0.45);
-    box-shadow: 0 0 16px rgba(228, 193, 90, 0.2);
+    border-color: rgba(255, 46, 136, 0.45);
+    box-shadow: 0 0 16px rgba(255, 46, 136, 0.2);
   }
 
   .glass-icon-btn {
@@ -805,7 +806,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    filter: drop-shadow(0 2px 16px rgba(201, 162, 39, 0.22));
+    filter: drop-shadow(0 2px 16px rgba(255, 46, 136, 0.22));
   }
 
   .fb-section-title {
@@ -961,7 +962,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     position: relative;
     min-width: 100%;
     flex-shrink: 0;
-    background: #0A0A0A;
+    background: #0B0711;
   }
 
   /*
@@ -973,7 +974,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     position: relative;
     overflow: hidden;
     min-height: 14.026rem;
-    background: #0A0A0A;
+    background: #0B0711;
   }
 
   @media (min-width: 640px) {
@@ -1042,7 +1043,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
       108deg,
       transparent 38%,
       rgba(255, 255, 255, 0.04) 46%,
-      rgba(103, 232, 249, 0.12) 50%,
+      rgba(255, 46, 136, 0.12) 50%,
       rgba(255, 255, 255, 0.04) 54%,
       transparent 62%
     );
@@ -1066,16 +1067,16 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     background: linear-gradient(
       180deg,
       rgba(3, 7, 18, 0.04) 0%,
-      rgba(201, 162, 39, 0.04) 55%,
-      rgba(143, 107, 31, 0.1) 82%,
-      rgba(3, 7, 18, 0.45) 100%
+      rgba(255, 46, 136, 0.04) 55%,
+      rgba(117, 102, 232, 0.1) 82%,
+      rgba(11, 7, 17, 0.45) 100%
     );
     mix-blend-mode: multiply;
   }
 
   .hero-jambase-grade {
     pointer-events: none;
-    background-color: #0A0A0A;
+    background-color: #0B0711;
     mix-blend-mode: color;
   }
 
@@ -1092,9 +1093,9 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   .hero-grad-brand {
     background-image: linear-gradient(
       to bottom left,
-      rgba(228, 193, 90, 0.04) 0%,
-      rgba(201, 162, 39, 0.05) 50%,
-      rgba(143, 107, 31, 0.1) 84%,
+      rgba(255, 46, 136, 0.04) 0%,
+      rgba(255, 46, 136, 0.05) 50%,
+      rgba(117, 102, 232, 0.1) 84%,
       rgba(3, 7, 18, 0.28) 100%
     );
     background-size: 220% 220%;
@@ -1209,10 +1210,10 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 }
 
 .video-card:hover {
-  border-color: rgba(201, 162, 39, 0.4);
+  border-color: rgba(255, 46, 136, 0.4);
   box-shadow:
     var(--glass-shadow-lg),
-    0 0 32px rgba(228, 193, 90, 0.25);
+    0 0 32px rgba(255, 46, 136, 0.25);
 }
 
 @layer components {
@@ -1225,7 +1226,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     background: linear-gradient(
       155deg,
       rgba(255, 255, 255, 0.11) 0%,
-      rgba(228, 193, 90, 0.07) 38%,
+      rgba(255, 46, 136, 0.07) 38%,
       rgba(0, 0, 0, 0.42) 100%
     );
     backdrop-filter: blur(32px) saturate(195%);
@@ -1234,7 +1235,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     box-shadow:
       0 10px 40px rgba(0, 0, 0, 0.38),
       inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      inset 0 -1px 0 rgba(228, 193, 90, 0.1);
+      inset 0 -1px 0 rgba(255, 46, 136, 0.1);
     transition:
       border-color 0.3s ease,
       box-shadow 0.3s ease,
@@ -1251,7 +1252,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
       rgba(255, 255, 255, 0.2) 0%,
       transparent 38%,
       transparent 62%,
-      rgba(201, 162, 39, 0.07) 100%
+      rgba(255, 46, 136, 0.07) 100%
     );
     pointer-events: none;
     z-index: 1;
@@ -1275,12 +1276,12 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 
   .glass-clip-card:hover {
-    border-color: rgba(201, 162, 39, 0.5);
+    border-color: rgba(255, 46, 136, 0.5);
     box-shadow:
       0 14px 48px rgba(0, 0, 0, 0.42),
-      0 0 36px rgba(228, 193, 90, 0.22),
+      0 0 36px rgba(255, 46, 136, 0.22),
       inset 0 1px 0 rgba(255, 255, 255, 0.22),
-      inset 0 -1px 0 rgba(201, 162, 39, 0.15);
+      inset 0 -1px 0 rgba(255, 46, 136, 0.15);
     transform: translateY(-2px);
   }
 
@@ -1369,15 +1370,15 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     border-radius: 999px;
     background: linear-gradient(
       to bottom,
-      rgba(228, 193, 90, 0.35) 0%,
-      rgba(228, 193, 90, 0.92) 18%,
-      rgba(201, 162, 39, 0.95) 50%,
-      rgba(143, 107, 31, 0.92) 82%,
-      rgba(143, 107, 31, 0.35) 100%
+      rgba(255, 46, 136, 0.35) 0%,
+      rgba(255, 46, 136, 0.92) 18%,
+      rgba(255, 46, 136, 0.95) 50%,
+      rgba(117, 102, 232, 0.92) 82%,
+      rgba(117, 102, 232, 0.35) 100%
     );
     box-shadow:
-      0 0 10px rgba(201, 162, 39, 0.32),
-      0 0 2px rgba(103, 232, 249, 0.5);
+      0 0 10px rgba(255, 46, 136, 0.32),
+      0 0 2px rgba(255, 46, 136, 0.5);
   }
 
   @media (min-width: 768px) {
@@ -1405,7 +1406,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     background: linear-gradient(
       155deg,
       rgba(255, 255, 255, 0.1) 0%,
-      rgba(228, 193, 90, 0.06) 40%,
+      rgba(255, 46, 136, 0.06) 40%,
       rgba(0, 0, 0, 0.38) 100%
     );
     backdrop-filter: blur(28px) saturate(185%);
@@ -1435,10 +1436,10 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   }
 
   .glass-youtube-card:hover {
-    border-color: rgba(201, 162, 39, 0.45);
+    border-color: rgba(255, 46, 136, 0.45);
     box-shadow:
       0 12px 40px rgba(0, 0, 0, 0.38),
-      0 0 28px rgba(228, 193, 90, 0.2),
+      0 0 28px rgba(255, 46, 136, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.18);
     transform: translateY(-2px);
   }
@@ -1447,13 +1448,13 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 /* Stage glow effects */
 .neon-border {
   border: 2px solid;
-  border-image: linear-gradient(to bottom left, #E4C15A, #C9A227, #8F6B1F) 1;
+  border-image: linear-gradient(to bottom left, #FF2E88, #FF2E88, #7566E8) 1;
 }
 
 .neon-glow {
   box-shadow:
-    0 0 10px rgba(228, 193, 90, 0.5),
-    0 0 20px rgba(143, 107, 31, 0.35);
+    0 0 10px rgba(255, 46, 136, 0.5),
+    0 0 20px rgba(117, 102, 232, 0.35);
 }
 
 /* Sticky header — sit below the status bar (time / signal / battery) on phones.

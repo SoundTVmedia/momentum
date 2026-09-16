@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Feedback">
-  <rect width="1024" height="1024" fill="#0A0A0A" />
+  <rect width="1024" height="1024" fill="#0B0711" />
   <defs>
     <linearGradient id="f-grad" x1="192" y1="128" x2="832" y2="896" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#ffffff" />
-      <stop offset="22%" stop-color="#F7F2E3" />
-      <stop offset="48%" stop-color="#F0E0A8" />
-      <stop offset="72%" stop-color="#E8D48A" />
-      <stop offset="100%" stop-color="#ffffff" />
+      <stop offset="0%" stop-color="#F6F2FA" />
+      <stop offset="22%" stop-color="#FF2E88" />
+      <stop offset="48%" stop-color="#F6F2FA" />
+      <stop offset="72%" stop-color="#7566E8" />
+      <stop offset="100%" stop-color="#F6F2FA" />
     </linearGradient>
   </defs>
   <path

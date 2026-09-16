@@ -212,7 +212,7 @@ export default function ArtistPage() {
                 className="w-48 h-48 rounded-full object-cover border-4 border-momentum-rose/40 shadow-xl shadow-momentum-rose/25"
               />
               {artist.is_verified === 1 && (
-                <div className="absolute bottom-2 right-2 bg-momentum-flare rounded-full p-2">
+                <div className="absolute bottom-2 right-2 bg-momentum-gold rounded-full p-2">
                   <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
@@ -225,7 +225,7 @@ export default function ArtistPage() {
               <div className="flex items-center space-x-3 mb-4">
                 <h1 className="fb-hero-title">{artist.name}</h1>
                 {artist.is_verified === 1 && (
-                  <span className="px-3 py-1 bg-momentum-flare/20 text-momentum-flare text-sm rounded-full font-medium">
+                  <span className="px-3 py-1 bg-momentum-gold/20 text-momentum-gold text-sm rounded-full font-medium">
                     Verified
                   </span>
                 )}

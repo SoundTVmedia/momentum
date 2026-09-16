@@ -98,7 +98,7 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
         <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border-b border-white/10 p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <Shield className="w-8 h-8 text-momentum-flare" />
+              <Shield className="w-8 h-8 text-momentum-gold" />
               <div>
                 <h2 className="text-2xl font-bold text-white">{guidance.title}</h2>
                 <p className="text-gray-300 text-sm">{guidance.description}</p>
@@ -124,12 +124,12 @@ export default function VerificationRequest({ onClose, userRole }: VerificationR
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Requirements */}
-            <div className="bg-momentum-flare/10 border border-momentum-flare/20 rounded-lg p-4">
+            <div className="bg-momentum-gold/10 border border-momentum-gold/20 rounded-lg p-4">
               <h3 className="text-white font-bold mb-2">Requirements:</h3>
               <ul className="space-y-1 text-sm text-gray-300">
                 {guidance.requirements.map((req, i) => (
                   <li key={i} className="flex items-start space-x-2">
-                    <span className="text-momentum-flare mt-0.5">•</span>
+                    <span className="text-momentum-gold mt-0.5">•</span>
                     <span>{req}</span>
                   </li>
                 ))}

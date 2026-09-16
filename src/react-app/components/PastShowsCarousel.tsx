@@ -160,13 +160,13 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                 <h3 className="mb-2">
                   <Link
                     to={showHref}
-                    className="text-white font-bold text-base leading-snug line-clamp-2 hover:text-momentum-flare transition-colors"
+                    className="text-white font-bold text-base leading-snug line-clamp-2 hover:text-momentum-rose transition-colors"
                   >
                     {show.event_title}
                   </Link>
                 </h3>
                 <div className="flex items-center gap-1.5 text-gray-400 text-sm mb-1">
-                  <Calendar className="w-3.5 h-3.5 shrink-0 text-momentum-flare" />
+                  <Calendar className="w-3.5 h-3.5 shrink-0 text-momentum-rose" />
                   <span>{formatShowDate(show.show_date)}</span>
                 </div>
                 {secondaryLine ? (

@@ -12,7 +12,8 @@ export type DesignPaletteId =
   | 'neon-blue'
   | 'crimson-pulse'
   | 'neon-tide'
-  | 'black-gold';
+  | 'black-gold'
+  | 'nightstage-magenta';
 
 export type DesignPalette = {
   id: DesignPaletteId;
@@ -30,6 +31,8 @@ export type DesignPalette = {
     copper: string;
     ink: string;
     smoke: string;
+    /** Premium / verified only — keep off CTAs and chrome */
+    gold?: string;
   };
 };
 
@@ -154,7 +157,7 @@ export const NEON_TIDE: DesignPalette = {
   },
 };
 
-/** Black + white + warm gold (investor deck / market report). ACTIVE. */
+/** Black + white + warm gold (investor deck / market report). */
 export const BLACK_GOLD: DesignPalette = {
   id: 'black-gold',
   label: 'Black gold',
@@ -175,6 +178,28 @@ export const BLACK_GOLD: DesignPalette = {
   },
 };
 
+/** Nightstage foundation + Headliner Magenta CTAs. ACTIVE. */
+export const NIGHTSTAGE_MAGENTA: DesignPalette = {
+  id: 'nightstage-magenta',
+  label: 'Nightstage / Magenta',
+  description:
+    'Concert-house palette — Nightstage foundation (~72%), Headliner Magenta primary/CTA (~9%), Electric Violet secondary/archive (~4%), House Light type (~13%), Stage Gold premium/verified only (~2%).',
+  tailwindGradient:
+    'bg-gradient-to-bl from-[#FF2E88] via-[#FF2E88] to-[#7566E8]',
+  momentumGrad:
+    'linear-gradient(to bottom left, #FF2E88 0%, #FF2E88 50%, #7566E8 100%)',
+  tokens: {
+    ember: '#FF2E88',
+    flare: '#FF2E88',
+    rose: '#7566E8',
+    glacier: '#F6F2FA',
+    copper: '#2A1024',
+    ink: '#0B0711',
+    smoke: '#160E1C',
+    gold: '#D6A84B',
+  },
+};
+
 export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
   'orange-version': ORANGE_VERSION,
   'green-option-1': GREEN_OPTION_1,
@@ -183,9 +208,10 @@ export const DESIGN_PALETTES: Record<DesignPaletteId, DesignPalette> = {
   'crimson-pulse': CRIMSON_PULSE,
   'neon-tide': NEON_TIDE,
   'black-gold': BLACK_GOLD,
+  'nightstage-magenta': NIGHTSTAGE_MAGENTA,
 };
 
 /** Palette currently wired in tailwind.config.js + index.css */
-export const ACTIVE_PALETTE_ID: DesignPaletteId = 'black-gold';
+export const ACTIVE_PALETTE_ID: DesignPaletteId = 'nightstage-magenta';
 
 export const ACTIVE_PALETTE = DESIGN_PALETTES[ACTIVE_PALETTE_ID];

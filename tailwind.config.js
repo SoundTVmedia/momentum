@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-/** Active palette: black-gold — see src/react-app/lib/design-palettes.ts */
+/** Active palette: nightstage-magenta — see src/react-app/lib/design-palettes.ts */
 export default {
   darkMode: ['selector', '[data-theme="dark"]'],
   content: [
@@ -19,6 +19,7 @@ export default {
           smoke: "var(--momentum-smoke)",
           teal: "var(--momentum-teal)",
           mint: "var(--momentum-mint)",
+          gold: "var(--momentum-gold)",
           body: "var(--text-body)",
           secondary: "var(--text-secondary)",
           muted: "var(--text-muted)",
@@ -34,7 +35,7 @@ export default {
       backgroundImage: {
         "momentum-flow": "var(--momentum-grad)",
         "momentum-flow-vertical":
-          "linear-gradient(to bottom, rgba(34,211,238,0.1) 0%, rgba(59,130,246,0.08) 45%, rgba(99,102,241,0.12) 100%)",
+          "linear-gradient(to bottom, rgba(255,46,136,0.1) 0%, rgba(255,46,136,0.08) 45%, rgba(117,102,232,0.12) 100%)",
         "glass-shine": "var(--glass-highlight)",
       },
       backgroundSize: {
@@ -43,7 +44,7 @@ export default {
       boxShadow: {
         glass: "var(--glass-shadow)",
         "glass-lg": "var(--glass-shadow-lg)",
-        "glass-glow": "0 0 32px rgba(201, 162, 39, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+        "glass-glow": "0 0 32px rgba(255, 46, 136, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
         "glass-chrome": "0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 -1px 0 rgba(0, 0, 0, 0.25)",
       },
       backdropBlur: {
