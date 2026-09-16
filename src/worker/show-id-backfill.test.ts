@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { __testing } from './show-id-backfill';
 
@@ -6,7 +6,7 @@ function asD1(db: DatabaseSync): D1Database {
   return {
     prepare(sql: string) {
       return {
-        bind(...params: unknown[]) {
+        bind(...params: SQLInputValue[]) {
           const runWithParams = <T>(fn: (stmt: ReturnType<DatabaseSync['prepare']>) => T): T => {
             const stmt = db.prepare(sql);
             return fn(stmt);
