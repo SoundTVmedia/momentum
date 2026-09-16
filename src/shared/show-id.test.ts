@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { computeLegacyClipShowKey, computeShowId, utcYmdFromTimestamp } from './show-id';
+import {
+  computeLegacyClipShowKey,
+  computeShowId,
+  isJamBaseEventId,
+  resolveClipShowNavigationId,
+  utcYmdFromTimestamp,
+} from './show-id';
 
 describe('show-id', () => {
   it('prefers jambase_event_id', () => {
@@ -78,6 +84,23 @@ describe('show-id', () => {
   });
 
   it('parses UTC calendar day', () => {
-    expect(utcYmdFromTimestamp('2025-04-20T23:59:59.000Z')).toBe('2025-04-20');
+    expect(utcYmdFromTimestamp('2025-04-20T01:00:00.000Z')).toBe('2025-04-20');
+  });
+
+  it('detects JamBase event ids', () => {
+    expect(isJamBaseEventId('jambase:14852021')).toBe(true);
+    expect(isJamBaseEventId('ariana-grande-barclays-center-2026-07-14')).toBe(false);
+  });
+
+  it('navigates mixed-id clips to the JamBase show page', () => {
+    expect(
+      resolveClipShowNavigationId({
+        show_id: 'ariana-grande-barclays-center-2026-07-14',
+        jambase_event_id: 'jambase:14852021',
+        artist_name: 'Ariana Grande',
+        venue_name: 'Barclays Center',
+        timestamp: '2026-07-14T00:32:47.000Z',
+      }),
+    ).toBe('jambase:14852021');
   });
 });

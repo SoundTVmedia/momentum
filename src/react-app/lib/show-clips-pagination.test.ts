@@ -79,8 +79,33 @@ describe('show clips pagination', () => {
       showId: 'jambase:15668773',
       sortBy: 'time_posted',
       fetchImpl,
-    })).resolves.toEqual({ clips: [], show: null });
+    })).resolves.toEqual({ clips: [], show: null, canonical_show_id: null });
     expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('surfaces the canonical show id from the API response', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          clips: [clip(131)],
+          hasMore: false,
+          canonical_show_id: 'jambase:14852021',
+        }),
+      ),
+    ) as typeof fetch;
+
+    await expect(
+      fetchAllShowClips({
+        artistName: 'ariana-grande',
+        showId: 'ariana-grande-barclays-center-2026-07-14',
+        sortBy: 'time_posted',
+        fetchImpl,
+      }),
+    ).resolves.toEqual({
+      clips: [clip(131)],
+      show: null,
+      canonical_show_id: 'jambase:14852021',
+    });
   });
 
   it('fetches a single page with the API page size', async () => {

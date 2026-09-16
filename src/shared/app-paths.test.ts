@@ -56,6 +56,19 @@ describe('clipShowClipsPath', () => {
     ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-20/clips');
   });
 
+  it('prefers a JamBase event id over a composite slug show id', () => {
+    expect(
+      clipShowClipsPath({
+        event_title: 'Ariana Grande at Barclays Center',
+        artist_name: 'Ariana Grande',
+        venue_name: 'Barclays Center',
+        timestamp: '2026-07-14T00:32:47.000Z',
+        show_id: 'ariana-grande-barclays-center-2026-07-14',
+        jambase_event_id: 'jambase:14852021',
+      }),
+    ).toBe('/artists/ariana-grande/shows/jambase%3A14852021/clips');
+  });
+
   it('uses the database legacy show key when a clip has no show id', () => {
     expect(
       clipShowClipsPath({

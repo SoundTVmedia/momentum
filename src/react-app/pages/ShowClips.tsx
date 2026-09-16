@@ -9,7 +9,7 @@ import ShowSetlistPanel from '@/react-app/components/ShowSetlistPanel';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiFetch } from '@/react-app/lib/apiFetch';
-import { artistPath, venuePath } from '@/shared/app-paths';
+import { artistPath, showClipsPath, venuePath } from '@/shared/app-paths';
 import { jamBaseEventTitle } from '@/shared/event-title';
 import { jamBaseEventIsConcluded, jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
@@ -68,6 +68,18 @@ export default function ShowClipsPage() {
     })
       .then((result) => {
         if (controller.signal.aborted || generation !== fetchGenerationRef.current) return;
+        const requestedId = (() => {
+          try {
+            return decodeURIComponent(showId).trim();
+          } catch {
+            return showId.trim();
+          }
+        })();
+        const canonicalId = result.canonical_show_id?.trim() || '';
+        if (canonicalId && canonicalId !== requestedId) {
+          navigate(showClipsPath(artistName, canonicalId), { replace: true });
+          return;
+        }
         setClips(result.clips);
         setStoredShow(result.show);
       })
@@ -82,10 +94,16 @@ export default function ShowClipsPage() {
       });
 
     return () => controller.abort();
-  }, [artistName, showId, sortBy]);
+  }, [artistName, showId, sortBy, navigate]);
 
+  const clipWithJamBase = clips.find(
+    (clip) => typeof clip.jambase_event_id === 'string' && clip.jambase_event_id.trim(),
+  );
   const clipEventId =
-    typeof clips[0]?.jambase_event_id === 'string' ? clips[0].jambase_event_id.trim() : '';
+    typeof clipWithJamBase?.jambase_event_id === 'string'
+      ? clipWithJamBase.jambase_event_id.trim()
+      : '';
+  const headerClip = clipWithJamBase ?? clips[0];
 
   useEffect(() => {
     if (loading) return;
@@ -121,20 +139,20 @@ export default function ShowClipsPage() {
   }, [loading, storedShow, showId, clipEventId]);
 
   const clipEvent =
-    clips.length > 0
+    headerClip
       ? pastShowSummaryToJamBaseEvent({
           event_title:
-            clips[0].event_title?.trim() ||
-            [clips[0].artist_name, clips[0].venue_name].filter(Boolean).join(' at ') ||
+            headerClip.event_title?.trim() ||
+            [headerClip.artist_name, headerClip.venue_name].filter(Boolean).join(' at ') ||
             artistLabel ||
             'Show',
-          artist_name: clips[0].artist_name?.trim() || artistLabel || '',
-          show_date: clips[0].timestamp ?? '',
-          venue_name: clips[0].venue_name,
-          venue_location: clips[0].location,
-          jambase_event_id: clips[0].jambase_event_id ?? showId,
-          jambase_venue_id: clips[0].jambase_venue_id,
-          jambase_artist_id: clips[0].jambase_artist_id,
+          artist_name: headerClip.artist_name?.trim() || artistLabel || '',
+          show_date: headerClip.timestamp ?? '',
+          venue_name: headerClip.venue_name,
+          venue_location: headerClip.location,
+          jambase_event_id: headerClip.jambase_event_id ?? showId,
+          jambase_venue_id: headerClip.jambase_venue_id,
+          jambase_artist_id: headerClip.jambase_artist_id,
         })
       : null;
   const markEvent = storedShow?.event ?? fallbackEvent ?? clipEvent;
@@ -144,10 +162,10 @@ export default function ShowClipsPage() {
   const pageTitle = (markEvent && jamBaseEventTitle(markEvent)) || artistLabel || artistName || 'Show';
   const jbVenue = markEvent ? jamBaseEventVenueName(markEvent) : '';
   const venueName =
-    jbVenue && jbVenue !== 'Venue TBA' ? jbVenue : clips.length > 0 ? clips[0].venue_name : '';
+    jbVenue && jbVenue !== 'Venue TBA' ? jbVenue : headerClip ? headerClip.venue_name : '';
   const location =
     (markEvent && jamBaseEventVenueCityLine(markEvent)) ||
-    (clips.length > 0 ? clips[0].location : '');
+    (headerClip ? headerClip.location : '');
   const startDate = typeof markEvent?.startDate === 'string' ? markEvent.startDate : '';
   const setlist =
     storedShow && storedShow.setlist.length > 0
@@ -155,8 +173,8 @@ export default function ShowClipsPage() {
       : jamBaseEventSetlist(markEvent);
   const showDate = startDate
     ? formatJamBaseEventDate(startDate)
-    : clips.length > 0 && clips[0].timestamp
-      ? new Date(clips[0].timestamp).toLocaleDateString('en-US', {
+    : headerClip?.timestamp
+      ? new Date(headerClip.timestamp).toLocaleDateString('en-US', {
           weekday: 'long',
           month: 'long',
           day: 'numeric',

@@ -5,7 +5,7 @@ import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv, normalizeJamBaseApiKey } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
-import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql } from './past-show-sql';
+import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowIdSql } from './past-show-sql';
 import { listPastShowsForEntity } from './past-show-list';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { isUserFollowTargetId } from './follow-endpoints';
@@ -708,10 +708,38 @@ export async function getShowClips(c: Context) {
     const visible = withoutBlockedAuthors(rows as Record<string, unknown>[], hiddenAuthors);
     const hasMore = visible.length > limit;
     const pageClips = hasMore ? visible.slice(0, limit) : visible;
-    const clipEventId =
-      typeof pageClips[0]?.jambase_event_id === 'string'
-        ? String(pageClips[0].jambase_event_id).trim()
+    const showIdentityBinds = Array.from(
+      { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+      () => showId,
+    );
+    const canonicalRow = (await c.env.DB.prepare(
+      `SELECT
+         ${groupedPastShowIdSql()} as canonical_show_id,
+         MAX(CASE
+           WHEN NULLIF(TRIM(clips.jambase_event_id), '') IS NOT NULL
+           THEN TRIM(clips.jambase_event_id)
+         END) as jambase_event_id
+       FROM clips
+       WHERE ${clipBelongsToRequestedShowSql()}
+       AND ${PUBLIC_VISIBLE_CLIP_SQL}`,
+    )
+      .bind(...showIdentityBinds)
+      .first()) as { canonical_show_id?: string | null; jambase_event_id?: string | null } | null;
+    const canonicalShowId =
+      typeof canonicalRow?.canonical_show_id === 'string'
+        ? canonicalRow.canonical_show_id.trim()
         : '';
+    const pageClipEventId = pageClips.find((clip) => {
+      const id = typeof clip.jambase_event_id === 'string' ? clip.jambase_event_id.trim() : '';
+      return Boolean(id);
+    });
+    const clipEventId =
+      (typeof canonicalRow?.jambase_event_id === 'string'
+        ? canonicalRow.jambase_event_id.trim()
+        : '') ||
+      (typeof pageClipEventId?.jambase_event_id === 'string'
+        ? pageClipEventId.jambase_event_id.trim()
+        : '');
     const fetchEvent = (id: string) => async () => {
       const key = normalizeJamBaseApiKey(c.env.JAMBASE_API_KEY);
       if (!key) return null;
@@ -724,15 +752,17 @@ export async function getShowClips(c: Context) {
         return null;
       }
     };
+    const showLookupId = canonicalShowId || showId;
     const show =
-      (await loadOrHydrateStoredShowPage(c.env.DB, showId, fetchEvent(showId))) ??
-      (clipEventId && clipEventId !== showId
+      (await loadOrHydrateStoredShowPage(c.env.DB, showLookupId, fetchEvent(showLookupId))) ??
+      (clipEventId && clipEventId !== showLookupId
         ? await loadOrHydrateStoredShowPage(c.env.DB, clipEventId, fetchEvent(clipEventId))
         : null);
 
     return c.json({
-      clips: pageClips,
+      clips: normalizeClipApiRows(pageClips as Record<string, unknown>[]),
       show,
+      canonical_show_id: canonicalShowId || showId,
       page,
       limit,
       hasMore,

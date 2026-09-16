@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -290,6 +290,20 @@ describe('clipBelongsToRequestedShowSql', () => {
 
     expect(byEventId).toEqual([{ id: 127 }, { id: 128 }, { id: 130 }, { id: 131 }]);
     expect(byComposite).toEqual([{ id: 127 }, { id: 128 }, { id: 130 }, { id: 131 }]);
+
+    const canonicalBySlug = db
+      .prepare(
+        `SELECT ${groupedPastShowIdSql()} as canonical_show_id
+         FROM clips
+         WHERE ${clipBelongsToRequestedShowSql()}`,
+      )
+      .get(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'ariana-grande-barclays-center-2026-07-14',
+        ),
+      ) as { canonical_show_id: string };
+    expect(canonicalBySlug.canonical_show_id).toBe('jambase:14852021');
   });
 
   it('includes archival clips that share an event title across capture days', () => {

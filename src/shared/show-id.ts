@@ -35,6 +35,40 @@ export function computeLegacyClipShowKey(input: ShowIdInput): string | null {
   return day ? `${artist}|${venue}|${day}` : null;
 }
 
+/** True when the value is a JamBase event identifier (`jambase:…`). */
+export function isJamBaseEventId(value: string | null | undefined): boolean {
+  const id = typeof value === 'string' ? value.trim() : '';
+  return id.startsWith('jambase:');
+}
+
+/**
+ * Show id for clip → show-page navigation.
+ * Prefer a JamBase event id so slug-only rows still match past-show cards when
+ * `jambase_event_id` is present (or after sibling backfill).
+ */
+export function resolveClipShowNavigationId(input: {
+  show_id?: string | null;
+  jambase_event_id?: string | null;
+  artist_name?: string | null;
+  venue_name?: string | null;
+  timestamp?: string | null;
+}): string | null {
+  const jambaseId =
+    typeof input.jambase_event_id === 'string' ? input.jambase_event_id.trim() : '';
+  if (isJamBaseEventId(jambaseId)) return jambaseId;
+
+  const storedShowId = typeof input.show_id === 'string' ? input.show_id.trim() : '';
+  if (isJamBaseEventId(storedShowId)) return storedShowId;
+  if (storedShowId) return storedShowId;
+  if (jambaseId) return jambaseId;
+
+  return computeLegacyClipShowKey({
+    artist_name: input.artist_name,
+    venue_name: input.venue_name,
+    timestamp: input.timestamp,
+  });
+}
+
 /**
  * Stable show key for grouping clips from the same concert.
  * Prefers JamBase event id; otherwise artist + venue + UTC capture date slug.
