@@ -5,6 +5,7 @@ import { slugifyEntityName } from '../shared/jambase-slug';
 import { lookupArtistIdByName, lookupVenueIdByName } from './jambase-cache';
 import {
   CLIP_NIGHT_KEY_SQL,
+  CLIP_PAST_SHOW_GROUP_KEY_SQL,
   groupedPastShowsSelectSql,
   libraryShowNightKeySql,
   libraryShowStubSelectSql,
@@ -228,7 +229,7 @@ export async function loadClipPastShows(
     AND ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.event_title IS NOT NULL
     AND TRIM(clips.event_title) != ''
-    GROUP BY ${CLIP_NIGHT_KEY_SQL}
+    GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
     ORDER BY show_date DESC
     LIMIT ?
   `;
@@ -251,7 +252,7 @@ export async function loadClipPastShowsForSong(
     AND ${PUBLIC_VISIBLE_CLIP_SQL}
     AND clips.event_title IS NOT NULL
     AND TRIM(clips.event_title) != ''
-    GROUP BY ${CLIP_NIGHT_KEY_SQL}
+    GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
     ORDER BY show_date DESC
     LIMIT ?
   `;
@@ -315,7 +316,7 @@ export async function findExistingLibraryShow(
          FROM clips
          WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
          AND TRIM(clips.jambase_event_id) = ?
-         GROUP BY ${CLIP_NIGHT_KEY_SQL}
+         GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
          LIMIT 1`,
       )
       .bind(eventId)
@@ -330,7 +331,7 @@ export async function findExistingLibraryShow(
          FROM clips
          WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
          AND ${CLIP_NIGHT_KEY_SQL} = ?
-         GROUP BY ${CLIP_NIGHT_KEY_SQL}
+         GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
          LIMIT 1`,
       )
       .bind(nightKey)
