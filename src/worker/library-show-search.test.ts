@@ -31,6 +31,8 @@ describe('library show search', () => {
         show_id TEXT,
         event_title TEXT,
         thumbnail_url TEXT,
+        stream_thumbnail_url TEXT,
+        stream_video_id TEXT,
         is_hidden INTEGER DEFAULT 0,
         is_draft INTEGER DEFAULT 0,
         playback_unplayable INTEGER DEFAULT 0

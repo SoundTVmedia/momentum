@@ -52,7 +52,9 @@ import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks
 import { songSlugFromTitle, songTitleFromSlug } from '../shared/song-tag';
 import { searchQueryTargetsName } from '../shared/discover-search-intent';
 import { listPastShowsForEntity, loadClipPastShowsForSong } from './past-show-list';
+import { searchLibraryShows } from './library-show-search';
 import type { PastShowListRow } from './past-show-sql';
+import { isUsablePosterImageUrl, streamThumbnailUrl } from '../shared/clip-poster-url';
 
 function rewriteEventListForClient(
   events: unknown[],
@@ -102,8 +104,15 @@ function pastShowRowToDiscover(row: PastShowListRow): DiscoverPastShowRow | null
     jambase_artist_id: row.jambase_artist_id,
     clip_count: Number(row.clip_count) || 0,
     average_show_rating: row.average_show_rating ?? undefined,
-    thumbnail_url: row.thumbnail_url,
+    thumbnail_url: pastShowThumbnailUrl(row),
   };
+}
+
+function pastShowThumbnailUrl(row: PastShowListRow): string | null {
+  if (isUsablePosterImageUrl(row.thumbnail_url)) return row.thumbnail_url!.trim();
+  const streamId = row.stream_video_id?.trim() ?? '';
+  if (streamId) return streamThumbnailUrl(streamId, { time: '1s', height: 720 });
+  return null;
 }
 
 function dedupeDiscoverPastShows(rows: PastShowListRow[]): PastShowListRow[] {
@@ -140,6 +149,8 @@ async function pastShowsForDiscoverSearch(
   limit: number,
 ): Promise<DiscoverPastShowRow[]> {
   if (limit <= 0) return [];
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
 
   const artistNames = [
     ...artists.filter((row) => searchQueryTargetsName(query, row.name)).map((row) => row.name.trim()),
@@ -160,12 +171,12 @@ async function pastShowsForDiscoverSearch(
     ),
   ].slice(0, 2);
 
-  const entityCount =
-    uniqueArtists.length + targetedSongs.length || uniqueVenues.length;
-  if (entityCount === 0) return [];
+  const entityCount = uniqueArtists.length + targetedSongs.length || uniqueVenues.length;
+  const perEntity =
+    entityCount > 0 ? Math.max(4, Math.ceil(limit / entityCount)) : 0;
 
-  const perEntity = Math.max(4, Math.ceil(limit / entityCount));
-  const batches = await Promise.all([
+  const [libraryHits, ...entityBatches] = await Promise.all([
+    searchLibraryShows(db, trimmed, Math.max(limit * 2, 12)),
     ...(uniqueArtists.length > 0 || targetedSongs.length > 0
       ? [
           ...uniqueArtists.map((name) =>
@@ -178,7 +189,8 @@ async function pastShowsForDiscoverSearch(
         )),
   ]);
 
-  return dedupeDiscoverPastShows(batches.flat())
+  return dedupeDiscoverPastShows([...libraryHits, ...entityBatches.flat()])
+    .filter((row) => Number(row.clip_count) > 0)
     .slice(0, limit)
     .map(pastShowRowToDiscover)
     .filter((row): row is DiscoverPastShowRow => row != null);

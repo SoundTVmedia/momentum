@@ -12,6 +12,8 @@ import { pastShowClipsPath } from '@/shared/app-paths';
 import { pastShowSummaryToJamBaseEvent } from '@/shared/show-marks';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
+import { isUsablePosterImageUrl } from '@/shared/clip-poster-url';
+import { jamBaseEventCardImageUrl } from '@/shared/jambase-events';
 
 export interface PastShowSummary {
   event_title: string;
@@ -59,6 +61,12 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
             : show.artist_name?.trim() || null;
         const markEvent = pastShowSummaryToJamBaseEvent(show);
         const showHref = pastShowClipsPath(show);
+        const posterUrl = isUsablePosterImageUrl(show.thumbnail_url)
+          ? show.thumbnail_url
+          : jamBaseEventCardImageUrl({
+              ...(markEvent ?? {}),
+              image: show.thumbnail_url,
+            });
 
         return (
           <HorizontalClipCarouselItem
@@ -72,7 +80,7 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                 aria-label={`View clips from ${show.event_title}`}
               >
                 <ClipPosterImage
-                  clip={{ thumbnail_url: show.thumbnail_url }}
+                  clip={{ thumbnail_url: posterUrl }}
                   alt=""
                   className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />

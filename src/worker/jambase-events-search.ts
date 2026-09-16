@@ -197,20 +197,10 @@ export function mixFindAShowArchiveFirst(
       : Math.min(up.length, Math.max(1, Math.floor(limit * (1 - FIND_A_SHOW_PAST_SHARE))), limit);
   const pastSlots = limit - upcomingTake;
 
-  // Keep in-app past shows visible even when JamBase returns a full archive page.
-  const libReserve =
-    libPast.length === 0
-      ? 0
-      : pastJam.length === 0
-        ? pastSlots
-        : Math.min(
-            libPast.length,
-            pastSlots,
-            Math.max(2, Math.ceil(pastSlots * 0.35)),
-          );
-  const jamTake = take(pastJam, pastSlots - libReserve);
-  const libTake = take(libPast, pastSlots - jamTake.length);
-  const pastMerged = [...jamTake, ...libTake].sort((a, b) =>
+  // Keep in-app clip-backed past shows visible even when JamBase returns a full archive.
+  const libTake = take(libPast, pastSlots);
+  const jamTake = take(pastJam, Math.max(0, pastSlots - libTake.length));
+  const pastMerged = [...libTake, ...jamTake].sort((a, b) =>
     eventStartKey(b).localeCompare(eventStartKey(a)),
   );
   const upTake = take(up, limit - pastMerged.length);

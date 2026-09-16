@@ -66,7 +66,21 @@ export function groupedPastShowsSelectSql(options?: { includeAverageRating?: boo
         MAX(CASE WHEN clips.jambase_venue_id IS NOT NULL AND TRIM(clips.jambase_venue_id) != '' THEN clips.jambase_venue_id END) as jambase_venue_id,
         MAX(CASE WHEN clips.jambase_artist_id IS NOT NULL AND TRIM(clips.jambase_artist_id) != '' THEN clips.jambase_artist_id END) as jambase_artist_id,
         COUNT(DISTINCT clips.id) as clip_count,${averageRatingSql}
-        MAX(clips.thumbnail_url) as thumbnail_url`;
+        COALESCE(
+          MAX(CASE
+            WHEN NULLIF(TRIM(clips.thumbnail_url), '') IS NOT NULL
+             AND LOWER(clips.thumbnail_url) NOT LIKE '%.m3u8%'
+             AND LOWER(clips.thumbnail_url) NOT LIKE '%.mp4%'
+            THEN clips.thumbnail_url
+          END),
+          MAX(CASE
+            WHEN NULLIF(TRIM(clips.stream_thumbnail_url), '') IS NOT NULL
+             AND LOWER(clips.stream_thumbnail_url) NOT LIKE '%.m3u8%'
+             AND LOWER(clips.stream_thumbnail_url) NOT LIKE '%.mp4%'
+            THEN clips.stream_thumbnail_url
+          END)
+        ) as thumbnail_url,
+        MAX(NULLIF(TRIM(clips.stream_video_id), '')) as stream_video_id`;
 }
 
 export type PastShowListRow = {
@@ -82,6 +96,7 @@ export type PastShowListRow = {
   clip_count: number;
   average_show_rating?: number | null;
   thumbnail_url: string | null;
+  stream_video_id?: string | null;
 };
 
 export function libraryShowStubSelectSql(options?: { includeAverageRating?: boolean }): string {

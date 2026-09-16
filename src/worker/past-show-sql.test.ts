@@ -100,6 +100,8 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
         event_title TEXT,
         location TEXT,
         thumbnail_url TEXT,
+        stream_thumbnail_url TEXT,
+        stream_video_id TEXT,
         average_rating REAL
       )
     `);
@@ -141,6 +143,30 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       { show_id: 'jambase:15668773', clip_count: 1, artist_name: 'Phish' },
       { show_id: 'jambase:15668776', clip_count: 1, artist_name: 'Phish' },
     ]);
+  });
+
+  it('prefers a real clip poster over empty thumbnail strings', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title, thumbnail_url, stream_thumbnail_url)
+      VALUES
+        (1, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:1', 'jambase:1', 'Phish at MSG', '', NULL),
+        (2, 'Phish', 'Madison Square Garden', '2026-07-25T02:00:00.000Z', 'jambase:1', 'jambase:1', 'Phish at MSG', NULL, 'https://videodelivery.net/abc/thumbnails/thumbnail.jpg?time=1s')
+    `).run();
+
+    const rows = db
+      .prepare(
+        `SELECT ${groupedPastShowsSelectSql()}
+         FROM clips
+         GROUP BY ${CLIP_NIGHT_KEY_SQL}`,
+      )
+      .all() as Array<{ thumbnail_url: string | null }>;
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.thumbnail_url).toBe(
+      'https://videodelivery.net/abc/thumbnails/thumbnail.jpg?time=1s',
+    );
   });
 });
 

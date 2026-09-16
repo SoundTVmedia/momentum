@@ -35,7 +35,7 @@ import { nearbyShowsApiUrl, readDeviceCoordsForNearbyShows } from '@/react-app/l
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import { globalSongPath } from '@/shared/app-paths';
 import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
-import { jamBaseEventArtistName, jamBaseEventVenueName } from '@/shared/jambase-events';
+import { jamBaseEventArtistName, jamBaseEventId, jamBaseEventImageUrl, jamBaseEventVenueCityLine, jamBaseEventVenueName } from '@/shared/jambase-events';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
   discoverResultsAreVenueIntent,
@@ -44,6 +44,7 @@ import {
   searchQueryTargetsName,
 } from '@/shared/discover-search-intent';
 import { displayNamesClose } from '@/shared/artist-name-match';
+import { isUsablePosterImageUrl } from '@/shared/clip-poster-url';
 import {
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
@@ -106,6 +107,75 @@ interface SearchResults {
   jambaseNotice?: string | null;
   locationScoped?: boolean;
   searchGeo?: { label: string; radius_miles: number };
+}
+
+type DiscoverPastShow = NonNullable<SearchResults['pastShows']>[number];
+
+function pastShowDedupeKey(show: DiscoverPastShow): string {
+  return (
+    (show.show_id || show.jambase_event_id || '').trim() ||
+    `${show.artist_name}|${show.venue_name ?? ''}|${show.show_date}`
+  );
+}
+
+function jamBaseClipEventToPastShow(event: Record<string, unknown>): DiscoverPastShow | null {
+  if (isJamBaseFestivalEvent(event) || jamBaseEventUpcomingOrInProgress(event)) return null;
+  const clipCount = Number(event['x-clipCount']) || 0;
+  if (clipCount <= 0) return null;
+  const eventTitle = typeof event.name === 'string' ? event.name.trim() : '';
+  const artistName = jamBaseEventArtistName(event);
+  const showDate = typeof event.startDate === 'string' ? event.startDate.trim() : '';
+  if (!eventTitle || !artistName || !showDate) return null;
+  const loc = event.location as Record<string, unknown> | undefined;
+  const venueName = jamBaseEventVenueName(event);
+  const image = jamBaseEventImageUrl(event);
+  const feedbackId =
+    typeof event['x-feedbackShowId'] === 'string' ? event['x-feedbackShowId'].trim() : '';
+  return {
+    event_title: eventTitle,
+    artist_name: artistName,
+    show_date: showDate,
+    show_id: feedbackId || jamBaseEventId(event) || null,
+    venue_name: venueName === 'Venue TBA' ? null : venueName,
+    venue_location: jamBaseEventVenueCityLine(event) || null,
+    jambase_event_id: jamBaseEventId(event) || null,
+    jambase_venue_id: typeof loc?.identifier === 'string' ? loc.identifier : null,
+    clip_count: clipCount,
+    thumbnail_url: isUsablePosterImageUrl(image) ? image : null,
+  };
+}
+
+function mergeDiscoverPastShows(rows: DiscoverPastShow[]): DiscoverPastShow[] {
+  const byKey = new Map<string, DiscoverPastShow>();
+  for (const row of rows) {
+    if (row.clip_count <= 0) continue;
+    const key = pastShowDedupeKey(row);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, row);
+      continue;
+    }
+    const existingThumb = isUsablePosterImageUrl(existing.thumbnail_url)
+      ? existing.thumbnail_url
+      : null;
+    const nextThumb = isUsablePosterImageUrl(row.thumbnail_url) ? row.thumbnail_url : existingThumb;
+    byKey.set(key, {
+      ...existing,
+      ...row,
+      clip_count: Math.max(existing.clip_count, row.clip_count),
+      thumbnail_url: nextThumb,
+    });
+  }
+  return [...byKey.values()].sort((a, b) =>
+    String(b.show_date).localeCompare(String(a.show_date)),
+  );
+}
+
+function clipBackedPastShowsForDiscover(data: SearchResults): DiscoverPastShow[] {
+  const fromEvents = (data.jambase?.events ?? [])
+    .map(jamBaseClipEventToPastShow)
+    .filter((row): row is DiscoverPastShow => row != null);
+  return mergeDiscoverPastShows([...(data.pastShows ?? []), ...fromEvents]);
 }
 
 type DiscoverForYou = {
@@ -468,7 +538,7 @@ export default function DiscoverPage() {
 
   const venueIntent = results ? discoverVenueIntent(debouncedQuery, results) : false;
   const upcomingShows = results ? upcomingShowsForDiscover(debouncedQuery, results) : [];
-  const pastShows = results?.pastShows ?? [];
+  const pastShows = results ? clipBackedPastShowsForDiscover(results) : [];
   const visibleVenues = (() => {
     if (!venueIntent || !results) return [];
     const d1 = targetedDiscoverVenues(debouncedQuery, results).map((venue) => ({
