@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_NIGHT_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
