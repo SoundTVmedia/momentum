@@ -7,6 +7,7 @@ import { artistPath } from '@/shared/app-paths';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import { FollowSearchActionLabel } from '@/react-app/components/FollowSearchActionLabel';
 import { FOLLOWING_CHANGED_EVENT, useFollow } from '@/react-app/hooks/useFollow';
+import { toggleFavoriteArtistByName } from '@/react-app/lib/favorite-artists-api';
 
 type UnifiedArtist = { identifier: string; name: string; image: string | null };
 type UnifiedVenue = { identifier: string; name: string; city: string; image: string | null };
@@ -35,7 +36,6 @@ export default function UnifiedFavoritesAdd() {
   const navigate = useNavigate();
   const {
     toggleFollow,
-    toggleFollowArtist,
     toggleFollowVenue,
     isFollowing,
     isFollowingArtist,
@@ -165,11 +165,15 @@ export default function UnifiedFavoritesAdd() {
 
   const addArtist = async (name: string) => {
     setBusyKey(`artist:${name}`);
+    const alreadyFollowing =
+      isFollowingArtist(0, name) ||
+      followedArtists.some((row) => row.name.trim().toLowerCase() === name.trim().toLowerCase());
     try {
-      const result = await toggleFollowArtist(0, name);
-      if (!result.success) throw new Error('Could not update artist follow');
-      setStatus(result.following ? `Following ${name}` : `Unfollowed ${name}`);
+      const following = await toggleFavoriteArtistByName(name, alreadyFollowing);
+      setStatus(following ? `Following ${name}` : `Unfollowed ${name}`);
       setError(null);
+      window.dispatchEvent(new CustomEvent(FOLLOWING_CHANGED_EVENT));
+      window.dispatchEvent(new CustomEvent('favorite-artists-changed'));
       void loadFollowedCatalog();
     } catch (err) {
       setError(apiFetchErrorMessage(err, 'Could not update artist follow'));

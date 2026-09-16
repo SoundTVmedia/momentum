@@ -84,6 +84,35 @@ export async function removeFavoriteArtistName(name: string): Promise<void> {
   await saveFavoriteArtistNames(next);
 }
 
+/** Additive follow by display name (does not replace the rest of the list). */
+export async function followArtistByName(name: string): Promise<void> {
+  const trimmed = normalizeArtistName(name);
+  if (!trimmed) {
+    throw new Error('Artist name is required');
+  }
+  const res = await apiFetch('/api/users/favorite-artists/sync-by-name', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ names: [trimmed] }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+  if (!res.ok) {
+    throw new Error(body.detail || body.error || 'Could not follow artist');
+  }
+}
+
+export async function toggleFavoriteArtistByName(
+  name: string,
+  currentlyFollowing: boolean,
+): Promise<boolean> {
+  if (currentlyFollowing) {
+    await removeFavoriteArtistName(name);
+    return false;
+  }
+  await followArtistByName(name);
+  return true;
+}
+
 export function favoriteArtistsErrorMessage(err: unknown): string {
   return apiFetchErrorMessage(err, 'Could not update favorite artists');
 }

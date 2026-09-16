@@ -5,6 +5,7 @@ import { apiFetch, apiFetchErrorMessage } from '@/react-app/lib/apiFetch';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import { FollowSearchActionLabel } from '@/react-app/components/FollowSearchActionLabel';
 import { FOLLOWING_CHANGED_EVENT, useFollow } from '@/react-app/hooks/useFollow';
+import { toggleFavoriteArtistByName } from '@/react-app/lib/favorite-artists-api';
 
 type UnifiedArtist = { identifier: string; name: string; image: string | null };
 type UnifiedVenue = { identifier: string; name: string; city: string; image: string | null };
@@ -52,7 +53,6 @@ export default function FollowEmptySearch({ kind }: FollowEmptySearchProps) {
   const copy = COPY[kind];
   const {
     toggleFollow,
-    toggleFollowArtist,
     toggleFollowVenue,
     isFollowing,
     isFollowingArtist,
@@ -163,10 +163,11 @@ export default function FollowEmptySearch({ kind }: FollowEmptySearchProps) {
   const addArtist = async (name: string) => {
     setBusyKey(`artist:${name}`);
     try {
-      const result = await toggleFollowArtist(0, name);
-      if (!result.success) throw new Error('Could not update artist follow');
-      setStatus(result.following ? `Following ${name}` : `Unfollowed ${name}`);
+      const following = await toggleFavoriteArtistByName(name, isFollowingArtist(0, name));
+      setStatus(following ? `Following ${name}` : `Unfollowed ${name}`);
       setError(null);
+      window.dispatchEvent(new CustomEvent(FOLLOWING_CHANGED_EVENT));
+      window.dispatchEvent(new CustomEvent('favorite-artists-changed'));
     } catch (err) {
       setError(apiFetchErrorMessage(err, 'Could not update artist follow'));
     } finally {
