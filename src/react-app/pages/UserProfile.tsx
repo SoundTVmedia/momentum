@@ -503,16 +503,22 @@ export default function UserProfilePage() {
           </div>
         ) : null}
 
-        {!data.blocked && userId ? (
+        {isOwnProfile && user ? (
+          <OwnProfileHub onOpenCapture={quickCapture.openQuickCapture}>
+            {!data.blocked && userId ? (
+              <ProfilePastShowsSection
+                userId={userId}
+                isOwnProfile
+                displayName={profile.display_name}
+              />
+            ) : null}
+          </OwnProfileHub>
+        ) : !data.blocked && userId ? (
           <ProfilePastShowsSection
             userId={userId}
-            isOwnProfile={isOwnProfile}
+            isOwnProfile={false}
             displayName={profile.display_name}
           />
-        ) : null}
-
-        {isOwnProfile && user ? (
-          <OwnProfileHub onOpenCapture={quickCapture.openQuickCapture} />
         ) : null}
 
         {/* Favorite Artists — other users' profiles only (own profile ends at shows carousel) */}

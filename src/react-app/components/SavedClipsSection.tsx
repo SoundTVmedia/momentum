@@ -75,7 +75,7 @@ export default function SavedClipsSection() {
 
   const sectionHeader = (
     <SectionHeading
-      title="Saved clips"
+      title="Saved Clips"
       subtitle="Clips you bookmarked from the feed or clip player"
       size="section"
     />

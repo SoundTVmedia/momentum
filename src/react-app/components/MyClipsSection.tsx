@@ -125,7 +125,7 @@ export default function MyClipsSection({ onUploadClick }: MyClipsSectionProps) {
   return (
     <>
       <DashboardClipsGrid
-        title="My clips"
+        title="My Clips"
         subtitle="Everything you have shared on Feedback"
         clips={clips as DashboardGridClip[]}
         loading={loading}

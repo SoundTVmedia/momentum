@@ -113,7 +113,7 @@ export default function ProfilePastShowsSection({
     };
   }, [isOwnProfile, load]);
 
-  const title = 'Past shows';
+  const title = isOwnProfile ? 'My Past Shows' : 'Past Shows';
   const subtitle = useMemo(() => {
     if (isOwnProfile) return "Shows you've gone to";
     const name = displayName?.trim();
