@@ -90,14 +90,14 @@ ShazamKit **App Service** enabled on `com.feedbacklive.app`.
   so the clip gets a song title even when live ID missed.
 - Manual / library uploads identify on the clip details (`UploadClip`) screen
   before Share via the same `identifyMusicForClip` ladder.
-- **Clip-player Tap to identify** (untitled clips only): native-download the
-  Stream MP4 when present, otherwise the published `/api/files/…` or
-  `video_url` (many untitled clips have no Stream id yet), then
-  `ShazamKit.recognizeFile` with `scanWindows` on that local file (overlapping
-  11s windows, matched loudest-first). Each signature stays at 11s. After a
-  clean Shazam no-match, the loudest 11s is written as WAV and POSTed to
-  `/api/clips/identify-music` (ACRCloud) — do **not** Range-fetch a Photos
-  `.mov` (that is ACR 2004). `identify-own-song` still runs only when
+- **Clip player** (untitled clips only): identification starts automatically.
+  Native-download the Stream MP4 when present, otherwise the published
+  `/api/files/…` or `video_url` (many untitled clips have no Stream id yet),
+  then `ShazamKit.recognizeFile` with `scanWindows` on that local file
+  (overlapping 11s windows, matched loudest-first). Each signature stays at
+  11s. After a clean Shazam no-match, the loudest 11s is written as WAV and
+  POSTed to `/api/clips/identify-music` (ACRCloud) — do **not** Range-fetch a
+  Photos `.mov` (that is ACR 2004). `identify-own-song` still runs only when
   ShazamKit is unavailable or errors. Native Swift changes need
   `npx cap sync ios` + an Xcode rebuild.
   **The phone loads JS from `server.url`. `git pull` + Xcode rebuild is not

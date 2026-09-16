@@ -1,8 +1,7 @@
 /**
- * Stages of a clip-player tap-to-identify pass.
+ * Stages of a clip-player identify pass.
  *
- * Every stage is logged on the console and surfaced in the button label, so a
- * failure says which step failed instead of a bare "Song lookup failed".
+ * Logged on the console only — the player UI shows a spinner + "Identifying".
  */
 export type IdentifySongStage =
   | 'start'

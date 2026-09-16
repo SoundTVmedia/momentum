@@ -11,10 +11,11 @@ export type SongIdentifyViewer = {
 };
 
 /**
- * Tap-to-identify is offered on any clip with no song attached, whatever route
- * it took to get here: in-app camera, the upload tab, drag-and-drop, or a URL
- * import. Identification reads the published file from the server, so the
- * upload method makes no difference to whether it can run.
+ * Auto-identify runs in the clip player on any clip with no song attached,
+ * whatever route it took to get here: in-app camera, the upload tab,
+ * drag-and-drop, or a URL import. Identification reads the published file
+ * from the server, so the upload method makes no difference to whether it
+ * can run.
  *
  * The single exception is a "pre/post" clip, which is a friends-only talking
  * clip that deliberately carries no show or song association.

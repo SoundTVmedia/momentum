@@ -198,7 +198,7 @@ export default function ClipModal({
   useEffect(() => {
     if (!(isOwnClip || isSuperAdmin) || clip.song_title?.trim()) return;
     console.log(
-      '[identify] untitled clip — Tap to identify shown',
+      '[identify] untitled clip — auto identify',
       clipNumericId(clip) ?? clip.id,
     );
   }, [clip.id, clip.song_title, clip.stream_video_id, isOwnClip, isSuperAdmin]);
@@ -446,9 +446,9 @@ export default function ClipModal({
         currentFields={metadataFieldsFromClip(clip)}
         asSuperadmin={isSuperAdmin && !isOwnClip}
         onSaved={handleClipSaved}
-        idleLabel="Tap to identify"
+        autoStart
         allowManualEntry={isOwnClip || isSuperAdmin}
-        buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90 transition-colors hover:text-momentum-flare disabled:opacity-50"
+        buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90"
       />
     ) : null;
 

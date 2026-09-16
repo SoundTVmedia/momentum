@@ -93,7 +93,25 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   });
 }
 
+const recognitionInFlight = new Map<string, Promise<ClipSongRecognitionOutcome>>();
+
 export async function runClipSongRecognitionAndSave(input: {
+  clip: ClipPlaybackFields;
+  currentFields: AcrClipFieldSnapshot & ClipMetadataSaveFields;
+  asSuperadmin?: boolean;
+  onStage?: IdentifyStageReporter;
+}): Promise<ClipSongRecognitionOutcome> {
+  const key = String(clipNumericId(input.clip) ?? input.clip.stream_video_id ?? 'unknown');
+  const existing = recognitionInFlight.get(key);
+  if (existing) return existing;
+  const run = runClipSongRecognitionAndSaveUncapped(input).finally(() => {
+    recognitionInFlight.delete(key);
+  });
+  recognitionInFlight.set(key, run);
+  return run;
+}
+
+async function runClipSongRecognitionAndSaveUncapped(input: {
   clip: ClipPlaybackFields;
   currentFields: AcrClipFieldSnapshot & ClipMetadataSaveFields;
   asSuperadmin?: boolean;

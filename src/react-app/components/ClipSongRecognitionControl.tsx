@@ -8,7 +8,6 @@ import {
 } from '@/react-app/lib/applyClipSongRecognition';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import type { ClipPlaybackFields } from '@/shared/clip-playback';
-import { identifyStageLabel, type IdentifySongStage } from '@/shared/identify-stage';
 import type { ClipWithUser } from '@/shared/types';
 
 type ClipSongRecognitionControlProps = {
@@ -18,10 +17,12 @@ type ClipSongRecognitionControlProps = {
   onSaved?: (updated: ClipWithUser) => void;
   className?: string;
   buttonClassName?: string;
-  /** Idle button label. Clip player uses "Tap to identify". */
+  /** Idle button label. Edit / admin still use a tap. */
   idleLabel?: string;
   /** Offer a text field so the owner can type the song when ID misses. */
   allowManualEntry?: boolean;
+  /** Clip player: start Shazam → ACRCloud as soon as an untitled clip is open. */
+  autoStart?: boolean;
 };
 
 export default function ClipSongRecognitionControl({
@@ -31,20 +32,28 @@ export default function ClipSongRecognitionControl({
   onSaved,
   className = '',
   buttonClassName = '',
-  idleLabel = 'Tap to identify',
+  idleLabel = 'Identify song',
   allowManualEntry = false,
+  autoStart = false,
 }: ClipSongRecognitionControlProps) {
   const [status, setStatus] = useState<
     'idle' | 'loading' | 'done' | 'nomatch' | 'skipped' | 'error'
-  >('idle');
+  >(autoStart ? 'loading' : 'idle');
   const [message, setMessage] = useState<string | null>(null);
-  const [stage, setStage] = useState<IdentifySongStage>('start');
   const [manualOpen, setManualOpen] = useState(false);
   const [manualTitle, setManualTitle] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
   const [keyboardLift, setKeyboardLift] = useState(0);
   const runningRef = useRef(false);
+  const fieldsRef = useRef(currentFields);
+  const onSavedRef = useRef(onSaved);
+  fieldsRef.current = currentFields;
+  onSavedRef.current = onSaved;
+
+  const clipKey = String(clipNumericId(clip) ?? clip.stream_video_id ?? '');
+  const clipKeyRef = useRef(clipKey);
+  clipKeyRef.current = clipKey;
 
   const stopGesture = (e: SyntheticEvent) => {
     e.stopPropagation();
@@ -85,35 +94,51 @@ export default function ClipSongRecognitionControl({
     e?.stopPropagation();
     if (runningRef.current) return;
     runningRef.current = true;
-    console.log('[identify] tap', clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown');
+    const startedFor = clipKey;
+    console.log('[identify] start', clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown');
     setStatus('loading');
     setMessage(null);
-    setStage('start');
+    setManualOpen(false);
     try {
       const outcome = await runClipSongRecognitionAndSave({
         clip,
-        currentFields,
+        currentFields: fieldsRef.current,
         asSuperadmin,
-        onStage: (event) => setStage(event.stage),
       });
+      if (clipKeyRef.current !== startedFor) return;
       if (outcome.status === 'match') {
         setStatus('done');
         setMessage(outcome.message);
-        onSaved?.(outcome.updated);
+        onSavedRef.current?.(outcome.updated);
         return;
       }
       setStatus(outcome.status);
       setMessage(outcome.message);
-      // A miss is the moment the owner wants to type it in.
       if (allowManualEntry) setManualOpen(true);
     } catch (err) {
+      if (clipKeyRef.current !== startedFor) return;
       setStatus('error');
       setMessage(err instanceof Error ? err.message : 'Song lookup failed');
       if (allowManualEntry) setManualOpen(true);
     } finally {
-      runningRef.current = false;
+      if (clipKeyRef.current === startedFor) runningRef.current = false;
     }
   };
+
+  useEffect(() => {
+    runningRef.current = false;
+    setManualOpen(false);
+    setManualError(null);
+    setMessage(null);
+    if (!autoStart) {
+      setStatus('idle');
+      return;
+    }
+    setStatus('loading');
+    void handleRun();
+    // Identify once per untitled clip. currentFields is recreated each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, clipKey]);
 
   const handleManualSave = async (e?: SyntheticEvent) => {
     e?.preventDefault();
@@ -125,19 +150,32 @@ export default function ClipSongRecognitionControl({
     try {
       const updated = await saveClipMetadataFields(
         clip,
-        { ...currentFields, song_title: title },
+        { ...fieldsRef.current, song_title: title },
         { asSuperadmin },
       );
       setStatus('done');
       setMessage(`Saved: ${title}`);
       setManualOpen(false);
-      onSaved?.(updated);
+      onSavedRef.current?.(updated);
     } catch (err) {
       setManualError(err instanceof Error ? err.message : 'Could not save the song title');
     } finally {
       setManualSaving(false);
     }
   };
+
+  const identifying = (
+    <span
+      className={
+        buttonClassName ||
+        'inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90'
+      }
+      aria-live="polite"
+    >
+      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+      Identifying
+    </span>
+  );
 
   return (
     <div
@@ -146,29 +184,23 @@ export default function ClipSongRecognitionControl({
       onTouchStart={stopGesture}
     >
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <button
-          type="button"
-          onClick={(e: MouseEvent<HTMLButtonElement>) => void handleRun(e)}
-          onPointerDown={stopGesture}
-          onTouchStart={stopGesture}
-          disabled={status === 'loading'}
-          className={
-            buttonClassName ||
-            'relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-2 text-xs font-semibold text-violet-100 transition-colors hover:bg-violet-500/20 disabled:opacity-50'
-          }
-        >
-          {status === 'loading' ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Identifying…
-            </>
-          ) : (
-            <>
-              <Disc3 className="h-3.5 w-3.5" aria-hidden />
-              {idleLabel}
-            </>
-          )}
-        </button>
+        {status === 'loading' ? (
+          identifying
+        ) : autoStart ? null : (
+          <button
+            type="button"
+            onClick={(e: MouseEvent<HTMLButtonElement>) => void handleRun(e)}
+            onPointerDown={stopGesture}
+            onTouchStart={stopGesture}
+            className={
+              buttonClassName ||
+              'relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-2 text-xs font-semibold text-violet-100 transition-colors hover:bg-violet-500/20 disabled:opacity-50'
+            }
+          >
+            <Disc3 className="h-3.5 w-3.5" aria-hidden />
+            {idleLabel}
+          </button>
+        )}
 
         {allowManualEntry && !manualOpen && status !== 'loading' && status !== 'done' ? (
           <button
@@ -199,7 +231,7 @@ export default function ClipSongRecognitionControl({
             value={manualTitle}
             autoFocus
             enterKeyHint="done"
-            placeholder="Song title"
+            placeholder="Enter song title"
             aria-label="Song title"
             onChange={(e) => setManualTitle(e.target.value)}
             onPointerDown={stopGesture}
@@ -249,19 +281,16 @@ export default function ClipSongRecognitionControl({
       ) : null}
 
       {manualError ? <p className="mt-2 text-xs text-red-300">{manualError}</p> : null}
-      {status === 'loading' ? (
-        <p className="mt-2 text-xs text-violet-200/90">{identifyStageLabel(stage)}</p>
-      ) : null}
-      {status === 'done' && message ? (
+      {!autoStart && status === 'done' && message ? (
         <p className="mt-2 text-xs text-emerald-300">{message}</p>
       ) : null}
-      {status === 'nomatch' && message ? (
+      {!autoStart && status === 'nomatch' && message ? (
         <p className="mt-2 text-xs text-gray-400">{message}</p>
       ) : null}
-      {status === 'skipped' && message ? (
+      {!autoStart && status === 'skipped' && message ? (
         <p className="mt-2 text-xs text-amber-200/90">{message}</p>
       ) : null}
-      {status === 'error' && message ? (
+      {!autoStart && status === 'error' && message ? (
         <p className="mt-2 text-xs text-red-300">{message}</p>
       ) : null}
     </div>
