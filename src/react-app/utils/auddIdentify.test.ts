@@ -38,12 +38,18 @@ describe('normalizeIdentifyResult', () => {
     expect(r.status === 'error' && r.message).toMatch(/not configured/i);
   });
 
-  it('keeps timeout errors visible', () => {
+  it('maps timeout errors to nomatch so the player can prompt for a title', () => {
     const r = normalizeIdentifyResult({
       status: 'error',
-      message: 'Song lookup timed out — try again or enter the song manually.',
+      message: 'ACRCloud timed out — try again or enter the song manually.',
     });
-    expect(r.status).toBe('error');
+    expect(r).toEqual({ status: 'nomatch', message: null });
+    expect(
+      normalizeIdentifyResult({
+        status: 'error',
+        message: 'Song lookup timed out — try again or enter the song manually.',
+      }),
+    ).toEqual({ status: 'nomatch', message: null });
   });
 });
 

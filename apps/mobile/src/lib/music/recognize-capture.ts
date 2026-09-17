@@ -137,7 +137,7 @@ async function identifyMusicViaWorker(input: {
     return matchedOutcome(match);
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      return errorOutcome('acrcloud', 'Song lookup timed out — try again or enter the song manually.');
+      return noMatchOutcome('acrcloud');
     }
     return errorOutcome(
       'acrcloud',

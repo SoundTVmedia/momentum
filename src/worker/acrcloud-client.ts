@@ -263,7 +263,7 @@ export async function recognizeMusicWithAcrCloud(
     return {
       ok: false,
       error: timedOut
-        ? 'ACRCloud timed out — try again or enter the song manually.'
+        ? 'ACRCloud timed out.'
         : 'Could not reach ACRCloud.',
     };
   } finally {

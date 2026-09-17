@@ -277,7 +277,7 @@ export function normalizeIdentifyResult(r: AudDIdentifyResult): AudDIdentifyResu
       return { status: 'nomatch', message: null };
     }
     if (msg.includes('timed out')) {
-      return r;
+      return { status: 'nomatch', message: null };
     }
     if (!isFatalSongIdentifyError(r)) {
       return { status: 'nomatch', message: null };
@@ -537,8 +537,8 @@ async function postSnippetToIdentify(snippet: Blob): Promise<AudDIdentifyResult>
     console.error('Song identify', detail);
     if ((e instanceof DOMException && e.name === 'AbortError') || rec?.name === 'AbortError') {
       return {
-        status: 'error',
-        message: 'Song lookup timed out — try again or enter the song manually.',
+        status: 'nomatch',
+        message: null,
       };
     }
     return { status: 'error', message: 'Song lookup failed' };

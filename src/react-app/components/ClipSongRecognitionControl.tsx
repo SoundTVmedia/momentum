@@ -108,17 +108,17 @@ export default function ClipSongRecognitionControl({
       if (clipKeyRef.current !== startedFor) return;
       if (outcome.status === 'match') {
         setStatus('done');
-        setMessage(outcome.message);
+        setMessage(autoStart ? null : outcome.message);
         onSavedRef.current?.(outcome.updated);
         return;
       }
       setStatus(outcome.status);
-      setMessage(outcome.message);
+      setMessage(autoStart ? null : outcome.message);
       if (allowManualEntry) setManualOpen(true);
     } catch (err) {
       if (clipKeyRef.current !== startedFor) return;
       setStatus('error');
-      setMessage(err instanceof Error ? err.message : 'Song lookup failed');
+      setMessage(autoStart ? null : err instanceof Error ? err.message : 'Song lookup failed');
       if (allowManualEntry) setManualOpen(true);
     } finally {
       if (clipKeyRef.current === startedFor) runningRef.current = false;
