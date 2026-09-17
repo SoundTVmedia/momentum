@@ -1,15 +1,18 @@
 import { useState } from 'react';
+import { ACTIVE_PALETTE } from '@/react-app/lib/design-palettes';
 
-/** Google-style saturated pairs for deterministic gradients */
+const { ember, rose, copper, smoke, glacier } = ACTIVE_PALETTE.tokens;
+
+/** Deterministic letter-avatar gradients — Nightstage magenta / violet only. */
 const GRADIENT_PAIRS: [string, string][] = [
-  ['#4285F4', '#AB47BC'],
-  ['#EA4335', '#FBBC04'],
-  ['#34A853', '#4285F4'],
-  ['#FF6D00', '#F4511E'],
-  ['#00897B', '#3949AB'],
-  ['#6D4C41', '#78909C'],
-  ['#C62828', '#AD1457'],
-  ['#283593', '#039BE5'],
+  [ember, rose],
+  [rose, ember],
+  [ember, copper],
+  [rose, smoke],
+  [ember, smoke],
+  [rose, copper],
+  [copper, rose],
+  [smoke, ember],
 ];
 
 function hashSeed(seed: string): number {
@@ -73,8 +76,11 @@ export default function UserAvatar({
         />
       ) : (
         <div
-          className={`flex h-full w-full items-center justify-center text-white ${letterClassName}`}
-          style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}
+          className={`flex h-full w-full items-center justify-center ${letterClassName}`}
+          style={{
+            background: `linear-gradient(135deg, ${c1}, ${c2})`,
+            color: glacier,
+          }}
         >
           <span className="leading-none tracking-tight" aria-hidden>
             {letter}
