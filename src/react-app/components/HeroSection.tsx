@@ -11,9 +11,14 @@ import { JAMBASE_HOME_URL } from '@/react-app/components/PoweredByJamBase';
 import ClipModal from '@/react-app/components/ClipModal';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
+import { fetchAllShowClips } from '@/react-app/lib/show-clips-pagination';
+import { prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
+import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
+import { formatCount } from '@/react-app/lib/formatCount';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, clipShowClipsPath } from '@/shared/app-paths';
+import { apiEventClipsPath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
+import { resolveClipShowNavigationId } from '@/shared/show-id';
 import {
   markTourPending,
   PRODUCT_TOUR_AUTH_HREF,
@@ -49,6 +54,89 @@ function shuffleCopy<T>(items: T[]): T[] {
 
 function playableClips(clips: ClipWithUser[] | undefined): ClipWithUser[] {
   return (clips ?? []).filter((clip) => clipToHeroSlide(clip));
+}
+
+function clipFeedKey(clip: ClipWithUser): string | number | null {
+  if (typeof clip.id === 'number') return clip.id;
+  const url = clip.video_url?.trim();
+  return url || null;
+}
+
+/** Keep the featured clip in the player feed; prefer show order when the API already includes it. */
+export function mergeFeaturedShowFeed(
+  featured: ClipWithUser,
+  related: ClipWithUser[],
+): ClipWithUser[] {
+  const featuredKey = clipFeedKey(featured);
+  if (related.length === 0) return [featured];
+  if (
+    featuredKey != null &&
+    related.some((clip) => clipFeedKey(clip) === featuredKey)
+  ) {
+    return related;
+  }
+  return [featured, ...related];
+}
+
+const includeFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, credentials: 'include' });
+
+async function fetchFeaturedShowClips(
+  clip: ClipWithUser,
+  signal: AbortSignal,
+): Promise<ClipWithUser[]> {
+  const showId = resolveClipShowNavigationId(clip);
+  const artist = clip.artist_name?.trim();
+  if (artist && showId) {
+    try {
+      const result = await fetchAllShowClips({
+        artistName: artist,
+        showId,
+        sortBy: 'time_posted',
+        signal,
+        fetchImpl: includeFetch,
+      });
+      if (result.clips.length > 0) return mergeFeaturedShowFeed(clip, result.clips);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    }
+  }
+
+  const eventApi = apiEventClipsPath(resolveClipEventTitle(clip));
+  if (eventApi) {
+    try {
+      const res = await includeFetch(`${eventApi}?sort_by=time_posted`, { signal });
+      if (res.ok) {
+        const data = (await res.json()) as { clips?: ClipWithUser[] };
+        if (data.clips && data.clips.length > 0) {
+          return mergeFeaturedShowFeed(clip, data.clips);
+        }
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    }
+  }
+
+  if (artist) {
+    try {
+      const params = new URLSearchParams({
+        limit: '24',
+        sort_by: 'latest',
+        artist_name: artist,
+      });
+      const res = await includeFetch(`/api/clips?${params}`, { signal });
+      if (res.ok) {
+        const data = (await res.json()) as { clips?: ClipWithUser[] };
+        if (data.clips && data.clips.length > 0) {
+          return mergeFeaturedShowFeed(clip, data.clips);
+        }
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    }
+  }
+
+  return [clip];
 }
 
 /** Different featured clip on each cold load / pull-refresh. */
@@ -103,101 +191,35 @@ function FeaturedClipSlide({
   const poster = slide?.poster ?? '';
   const name = slide?.displayName ?? clip?.user_display_name?.trim() ?? 'Fan';
   const canOpen = clip != null && slide != null;
-  const profileHref = slide?.mochaUserId ? `/users/${slide.mochaUserId}` : undefined;
   const eventTitle = clip ? resolveClipEventTitle(clip) : null;
   const artistName = clip?.artist_name?.trim() || null;
-  const showHref = clip ? clipShowClipsPath(clip) : '';
-  const canLinkShow = Boolean(showHref && showHref !== '/');
-  const artistHref = artistName ? artistPath(artistName) : '';
-  const canLinkArtist = Boolean(artistHref && artistHref !== '/artists');
+  const songTitle = clip?.song_title?.trim() || null;
+  const venueLine = [clip?.venue_name?.trim(), clip?.location?.trim()].filter(Boolean).join(' · ');
 
   const onPlay = () => {
+    if (!canOpen) return;
     if (consumeSwipeClick()) return;
     onOpen();
   };
 
-  const onNavClick = (e: React.MouseEvent) => {
-    if (consumeSwipeClick()) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    e.stopPropagation();
-  };
-
-  const userRow = slide ? (
-    profileHref ? (
-      <Link
-        to={profileHref}
-        onClick={onNavClick}
-        className="flex max-w-full items-center gap-2.5 rounded-full py-0.5 hover:opacity-90"
-        aria-label={`Open profile for ${name}`}
-      >
-        <UserAvatar
-          imageUrl={slide.avatarUrl}
-          displayName={name}
-          seed={slide.mochaUserId}
-          alt={name}
-          sizeClass="h-9 w-9 sm:h-10 sm:w-10"
-          letterClassName="text-sm font-semibold"
-        />
-        <span className="min-w-0 truncate text-sm font-semibold text-white drop-shadow sm:text-base">
-          {name}
-        </span>
-      </Link>
-    ) : (
-      <div className="flex max-w-full items-center gap-2.5">
-        <UserAvatar
-          imageUrl={slide.avatarUrl}
-          displayName={name}
-          seed={slide.mochaUserId}
-          alt={name}
-          sizeClass="h-9 w-9 sm:h-10 sm:w-10"
-          letterClassName="text-sm font-semibold"
-        />
-        <span className="min-w-0 truncate text-sm font-semibold text-white drop-shadow sm:text-base">
-          {name}
-        </span>
-      </div>
-    )
-  ) : null;
-
-  const showRow = eventTitle ? (
-    canLinkShow ? (
-      <Link
-        to={showHref}
-        onClick={onNavClick}
-        className="block max-w-full truncate whitespace-nowrap text-sm font-bold text-white drop-shadow hover:opacity-90 sm:text-base"
-        aria-label={`Open show page for ${eventTitle}`}
-      >
-        {eventTitle}
-      </Link>
-    ) : (
-      <p className="max-w-full truncate whitespace-nowrap text-sm font-bold text-white drop-shadow sm:text-base">
-        {eventTitle}
-      </p>
-    )
-  ) : null;
-
-  const artistRow = artistName ? (
-    canLinkArtist ? (
-      <Link
-        to={artistHref}
-        onClick={onNavClick}
-        className="block max-w-full truncate text-xs font-semibold text-white/90 drop-shadow hover:opacity-90 sm:text-sm"
-        aria-label={`Open artist page for ${artistName}`}
-      >
-        {artistName}
-      </Link>
-    ) : (
-      <p className="max-w-full truncate text-xs font-semibold text-white/90 drop-shadow sm:text-sm">
-        {artistName}
-      </p>
-    )
-  ) : null;
-
   return (
-    <div className="hero-carousel__fill min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem]">
+    <div
+      className={`hero-carousel__fill hero-featured-clip min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem] ${canOpen ? 'cursor-pointer' : ''}`}
+      role={canOpen ? 'button' : undefined}
+      tabIndex={canOpen ? 0 : undefined}
+      aria-label={canOpen ? `Play featured clip by ${name}` : undefined}
+      onClick={onPlay}
+      onPointerDown={() => {
+        if (clip) prefetchModalPlayback(clip);
+      }}
+      onKeyDown={(event) => {
+        if (!canOpen) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onPlay();
+        }
+      }}
+    >
       {poster ? (
         <img
           src={poster}
@@ -228,16 +250,8 @@ function FeaturedClipSlide({
         </div>
       ) : null}
       <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-      {canOpen ? (
-        <button
-          type="button"
-          className="absolute inset-0 z-10 cursor-pointer"
-          aria-label={`Play featured clip by ${name}`}
-          onClick={onPlay}
-        />
-      ) : null}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/70 via-black/25 to-transparent pb-8 pt-16 sm:pb-11">
-        <div className="pointer-events-auto flex max-w-[min(22rem,calc(100%-5.5rem))] flex-col items-start gap-1.5 px-4 text-left sm:px-6">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/35 to-transparent pb-8 pt-16 sm:pb-11">
+        <div className="flex max-w-[min(24rem,calc(100%-5.5rem))] flex-col items-start gap-1 px-4 text-left sm:px-6">
           <p className="font-headline hero-headline-grad text-left text-xl leading-tight tracking-tight sm:text-2xl md:text-3xl">
             Featured Clip
           </p>
@@ -245,20 +259,53 @@ function FeaturedClipSlide({
             <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/75 sm:text-[0.7rem]">
               Brought to you by
             </span>
-            <a
-              href={JAMBASE_HOME_URL}
-              target="_blank"
-              rel="nofollow noopener noreferrer"
-              aria-label="JamBase"
-              className="text-white hover:text-white/90"
-              onClick={onNavClick}
-            >
-              <JamBaseWordmark className="h-3 w-auto sm:h-3.5" />
-            </a>
+            <JamBaseWordmark className="h-3 w-auto text-white sm:h-3.5" />
           </div>
-          {userRow}
-          {showRow}
-          {artistRow}
+          {slide ? (
+            <div className="mt-1 flex max-w-full items-center gap-2.5">
+              <UserAvatar
+                imageUrl={slide.avatarUrl}
+                displayName={name}
+                seed={slide.mochaUserId}
+                alt={name}
+                sizeClass="h-9 w-9 sm:h-10 sm:w-10"
+                letterClassName="text-sm font-semibold"
+              />
+              <span className="min-w-0 truncate text-sm font-semibold text-white drop-shadow sm:text-base">
+                {name}
+                {clip ? (
+                  <span className="ml-1.5 font-medium text-white/65">
+                    · {formatRelativeTime(clipPostedAt(clip))}
+                  </span>
+                ) : null}
+              </span>
+            </div>
+          ) : null}
+          {eventTitle ? (
+            <p className="max-w-full truncate text-sm font-bold text-white drop-shadow sm:text-base">
+              {eventTitle}
+            </p>
+          ) : null}
+          {artistName ? (
+            <p className="fb-clip-artist-name max-w-full truncate text-white drop-shadow">
+              {artistName}
+            </p>
+          ) : null}
+          {songTitle ? (
+            <p className="fb-clip-song max-w-full truncate text-white/90 drop-shadow">
+              {songTitle}
+            </p>
+          ) : null}
+          {venueLine ? (
+            <p className="fb-clip-place-row max-w-full truncate text-white/80 drop-shadow">
+              {venueLine}
+            </p>
+          ) : null}
+          {clip && (clip.likes_count > 0 || clip.views_count > 0) ? (
+            <p className="text-[11px] font-semibold text-white/75 sm:text-xs">
+              {formatCount(clip.likes_count)} likes · {formatCount(clip.views_count)} views
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -279,6 +326,7 @@ export default function HeroSection({
   const [slidesA, setSlidesA] = useState<HeroClipSlide[]>([]);
   const [slidesB, setSlidesB] = useState<HeroClipSlide[]>([]);
   const [featured, setFeatured] = useState<ClipWithUser | null>(null);
+  const [featuredFeed, setFeaturedFeed] = useState<ClipWithUser[]>([]);
   const [clipModal, setClipModal] = useState<ClipWithUser | null>(null);
   const [findShowOpen, setFindShowOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
@@ -328,6 +376,23 @@ export default function HeroSection({
   }, [loadHeroClips]);
 
   useAppPullRefresh(loadHeroClips);
+
+  useEffect(() => {
+    if (!featured) {
+      setFeaturedFeed([]);
+      return;
+    }
+    setFeaturedFeed([featured]);
+    const ac = new AbortController();
+    void fetchFeaturedShowClips(featured, ac.signal)
+      .then((clips) => {
+        if (!ac.signal.aborted) setFeaturedFeed(clips);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      });
+    return () => ac.abort();
+  }, [featured]);
 
   useEffect(() => {
     if (tourActive) {
@@ -509,7 +574,7 @@ export default function HeroSection({
         </div>
       </div>
 
-      <div className="absolute bottom-3 left-0 right-0 z-20 flex justify-center gap-2">
+      <div className="absolute bottom-3 left-0 right-0 z-30 flex justify-center gap-2">
         {['Where Live Music Lives', 'JamBase', 'Featured clip'].map((label, i) => (
           <button
             key={label}
@@ -525,7 +590,15 @@ export default function HeroSection({
       </div>
 
       {clipModal ? (
-        <ClipModal clip={clipModal} onClose={() => setClipModal(null)} />
+        <ClipModal
+          clip={clipModal}
+          onClose={() => setClipModal(null)}
+          feedNavigation={
+            featuredFeed.length > 1
+              ? { clips: featuredFeed, onChangeClip: setClipModal }
+              : null
+          }
+        />
       ) : null}
       {findShowOpen ? <FindAShowModal onClose={() => setFindShowOpen(false)} /> : null}
     </section>
