@@ -281,7 +281,7 @@ export default function FindAShowModal({
         <p className="mb-3 text-sm text-gray-400">
           {addPastShow
             ? 'Search JamBase’s archive of past events. Shows already in Feedback can’t be added again.'
-            : 'Past shows are listed first (JamBase dates go back about two years; FEEDBACK library clips can be older). Upcoming dates include a ticket link on the show page.'}
+            : 'Search for past and future events from your favorite artists'}
         </p>
         <Link
           to={
