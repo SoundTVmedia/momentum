@@ -236,17 +236,8 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
   align-items: center;
   line-height: 1;
   font-size: 1.565rem;
-  margin-right: 1.35rem;
-  background-image: linear-gradient(
-    to right,
-    var(--momentum-ember),
-    var(--momentum-flare),
-    var(--momentum-ember)
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
 }
 
 .app-header-brand-rule {
@@ -255,7 +246,8 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
   width: 1px;
   height: 1.55rem;
   background: #ffffff;
-  margin-right: 1.35rem;
+  margin-left: 0.45rem;
+  margin-right: 0.45rem;
 }
 
 .app-header-mark {
@@ -278,12 +270,12 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
 @media (min-width: 640px) {
   .app-header-wordmark {
     font-size: 1.739rem;
-    margin-right: 1.75rem;
   }
 
   .app-header-brand-rule {
     height: 1.7rem;
-    margin-right: 1.75rem;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
   }
 
   .app-header-mark {
@@ -296,12 +288,12 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
 @media (min-width: 768px) {
   .app-header-wordmark {
     font-size: 1.739rem;
-    margin-right: 1.25rem;
   }
 
   .app-header-brand-rule {
     height: 1.7rem;
-    margin-right: 1.75rem;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
   }
 
   .app-header-mark {
@@ -314,12 +306,12 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
 @media (min-width: 1024px) {
   .app-header-wordmark {
     font-size: 2.088rem;
-    margin-right: 2.25rem;
   }
 
   .app-header-brand-rule {
     height: 1.9rem;
-    margin-right: 2.25rem;
+    margin-left: 0.55rem;
+    margin-right: 0.55rem;
   }
 
   .app-header-mark {

@@ -1295,6 +1295,24 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     transform: translateZ(0);
   }
 
+  /* Darken the lower clip so overlay headlines stay readable on bright footage. */
+  .glass-clip-media-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.9) 0%,
+      rgba(0, 0, 0, 0.68) 32%,
+      rgba(0, 0, 0, 0.32) 55%,
+      rgba(0, 0, 0, 0.08) 72%,
+      transparent 88%
+    );
+  }
+
   /* Hover preview video must clip to the same radius as the card (WebKit compositing). */
   .glass-clip-media-frame .clip-feed-preview,
   .glass-clip-media-frame .clip-feed-preview__video,
@@ -1305,13 +1323,11 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   .glass-clip-overlay-bottom {
     background: linear-gradient(
       to top,
-      rgba(0, 0, 0, 0.82) 0%,
-      rgba(0, 0, 0, 0.45) 45%,
+      rgba(0, 0, 0, 0.88) 0%,
+      rgba(0, 0, 0, 0.55) 58%,
       transparent 100%
     );
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    @apply px-3.5 py-2.5 sm:px-4 sm:py-3 md:px-3 md:py-2;
+    @apply px-3.5 pt-8 pb-2.5 sm:px-4 sm:pt-9 sm:pb-3 md:px-3 md:pt-7 md:pb-2;
   }
 
   .glass-clip-overlay-bottom .fb-clip-artist-name,

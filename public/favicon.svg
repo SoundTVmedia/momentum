@@ -1,16 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Feedback">
-  <defs>
-    <linearGradient id="f-grad" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#F6F2FA" />
-      <stop offset="22%" stop-color="#FF2E88" />
-      <stop offset="48%" stop-color="#F6F2FA" />
-      <stop offset="72%" stop-color="#7566E8" />
-      <stop offset="100%" stop-color="#F6F2FA" />
-    </linearGradient>
-  </defs>
   <rect width="32" height="32" rx="6" fill="#0B0711" />
   <path
-    fill="url(#f-grad)"
+    fill="#FF2E88"
     d="M8.5 7h15.5v4H13v4.25h9v3.75H13v5.5H8.5V7z"
   />
 </svg>
