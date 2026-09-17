@@ -19,6 +19,7 @@ import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext'
 import BecomeNavDropdown from '@/react-app/components/BecomeNavDropdown'
 import HeroSearchBar from '@/react-app/components/HeroSearchBar'
 import MobileNavMoreMenu from '@/react-app/components/MobileNavMoreMenu'
+import FeedbackWordmark from '@/react-app/components/FeedbackWordmark'
 import PoweredByJamBase from '@/react-app/components/PoweredByJamBase'
 import { isAdminUser, showBecomeNav, showSponsorNav } from '@/react-app/lib/program-nav'
 import { TOUR_ANCHORS } from '@/react-app/lib/productTour'
@@ -40,24 +41,19 @@ export default function Header() {
       <IonHeader className="app-top-header ion-no-border">
         <IonToolbar className="app-toolbar">
           <div className="flex w-full min-w-0 items-center justify-between gap-2 md:gap-3">
-            <div className="flex min-w-0 shrink-0 items-center">
+            <div className="app-header-brand">
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="flex min-w-0 items-center gap-2 sm:gap-2.5"
+                className="app-header-brand-home"
                 aria-label="Feedback home"
               >
                 <span className="app-header-mark" aria-hidden>
                   <img src="/favicon.svg" alt="" width={36} height={36} />
                 </span>
-                <div className="app-header-wordmark font-headline" aria-hidden>
-                  FEEDBACK
-                </div>
+                <FeedbackWordmark className="app-header-wordmark font-headline" />
               </button>
-              <span className="app-header-brand-rule hidden lg:block" aria-hidden />
-              <span className="hidden lg:block">
-                <PoweredByJamBase variant="nav" />
-              </span>
+              <PoweredByJamBase variant="line" className="app-header-powered" />
             </div>
 
             <div className="hidden min-w-[13rem] flex-1 md:block md:max-w-xl lg:max-w-2xl xl:max-w-3xl">

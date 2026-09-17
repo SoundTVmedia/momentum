@@ -231,30 +231,59 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
   --ion-safe-area-top: var(--app-header-safe-top);
 }
 
-.app-header-wordmark {
+.feedback-wordmark {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
+  font-weight: 800;
+  letter-spacing: -0.045em;
   line-height: 1;
-  font-size: 1.565rem;
+  white-space: nowrap;
+}
+
+.feedback-wordmark__feed {
   color: #ffffff;
   -webkit-text-fill-color: #ffffff;
 }
 
-.app-header-brand-rule {
+.feedback-wordmark__back {
+  color: #ff2e88;
+  -webkit-text-fill-color: #ff2e88;
+}
+
+.app-header-brand {
+  --app-header-mark-size: 1.7rem;
+  --app-header-brand-gap: 0.5rem;
+  display: flex;
+  min-width: 0;
   flex-shrink: 0;
-  align-self: center;
-  width: 1px;
-  height: 1.55rem;
-  background: #ffffff;
-  margin-left: 0.45rem;
-  margin-right: 0.45rem;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.app-header-brand-home {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--app-header-brand-gap);
+}
+
+.app-header-wordmark {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  font-size: 1.28rem;
+}
+
+.app-header-powered {
+  margin-left: calc(var(--app-header-mark-size) + var(--app-header-brand-gap));
+  margin-top: 0.12rem;
 }
 
 .app-header-mark {
   display: inline-flex;
   flex-shrink: 0;
-  width: 1.7rem;
-  height: 1.7rem;
+  width: var(--app-header-mark-size);
+  height: var(--app-header-mark-size);
   overflow: hidden;
   border-radius: 0.4rem;
   background: #0b1220;
@@ -268,55 +297,36 @@ ion-header.app-top-header ion-toolbar.app-toolbar {
 }
 
 @media (min-width: 640px) {
-  .app-header-wordmark {
-    font-size: 1.739rem;
+  .app-header-brand {
+    --app-header-mark-size: 1.9rem;
+    --app-header-brand-gap: 0.625rem;
   }
 
-  .app-header-brand-rule {
-    height: 1.7rem;
-    margin-left: 0.5rem;
-    margin-right: 0.5rem;
+  .app-header-wordmark {
+    font-size: 1.4rem;
   }
 
   .app-header-mark {
-    width: 1.9rem;
-    height: 1.9rem;
     border-radius: 0.45rem;
   }
 }
 
 @media (min-width: 768px) {
   .app-header-wordmark {
-    font-size: 1.739rem;
-  }
-
-  .app-header-brand-rule {
-    height: 1.7rem;
-    margin-left: 0.5rem;
-    margin-right: 0.5rem;
-  }
-
-  .app-header-mark {
-    width: 1.9rem;
-    height: 1.9rem;
-    border-radius: 0.45rem;
+    font-size: 1.4rem;
   }
 }
 
 @media (min-width: 1024px) {
-  .app-header-wordmark {
-    font-size: 2.088rem;
+  .app-header-brand {
+    --app-header-mark-size: 2.05rem;
   }
 
-  .app-header-brand-rule {
-    height: 1.9rem;
-    margin-left: 0.55rem;
-    margin-right: 0.55rem;
+  .app-header-wordmark {
+    font-size: 1.55rem;
   }
 
   .app-header-mark {
-    width: 2.25rem;
-    height: 2.25rem;
     border-radius: 0.5rem;
   }
 }

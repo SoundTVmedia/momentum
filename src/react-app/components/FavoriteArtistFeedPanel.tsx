@@ -296,10 +296,7 @@ export default function FavoriteArtistFeedPanel({
         <div className="flex flex-col items-start gap-2 text-left">
           {variant === 'feed' ? (
             <>
-              <p className="fb-section-subtitle mb-0 whitespace-nowrap">
-                Follow your favorite artists, friends, venues, and songs.
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleAddArtists}
@@ -332,6 +329,9 @@ export default function FavoriteArtistFeedPanel({
                   onFilterChange={setPanelView}
                 />
               </div>
+              <p className="fb-section-subtitle mb-0 whitespace-nowrap">
+                Follow your favorite artists, friends, venues, and songs.
+              </p>
             </>
           ) : (
             <SectionHeading
