@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=390, initial-scale=1, viewport-fit=cover" />
+  <title>Feedback — Personalized feed on iOS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ember: #FF2E88;
+      --rose: #7566E8;
+      --ink: #0B0711;
+      --glacier: #F6F2FA;
+      --grad: linear-gradient(to bottom left, #FF2E88 0%, #FF2E88 50%, #7566E8 100%);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 390px; height: 844px; overflow: hidden; background: #000;
+      color: var(--glacier); font-family: Inter, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .phone { position: relative; width: 390px; height: 844px; background: var(--ink); overflow: hidden; }
+    .status {
+      position: absolute; inset: 0 0 auto 0; height: 54px; z-index: 80;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      padding: 0 28px 8px; font-size: 15px; font-weight: 600; color: #fff; pointer-events: none;
+    }
+    .island {
+      position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
+      width: 126px; height: 37px; background: #000; border-radius: 20px; z-index: 81;
+    }
+    .status-right { display: flex; gap: 6px; align-items: center; }
+    .callout {
+      position: absolute; left: 16px; right: 16px; z-index: 70;
+      display: flex; justify-content: center; pointer-events: none;
+      opacity: 0; transform: translateY(-6px);
+      transition: opacity .35s ease, transform .35s ease;
+      top: auto; bottom: 104px;
+    }
+    .callout.show { opacity: 1; transform: none; }
+    .callout span {
+      background: rgba(11,7,17,.82); border: 1px solid rgba(255,46,136,.45); color: #fff;
+      font-size: 12px; font-weight: 650; padding: 7px 12px; border-radius: 999px;
+      backdrop-filter: blur(16px); box-shadow: 0 8px 24px rgba(255,46,136,.22); text-align: center;
+    }
+    .app-header {
+      position: absolute; top: 54px; left: 0; right: 0; height: 52px; z-index: 20;
+      display: flex; align-items: center; padding: 0 14px;
+      background: linear-gradient(to bottom, rgba(11,7,17,.94), rgba(11,7,17,.55) 70%, transparent);
+    }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .mark { width: 27px; height: 27px; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.42); }
+    .mark img { width: 100%; height: 100%; display: block; }
+    .wordmark { font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.03em; }
+    .scroll { position: absolute; inset: 106px 0 92px; padding: 0 16px; overflow: hidden; }
+    .subtitle { font-size: 13px; color: #d4d4d4; margin-bottom: 10px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 999px; border: 1px solid #fff; background: rgba(255,255,255,.1);
+      color: #fff; font-size: 13px; font-weight: 600; padding: 8px 16px;
+    }
+    .pill.press { transform: scale(.94); }
+    .filter {
+      display: inline-flex; align-items: center; gap: 6px;
+      border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1);
+      color: #fff; font-size: 13px; font-weight: 600; padding: 8px 16px; position: relative;
+    }
+    .menu {
+      display: none; position: absolute; left: 0; top: calc(100% + 8px); z-index: 40;
+      min-width: 11.5rem; border-radius: 12px; overflow: hidden;
+      background: rgba(22,14,28,.96); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 16px 40px rgba(0,0,0,.45);
+    }
+    .menu.on { display: block; }
+    .menu button {
+      display: block; width: 100%; text-align: left; background: none; border: 0;
+      color: #fff; font-size: 13px; font-weight: 600; padding: 10px 12px;
+    }
+    .menu button.on { color: var(--ember); background: rgba(255,255,255,.08); }
+    .module {
+      display: none; margin-bottom: 12px; border-radius: 14px;
+      border: 1px solid rgba(117,102,232,.35); background: rgba(0,0,0,.5); padding: 14px;
+    }
+    .module.on { display: block; }
+    .hint { font-size: 13px; color: #d1d5db; margin-bottom: 10px; }
+    .none { font-size: 11px; color: #6b7280; margin-bottom: 10px; }
+    .chips { display: none; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .chips.on { display: flex; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+      border-radius: 999px; border: 1px solid rgba(255,46,136,.35); background: rgba(255,46,136,.12);
+      padding: 6px 12px; font-size: 13px; color: #fff;
+    }
+    .chip img, .av { width: 20px; height: 20px; border-radius: 50%; object-cover; }
+    .search {
+      display: flex; align-items: center; gap: 8px; height: 44px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.4); padding: 0 12px; color: #8fa3b8; font-size: 14px;
+    }
+    .search.focus { border-color: rgba(255,46,136,.6); }
+    .search .q { color: #fff; }
+    .caret { display: inline-block; width: 1px; height: 14px; background: var(--ember); animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .sec { display: none; margin-top: 14px; }
+    .sec.on { display: block; }
+    .sec h3 {
+      display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+      letter-spacing: .04em; text-transform: uppercase; color: #9ca3af; margin-bottom: 8px;
+    }
+    .hit {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05);
+      padding: 8px 10px; color: #fff;
+    }
+    .hit.press { background: rgba(255,255,255,.12); transform: scale(.98); }
+    .hit img, .hit .ph {
+      width: 40px; height: 40px; border-radius: 50%; object-cover; flex-shrink: 0;
+    }
+    .hit .ph { display: flex; align-items: center; justify-content: center; background: rgba(117,102,232,.2); }
+    .hit .name { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; }
+    .hit .sub { display: block; font-size: 11px; font-weight: 400; color: #9ca3af; }
+    .act { font-size: 12px; font-weight: 700; color: #fff; }
+    .act.done { color: var(--ember); }
+    .follow-status { display: none; margin-top: 10px; font-size: 13px; color: #6ee7b7; }
+    .follow-status.on { display: block; }
+    .empty { font-size: 13px; color: #9ca3af; padding: 16px 0 8px; }
+    .empty.hide { display: none; }
+    .rail { display: none; gap: 10px; overflow: hidden; padding: 4px 0 8px; }
+    .rail.on { display: flex; }
+    .tile {
+      flex: 0 0 148px; border-radius: 14px; overflow: hidden;
+      background: rgba(22,14,28,.8); border: 1px solid rgba(117,102,232,.25);
+      transform: translateY(12px); opacity: 0;
+    }
+    .rail.on .tile { animation: pop .45s cubic-bezier(.2,.8,.2,1) forwards; }
+    .rail.on .tile:nth-child(2) { animation-delay: .08s; }
+    .rail.on .tile:nth-child(3) { animation-delay: .16s; }
+    @keyframes pop { to { transform: none; opacity: 1; } }
+    .tile img { width: 100%; aspect-ratio: 1; object-cover; display: block; }
+    .tile .meta { padding: 8px 10px 10px; }
+    .tile .who { font-size: 12px; font-weight: 700; }
+    .tile .where { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+    .filter-chips { display: none; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+    .filter-chips.on { display: flex; }
+    .fchip {
+      border-radius: 12px; border: 2px solid rgba(255,255,255,.4); background: rgba(255,255,255,.1);
+      color: #fff; font-size: 13px; font-weight: 600; padding: 8px 14px;
+    }
+    .fchip.on { border-color: var(--ember); background: rgba(255,46,136,.25); }
+    .tabbar {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 92px; z-index: 30;
+      background: rgba(11,7,17,.88); border-top: 1px solid rgba(255,255,255,.1);
+      backdrop-filter: blur(32px); display: grid; grid-template-columns: repeat(5, 1fr);
+      padding: 8px 4px 22px;
+    }
+    .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; color: #8fa3b8; font-size: 10px; font-weight: 600; }
+    .tab.active { color: var(--ember); }
+    .tab svg { width: 22px; height: 22px; }
+    .fab {
+      width: 48px; height: 48px; border-radius: 50%; background-image: var(--grad);
+      box-shadow: 0 8px 24px rgba(255,46,136,.35); display: flex; align-items: center; justify-content: center; margin-top: -10px;
+    }
+    .avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--grad);
+      display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff;
+    }
+    .finger {
+      position: absolute; width: 44px; height: 44px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.9); background: rgba(255,255,255,.28);
+      box-shadow: 0 8px 20px rgba(0,0,0,.35); z-index: 90; pointer-events: none;
+      opacity: 0; transform: translate(-50%, -50%) scale(.6);
+      transition: opacity .18s ease, transform .18s ease, left .35s ease, top .35s ease;
+    }
+    .finger.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .finger.down { transform: translate(-50%, -50%) scale(.78); background: rgba(255,255,255,.45); }
+    .letter-av {
+      width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, #FF2E88, #7566E8); color: #F6F2FA;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="status">
+      <span>9:41</span>
+      <div class="status-right">
+        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx=".5"/><rect x="4.5" y="5" width="3" height="7" rx=".5"/><rect x="9" y="2.5" width="3" height="9.5" rx=".5"/><rect x="13.5" y="0" width="3" height="12" rx=".5"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 9.2a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Zm0-3.4c1.7 0 3.3.7 4.5 1.8l-1.1 1.1A4.6 4.6 0 0 0 8 6.8c-1.2 0-2.4.5-3.3 1.3L3.6 7C4.8 5.9 6.4 5.2 8 5.2Zm0-3.5c2.7 0 5.2 1.1 7 2.9L13.9 5.7A8.3 8.3 0 0 0 8 3.3c-2.2 0-4.3.9-5.9 2.4L.9 4.6A10.7 10.7 0 0 1 8 1.7Z"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12" fill="currentColor"><rect x="0" y="1" width="21" height="10" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2" y="3" width="16" height="6" rx="1"/><rect x="22" y="4" width="2" height="4" rx="1"/></svg>
+      </div>
+    </div>
+    <div class="callout" id="callout"><span></span></div>
+
+    <header class="app-header">
+      <div class="brand">
+        <span class="mark"><img src="favicon.svg" alt="" /></span>
+        <span class="wordmark">FEEDBACK</span>
+      </div>
+    </header>
+
+    <div class="scroll">
+      <p class="subtitle">Follow your favorite artists, friends, venues, and songs.</p>
+      <div class="row">
+        <div class="pill" id="follow-btn"><span id="follow-label">Follow</span>
+          <svg id="follow-plus" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+          <svg id="follow-x" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="display:none"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </div>
+        <div class="filter" id="filter-btn">
+          <span id="filter-label">All clips</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          <div class="menu" id="filter-menu">
+            <button data-f="all" class="on">All clips</button>
+            <button data-f="artists">Artists</button>
+            <button data-f="venues">Venues</button>
+            <button data-f="songs">Songs</button>
+            <button data-f="friends">Friends</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="module" id="module">
+        <p class="hint">Search artists, friends, venues, songs, and shows to follow.</p>
+        <p class="none" id="no-artists">You are not following any artists yet.</p>
+        <div class="chips" id="artist-chips">
+          <span class="chip"><img src="quickrecord-concert-preview.png" alt="" />Wet Leg</span>
+        </div>
+        <div class="search" id="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+          <span class="q" id="q"></span><span class="caret" id="caret"></span>
+          <span id="ph">Search artists, friends, venues, songs, or shows</span>
+        </div>
+
+        <section class="sec" id="sec-artists">
+          <h3>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Artists
+          </h3>
+          <div class="hit" id="hit-artist">
+            <img src="quickrecord-concert-preview.png" alt="" />
+            <span class="name">Wet Leg</span>
+            <span class="act" id="act-artist">Follow</span>
+          </div>
+        </section>
+        <section class="sec" id="sec-venues">
+          <h3>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            Venues
+          </h3>
+          <div class="hit" id="hit-venue">
+            <span class="name">Brooklyn Steel<span class="sub">Brooklyn, NY</span></span>
+            <span class="act" id="act-venue">Follow</span>
+          </div>
+        </section>
+        <section class="sec" id="sec-songs">
+          <h3>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Songs
+          </h3>
+          <div class="hit" id="hit-song">
+            <span class="name">Chaise Longue<span class="sub">Wet Leg</span></span>
+            <span class="act" id="act-song">Follow</span>
+          </div>
+        </section>
+        <section class="sec" id="sec-friends">
+          <h3>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Friends
+          </h3>
+          <div class="hit" id="hit-friend">
+            <span class="letter-av">A</span>
+            <span class="name">Alex Rivera<span class="sub">12 clips</span></span>
+            <span class="act" id="act-friend">Follow</span>
+          </div>
+        </section>
+        <p class="follow-status" id="follow-status"></p>
+      </div>
+
+      <div class="filter-chips" id="venue-chip-row">
+        <span class="fchip on">Brooklyn Steel</span>
+      </div>
+      <div class="filter-chips" id="song-chip-row">
+        <span class="fchip on">Chaise Longue</span>
+      </div>
+
+      <p class="empty" id="empty">Use Follow + to add artists, friends, songs, and venues — then their clips show up here.</p>
+      <div class="rail" id="rail-artists">
+        <div class="tile"><img src="quickrecord-clip-poster.png" alt="" /><div class="meta"><div class="who">Wet Leg</div><div class="where">Brooklyn Steel</div></div></div>
+        <div class="tile"><img src="quickrecord-feed-clip-1.png" alt="" /><div class="meta"><div class="who">Wet Leg</div><div class="where">Brooklyn Steel</div></div></div>
+        <div class="tile"><img src="quickrecord-feed-clip-2.png" alt="" /><div class="meta"><div class="who">Wet Leg</div><div class="where">Brooklyn Steel</div></div></div>
+      </div>
+      <div class="rail" id="rail-venues">
+        <div class="tile"><img src="quickrecord-feed-clip-1.png" alt="" /><div class="meta"><div class="who">Turnstile</div><div class="where">Brooklyn Steel</div></div></div>
+        <div class="tile"><img src="quickrecord-clip-poster.png" alt="" /><div class="meta"><div class="who">Wet Leg</div><div class="where">Brooklyn Steel</div></div></div>
+        <div class="tile"><img src="quickrecord-concert-preview.png" alt="" /><div class="meta"><div class="who">Japanese Breakfast</div><div class="where">Brooklyn Steel</div></div></div>
+      </div>
+      <div class="rail" id="rail-songs">
+        <div class="tile"><img src="quickrecord-feed-clip-2.png" alt="" /><div class="meta"><div class="who">Chaise Longue</div><div class="where">Wet Leg</div></div></div>
+        <div class="tile"><img src="quickrecord-clip-poster.png" alt="" /><div class="meta"><div class="who">Chaise Longue</div><div class="where">Wet Leg</div></div></div>
+      </div>
+      <div class="rail" id="rail-friends">
+        <div class="tile"><img src="quickrecord-feed-clip-1.png" alt="" /><div class="meta"><div class="who">Alex Rivera</div><div class="where">Madison Square Garden</div></div></div>
+        <div class="tile"><img src="quickrecord-concert-preview.png" alt="" /><div class="meta"><div class="who">Alex Rivera</div><div class="where">Brooklyn Paramount</div></div></div>
+      </div>
+      <div class="rail" id="rail-all">
+        <div class="tile"><img src="quickrecord-clip-poster.png" alt="" /><div class="meta"><div class="who">Wet Leg</div><div class="where">Artist · Venue</div></div></div>
+        <div class="tile"><img src="quickrecord-feed-clip-2.png" alt="" /><div class="meta"><div class="who">Chaise Longue</div><div class="where">Song</div></div></div>
+        <div class="tile"><img src="quickrecord-feed-clip-1.png" alt="" /><div class="meta"><div class="who">Alex Rivera</div><div class="where">Friend</div></div></div>
+      </div>
+    </div>
+
+    <nav class="tabbar">
+      <div class="tab active">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10.2V21h6v-6h6v6h6V10.2L12 3z"/></svg>
+        Home
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18h10M7 12h10M7 6h10"/><path d="M4 20v-4l8-8 8 8v4"/></svg>
+        Queue
+      </div>
+      <div class="tab">
+        <div class="fab">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 10 12 7 9 10"/><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3"/></svg>
+        </div>
+      </div>
+      <div class="tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+        Alerts
+      </div>
+      <div class="tab">
+        <div class="avatar">A</div>
+        Profile
+      </div>
+    </nav>
+    <div class="finger" id="finger"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    function callout(text) {
+      const el = $('callout');
+      if (!text) { el.classList.remove('show'); return; }
+      el.querySelector('span').textContent = text;
+      el.classList.add('show');
+    }
+
+    async function tap(x, y, pressEl) {
+      const f = $('finger');
+      f.style.left = x + 'px';
+      f.style.top = y + 'px';
+      f.classList.add('show');
+      await wait(260);
+      f.classList.add('down');
+      pressEl?.classList.add('press');
+      await wait(150);
+      f.classList.remove('down');
+      pressEl?.classList.remove('press');
+      await wait(100);
+      f.classList.remove('show');
+    }
+
+    async function typeQuery(text) {
+      $('search').classList.add('focus');
+      $('ph').style.display = 'none';
+      $('q').textContent = '';
+      $('caret').style.display = 'inline-block';
+      for (const ch of text) {
+        $('q').textContent += ch;
+        await wait(70);
+      }
+      await wait(280);
+    }
+
+    function clearQuery() {
+      $('q').textContent = '';
+      $('ph').style.display = '';
+      $('caret').style.display = 'none';
+      $('search').classList.remove('focus');
+      ['sec-artists','sec-venues','sec-songs','sec-friends'].forEach((id) => $(id).classList.remove('on'));
+    }
+
+    function setFollowOpen(open) {
+      $('module').classList.toggle('on', open);
+      $('phone').classList.toggle('mod', open);
+      $('follow-label').textContent = open ? 'Close' : 'Follow';
+      $('follow-plus').style.display = open ? 'none' : '';
+      $('follow-x').style.display = open ? '' : 'none';
+    }
+
+    function showRail(id) {
+      ['rail-artists','rail-venues','rail-songs','rail-friends','rail-all'].forEach((r) => $(r).classList.remove('on'));
+      $('empty').classList.add('hide');
+      $('venue-chip-row').classList.toggle('on', id === 'rail-venues');
+      $('song-chip-row').classList.toggle('on', id === 'rail-songs');
+      $(id).classList.remove('on');
+      void $(id).offsetWidth;
+      $(id).classList.add('on');
+    }
+
+    function setFilter(label) {
+      $('filter-label').textContent = label;
+      [...$('filter-menu').querySelectorAll('button')].forEach((b) => {
+        b.classList.toggle('on', b.textContent === label);
+      });
+    }
+
+    window.__demoReady = false;
+    window.__demoDone = false;
+
+    async function run() {
+      await Promise.race([
+        Promise.all([
+          Promise.all(Array.from(document.images).map((img) =>
+            img.complete ? null : new Promise((res) => { img.onload = img.onerror = res; }),
+          )),
+          document.fonts.ready,
+        ]),
+        wait(2000),
+      ]);
+      await wait(250);
+      window.__demoReady = true;
+      $('caret').style.display = 'none';
+
+      callout('Personalized feed on iOS');
+      await wait(2000);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(true);
+      callout('Open Follow to search');
+      await wait(1200);
+
+      await tap(195, 268);
+      callout('Search an artist');
+      await typeQuery('Wet Leg');
+      $('sec-artists').classList.add('on');
+      await wait(700);
+
+      await tap(195, 340, $('hit-artist'));
+      $('act-artist').textContent = 'Unfollow';
+      $('act-artist').classList.add('done');
+      $('no-artists').style.display = 'none';
+      $('artist-chips').classList.add('on');
+      $('follow-status').textContent = 'Following Wet Leg';
+      $('follow-status').classList.add('on');
+      callout('Tap the artist to follow');
+      await wait(1600);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(false);
+      clearQuery();
+      $('follow-status').classList.remove('on');
+      showRail('rail-artists');
+      callout('Feed fills with their clips');
+      await wait(2400);
+
+      callout('Same flow for venues, songs, and friends');
+      await wait(1500);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(true);
+      await wait(400);
+      await tap(195, 300);
+      await typeQuery('Brooklyn Steel');
+      $('sec-venues').classList.add('on');
+      await wait(500);
+      await tap(195, 360, $('hit-venue'));
+      $('act-venue').textContent = 'Unfollow';
+      $('act-venue').classList.add('done');
+      $('follow-status').textContent = 'Following Brooklyn Steel';
+      $('follow-status').classList.add('on');
+      callout('Follow a venue');
+      await wait(1100);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(false);
+      clearQuery();
+      $('follow-status').classList.remove('on');
+      await tap(250, 148, $('filter-btn'));
+      $('filter-menu').classList.add('on');
+      await wait(450);
+      await tap(250, 230);
+      $('filter-menu').classList.remove('on');
+      setFilter('Venues');
+      showRail('rail-venues');
+      callout('Venue clips land in your feed');
+      await wait(1800);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(true);
+      await wait(350);
+      await typeQuery('Chaise Longue');
+      $('sec-songs').classList.add('on');
+      await wait(450);
+      await tap(195, 360, $('hit-song'));
+      $('act-song').textContent = 'Unfollow';
+      $('act-song').classList.add('done');
+      $('follow-status').textContent = 'Following Chaise Longue';
+      $('follow-status').classList.add('on');
+      callout('Follow a song');
+      await wait(1000);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(false);
+      clearQuery();
+      $('follow-status').classList.remove('on');
+      setFilter('Songs');
+      showRail('rail-songs');
+      callout('Song clips show up next');
+      await wait(1700);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(true);
+      await wait(350);
+      await typeQuery('Alex');
+      $('sec-friends').classList.add('on');
+      await wait(450);
+      await tap(195, 360, $('hit-friend'));
+      $('act-friend').textContent = 'Unfollow';
+      $('act-friend').classList.add('done');
+      $('follow-status').textContent = 'Following Alex Rivera';
+      $('follow-status').classList.add('on');
+      callout('Follow a friend');
+      await wait(1000);
+
+      await tap(52, 148, $('follow-btn'));
+      setFollowOpen(false);
+      clearQuery();
+      $('follow-status').classList.remove('on');
+      setFilter('Friends');
+      showRail('rail-friends');
+      callout('Clips from people you follow');
+      await wait(1800);
+
+      setFilter('All clips');
+      showRail('rail-all');
+      callout('One follow module personalizes everything');
+      await wait(2400);
+      callout('');
+      window.__demoDone = true;
+    }
+
+    run();
+  </script>
+</body>
+</html>
