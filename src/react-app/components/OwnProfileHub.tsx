@@ -5,6 +5,7 @@ import { Calendar, LifeBuoy, Loader2, MapPin, Music, Shield } from 'lucide-react
 import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import PointsDisplay from '@/react-app/components/PointsDisplay';
 import BadgesDisplay from '@/react-app/components/BadgesDisplay';
+import SectionHeading from '@/react-app/components/SectionHeading';
 import MyClipsSection from '@/react-app/components/MyClipsSection';
 import SavedClipsSection from '@/react-app/components/SavedClipsSection';
 import PersonalizedConcerts from '@/react-app/components/PersonalizedConcerts';
@@ -64,60 +65,62 @@ export default function OwnProfileHub({ onOpenCapture, children }: OwnProfileHub
 
   return (
     <div className="mb-10">
-      <div className="rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-6 mb-10">
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Your Account</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <PointsDisplay />
-          <div className="lg:col-span-2">
-            <BadgesDisplay compact />
+      <section className="mb-10">
+        <SectionHeading title="Your Account" size="section" className="mb-4" />
+        <div className="w-full rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <PointsDisplay />
+            <div className="lg:col-span-2">
+              <BadgesDisplay compact />
+            </div>
           </div>
-        </div>
 
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/artist-hub')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
-          >
-            <Music className="w-4 h-4 shrink-0" />
-            Artist Hub
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/venue-hub')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
-          >
-            <MapPin className="w-4 h-4 shrink-0" />
-            Venue Hub
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(MY_SHOWS_PATH)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
-          >
-            <Calendar className="w-4 h-4 shrink-0" />
-            My Shows
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/support')}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
-          >
-            <LifeBuoy className="w-4 h-4 shrink-0" />
-            Help &amp; Support
-          </button>
-          {isAdminUser(userData) ? (
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => navigate('/admin')}
-              className="admin-header-control w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-momentum-rose/40 bg-momentum-rose/10 text-momentum-rose hover:bg-momentum-rose/20 transition-colors text-sm font-medium"
+              onClick={() => navigate('/artist-hub')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
             >
-              <Shield className="w-4 h-4 shrink-0" />
-              Admin dashboard
+              <Music className="w-4 h-4 shrink-0" />
+              Artist Hub
             </button>
-          ) : null}
+            <button
+              type="button"
+              onClick={() => navigate('/venue-hub')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
+            >
+              <MapPin className="w-4 h-4 shrink-0" />
+              Venue Hub
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(MY_SHOWS_PATH)}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
+            >
+              <Calendar className="w-4 h-4 shrink-0" />
+              My Shows
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/support')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
+            >
+              <LifeBuoy className="w-4 h-4 shrink-0" />
+              Help &amp; Support
+            </button>
+            {isAdminUser(userData) ? (
+              <button
+                type="button"
+                onClick={() => navigate('/admin')}
+                className="admin-header-control w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-momentum-rose/40 bg-momentum-rose/10 text-momentum-rose hover:bg-momentum-rose/20 transition-colors text-sm font-medium"
+              >
+                <Shield className="w-4 h-4 shrink-0" />
+                Admin dashboard
+              </button>
+            ) : null}
+          </div>
         </div>
-      </div>
+      </section>
 
       {children}
 

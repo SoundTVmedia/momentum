@@ -450,35 +450,6 @@ export default function UserProfilePage() {
               )}
             </div>
             ) : null}
-
-            {/* Lifetime Feedback stats */}
-            {lifetimeStats && !data.blocked && (
-              <div className="mt-6 sm:mt-8 bg-gradient-to-r from-momentum-ember/12 to-momentum-flare/8 border border-momentum-ember/30 rounded-xl p-4 sm:p-6">
-                <div className="flex items-center space-x-2 mb-4">
-                  <TrendingUp className="w-5 h-5 text-momentum-flare" />
-                  <h3 className="text-lg sm:text-xl font-bold text-white">Lifetime Feedback Stats</h3>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl sm:text-3xl font-bold text-momentum-flare">{lifetimeStats.totalClipsPosted}</div>
-                    <div className="text-sm text-gray-400">Moments Posted</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl sm:text-3xl font-bold text-momentum-flare">{lifetimeStats.totalViewsOnClips.toLocaleString()}</div>
-                    <div className="text-sm text-gray-400">Moments Watched</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center space-x-2">
-                      <Star className="w-5 h-5 text-momentum-ember fill-current" />
-                      <div className="text-2xl sm:text-3xl font-bold text-momentum-ember">
-                        {lifetimeStats.userAverageClipRating > 0 ? lifetimeStats.userAverageClipRating.toFixed(1) : 'N/A'}
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-400">User Score</div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -598,6 +569,34 @@ export default function UserProfilePage() {
           />
         )}
           </>
+        ) : null}
+
+        {lifetimeStats && !data.blocked ? (
+          <div className="mt-10 bg-gradient-to-r from-momentum-ember/12 to-momentum-flare/8 border border-momentum-ember/30 rounded-xl p-4 sm:p-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <TrendingUp className="w-5 h-5 text-momentum-flare" />
+              <h3 className="text-lg sm:text-xl font-bold text-white">Lifetime Feedback Stats</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-momentum-flare">{lifetimeStats.totalClipsPosted}</div>
+                <div className="text-sm text-gray-400">Moments Posted</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold text-momentum-flare">{lifetimeStats.totalViewsOnClips.toLocaleString()}</div>
+                <div className="text-sm text-gray-400">Moments Watched</div>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center space-x-2">
+                  <Star className="w-5 h-5 text-momentum-ember fill-current" />
+                  <div className="text-2xl sm:text-3xl font-bold text-momentum-ember">
+                    {lifetimeStats.userAverageClipRating > 0 ? lifetimeStats.userAverageClipRating.toFixed(1) : 'N/A'}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-400">User Score</div>
+              </div>
+            </div>
+          </div>
         ) : null}
       </div>
 

@@ -10,6 +10,35 @@ import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import type { ClipPlaybackFields } from '@/shared/clip-playback';
 import type { ClipWithUser } from '@/shared/types';
 
+type IdentifyStatus = 'idle' | 'loading' | 'done' | 'nomatch' | 'skipped' | 'error';
+
+type AutoIdentifySession = {
+  status: Exclude<IdentifyStatus, 'idle'>;
+  promptOpen: boolean;
+  promptDismissed: boolean;
+  manualTitle: string;
+};
+
+/** Survives player remounts and looped playback so we identify and prompt once. */
+const autoIdentifySessions = new Map<string, AutoIdentifySession>();
+
+function sessionFor(clipKey: string): AutoIdentifySession | undefined {
+  return clipKey ? autoIdentifySessions.get(clipKey) : undefined;
+}
+
+function writeSession(clipKey: string, patch: Partial<AutoIdentifySession>): AutoIdentifySession | undefined {
+  if (!clipKey) return undefined;
+  const prev = autoIdentifySessions.get(clipKey) ?? {
+    status: 'loading',
+    promptOpen: false,
+    promptDismissed: false,
+    manualTitle: '',
+  };
+  const next = { ...prev, ...patch };
+  autoIdentifySessions.set(clipKey, next);
+  return next;
+}
+
 type ClipSongRecognitionControlProps = {
   clip: ClipPlaybackFields;
   currentFields: AcrClipFieldSnapshot & ClipMetadataSaveFields;
@@ -36,12 +65,17 @@ export default function ClipSongRecognitionControl({
   allowManualEntry = false,
   autoStart = false,
 }: ClipSongRecognitionControlProps) {
-  const [status, setStatus] = useState<
-    'idle' | 'loading' | 'done' | 'nomatch' | 'skipped' | 'error'
-  >(autoStart ? 'loading' : 'idle');
+  const clipKey = String(clipNumericId(clip) ?? clip.stream_video_id ?? '');
+  const existingSession = autoStart ? sessionFor(clipKey) : undefined;
+
+  const [status, setStatus] = useState<IdentifyStatus>(
+    existingSession?.status ?? (autoStart ? 'loading' : 'idle'),
+  );
   const [message, setMessage] = useState<string | null>(null);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualTitle, setManualTitle] = useState('');
+  const [manualOpen, setManualOpen] = useState(
+    Boolean(existingSession?.promptOpen && !existingSession?.promptDismissed),
+  );
+  const [manualTitle, setManualTitle] = useState(existingSession?.manualTitle ?? '');
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
   const [keyboardLift, setKeyboardLift] = useState(0);
@@ -51,12 +85,25 @@ export default function ClipSongRecognitionControl({
   fieldsRef.current = currentFields;
   onSavedRef.current = onSaved;
 
-  const clipKey = String(clipNumericId(clip) ?? clip.stream_video_id ?? '');
   const clipKeyRef = useRef(clipKey);
   clipKeyRef.current = clipKey;
+  const autoStartRef = useRef(autoStart);
+  autoStartRef.current = autoStart;
+  const allowManualEntryRef = useRef(allowManualEntry);
+  allowManualEntryRef.current = allowManualEntry;
 
   const stopGesture = (e: SyntheticEvent) => {
     e.stopPropagation();
+  };
+
+  const applyManualOpen = (open: boolean, dismissed?: boolean) => {
+    setManualOpen(open);
+    if (autoStartRef.current) {
+      writeSession(clipKeyRef.current, {
+        promptOpen: open,
+        ...(dismissed != null ? { promptDismissed: dismissed } : {}),
+      });
+    }
   };
 
   // iOS WKWebView zooms the visual viewport when a text field focuses. Keep the clip
@@ -92,47 +139,83 @@ export default function ClipSongRecognitionControl({
   const handleRun = async (e?: SyntheticEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
+    const startedFor = clipKey;
+    const auto = autoStartRef.current;
+    const prior = auto ? sessionFor(startedFor) : undefined;
+    if (auto && prior && prior.status !== 'loading') {
+      setStatus(prior.status);
+      setManualOpen(prior.promptOpen && !prior.promptDismissed);
+      setManualTitle(prior.manualTitle);
+      return;
+    }
     if (runningRef.current) return;
     runningRef.current = true;
-    const startedFor = clipKey;
     console.log('[identify] start', clipNumericId(clip) ?? clip.stream_video_id ?? 'unknown');
     setStatus('loading');
     setMessage(null);
-    setManualOpen(false);
+    if (auto) writeSession(startedFor, { status: 'loading' });
+    else setManualOpen(false);
     try {
       const outcome = await runClipSongRecognitionAndSave({
         clip,
         currentFields: fieldsRef.current,
         asSuperadmin,
+        reuseCompleted: auto,
       });
       if (clipKeyRef.current !== startedFor) return;
       if (outcome.status === 'match') {
         setStatus('done');
-        setMessage(autoStart ? null : outcome.message);
+        setMessage(auto ? null : outcome.message);
+        if (auto) writeSession(startedFor, { status: 'done', promptOpen: false });
         onSavedRef.current?.(outcome.updated);
         return;
       }
       setStatus(outcome.status);
-      setMessage(autoStart ? null : outcome.message);
-      if (allowManualEntry) setManualOpen(true);
+      setMessage(auto ? null : outcome.message);
+      if (auto) {
+        const session = writeSession(startedFor, { status: outcome.status });
+        if (allowManualEntryRef.current && session && !session.promptDismissed) {
+          applyManualOpen(true);
+        }
+      } else if (allowManualEntryRef.current) {
+        setManualOpen(true);
+      }
     } catch (err) {
       if (clipKeyRef.current !== startedFor) return;
       setStatus('error');
-      setMessage(autoStart ? null : err instanceof Error ? err.message : 'Song lookup failed');
-      if (allowManualEntry) setManualOpen(true);
+      setMessage(auto ? null : err instanceof Error ? err.message : 'Song lookup failed');
+      if (auto) {
+        const session = writeSession(startedFor, { status: 'error' });
+        if (allowManualEntryRef.current && session && !session.promptDismissed) {
+          applyManualOpen(true);
+        }
+      } else if (allowManualEntryRef.current) {
+        setManualOpen(true);
+      }
     } finally {
       if (clipKeyRef.current === startedFor) runningRef.current = false;
     }
   };
 
   useEffect(() => {
-    runningRef.current = false;
-    setManualOpen(false);
     setManualError(null);
     setMessage(null);
     if (!autoStart) {
+      runningRef.current = false;
+      setManualOpen(false);
       setStatus('idle');
       return;
+    }
+    const session = sessionFor(clipKey);
+    if (session && session.status !== 'loading') {
+      runningRef.current = false;
+      setStatus(session.status);
+      setManualTitle(session.manualTitle);
+      setManualOpen(session.promptOpen && !session.promptDismissed);
+      return;
+    }
+    if (!session) {
+      writeSession(clipKey, { status: 'loading' });
     }
     setStatus('loading');
     void handleRun();
@@ -155,7 +238,8 @@ export default function ClipSongRecognitionControl({
       );
       setStatus('done');
       setMessage(`Saved: ${title}`);
-      setManualOpen(false);
+      applyManualOpen(false);
+      if (autoStart) writeSession(clipKey, { status: 'done', promptOpen: false, manualTitle: title });
       onSavedRef.current?.(updated);
     } catch (err) {
       setManualError(err instanceof Error ? err.message : 'Could not save the song title');
@@ -207,9 +291,11 @@ export default function ClipSongRecognitionControl({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setManualTitle(currentFields.song_title ?? '');
+              const nextTitle = currentFields.song_title ?? sessionFor(clipKey)?.manualTitle ?? '';
+              setManualTitle(nextTitle);
               setManualError(null);
-              setManualOpen(true);
+              applyManualOpen(true, false);
+              if (autoStart) writeSession(clipKey, { manualTitle: nextTitle });
             }}
             onPointerDown={stopGesture}
             onTouchStart={stopGesture}
@@ -233,14 +319,21 @@ export default function ClipSongRecognitionControl({
             enterKeyHint="done"
             placeholder="Enter song title"
             aria-label="Song title"
-            onChange={(e) => setManualTitle(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setManualTitle(value);
+              if (autoStart) writeSession(clipKey, { manualTitle: value });
+            }}
             onPointerDown={stopGesture}
             onTouchStart={stopGesture}
             onClick={stopGesture}
             onKeyDown={(e) => {
               e.stopPropagation();
               if (e.key === 'Enter') void handleManualSave(e);
-              if (e.key === 'Escape') setManualOpen(false);
+              if (e.key === 'Escape') {
+                applyManualOpen(false, true);
+                setManualError(null);
+              }
             }}
             className="min-w-0 flex-1 rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-base text-white placeholder:text-white/40 focus:border-momentum-ember/60 focus:outline-none"
             autoComplete="off"
@@ -267,7 +360,7 @@ export default function ClipSongRecognitionControl({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              setManualOpen(false);
+              applyManualOpen(false, true);
               setManualError(null);
             }}
             onPointerDown={stopGesture}

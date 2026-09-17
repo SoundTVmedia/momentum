@@ -94,19 +94,31 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 const recognitionInFlight = new Map<string, Promise<ClipSongRecognitionOutcome>>();
+const recognitionCompleted = new Map<string, ClipSongRecognitionOutcome>();
 
 export async function runClipSongRecognitionAndSave(input: {
   clip: ClipPlaybackFields;
   currentFields: AcrClipFieldSnapshot & ClipMetadataSaveFields;
   asSuperadmin?: boolean;
   onStage?: IdentifyStageReporter;
+  /** Clip-player auto-identify: reuse the first result so loops do not call again. */
+  reuseCompleted?: boolean;
 }): Promise<ClipSongRecognitionOutcome> {
   const key = String(clipNumericId(input.clip) ?? input.clip.stream_video_id ?? 'unknown');
+  if (input.reuseCompleted) {
+    const done = recognitionCompleted.get(key);
+    if (done) return done;
+  }
   const existing = recognitionInFlight.get(key);
   if (existing) return existing;
-  const run = runClipSongRecognitionAndSaveUncapped(input).finally(() => {
-    recognitionInFlight.delete(key);
-  });
+  const run = runClipSongRecognitionAndSaveUncapped(input)
+    .then((outcome) => {
+      if (input.reuseCompleted) recognitionCompleted.set(key, outcome);
+      return outcome;
+    })
+    .finally(() => {
+      recognitionInFlight.delete(key);
+    });
   recognitionInFlight.set(key, run);
   return run;
 }

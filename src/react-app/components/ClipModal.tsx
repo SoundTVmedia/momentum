@@ -50,7 +50,7 @@ import ClipModalBuyMerch from './ClipModalBuyMerch';
 import ClipModalBuyTickets from './ClipModalBuyTickets';
 import { openExternalKeepClipPlaying } from '@/react-app/lib/open-external-keep-clip-playing';
 import ClipModalTicketSheet from './ClipModalTicketSheet';
-import { canRunClipSongIdentify } from '@/shared/clip-song-identify';
+import { canRunClipSongIdentify, shouldAutoIdentifyClip } from '@/shared/clip-song-identify';
 import { clipBelongsToUser, navigableMochaUserId } from '@/shared/mocha-user-id';
 import { isSuperAdminUser } from '@/react-app/lib/program-nav';
 import ClipSongRecognitionControl from '@/react-app/components/ClipSongRecognitionControl';
@@ -196,12 +196,12 @@ export default function ClipModal({
   }, [clip.id]);
 
   useEffect(() => {
-    if (!(isOwnClip || isSuperAdmin) || clip.song_title?.trim()) return;
+    if (!isOwnClip || clip.song_title?.trim()) return;
     console.log(
-      '[identify] untitled clip — auto identify',
+      '[identify] untitled own clip — auto identify',
       clipNumericId(clip) ?? clip.id,
     );
-  }, [clip.id, clip.song_title, clip.stream_video_id, isOwnClip, isSuperAdmin]);
+  }, [clip.id, clip.song_title, clip.stream_video_id, isOwnClip]);
   const canDownloadClip = isOwnClip && Boolean(resolveClipDownloadUrl(clip));
 
   const navIndex =
@@ -434,10 +434,9 @@ export default function ClipModal({
     </button>
   ) : null;
 
-  const showPlayerSongIdentify = canRunClipSongIdentify(clip, {
-    isOwner: isOwnClip,
-    isSuperadmin: isSuperAdmin,
-  });
+  const identifyViewer = { isOwner: isOwnClip, isSuperadmin: isSuperAdmin };
+  const showPlayerSongIdentify = canRunClipSongIdentify(clip, identifyViewer);
+  const autoStartIdentify = shouldAutoIdentifyClip(clip, identifyViewer);
 
   const renderPlayerSongIdentify = () =>
     showPlayerSongIdentify ? (
@@ -446,7 +445,7 @@ export default function ClipModal({
         currentFields={metadataFieldsFromClip(clip)}
         asSuperadmin={isSuperAdmin && !isOwnClip}
         onSaved={handleClipSaved}
-        autoStart
+        autoStart={autoStartIdentify}
         allowManualEntry={isOwnClip || isSuperAdmin}
         buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90"
       />

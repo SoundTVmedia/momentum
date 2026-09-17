@@ -10,6 +10,7 @@ import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { PAGE_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
+import SectionHeading from '@/react-app/components/SectionHeading';
 
 export type DashboardGridClip = Record<string, unknown> & {
   id?: unknown;
@@ -114,12 +115,32 @@ export default function DashboardClipsGrid({
     }
   };
 
+  const sectionHeader = (
+    <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+      <div className="flex min-w-0 items-center gap-3">
+        {headerIcon ?? null}
+        <SectionHeading title={title} subtitle={subtitle} size="section" className="mb-0" />
+      </div>
+      <button
+        type="button"
+        onClick={refresh}
+        className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+      >
+        <RefreshCw className="w-4 h-4" />
+        <span className="text-sm">Refresh</span>
+      </button>
+    </div>
+  );
+
   if (loading && clips.length === 0) {
     return (
-      <div className="glass-panel rounded-xl p-8">
-        <div className="flex items-center justify-center space-x-2 text-gray-400">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>{initialLoadingLabel}</span>
+      <div>
+        {sectionHeader}
+        <div className="glass-panel rounded-xl p-8">
+          <div className="flex items-center justify-center space-x-2 text-gray-400">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>{initialLoadingLabel}</span>
+          </div>
         </div>
       </div>
     );
@@ -127,36 +148,27 @@ export default function DashboardClipsGrid({
 
   if (error) {
     return (
-      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
-        <p className="text-red-400 text-center">{error}</p>
+      <div>
+        {sectionHeader}
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
+          <p className="text-red-400 text-center">{error}</p>
+        </div>
       </div>
     );
   }
 
   if (emptyContent != null && clips.length === 0) {
-    return <>{emptyContent}</>;
+    return (
+      <div>
+        {sectionHeader}
+        {emptyContent}
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          {headerIcon ?? null}
-          <div>
-            <h2 className="text-2xl font-bold text-white">{title}</h2>
-            <p className="text-gray-400 text-sm">{subtitle}</p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={refresh}
-          className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span className="text-sm">Refresh</span>
-        </button>
-      </div>
+    <div>
+      {sectionHeader}
 
       <HorizontalClipCarousel
         ariaLabel={title}
