@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog, ClipboardList, Database, Gauge, ChevronDown, type LucideIcon } from 'lucide-react';
+import { Shield, Plus, Edit, Trash2, PlayCircle, PauseCircle, Calendar, Users, MessageSquare, SkipForward, BarChart3, CheckCircle, UserCog, ClipboardList, Database, Gauge, ChevronDown, Film, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@getmocha/users-service/react';
 import { useNavigate } from 'react-router';
 import LiveSessionManager from './LiveSessionManager';
@@ -12,6 +12,7 @@ import ProgramApplicationsAdminPanel from './ProgramApplicationsAdminPanel';
 import SuperadminClipModerationPanel from './SuperadminClipModerationPanel';
 import PlaybackPerformancePanel from './PlaybackPerformancePanel';
 import JamBaseQuotaPanel from './JamBaseQuotaPanel';
+import AdminDemosPanel from './AdminDemosPanel';
 import type { ExtendedMochaUser } from '@/shared/types';
 
 type AdminTab =
@@ -24,7 +25,8 @@ type AdminTab =
   | 'applications'
   | 'roles'
   | 'clips'
-  | 'jambase';
+  | 'jambase'
+  | 'demos';
 
 const ADMIN_TABS: {
   id: AdminTab;
@@ -42,6 +44,7 @@ const ADMIN_TABS: {
   { id: 'clips', label: 'Clip Moderation', icon: Trash2, superAdminOnly: true },
   { id: 'applications', label: 'Applications', icon: ClipboardList },
   { id: 'verification', label: 'Verification', icon: CheckCircle },
+  { id: 'demos', label: 'Demos', icon: Film, superAdminOnly: true },
 ];
 
 interface LiveSession {
@@ -414,6 +417,8 @@ export default function AdminDashboard() {
         {activeTab === 'roles' && <UserRoleAdminPanel extendedUser={extendedUser} />}
 
         {activeTab === 'clips' && isSuperAdmin && <SuperadminClipModerationPanel />}
+
+        {activeTab === 'demos' && isSuperAdmin && <AdminDemosPanel />}
       </div>
     </section>
   );
