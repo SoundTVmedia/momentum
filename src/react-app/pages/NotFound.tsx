@@ -13,7 +13,7 @@ export default function NotFound() {
         <div className="text-center space-y-8">
           {/* 404 Animation */}
           <div className="relative">
-            <div className="text-9xl sm:text-[12rem] font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent animate-pulse">
+            <div className="text-9xl sm:text-[12rem] font-headline text-white animate-pulse">
               404
             </div>
             <div className="absolute inset-0 flex items-center justify-center">

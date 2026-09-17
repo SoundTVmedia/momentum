@@ -380,7 +380,7 @@ export default function Auth() {
             height={80}
             className="mx-auto mb-4 h-20 w-20 rounded-[1.35rem] shadow-[0_16px_48px_rgba(201,162,39,0.32)] ring-1 ring-white/15"
           />
-          <h1 className="font-headline text-4xl tracking-tight bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent sm:text-5xl">
+          <h1 className="font-headline text-4xl tracking-tight text-white sm:text-5xl">
             Feedback
           </h1>
           <p className="mt-3 text-xl font-medium leading-snug text-white/90 sm:text-2xl">

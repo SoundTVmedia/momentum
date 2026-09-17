@@ -37,7 +37,7 @@ export default function TrendingFilmstrip() {
               <Flame className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-momentum-ember animate-pulse" />
               <div className="absolute inset-0 w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 bg-momentum-ember/25 rounded-full blur-lg animate-pulse" />
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-rose bg-clip-text text-transparent">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-headline text-white">
               Trending Moments
             </h2>
           </div>

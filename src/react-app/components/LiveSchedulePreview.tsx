@@ -54,7 +54,7 @@ export default function LiveSchedulePreview({ items, showShareOptions = false }:
           <Sparkles className="w-5 h-5 text-momentum-flare animate-pulse shrink-0 mt-0.5" />
           <div>
             <h3 className="font-headline text-lg sm:text-xl leading-tight">
-              <span className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
+              <span className="text-white">
                 Tonight&apos;s Show
               </span>
             </h3>

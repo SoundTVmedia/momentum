@@ -110,7 +110,7 @@ export default function PremiumPage() {
           </div>
           
           <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6">
-            Level Up to <span className="momentum-grad-interactive bg-clip-text text-transparent">Premium</span>
+            Level Up to <span className="text-white">Premium</span>
           </h1>
           
           <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed mb-8">

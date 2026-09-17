@@ -10,8 +10,7 @@ import EventTicketActions from '@/react-app/components/EventTicketActions'
 import ClipPosterImage from '@/react-app/components/ClipPosterImage'
 import { displayMediaUrl } from '@/shared/media-proxy'
 
-const welcomeGradient =
-  'bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent'
+const welcomeNameClass = 'text-white'
 
 export default function DiscoverSection() {
   const navigate = useNavigate()
@@ -69,15 +68,15 @@ export default function DiscoverSection() {
               welcomeName ? (
                 <>
                   <span className="text-white">Welcome, </span>
-                  <span className={welcomeGradient}>{welcomeName}</span>
+                  <span className={welcomeNameClass}>{welcomeName}</span>
                 </>
               ) : (
-                <span className={welcomeGradient}>Welcome</span>
+                <span className={welcomeNameClass}>Welcome</span>
               )
             ) : (
               <>
                 <span className="text-white">Welcome to </span>
-                <span className={welcomeGradient}>Feedback</span>
+                <span className={welcomeNameClass}>Feedback</span>
               </>
             )}
           </h2>

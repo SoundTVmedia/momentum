@@ -176,7 +176,7 @@ export default function Onboarding() {
       <div className="max-w-4xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
+            <span className="text-white">
               Welcome to the Scene
             </span>
           </h1>

@@ -45,15 +45,25 @@ export default function Header() {
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="app-header-brand-home"
+                className="app-header-mark-btn"
                 aria-label="Feedback home"
               >
                 <span className="app-header-mark" aria-hidden>
-                  <img src="/favicon.svg" alt="" width={36} height={36} />
+                  <img src="/favicon.svg" alt="" />
                 </span>
-                <FeedbackWordmark className="app-header-wordmark font-headline" />
               </button>
-              <PoweredByJamBase variant="line" className="app-header-powered" />
+              <div className="app-header-brand-text">
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="app-header-wordmark-btn"
+                  tabIndex={-1}
+                  aria-hidden
+                >
+                  <FeedbackWordmark className="app-header-wordmark font-headline" />
+                </button>
+                <PoweredByJamBase variant="line" className="app-header-powered" />
+              </div>
             </div>
 
             <div className="hidden min-w-[13rem] flex-1 md:block md:max-w-xl lg:max-w-2xl xl:max-w-3xl">

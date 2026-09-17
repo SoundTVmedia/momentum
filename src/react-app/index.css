@@ -459,22 +459,16 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     0 0 0 1px rgba(255, 46, 136, 0.35);
 }
 
-.momentum-grad-text {
-  background-image: var(--momentum-grad);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.momentum-grad-text,
+.hero-headline-grad {
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
 }
 
-/** Hero headline — House Light with Magenta / Violet stops */
-.hero-headline-grad {
-  background-image: var(--hero-headline-grad);
-  background-size: 220% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 2px 16px rgba(255, 46, 136, 0.22));
+[data-theme='light'] .momentum-grad-text,
+[data-theme='light'] .hero-headline-grad {
+  color: var(--text-body);
+  -webkit-text-fill-color: var(--text-body);
 }
 
 .brand-border {
@@ -797,16 +791,12 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     border-color: rgba(255, 255, 255, 0.2);
   }
 
-  /* Section & page headings — theme-aware cyan-blue gradient */
+  /* Section & page headings — solid white */
   .fb-section-title,
   .fb-page-section-title,
   .fb-hero-title {
-    background-image: var(--hero-headline-grad);
-    background-size: 220% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    filter: drop-shadow(0 2px 16px rgba(255, 46, 136, 0.22));
+    color: #ffffff;
+    -webkit-text-fill-color: #ffffff;
   }
 
   .fb-section-title {
@@ -819,6 +809,13 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 
   .fb-hero-title {
     @apply font-headline text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight;
+  }
+
+  [data-theme='light'] .fb-section-title,
+  [data-theme='light'] .fb-page-section-title,
+  [data-theme='light'] .fb-hero-title {
+    color: var(--text-body);
+    -webkit-text-fill-color: var(--text-body);
   }
 
   .fb-section-subtitle {

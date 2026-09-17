@@ -197,7 +197,7 @@ export default function LiveBroadcast({ layoutMode = 'full' }: LiveBroadcastProp
       <div className="relative z-10 max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="text-center mb-4 sm:mb-6 md:mb-8">
           <p className="font-headline text-lg sm:text-xl md:text-2xl mb-2 sm:mb-3">
-            <span className="bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
+            <span className="text-white">
               Tonight&apos;s Show
             </span>
           </p>

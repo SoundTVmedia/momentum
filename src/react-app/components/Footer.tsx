@@ -45,7 +45,7 @@ export default function Footer() {
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <Music className="w-8 h-8 text-momentum-flare" />
-              <span className="text-2xl font-bold bg-gradient-to-r from-momentum-ember via-momentum-flare to-momentum-ember bg-clip-text text-transparent">
+              <span className="text-2xl font-bold text-white">
                 FEEDBACK
               </span>
             </div>
