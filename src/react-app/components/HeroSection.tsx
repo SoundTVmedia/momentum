@@ -11,14 +11,14 @@ import { JAMBASE_HOME_URL } from '@/react-app/components/PoweredByJamBase';
 import ClipModal from '@/react-app/components/ClipModal';
 import UserAvatar from '@/react-app/components/UserAvatar';
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
-import { fetchAllShowClips } from '@/react-app/lib/show-clips-pagination';
+import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
+import { fetchRelatedClips } from '@/react-app/lib/fetchRelatedClips';
 import { prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
 import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
 import { formatCount } from '@/react-app/lib/formatCount';
 import type { ClipWithUser } from '@/shared/types';
 import { apiEventClipsPath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
-import { resolveClipShowNavigationId } from '@/shared/show-id';
 import {
   markTourPending,
   PRODUCT_TOUR_AUTH_HREF,
@@ -86,18 +86,13 @@ async function fetchFeaturedShowClips(
   clip: ClipWithUser,
   signal: AbortSignal,
 ): Promise<ClipWithUser[]> {
-  const showId = resolveClipShowNavigationId(clip);
-  const artist = clip.artist_name?.trim();
-  if (artist && showId) {
+  const clipId = clipNumericId(clip);
+  if (clipId != null) {
     try {
-      const result = await fetchAllShowClips({
-        artistName: artist,
-        showId,
-        sortBy: 'time_posted',
-        signal,
-        fetchImpl: includeFetch,
-      });
-      if (result.clips.length > 0) return mergeFeaturedShowFeed(clip, result.clips);
+      const related = await fetchRelatedClips(clipId, signal);
+      if (related.scope === 'show' && related.clips.length > 0) {
+        return mergeFeaturedShowFeed(clip, related.clips);
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') throw err;
     }
@@ -107,25 +102,6 @@ async function fetchFeaturedShowClips(
   if (eventApi) {
     try {
       const res = await includeFetch(`${eventApi}?sort_by=time_posted`, { signal });
-      if (res.ok) {
-        const data = (await res.json()) as { clips?: ClipWithUser[] };
-        if (data.clips && data.clips.length > 0) {
-          return mergeFeaturedShowFeed(clip, data.clips);
-        }
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    }
-  }
-
-  if (artist) {
-    try {
-      const params = new URLSearchParams({
-        limit: '24',
-        sort_by: 'latest',
-        artist_name: artist,
-      });
-      const res = await includeFetch(`/api/clips?${params}`, { signal });
       if (res.ok) {
         const data = (await res.json()) as { clips?: ClipWithUser[] };
         if (data.clips && data.clips.length > 0) {
@@ -204,28 +180,20 @@ function FeaturedClipSlide({
   };
 
   return (
-    <div
-      className={`hero-carousel__fill hero-featured-clip min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem] ${canOpen ? 'cursor-pointer' : ''}`}
-      role={canOpen ? 'button' : undefined}
-      tabIndex={canOpen ? 0 : undefined}
+    <button
+      type="button"
+      className={`hero-carousel__fill hero-featured-clip block w-full min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem] appearance-none border-0 bg-transparent p-0 text-left ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}
       aria-label={canOpen ? `Play featured clip by ${name}` : undefined}
       onClick={onPlay}
       onPointerDown={() => {
         if (clip) prefetchModalPlayback(clip);
-      }}
-      onKeyDown={(event) => {
-        if (!canOpen) return;
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onPlay();
-        }
       }}
     >
       {poster ? (
         <img
           src={poster}
           alt=""
-          className="hero-concert-photo__img"
+          className="hero-concert-photo__img pointer-events-none"
           width={1920}
           height={720}
           decoding="async"
@@ -316,7 +284,7 @@ function FeaturedClipSlide({
           ) : null}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -449,6 +417,7 @@ export default function HeroSection({
   };
 
   return (
+    <>
     <section
       className="hero-carousel relative z-10 overflow-hidden bg-momentum-ink"
       aria-label="Home highlights"
@@ -597,18 +566,19 @@ export default function HeroSection({
         ))}
       </div>
 
-      {clipModal ? (
-        <ClipModal
-          clip={clipModal}
-          onClose={() => setClipModal(null)}
-          feedNavigation={
-            featuredFeed.length > 1
-              ? { clips: featuredFeed, onChangeClip: setClipModal }
-              : null
-          }
-        />
-      ) : null}
       {findShowOpen ? <FindAShowModal onClose={() => setFindShowOpen(false)} /> : null}
     </section>
+    {clipModal ? (
+      <ClipModal
+        clip={clipModal}
+        onClose={() => setClipModal(null)}
+        feedNavigation={
+          featuredFeed.length > 1
+            ? { clips: featuredFeed, onChangeClip: setClipModal }
+            : null
+        }
+      />
+    ) : null}
+    </>
   );
 }

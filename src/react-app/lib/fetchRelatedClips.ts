@@ -9,8 +9,14 @@ export type RelatedClipsResponse = {
 };
 
 /** Clips from the same show (when known) or same artist — for share-link modal swipe. */
-export async function fetchRelatedClips(clipId: number): Promise<RelatedClipsResponse> {
-  const res = await fetch(`/api/clips/${clipId}/related-clips`, { credentials: 'include' });
+export async function fetchRelatedClips(
+  clipId: number,
+  signal?: AbortSignal,
+): Promise<RelatedClipsResponse> {
+  const res = await fetch(`/api/clips/${clipId}/related-clips`, {
+    credentials: 'include',
+    signal,
+  });
   if (!res.ok) {
     return { clips: [], scope: 'artist' };
   }

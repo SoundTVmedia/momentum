@@ -156,28 +156,13 @@ export default function ArtistHubPage() {
                       key={`${artist.artist_id ?? 0}-${artist.name}`}
                       name={artist.name}
                       imageUrl={artist.image_url}
-                      selected={selectedName === artist.name}
-                      onClick={() => setSelectedName(artist.name)}
+                      to={artistPath(artist.name)}
                     />
                   ))}
                 </div>
 
                 {selectedName ? (
                   <section className="space-y-12">
-                    <div className="flex items-center justify-between gap-4">
-                      <SectionHeading
-                        title={selectedName}
-                        subtitle={`Clips and tour dates for ${selectedName}`}
-                        size="section"
-                      />
-                      <Link
-                        to={artistPath(selectedName)}
-                        className="shrink-0 text-sm text-momentum-flare hover:text-white"
-                      >
-                        Artist page
-                      </Link>
-                    </div>
-
                     <div>
                       <SectionHeading
                         title="Latest clips"
