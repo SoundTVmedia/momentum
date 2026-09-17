@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=390, initial-scale=1, viewport-fit=cover" />
+  <title>Feedback — Find a Show on iOS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ember: #FF2E88;
+      --rose: #7566E8;
+      --ink: #0B0711;
+      --glacier: #F6F2FA;
+      --grad: linear-gradient(to bottom left, #FF2E88 0%, #FF2E88 50%, #7566E8 100%);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 390px; height: 844px; overflow: hidden; background: #000;
+      color: var(--glacier); font-family: Inter, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .phone { position: relative; width: 390px; height: 844px; background: var(--ink); overflow: hidden; }
+    .status {
+      position: absolute; inset: 0 0 auto 0; height: 54px; z-index: 80;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      padding: 0 28px 8px; font-size: 15px; font-weight: 600; color: #fff; pointer-events: none;
+    }
+    .island {
+      position: absolute; top: 11px; left: 50%; transform: translateX(-50%);
+      width: 126px; height: 37px; background: #000; border-radius: 20px; z-index: 81;
+    }
+    .status-right { display: flex; gap: 6px; align-items: center; }
+    .callout {
+      position: absolute; left: 16px; right: 16px; z-index: 70;
+      display: flex; justify-content: center; pointer-events: none;
+      opacity: 0; transform: translateY(-6px);
+      transition: opacity .35s ease, transform .35s ease;
+      top: auto; bottom: 104px;
+    }
+    .phone.modal-open .callout { top: 108px; bottom: auto; }
+    .callout.show { opacity: 1; transform: none; }
+    .callout span {
+      background: rgba(11,7,17,.82); border: 1px solid rgba(255,46,136,.45); color: #fff;
+      font-size: 12px; font-weight: 650; padding: 7px 12px; border-radius: 999px;
+      backdrop-filter: blur(16px); box-shadow: 0 8px 24px rgba(255,46,136,.22); text-align: center;
+      max-width: 340px;
+    }
+    .app-header {
+      position: absolute; top: 54px; left: 0; right: 0; height: 52px; z-index: 20;
+      display: flex; align-items: center; padding: 0 14px;
+      background: linear-gradient(to bottom, rgba(11,7,17,.94), rgba(11,7,17,.55) 70%, transparent);
+    }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .mark { width: 27px; height: 27px; border-radius: 6px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.42); }
+    .mark img { width: 100%; height: 100%; display: block; }
+    .wordmark { font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -0.03em; }
+    .screen { position: absolute; inset: 0; opacity: 0; pointer-events: none; background: var(--ink); }
+    .screen.on { opacity: 1; pointer-events: auto; }
+    .screen.fade { transition: opacity .38s ease; }
+    .tabbar {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 92px; z-index: 30;
+      background: rgba(11,7,17,.88); border-top: 1px solid rgba(255,255,255,.1);
+      backdrop-filter: blur(32px); display: grid; grid-template-columns: repeat(5, 1fr);
+      padding: 8px 4px 22px;
+    }
+    .tab { display: flex; flex-direction: column; align-items: center; gap: 3px; color: #8fa3b8; font-size: 10px; font-weight: 600; }
+    .tab.active { color: var(--ember); }
+    .tab svg { width: 22px; height: 22px; }
+    .fab {
+      width: 48px; height: 48px; border-radius: 50%; background-image: var(--grad);
+      box-shadow: 0 8px 24px rgba(255,46,136,.35); display: flex; align-items: center; justify-content: center; margin-top: -10px;
+    }
+    .avatar {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--grad);
+      display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff;
+    }
+    .finger {
+      position: absolute; width: 44px; height: 44px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.9); background: rgba(255,255,255,.28);
+      box-shadow: 0 8px 20px rgba(0,0,0,.35); z-index: 90; pointer-events: none;
+      opacity: 0; transform: translate(-50%, -50%) scale(.6);
+      transition: opacity .18s ease, transform .18s ease, left .35s ease, top .35s ease;
+    }
+    .finger.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .finger.down { transform: translate(-50%, -50%) scale(.78); background: rgba(255,255,255,.45); }
+
+    .hero {
+      position: absolute; left: 0; right: 0; top: 54px; height: 248px; overflow: hidden;
+    }
+    .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .hero-scrim {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, rgba(11,7,17,.25), rgba(11,7,17,.55) 55%, var(--ink));
+    }
+    .hero-copy {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 28px 16px 12px; text-align: center;
+    }
+    .hero h1 {
+      font-family: 'Plus Jakarta Sans', Inter, sans-serif;
+      font-size: 26px; font-weight: 800; line-height: 1.15;
+      background: linear-gradient(90deg, #FF2E88, #7566E8);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero-btns { display: flex; gap: 8px; margin-top: 14px; }
+    .cta {
+      border: 0; border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700; color: #fff;
+      background-image: var(--grad); box-shadow: 0 8px 18px rgba(255,46,136,.28);
+    }
+    .cta.press { transform: scale(.94); }
+    .ghost {
+      border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700; color: #fff;
+      border: 1px solid rgba(255,255,255,.4); background: rgba(255,255,255,.1);
+    }
+    .home-rest { position: absolute; left: 16px; right: 16px; top: 310px; bottom: 92px; overflow: hidden; }
+    .sec-title {
+      font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 10px;
+      background: linear-gradient(90deg, #FF2E88, #7566E8);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .clip-card { border-radius: 14px; overflow: hidden; border: 1px solid rgba(117,102,232,.22); background: rgba(22,14,28,.72); }
+    .clip-card img { width: 100%; aspect-ratio: 16/9; object-cover; display: block; }
+    .clip-card .meta { padding: 8px 10px 10px; font-size: 11px; color: #8fa3b8; }
+
+    .sheet {
+      display: none; position: absolute; inset: 0; z-index: 50;
+      background: rgba(0,0,0,.9); align-items: center; justify-content: center; padding: 16px;
+    }
+    .sheet.on { display: flex; }
+    .card {
+      width: 100%; max-height: 78%; overflow: hidden; border-radius: 16px;
+      border: 1px solid rgba(117,102,232,.25); background: rgba(11,7,17,.97); padding: 18px 16px 16px;
+    }
+    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .card-head h3 { font-size: 20px; font-weight: 800; }
+    .hint { font-size: 13px; color: #9ca3af; margin-bottom: 8px; line-height: 1.4; }
+    .past-link { color: #FF2E88; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+    .search {
+      display: flex; align-items: center; gap: 8px; height: 44px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.4); padding: 0 12px; color: #8fa3b8; font-size: 14px;
+    }
+    .search.focus { border-color: rgba(255,46,136,.6); }
+    .search .q { color: #fff; }
+    .caret { display: none; width: 1px; height: 14px; background: var(--ember); animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .empty-search { font-size: 13px; color: #6b7280; padding: 22px 0; }
+    .hit {
+      display: none; align-items: center; gap: 10px; width: 100%; margin-top: 10px;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05);
+      padding: 8px 10px; color: #fff; text-align: left;
+    }
+    .hit.on { display: flex; }
+    .hit.press { background: rgba(255,255,255,.12); transform: scale(.98); }
+    .hit img { width: 48px; height: 48px; border-radius: 8px; object-cover; flex-shrink: 0; }
+    .hit .name { font-weight: 700; font-size: 14px; }
+    .hit .sub { display: block; font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .badge {
+      flex-shrink: 0; border-radius: 999px; padding: 3px 8px;
+      font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+      background: rgba(255,46,136,.25); color: #FF2E88;
+    }
+
+    .show-scroll { position: absolute; inset: 106px 0 92px; padding: 0 16px; overflow: hidden; }
+    .back { display: flex; align-items: center; gap: 8px; color: #9ca3af; font-size: 14px; margin-bottom: 12px; }
+    .show-hero {
+      background: linear-gradient(to right, rgba(255,46,136,.2), rgba(255,46,136,.12));
+      border: 1px solid rgba(255,46,136,.25); border-radius: 14px; padding: 14px 14px 12px; margin-bottom: 12px;
+    }
+    .show-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .show-hero h1 { font-family: 'Plus Jakarta Sans', Inter, sans-serif; font-size: 22px; font-weight: 800; line-height: 1.15; }
+    .stars { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+    .stars .row { display: flex; gap: 2px; }
+    .stars svg { width: 16px; height: 16px; }
+    .stars .avg { font-size: 11px; color: var(--ember); font-weight: 700; }
+    .stars .count { font-size: 10px; color: #9ca3af; font-weight: 500; }
+    .stars.pulse { animation: starflash .7s ease; }
+    @keyframes starflash {
+      0%, 100% { transform: none; }
+      40% { transform: scale(1.08); }
+    }
+    .show-meta { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; color: #d1d5db; font-size: 12px; }
+    .show-meta .row { display: flex; align-items: center; gap: 6px; }
+    .show-meta svg { color: var(--ember); flex-shrink: 0; }
+    .actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .moments { font-size: 12px; color: #9ca3af; margin-right: auto; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.05);
+      color: #d1d5db; font-size: 12px; font-weight: 700; padding: 7px 10px; white-space: nowrap;
+    }
+    .btn.press { transform: scale(.94); }
+    .btn.went { border: 0; background-image: var(--grad); color: #fff; box-shadow: 0 6px 16px rgba(255,46,136,.28); }
+    .btn.upload {
+      display: none; border: 0; background-image: var(--grad); color: #fff; font-weight: 700;
+    }
+    .btn.upload.on { display: inline-flex; }
+    .sort {
+      border-radius: 8px; border: 1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.1); color: #fff; font-size: 11px; font-weight: 600; padding: 6px 8px;
+    }
+    .setlist-pill {
+      display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px;
+      border-radius: 999px; border: 2px solid #fff; background: transparent;
+      color: #fff; font-size: 12px; font-weight: 700; padding: 6px 12px;
+    }
+    .show-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .tile {
+      border-radius: 14px; overflow: hidden; border: 1px solid rgba(117,102,232,.22);
+      background: rgba(22,14,28,.72);
+    }
+    .tile img { width: 100%; aspect-ratio: 16/9; object-cover; display: block; }
+    .tile .meta { padding: 8px 10px 10px; }
+    .tile .who { font-size: 11px; font-weight: 700; }
+    .tile .when { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+    .tile.new {
+      display: none; border-color: rgba(255,46,136,.55);
+      box-shadow: 0 0 0 0 rgba(255,46,136,0);
+    }
+    .tile.new.in {
+      display: block; animation: popin .55s cubic-bezier(.2,.8,.2,1) forwards, glow 1.4s ease .15s;
+    }
+    @keyframes popin {
+      from { transform: translateY(14px) scale(.96); opacity: 0; }
+      to { transform: none; opacity: 1; }
+    }
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,46,136,0); }
+      40% { box-shadow: 0 0 24px rgba(255,46,136,.5); }
+    }
+    .you {
+      display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: .05em;
+      color: #fff; background-image: var(--grad); border-radius: 999px; padding: 2px 6px; margin-bottom: 4px;
+    }
+
+    .up-scroll { position: absolute; inset: 106px 0 92px; padding: 0 16px; overflow: hidden; }
+    .up-scroll h1 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+    .up-sub { font-size: 12px; color: #d1d5db; margin-bottom: 12px; line-height: 1.4; }
+    .preview {
+      border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,255,255,.12);
+      background: #000; margin-bottom: 12px;
+    }
+    .preview img { width: 100%; aspect-ratio: 16/9; object-cover; display: block; }
+    .proof {
+      border-radius: 12px; border: 1px solid rgba(255,46,136,.35);
+      background: rgba(255,46,136,.1); padding: 10px 12px; margin-bottom: 10px;
+    }
+    .proof h2 { font-size: 12px; font-weight: 800; color: #fff; margin-bottom: 8px; }
+    .check { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; font-size: 12px; color: #e5e7eb; }
+    .check .ok {
+      width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+      background: #6ee7b7; color: #064e3b; font-size: 11px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .show-chip {
+      border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05);
+      padding: 10px 12px; margin-bottom: 12px;
+    }
+    .show-chip .k { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+    .show-chip .v { font-size: 14px; font-weight: 700; margin-top: 2px; }
+    .post {
+      width: 100%; border: 0; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 800; color: #fff;
+      background-image: var(--grad);
+    }
+    .post.press { transform: scale(.97); }
+    .picker {
+      display: none; position: absolute; inset: 0; z-index: 40; background: #0B0711;
+      padding: 70px 16px 110px;
+    }
+    .picker.on { display: block; }
+    .picker h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
+    .pick {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05);
+      padding: 8px; color: #fff; text-align: left;
+    }
+    .pick.press { background: rgba(255,255,255,.12); }
+    .pick img { width: 64px; height: 44px; border-radius: 8px; object-cover; }
+  </style>
+</head>
+<body>
+  <div class="phone" id="phone">
+    <div class="island"></div>
+    <div class="status">
+      <span>9:41</span>
+      <div class="status-right">
+        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx=".5"/><rect x="4.5" y="5" width="3" height="7" rx=".5"/><rect x="9" y="2.5" width="3" height="9.5" rx=".5"/><rect x="13.5" y="0" width="3" height="12" rx=".5"/></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 9.2a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2Zm0-3.4c1.7 0 3.3.7 4.5 1.8l-1.1 1.1A4.6 4.6 0 0 0 8 6.8c-1.2 0-2.4.5-3.3 1.3L3.6 7C4.8 5.9 6.4 5.2 8 5.2Zm0-3.5c2.7 0 5.2 1.1 7 2.9L13.9 5.7A8.3 8.3 0 0 0 8 3.3c-2.2 0-4.3.9-5.9 2.4L.9 4.6A10.7 10.7 0 0 1 8 1.7Z"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12" fill="currentColor"><rect x="0" y="1" width="21" height="10" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2" y="3" width="16" height="6" rx="1"/><rect x="22" y="4" width="2" height="4" rx="1"/></svg>
+      </div>
+    </div>
+    <div class="callout" id="callout"><span></span></div>
+
+    <header class="app-header">
+      <div class="brand">
+        <span class="mark"><img src="favicon.svg" alt="" /></span>
+        <span class="wordmark">FEEDBACK</span>
+      </div>
+    </header>
+
+    <section class="screen fade on" id="home">
+      <div class="hero">
+        <img src="quickrecord-concert-preview.png" alt="" />
+        <div class="hero-scrim"></div>
+        <div class="hero-copy">
+          <h1>Where Live Music Lives</h1>
+          <div class="hero-btns">
+            <button class="cta" id="find-btn" type="button">Find a Show</button>
+            <span class="ghost">Take the Tour</span>
+          </div>
+        </div>
+      </div>
+      <div class="home-rest">
+        <h2 class="sec-title">Latest moments</h2>
+        <div class="grid">
+          <div class="clip-card"><img src="quickrecord-feed-clip-1.png" alt="" /><div class="meta">124 likes · 890 views</div></div>
+          <div class="clip-card"><img src="quickrecord-feed-clip-2.png" alt="" /><div class="meta">86 likes · 412 views</div></div>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <div class="tab active">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10.2V21h6v-6h6v6h6V10.2L12 3z"/></svg>
+          Home
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18h10M7 12h10M7 6h10"/><path d="M4 20v-4l8-8 8 8v4"/></svg>
+          Queue
+        </div>
+        <div class="tab"><div class="fab"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 10 12 7 9 10"/><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3"/></svg></div></div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+          Alerts
+        </div>
+        <div class="tab"><div class="avatar">A</div>Profile</div>
+      </nav>
+    </section>
+
+    <div class="sheet" id="sheet">
+      <div class="card">
+        <div class="card-head">
+          <h3>Find a Show</h3>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </div>
+        <p class="hint">Search for past and future events from your favorite artists</p>
+        <p class="past-link">View all past shows</p>
+        <div class="search" id="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+          <span class="q" id="q"></span><span class="caret" id="caret"></span>
+          <span id="ph">Artist, venue, or show name</span>
+        </div>
+        <p class="empty-search" id="empty-search">Type at least two letters to search.</p>
+        <button class="hit" id="hit" type="button">
+          <img src="quickrecord-concert-preview.png" alt="" />
+          <span class="name">Wet Leg at Brooklyn Steel<span class="sub">Brooklyn Steel · Brooklyn, NY<br />Sat, Mar 22, 2024</span></span>
+          <span class="badge">Past</span>
+        </button>
+      </div>
+    </div>
+
+    <section class="screen fade" id="show">
+      <div class="show-scroll">
+        <div class="back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+          Back to Wet Leg
+        </div>
+        <div class="show-hero">
+          <div class="show-top">
+            <h1>Wet Leg at Brooklyn Steel</h1>
+            <div class="stars" id="stars">
+              <div class="row" id="star-row">
+                <svg viewBox="0 0 24 24" class="s" data-n="1"><path d="M12 3.2 14.5 9l6.3.6-4.8 4.2 1.5 6.2L12 16.7 6.5 20l1.5-6.2L3.2 9.6 9.5 9z"/></svg>
+                <svg viewBox="0 0 24 24" class="s" data-n="2"><path d="M12 3.2 14.5 9l6.3.6-4.8 4.2 1.5 6.2L12 16.7 6.5 20l1.5-6.2L3.2 9.6 9.5 9z"/></svg>
+                <svg viewBox="0 0 24 24" class="s" data-n="3"><path d="M12 3.2 14.5 9l6.3.6-4.8 4.2 1.5 6.2L12 16.7 6.5 20l1.5-6.2L3.2 9.6 9.5 9z"/></svg>
+                <svg viewBox="0 0 24 24" class="s" data-n="4"><path d="M12 3.2 14.5 9l6.3.6-4.8 4.2 1.5 6.2L12 16.7 6.5 20l1.5-6.2L3.2 9.6 9.5 9z"/></svg>
+                <svg viewBox="0 0 24 24" class="s" data-n="5"><path d="M12 3.2 14.5 9l6.3.6-4.8 4.2 1.5 6.2L12 16.7 6.5 20l1.5-6.2L3.2 9.6 9.5 9z"/></svg>
+              </div>
+              <div><span class="avg" id="avg">4.6</span> <span class="count" id="rcnt">(11 ratings)</span></div>
+            </div>
+          </div>
+          <div class="show-meta">
+            <div class="row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+              Saturday, March 22, 2024
+            </div>
+            <div class="row">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+              Brooklyn Steel • Brooklyn, NY
+            </div>
+          </div>
+          <div class="actions">
+            <span class="moments" id="moments">2 moments</span>
+            <button class="btn" id="went-btn" type="button">I went</button>
+            <button class="btn upload" id="upload-btn" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>
+              Upload clip
+            </button>
+            <span class="sort">Recorded (setlist order)</span>
+          </div>
+        </div>
+        <div class="setlist-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          View the Setlist
+        </div>
+        <div class="show-grid" id="show-grid">
+          <div class="tile">
+            <img src="quickrecord-clip-poster.png" alt="" />
+            <div class="meta"><div class="who">Chaise Longue</div><div class="when">9:04 PM · recorded</div></div>
+          </div>
+          <div class="tile new" id="new-tile">
+            <img src="quickrecord-concert-preview.png" alt="" />
+            <div class="meta">
+              <span class="you">YOU · MATCHED</span>
+              <div class="who">Wet Dream</div>
+              <div class="when">9:18 PM · recorded</div>
+            </div>
+          </div>
+          <div class="tile">
+            <img src="quickrecord-feed-clip-2.png" alt="" />
+            <div class="meta"><div class="who">Angelica</div><div class="when">9:41 PM · recorded</div></div>
+          </div>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <div class="tab active">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10.2V21h6v-6h6v6h6V10.2L12 3z"/></svg>
+          Home
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18h10M7 12h10M7 6h10"/><path d="M4 20v-4l8-8 8 8v4"/></svg>
+          Queue
+        </div>
+        <div class="tab"><div class="fab"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 10 12 7 9 10"/><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3"/></svg></div></div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+          Alerts
+        </div>
+        <div class="tab"><div class="avatar">A</div>Profile</div>
+      </nav>
+    </section>
+
+    <div class="picker" id="picker">
+      <h2>Recents</h2>
+      <button class="pick" id="pick" type="button">
+        <img src="quickrecord-concert-preview.png" alt="" />
+        <span><strong>IMG_2041.MOV</strong><br /><span style="font-size:11px;color:#9ca3af">Mar 22, 2024 · 9:18 PM</span></span>
+      </button>
+    </div>
+
+    <section class="screen fade" id="upload">
+      <div class="up-scroll">
+        <h1>Share your moment</h1>
+        <p class="up-sub">We read date and location from your video file to find a matching show.</p>
+        <div class="preview"><img src="quickrecord-concert-preview.png" alt="" /></div>
+        <div class="proof">
+          <h2>Metadata proves you were there</h2>
+          <div class="check"><span class="ok">✓</span><span>Recorded Mar 22, 2024 at 9:18 PM — the night of this show</span></div>
+          <div class="check"><span class="ok">✓</span><span>GPS 0.1 mi from Brooklyn Steel — you were at the venue</span></div>
+        </div>
+        <div class="show-chip">
+          <div class="k">Matched show</div>
+          <div class="v">Wet Leg at Brooklyn Steel</div>
+        </div>
+        <button class="post" id="post" type="button">Post clip</button>
+      </div>
+      <nav class="tabbar">
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 3 10.2V21h6v-6h6v6h6V10.2L12 3z"/></svg>
+          Home
+        </div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 18h10M7 12h10M7 6h10"/><path d="M4 20v-4l8-8 8 8v4"/></svg>
+          Queue
+        </div>
+        <div class="tab"><div class="fab"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 10 12 7 9 10"/><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3"/></svg></div></div>
+        <div class="tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
+          Alerts
+        </div>
+        <div class="tab"><div class="avatar">A</div>Profile</div>
+      </nav>
+    </section>
+
+    <div class="finger" id="finger"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    function callout(text) {
+      const el = $('callout');
+      if (!text) { el.classList.remove('show'); return; }
+      el.querySelector('span').textContent = text;
+      el.classList.add('show');
+    }
+
+    async function tap(x, y, pressEl) {
+      const f = $('finger');
+      f.style.left = x + 'px';
+      f.style.top = y + 'px';
+      f.classList.add('show');
+      await wait(260);
+      f.classList.add('down');
+      pressEl?.classList.add('press');
+      await wait(150);
+      f.classList.remove('down');
+      pressEl?.classList.remove('press');
+      await wait(100);
+      f.classList.remove('show');
+    }
+
+    function paintStars(n) {
+      document.querySelectorAll('#star-row .s').forEach((el) => {
+        const on = Number(el.dataset.n) <= n;
+        el.style.fill = on ? '#FF2E88' : 'none';
+        el.style.stroke = on ? '#FF2E88' : '#6b7280';
+        el.style.strokeWidth = on ? '0' : '1.4';
+      });
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach((s) => s.classList.remove('on'));
+      $(id).classList.add('on');
+    }
+
+    async function typeQuery(text) {
+      $('search').classList.add('focus');
+      $('ph').style.display = 'none';
+      $('q').textContent = '';
+      $('caret').style.display = 'inline-block';
+      for (const ch of text) {
+        $('q').textContent += ch;
+        await wait(70);
+      }
+      await wait(280);
+    }
+
+    window.__demoReady = false;
+    window.__demoDone = false;
+
+    async function run() {
+      await Promise.race([
+        Promise.all([
+          Promise.all(Array.from(document.images).map((img) =>
+            img.complete ? null : new Promise((res) => { img.onload = img.onerror = res; }),
+          )),
+          document.fonts.ready,
+        ]),
+        wait(2000),
+      ]);
+      await wait(250);
+      window.__demoReady = true;
+      paintStars(5);
+
+      callout('Find a Show in the home carousel');
+      await wait(2000);
+
+      await tap(132, 230, $('find-btn'));
+      $('sheet').classList.add('on');
+      $('phone').classList.add('modal-open');
+      callout('Search a past show to add a clip');
+      await wait(1800);
+
+      await tap(195, 430);
+      await typeQuery('Wet Leg');
+      $('empty-search').style.display = 'none';
+      $('hit').classList.add('on');
+      await wait(1400);
+
+      await tap(195, 510, $('hit'));
+      $('sheet').classList.remove('on');
+      $('phone').classList.remove('modal-open');
+      showScreen('show');
+      callout('The show page — clips already in setlist order');
+      await wait(2500);
+
+      await tap(248, 332, $('went-btn'));
+      $('went-btn').classList.add('went');
+      $('went-btn').innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg> I went';
+      $('upload-btn').classList.add('on');
+      callout('I went unlocks Upload clip');
+      await wait(1800);
+
+      callout('Rate the show you actually attended');
+      await tap(348, 168);
+      $('avg').textContent = '4.7';
+      $('rcnt').textContent = '(12 ratings)';
+      $('stars').classList.add('pulse');
+      await wait(1600);
+
+      await tap(318, 332, $('upload-btn'));
+      $('picker').classList.add('on');
+      callout('Pick a clip from that night');
+      await wait(1200);
+      await tap(195, 150, $('pick'));
+      $('picker').classList.remove('on');
+      showScreen('upload');
+      callout('Date and GPS match — proof you were there');
+      await wait(3000);
+
+      await tap(195, 620, $('post'));
+      showScreen('show');
+      $('moments').textContent = '3 moments';
+      $('new-tile').classList.add('in');
+      callout('Your clip inserts by recorded time — oldest to newest');
+      await wait(3200);
+      callout('');
+      window.__demoDone = true;
+    }
+
+    run();
+  </script>
+</body>
+</html>

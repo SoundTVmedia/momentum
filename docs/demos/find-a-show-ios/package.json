@@ -1,0 +1,12 @@
+{
+  "name": "find-a-show-ios",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "record": "node record.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}

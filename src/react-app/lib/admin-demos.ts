@@ -30,4 +30,13 @@ export const ADMIN_DEMOS: AdminDemo[] = [
     posterSrc: '/demos/personalized-feed-ios/poster.png',
     durationLabel: '36 sec',
   },
+  {
+    id: 'find-a-show-ios',
+    title: 'Find a Show on iOS',
+    description:
+      'Open Find a Show from the home carousel, search a past night, mark I went, and upload a clip. Date and GPS metadata prove you were there, the clip inserts in recorded (setlist) order, and you can rate the show.',
+    videoSrc: '/demos/find-a-show-ios/find-a-show-ios-demo.mp4',
+    posterSrc: '/demos/find-a-show-ios/poster.png',
+    durationLabel: '24 sec',
+  },
 ];
