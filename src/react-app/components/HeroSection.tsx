@@ -27,6 +27,7 @@ import {
 
 const SLIDE_COUNT = 3;
 const SLIDE_MS = 8000;
+const BUD_LIGHT_LOGO_URL = 'https://www.budlight.com/img/header/logo.png';
 
 function slidesFromClips(clips: ClipWithUser[] | undefined, max = 8): HeroClipSlide[] {
   const next: HeroClipSlide[] = [];
@@ -253,13 +254,20 @@ function FeaturedClipSlide({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/35 to-transparent pb-8 pt-16 sm:pb-11">
         <div className="flex max-w-[min(24rem,calc(100%-5.5rem))] flex-col items-start gap-1 px-4 text-left sm:px-6">
           <p className="font-headline hero-headline-grad text-left text-xl leading-tight tracking-tight sm:text-2xl md:text-3xl">
-            Featured Clip
+            Sponsored Clip
           </p>
           <div className="flex items-center gap-1.5">
             <span className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white/75 sm:text-[0.7rem]">
               Brought to you by
             </span>
-            <JamBaseWordmark className="h-3 w-auto text-white sm:h-3.5" />
+            <img
+              src={BUD_LIGHT_LOGO_URL}
+              alt="Bud Light"
+              width={241}
+              height={49}
+              className="h-4 w-auto sm:h-5"
+              decoding="async"
+            />
           </div>
           {slide ? (
             <div className="mt-1 flex max-w-full items-center gap-2.5">
@@ -575,7 +583,7 @@ export default function HeroSection({
       </div>
 
       <div className="absolute bottom-3 left-0 right-0 z-30 flex justify-center gap-2">
-        {['Where Live Music Lives', 'JamBase', 'Featured clip'].map((label, i) => (
+        {['Where Live Music Lives', 'JamBase', 'Sponsored clip'].map((label, i) => (
           <button
             key={label}
             type="button"
