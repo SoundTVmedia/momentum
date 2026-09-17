@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
-import { Heart, Eye, Video, Users, UserPlus, UserMinus, Loader2, MapPin, Edit, Shield, Star, TrendingUp } from 'lucide-react';
+import { Heart, Eye, Video, Users, UserPlus, UserMinus, Loader2, MapPin, Edit, Shield, Star, TrendingUp, Calendar, LifeBuoy, Music } from 'lucide-react';
 import Header from '@/react-app/components/Header';
 import OwnProfileHub from '@/react-app/components/OwnProfileHub';
 import ProfilePastShowsSection from '@/react-app/components/ProfilePastShowsSection';
@@ -14,7 +14,8 @@ import FollowingUsersModal from '@/react-app/components/FollowingUsersModal';
 import { useFollow } from '@/react-app/hooks/useFollow';
 import { useUserStats } from '@/react-app/hooks/useUserStats';
 import type { ClipWithUser, ExtendedMochaUser, UserProfile } from '@/shared/types';
-import { isSuperAdminUser } from '@/react-app/lib/program-nav';
+import { isAdminUser, isSuperAdminUser } from '@/react-app/lib/program-nav';
+import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import SuperadminProfileModerationBar from '@/react-app/components/SuperadminProfileModerationBar';
 import { dispatchUserBlocksChanged } from '@/react-app/lib/user-block-events';
@@ -337,18 +338,70 @@ export default function UserProfilePage() {
                         : ''
                     }`}
                   >
-                    {genres.length > 0 ? (
-                      <div className="flex flex-wrap gap-2 justify-center md:justify-start md:flex-1 md:min-w-0">
-                        {genres.map((genre: string) => (
-                          <span
-                            key={genre}
-                            className="px-3 py-1 bg-momentum-ember/20 text-momentum-flare text-sm rounded-full"
+                    <div className="min-w-0 md:flex-1">
+                      {genres.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                          {genres.map((genre: string) => (
+                            <span
+                              key={genre}
+                              className="px-3 py-1 bg-momentum-ember/20 text-momentum-flare text-sm rounded-full"
+                            >
+                              {genre}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {isOwnProfile ? (
+                        <div
+                          className={`flex flex-col sm:flex-row sm:flex-wrap gap-3 justify-center md:justify-start ${
+                            genres.length > 0 ? 'mt-3' : ''
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => navigate('/artist-hub')}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
                           >
-                            {genre}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
+                            <Music className="w-4 h-4 shrink-0" />
+                            Artist Hub
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/venue-hub')}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
+                          >
+                            <MapPin className="w-4 h-4 shrink-0" />
+                            Venue Hub
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate(MY_SHOWS_PATH)}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
+                          >
+                            <Calendar className="w-4 h-4 shrink-0" />
+                            My Shows
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/support')}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-white/15 text-white hover:bg-white/10 transition-colors text-sm font-medium"
+                          >
+                            <LifeBuoy className="w-4 h-4 shrink-0" />
+                            Help &amp; Support
+                          </button>
+                          {isAdminUser(extendedUser) ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate('/admin')}
+                              className="admin-header-control w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 rounded-full border border-momentum-rose/40 bg-momentum-rose/10 text-momentum-rose hover:bg-momentum-rose/20 transition-colors text-sm font-medium"
+                            >
+                              <Shield className="w-4 h-4 shrink-0" />
+                              Admin dashboard
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                     {isOwnProfile && (
                       <div className="hidden md:flex gap-2 shrink-0">
                         <button
