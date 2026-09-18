@@ -12,6 +12,11 @@ import { isUserFollowTargetId } from './follow-endpoints';
 import { fetchJamBaseEventById } from './jambase-endpoints';
 import { SHOW_CLIPS_RECORDED_ORDER_BY_SQL } from './clip-order-by';
 import { loadOrHydrateStoredShowPage } from './stored-show-page';
+import {
+  eventStartIsoFromPayload,
+  sortClipsBySetlistThenRecorded,
+} from '../shared/clip-setlist-order';
+import { jamBaseEventSetlist } from '../shared/jambase-setlist';
 
 /**
  * Get prioritized shows for discovery feed
@@ -759,8 +764,20 @@ export async function getShowClips(c: Context) {
         ? await loadOrHydrateStoredShowPage(c.env.DB, clipEventId, fetchEvent(clipEventId))
         : null);
 
+    const setlist = show?.setlist?.length
+      ? show.setlist
+      : jamBaseEventSetlist(show?.event ?? null);
+    const orderedClips =
+      sortBy === 'most_liked' || sortBy === 'clip_rating'
+        ? pageClips
+        : sortClipsBySetlistThenRecorded(
+            pageClips as Record<string, unknown>[],
+            setlist,
+            eventStartIsoFromPayload(show?.event ?? null),
+          );
+
     return c.json({
-      clips: normalizeClipApiRows(pageClips as Record<string, unknown>[]),
+      clips: normalizeClipApiRows(orderedClips as Record<string, unknown>[]),
       show,
       canonical_show_id: canonicalShowId || showId,
       page,
@@ -853,8 +870,20 @@ export async function getEventClips(c: Context) {
         })
       : null;
 
+    const setlist = show?.setlist?.length
+      ? show.setlist
+      : jamBaseEventSetlist(show?.event ?? null);
+    const orderedClips =
+      sortBy === 'most_liked' || sortBy === 'clip_rating'
+        ? visible
+        : sortClipsBySetlistThenRecorded(
+            visible,
+            setlist,
+            eventStartIsoFromPayload(show?.event ?? null),
+          );
+
     return c.json({
-      clips: visible,
+      clips: orderedClips,
       show,
       event_title: eventTitle,
       page,

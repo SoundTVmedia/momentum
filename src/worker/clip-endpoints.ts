@@ -24,6 +24,12 @@ import {
   SHOW_CLIPS_RECORDED_ORDER_BY_SQL,
   compareClipsByRecordedTimeAsc,
 } from './clip-order-by';
+import {
+  eventStartIsoFromPayload,
+  sortClipsBySetlistThenRecorded,
+} from '../shared/clip-setlist-order';
+import { fillMissingClipTimestampFromSetlist } from './clip-setlist-timestamp';
+import { loadStoredShowPage } from './stored-show-page';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, blockKey } from './user-blocks';
 import {
   describeMusicRecognitionConfig,
@@ -522,7 +528,7 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const resolvedVenue =
     venue_name ??
     (typeof existingRow.venue_name === 'string' ? existingRow.venue_name : null);
-  const resolvedTimestamp =
+  const existingTimestamp =
     typeof existingRow.timestamp === 'string' ? existingRow.timestamp : null;
   const jambaseEventId =
     trimOrNull(body.jambase_event_id) ??
@@ -533,6 +539,14 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const jambaseVenueId =
     trimOrNull(body.jambase_venue_id) ??
     (typeof existingRow.jambase_venue_id === 'string' ? existingRow.jambase_venue_id : null);
+  const resolvedSongTitle =
+    song_title ??
+    (typeof existingRow.song_title === 'string' ? existingRow.song_title : null);
+  const resolvedTimestamp = await fillMissingClipTimestampFromSetlist(c.env.DB, {
+    existingTimestamp,
+    jambaseEventId,
+    songTitle: resolvedSongTitle,
+  });
   const showId = computeShowId({
     jambase_event_id: jambaseEventId,
     artist_name: resolvedArtist,
@@ -551,6 +565,7 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       artist_name = ?,
       venue_name = ?,
       location = ?,
+      timestamp = ?,
       content_description = ?,
       hashtags = ?,
       song_title = ?,
@@ -569,6 +584,7 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
       artist_name,
       venue_name,
       location,
+      resolvedTimestamp,
       content_description,
       hashtagsJson,
       song_title,
@@ -757,6 +773,22 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
         scope === 'artist'
           ? [anchorNorm, ...clips]
           : [...clips, anchorNorm].sort(compareClipsByRecordedTimeAsc);
+    }
+  }
+
+  if (scope === 'show') {
+    const setlistShowId =
+      showIdentity ||
+      (typeof clips[0]?.jambase_event_id === 'string' ? String(clips[0].jambase_event_id).trim() : '');
+    if (setlistShowId) {
+      const stored = await loadStoredShowPage(c.env.DB, setlistShowId);
+      if (stored?.setlist.length) {
+        clips = sortClipsBySetlistThenRecorded(
+          clips,
+          stored.setlist,
+          eventStartIsoFromPayload(stored.event),
+        );
+      }
     }
   }
 
@@ -1003,8 +1035,19 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
   const resolvedVenue =
     venue_name ??
     (typeof row.venue_name === 'string' ? row.venue_name : null);
-  const resolvedTimestamp =
+  const existingTimestamp =
     typeof row.timestamp === 'string' ? row.timestamp : null;
+  const resolvedEventId =
+    jambase_event_id ??
+    (typeof row.jambase_event_id === 'string' ? row.jambase_event_id : null);
+  const resolvedSongTitle =
+    song_title ??
+    (typeof row.song_title === 'string' ? row.song_title : null);
+  const resolvedTimestamp = await fillMissingClipTimestampFromSetlist(c.env.DB, {
+    existingTimestamp,
+    jambaseEventId: resolvedEventId,
+    songTitle: resolvedSongTitle,
+  });
   const showId = computeShowId({
     jambase_event_id,
     artist_name: resolvedArtist,
@@ -1024,6 +1067,7 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
       artist_name = ?,
       venue_name = ?,
       location = ?,
+      timestamp = ?,
       content_description = ?,
       hashtags = ?,
       song_title = ?,
@@ -1042,6 +1086,7 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
       artist_name,
       venue_name,
       location,
+      resolvedTimestamp,
       content_description,
       hashtagsJson,
       song_title,

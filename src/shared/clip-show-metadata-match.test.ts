@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CLIP_SHOW_METADATA_MESSAGES,
-  clipMetadataMatchesShow,
-  clipShowTagsFromMatchedEvent,
-} from './clip-show-metadata-match';
+import { clipMetadataMatchesShow, clipShowTagsFromMatchedEvent } from './clip-show-metadata-match';
 
 const phishMsg = {
   identifier: 'jambase:msg',
@@ -29,18 +25,14 @@ describe('clipMetadataMatchesShow', () => {
     expect(match).toEqual({ ok: true });
   });
 
-  it('rejects a clip with no capture timestamp', () => {
+  it('accepts a past-show clip with no capture metadata when the user chose the show', () => {
     const match = clipMetadataMatchesShow({
       event: phishMsg,
       recordedAtIso: null,
       artistName: 'Phish',
       venueName: 'Madison Square Garden',
     });
-    expect(match.ok).toBe(false);
-    if (!match.ok) {
-      expect(match.reason).toBe('missing_timestamp');
-      expect(match.message).toBe(CLIP_SHOW_METADATA_MESSAGES.missing_timestamp);
-    }
+    expect(match).toEqual({ ok: true });
   });
 
   it('rejects a clip from a different night', () => {
@@ -52,6 +44,19 @@ describe('clipMetadataMatchesShow', () => {
     });
     expect(match.ok).toBe(false);
     if (!match.ok) expect(match.reason).toBe('date_mismatch');
+  });
+
+  it('rejects GPS far from the venue even when capture date is missing', () => {
+    const match = clipMetadataMatchesShow({
+      event: phishMsg,
+      recordedAtIso: null,
+      latitude: 34.05,
+      longitude: -118.25,
+      artistName: 'Phish',
+      venueName: 'Madison Square Garden',
+    });
+    expect(match.ok).toBe(false);
+    if (!match.ok) expect(match.reason).toBe('location_mismatch');
   });
 
   it('rejects GPS far from the venue', () => {

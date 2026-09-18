@@ -11,8 +11,6 @@ import {
 import { jamBaseEventMatchesCapture } from './jambase-event-day';
 
 export const CLIP_SHOW_METADATA_MESSAGES = {
-  missing_timestamp:
-    "This video has no capture date in its metadata, so it can't be posted to this show.",
   date_mismatch: "This video wasn't recorded on the night of this show.",
   location_mismatch: "This video's location doesn't match the venue for this show.",
   venue_mismatch: "The venue on this clip doesn't match this show.",
@@ -96,6 +94,8 @@ export function clipShowTagsFromMatchedEvent(event: Record<string, unknown>): {
  * GPS location, and venue. Song/artist identification is not part of the match
  * (a Rihanna song at a Jay-Z show still belongs on that concert).
  * Missing GPS is allowed; present GPS must be near the venue when coords are known.
+ * Past-show uploads with no file metadata are allowed — clip info comes from
+ * the form the user filled in for that show.
  */
 export function clipMetadataMatchesShow(input: {
   event: Record<string, unknown>;
@@ -106,28 +106,27 @@ export function clipMetadataMatchesShow(input: {
   venueName?: string | null;
 }): ClipShowMetadataMatch {
   const recordedAt = typeof input.recordedAtIso === 'string' ? input.recordedAtIso.trim() : '';
-  if (!recordedAt) {
-    return {
-      ok: false,
-      reason: 'missing_timestamp',
-      message: CLIP_SHOW_METADATA_MESSAGES.missing_timestamp,
-    };
-  }
-
-  const captureMs = Date.parse(recordedAt);
-  if (!Number.isFinite(captureMs)) {
-    return {
-      ok: false,
-      reason: 'missing_timestamp',
-      message: CLIP_SHOW_METADATA_MESSAGES.missing_timestamp,
-    };
-  }
-
-  const startDate = typeof input.event.startDate === 'string' ? input.event.startDate.trim() : '';
   const lat =
     input.latitude != null && Number.isFinite(input.latitude) ? input.latitude : undefined;
   const lon =
     input.longitude != null && Number.isFinite(input.longitude) ? input.longitude : undefined;
+
+  if (!recordedAt || !Number.isFinite(Date.parse(recordedAt))) {
+    if (lat != null && lon != null) {
+      const venue = jamBaseEventVenueCoords(input.event);
+      if (venue && haversineMiles(lat, lon, venue.lat, venue.lon) > GPS_MATCH_MAX_MILES) {
+        return {
+          ok: false,
+          reason: 'location_mismatch',
+          message: CLIP_SHOW_METADATA_MESSAGES.location_mismatch,
+        };
+      }
+    }
+    return { ok: true };
+  }
+
+  const captureMs = Date.parse(recordedAt);
+  const startDate = typeof input.event.startDate === 'string' ? input.event.startDate.trim() : '';
 
   if (startDate && !jamBaseEventMatchesCapture(input.event, captureMs, lat, lon)) {
     return {

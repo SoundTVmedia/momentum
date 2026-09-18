@@ -1,6 +1,10 @@
 import type { ClipWithUser } from '@/shared/types';
 import type { StoredShowPage } from '@/shared/jambase-setlist';
 import { apiShowClipsPath } from '@/shared/app-paths';
+import {
+  eventStartIsoFromPayload,
+  sortClipsBySetlistThenRecorded,
+} from '@/shared/clip-setlist-order';
 
 export const SHOW_CLIPS_PAGE_SIZE = 20;
 
@@ -117,7 +121,16 @@ export async function fetchAllShowClips(
     clips = appendUniqueShowClips(clips, result.clips);
 
     if (!result.hasMore || result.clips.length === 0) {
-      return { clips, show, canonical_show_id: canonicalShowId };
+      const setlist = show?.setlist;
+      const ordered =
+        options.sortBy === 'most_liked' || !setlist?.length
+          ? clips
+          : sortClipsBySetlistThenRecorded(
+              clips,
+              setlist,
+              eventStartIsoFromPayload(show?.event),
+            );
+      return { clips: ordered, show, canonical_show_id: canonicalShowId };
     }
   }
 }

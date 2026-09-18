@@ -108,6 +108,34 @@ describe('show clips pagination', () => {
     });
   });
 
+  it('reorders time_posted clips by setlist when capture timestamps are missing', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          clips: [
+            { id: 3, song_title: 'Tweezer Reprise', timestamp: '', created_at: '2026-09-17 18:00:00' },
+            { id: 1, song_title: 'Wilson', timestamp: '', created_at: '2026-09-17 18:05:00' },
+            { id: 2, song_title: 'Free', timestamp: '', created_at: '2026-09-17 18:01:00' },
+          ],
+          hasMore: false,
+          show: {
+            event: { startDate: '2024-07-14T20:00:00.000Z' },
+            setlist: [{ title: 'Wilson' }, { title: 'Free' }, { title: 'Tweezer Reprise' }],
+          },
+        }),
+      ),
+    ) as typeof fetch;
+
+    const loaded = await fetchAllShowClips({
+      artistName: 'phish',
+      showId: 'jambase:15668773',
+      sortBy: 'time_posted',
+      fetchImpl,
+    });
+
+    expect(loaded.clips.map(({ id }) => id)).toEqual([1, 2, 3]);
+  });
+
   it('fetches a single page with the API page size', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       expect(String(input)).toContain(`limit=${SHOW_CLIPS_PAGE_SIZE}`);

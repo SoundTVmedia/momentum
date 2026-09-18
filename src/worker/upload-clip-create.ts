@@ -20,6 +20,7 @@ import {
 } from './clips-enrich-upload-show';
 import { rejectIfClipDoesNotMatchTargetShow } from './clip-show-metadata-gate';
 import { clipShowTagsFromMatchedEvent } from '../shared/clip-show-metadata-match';
+import { fillMissingClipTimestampFromSetlist } from './clip-setlist-timestamp';
 
 export type ClipCreateBody = Record<string, unknown>;
 
@@ -300,6 +301,7 @@ export async function resolveClipCreateFields(
   }
 
   const targetedEventId = fields.resolvedJambaseEventId?.trim() || '';
+  let matchedEvent: Record<string, unknown> | null = null;
   if (targetedEventId) {
     const gate = await rejectIfClipDoesNotMatchTargetShow(c, {
       jambaseEventId: targetedEventId,
@@ -313,6 +315,7 @@ export async function resolveClipCreateFields(
       return { ok: false, status: 422, error: gate.error };
     }
     if (gate.event) {
+      matchedEvent = gate.event;
       const showTags = clipShowTagsFromMatchedEvent(gate.event);
       fields = {
         ...fields,
@@ -322,6 +325,36 @@ export async function resolveClipCreateFields(
         resolvedJambaseVenueId: fields.resolvedJambaseVenueId?.trim() || showTags.venueId,
         resolvedEventTitle: showTags.eventTitle || fields.resolvedEventTitle,
       };
+    }
+  }
+
+  if (captureTimestampMissing) {
+    const songTitle =
+      fields.resolvedSongTitle?.trim() || fields.classification?.acr_title?.trim() || '';
+    if (songTitle && targetedEventId) {
+      const setlistTimestamp = await fillMissingClipTimestampFromSetlist(c.env.DB, {
+        existingTimestamp: fields.resolvedTimestamp,
+        jambaseEventId: targetedEventId,
+        songTitle,
+        eventPayload: matchedEvent,
+      });
+      if (setlistTimestamp) {
+        if (!fields.resolvedSongTitle?.trim() && fields.classification?.acr_title?.trim()) {
+          fields.resolvedSongTitle = fields.classification.acr_title.trim();
+          fields.song_slug = songFieldsFromBody({
+            song_title: fields.resolvedSongTitle,
+          }).song_slug;
+        }
+        fields.resolvedTimestamp = setlistTimestamp;
+        if (!isPrePostContentFeed(contentFeed)) {
+          fields.showId = computeShowId({
+            jambase_event_id: fields.resolvedJambaseEventId,
+            artist_name: fields.resolvedArtist,
+            venue_name: fields.resolvedVenue,
+            timestamp: setlistTimestamp,
+          });
+        }
+      }
     }
   }
 
