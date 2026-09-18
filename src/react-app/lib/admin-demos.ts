@@ -19,7 +19,7 @@ export const ADMIN_DEMOS: AdminDemo[] = [
       'GPS matches a nearby JamBase show in the camera HUD, the clip uploads in the background, and the show page populates with the new moment.',
     videoSrc: '/demos/quickrecord-ios/quickrecord-ios-demo.mp4',
     posterSrc: '/demos/quickrecord-ios/poster.png',
-    durationLabel: '33 sec',
+    durationLabel: '35 sec',
   },
   {
     id: 'personalized-feed-ios',
@@ -28,7 +28,7 @@ export const ADMIN_DEMOS: AdminDemo[] = [
       'Open Follow, search an artist, and tap to follow — clips fill the home feed. The same search-and-follow flow works for venues, songs, and friends.',
     videoSrc: '/demos/personalized-feed-ios/personalized-feed-ios-demo.mp4',
     posterSrc: '/demos/personalized-feed-ios/poster.png',
-    durationLabel: '36 sec',
+    durationLabel: '39 sec',
   },
   {
     id: 'find-a-show-ios',
@@ -37,6 +37,6 @@ export const ADMIN_DEMOS: AdminDemo[] = [
       'Open Find a Show from the home carousel, search a past night, mark I went, and upload a clip. Date and GPS metadata prove you were there, the clip inserts in recorded (setlist) order, and you can rate the show.',
     videoSrc: '/demos/find-a-show-ios/find-a-show-ios-demo.mp4',
     posterSrc: '/demos/find-a-show-ios/poster.png',
-    durationLabel: '24 sec',
+    durationLabel: '21 sec',
   },
 ];

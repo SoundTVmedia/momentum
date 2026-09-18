@@ -1,0 +1,14 @@
+{
+  "name": "feedback-app-demos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "record": "node run.mjs",
+    "record:quickrecord": "node run.mjs quickrecord-ios",
+    "record:feed": "node run.mjs personalized-feed-ios",
+    "record:find": "node run.mjs find-a-show-ios"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}

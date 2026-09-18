@@ -1,3 +1,3 @@
 import { runDemo } from '../_harness/run.mjs';
 
-await runDemo('personalized-feed-ios');
+await runDemo('quickrecord-ios');
