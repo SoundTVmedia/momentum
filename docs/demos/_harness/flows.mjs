@@ -270,3 +270,78 @@ export async function runFindAShow(page, state) {
   await page.waitForTimeout(3200);
   await callout(page, '');
 }
+
+async function scrollHeadingIntoView(page, title) {
+  await page.evaluate((text) => {
+    const heading = [...document.querySelectorAll('h2')].find((el) =>
+      (el.textContent || '').includes(text),
+    );
+    if (!heading) return;
+    const header = document.querySelector('ion-header, header');
+    const headerBottom = header ? header.getBoundingClientRect().bottom : 88;
+    const y = heading.getBoundingClientRect().top + window.scrollY - headerBottom - 12;
+    window.scrollTo({ top: Math.max(0, y) });
+  }, title);
+  await page.waitForTimeout(400);
+}
+
+async function applyFavoriteShowsSubtitle(page) {
+  await page.evaluate(() => {
+    const wanted = 'Upcoming shows from your favorite artists.';
+    const title = [...document.querySelectorAll('h2')].find((el) =>
+      /Shows from Your Favorite Artists/i.test(el.textContent || ''),
+    );
+    if (!title) return;
+    const block = title.closest('div')?.parentElement;
+    const sub = block?.querySelector('p');
+    if (sub) sub.textContent = wanted;
+  });
+}
+
+export async function runProfile(page) {
+  await waitHomeReady(page);
+  await callout(page, 'Your profile on iOS');
+  await page.waitForTimeout(1200);
+
+  await tap(page, page.locator('ion-tab-button[tab="profile"]').first());
+  await page.getByRole('heading', { name: 'Alex Rivera' }).waitFor({ timeout: 15_000 });
+  await page
+    .getByRole('heading', { name: 'Shows from Your Favorite Artists' })
+    .waitFor({ state: 'attached', timeout: 12_000 })
+    .catch(() => {});
+  await applyFavoriteShowsSubtitle(page);
+  await page.waitForTimeout(900);
+  await callout(page, 'Stats, clips, and the shows you follow');
+  await page.waitForTimeout(2000);
+
+  const pastShows = page.getByRole('heading', { name: 'My Past Shows' });
+  await pastShows.waitFor({ state: 'visible', timeout: 12_000 });
+  await callout(page, '');
+  await scrollHeadingIntoView(page, 'My Past Shows');
+  await callout(page, 'Archive of every show you marked I went');
+  await page.waitForTimeout(2400);
+
+  await callout(page, '');
+  await scrollHeadingIntoView(page, 'My Clips');
+  await page.getByRole('heading', { name: 'My Clips' }).waitFor({ state: 'visible', timeout: 8_000 });
+  await callout(page, 'Every clip you have posted');
+  await page.waitForTimeout(2400);
+
+  await callout(page, '');
+  await scrollHeadingIntoView(page, 'Saved Clips');
+  await page.getByRole('heading', { name: 'Saved Clips' }).waitFor({ state: 'visible', timeout: 8_000 });
+  await callout(page, 'Clips you saved from the feed');
+  await page.waitForTimeout(2400);
+
+  await callout(page, '');
+  await scrollHeadingIntoView(page, 'Shows from Your Favorite Artists');
+  await applyFavoriteShowsSubtitle(page);
+  await page
+    .getByRole('heading', { name: 'Shows from Your Favorite Artists' })
+    .waitFor({ state: 'visible', timeout: 8_000 });
+  await callout(page, 'Upcoming shows from your favorite artists');
+  await page.waitForTimeout(2800);
+  await callout(page, 'Your whole concert life in one place');
+  await page.waitForTimeout(2000);
+  await callout(page, '');
+}

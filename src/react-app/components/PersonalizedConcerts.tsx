@@ -384,17 +384,10 @@ export default function PersonalizedConcerts({
         ? 'Shows Near You'
         : 'Shows at Venues Near You');
 
-  const attendedHint =
-    (payload?.recommendation_sources?.attended_artists ?? 0) > 0
-      ? ' Includes artists from shows you have been to.'
-      : '';
-
   const sectionSubtitle =
     sectionSubtitleOverride ??
     (resolvedMode === 'favorite-artists'
-      ? payload?.source === 'jambase'
-        ? `Upcoming shows from JamBase for your favorite artists.${attendedHint}`
-        : `Upcoming concerts from artists you love.${attendedHint}`
+      ? 'Upcoming shows from your favorite artists.'
       : nearbyAreaLabel
         ? sectionTitleOverride === 'Upcoming Shows'
           ? `Shows after today near ${nearbyAreaLabel}`

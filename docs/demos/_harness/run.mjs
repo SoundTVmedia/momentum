@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { loadLiveDemoData } from './live-data.mjs';
 import { ensureCameraFiles, openDemoApp, stampLibraryClip } from './session.mjs';
 import { recordScreencast } from './record.mjs';
-import { runQuickRecord, runPersonalizedFeed, runFindAShow } from './flows.mjs';
+import { runQuickRecord, runPersonalizedFeed, runFindAShow, runProfile } from './flows.mjs';
 
 const harnessRoot = path.dirname(fileURLToPath(import.meta.url));
 const demosRoot = path.resolve(harnessRoot, '..');
@@ -21,6 +21,10 @@ const FLOWS = {
   'find-a-show-ios': {
     run: runFindAShow,
     file: 'find-a-show-ios-demo.mp4',
+  },
+  'profile-ios': {
+    run: runProfile,
+    file: 'profile-ios-demo.mp4',
   },
 };
 

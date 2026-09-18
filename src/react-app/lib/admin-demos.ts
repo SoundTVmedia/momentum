@@ -39,4 +39,13 @@ export const ADMIN_DEMOS: AdminDemo[] = [
     posterSrc: '/demos/find-a-show-ios/poster.png',
     durationLabel: '21 sec',
   },
+  {
+    id: 'profile-ios',
+    title: 'Profile on iOS',
+    description:
+      'Open Profile to see your past-show archive, every clip you posted, clips you saved, and upcoming dates from artists you follow.',
+    videoSrc: '/demos/profile-ios/profile-ios-demo.mp4',
+    posterSrc: '/demos/profile-ios/poster.png',
+    durationLabel: '20 sec',
+  },
 ];

@@ -14,7 +14,12 @@ function cityLine(venue) {
   return [city, region].filter(Boolean).join(', ');
 }
 
-function demoUser() {
+function demoUser(live) {
+  const avatar =
+    live?.friend?.profile_image_url ||
+    live?.clips?.camera?.user_avatar ||
+    live?.clips?.all?.[0]?.user_avatar ||
+    null;
   return {
     id: 'demo-alex-rivera',
     email: 'alex@feedback.demo',
@@ -23,27 +28,122 @@ function demoUser() {
       name: 'Alex Rivera',
       given_name: 'Alex',
       family_name: 'Rivera',
-      picture: null,
+      picture: avatar,
     },
     profile: {
       mocha_user_id: 'demo-alex-rivera',
       display_name: 'Alex Rivera',
-      profile_image_url: null,
+      profile_image_url: avatar,
+      cover_image_url: null,
+      role: 'fan',
+      is_verified: 0,
+      location: 'New York, NY',
+      bio: 'Catching every night I can.',
+      genres: JSON.stringify(['Rock', 'Jam']),
       favorite_artists: '[]',
     },
   };
 }
 
+function asMyClip(clip, index) {
+  return {
+    ...clip,
+    id: 800001 + index,
+    mocha_user_id: 'demo-alex-rivera',
+    user_display_name: 'Alex Rivera',
+  };
+}
+
+function pastShowCard(show, clip) {
+  return {
+    event_title: show.name || show.event_title || `${show.artistName} at ${show.venueName}`,
+    artist_name: show.artistName || show.artist_name || '',
+    show_date: show.startDate || show.show_date || '',
+    show_id: show.identifier || show.jambase_event_id || null,
+    venue_name: show.venueName || show.venue_name || null,
+    venue_location: show.city || show.venue_location || null,
+    jambase_event_id: show.identifier || show.jambase_event_id || null,
+    jambase_venue_id: show.venueId || show.jambase_venue_id || null,
+    jambase_artist_id: show.artistId || show.jambase_artist_id || null,
+    clip_count: show.clip_count ?? 3,
+    thumbnail_url: clip?.thumbnail_url || clip?.stream_thumbnail_url || show.image || null,
+    artist_image_url: show.artist_image_url || clip?.artist_image_url || null,
+  };
+}
+
+function jamBaseEventFromShow(show) {
+  if (show?.raw && typeof show.raw === 'object') return show.raw;
+  if (!show) return null;
+  return {
+    '@type': 'MusicEvent',
+    name: show.name,
+    identifier: show.identifier,
+    startDate: show.startDate,
+    image: show.image,
+    performer: [
+      { name: show.artistName, identifier: show.artistId, 'x-isHeadliner': true },
+    ],
+    location: {
+      name: show.venueName,
+      identifier: show.venueId,
+      address: { addressLocality: show.city },
+      geo: show.geo,
+    },
+  };
+}
+
 export function createDemoState(live) {
+  const mineSource = (live.clips.all.length ? live.clips.all : live.clips.artist).slice(0, 6);
+  const myClips = mineSource.map(asMyClip);
+  const savedSource = (
+    live.clips.friend.length ? live.clips.friend : live.clips.artist.length ? live.clips.artist : live.clips.all
+  ).slice(0, 4);
+  const attendedShows = [];
+  if (live.pastEvent) {
+    attendedShows.push(
+      pastShowCard(
+        { ...live.pastEvent, artist_image_url: live.artist?.image || null },
+        live.clips.artist[0] || live.clips.camera,
+      ),
+    );
+  }
+  const seen = new Set(attendedShows.map((s) => s.jambase_event_id).filter(Boolean));
+  for (const clip of live.clips.all) {
+    const id = clip.jambase_event_id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    attendedShows.push(
+      pastShowCard(
+        {
+          name: clip.event_title || `${clip.artist_name} at ${clip.venue_name}`,
+          artistName: clip.artist_name,
+          venueName: clip.venue_name,
+          city: clip.location,
+          identifier: id,
+          startDate: clip.timestamp || clip.created_at,
+          image: clip.thumbnail_url,
+        },
+        clip,
+      ),
+    );
+    if (attendedShows.length >= 4) break;
+  }
+
+  const upcoming = jamBaseEventFromShow(live.tonight);
+
   return {
     live,
-    user: demoUser(),
+    user: demoUser(live),
     followedArtists: [],
     followedVenues: [],
     followedSongs: [],
     followedUsers: [],
     followingIds: [],
     showMarks: [],
+    myClips,
+    savedClips: savedSource,
+    attendedShows,
+    upcomingFavoriteEvents: upcoming ? [upcoming] : [],
     rating: {
       averageRating: 4.6,
       ratingCount: 11,
@@ -303,8 +403,68 @@ export async function installDemoMocks(page, state) {
         });
       }
 
+      if (path === '/api/me/clips' && method === 'GET') {
+        return json(route, { clips: state.myClips, hasMore: false });
+      }
+
+      if (path === '/api/users/me/saved-clips' && method === 'GET') {
+        return json(route, { clips: state.savedClips });
+      }
+
+      if (path === '/api/users/me/saved-clip-ids' && method === 'GET') {
+        return json(route, {
+          clip_ids: state.savedClips.map((c) => c.id).filter((id) => Number.isFinite(id)),
+        });
+      }
+
+      if (path === '/api/users/me/liked-clips' && method === 'GET') {
+        return json(route, { clip_ids: [] });
+      }
+
+      if (path === '/api/personalization/concerts' && method === 'GET') {
+        return json(route, {
+          personalized: true,
+          source: 'jambase',
+          concerts: [],
+          events: state.upcomingFavoriteEvents,
+        });
+      }
+
+      if (path.endsWith('/attended-shows') && path.startsWith('/api/users/') && method === 'GET') {
+        return json(route, { shows: state.attendedShows });
+      }
+
+      if (/^\/api\/users\/[^/]+\/stats$/.test(path) && method === 'GET') {
+        const views = state.myClips.reduce((sum, c) => sum + (Number(c.views_count) || 0), 0);
+        return json(route, {
+          totalClipsPosted: state.myClips.length,
+          totalViewsOnClips: views || 2480,
+          userAverageClipRating: 4.6,
+        });
+      }
+
+      if (/^\/api\/users\/[^/]+$/.test(path) && path !== '/api/users/me' && method === 'GET') {
+        const likes = state.myClips.reduce((sum, c) => sum + (Number(c.likes_count) || 0), 0);
+        const views = state.myClips.reduce((sum, c) => sum + (Number(c.views_count) || 0), 0);
+        return json(route, {
+          profile: state.user.profile,
+          clips: state.myClips,
+          stats: {
+            totalClips: state.myClips.length,
+            totalLikes: likes || 128,
+            totalViews: views || 2480,
+            followers: 42,
+            following: 18,
+          },
+        });
+      }
+
       if (path === '/api/users/me/show-marks' && method === 'GET') {
-        return json(route, { marks: state.showMarks });
+        const status = url.searchParams.get('status');
+        const marks = status
+          ? state.showMarks.filter((m) => m.status === status)
+          : state.showMarks;
+        return json(route, { marks, events: [] });
       }
 
       if (path === '/api/users/me/show-marks' && method === 'POST') {
