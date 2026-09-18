@@ -21,6 +21,28 @@ export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform();
 }
 
+export function isIosClientFromHints(hints: {
+  capacitorPlatform: string;
+  userAgent?: string;
+  navigatorPlatform?: string;
+  maxTouchPoints?: number;
+}): boolean {
+  if (hints.capacitorPlatform === 'ios') return true;
+  const ua = hints.userAgent ?? '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return hints.navigatorPlatform === 'MacIntel' && (hints.maxTouchPoints ?? 0) > 1;
+}
+
+/** Native iOS app, or Safari on iPhone/iPad. */
+export function isIosClient(): boolean {
+  return isIosClientFromHints({
+    capacitorPlatform: Capacitor.getPlatform(),
+    userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
+    navigatorPlatform: typeof navigator === 'undefined' ? '' : navigator.platform,
+    maxTouchPoints: typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints,
+  });
+}
+
 export async function registerNativePush(): Promise<void> {
   if (!isNativeApp()) return;
   try {

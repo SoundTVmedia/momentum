@@ -172,6 +172,7 @@ export default function UploadQueuePage() {
                 key={job.id}
                 job={job}
                 onRestart={restartJob}
+                onRemove={dismissJob}
                 onPickShow={(next) => void openShowPicker(next)}
               />
             ))}

@@ -1,5 +1,7 @@
+import { IonItem, IonItemOption, IonItemOptions, IonItemSliding } from '@ionic/react';
 import { AlertCircle, Check, Loader2, RotateCcw, WifiOff } from 'lucide-react';
 import type { ClipUploadQueueJob } from '@/react-app/contexts/ClipUploadQueueContext';
+import { isIosClient } from '@/react-app/lib/native-bridge';
 import {
   uploadJobCanRestart,
   uploadJobLabel,
@@ -12,6 +14,7 @@ type UploadQueueJobCardProps = {
   job: ClipUploadQueueJob;
   onRestart: (id: string) => void;
   onPickShow?: (job: ClipUploadQueueJob) => void;
+  onRemove?: (id: string) => void;
 };
 
 function UploadProgressRing({
@@ -98,6 +101,7 @@ export default function UploadQueueJobCard({
   job,
   onRestart,
   onPickShow,
+  onRemove,
 }: UploadQueueJobCardProps) {
   const label = uploadJobLabel(job);
   const statusText = uploadJobStatusText(job);
@@ -125,7 +129,7 @@ export default function UploadQueueJobCard({
       ? 0
       : Math.max(job.progress, 12);
 
-  return (
+  const card = (
     <div
       className={`rounded-xl border px-4 py-4 shadow-lg backdrop-blur-md ${
         isPublished
@@ -195,5 +199,27 @@ export default function UploadQueueJobCard({
         </div>
       </div>
     </div>
+  );
+
+  if (!onRemove || !isIosClient()) {
+    return card;
+  }
+
+  return (
+    <IonItemSliding className="upload-queue-sliding" onIonSwipe={() => onRemove(job.id)}>
+      <IonItem lines="none" button={false} detail={false} className="upload-queue-sliding-item">
+        {card}
+      </IonItem>
+      <IonItemOptions side="end">
+        <IonItemOption
+          className="upload-queue-remove-option"
+          color="danger"
+          expandable
+          onClick={() => onRemove(job.id)}
+        >
+          Remove
+        </IonItemOption>
+      </IonItemOptions>
+    </IonItemSliding>
   );
 }

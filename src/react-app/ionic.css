@@ -666,6 +666,34 @@ ion-item {
   --color: var(--text-body, #e8edf4);
 }
 
+ion-item-sliding.upload-queue-sliding {
+  display: block;
+  width: 100%;
+  border-radius: 0.75rem;
+}
+
+ion-item-sliding.upload-queue-sliding ion-item.upload-queue-sliding-item {
+  --background: transparent;
+  --background-hover: transparent;
+  --background-activated: transparent;
+  --inner-border-width: 0;
+  --border-width: 0;
+  --padding-start: 0;
+  --inner-padding-end: 0;
+  --min-height: 0;
+  --ripple-color: transparent;
+}
+
+ion-item-sliding.upload-queue-sliding ion-item.upload-queue-sliding-item::part(native) {
+  padding-inline: 0;
+  align-items: stretch;
+}
+
+ion-item-option.upload-queue-remove-option {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
 ion-modal.app-alerts-modal {
   --background: var(--glass-dropdown-bg, rgba(6, 16, 24, 0.92));
   --border-radius: 1.15rem 1.15rem 0 0;

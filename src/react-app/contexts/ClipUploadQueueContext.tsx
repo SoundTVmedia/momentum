@@ -542,6 +542,9 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
             removeJobLater(pending.id);
           }
         } catch (err) {
+          if (!jobsRef.current.some((j) => j.id === pending.id)) {
+            return;
+          }
           let message = formatUploadError(err);
           if (abortForStallRef.current.has(pending.id)) {
             abortForStallRef.current.delete(pending.id);
@@ -959,6 +962,11 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
   const dismissJob = useCallback(
     (id: string) => {
       clearAutoRetryTimer(id);
+      abortForStallRef.current.delete(id);
+      abortByJobRef.current.get(id)?.abort();
+      abortByJobRef.current.delete(id);
+      processingIdsRef.current.delete(id);
+      processingStartedAtRef.current.delete(id);
       setJobs((prev) => {
         const next = prev.filter((j) => j.id !== id);
         jobsRef.current = next;
