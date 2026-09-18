@@ -16,7 +16,7 @@ export const FEED_FILTER_OPTIONS: FeedFilterMeta[] = [
   {
     value: 'latest',
     label: 'Latest',
-    description: 'Newest posts from the last 24 hours, expanding to 30 days when needed',
+    description: 'Newest posts from shows in the last 30 days',
     viewAllClipsLabel: 'View All Latest Clips',
   },
   {

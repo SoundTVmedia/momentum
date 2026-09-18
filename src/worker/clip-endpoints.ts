@@ -20,6 +20,10 @@ import {
   clipBelongsToEventTitleSql,
   clipBelongsToRequestedShowSql,
 } from './past-show-sql';
+import {
+  SHOW_CLIPS_RECORDED_ORDER_BY_SQL,
+  compareClipsByRecordedTimeAsc,
+} from './clip-order-by';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, blockKey } from './user-blocks';
 import {
   describeMusicRecognitionConfig,
@@ -694,7 +698,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
        ${CLIP_WITH_USER_FROM}
        WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND ${clipBelongsToRequestedShowSql()}
-       ORDER BY clips.created_at ASC
+       ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}
        LIMIT 50`,
     )
       .bind(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showIdentity))
@@ -706,7 +710,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
        ${CLIP_WITH_USER_FROM}
        WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND ${clipBelongsToEventTitleSql()}
-       ORDER BY clips.created_at ASC
+       ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}
        LIMIT 50`,
     )
       .bind(eventTitle, eventTitle, eventTitle)
@@ -721,7 +725,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
        AND clips.venue_name = ?
        AND clips.timestamp IS NOT NULL
        AND date(clips.timestamp) = date(?)
-       ORDER BY clips.created_at ASC
+       ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}
        LIMIT 50`,
     )
       .bind(artistName, venueName, timestamp)
@@ -752,11 +756,7 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
       clips =
         scope === 'artist'
           ? [anchorNorm, ...clips]
-          : [...clips, anchorNorm].sort(
-              (a, b) =>
-                new Date(String(a.created_at ?? 0)).getTime() -
-                new Date(String(b.created_at ?? 0)).getTime(),
-            );
+          : [...clips, anchorNorm].sort(compareClipsByRecordedTimeAsc);
     }
   }
 

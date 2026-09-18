@@ -19,6 +19,7 @@ import {
   mergeEnrichmentIntoClipFields,
 } from './clips-enrich-upload-show';
 import { rejectIfClipDoesNotMatchTargetShow } from './clip-show-metadata-gate';
+import { clipShowTagsFromMatchedEvent } from '../shared/clip-show-metadata-match';
 
 export type ClipCreateBody = Record<string, unknown>;
 
@@ -266,7 +267,7 @@ export async function resolveClipCreateFields(
   };
 
   if (
-    !hasManualShowTags &&
+    !fields.resolvedJambaseEventId?.trim() &&
     !captureTimestampMissing &&
     fields.geolocation_latitude != null &&
     fields.geolocation_longitude != null
@@ -310,6 +311,17 @@ export async function resolveClipCreateFields(
     });
     if (!gate.ok) {
       return { ok: false, status: 422, error: gate.error };
+    }
+    if (gate.event) {
+      const showTags = clipShowTagsFromMatchedEvent(gate.event);
+      fields = {
+        ...fields,
+        resolvedArtist: showTags.artistName || fields.resolvedArtist,
+        resolvedJambaseArtistId: showTags.artistId || fields.resolvedJambaseArtistId,
+        resolvedVenue: fields.resolvedVenue?.trim() || showTags.venueName,
+        resolvedJambaseVenueId: fields.resolvedJambaseVenueId?.trim() || showTags.venueId,
+        resolvedEventTitle: showTags.eventTitle || fields.resolvedEventTitle,
+      };
     }
   }
 

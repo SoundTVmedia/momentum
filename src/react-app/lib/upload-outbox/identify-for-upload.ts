@@ -42,7 +42,10 @@ export function formPatchFromAcrMatch(
   match: { artist?: string | null; title?: string | null },
 ): Partial<ClipUploadFormFields> {
   if (job.form.song_title?.trim()) return {};
-  return acrMatchToClipFieldPatch(job.form, match, { overwriteSongTitle: false });
+  return acrMatchToClipFieldPatch(job.form, match, {
+    overwriteSongTitle: false,
+    fillArtist: !job.jambaseLink?.event?.trim(),
+  });
 }
 
 export function formPatchFromClassification(

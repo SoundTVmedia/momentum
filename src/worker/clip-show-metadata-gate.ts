@@ -53,7 +53,9 @@ export async function rejectIfClipDoesNotMatchTargetShow(
     artistName: string | null;
     venueName: string | null;
   },
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; event?: Record<string, unknown> } | { ok: false; error: string }
+> {
   const eventId = input.jambaseEventId?.trim() || '';
   if (!eventId) return { ok: true };
 
@@ -87,5 +89,5 @@ export async function rejectIfClipDoesNotMatchTargetShow(
     venueName: input.venueName,
   });
   if (!match.ok) return { ok: false, error: match.message };
-  return { ok: true };
+  return { ok: true, event: ev };
 }

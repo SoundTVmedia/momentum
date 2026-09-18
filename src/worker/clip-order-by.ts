@@ -8,11 +8,42 @@
  *
  * Falls back to the posted time for older rows with no capture timestamp.
  */
+function sqliteDateTimeSql(expr: string): string {
+  return `datetime(replace(replace(substr(TRIM(${expr}), 1, 19), 'T', ' '), 'Z', ''))`;
+}
+
 export const CLIP_RECORDED_AT_SQL =
   "COALESCE(" +
-  "datetime(NULLIF(TRIM(IFNULL(clips.timestamp, '')), '')), " +
-  "datetime(clips.created_at), " +
+  `${sqliteDateTimeSql("NULLIF(TRIM(IFNULL(clips.timestamp, '')), '')")}, ` +
+  `${sqliteDateTimeSql('clips.created_at')}, ` +
   "clips.created_at)";
+
+/** Recorded time for inserting a late upload into setlist order. */
+export function clipRecordedAtMs(clip: {
+  timestamp?: unknown;
+  created_at?: unknown;
+}): number {
+  const recorded = Date.parse(String(clip.timestamp ?? '').trim());
+  if (Number.isFinite(recorded)) return recorded;
+  const posted = Date.parse(String(clip.created_at ?? '').trim());
+  return Number.isFinite(posted) ? posted : 0;
+}
+
+export function compareClipsByRecordedTimeAsc(
+  a: { timestamp?: unknown; created_at?: unknown; id?: unknown },
+  b: { timestamp?: unknown; created_at?: unknown; id?: unknown },
+): number {
+  const byTime = clipRecordedAtMs(a) - clipRecordedAtMs(b);
+  if (byTime !== 0) return byTime;
+  const postedA = Date.parse(String(a.created_at ?? '').trim());
+  const postedB = Date.parse(String(b.created_at ?? '').trim());
+  if (Number.isFinite(postedA) && Number.isFinite(postedB) && postedA !== postedB) {
+    return postedA - postedB;
+  }
+  return String(a.id ?? '').localeCompare(String(b.id ?? ''), undefined, {
+    numeric: true,
+  });
+}
 
 /**
  * Clips grouped under one song are ordered by when they were recorded, so the

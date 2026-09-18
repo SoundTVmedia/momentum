@@ -37,4 +37,17 @@ describe('acrMatchToClipFieldPatch', () => {
       content_description: 'New Song\n\nCaption',
     });
   });
+
+  it('does not fill artist from the song when a show is already tagged', () => {
+    expect(
+      acrMatchToClipFieldPatch(
+        { artist_name: '', song_title: '', content_description: '' },
+        { artist: 'Rihanna', title: 'Umbrella' },
+        { fillArtist: false },
+      ),
+    ).toEqual({
+      song_title: 'Umbrella',
+      content_description: 'Umbrella',
+    });
+  });
 });

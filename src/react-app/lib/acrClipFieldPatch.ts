@@ -16,7 +16,7 @@ export type AcrClipFieldPatch = {
 export function acrMatchToClipFieldPatch(
   existing: AcrClipFieldSnapshot,
   match: { artist?: string | null; title?: string | null },
-  options?: { overwriteSongTitle?: boolean },
+  options?: { overwriteSongTitle?: boolean; fillArtist?: boolean },
 ): AcrClipFieldPatch {
   const title = match.title?.trim() ?? '';
   const artist = match.artist?.trim() ?? '';
@@ -31,7 +31,7 @@ export function acrMatchToClipFieldPatch(
       title,
     );
   }
-  if (artist && !existing.artist_name?.trim()) {
+  if (options?.fillArtist !== false && artist && !existing.artist_name?.trim()) {
     patch.artist_name = artist;
   }
   return patch;

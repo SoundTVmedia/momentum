@@ -93,6 +93,21 @@ describe('formPatchFromAcrMatch', () => {
     );
     expect(patch).toEqual({});
   });
+
+  it('keeps the show headliner when ACR identifies a guest artist', () => {
+    const patch = formPatchFromAcrMatch(
+      baseJob({
+        jambaseLink: {
+          event: 'jambase:jayz-yankee',
+          artist: 'jambase:jayz',
+          venue: 'jambase:yankee',
+        },
+      }),
+      { artist: 'Rihanna', title: 'Umbrella' },
+    );
+    expect(patch.song_title).toBe('Umbrella');
+    expect(patch.artist_name).toBeUndefined();
+  });
 });
 
 describe('resolveSongIdentifyAfterUpload', () => {

@@ -1663,10 +1663,8 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   const mainFeedFilter =
     !userId && feedScope !== 'all' ? await mainFeedClipFilterSql(c.env.DB) : null;
 
-  const runClipsQuery = async (
-    latestPostedWithin: '+24 hours' | '+30 days' | null,
-  ) => {
-    const applyLatest = isPublicLatestScene && latestPostedWithin != null;
+  const runClipsQuery = async (applyLatestSceneWindow: boolean) => {
+    const applyLatest = isPublicLatestScene && applyLatestSceneWindow;
     const latestSceneJoin = applyLatest
       ? `LEFT JOIN jambase_events latest_scene_ev
       ON latest_scene_ev.jambase_event_id = clips.jambase_event_id`
@@ -1723,8 +1721,8 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
       bindings.push(since);
     }
 
-    if (applyLatest && latestPostedWithin) {
-      query += ` AND ${latestSceneClipFreshSql(latestPostedWithin)}`;
+    if (applyLatest) {
+      query += ` AND ${latestSceneClipFreshSql()}`;
     }
 
     switch (sortBy) {
@@ -1754,26 +1752,19 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
 
   let clips;
   try {
-    clips = await runClipsQuery(isPublicLatestScene ? '+24 hours' : null);
+    clips = await runClipsQuery(isPublicLatestScene);
     if (
       isPublicLatestScene &&
       page === 1 &&
       (clips.results || []).length === 0
     ) {
-      clips = await runClipsQuery('+30 days');
-    }
-    if (
-      isPublicLatestScene &&
-      page === 1 &&
-      (clips.results || []).length === 0
-    ) {
-      // Catalog has no scene-window hits — still return public clips so the grid is never blank.
-      clips = await runClipsQuery(null);
+      // Catalog has no recent-show hits — still return public clips so the grid is never blank.
+      clips = await runClipsQuery(false);
     }
   } catch (latestErr) {
     if (!isPublicLatestScene) throw latestErr;
     console.error('GET /api/clips latest window failed, retrying without it:', latestErr);
-    clips = await runClipsQuery(null);
+    clips = await runClipsQuery(false);
   }
 
   // User-scoped or filtered feeds must not be cached publicly — stale JSON causes "My clips"

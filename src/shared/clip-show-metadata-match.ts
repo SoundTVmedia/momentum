@@ -1,7 +1,9 @@
 import { displayNamesClose } from './artist-name-match';
 import { AUTO_APPLY_MAX_DISTANCE_MILES } from './clip-resolve-show-match';
+import { artistAtVenueTitle, jamBaseEventTitle } from './event-title';
 import {
   jamBaseEventArtistName,
+  jamBaseEventHeadliner,
   jamBaseEventVenueCoords,
   jamBaseEventVenueName,
   haversineMiles,
@@ -13,7 +15,6 @@ export const CLIP_SHOW_METADATA_MESSAGES = {
     "This video has no capture date in its metadata, so it can't be posted to this show.",
   date_mismatch: "This video wasn't recorded on the night of this show.",
   location_mismatch: "This video's location doesn't match the venue for this show.",
-  artist_mismatch: "The artist on this clip doesn't match this show.",
   venue_mismatch: "The venue on this clip doesn't match this show.",
 } as const;
 
@@ -62,7 +63,38 @@ export function eventHasMatchingVenue(
 }
 
 /**
- * Require a clip's capture metadata (and posted artist/venue) to match a specific show.
+ * Show identity from a matched JamBase event. Song identification (guest
+ * performers, covers) must not replace the headliner on the clip.
+ */
+export function clipShowTagsFromMatchedEvent(event: Record<string, unknown>): {
+  artistName: string | null;
+  artistId: string | null;
+  venueName: string | null;
+  venueId: string | null;
+  eventTitle: string | null;
+} {
+  const head = jamBaseEventHeadliner(event);
+  const artistName = jamBaseEventArtistName(event) || null;
+  const artistId =
+    typeof head?.identifier === 'string' && head.identifier.trim()
+      ? head.identifier.trim()
+      : null;
+  const venueRaw = jamBaseEventVenueName(event);
+  const venueName = venueRaw && venueRaw !== 'Venue TBA' ? venueRaw : null;
+  const loc = event.location as Record<string, unknown> | undefined;
+  const venueId =
+    typeof loc?.identifier === 'string' && loc.identifier.trim()
+      ? loc.identifier.trim()
+      : null;
+  const eventTitle =
+    jamBaseEventTitle(event) ?? artistAtVenueTitle(artistName, venueName) ?? null;
+  return { artistName, artistId, venueName, venueId, eventTitle };
+}
+
+/**
+ * Require a clip's capture metadata to match a specific show: recorded date,
+ * GPS location, and venue. Song/artist identification is not part of the match
+ * (a Rihanna song at a Jay-Z show still belongs on that concert).
  * Missing GPS is allowed; present GPS must be near the venue when coords are known.
  */
 export function clipMetadataMatchesShow(input: {
@@ -114,14 +146,6 @@ export function clipMetadataMatchesShow(input: {
         message: CLIP_SHOW_METADATA_MESSAGES.location_mismatch,
       };
     }
-  }
-
-  if (!eventHasMatchingPerformer(input.event, input.artistName)) {
-    return {
-      ok: false,
-      reason: 'artist_mismatch',
-      message: CLIP_SHOW_METADATA_MESSAGES.artist_mismatch,
-    };
   }
 
   if (!eventHasMatchingVenue(input.event, input.venueName)) {

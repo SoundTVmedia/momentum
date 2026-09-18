@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { SHOW_CLIPS_RECORDED_ORDER_BY_SQL, SONG_CLIPS_ORDER_BY_SQL } from './clip-order-by';
+import { SHOW_CLIPS_RECORDED_ORDER_BY_SQL, SONG_CLIPS_ORDER_BY_SQL, compareClipsByRecordedTimeAsc } from './clip-order-by';
 
 type Row = { id: string };
 
@@ -76,5 +76,36 @@ describe('SHOW_CLIPS_RECORDED_ORDER_BY_SQL', () => {
     ).map((row) => row.id);
     db.close();
     expect(ids).toEqual(['opener', 'mid-set', 'encore']);
+  });
+
+  it('inserts a late upload by recorded time, not posted time', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('CREATE TABLE clips (id TEXT, timestamp TEXT, created_at TEXT)');
+    const insert = db.prepare('INSERT INTO clips VALUES (?, ?, ?)');
+    insert.run('encore', '2026-08-22T03:00:00.000Z', '2026-08-22 04:00:00');
+    insert.run('opener', '2026-08-22T01:00:00.000Z', '2026-08-22 01:10:00');
+    insert.run('late-mid-set', '2026-08-22T02:00:00.000Z', '2026-09-15 18:00:00');
+    const ids = (
+      db.prepare(`SELECT clips.id FROM clips ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}`).all() as Array<{
+        id: string;
+      }>
+    ).map((row) => row.id);
+    db.close();
+    expect(ids).toEqual(['opener', 'late-mid-set', 'encore']);
+  });
+});
+
+describe('compareClipsByRecordedTimeAsc', () => {
+  it('orders a late upload among earlier clips by recorded time', () => {
+    const clips = [
+      { id: 'encore', timestamp: '2026-08-22T03:00:00.000Z', created_at: '2026-08-22 04:00:00' },
+      { id: 'late-opener', timestamp: '2026-08-22T01:00:00.000Z', created_at: '2026-09-15 18:00:00' },
+      { id: 'mid-set', timestamp: '2026-08-22T02:00:00.000Z', created_at: '2026-08-22 02:10:00' },
+    ];
+    expect(clips.sort(compareClipsByRecordedTimeAsc).map((c) => c.id)).toEqual([
+      'late-opener',
+      'mid-set',
+      'encore',
+    ]);
   });
 });

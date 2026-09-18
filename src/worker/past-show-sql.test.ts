@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_30D_SQL, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -371,7 +371,7 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     for (const db of databases.splice(0)) db.close();
   });
 
-  it('keeps clips from a show in the last 24 hours and drops older shows', () => {
+  it('keeps clips from a show in the last 30 days and drops older shows', () => {
     const db = new DatabaseSync(':memory:');
     databases.push(db);
     db.exec(`
@@ -387,18 +387,18 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
       );
     `);
     db.prepare(
-      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-2 hours'))`,
+      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-10 days'))`,
     ).run('fresh');
     db.prepare(
-      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-30 hours'))`,
+      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-40 days'))`,
     ).run('stale');
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (1, datetime('now', '-2 hours'), datetime('now'), 'fresh')`,
+       VALUES (1, datetime('now', '-10 days'), datetime('now'), 'fresh')`,
     ).run();
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (2, datetime('now', '-30 hours'), datetime('now'), 'stale')`,
+       VALUES (2, datetime('now', '-40 days'), datetime('now'), 'stale')`,
     ).run();
 
     const rows = db
@@ -414,7 +414,7 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     expect(rows).toEqual([{ id: 1 }]);
   });
 
-  it('keeps unmatched clips whose recording time is older than 24 hours', () => {
+  it('keeps unmatched clips whose recording time is older than 30 days', () => {
     const db = new DatabaseSync(':memory:');
     databases.push(db);
     db.exec(`
@@ -431,12 +431,12 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     `);
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (1, datetime('now', '-48 hours'), datetime('now'), NULL)`,
+       VALUES (1, datetime('now', '-40 days'), datetime('now'), NULL)`,
     ).run();
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
        VALUES (2, ?, datetime('now'), NULL)`,
-    ).run(new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
+    ).run(new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
 
     const rows = db
       .prepare(
@@ -451,7 +451,7 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
   });
 
-  it('keeps a just-uploaded clip tagged to a show from 30 hours ago in the 30-day window', () => {
+  it('keeps a just-uploaded clip tagged to a show from 10 days ago', () => {
     const db = new DatabaseSync(':memory:');
     databases.push(db);
     db.exec(`
@@ -468,13 +468,13 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     `);
     db.prepare(
       `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, ?)`,
-    ).run('past-show', new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString());
+    ).run('past-show', new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString());
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (1, datetime('now'), datetime('now'), 'past-show')`,
+       VALUES (1, datetime('now', '-10 days'), datetime('now'), 'past-show')`,
     ).run();
 
-    const rows24 = db
+    const rows = db
       .prepare(
         `SELECT clips.id FROM clips
          LEFT JOIN jambase_events latest_scene_ev
@@ -482,20 +482,11 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
          WHERE ${LATEST_SCENE_CLIP_FRESH_SQL}`,
       )
       .all() as Array<{ id: number }>;
-    const rows30 = db
-      .prepare(
-        `SELECT clips.id FROM clips
-         LEFT JOIN jambase_events latest_scene_ev
-           ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
-         WHERE ${LATEST_SCENE_CLIP_FRESH_30D_SQL}`,
-      )
-      .all() as Array<{ id: number }>;
 
-    expect(rows24).toEqual([]);
-    expect(rows30).toEqual([{ id: 1 }]);
+    expect(rows).toEqual([{ id: 1 }]);
   });
 
-  it('drops a clip posted more than 30 days after the tagged show', () => {
+  it('drops a just-uploaded clip tagged to a show older than 30 days', () => {
     const db = new DatabaseSync(':memory:');
     databases.push(db);
     db.exec(`
@@ -515,7 +506,7 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     ).run('old-show', new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (1, datetime('now'), datetime('now'), 'old-show')`,
+       VALUES (1, datetime('now', '-40 days'), datetime('now'), 'old-show')`,
     ).run();
 
     const rows = db
@@ -523,7 +514,7 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
         `SELECT clips.id FROM clips
          LEFT JOIN jambase_events latest_scene_ev
            ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
-         WHERE ${LATEST_SCENE_CLIP_FRESH_30D_SQL}`,
+         WHERE ${LATEST_SCENE_CLIP_FRESH_SQL}`,
       )
       .all() as Array<{ id: number }>;
 

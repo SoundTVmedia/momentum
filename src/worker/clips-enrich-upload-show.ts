@@ -1,5 +1,4 @@
 import type { ClipShowCandidate } from '../shared/types';
-import { hasManualShowArtistVenue } from '../shared/content-feed';
 import { isPrePostContentFeed } from '../shared/pre-post-clip';
 import { computeShowId } from '../shared/show-id';
 import { resolveClipEventTitle } from '../shared/event-title';
@@ -196,7 +195,6 @@ export async function enrichClipShowTagsFromMetadata(
   input: EnrichClipShowTagsInput,
 ): Promise<ClipShowTagEnrichment | null> {
   if (isPrePostContentFeed(input.contentFeed ?? 'main')) return null;
-  if (hasManualShowArtistVenue(input.artistName, input.venueName)) return null;
 
   const { lat, lon, captureMs } = input;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
@@ -243,10 +241,15 @@ export function mergeEnrichmentIntoClipFields<
     resolvedTimestamp: string;
   },
 >(fields: T, enrichment: ClipShowTagEnrichment): T {
-  const artist = fields.resolvedArtist?.trim() || enrichment.artist_name;
+  const matchedShow = Boolean(enrichment.jambase_event_id?.trim());
+  const artist = matchedShow
+    ? enrichment.artist_name?.trim() || fields.resolvedArtist
+    : fields.resolvedArtist?.trim() || enrichment.artist_name;
   const venue = fields.resolvedVenue?.trim() || enrichment.venue_name;
   const location = fields.resolvedLocation?.trim() || enrichment.location;
-  const eventTitle = fields.resolvedEventTitle?.trim() || enrichment.event_title;
+  const eventTitle = matchedShow
+    ? enrichment.event_title?.trim() || fields.resolvedEventTitle
+    : fields.resolvedEventTitle?.trim() || enrichment.event_title;
 
   return {
     ...fields,
@@ -255,8 +258,9 @@ export function mergeEnrichmentIntoClipFields<
     resolvedLocation: location,
     resolvedJambaseEventId:
       fields.resolvedJambaseEventId?.trim() || enrichment.jambase_event_id,
-    resolvedJambaseArtistId:
-      fields.resolvedJambaseArtistId?.trim() || enrichment.jambase_artist_id,
+    resolvedJambaseArtistId: matchedShow
+      ? enrichment.jambase_artist_id?.trim() || fields.resolvedJambaseArtistId
+      : fields.resolvedJambaseArtistId?.trim() || enrichment.jambase_artist_id,
     resolvedJambaseVenueId:
       fields.resolvedJambaseVenueId?.trim() || enrichment.jambase_venue_id,
     resolvedEventTitle: eventTitle,
@@ -287,9 +291,7 @@ export async function enrichDraftClipRowIfNeeded(
     .first<Record<string, unknown>>();
 
   if (!row) return false;
-  if (hasManualShowArtistVenue(String(row.artist_name ?? ''), String(row.venue_name ?? ''))) {
-    return false;
-  }
+  if (String(row.jambase_event_id ?? '').trim()) return false;
 
   const lat = Number(row.geolocation_latitude);
   const lon = Number(row.geolocation_longitude);
@@ -311,17 +313,24 @@ export async function enrichDraftClipRowIfNeeded(
 
   if (!enrichment?.venue_name?.trim() && !enrichment?.jambase_venue_id) return false;
 
-  const artist = String(row.artist_name ?? '').trim() || enrichment.artist_name;
+  const artist = enrichment.artist_name?.trim() || String(row.artist_name ?? '').trim();
   const venue = String(row.venue_name ?? '').trim() || enrichment.venue_name;
   const location = String(row.location ?? '').trim() || enrichment.location;
-  const eventTitle = String(row.event_title ?? '').trim() || enrichment.event_title;
+  const eventTitle = enrichment.event_title?.trim() || String(row.event_title ?? '').trim();
+  const eventId =
+    enrichment.jambase_event_id?.trim() ||
+    (typeof row.jambase_event_id === 'string' ? row.jambase_event_id.trim() : '');
+  const artistId =
+    enrichment.jambase_artist_id?.trim() ||
+    (typeof row.jambase_artist_id === 'string' ? row.jambase_artist_id.trim() : '');
+  const venueId =
+    (typeof row.jambase_venue_id === 'string' ? row.jambase_venue_id.trim() : '') ||
+    enrichment.jambase_venue_id;
   const showId =
     String(row.show_id ?? '').trim() ||
     enrichment.show_id ||
     computeShowId({
-      jambase_event_id:
-        (typeof row.jambase_event_id === 'string' ? row.jambase_event_id : null) ??
-        enrichment.jambase_event_id,
+      jambase_event_id: eventId || null,
       artist_name: artist,
       venue_name: venue,
       timestamp: ts || new Date(captureMs).toISOString(),
@@ -329,14 +338,14 @@ export async function enrichDraftClipRowIfNeeded(
 
   await env.DB.prepare(
     `UPDATE clips SET
-       artist_name = COALESCE(NULLIF(trim(artist_name), ''), ?),
-       venue_name = COALESCE(NULLIF(trim(venue_name), ''), ?),
-       location = COALESCE(NULLIF(trim(location), ''), ?),
-       jambase_event_id = COALESCE(NULLIF(trim(jambase_event_id), ''), ?),
-       jambase_artist_id = COALESCE(NULLIF(trim(jambase_artist_id), ''), ?),
-       jambase_venue_id = COALESCE(NULLIF(trim(jambase_venue_id), ''), ?),
-       event_title = COALESCE(NULLIF(trim(event_title), ''), ?),
-       show_id = COALESCE(NULLIF(trim(show_id), ''), ?),
+       artist_name = ?,
+       venue_name = ?,
+       location = ?,
+       jambase_event_id = ?,
+       jambase_artist_id = ?,
+       jambase_venue_id = ?,
+       event_title = ?,
+       show_id = ?,
        updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
   )
@@ -344,9 +353,9 @@ export async function enrichDraftClipRowIfNeeded(
       artist,
       venue,
       location,
-      enrichment.jambase_event_id,
-      enrichment.jambase_artist_id,
-      enrichment.jambase_venue_id,
+      eventId || null,
+      artistId || null,
+      venueId || null,
       eventTitle,
       showId,
       clipId,

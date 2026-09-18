@@ -293,26 +293,32 @@ function sqliteDateTimeSql(expr: string): string {
 export const JAMBASE_EVENT_START_DATETIME_SQL = sqliteDateTimeSql(
   'latest_scene_ev.start_date',
 );
-export const CLIP_CREATED_DATETIME_SQL = sqliteDateTimeSql('clips.created_at');
+export const CLIP_RECORDED_DATETIME_SQL = sqliteDateTimeSql('clips.timestamp');
 
-export type LatestScenePostWindow = '+24 hours' | '+30 days';
+/** How far back a tagged show may be and still appear in Latest From the Scene. */
+export type LatestSceneEventWindow = '-30 days';
 
 /**
  * Latest From the Scene: keep unmatched clips. For clips tagged to a JamBase
- * event, keep them only if they were posted within `window` of that event start.
+ * event, keep them only if that event happened within `window` of now — not
+ * merely because the upload is recent. A late upload to an older past show
+ * still belongs on the event page (by recorded time) but should not jump the
+ * home Latest grid.
  * Requires `LEFT JOIN jambase_events latest_scene_ev`.
  */
-export function latestSceneClipFreshSql(window: LatestScenePostWindow): string {
+export function latestSceneClipFreshSql(
+  window: LatestSceneEventWindow = '-30 days',
+): string {
+  const eventAtSql = `COALESCE(
+    ${JAMBASE_EVENT_START_DATETIME_SQL},
+    ${CLIP_RECORDED_DATETIME_SQL}
+  )`;
   return `(
   NULLIF(TRIM(IFNULL(clips.jambase_event_id, '')), '') IS NULL
-  OR latest_scene_ev.start_date IS NULL
-  OR TRIM(latest_scene_ev.start_date) = ''
-  OR ${CLIP_CREATED_DATETIME_SQL} <= datetime(${JAMBASE_EVENT_START_DATETIME_SQL}, '${window}')
+  OR ${eventAtSql} IS NULL
+  OR ${eventAtSql} >= datetime('now', '${window}')
 )`;
 }
 
-/** Prefer clips posted within 24 hours of the associated show. */
-export const LATEST_SCENE_CLIP_FRESH_SQL = latestSceneClipFreshSql('+24 hours');
-
-/** Fallback when the 24-hour Latest window is empty. */
-export const LATEST_SCENE_CLIP_FRESH_30D_SQL = latestSceneClipFreshSql('+30 days');
+/** Tagged shows in Latest must have happened within the last 30 days. */
+export const LATEST_SCENE_CLIP_FRESH_SQL = latestSceneClipFreshSql('-30 days');

@@ -55,4 +55,35 @@ describe('clips-enrich-upload-show', () => {
     expect(merged.resolvedJambaseVenueId).toBe('jambase:vn1');
     expect(merged.showId).toBe('show-1');
   });
+
+  it('prefers the matched show headliner over a song-identification artist', () => {
+    const merged = mergeEnrichmentIntoClipFields(
+      {
+        resolvedArtist: 'Rihanna',
+        resolvedVenue: 'Yankee Stadium',
+        resolvedLocation: null,
+        resolvedJambaseEventId: null,
+        resolvedJambaseArtistId: null,
+        resolvedJambaseVenueId: null,
+        resolvedEventTitle: null,
+        showId: null,
+        resolvedTimestamp: new Date(captureMs).toISOString(),
+      },
+      {
+        artist_name: 'Jay-Z',
+        venue_name: 'Yankee Stadium',
+        location: 'Bronx, NY',
+        jambase_event_id: 'jambase:jayz-yankee',
+        jambase_artist_id: 'jambase:jayz',
+        jambase_venue_id: 'jambase:yankee',
+        event_title: 'Jay-Z at Yankee Stadium',
+        show_id: 'show-jayz',
+        source: 'jambase',
+      },
+    );
+    expect(merged.resolvedArtist).toBe('Jay-Z');
+    expect(merged.resolvedJambaseArtistId).toBe('jambase:jayz');
+    expect(merged.resolvedJambaseEventId).toBe('jambase:jayz-yankee');
+    expect(merged.resolvedEventTitle).toBe('Jay-Z at Yankee Stadium');
+  });
 });
