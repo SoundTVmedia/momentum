@@ -5,6 +5,7 @@ import { clipUploadTargetFromShowData } from '@/react-app/lib/archival-upload';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import { extractVideoFileMetadata } from '@/react-app/utils/extractVideoFileMetadata';
 import { isLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
+import { showNightRecordedAtIso } from '@/shared/clip-setlist-order';
 
 const MAX_LIBRARY_CLIP_BYTES = 500 * 1024 * 1024;
 const MAX_LIBRARY_CLIP_SECONDS = 60;
@@ -58,8 +59,11 @@ export function useEnqueueManualClip() {
         return { ok: false, error: classification.error };
       }
 
-      const recordingAtIso = meta.recordedAtIso;
-      const captureTimestampMissing = !meta.recordedAtIso;
+      const showEvent = options?.showData?.start_date
+        ? { startDate: options.showData.start_date }
+        : null;
+      const recordingAtIso = showNightRecordedAtIso(meta.recordedAtIso, showEvent);
+      const captureTimestampMissing = !recordingAtIso;
       const captureGeo =
         meta.latitude != null && meta.longitude != null
           ? {

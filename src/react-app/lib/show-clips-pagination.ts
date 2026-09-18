@@ -123,12 +123,13 @@ export async function fetchAllShowClips(
     if (!result.hasMore || result.clips.length === 0) {
       const setlist = show?.setlist;
       const ordered =
-        options.sortBy === 'most_liked' || !setlist?.length
+        options.sortBy === 'most_liked'
           ? clips
           : sortClipsBySetlistThenRecorded(
               clips,
               setlist,
               eventStartIsoFromPayload(show?.event),
+              show?.event ?? null,
             );
       return { clips: ordered, show, canonical_show_id: canonicalShowId };
     }

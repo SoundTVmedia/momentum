@@ -774,6 +774,7 @@ export async function getShowClips(c: Context) {
             pageClips as Record<string, unknown>[],
             setlist,
             eventStartIsoFromPayload(show?.event ?? null),
+            show?.event ?? null,
           );
 
     return c.json({
@@ -880,6 +881,7 @@ export async function getEventClips(c: Context) {
             visible,
             setlist,
             eventStartIsoFromPayload(show?.event ?? null),
+            show?.event ?? null,
           );
 
     return c.json({

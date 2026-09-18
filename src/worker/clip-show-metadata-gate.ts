@@ -88,6 +88,17 @@ export async function rejectIfClipDoesNotMatchTargetShow(
     artistName: input.artistName,
     venueName: input.venueName,
   });
+  if (!match.ok && match.reason === 'date_mismatch') {
+    const withoutFileDate = clipMetadataMatchesShow({
+      event: ev,
+      recordedAtIso: null,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      artistName: input.artistName,
+      venueName: input.venueName,
+    });
+    if (withoutFileDate.ok) return { ok: true, event: ev };
+  }
   if (!match.ok) return { ok: false, error: match.message };
   return { ok: true, event: ev };
 }

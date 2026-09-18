@@ -123,6 +123,7 @@ import type { ArchivalUploadShowData } from '@/react-app/lib/archival-upload';
 import { LIBRARY_VIDEO_ACCEPT, pickLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
 import { jamBaseEventToShowMarkInput, pastShowSummaryToJamBaseEvent, pickShowMarkForLibraryUpload, showMarkToClipCandidate } from '@/shared/show-marks';
 import { clipMetadataMatchesShow } from '@/shared/clip-show-metadata-match';
+import { showNightRecordedAtIso } from '@/shared/clip-setlist-order';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill } from '@/shared/clip-resolve-show-match';
 
@@ -1984,9 +1985,20 @@ export default function UploadClip() {
       formOverride?: typeof formData,
       jambaseOverride?: typeof jambaseLink,
     ): ClipUploadJobPayload => {
-    const nav = location.state as { captureAudioBlob?: unknown } | null;
+    const nav = location.state as {
+      captureAudioBlob?: unknown;
+      showData?: ArchivalUploadShowData;
+    } | null;
     const form = formOverride ?? formData;
     const link = jambaseOverride ?? jambaseLink;
+    const showEvent = nav?.showData?.start_date
+      ? { startDate: nav.showData.start_date }
+      : null;
+    const libraryShowNightIso = showNightRecordedAtIso(
+      recordingAtIso || libraryFileMeta?.recordedAtIso,
+      showEvent,
+    );
+    const fromShowPageLibrary = uploadSource === 'library' && Boolean(showEvent);
     return {
       uploadMethod,
       videoFile: form.video_file,
@@ -2007,9 +2019,10 @@ export default function UploadClip() {
         hashtags: form.hashtags,
       },
       jambaseLink: link,
-      recordingAtIso,
+      recordingAtIso: fromShowPageLibrary ? libraryShowNightIso : recordingAtIso,
       captureTimestampMissing:
-        uploadSource === 'library' && !libraryFileMeta?.recordedAtIso,
+        uploadSource === 'library' &&
+        (fromShowPageLibrary ? !libraryShowNightIso : !libraryFileMeta?.recordedAtIso),
       nativeVideoUri: nativeVideoUriRef.current ?? undefined,
       captureGeo,
       videoMetadata,
@@ -2272,7 +2285,7 @@ export default function UploadClip() {
         }
         const match = clipMetadataMatchesShow({
           event: matchEvent,
-          recordedAtIso: recordingAtIso,
+          recordedAtIso: showNightRecordedAtIso(recordingAtIso, matchEvent),
           latitude: libraryFileMeta?.latitude ?? captureGeo?.latitude ?? null,
           longitude: libraryFileMeta?.longitude ?? captureGeo?.longitude ?? null,
           artistName: shareForm.artist_name,

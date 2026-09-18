@@ -328,32 +328,34 @@ export async function resolveClipCreateFields(
     }
   }
 
-  if (captureTimestampMissing) {
+  if (targetedEventId) {
     const songTitle =
       fields.resolvedSongTitle?.trim() || fields.classification?.acr_title?.trim() || '';
-    if (songTitle && targetedEventId) {
-      const setlistTimestamp = await fillMissingClipTimestampFromSetlist(c.env.DB, {
-        existingTimestamp: fields.resolvedTimestamp,
-        jambaseEventId: targetedEventId,
-        songTitle,
-        eventPayload: matchedEvent,
-      });
-      if (setlistTimestamp) {
-        if (!fields.resolvedSongTitle?.trim() && fields.classification?.acr_title?.trim()) {
-          fields.resolvedSongTitle = fields.classification.acr_title.trim();
-          fields.song_slug = songFieldsFromBody({
-            song_title: fields.resolvedSongTitle,
-          }).song_slug;
-        }
-        fields.resolvedTimestamp = setlistTimestamp;
-        if (!isPrePostContentFeed(contentFeed)) {
-          fields.showId = computeShowId({
-            jambase_event_id: fields.resolvedJambaseEventId,
-            artist_name: fields.resolvedArtist,
-            venue_name: fields.resolvedVenue,
-            timestamp: setlistTimestamp,
-          });
-        }
+    const setlistTimestamp = await fillMissingClipTimestampFromSetlist(c.env.DB, {
+      existingTimestamp: captureTimestampMissing ? '' : fields.resolvedTimestamp,
+      jambaseEventId: targetedEventId,
+      songTitle,
+      eventPayload: matchedEvent,
+    });
+    if (setlistTimestamp) {
+      if (
+        songTitle &&
+        !fields.resolvedSongTitle?.trim() &&
+        fields.classification?.acr_title?.trim()
+      ) {
+        fields.resolvedSongTitle = fields.classification.acr_title.trim();
+        fields.song_slug = songFieldsFromBody({
+          song_title: fields.resolvedSongTitle,
+        }).song_slug;
+      }
+      fields.resolvedTimestamp = setlistTimestamp;
+      if (!isPrePostContentFeed(contentFeed)) {
+        fields.showId = computeShowId({
+          jambase_event_id: fields.resolvedJambaseEventId,
+          artist_name: fields.resolvedArtist,
+          venue_name: fields.resolvedVenue,
+          timestamp: setlistTimestamp,
+        });
       }
     }
   }

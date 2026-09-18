@@ -782,11 +782,12 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
       (typeof clips[0]?.jambase_event_id === 'string' ? String(clips[0].jambase_event_id).trim() : '');
     if (setlistShowId) {
       const stored = await loadStoredShowPage(c.env.DB, setlistShowId);
-      if (stored?.setlist.length) {
+      if (stored) {
         clips = sortClipsBySetlistThenRecorded(
           clips,
           stored.setlist,
           eventStartIsoFromPayload(stored.event),
+          stored.event,
         );
       }
     }

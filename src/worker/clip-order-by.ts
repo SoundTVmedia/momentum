@@ -54,7 +54,7 @@ export const SONG_CLIPS_ORDER_BY_SQL = `ORDER BY ${CLIP_RECORDED_AT_SQL} DESC, c
 
 /**
  * Show pages: oldest recorded clip first so the grid follows the set.
- * SQL cannot see the setlist; callers then re-sort with recorded → setlist →
- * uploaded when a setlist is available.
+ * SQL cannot see the setlist or whether a timestamp is actually show night;
+ * callers then re-sort recorded (show night) → setlist → uploaded.
  */
 export const SHOW_CLIPS_RECORDED_ORDER_BY_SQL = `ORDER BY ${CLIP_RECORDED_AT_SQL} ASC, clips.created_at ASC, clips.id ASC`;

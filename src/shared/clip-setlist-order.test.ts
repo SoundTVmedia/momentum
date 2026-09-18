@@ -3,6 +3,7 @@ import {
   SETLIST_SONG_SPACING_MS,
   clipTimestampFromSetlistOrder,
   setlistIndexForSongTitle,
+  showNightRecordedAtIso,
   sortClipsBySetlistThenRecorded,
 } from './clip-setlist-order';
 
@@ -113,6 +114,35 @@ describe('sortClipsBySetlistThenRecorded', () => {
     expect(ordered.map((clip) => clip.id)).toEqual(['yem-early', 'wilson-late']);
   });
 
+  it('ignores a file timestamp from another day and uses setlist order', () => {
+    const start = '2024-07-14T20:00:00.000Z';
+    const ordered = sortClipsBySetlistThenRecorded(
+      [
+        {
+          id: 'encore',
+          song_title: 'Tweezer Reprise',
+          timestamp: '2024-07-14T22:30:00.000Z',
+          created_at: '2024-07-14 22:40:00',
+        },
+        {
+          id: 'late-free',
+          song_title: 'Free',
+          timestamp: '2026-09-18T12:00:00.000Z',
+          created_at: '2026-09-18 12:00:00',
+        },
+        {
+          id: 'opener',
+          song_title: 'Wilson',
+          timestamp: '2024-07-14T20:00:00.000Z',
+          created_at: '2024-07-14 20:10:00',
+        },
+      ],
+      setlist,
+      start,
+    );
+    expect(ordered.map((clip) => clip.id)).toEqual(['opener', 'late-free', 'encore']);
+  });
+
   it('falls back to uploaded time when there is no recorded time and no setlist match', () => {
     const start = '2024-07-14T20:00:00.000Z';
     const ordered = sortClipsBySetlistThenRecorded(
@@ -140,5 +170,42 @@ describe('sortClipsBySetlistThenRecorded', () => {
       start,
     );
     expect(ordered.map((clip) => clip.id)).toEqual(['opener', 'late-free', 'uploaded-last']);
+  });
+
+  it('falls back to uploaded time when the file date is not show night and there is no setlist', () => {
+    const start = '2024-07-14T20:00:00.000Z';
+    const ordered = sortClipsBySetlistThenRecorded(
+      [
+        {
+          id: 'uploaded-last',
+          song_title: '',
+          timestamp: '2026-09-18T12:00:00.000Z',
+          created_at: '2026-09-18 12:00:00',
+        },
+        {
+          id: 'uploaded-first',
+          song_title: '',
+          timestamp: '2026-09-18T11:00:00.000Z',
+          created_at: '2026-09-17 18:00:00',
+        },
+      ],
+      [],
+      start,
+    );
+    expect(ordered.map((clip) => clip.id)).toEqual(['uploaded-first', 'uploaded-last']);
+  });
+});
+
+describe('showNightRecordedAtIso', () => {
+  const event = { startDate: '2024-07-14T20:00:00.000Z' };
+
+  it('keeps a timestamp from show night', () => {
+    expect(showNightRecordedAtIso('2024-07-14T20:05:00.000Z', event)).toBe(
+      '2024-07-14T20:05:00.000Z',
+    );
+  });
+
+  it('drops a library file date from another day', () => {
+    expect(showNightRecordedAtIso('2026-09-18T12:00:00.000Z', event)).toBeNull();
   });
 });

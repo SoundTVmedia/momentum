@@ -1,4 +1,5 @@
 import { displayNamesClose, normalizeArtistDisplayName } from './artist-name-match';
+import { jamBaseEventMatchesCapture } from './jambase-event-day';
 import type { JamBaseSetlistSong } from './jambase-setlist';
 
 /** Spacing used to turn a setlist index into a recorded-time key. */
@@ -43,15 +44,50 @@ export function clipTimestampFromSetlistOrder(input: {
   return new Date(startMs + index * SETLIST_SONG_SPACING_MS).toISOString();
 }
 
+function eventForShowNight(
+  eventStartIso?: string | null,
+  event?: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (event && typeof event === 'object') return event;
+  const start = typeof eventStartIso === 'string' ? eventStartIso.trim() : '';
+  return start ? { startDate: start } : null;
+}
+
 /**
- * Show-clip order key: recorded time, then setlist slot, then uploaded time.
+ * Recorded time only counts when it is the night of this show. A library file
+ * dated today must not sort after the set just because it has a timestamp.
+ */
+export function clipRecordedAtOnShowNightMs(
+  clip: { timestamp?: unknown },
+  event: Record<string, unknown> | null,
+): number | null {
+  const recordedMs = parseTimeMs(clip.timestamp);
+  if (recordedMs == null) return null;
+  if (event && !jamBaseEventMatchesCapture(event, recordedMs)) return null;
+  return recordedMs;
+}
+
+/** File / capture timestamp to store when it is actually the night of this show. */
+export function showNightRecordedAtIso(
+  timestamp: unknown,
+  event: Record<string, unknown> | null,
+): string | null {
+  if (clipRecordedAtOnShowNightMs({ timestamp }, event) == null) return null;
+  const raw = typeof timestamp === 'string' ? timestamp.trim() : '';
+  return raw || null;
+}
+
+/**
+ * Show-clip order key: recorded time on show night, then setlist slot, then
+ * uploaded time.
  */
 function clipShowOrderMs(
   clip: { song_title?: unknown; timestamp?: unknown; created_at?: unknown },
   setlist: JamBaseSetlistSong[] | null | undefined,
   eventStartMs: number | null,
+  event: Record<string, unknown> | null,
 ): number {
-  const recordedMs = parseTimeMs(clip.timestamp);
+  const recordedMs = clipRecordedAtOnShowNightMs(clip, event);
   if (recordedMs != null) return recordedMs;
 
   const songTitle = typeof clip.song_title === 'string' ? clip.song_title : '';
@@ -69,17 +105,19 @@ function clipSongTitle(clip: { song_title?: unknown }): string {
 }
 
 /**
- * Show clips: time recorded first, then setlist order when capture time is
- * missing, then time uploaded.
+ * Show clips: time recorded (on show night) first, then setlist order, then
+ * time uploaded.
  */
 export function compareShowClipsBySetlistThenRecorded(
   a: { song_title?: unknown; timestamp?: unknown; created_at?: unknown; id?: unknown },
   b: { song_title?: unknown; timestamp?: unknown; created_at?: unknown; id?: unknown },
   setlist: JamBaseSetlistSong[] | null | undefined,
   eventStartIso?: string | null,
+  event?: Record<string, unknown> | null,
 ): number {
-  const recordedA = parseTimeMs(a.timestamp);
-  const recordedB = parseTimeMs(b.timestamp);
+  const showEvent = eventForShowNight(eventStartIso, event);
+  const recordedA = clipRecordedAtOnShowNightMs(a, showEvent);
+  const recordedB = clipRecordedAtOnShowNightMs(b, showEvent);
   if (recordedA != null && recordedB != null && recordedA !== recordedB) {
     return recordedA - recordedB;
   }
@@ -90,8 +128,11 @@ export function compareShowClipsBySetlistThenRecorded(
     if (ia != null && ib != null && ia !== ib) return ia - ib;
   }
 
-  const eventStartMs = parseTimeMs(eventStartIso);
-  const byTime = clipShowOrderMs(a, setlist, eventStartMs) - clipShowOrderMs(b, setlist, eventStartMs);
+  const eventStartMs =
+    parseTimeMs(eventStartIso) ?? parseTimeMs(eventStartIsoFromPayload(showEvent));
+  const byTime =
+    clipShowOrderMs(a, setlist, eventStartMs, showEvent) -
+    clipShowOrderMs(b, setlist, eventStartMs, showEvent);
   if (byTime !== 0) return byTime;
 
   const postedA = parseTimeMs(a.created_at) ?? 0;
@@ -107,9 +148,10 @@ export function sortClipsBySetlistThenRecorded<
   clips: T[],
   setlist: JamBaseSetlistSong[] | null | undefined,
   eventStartIso?: string | null,
+  event?: Record<string, unknown> | null,
 ): T[] {
   return [...clips].sort((a, b) =>
-    compareShowClipsBySetlistThenRecorded(a, b, setlist, eventStartIso),
+    compareShowClipsBySetlistThenRecorded(a, b, setlist, eventStartIso, event),
   );
 }
 
