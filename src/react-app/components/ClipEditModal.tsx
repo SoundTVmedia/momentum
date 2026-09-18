@@ -160,7 +160,6 @@ export default function ClipEditModal({
     setArtistName(artist.name);
     setArtistSearch(artist.name);
     setJambaseArtistId(artist.identifier);
-    setJambaseEventId(null);
     setArtistSuggestions([]);
     setShowArtistSuggestions(false);
   };
@@ -173,7 +172,6 @@ export default function ClipEditModal({
     setVenueSearch(venue.name);
     if (venueLocation) setLocation(venueLocation);
     setJambaseVenueId(venue.identifier);
-    setJambaseEventId(null);
     setVenueSuggestions([]);
     setShowVenueSuggestions(false);
   };
@@ -182,7 +180,6 @@ export default function ClipEditModal({
     setArtistSearch(value);
     setArtistName(value.trim());
     setJambaseArtistId(null);
-    setJambaseEventId(null);
     setShowArtistSuggestions(true);
   };
 
@@ -190,7 +187,6 @@ export default function ClipEditModal({
     setVenueSearch(value);
     setVenueName(value.trim());
     setJambaseVenueId(null);
-    setJambaseEventId(null);
     setShowVenueSuggestions(true);
   };
 
@@ -218,14 +214,10 @@ export default function ClipEditModal({
           hashtags,
           song_title: songTitle,
           genre_name: genreName,
-          ...(asSuperadmin || enableShowSearch
-            ? {
-                event_title: eventTitle,
-                jambase_event_id: jambaseEventId,
-                jambase_artist_id: jambaseArtistId,
-                jambase_venue_id: jambaseVenueId,
-              }
-            : {}),
+          event_title: eventTitle,
+          jambase_event_id: jambaseEventId,
+          jambase_artist_id: jambaseArtistId,
+          jambase_venue_id: jambaseVenueId,
         },
         { asSuperadmin },
       );
@@ -263,46 +255,26 @@ export default function ClipEditModal({
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4 p-5">
           <p className="text-sm text-gray-400">
             {asSuperadmin
-              ? 'Update metadata and JamBase show links for any clip. Video files are not changed here.'
+              ? 'Update metadata and show details for any clip. Video files are not changed here.'
               : enableShowSearch
-                ? 'This file had no capture timestamp, so we did not guess a show. Pick the artist and venue.'
+                ? 'This file had no capture timestamp, so we did not guess a show. Confirm the event, artist, and venue.'
                 : 'Update how this moment appears in the feed. Video files are not changed here.'}
           </p>
 
-          {asSuperadmin ? (
-            <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 p-3 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-violet-200/90">
-                Show
-              </p>
-              <div>
-                <label htmlFor="edit-event-title" className="mb-1 block text-sm font-medium text-gray-300">
-                  Event title
-                </label>
-                <input
-                  id="edit-event-title"
-                  type="text"
-                  value={eventTitle}
-                  onChange={(e) => setEventTitle(e.target.value)}
-                  className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-flare focus:outline-none"
-                  placeholder="Artist at Venue"
-                  maxLength={300}
-                />
-              </div>
-              <div>
-                <label htmlFor="edit-jb-event" className="mb-1 block text-sm font-medium text-gray-300">
-                  JamBase event ID <span className="font-normal text-gray-500">(optional)</span>
-                </label>
-                <input
-                  id="edit-jb-event"
-                  type="text"
-                  value={jambaseEventId ?? ''}
-                  onChange={(e) => setJambaseEventId(e.target.value.trim() || null)}
-                  className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-flare focus:outline-none font-mono text-sm"
-                  placeholder="jambase:123456"
-                />
-              </div>
-            </div>
-          ) : null}
+          <div>
+            <label htmlFor="edit-event-title" className="mb-1 block text-sm font-medium text-gray-300">
+              Event name
+            </label>
+            <input
+              id="edit-event-title"
+              type="text"
+              value={eventTitle}
+              onChange={(e) => setEventTitle(e.target.value)}
+              className="w-full rounded-lg glass-input rounded-xl px-3 py-2 text-white placeholder:text-gray-500 focus:border-momentum-flare focus:outline-none"
+              placeholder="Artist at Venue"
+              maxLength={300}
+            />
+          </div>
 
           <div>
             <label htmlFor="edit-artist" className="mb-1 block text-sm font-medium text-gray-300">

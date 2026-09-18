@@ -11,7 +11,6 @@ import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import {
   formatJamBaseEventDate,
   jamBaseEventArtistName,
-  jamBaseEventHeadliner,
   jamBaseEventId,
   jamBaseEventImageUrl,
   jamBaseEventVenueCityLine,
@@ -21,6 +20,7 @@ import { artistAtVenueTitle, jamBaseEventTitle } from '@/shared/event-title';
 import { isAlreadyInLibraryShow, isFeedbackLibraryShow } from '@/shared/library-shows';
 import type { PastShowSummary } from '@/react-app/components/PastShowsCarousel';
 import { BROWSE_PAST_SHOWS_PATH } from '@/react-app/lib/browse-paths';
+import { archivalUploadNavState } from '@/react-app/lib/archival-upload';
 
 type FindAShowModalProps = {
   onClose: () => void;
@@ -28,20 +28,6 @@ type FindAShowModalProps = {
   initialQuery?: string;
   onAdded?: (show: PastShowSummary) => void;
 };
-
-function eventVenueId(ev: Record<string, unknown>): string | undefined {
-  const loc = ev.location as Record<string, unknown> | undefined;
-  return typeof loc?.identifier === 'string' && loc.identifier.trim()
-    ? loc.identifier.trim()
-    : undefined;
-}
-
-function eventArtistId(ev: Record<string, unknown>): string | undefined {
-  const head = jamBaseEventHeadliner(ev);
-  return typeof head?.identifier === 'string' && head.identifier.trim()
-    ? head.identifier.trim()
-    : undefined;
-}
 
 function showHrefFromEvent(ev: Record<string, unknown>): string {
   return jamBaseEventShowPath(ev);
@@ -216,11 +202,6 @@ export default function FindAShowModal({
       return;
     }
 
-    const artistName = jamBaseEventArtistName(ev);
-    const venueName = jamBaseEventVenueName(ev);
-    const venueLabel = venueName === 'Venue TBA' ? '' : venueName;
-    const startDate = typeof ev.startDate === 'string' ? ev.startDate : '';
-    const eventId = jamBaseEventId(ev);
     const libraryShow = isFeedbackLibraryShow(ev);
     const upcoming = !libraryShow && jamBaseEventUpcomingOrInProgress(ev);
 
@@ -232,20 +213,7 @@ export default function FindAShowModal({
     }
 
     navigate('/upload?archive=true', {
-      state: {
-        fromPhotoLibrary: true,
-        showData: {
-          jambase_event_id: eventId || undefined,
-          jambase_venue_id: eventVenueId(ev),
-          jambase_artist_id: eventArtistId(ev),
-          event_title:
-            jamBaseEventTitle(ev) ?? artistAtVenueTitle(artistName, venueLabel) ?? undefined,
-          artist_name: artistName || undefined,
-          venue_name: venueLabel || undefined,
-          location: jamBaseEventVenueCityLine(ev) || undefined,
-          start_date: startDate || undefined,
-        },
-      },
+      state: archivalUploadNavState(null, ev),
     });
   };
 

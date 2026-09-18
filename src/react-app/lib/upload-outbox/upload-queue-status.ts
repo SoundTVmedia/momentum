@@ -3,12 +3,17 @@ import { isBlobWaitPauseError } from './blob-store';
 import { isNetworkAvailable } from './network-utils';
 
 export function uploadJobLabel(job: UploadOutboxJob): string {
-  return job.form.artist_name?.trim() || job.form.venue_name?.trim() || 'Your clip';
+  return (
+    job.jambaseLink?.eventTitle?.trim() ||
+    job.form.artist_name?.trim() ||
+    job.form.venue_name?.trim() ||
+    'Your clip'
+  );
 }
 
 export function uploadJobStatusText(job: UploadOutboxJob): string {
   if (job.status === 'published') {
-    if (job.captureTimestampMissing) {
+    if (job.captureTimestampMissing && !job.jambaseLink?.event) {
       return 'Posted — choose a show (no capture time on this file)';
     }
     return 'Posted';
@@ -62,7 +67,11 @@ export function uploadJobCanRestart(job: UploadOutboxJob): boolean {
 }
 
 export function uploadJobNeedsShowPicker(job: UploadOutboxJob): boolean {
-  return job.status === 'published' && Boolean(job.captureTimestampMissing);
+  return (
+    job.status === 'published' &&
+    Boolean(job.captureTimestampMissing) &&
+    !job.jambaseLink?.event
+  );
 }
 
 /** Oldest first — matches FIFO upload order (active clip is next at the top). */

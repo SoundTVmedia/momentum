@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
+import type { ArchivalUploadShowData } from '@/react-app/lib/archival-upload';
+import { clipUploadTargetFromShowData } from '@/react-app/lib/archival-upload';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import { extractVideoFileMetadata } from '@/react-app/utils/extractVideoFileMetadata';
 import { isLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
@@ -11,15 +13,24 @@ export type EnqueueManualClipResult =
   | { ok: true; jobId: string }
   | { ok: false; error: string };
 
+export type EnqueueManualClipOptions = {
+  /** When uploading from a show page, stamp that concert onto the clip. */
+  showData?: ArchivalUploadShowData | null;
+};
+
 /**
  * Queue a dropped / library clip with no details form.
- * Show + song come from file metadata and the existing upload pipeline.
+ * Show comes from the page the user started on when present; otherwise
+ * file metadata and the upload pipeline fill it in.
  */
 export function useEnqueueManualClip() {
   const { enqueue } = useClipUploadQueue();
 
   return useCallback(
-    async (file: File): Promise<EnqueueManualClipResult> => {
+    async (
+      file: File,
+      options?: EnqueueManualClipOptions,
+    ): Promise<EnqueueManualClipResult> => {
       if (!isLibraryVideoFile(file)) {
         return { ok: false, error: 'Please choose a video clip.' };
       }
@@ -36,9 +47,10 @@ export function useEnqueueManualClip() {
         return { ok: false, error: 'Videos must be 1 minute or shorter.' };
       }
 
+      const target = clipUploadTargetFromShowData(options?.showData);
       const classification = resolveEnqueueClassification({
         uploadMethod: 'file',
-        form: { artist_name: '', venue_name: '', location: '' },
+        form: target.form,
         storedClassificationId: null,
         classifyResult: null,
       });
@@ -72,15 +84,15 @@ export function useEnqueueManualClip() {
           classificationPending: classification.classificationPending,
           songIdentifyPending: true,
           form: {
-            artist_name: '',
-            venue_name: '',
-            location: '',
+            artist_name: target.form.artist_name,
+            venue_name: target.form.venue_name,
+            location: target.form.location,
             content_description: '',
             song_title: '',
             genre_name: '',
             hashtags: '',
           },
-          jambaseLink: null,
+          jambaseLink: target.jambaseLink,
           recordingAtIso,
           captureTimestampMissing,
           captureGeo,

@@ -119,6 +119,7 @@ import {
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { useIsMobileViewport } from '@/react-app/hooks/useIsMobileViewport';
 import { useEnqueueManualClip } from '@/react-app/hooks/useEnqueueManualClip';
+import type { ArchivalUploadShowData } from '@/react-app/lib/archival-upload';
 import { LIBRARY_VIDEO_ACCEPT, pickLibraryVideoFile } from '@/react-app/lib/pickLibraryVideo';
 import { jamBaseEventToShowMarkInput, pastShowSummaryToJamBaseEvent, pickShowMarkForLibraryUpload, showMarkToClipCandidate } from '@/shared/show-marks';
 import { clipMetadataMatchesShow } from '@/shared/clip-show-metadata-match';
@@ -174,7 +175,8 @@ export default function UploadClip() {
       setLibraryBusy(true);
       setError(null);
       try {
-        const result = await enqueueManualClip(file);
+        const nav = location.state as { showData?: ArchivalUploadShowData } | null;
+        const result = await enqueueManualClip(file, { showData: nav?.showData });
         if (!result.ok) {
           setError(result.error);
           return;
@@ -184,7 +186,7 @@ export default function UploadClip() {
         setLibraryBusy(false);
       }
     },
-    [enqueueManualClip, navigate],
+    [enqueueManualClip, location.state, navigate],
   );
 
   useEffect(() => {
@@ -3116,6 +3118,20 @@ export default function UploadClip() {
                 {isEditingTags ? (
                   /* Tag Editing UI */
                   <div className="space-y-4">
+                    <div>
+                      <label className="block text-gray-400 text-xs mb-1 font-medium">
+                        Event name
+                      </label>
+                      <input
+                        type="text"
+                        value={jambaseLink?.eventTitle ?? captionEventTitle ?? ''}
+                        onChange={(e) => handleEventTitleChange(e.target.value)}
+                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
+                        placeholder="Artist at Venue"
+                        autoComplete="off"
+                      />
+                    </div>
+
                     {/* Artist — JamBase search + pick only (mobile caption) */}
                     <div className="relative">
                       <label className="block text-gray-400 text-xs mb-1 font-medium">
@@ -3220,23 +3236,6 @@ export default function UploadClip() {
 
                     <div>
                       <label className="block text-gray-400 text-xs mb-1 font-medium">
-                        Event title
-                      </label>
-                      <input
-                        type="text"
-                        value={jambaseLink?.eventTitle ?? captionEventTitle ?? ''}
-                        onChange={(e) => handleEventTitleChange(e.target.value)}
-                        className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare text-sm"
-                        placeholder="Artist at Venue"
-                        autoComplete="off"
-                      />
-                      <p className="text-gray-500 text-xs mt-1">
-                        Required to post without a song match — e.g. &quot;Taylor Swift at Madison Square Garden&quot;.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-400 text-xs mb-1 font-medium">
                         Show date
                       </label>
                       <input
@@ -3330,7 +3329,14 @@ export default function UploadClip() {
     );
   }
 
-  // Drop / library only — no detail fields. Show + song come from clip metadata.
+  // Drop / library only — no detail fields. Show + song come from clip metadata
+  // unless this upload started from a show page.
+  const libraryShowData = (location.state as { showData?: ArchivalUploadShowData } | null)?.showData;
+  const libraryShowTitle = resolveClipEventTitle({
+    event_title: libraryShowData?.event_title ?? null,
+    artist_name: libraryShowData?.artist_name ?? null,
+    venue_name: libraryShowData?.venue_name ?? null,
+  });
   const openLibraryPicker = async () => {
     if (libraryBusy) return;
     const file = await pickLibraryVideoFile();
@@ -3342,7 +3348,19 @@ export default function UploadClip() {
       <Header />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="mb-6 flex items-center justify-end">
+        <div className="mb-6 flex items-start justify-between gap-3">
+          {libraryShowTitle ? (
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-momentum-flare/90 mb-1">
+                Uploading to
+              </p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white leading-snug">
+                {libraryShowTitle}
+              </h1>
+            </div>
+          ) : (
+            <div />
+          )}
           <button
             type="button"
             onClick={handleCloseUploadToFeed}

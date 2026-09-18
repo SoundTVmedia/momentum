@@ -131,7 +131,9 @@ export default function ShowMarkButtons({
         <button
           type="button"
           onClick={() =>
-            navigate('/upload?archive=true', { state: archivalUploadNavState(current) })
+            navigate('/upload?archive=true', {
+              state: archivalUploadNavState(current, event),
+            })
           }
           className={[
             'inline-flex items-center justify-center gap-1 rounded-lg font-semibold text-white momentum-grad-interactive whitespace-nowrap shrink-0',
