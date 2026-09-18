@@ -52,6 +52,8 @@ type ClipSongRecognitionControlProps = {
   allowManualEntry?: boolean;
   /** Clip player: start Shazam → ACRCloud as soon as an untitled clip is open. */
   autoStart?: boolean;
+  /** Clip player: skip lookup outcome copy (no-match / error). */
+  showStatusMessages?: boolean;
 };
 
 export default function ClipSongRecognitionControl({
@@ -64,6 +66,7 @@ export default function ClipSongRecognitionControl({
   idleLabel = 'Identify song',
   allowManualEntry = false,
   autoStart = false,
+  showStatusMessages = true,
 }: ClipSongRecognitionControlProps) {
   const clipKey = String(clipNumericId(clip) ?? clip.stream_video_id ?? '');
   const existingSession = autoStart ? sessionFor(clipKey) : undefined;
@@ -374,16 +377,16 @@ export default function ClipSongRecognitionControl({
       ) : null}
 
       {manualError ? <p className="mt-2 text-xs text-red-300">{manualError}</p> : null}
-      {!autoStart && status === 'done' && message ? (
+      {showStatusMessages && !autoStart && status === 'done' && message ? (
         <p className="mt-2 text-xs text-emerald-300">{message}</p>
       ) : null}
-      {!autoStart && status === 'nomatch' && message ? (
+      {showStatusMessages && !autoStart && status === 'nomatch' && message ? (
         <p className="mt-2 text-xs text-gray-400">{message}</p>
       ) : null}
-      {!autoStart && status === 'skipped' && message ? (
+      {showStatusMessages && !autoStart && status === 'skipped' && message ? (
         <p className="mt-2 text-xs text-amber-200/90">{message}</p>
       ) : null}
-      {!autoStart && status === 'error' && message ? (
+      {showStatusMessages && !autoStart && status === 'error' && message ? (
         <p className="mt-2 text-xs text-red-300">{message}</p>
       ) : null}
     </div>

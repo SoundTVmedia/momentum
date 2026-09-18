@@ -28,7 +28,7 @@ export const ADMIN_DEMOS: AdminDemo[] = [
       'Open Follow, search an artist, and tap to follow — clips fill the home feed. The same search-and-follow flow works for venues, songs, and friends.',
     videoSrc: '/demos/personalized-feed-ios/personalized-feed-ios-demo.mp4',
     posterSrc: '/demos/personalized-feed-ios/poster.png',
-    durationLabel: '39 sec',
+    durationLabel: '22 sec',
   },
   {
     id: 'find-a-show-ios',

@@ -3,6 +3,8 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Loader2 } from 'lucide-react';
 import type Hls from 'hls.js';
 import {
   type ClipPlaybackFields,
+  hlsClimbLevelIndex,
+  hlsStartLevelIndex,
   isHlsPlaybackUrl,
   resolveModalPlaybackSource,
 } from '@/shared/clip-playback';
@@ -128,7 +130,7 @@ interface StreamVideoPlayerProps extends ClipPlaybackFields {
 }
 
 /**
- * Full clip player: Stream HLS first (low start rung, ABR climbs), then Stream MP4, then R2.
+ * Full clip player: Stream HLS first (~360p start, then climb toward 720p), then Stream MP4, then R2.
  */
 const StreamVideoPlayer = forwardRef<StreamVideoPlayerHandle, StreamVideoPlayerProps>(
 function StreamVideoPlayer(
@@ -474,22 +476,40 @@ function StreamVideoPlayer(
               enableWorker: !mobile,
               preferManagedMediaSource: true,
               lowLatencyMode: false,
+              autoStartLoad: false,
               startLevel: 0,
-              abrEwmaDefaultEstimate: 500_000,
+              // After the start fragment, assume a decent connection so ABR
+              // does not sit on 240p for half the clip (default 500 kbps).
+              abrEwmaDefaultEstimate: 4_000_000,
+              abrBandWidthUpFactor: 0.85,
+              testBandwidth: true,
               maxBufferLength: 4,
-              maxMaxBufferLength: 8,
-              maxBufferSize: 6 * 1000 * 1000,
+              maxMaxBufferLength: 12,
+              maxBufferSize: 12 * 1000 * 1000,
               capLevelToPlayerSize: true,
-              startFragPrefetch: true,
+              // Prefetching the next start-rung fragment keeps playback fuzzy.
+              startFragPrefetch: false,
             });
             hls.attachMedia(video);
+            let climbedFromStart = false;
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
               if (cancelled || stoppedRef.current) return;
-              const start = hls.levels[hls.currentLevel] ?? hls.levels[0];
-              if (start?.height) {
-                renditionRef.current = classifyPlaybackRendition(videoSrc, start.height);
+              const start = hlsStartLevelIndex(hls.levels);
+              hls.startLevel = start;
+              const startMeta = hls.levels[start];
+              if (startMeta?.height) {
+                renditionRef.current = classifyPlaybackRendition(videoSrc, startMeta.height);
               }
+              hls.startLoad(start);
               tryAutoplay();
+            });
+            hls.on(Hls.Events.FRAG_BUFFERED, (_e: unknown, data: { frag?: { level?: number; type?: string } }) => {
+              if (climbedFromStart || cancelled || stoppedRef.current) return;
+              if (data.frag?.type === 'audio' || data.frag?.type === 'subtitle') return;
+              climbedFromStart = true;
+              const from = typeof data.frag?.level === 'number' ? data.frag.level : 0;
+              const climb = hlsClimbLevelIndex(hls.levels);
+              if (climb > from) hls.nextLoadLevel = climb;
             });
             hls.on(Hls.Events.LEVEL_SWITCHED, (_e: unknown, data: { level: number }) => {
               const level = hls.levels[data.level];

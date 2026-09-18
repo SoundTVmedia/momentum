@@ -447,6 +447,7 @@ export default function ClipModal({
         onSaved={handleClipSaved}
         autoStart={autoStartIdentify}
         allowManualEntry={isOwnClip || isSuperAdmin}
+        showStatusMessages={false}
         buttonClassName="relative z-30 pointer-events-auto inline-flex min-h-11 items-center gap-1.5 py-2 text-sm font-semibold text-momentum-flare/90"
       />
     ) : null;

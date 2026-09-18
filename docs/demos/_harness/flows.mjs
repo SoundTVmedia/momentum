@@ -84,10 +84,38 @@ export async function runQuickRecord(page, state) {
   await callout(page, '');
 }
 
+async function scrollFollowModuleIntoView(page) {
+  await page.evaluate(() => {
+    const section = document.getElementById('favorite-artist-clips');
+    if (!section) return;
+    const header = document.querySelector('ion-header, header');
+    const headerBottom = header ? header.getBoundingClientRect().bottom : 88;
+    const y = section.getBoundingClientRect().top + window.scrollY - headerBottom - 8;
+    window.scrollTo({ top: Math.max(0, y) });
+  });
+  await page.waitForTimeout(280);
+}
+
+async function keepLocatorAboveTabBar(page, locator) {
+  const box = await locator.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) return;
+  const tab = await page.locator('ion-tab-bar').first().boundingBox().catch(() => null);
+  const reserve = (tab?.height ?? 84) + 16;
+  const overflow = box.y + box.height - (viewport.height - reserve);
+  if (overflow > 0) {
+    await page.evaluate((delta) => window.scrollBy(0, delta), overflow);
+    await page.waitForTimeout(200);
+  }
+}
+
 async function openFollowSearch(page) {
   await page.keyboard.press('Escape').catch(() => {});
   const search = page.getByPlaceholder('Search artists, friends, venues, songs, or shows');
-  if (await search.isVisible().catch(() => false)) return search;
+  if (await search.isVisible().catch(() => false)) {
+    await scrollFollowModuleIntoView(page);
+    return search;
+  }
 
   const followBtn = page.getByRole('button', {
     name: /Follow artists, friends, venues, songs, or shows/i,
@@ -100,6 +128,7 @@ async function openFollowSearch(page) {
     await tap(page, followBtn);
     await search.waitFor({ state: 'visible', timeout: 8_000 });
   }
+  await scrollFollowModuleIntoView(page);
   return search;
 }
 
@@ -107,13 +136,15 @@ async function followSearchHit(page, search, query, name, label) {
   await typeInto(page, search, query);
   await page.getByText('Searching…').waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
   await page.waitForTimeout(350);
-  await callout(page, label);
   const hit = page
     .locator('button')
     .filter({ hasText: name })
     .filter({ hasText: /Follow|Unfollow/ })
     .first();
   await hit.waitFor({ state: 'visible', timeout: 8_000 });
+  await scrollFollowModuleIntoView(page);
+  await keepLocatorAboveTabBar(page, hit);
+  await callout(page, label);
   await tap(page, hit);
   await page.waitForTimeout(700);
 }
@@ -131,6 +162,7 @@ export async function runPersonalizedFeed(page, state) {
   await tap(page, followBtn);
   await callout(page, 'Open Follow to search');
   const search = await openFollowSearch(page);
+  await scrollFollowModuleIntoView(page);
   await page.waitForTimeout(700);
 
   await followSearchHit(page, search, live.artist.name, live.artist.name, 'Search an artist');

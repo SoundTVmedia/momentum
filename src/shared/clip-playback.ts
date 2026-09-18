@@ -55,6 +55,47 @@ export function streamHlsUrl(videoId: string): string {
  */
 export const NATIVE_HLS_START_MBPS = 0.8;
 
+/** First fragment: cheapest variant that is still watchable (skip muddy 240p). */
+export const HLS_START_MIN_HEIGHT = 360;
+/** Next fragment after start: jump toward HD before ABR takes over. */
+export const HLS_CLIMB_MIN_HEIGHT = 720;
+
+type HlsLadderLevel = { height?: number; bitrate?: number; bandwidth?: number };
+
+/**
+ * Index of the cheapest ladder rung whose height is at least `minHeight`.
+ * If every rung is shorter, returns the tallest (still the least-bad start).
+ */
+export function pickHlsLevelIndexAtLeastHeight(
+  levels: readonly HlsLadderLevel[],
+  minHeight: number,
+): number {
+  if (!levels.length) return 0;
+  let match = -1;
+  let matchBw = Number.POSITIVE_INFINITY;
+  let tallest = 0;
+  for (let i = 0; i < levels.length; i++) {
+    const height = levels[i].height ?? 0;
+    const bandwidth = levels[i].bitrate ?? levels[i].bandwidth ?? 0;
+    if (height > (levels[tallest].height ?? 0)) tallest = i;
+    if (height < minHeight) continue;
+    const score = bandwidth > 0 ? bandwidth : height;
+    if (match < 0 || score < matchBw) {
+      match = i;
+      matchBw = score;
+    }
+  }
+  return match >= 0 ? match : tallest;
+}
+
+export function hlsStartLevelIndex(levels: readonly HlsLadderLevel[]): number {
+  return pickHlsLevelIndexAtLeastHeight(levels, HLS_START_MIN_HEIGHT);
+}
+
+export function hlsClimbLevelIndex(levels: readonly HlsLadderLevel[]): number {
+  return pickHlsLevelIndexAtLeastHeight(levels, HLS_CLIMB_MIN_HEIGHT);
+}
+
 function isStreamHlsDeliveryUrl(url: string): boolean {
   const u = url.trim().toLowerCase();
   if (!isHlsPlaybackUrl(u)) return false;
@@ -188,8 +229,8 @@ function withDistinctR2Fallback(
 }
 
 /**
- * Modal playback: Stream HLS first so the first frame is a small low rung and
- * ABR can climb. Confirmed Stream MP4 then R2 are fallbacks, not the start path.
+ * Modal playback: Stream HLS first so the first frame is a small ~360p rung
+ * and ABR can climb. Confirmed Stream MP4 then R2 are fallbacks, not the start path.
  */
 export function resolveModalPlaybackSource(clip: ClipPlaybackFields): ModalPlaybackSource {
   const streamId = streamVideoIdFromClip(clip);
@@ -264,15 +305,17 @@ export function resolveHlsPrefetchUrls(manifest: string, manifestUrl: string): s
     });
   }
   if (variants.length > 0) {
-    variants.sort((a, b) => a.bandwidth - b.bandwidth || a.height - b.height);
-    return [variants[0].url];
+    const idx = hlsStartLevelIndex(variants);
+    return [variants[idx].url];
   }
 
   const segments: string[] = [];
   for (const line of lines) {
     if (!line || line.startsWith('#')) continue;
     segments.push(toAbsolute(line));
-    if (segments.length >= 2) break;
+    // One start-rung fragment is enough to warm TTFF; extra low-rung
+    // segments keep the player fuzzy until they drain.
+    if (segments.length >= 1) break;
   }
   return segments;
 }

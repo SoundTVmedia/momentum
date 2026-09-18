@@ -22,6 +22,8 @@ import {
   withStreamBandwidthHint,
   stripStreamBandwidthHint,
   NATIVE_HLS_START_MBPS,
+  hlsClimbLevelIndex,
+  hlsStartLevelIndex,
 } from './clip-playback';
 
 const UID = 'a1b2c3d4e5f6789012345678abcdef01';
@@ -157,18 +159,29 @@ describe('clip-playback', () => {
     ).toBe(hls);
   });
 
-  it('prefetches the lowest BANDWIDTH HLS variant, not the first listed', () => {
+  it('prefetches the cheapest 360p+ HLS variant, not 1080p or 240p', () => {
     const manifest = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080
 high.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=400000,RESOLUTION=426x240
+tiny.m3u8
 #EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360
-low.m3u8`;
+mid.m3u8`;
     expect(
       resolveHlsPrefetchUrls(manifest, `https://videodelivery.net/${UID}/manifest/video.m3u8`),
-    ).toEqual([`https://videodelivery.net/${UID}/manifest/low.m3u8`]);
+    ).toEqual([`https://videodelivery.net/${UID}/manifest/mid.m3u8`]);
   });
 
-  it('parses HLS media segment URLs from a manifest', () => {
+  it('prefetches the only listed variant when nothing reaches 360p', () => {
+    const manifest = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=400000,RESOLUTION=426x240
+tiny.m3u8`;
+    expect(
+      resolveHlsPrefetchUrls(manifest, `https://videodelivery.net/${UID}/manifest/video.m3u8`),
+    ).toEqual([`https://videodelivery.net/${UID}/manifest/tiny.m3u8`]);
+  });
+
+  it('warms only the first media segment of the start rung', () => {
     const manifest = `#EXTM3U
 #EXT-X-VERSION:3
 #EXTINF:2.0,
@@ -177,10 +190,19 @@ seg-0.ts
 seg-1.ts`;
     expect(
       resolveHlsPrefetchUrls(manifest, `https://videodelivery.net/${UID}/manifest/video.m3u8`),
-    ).toEqual([
-      `https://videodelivery.net/${UID}/manifest/seg-0.ts`,
-      `https://videodelivery.net/${UID}/manifest/seg-1.ts`,
-    ]);
+    ).toEqual([`https://videodelivery.net/${UID}/manifest/seg-0.ts`]);
+  });
+
+  it('picks 360p to start and 720p to climb on a typical Stream ladder', () => {
+    const levels = [
+      { height: 240, bitrate: 400_000 },
+      { height: 360, bitrate: 800_000 },
+      { height: 480, bitrate: 1_400_000 },
+      { height: 720, bitrate: 2_500_000 },
+      { height: 1080, bitrate: 5_000_000 },
+    ];
+    expect(hlsStartLevelIndex(levels)).toBe(1);
+    expect(hlsClimbLevelIndex(levels)).toBe(3);
   });
 
   it('prefers uploaded JPEG poster over stream fields', () => {
