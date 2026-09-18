@@ -1,5 +1,6 @@
 import type { ClipWithUser } from '@/shared/types';
 import type { StoredShowPage } from '@/shared/jambase-setlist';
+import { jamBaseEventSetlist } from '@/shared/jambase-setlist';
 import { apiShowClipsPath } from '@/shared/app-paths';
 import {
   eventStartIsoFromPayload,
@@ -38,6 +39,8 @@ function parseStoredShow(value: unknown): StoredShowPage | null {
           Boolean(song && typeof song === 'object' && typeof (song as { title?: unknown }).title === 'string'),
       )
     : [];
+  const event = row.event as Record<string, unknown>;
+  const resolvedSetlist = setlist.length > 0 ? setlist : jamBaseEventSetlist(event);
   const setlistUrl =
     typeof row.setlist_url === 'string' &&
     row.setlist_url.trim() &&
@@ -45,8 +48,8 @@ function parseStoredShow(value: unknown): StoredShowPage | null {
       ? row.setlist_url.trim()
       : null;
   return {
-    event: row.event as Record<string, unknown>,
-    setlist,
+    event,
+    setlist: resolvedSetlist,
     setlist_url: setlistUrl,
     htmlChecked: row.htmlChecked === true,
   };
@@ -121,7 +124,8 @@ export async function fetchAllShowClips(
     clips = appendUniqueShowClips(clips, result.clips);
 
     if (!result.hasMore || result.clips.length === 0) {
-      const setlist = show?.setlist;
+      const setlist =
+        show?.setlist?.length ? show.setlist : jamBaseEventSetlist(show?.event ?? null);
       const ordered =
         options.sortBy === 'most_liked'
           ? clips

@@ -24,7 +24,20 @@ export function setlistIndexForSongTitle(
 }
 
 function parseTimeMs(value: unknown): number | null {
-  const parsed = Date.parse(String(value ?? '').trim());
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ms = value < 1e12 ? value * 1000 : value;
+    return Number.isFinite(ms) ? ms : null;
+  }
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    const ms = n < 1e12 ? n * 1000 : n;
+    return Number.isFinite(ms) ? ms : null;
+  }
+  const parsed = Date.parse(raw);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -54,8 +67,8 @@ function eventForShowNight(
 }
 
 /**
- * Recorded time only counts when it is the night of this show. A library file
- * dated today must not sort after the set just because it has a timestamp.
+ * Recorded time only counts as show-night capture when matching a JamBase event.
+ * Used at ingest so a library file dated today is not treated as concert time.
  */
 export function clipRecordedAtOnShowNightMs(
   clip: { timestamp?: unknown },
@@ -77,63 +90,112 @@ export function showNightRecordedAtIso(
   return raw || null;
 }
 
-/**
- * Show-clip order key: recorded time on show night, then setlist slot, then
- * uploaded time.
- */
-function clipShowOrderMs(
-  clip: { song_title?: unknown; timestamp?: unknown; created_at?: unknown },
-  setlist: JamBaseSetlistSong[] | null | undefined,
-  eventStartMs: number | null,
-  event: Record<string, unknown> | null,
-): number {
-  const recordedMs = clipRecordedAtOnShowNightMs(clip, event);
-  if (recordedMs != null) return recordedMs;
-
-  const songTitle = typeof clip.song_title === 'string' ? clip.song_title : '';
-  const index = setlistIndexForSongTitle(setlist, songTitle);
-  if (index != null && eventStartMs != null) {
-    return eventStartMs + index * SETLIST_SONG_SPACING_MS;
-  }
-
-  const postedMs = parseTimeMs(clip.created_at);
-  return postedMs ?? Number.POSITIVE_INFINITY;
-}
-
 function clipSongTitle(clip: { song_title?: unknown }): string {
   return typeof clip.song_title === 'string' ? clip.song_title : '';
 }
 
+function medianMs(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+  return sorted[mid];
+}
+
+function interpolateSetlistMs(
+  index: number,
+  recordedByIndex: Map<number, number[]>,
+  eventStartMs: number | null,
+  setlistLength: number,
+): number | null {
+  let prevIdx: number | null = null;
+  let prevMs: number | null = null;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const peers = recordedByIndex.get(i);
+    if (peers?.length) {
+      prevIdx = i;
+      prevMs = medianMs(peers);
+      break;
+    }
+  }
+  let nextIdx: number | null = null;
+  let nextMs: number | null = null;
+  for (let i = index + 1; i < setlistLength; i += 1) {
+    const peers = recordedByIndex.get(i);
+    if (peers?.length) {
+      nextIdx = i;
+      nextMs = medianMs(peers);
+      break;
+    }
+  }
+  if (prevMs != null && nextMs != null && prevIdx != null && nextIdx != null && nextIdx !== prevIdx) {
+    return prevMs + ((nextMs - prevMs) * (index - prevIdx)) / (nextIdx - prevIdx);
+  }
+  if (prevMs != null && prevIdx != null) {
+    return prevMs + (index - prevIdx) * SETLIST_SONG_SPACING_MS;
+  }
+  if (nextMs != null && nextIdx != null) {
+    return nextMs - (nextIdx - index) * SETLIST_SONG_SPACING_MS;
+  }
+  if (eventStartMs != null) return eventStartMs + index * SETLIST_SONG_SPACING_MS;
+  return null;
+}
+
+function recordedSortKeyMs(
+  clip: { song_title?: unknown; timestamp?: unknown; created_at?: unknown },
+  recordedMs: number | null,
+  setlist: JamBaseSetlistSong[] | null | undefined,
+  recordedByIndex: Map<number, number[]>,
+  eventStartMs: number | null,
+): number {
+  if (recordedMs != null) return recordedMs;
+  const index = setlistIndexForSongTitle(setlist, clipSongTitle(clip));
+  if (index != null) {
+    const peers = recordedByIndex.get(index);
+    if (peers?.length) return medianMs(peers);
+    const interpolated = interpolateSetlistMs(
+      index,
+      recordedByIndex,
+      eventStartMs,
+      setlist?.length ?? 0,
+    );
+    if (interpolated != null) return interpolated;
+  }
+  return parseTimeMs(clip.created_at) ?? Number.POSITIVE_INFINITY;
+}
+
 /**
- * Show clips: time recorded (on show night) first, then setlist order, then
- * time uploaded.
+ * Show clips: oldest recorded time first so late uploads slot into the set.
+ * Missing capture time falls back to setlist position, then time uploaded.
+ * Equal recorded times (date-only metadata) break ties by setlist, then upload.
  */
 export function compareShowClipsBySetlistThenRecorded(
   a: { song_title?: unknown; timestamp?: unknown; created_at?: unknown; id?: unknown },
   b: { song_title?: unknown; timestamp?: unknown; created_at?: unknown; id?: unknown },
   setlist: JamBaseSetlistSong[] | null | undefined,
   eventStartIso?: string | null,
-  event?: Record<string, unknown> | null,
 ): number {
-  const showEvent = eventForShowNight(eventStartIso, event);
-  const recordedA = clipRecordedAtOnShowNightMs(a, showEvent);
-  const recordedB = clipRecordedAtOnShowNightMs(b, showEvent);
+  const recordedA = parseTimeMs(a.timestamp);
+  const recordedB = parseTimeMs(b.timestamp);
   if (recordedA != null && recordedB != null && recordedA !== recordedB) {
     return recordedA - recordedB;
   }
 
-  if (recordedA == null && recordedB == null) {
-    const ia = setlistIndexForSongTitle(setlist, clipSongTitle(a));
-    const ib = setlistIndexForSongTitle(setlist, clipSongTitle(b));
-    if (ia != null && ib != null && ia !== ib) return ia - ib;
-  }
+  const ia = setlistIndexForSongTitle(setlist, clipSongTitle(a));
+  const ib = setlistIndexForSongTitle(setlist, clipSongTitle(b));
+  if (ia != null && ib != null && ia !== ib) return ia - ib;
 
-  const eventStartMs =
-    parseTimeMs(eventStartIso) ?? parseTimeMs(eventStartIsoFromPayload(showEvent));
-  const byTime =
-    clipShowOrderMs(a, setlist, eventStartMs, showEvent) -
-    clipShowOrderMs(b, setlist, eventStartMs, showEvent);
-  if (byTime !== 0) return byTime;
+  const eventStartMs = parseTimeMs(eventStartIso);
+  const keyA =
+    recordedA ??
+    (ia != null && eventStartMs != null ? eventStartMs + ia * SETLIST_SONG_SPACING_MS : parseTimeMs(a.created_at)) ??
+    Number.POSITIVE_INFINITY;
+  const keyB =
+    recordedB ??
+    (ib != null && eventStartMs != null ? eventStartMs + ib * SETLIST_SONG_SPACING_MS : parseTimeMs(b.created_at)) ??
+    Number.POSITIVE_INFINITY;
+  if (keyA !== keyB) return keyA - keyB;
 
   const postedA = parseTimeMs(a.created_at) ?? 0;
   const postedB = parseTimeMs(b.created_at) ?? 0;
@@ -150,9 +212,37 @@ export function sortClipsBySetlistThenRecorded<
   eventStartIso?: string | null,
   event?: Record<string, unknown> | null,
 ): T[] {
-  return [...clips].sort((a, b) =>
-    compareShowClipsBySetlistThenRecorded(a, b, setlist, eventStartIso, event),
-  );
+  const showEvent = eventForShowNight(eventStartIso, event);
+  const eventStartMs =
+    parseTimeMs(eventStartIso) ?? parseTimeMs(eventStartIsoFromPayload(showEvent));
+  const recordedMs = clips.map((clip) => parseTimeMs(clip.timestamp));
+  const recordedByIndex = new Map<number, number[]>();
+  clips.forEach((clip, i) => {
+    const rec = recordedMs[i];
+    if (rec == null) return;
+    const index = setlistIndexForSongTitle(setlist, clipSongTitle(clip));
+    if (index == null) return;
+    const peers = recordedByIndex.get(index) ?? [];
+    peers.push(rec);
+    recordedByIndex.set(index, peers);
+  });
+
+  const decorated = clips.map((clip, i) => ({
+    clip,
+    key: recordedSortKeyMs(clip, recordedMs[i], setlist, recordedByIndex, eventStartMs),
+    index: setlistIndexForSongTitle(setlist, clipSongTitle(clip)),
+  }));
+  decorated.sort((a, b) => {
+    if (a.key !== b.key) return a.key - b.key;
+    if (a.index != null && b.index != null && a.index !== b.index) return a.index - b.index;
+    const postedA = parseTimeMs(a.clip.created_at) ?? 0;
+    const postedB = parseTimeMs(b.clip.created_at) ?? 0;
+    if (postedA !== postedB) return postedA - postedB;
+    return String(a.clip.id ?? '').localeCompare(String(b.clip.id ?? ''), undefined, {
+      numeric: true,
+    });
+  });
+  return decorated.map((row) => row.clip);
 }
 
 export function eventStartIsoFromPayload(

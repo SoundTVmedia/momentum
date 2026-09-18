@@ -1991,14 +1991,6 @@ export default function UploadClip() {
     } | null;
     const form = formOverride ?? formData;
     const link = jambaseOverride ?? jambaseLink;
-    const showEvent = nav?.showData?.start_date
-      ? { startDate: nav.showData.start_date }
-      : null;
-    const libraryShowNightIso = showNightRecordedAtIso(
-      recordingAtIso || libraryFileMeta?.recordedAtIso,
-      showEvent,
-    );
-    const fromShowPageLibrary = uploadSource === 'library' && Boolean(showEvent);
     return {
       uploadMethod,
       videoFile: form.video_file,
@@ -2019,10 +2011,9 @@ export default function UploadClip() {
         hashtags: form.hashtags,
       },
       jambaseLink: link,
-      recordingAtIso: fromShowPageLibrary ? libraryShowNightIso : recordingAtIso,
+      recordingAtIso,
       captureTimestampMissing:
-        uploadSource === 'library' &&
-        (fromShowPageLibrary ? !libraryShowNightIso : !libraryFileMeta?.recordedAtIso),
+        uploadSource === 'library' && !libraryFileMeta?.recordedAtIso,
       nativeVideoUri: nativeVideoUriRef.current ?? undefined,
       captureGeo,
       videoMetadata,

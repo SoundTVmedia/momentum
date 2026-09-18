@@ -62,6 +62,67 @@ describe('clipTimestampFromSetlistOrder', () => {
 });
 
 describe('sortClipsBySetlistThenRecorded', () => {
+  it('inserts a late upload among recorded clips by capture time', () => {
+    const ordered = sortClipsBySetlistThenRecorded(
+      [
+        {
+          id: 'encore',
+          song_title: 'Tweezer Reprise',
+          timestamp: '2010-09-13T23:50:00.000Z',
+          created_at: '2010-09-14 01:40:00',
+        },
+        {
+          id: '99-late',
+          song_title: '99 Problems',
+          timestamp: '2010-09-13T23:22:00.000Z',
+          created_at: '2026-09-18 12:00:00',
+        },
+        {
+          id: '99-early',
+          song_title: '99 Problems',
+          timestamp: '2010-09-13T23:20:00.000Z',
+          created_at: '2010-09-14 01:10:00',
+        },
+        {
+          id: 'opener',
+          song_title: 'Public Service Announcement',
+          timestamp: '2010-09-13T23:05:00.000Z',
+          created_at: '2010-09-14 01:00:00',
+        },
+      ],
+      [
+        { title: 'Public Service Announcement' },
+        { title: '99 Problems' },
+        { title: 'Tweezer Reprise' },
+      ],
+      '2010-09-13T20:00:00',
+    );
+    expect(ordered.map((clip) => clip.id)).toEqual(['opener', '99-early', '99-late', 'encore']);
+  });
+
+  it('uses recorded time even when that disagrees with setlist order', () => {
+    const start = '2024-07-14T20:00:00.000Z';
+    const ordered = sortClipsBySetlistThenRecorded(
+      [
+        {
+          id: 'wilson-late',
+          song_title: 'Wilson',
+          timestamp: '2024-07-14T22:00:00.000Z',
+          created_at: '2024-07-14 20:10:00',
+        },
+        {
+          id: 'yem-early',
+          song_title: 'You Enjoy Myself',
+          timestamp: '2024-07-14T20:00:00.000Z',
+          created_at: '2026-09-17 18:00:00',
+        },
+      ],
+      setlist,
+      start,
+    );
+    expect(ordered.map((clip) => clip.id)).toEqual(['yem-early', 'wilson-late']);
+  });
+
   it('inserts a no-metadata clip by song title among recorded-time clips', () => {
     const start = '2024-07-14T20:00:00.000Z';
     const ordered = sortClipsBySetlistThenRecorded(
@@ -91,56 +152,38 @@ describe('sortClipsBySetlistThenRecorded', () => {
     expect(ordered.map((clip) => clip.id)).toEqual(['opener', 'late-free', 'encore']);
   });
 
-  it('uses recorded time even when that disagrees with setlist order', () => {
-    const start = '2024-07-14T20:00:00.000Z';
+  it('uses setlist order when clips share the same recorded timestamp', () => {
+    const start = '2010-09-13T20:00:00';
+    const sameNight = '2010-09-13T00:00:00.000Z';
     const ordered = sortClipsBySetlistThenRecorded(
       [
         {
-          id: 'wilson-late',
-          song_title: 'Wilson',
-          timestamp: '2024-07-14T22:00:00.000Z',
-          created_at: '2024-07-14 20:10:00',
-        },
-        {
-          id: 'yem-early',
-          song_title: 'You Enjoy Myself',
-          timestamp: '2024-07-14T20:00:00.000Z',
-          created_at: '2026-09-17 18:00:00',
-        },
-      ],
-      setlist,
-      start,
-    );
-    expect(ordered.map((clip) => clip.id)).toEqual(['yem-early', 'wilson-late']);
-  });
-
-  it('ignores a file timestamp from another day and uses setlist order', () => {
-    const start = '2024-07-14T20:00:00.000Z';
-    const ordered = sortClipsBySetlistThenRecorded(
-      [
-        {
-          id: 'encore',
-          song_title: 'Tweezer Reprise',
-          timestamp: '2024-07-14T22:30:00.000Z',
-          created_at: '2024-07-14 22:40:00',
-        },
-        {
-          id: 'late-free',
-          song_title: 'Free',
-          timestamp: '2026-09-18T12:00:00.000Z',
+          id: '99',
+          song_title: '99 Problems',
+          timestamp: sameNight,
           created_at: '2026-09-18 12:00:00',
         },
         {
-          id: 'opener',
-          song_title: 'Wilson',
-          timestamp: '2024-07-14T20:00:00.000Z',
-          created_at: '2024-07-14 20:10:00',
+          id: 'encore',
+          song_title: 'Encore',
+          timestamp: sameNight,
+          created_at: '2026-09-17 10:00:00',
+        },
+        {
+          id: 'psa',
+          song_title: 'Public Service Announcement',
+          timestamp: sameNight,
+          created_at: '2026-09-18 12:05:00',
         },
       ],
-      setlist,
+      [
+        { title: 'Public Service Announcement' },
+        { title: '99 Problems' },
+        { title: 'Encore' },
+      ],
       start,
     );
-    expect(ordered.map((clip) => clip.id)).toEqual(['opener', 'late-free', 'encore']);
+    expect(ordered.map((clip) => clip.id)).toEqual(['psa', '99', 'encore']);
   });
 
   it('falls back to uploaded time when there is no recorded time and no setlist match', () => {
@@ -170,29 +213,6 @@ describe('sortClipsBySetlistThenRecorded', () => {
       start,
     );
     expect(ordered.map((clip) => clip.id)).toEqual(['opener', 'late-free', 'uploaded-last']);
-  });
-
-  it('falls back to uploaded time when the file date is not show night and there is no setlist', () => {
-    const start = '2024-07-14T20:00:00.000Z';
-    const ordered = sortClipsBySetlistThenRecorded(
-      [
-        {
-          id: 'uploaded-last',
-          song_title: '',
-          timestamp: '2026-09-18T12:00:00.000Z',
-          created_at: '2026-09-18 12:00:00',
-        },
-        {
-          id: 'uploaded-first',
-          song_title: '',
-          timestamp: '2026-09-18T11:00:00.000Z',
-          created_at: '2026-09-17 18:00:00',
-        },
-      ],
-      [],
-      start,
-    );
-    expect(ordered.map((clip) => clip.id)).toEqual(['uploaded-first', 'uploaded-last']);
   });
 });
 

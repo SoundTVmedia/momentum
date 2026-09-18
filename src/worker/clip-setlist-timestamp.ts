@@ -1,5 +1,4 @@
 import {
-  clipRecordedAtOnShowNightMs,
   clipTimestampFromSetlistOrder,
   eventStartIsoFromPayload,
 } from '../shared/clip-setlist-order';
@@ -44,8 +43,8 @@ export async function clipTimestampFromStoredShowSetlist(
 }
 
 /**
- * Keep a timestamp only when it is the night of this show. A library file dated
- * today is replaced with the setlist slot when the clip has a matching song.
+ * Keep a real capture timestamp. Only synthesize a setlist slot when the clip
+ * has no recorded time at all.
  */
 export async function fillMissingClipTimestampFromSetlist(
   db: D1Database,
@@ -58,15 +57,6 @@ export async function fillMissingClipTimestampFromSetlist(
 ): Promise<string | null> {
   const existing =
     typeof input.existingTimestamp === 'string' ? input.existingTimestamp.trim() : '';
-  const { event, setlist } = await storedShowSetlistContext(db, input);
-  if (existing && clipRecordedAtOnShowNightMs({ timestamp: existing }, event) != null) {
-    return existing;
-  }
-  const fromSetlist = clipTimestampFromSetlistOrder({
-    eventStartIso: eventStartIsoFromPayload(event),
-    setlist,
-    songTitle: input.songTitle,
-  });
-  if (fromSetlist) return fromSetlist;
-  return existing || null;
+  if (existing) return existing;
+  return clipTimestampFromStoredShowSetlist(db, input);
 }
