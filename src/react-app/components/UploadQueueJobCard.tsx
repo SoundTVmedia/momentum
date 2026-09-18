@@ -206,7 +206,7 @@ export default function UploadQueueJobCard({
   }
 
   return (
-    <IonItemSliding className="upload-queue-sliding" onIonSwipe={() => onRemove(job.id)}>
+    <IonItemSliding className="upload-queue-sliding">
       <IonItem lines="none" button={false} detail={false} className="upload-queue-sliding-item">
         {card}
       </IonItem>
