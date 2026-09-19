@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_SQL } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -572,6 +572,48 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
          WHERE ${LATEST_SCENE_CLIP_FRESH_SQL}`,
       )
       .all() as Array<{ id: number }>;
+
+    expect(rows).toEqual([{ id: 1 }]);
+  });
+
+  it('keeps the viewer\'s own tagged clip in Latest even when the show is older than 30 days', () => {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        timestamp TEXT,
+        created_at TEXT,
+        jambase_event_id TEXT,
+        mocha_user_id TEXT
+      );
+      CREATE TABLE jambase_events (
+        jambase_event_id TEXT PRIMARY KEY,
+        start_date TEXT
+      );
+    `);
+    db.prepare(
+      `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, ?)`,
+    ).run('old-show', new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
+    db.prepare(
+      `INSERT INTO clips (id, timestamp, created_at, jambase_event_id, mocha_user_id)
+       VALUES (1, datetime('now', '-40 days'), datetime('now'), 'old-show', 'me')`,
+    ).run();
+    db.prepare(
+      `INSERT INTO clips (id, timestamp, created_at, jambase_event_id, mocha_user_id)
+       VALUES (2, datetime('now', '-40 days'), datetime('now'), 'old-show', 'someone-else')`,
+    ).run();
+
+    const latest = latestSceneClipFreshOrOwnSql('me');
+    const rows = db
+      .prepare(
+        `SELECT clips.id FROM clips
+         LEFT JOIN jambase_events latest_scene_ev
+           ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
+         WHERE ${latest.sql}
+         ORDER BY clips.id`,
+      )
+      .all(...latest.binds) as Array<{ id: number }>;
 
     expect(rows).toEqual([{ id: 1 }]);
   });

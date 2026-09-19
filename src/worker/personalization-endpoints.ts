@@ -481,6 +481,7 @@ export async function getPersonalizedFeed(c: Context) {
         user_profiles.display_name as user_display_name,
         user_profiles.profile_image_url as user_avatar,
         CASE 
+          WHEN clips.mocha_user_id = ? THEN 20
           WHEN ${favoriteArtistScoreSql} THEN 10
           ELSE 0
         END as artist_score,
@@ -503,6 +504,7 @@ export async function getPersonalizedFeed(c: Context) {
 
     const bindings: any[] =
       Array.isArray(favoriteArtists) && favoriteArtists.length > 0 ? [...favoriteArtists] : [];
+    bindings.push(uid);
 
     // Add location-based scoring if user has set home location
     if (hasLocation) {
@@ -518,6 +520,7 @@ export async function getPersonalizedFeed(c: Context) {
           user_profiles.display_name as user_display_name,
           user_profiles.profile_image_url as user_avatar,
           CASE 
+            WHEN clips.mocha_user_id = ? THEN 20
             WHEN ${favoriteArtistScoreSql} THEN 10
             ELSE 0
           END as artist_score,

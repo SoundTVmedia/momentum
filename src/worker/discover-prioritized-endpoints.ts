@@ -531,17 +531,6 @@ export async function getFavoriteArtistFeed(c: Context) {
     const hasFollows =
       hasFavoriteArtists || venueNames.length > 0 || songSlugs.length > 0 || friendIds.length > 0;
 
-    if (scope === 'artists' ? !hasFavoriteArtists : !hasFollows) {
-      c.header('Cache-Control', 'private, no-store');
-      return c.json({
-        hasFavoriteArtists,
-        hasFollows,
-        upcomingEvents: [],
-        clips: [],
-        hasMoreClips: false,
-      });
-    }
-
     let upcomingEvents: Record<string, unknown>[] = [];
     if (favoriteArtistIds.length > 0) {
       const upcoming = await c.env.DB.prepare(
@@ -567,6 +556,9 @@ export async function getFavoriteArtistFeed(c: Context) {
 
     const matchParts: string[] = [];
     const matchBinds: string[] = [];
+    // Viewer's own posts always belong in their personalized follow feed.
+    matchParts.push('clips.mocha_user_id = ?');
+    matchBinds.push(uid);
     const artistMatch = inListSql('clips.artist_name', clipArtistNames, true);
     if (clipArtistNames.length > 0) {
       matchParts.push(artistMatch.sql);
@@ -614,12 +606,14 @@ export async function getFavoriteArtistFeed(c: Context) {
           (blocker_id = ? AND blocked_id = clips.mocha_user_id)
           OR (blocker_id = clips.mocha_user_id AND blocked_id = ?)
       )
-      ORDER BY clips.created_at DESC
+      ORDER BY CASE WHEN clips.mocha_user_id = ? THEN 0 ELSE 1 END,
+               clips.created_at DESC
       LIMIT ? OFFSET ?
     `;
 
     const clipBindings: unknown[] = [
       ...matchBinds,
+      uid,
       uid,
       uid,
       clipsLimit + 1,

@@ -342,3 +342,20 @@ export function latestSceneClipFreshSql(
 
 /** Tagged shows in Latest must have happened within the last 30 days. */
 export const LATEST_SCENE_CLIP_FRESH_SQL = latestSceneClipFreshSql('-30 days');
+
+/**
+ * Same 30-day Latest window, plus the logged-in viewer's own posts so they
+ * still appear in their home feed after a festival upload.
+ */
+export function latestSceneClipFreshOrOwnSql(
+  viewerUid?: string | null,
+  window: LatestSceneEventWindow = '-30 days',
+): { sql: string; binds: string[] } {
+  const fresh = latestSceneClipFreshSql(window);
+  const uid = viewerUid?.trim() || '';
+  if (!uid) return { sql: fresh, binds: [] };
+  return {
+    sql: `(${fresh} OR clips.mocha_user_id = ?)`,
+    binds: [uid],
+  };
+}

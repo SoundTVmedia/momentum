@@ -88,7 +88,7 @@ import * as superadminModeration from "./superadmin-moderation-endpoints";
 import * as reports from "./report-endpoints";
 import { submitSupportRequest } from "./support-endpoints";
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors, isBlockedBetween, getBlockDirections, blockKey } from "./user-blocks";
-import { latestSceneClipFreshSql } from "./past-show-sql";
+import { latestSceneClipFreshOrOwnSql } from "./past-show-sql";
 import { rateLimiter, RateLimits } from "./rate-limiter";
 import { jamBaseQuotaFromEnv } from "./jambase-client";
 import { PerformanceMonitor, cacheJsonProxy } from "./performance-utils";
@@ -1649,6 +1649,8 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   const feedScope = c.req.query('feed_scope') || 'main';
   
   const offset = (page - 1) * limit;
+  const mochaUser = c.get('user');
+  const viewerUid = mochaUser ? mochaUserIdKey(mochaUser) : '';
 
   const isPublicLatestScene =
     sortBy === 'latest' &&
@@ -1722,7 +1724,9 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
     }
 
     if (applyLatest) {
-      query += ` AND ${latestSceneClipFreshSql()}`;
+      const latest = latestSceneClipFreshOrOwnSql(viewerUid);
+      query += ` AND ${latest.sql}`;
+      bindings.push(...latest.binds);
     }
 
     switch (sortBy) {
@@ -1771,7 +1775,7 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
   // to show rows that no longer exist locally, so delete/update then return 404 Clip not found.
   const scopedFeed = Boolean(userId || since || artistName || venueName || songSlug);
   const hiddenAuthors = await getHiddenUserIdsForRequest(c);
-  if (scopedFeed || hiddenAuthors.size > 0) {
+  if (scopedFeed || hiddenAuthors.size > 0 || viewerUid) {
     c.header('Cache-Control', 'private, no-store, must-revalidate');
     c.header('Pragma', 'no-cache');
   } else {

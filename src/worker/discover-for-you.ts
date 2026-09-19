@@ -135,12 +135,8 @@ async function fetchLoggedInForYou(
   const hasVenues = venueNames.length > 0;
   const hasGenres = genres.names.length > 0 || genres.slugs.length > 0;
 
-  if (!hasArtists && !hasVenues && !hasGenres) {
-    return null;
-  }
-
-  const conditions: string[] = [];
-  const bindings: unknown[] = [];
+  const conditions: string[] = ['clips.mocha_user_id = ?'];
+  const bindings: unknown[] = [uid];
 
   if (hasArtists) {
     const ph = artistNames.map(() => '?').join(',');
