@@ -31,15 +31,18 @@ describe('admin user role search', () => {
       );
       CREATE TABLE email_accounts (
         id TEXT PRIMARY KEY,
-        email TEXT
+        email TEXT,
+        display_name TEXT
       );
       CREATE TABLE google_accounts (
         id TEXT PRIMARY KEY,
-        email TEXT
+        email TEXT,
+        display_name TEXT
       );
       CREATE TABLE apple_accounts (
         id TEXT PRIMARY KEY,
-        email TEXT
+        email TEXT,
+        display_name TEXT
       );
       CREATE TABLE user_bans (
         mocha_user_id TEXT,
@@ -87,5 +90,31 @@ describe('admin user role search', () => {
       .prepare(ADMIN_USER_ROLE_SEARCH_SQL)
       .all(...adminUserRoleSearchBinds('Jamie')) as Array<{ mocha_user_id: string }>;
     expect(byName.map((row) => row.mocha_user_id)).toEqual(['user-3']);
+  });
+
+  it('finds Hide My Email Apple users by the Apple display name', () => {
+    const db = createDb();
+    db.exec(`
+      INSERT INTO user_profiles (mocha_user_id, display_name, role)
+      VALUES ('apple-1', 'wzzrknm4gz', 'fan');
+      INSERT INTO apple_accounts (id, email, display_name)
+      VALUES ('apple-1', 'wzzrknm4gz@privaterelay.appleid.com', 'Lisa Benner');
+    `);
+
+    const rows = db
+      .prepare(ADMIN_USER_ROLE_SEARCH_SQL)
+      .all(...adminUserRoleSearchBinds('Lisa Benner')) as Array<{
+      mocha_user_id: string;
+      display_name: string | null;
+      email: string | null;
+    }>;
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        mocha_user_id: 'apple-1',
+        display_name: 'Lisa Benner',
+        email: 'wzzrknm4gz@privaterelay.appleid.com',
+      }),
+    ]);
   });
 });

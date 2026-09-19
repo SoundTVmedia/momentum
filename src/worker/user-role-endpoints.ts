@@ -3,7 +3,30 @@ import { isCommunityRole } from '../shared/user-roles';
 import { getStaffProfile, isAdmin, isSuperAdmin } from './admin-auth';
 import { mochaUserIdKey } from './mocha-user-id';
 
-export const ADMIN_USER_ROLE_SEARCH_SQL = `SELECT mocha_user_id, display_name, role, is_admin, is_moderator, is_superadmin, profile_image_url,
+const AUTH_EMAIL_LOCAL_PART_SQL = `COALESCE(
+              (SELECT substr(email, 1, instr(email, '@') - 1) FROM apple_accounts
+               WHERE apple_accounts.id = user_profiles.mocha_user_id AND instr(email, '@') > 1 LIMIT 1),
+              (SELECT substr(email, 1, instr(email, '@') - 1) FROM google_accounts
+               WHERE google_accounts.id = user_profiles.mocha_user_id AND instr(email, '@') > 1 LIMIT 1),
+              (SELECT substr(email, 1, instr(email, '@') - 1) FROM email_accounts
+               WHERE email_accounts.id = user_profiles.mocha_user_id AND instr(email, '@') > 1 LIMIT 1),
+              ''
+            )`;
+
+export const ADMIN_USER_ROLE_SEARCH_SQL = `SELECT mocha_user_id,
+            CASE
+              WHEN user_profiles.display_name IS NOT NULL
+                AND trim(user_profiles.display_name) != ''
+                AND lower(user_profiles.display_name) != lower(${AUTH_EMAIL_LOCAL_PART_SQL})
+              THEN user_profiles.display_name
+              ELSE COALESCE(
+                NULLIF(trim((SELECT display_name FROM apple_accounts WHERE apple_accounts.id = user_profiles.mocha_user_id)), ''),
+                NULLIF(trim((SELECT display_name FROM google_accounts WHERE google_accounts.id = user_profiles.mocha_user_id)), ''),
+                NULLIF(trim((SELECT display_name FROM email_accounts WHERE email_accounts.id = user_profiles.mocha_user_id)), ''),
+                user_profiles.display_name
+              )
+            END AS display_name,
+            role, is_admin, is_moderator, is_superadmin, profile_image_url,
             COALESCE(
               (SELECT email FROM user_emails
                WHERE user_emails.mocha_user_id = user_profiles.mocha_user_id
@@ -25,11 +48,11 @@ export const ADMIN_USER_ROLE_SEARCH_SQL = `SELECT mocha_user_id, display_name, r
         OR mocha_user_id IN (
           SELECT mocha_user_id FROM user_emails WHERE email LIKE ?
           UNION
-          SELECT id FROM email_accounts WHERE email LIKE ?
+          SELECT id FROM email_accounts WHERE email LIKE ? OR display_name LIKE ?
           UNION
-          SELECT id FROM google_accounts WHERE email LIKE ?
+          SELECT id FROM google_accounts WHERE email LIKE ? OR display_name LIKE ?
           UNION
-          SELECT id FROM apple_accounts WHERE email LIKE ?
+          SELECT id FROM apple_accounts WHERE email LIKE ? OR display_name LIKE ?
         )
      ORDER BY display_name ASC
      LIMIT 20`;
@@ -37,7 +60,18 @@ export const ADMIN_USER_ROLE_SEARCH_SQL = `SELECT mocha_user_id, display_name, r
 export function adminUserRoleSearchBinds(q: string): string[] {
   const like = `%${q}%`;
   const emailLike = `%${q.toLowerCase()}%`;
-  return [emailLike, like, like, emailLike, emailLike, emailLike, emailLike];
+  return [
+    emailLike,
+    like,
+    like,
+    emailLike,
+    emailLike,
+    like,
+    emailLike,
+    like,
+    emailLike,
+    like,
+  ];
 }
 
 export async function searchUsersForRoleAdmin(c: Context) {
