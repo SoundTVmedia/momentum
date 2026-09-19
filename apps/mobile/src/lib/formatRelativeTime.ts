@@ -1,3 +1,5 @@
+import { formatShowCardDate } from '@/shared/show-timestamp';
+
 export function formatRelativeTime(iso: string | null | undefined): string {
   if (!iso?.trim()) return '';
   const then = Date.parse(iso);
@@ -23,8 +25,5 @@ export function clipPostedAt(clip: {
 }
 
 export function formatShowDate(iso: string | null | undefined): string {
-  if (!iso?.trim()) return 'Date TBA';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatShowCardDate(iso, 'short');
 }

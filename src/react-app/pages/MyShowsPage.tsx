@@ -5,19 +5,12 @@ import Header from '@/react-app/components/Header';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import type { UserShowMark } from '@/shared/show-marks';
 import { artistPath, showMarkClipsPath, venuePath } from '@/shared/app-paths';
+import { formatShowCardDate } from '@/shared/show-timestamp';
 
 type Tab = 'going' | 'attended';
 
 function formatShowDate(iso: string | null): string {
-  if (!iso?.trim()) return 'Date TBA';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatShowCardDate(iso);
 }
 
 function ShowMarkRow({

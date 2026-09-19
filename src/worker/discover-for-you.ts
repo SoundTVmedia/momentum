@@ -188,13 +188,12 @@ async function fetchLoggedInForYou(
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
-    AND clips.mocha_user_id != ?
     AND (${whereMatch})
     ORDER BY clips.created_at DESC
     LIMIT ?
   `;
 
-  const res = await db.prepare(simpleQuery).bind(...bindings, uid, FOR_YOU_LIMIT).all();
+  const res = await db.prepare(simpleQuery).bind(...bindings, FOR_YOU_LIMIT).all();
   const clips = normalizeClipApiRows((res.results || []) as Record<string, unknown>[]);
   if (clips.length === 0) return null;
 

@@ -11,6 +11,7 @@ import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/l
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import { jamBaseEventShouldOfferTickets } from '@/shared/jambase-event-day';
 import { jamBaseEventTicketUrl } from '@/shared/jambase-events';
+import { formatShowCardDate } from '@/shared/show-timestamp';
 import { isUpcomingShowMark, showMarkCardStatus, showMarkCardStatusLabel, showMarkToJamBaseEvent, type UserShowMark } from '@/shared/show-marks';
 
 type FriendGoingGroup = {
@@ -21,10 +22,7 @@ type FriendGoingGroup = {
 };
 
 function formatShowDate(iso: string | null): string {
-  if (!iso?.trim()) return 'Date TBA';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatShowCardDate(iso, 'short');
 }
 
 function FriendGoingCard({

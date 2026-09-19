@@ -25,6 +25,7 @@ describe('library show search', () => {
         venue_name TEXT,
         location TEXT,
         timestamp TEXT,
+        created_at TEXT,
         jambase_event_id TEXT,
         jambase_venue_id TEXT,
         jambase_artist_id TEXT,

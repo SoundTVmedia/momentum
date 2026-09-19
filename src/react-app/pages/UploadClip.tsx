@@ -124,6 +124,7 @@ import { LIBRARY_VIDEO_ACCEPT, pickLibraryVideoFile } from '@/react-app/lib/pick
 import { jamBaseEventToShowMarkInput, pastShowSummaryToJamBaseEvent, pickShowMarkForLibraryUpload, showMarkToClipCandidate } from '@/shared/show-marks';
 import { clipMetadataMatchesShow } from '@/shared/clip-show-metadata-match';
 import { showNightRecordedAtIso } from '@/shared/clip-setlist-order';
+import { parseShowTimeMs } from '@/shared/show-timestamp';
 import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
 import { resolveShowAutoApplyCandidate, resolveCameraGoingAutoFill } from '@/shared/clip-resolve-show-match';
 
@@ -1392,7 +1393,10 @@ export default function UploadClip() {
       uploadSource !== 'library' &&
       !(location.state as { recordingStartedAt?: string } | null)?.recordingStartedAt
     ) {
-      setRecordingAtIso(new Date(formData.video_file.lastModified).toISOString());
+      const lastMod = formData.video_file.lastModified;
+      if (parseShowTimeMs(lastMod) != null) {
+        setRecordingAtIso(new Date(lastMod).toISOString());
+      }
     }
   }, [formData.video_file, uploadSource, location.state]);
 
@@ -2013,7 +2017,8 @@ export default function UploadClip() {
       jambaseLink: link,
       recordingAtIso,
       captureTimestampMissing:
-        uploadSource === 'library' && !libraryFileMeta?.recordedAtIso,
+        (uploadSource === 'library' && !libraryFileMeta?.recordedAtIso) ||
+        parseShowTimeMs(recordingAtIso) == null,
       nativeVideoUri: nativeVideoUriRef.current ?? undefined,
       captureGeo,
       videoMetadata,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SETLIST_SONG_SPACING_MS,
+  clipTimestampFromEventStart,
   clipTimestampFromSetlistOrder,
   setlistIndexForSongTitle,
   showNightRecordedAtIso,
@@ -58,6 +59,16 @@ describe('clipTimestampFromSetlistOrder', () => {
         songTitle: 'Wilson',
       }),
     ).toBeNull();
+  });
+});
+
+describe('clipTimestampFromEventStart', () => {
+  it('uses a date-only festival start when the clip has no capture time', () => {
+    expect(clipTimestampFromEventStart('2026-09-18')).toBe('2026-09-18T12:00:00.000Z');
+  });
+
+  it('rejects Unix-epoch starts', () => {
+    expect(clipTimestampFromEventStart('1970-01-01T00:00:00.000Z')).toBeNull();
   });
 });
 

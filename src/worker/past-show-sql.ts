@@ -20,7 +20,7 @@ export const CLIP_SHOW_KEY_SQL = clipShowKeySql('clips');
 
 /** UTC calendar day from a clip timestamp, including ISO `T`/`Z` values. */
 export function clipCaptureDaySql(alias = 'clips'): string {
-  return `strftime('%Y-%m-%d', ${sqliteDateTimeSql(`${alias}.timestamp`)})`;
+  return `strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.timestamp`)})`;
 }
 
 /**
@@ -32,7 +32,7 @@ export function clipNightKeySql(alias = 'clips'): string {
   return `(CASE
     WHEN NULLIF(TRIM(${alias}.artist_name), '') IS NULL THEN NULL
     WHEN NULLIF(TRIM(${alias}.venue_name), '') IS NULL THEN NULL
-    WHEN NULLIF(TRIM(${alias}.timestamp), '') IS NULL THEN NULL
+    WHEN ${clipCaptureDaySql(alias)} IS NULL THEN NULL
     ELSE LOWER(TRIM(${alias}.artist_name)) || '|' ||
       LOWER(REPLACE(REPLACE(TRIM(${alias}.venue_name), CHAR(39), ''), CHAR(8217), '')) || '|' ||
       ${clipCaptureDaySql(alias)}
@@ -97,7 +97,16 @@ export function groupedPastShowsSelectSql(options?: { includeAverageRating?: boo
         ${groupedPastShowIdSql()} as show_id,
         MAX(clips.event_title) as event_title,
         MAX(clips.artist_name) as artist_name,
-        MIN(clips.timestamp) as show_date,
+        COALESCE(
+          MIN(CASE
+            WHEN ${sqlitePlausibleDateTimeSql('clips.timestamp')} IS NOT NULL
+            THEN clips.timestamp
+          END),
+          MIN(CASE
+            WHEN ${sqlitePlausibleDateTimeSql('clips.created_at')} IS NOT NULL
+            THEN clips.created_at
+          END)
+        ) as show_date,
         MAX(clips.venue_name) as venue_name,
         MAX(clips.location) as venue_location,
         MAX(CASE WHEN clips.jambase_event_id IS NOT NULL AND TRIM(clips.jambase_event_id) != '' THEN clips.jambase_event_id END) as jambase_event_id,
@@ -290,10 +299,21 @@ function sqliteDateTimeSql(expr: string): string {
   return `datetime(replace(replace(substr(TRIM(${expr}), 1, 19), 'T', ' '), 'Z', ''))`;
 }
 
-export const JAMBASE_EVENT_START_DATETIME_SQL = sqliteDateTimeSql(
+/** Same as sqliteDateTimeSql, but Unix-epoch / unset metadata become NULL. */
+export function sqlitePlausibleDateTimeSql(expr: string): string {
+  const dt = sqliteDateTimeSql(expr);
+  return `(CASE
+    WHEN NULLIF(TRIM(${expr}), '') IS NULL THEN NULL
+    WHEN ${dt} IS NULL THEN NULL
+    WHEN ${dt} < datetime('1971-01-01') THEN NULL
+    ELSE ${dt}
+  END)`;
+}
+
+export const JAMBASE_EVENT_START_DATETIME_SQL = sqlitePlausibleDateTimeSql(
   'latest_scene_ev.start_date',
 );
-export const CLIP_RECORDED_DATETIME_SQL = sqliteDateTimeSql('clips.timestamp');
+export const CLIP_RECORDED_DATETIME_SQL = sqlitePlausibleDateTimeSql('clips.timestamp');
 
 /** How far back a tagged show may be and still appear in Latest From the Scene. */
 export type LatestSceneEventWindow = '-30 days';

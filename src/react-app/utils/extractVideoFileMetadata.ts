@@ -1,3 +1,5 @@
+import { parseShowTimeMs } from '@/shared/show-timestamp';
+
 /** Metadata extracted from an uploaded video file (MP4/MOV/QuickTime). */
 export type ExtractedVideoFileMetadata = {
   /** Best-effort capture instant (ISO string). */
@@ -18,7 +20,8 @@ export function mp4EpochSecondsToDate(seconds: number): Date | null {
   const MS_EPOCH_OFFSET = 2082844800; // 1904 → 1970 UTC
   const ms = (seconds - MS_EPOCH_OFFSET) * 1000;
   const d = new Date(ms);
-  return Number.isFinite(d.getTime()) ? d : null;
+  if (!Number.isFinite(d.getTime()) || parseShowTimeMs(d.getTime()) == null) return null;
+  return d;
 }
 
 /** ISO 6709 location string e.g. +37.7749-122.4194/ or +37.7749-122.4194+100.0/ */
@@ -36,10 +39,9 @@ function parseIsoDateString(raw: string): Date | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   const normalized = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
-  const ms = Date.parse(normalized);
-  if (!Number.isFinite(ms)) return null;
-  const d = new Date(ms);
-  return Number.isFinite(d.getTime()) ? d : null;
+  const ms = parseShowTimeMs(normalized);
+  if (ms == null) return null;
+  return new Date(ms);
 }
 
 /** Scan binary for UTF-8 date strings common in phone video metadata. */

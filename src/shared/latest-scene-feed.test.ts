@@ -53,6 +53,15 @@ describe('clipQualifiesForLatestScene', () => {
     ).toBe(true);
   });
 
+  it('keeps clips whose tagged show time is Unix epoch rather than treating them as 50 years old', () => {
+    expect(
+      clipQualifiesForLatestScene({
+        nowMs: now,
+        showStartAt: '1970-01-01T00:00:00.000Z',
+      }),
+    ).toBe(true);
+  });
+
   it('uses a 30-day event window', () => {
     expect(LATEST_SCENE_MAX_AGE_MS).toBe(30 * 24 * 60 * 60 * 1000);
   });

@@ -1,8 +1,10 @@
 import {
+  clipTimestampFromEventStart,
   clipTimestampFromSetlistOrder,
   eventStartIsoFromPayload,
 } from '../shared/clip-setlist-order';
 import { jamBaseEventSetlist } from '../shared/jambase-setlist';
+import { parseShowTimeMs } from '../shared/show-timestamp';
 import { loadStoredShowPage } from './stored-show-page';
 
 async function storedShowSetlistContext(
@@ -35,16 +37,19 @@ export async function clipTimestampFromStoredShowSetlist(
   },
 ): Promise<string | null> {
   const { event, setlist } = await storedShowSetlistContext(db, input);
-  return clipTimestampFromSetlistOrder({
-    eventStartIso: eventStartIsoFromPayload(event),
-    setlist,
-    songTitle: input.songTitle,
-  });
+  const eventStartIso = eventStartIsoFromPayload(event);
+  return (
+    clipTimestampFromSetlistOrder({
+      eventStartIso,
+      setlist,
+      songTitle: input.songTitle,
+    }) ?? clipTimestampFromEventStart(eventStartIso)
+  );
 }
 
 /**
- * Keep a real capture timestamp. Only synthesize a setlist slot when the clip
- * has no recorded time at all.
+ * Keep a real capture timestamp. Treat Unix-epoch / unset metadata as missing
+ * and synthesize show night from the setlist, then the event start.
  */
 export async function fillMissingClipTimestampFromSetlist(
   db: D1Database,
@@ -57,6 +62,6 @@ export async function fillMissingClipTimestampFromSetlist(
 ): Promise<string | null> {
   const existing =
     typeof input.existingTimestamp === 'string' ? input.existingTimestamp.trim() : '';
-  if (existing) return existing;
+  if (parseShowTimeMs(existing) != null) return existing;
   return clipTimestampFromStoredShowSetlist(db, input);
 }

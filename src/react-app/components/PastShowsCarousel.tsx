@@ -15,6 +15,7 @@ import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { hydrateFavoriteArtistImages } from '@/react-app/lib/hydrate-favorite-artist-images';
 import { isUsablePosterImageUrl } from '@/shared/clip-poster-url';
 import { displayMediaUrl } from '@/shared/media-proxy';
+import { formatShowCardDate } from '@/shared/show-timestamp';
 
 export interface PastShowSummary {
   event_title: string;
@@ -35,16 +36,6 @@ export interface PastShowSummary {
 interface PastShowsCarouselProps {
   shows: PastShowSummary[];
   variant: 'artist' | 'venue' | 'user';
-}
-
-function formatShowDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 }
 
 function usablePastShowImage(url: string | null | undefined): string | null {
@@ -177,7 +168,7 @@ export default function PastShowsCarousel({ shows, variant }: PastShowsCarouselP
                 </h3>
                 <div className="flex items-center gap-1.5 text-gray-400 text-sm mb-1">
                   <Calendar className="w-3.5 h-3.5 shrink-0 text-momentum-rose" />
-                  <span>{formatShowDate(show.show_date)}</span>
+                  <span>{formatShowCardDate(show.show_date)}</span>
                 </div>
                 {secondaryLine ? (
                   <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-3 min-h-[1rem]">

@@ -35,6 +35,16 @@ describe('clipMetadataMatchesShow', () => {
     expect(match).toEqual({ ok: true });
   });
 
+  it('treats Unix-epoch capture times as missing instead of a date mismatch', () => {
+    const match = clipMetadataMatchesShow({
+      event: phishMsg,
+      recordedAtIso: '1970-01-01T00:00:00.000Z',
+      artistName: 'Phish',
+      venueName: 'Madison Square Garden',
+    });
+    expect(match).toEqual({ ok: true });
+  });
+
   it('rejects a clip from a different night', () => {
     const match = clipMetadataMatchesShow({
       event: phishMsg,

@@ -21,6 +21,7 @@ import {
 import { rejectIfClipDoesNotMatchTargetShow } from './clip-show-metadata-gate';
 import { clipShowTagsFromMatchedEvent } from '../shared/clip-show-metadata-match';
 import { fillMissingClipTimestampFromSetlist } from './clip-setlist-timestamp';
+import { parseShowTimeMs } from '../shared/show-timestamp';
 
 export type ClipCreateBody = Record<string, unknown>;
 
@@ -91,14 +92,12 @@ export async function resolveClipCreateFields(
 
   const postedArtistName = typeof artist_name === 'string' ? artist_name.trim() : '';
   const postedVenueName = typeof venue_name === 'string' ? venue_name.trim() : '';
+  const rawTimestamp = typeof timestamp === 'string' ? timestamp.trim() : '';
   const captureTimestampMissing =
     capture_timestamp_missing === true ||
     capture_timestamp_missing === 1 ||
-    !(typeof timestamp === 'string' && timestamp.trim());
-  const resolvedTimestamp =
-    !captureTimestampMissing && typeof timestamp === 'string' && timestamp.trim()
-      ? timestamp.trim()
-      : '';
+    parseShowTimeMs(rawTimestamp) == null;
+  const resolvedTimestamp = captureTimestampMissing ? '' : rawTimestamp;
   const hasManualShowTags = hasManualShowArtistVenue(postedArtistName, postedVenueName);
 
   let classification: ResolvedClipInsert['classification'] = null;
@@ -319,8 +318,8 @@ export async function resolveClipCreateFields(
       const showTags = clipShowTagsFromMatchedEvent(gate.event);
       fields = {
         ...fields,
-        resolvedArtist: showTags.artistName || fields.resolvedArtist,
-        resolvedJambaseArtistId: showTags.artistId || fields.resolvedJambaseArtistId,
+        resolvedArtist: fields.resolvedArtist?.trim() || showTags.artistName,
+        resolvedJambaseArtistId: fields.resolvedJambaseArtistId?.trim() || showTags.artistId,
         resolvedVenue: fields.resolvedVenue?.trim() || showTags.venueName,
         resolvedJambaseVenueId: fields.resolvedJambaseVenueId?.trim() || showTags.venueId,
         resolvedEventTitle: showTags.eventTitle || fields.resolvedEventTitle,
@@ -331,10 +330,11 @@ export async function resolveClipCreateFields(
   if (captureTimestampMissing || !fields.resolvedTimestamp.trim()) {
     const songTitle =
       fields.resolvedSongTitle?.trim() || fields.classification?.acr_title?.trim() || '';
-    if (songTitle && targetedEventId) {
+    const eventId = targetedEventId || fields.resolvedJambaseEventId?.trim() || '';
+    if (eventId || matchedEvent) {
       const setlistTimestamp = await fillMissingClipTimestampFromSetlist(c.env.DB, {
         existingTimestamp: '',
-        jambaseEventId: targetedEventId,
+        jambaseEventId: eventId,
         songTitle,
         eventPayload: matchedEvent,
       });

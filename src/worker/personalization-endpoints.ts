@@ -468,6 +468,10 @@ export async function getPersonalizedFeed(c: Context) {
     const hasLocation = profile.home_latitude && profile.home_longitude;
     const radiusMiles = profile.location_radius_miles || 50;
     const mainFeedFilter = await mainFeedClipFilterSql(c.env.DB);
+    const favoriteArtistScoreSql =
+      Array.isArray(favoriteArtists) && favoriteArtists.length > 0
+        ? `clips.artist_name IN (${favoriteArtists.map(() => '?').join(',')})`
+        : '0';
 
     // Build personalized query
     let query = `
@@ -477,7 +481,7 @@ export async function getPersonalizedFeed(c: Context) {
         user_profiles.display_name as user_display_name,
         user_profiles.profile_image_url as user_avatar,
         CASE 
-          WHEN clips.artist_name IN (${favoriteArtists.map(() => '?').join(',')}) THEN 10
+          WHEN ${favoriteArtistScoreSql} THEN 10
           ELSE 0
         END as artist_score,
         CASE
@@ -488,7 +492,6 @@ export async function getPersonalizedFeed(c: Context) {
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
       AND ${mainFeedFilter}
-      AND clips.mocha_user_id != ?
       AND NOT EXISTS (
         SELECT 1
         FROM user_blocks
@@ -498,7 +501,8 @@ export async function getPersonalizedFeed(c: Context) {
       )
     `;
 
-    const bindings: any[] = [...favoriteArtists];
+    const bindings: any[] =
+      Array.isArray(favoriteArtists) && favoriteArtists.length > 0 ? [...favoriteArtists] : [];
 
     // Add location-based scoring if user has set home location
     if (hasLocation) {
@@ -514,7 +518,7 @@ export async function getPersonalizedFeed(c: Context) {
           user_profiles.display_name as user_display_name,
           user_profiles.profile_image_url as user_avatar,
           CASE 
-            WHEN clips.artist_name IN (${favoriteArtists.map(() => '?').join(',')}) THEN 10
+            WHEN ${favoriteArtistScoreSql} THEN 10
             ELSE 0
           END as artist_score,
           CASE
@@ -539,7 +543,6 @@ export async function getPersonalizedFeed(c: Context) {
         LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
         WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
         AND ${mainFeedFilter}
-        AND clips.mocha_user_id != ?
         AND NOT EXISTS (
           SELECT 1
           FROM user_blocks
@@ -552,8 +555,8 @@ export async function getPersonalizedFeed(c: Context) {
       bindings.push(lat, lon, lat, radiusMiles);
     }
 
-    // Exclude viewer's own uploads from "For You"
-    bindings.push(uid, uid, uid);
+    // Block list for both directions
+    bindings.push(uid, uid);
 
     // Order by total score
     query += `

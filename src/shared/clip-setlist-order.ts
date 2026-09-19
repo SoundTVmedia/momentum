@@ -1,6 +1,7 @@
 import { displayNamesClose, normalizeArtistDisplayName } from './artist-name-match';
 import { jamBaseEventMatchesCapture } from './jambase-event-day';
 import type { JamBaseSetlistSong } from './jambase-setlist';
+import { isoFromEventStart, parseShowTimeMs } from './show-timestamp';
 
 /** Spacing used to turn a setlist index into a recorded-time key. */
 export const SETLIST_SONG_SPACING_MS = 4 * 60 * 1000;
@@ -24,21 +25,7 @@ export function setlistIndexForSongTitle(
 }
 
 function parseTimeMs(value: unknown): number | null {
-  if (value == null || value === '') return null;
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    const ms = value < 1e12 ? value * 1000 : value;
-    return Number.isFinite(ms) ? ms : null;
-  }
-  const raw = String(value).trim();
-  if (!raw) return null;
-  if (/^\d+$/.test(raw)) {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return null;
-    const ms = n < 1e12 ? n * 1000 : n;
-    return Number.isFinite(ms) ? ms : null;
-  }
-  const parsed = Date.parse(raw);
-  return Number.isFinite(parsed) ? parsed : null;
+  return parseShowTimeMs(value);
 }
 
 /**
@@ -254,4 +241,11 @@ export function eventStartIsoFromPayload(
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return null;
+}
+
+/** Recorded-time stand-in when a tagged clip has no capture metadata. */
+export function clipTimestampFromEventStart(
+  eventStartIso: string | null | undefined,
+): string | null {
+  return isoFromEventStart(eventStartIso);
 }

@@ -8,6 +8,7 @@ import {
   jamBaseVenueTimezone,
 } from './jambase-event-day';
 import { jamBaseEventTitle, artistAtVenueTitle } from './event-title';
+import { formatShowCardDate } from './show-timestamp';
 
 const JAMBASE_EVENT_IMAGE_FALLBACK =
   'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop';
@@ -139,15 +140,7 @@ export function jamBaseEventVenueCityLine(ev: JamBaseEventRecord): string {
 }
 
 export function formatJamBaseEventDate(iso?: string | null): string {
-  if (!iso) return 'Date TBA';
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return 'Date TBA';
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatShowCardDate(iso);
 }
 
 export function formatJamBaseEventTime(iso?: string | null): string {

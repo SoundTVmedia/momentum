@@ -7,6 +7,7 @@ import { archivalUploadNavState } from '@/react-app/lib/archival-upload';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 import { jamBaseEventIsConcluded } from '@/shared/jambase-event-day';
 import type { UserShowMark } from '@/shared/show-marks';
+import { formatShowCardDate } from '@/shared/show-timestamp';
 
 function showTitle(mark: UserShowMark): string {
   return (
@@ -17,11 +18,8 @@ function showTitle(mark: UserShowMark): string {
 }
 
 function showDate(value: string | null): string {
-  if (!value) return 'Date unavailable';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const label = formatShowCardDate(value);
+  return label === 'Date TBA' ? 'Date unavailable' : label;
 }
 
 export default function ArchivalHubPage() {

@@ -93,6 +93,7 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
         artist_name TEXT,
         venue_name TEXT,
         timestamp TEXT,
+        created_at TEXT,
         jambase_event_id TEXT,
         jambase_venue_id TEXT,
         jambase_artist_id TEXT,
@@ -183,6 +184,28 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       { show_id: 'jambase:15668776', clip_count: 1, artist_name: 'Phish' },
     ]);
     expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
+  });
+
+  it('ignores Unix-epoch clip timestamps when dating a past-show card', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, created_at, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Hot Mulligan', 'Central Park', '1970-01-01T00:00:00.000Z', '2026-09-19T16:00:00.000Z', 'jambase:sk', 'jambase:sk', 'Shaky Knees Festival')
+    `).run();
+
+    const rows = db
+      .prepare(
+        `SELECT ${groupedPastShowsSelectSql()}
+         FROM clips
+         GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}`,
+      )
+      .all() as Array<{ show_date: string | null; event_title: string | null }>;
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.event_title).toBe('Shaky Knees Festival');
+    expect(rows[0]?.show_date).toBe('2026-09-19T16:00:00.000Z');
   });
 
   it('prefers a real clip poster over empty thumbnail strings', () => {
@@ -519,6 +542,38 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
       .all() as Array<{ id: number }>;
 
     expect(rows).toEqual([]);
+  });
+
+  it('keeps a tagged clip whose capture time is Unix epoch when the event row is missing', () => {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        timestamp TEXT,
+        created_at TEXT,
+        jambase_event_id TEXT
+      );
+      CREATE TABLE jambase_events (
+        jambase_event_id TEXT PRIMARY KEY,
+        start_date TEXT
+      );
+    `);
+    db.prepare(
+      `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
+       VALUES (1, '1970-01-01T00:00:00.000Z', datetime('now'), 'festival-missing-row')`,
+    ).run();
+
+    const rows = db
+      .prepare(
+        `SELECT clips.id FROM clips
+         LEFT JOIN jambase_events latest_scene_ev
+           ON latest_scene_ev.jambase_event_id = clips.jambase_event_id
+         WHERE ${LATEST_SCENE_CLIP_FRESH_SQL}`,
+      )
+      .all() as Array<{ id: number }>;
+
+    expect(rows).toEqual([{ id: 1 }]);
   });
 });
 

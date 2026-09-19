@@ -1,3 +1,5 @@
+import { parseShowTimeMs } from './show-timestamp';
+
 /** Tagged shows in Latest must have happened within the last 30 days. */
 export const LATEST_SCENE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -6,6 +8,8 @@ export const LATEST_SCENE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
  * Unmatched clips stay in Latest. Tagged clips qualify only if the associated
  * event happened within `maxAgeMs` of now — not merely because the upload is
  * recent. Late uploads to older past shows still belong on the event page.
+ * Unix-epoch / unset capture times are treated as missing so they are not
+ * dropped as if the show happened in 1970.
  */
 export function clipQualifiesForLatestScene(opts: {
   nowMs?: number;
@@ -15,8 +19,8 @@ export function clipQualifiesForLatestScene(opts: {
   const now = opts.nowMs ?? Date.now();
   const raw = opts.showStartAt?.trim();
   if (!raw) return true;
-  const showAt = Date.parse(raw);
-  if (!Number.isFinite(showAt)) return true;
+  const showAt = parseShowTimeMs(raw);
+  if (showAt == null) return true;
   const maxAge = opts.maxAgeMs ?? LATEST_SCENE_MAX_AGE_MS;
   return now - showAt <= maxAge;
 }

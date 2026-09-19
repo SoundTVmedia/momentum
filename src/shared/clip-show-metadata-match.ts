@@ -9,6 +9,7 @@ import {
   haversineMiles,
 } from './jambase-events';
 import { jamBaseEventMatchesCapture } from './jambase-event-day';
+import { parseShowTimeMs } from './show-timestamp';
 
 export const CLIP_SHOW_METADATA_MESSAGES = {
   date_mismatch: "This video wasn't recorded on the night of this show.",
@@ -111,7 +112,7 @@ export function clipMetadataMatchesShow(input: {
   const lon =
     input.longitude != null && Number.isFinite(input.longitude) ? input.longitude : undefined;
 
-  if (!recordedAt || !Number.isFinite(Date.parse(recordedAt))) {
+  if (!recordedAt || parseShowTimeMs(recordedAt) == null) {
     if (lat != null && lon != null) {
       const venue = jamBaseEventVenueCoords(input.event);
       if (venue && haversineMiles(lat, lon, venue.lat, venue.lon) > GPS_MATCH_MAX_MILES) {
@@ -125,7 +126,8 @@ export function clipMetadataMatchesShow(input: {
     return { ok: true };
   }
 
-  const captureMs = Date.parse(recordedAt);
+  const captureMs = parseShowTimeMs(recordedAt);
+  if (captureMs == null) return { ok: true };
   const startDate = typeof input.event.startDate === 'string' ? input.event.startDate.trim() : '';
 
   if (startDate && !jamBaseEventMatchesCapture(input.event, captureMs, lat, lon)) {
