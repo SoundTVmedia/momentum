@@ -42,6 +42,23 @@ export function festivalPath(name: string | null | undefined): string {
   return slug ? `/festivals/${slug}` : '/festivals';
 }
 
+/** Festival hub for an event-title clips page, or null when this is a regular show. */
+export function festivalPageHrefFromEvent(
+  ev: Record<string, unknown> | null | undefined,
+  fallbackName?: string | null,
+): string | null {
+  const fromEvent =
+    (ev && (jamBaseEventTitle(ev) || (typeof ev.name === 'string' ? ev.name.trim() : ''))) || '';
+  const fallback = typeof fallbackName === 'string' ? fallbackName.trim() : '';
+  const titles = [...new Set([fallback, fromEvent].filter(Boolean))];
+  for (const title of titles) {
+    if (!isJamBaseFestivalEvent(ev) && !isJamBaseFestivalEvent({ name: title })) continue;
+    const path = festivalPath(title);
+    if (path !== '/festivals') return path;
+  }
+  return null;
+}
+
 export function apiFestivalPath(name: string | null | undefined): string {
   const slug = festivalCanonicalSlug(name) || slugifyEntityName(name);
   return slug ? `/api/festivals/${slug}` : '/api/festivals';

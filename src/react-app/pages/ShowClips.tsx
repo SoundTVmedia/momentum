@@ -9,7 +9,7 @@ import ShowSetlistPanel from '@/react-app/components/ShowSetlistPanel';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiFetch } from '@/react-app/lib/apiFetch';
-import { artistPath, showClipsPath, venuePath } from '@/shared/app-paths';
+import { artistPath, festivalPageHrefFromEvent, showClipsPath, venuePath } from '@/shared/app-paths';
 import { isJamBaseEventId, pickClipForShowHeader } from '@/shared/show-id';
 import { jamBaseEventTitle } from '@/shared/event-title';
 import { jamBaseEventIsConcluded, jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
@@ -190,6 +190,7 @@ export default function ShowClipsPage() {
           year: 'numeric',
         })
       : '';
+  const festivalHref = festivalPageHrefFromEvent(markEvent, pageTitle);
 
   return (
     <div className="min-h-screen text-white">
@@ -198,19 +199,36 @@ export default function ShowClipsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Back Button */}
         <button
-          onClick={() => navigate(artistName ? artistPath(artistName) : '/')}
+          onClick={() =>
+            navigate(festivalHref || (artistName ? artistPath(artistName) : '/'))
+          }
           className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors mb-6"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to {artistLabel || 'artist'}</span>
+          <span>
+            {festivalHref
+              ? `Back to ${pageTitle} festival`
+              : `Back to ${artistLabel || 'artist'}`}
+          </span>
         </button>
 
         {/* Show Header */}
         <div className="bg-gradient-to-r from-momentum-ember/20 to-momentum-flare/12 border border-momentum-ember/25 rounded-xl p-6 sm:p-8 mb-6">
           <div className="flex items-start justify-between gap-4 mb-4">
-            <h1 className="min-w-0 flex-1 text-3xl sm:text-4xl md:text-5xl font-bold text-white">
-              {pageTitle}
-            </h1>
+            <div className="min-w-0 flex-1">
+              {festivalHref ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(festivalHref)}
+                  className="text-xs font-semibold uppercase tracking-[0.18em] text-momentum-flare mb-2 hover:text-white transition-colors"
+                >
+                  Festival page
+                </button>
+              ) : null}
+              <h1 className="min-w-0 text-3xl sm:text-4xl md:text-5xl font-bold text-white">
+                {pageTitle}
+              </h1>
+            </div>
             <EventShowRating
               showId={typeof markEvent?.identifier === 'string' ? markEvent.identifier : showId}
               pastShow={pastShow}
@@ -262,6 +280,15 @@ export default function ShowClipsPage() {
               eventTitle={pageTitle}
               className="mt-4 w-full max-w-xl"
             />
+          ) : null}
+          {festivalHref ? (
+            <button
+              type="button"
+              onClick={() => navigate(festivalHref)}
+              className="mt-4 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-white/20 bg-white/10 text-white font-semibold text-sm hover:bg-white/15 transition-all"
+            >
+              View festival page
+            </button>
           ) : null}
         </div>
 

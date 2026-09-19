@@ -17,6 +17,9 @@ import {
   nextCalendarDayYmdInTimeZone,
   jamBaseEventSameCalendarDay,
   jamBaseEventStartMs,
+  jamBaseEventShouldOfferTickets,
+  jamBaseEventUsesFestivalRunWindow,
+  jamBaseEventOnFestivalRunDay,
 } from './jambase-event-day';
 
 describe('jamBaseEventLocalYmd', () => {
@@ -366,5 +369,91 @@ describe('jamBaseEventCameraCaptureDay', () => {
     };
     const captureMs = Date.parse('2026-06-20T20:00:00.000Z'); // 4pm Eastern June 20
     expect(jamBaseEventCameraCaptureDay(yesterday, captureMs)).toBe(false);
+  });
+});
+
+describe('festival run window (Shaky Knees-style date-only start/end)', () => {
+  const festival = {
+    identifier: 'jambase:15698172',
+    name: 'Shaky Knees',
+    '@type': 'Festival',
+    startDate: '2026-09-18',
+    endDate: '2026-09-20',
+    location: {
+      name: 'Piedmont Park',
+      address: { 'x-timezone': 'America/New_York' },
+    },
+  };
+  const morningStart = Date.parse('2026-09-18T14:00:00.000Z'); // 10am ET Sept 18
+  const dayTwo = Date.parse('2026-09-19T19:00:00.000Z'); // 3pm ET Sept 19
+  const lastNight = Date.parse('2026-09-21T00:00:00.000Z'); // 8pm ET Sept 20
+  const afterClose = Date.parse('2026-09-21T14:00:00.000Z'); // 10am ET Sept 21
+  const beforeGates = Date.parse('2026-09-17T23:00:00.000Z'); // 7pm ET Sept 17
+
+  it('detects the festival run window', () => {
+    expect(jamBaseEventUsesFestivalRunWindow(festival)).toBe(true);
+  });
+
+  it('is I\'m-there on the start date, middle day, and last day', () => {
+    expect(jamBaseEventOnFestivalRunDay(festival, morningStart)).toBe(true);
+    expect(jamBaseEventImThereEligible(festival, morningStart)).toBe(true);
+    expect(jamBaseEventImThereEligible(festival, dayTwo)).toBe(true);
+    expect(jamBaseEventImThereEligible(festival, lastNight)).toBe(true);
+    expect(jamBaseEventInProgress(festival, dayTwo)).toBe(true);
+  });
+
+  it('stays upcoming/in-progress through the last day, then concludes', () => {
+    expect(jamBaseEventUpcomingOrInProgress(festival, beforeGates)).toBe(true);
+    expect(jamBaseEventImThereEligible(festival, beforeGates)).toBe(false);
+    expect(jamBaseEventUpcomingOrInProgress(festival, dayTwo)).toBe(true);
+    expect(jamBaseEventIsConcluded(festival, dayTwo)).toBe(false);
+    expect(jamBaseEventIsConcluded(festival, afterClose)).toBe(true);
+    expect(jamBaseEventImThereEligible(festival, afterClose)).toBe(false);
+  });
+
+  it('hides tickets while the festival is in progress', () => {
+    expect(jamBaseEventShouldOfferTickets(festival, beforeGates)).toBe(true);
+    expect(jamBaseEventShouldOfferTickets(festival, morningStart)).toBe(false);
+    expect(jamBaseEventShouldOfferTickets(festival, dayTwo)).toBe(false);
+    expect(jamBaseEventShouldOfferTickets(festival, afterClose)).toBe(false);
+  });
+
+  it('matches clips captured on any day of the run', () => {
+    expect(jamBaseEventMatchesCapture(festival, morningStart)).toBe(true);
+    expect(jamBaseEventMatchesCapture(festival, dayTwo)).toBe(true);
+    expect(jamBaseEventCameraCaptureDay(festival, dayTwo)).toBe(true);
+    expect(jamBaseEventMatchesCapture(festival, afterClose)).toBe(false);
+  });
+
+  it('keeps date-only festival marks I\'m-there through a 3-day run without endDate', () => {
+    const markEvent = {
+      name: 'Shaky Knees',
+      startDate: '2026-09-18',
+    };
+    const lastDayUtc = Date.parse('2026-09-20T18:00:00.000Z');
+    expect(jamBaseEventImThereEligible(markEvent, morningStart)).toBe(true);
+    expect(jamBaseEventImThereEligible(markEvent, dayTwo)).toBe(true);
+    expect(jamBaseEventImThereEligible(markEvent, lastDayUtc)).toBe(true);
+    expect(jamBaseEventImThereEligible(markEvent, afterClose)).toBe(false);
+    expect(jamBaseEventMatchesCapture(markEvent, dayTwo)).toBe(true);
+  });
+
+  it('does not treat a single-night concert as a multi-day festival', () => {
+    const concert = {
+      name: 'Phish at Madison Square Garden',
+      startDate: '2026-09-18T19:30:00',
+      location: {
+        name: 'Madison Square Garden',
+        address: { 'x-timezone': 'America/New_York' },
+      },
+    };
+    expect(jamBaseEventUsesFestivalRunWindow(concert)).toBe(false);
+    expect(jamBaseEventImThereEligible(concert, morningStart)).toBe(false);
+    expect(jamBaseEventImThereEligible(concert, Date.parse('2026-09-18T23:45:00.000Z'))).toBe(true);
+    expect(jamBaseEventImThereEligible(concert, Date.parse('2026-09-19T19:00:00.000Z'))).toBe(false);
+    expect(jamBaseEventShouldOfferTickets(concert, morningStart)).toBe(true);
+    expect(jamBaseEventShouldOfferTickets(concert, Date.parse('2026-09-18T23:45:00.000Z'))).toBe(
+      true,
+    );
   });
 });

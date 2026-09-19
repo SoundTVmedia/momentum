@@ -277,6 +277,28 @@ describe('availableShowMarkActionsForEvent', () => {
       ),
     ).toEqual(['attended']);
   });
+
+  it('offers I\'m there on every day of a multi-day festival', () => {
+    const festival = {
+      name: 'Shaky Knees',
+      '@type': 'Festival',
+      startDate: '2026-09-18',
+      endDate: '2026-09-20',
+      location: { address: { 'x-timezone': 'America/New_York' } },
+    };
+    expect(availableShowMarkActionsForEvent(festival, new Date('2026-09-17T23:00:00.000Z'))).toEqual([
+      'going',
+    ]);
+    expect(availableShowMarkActionsForEvent(festival, new Date('2026-09-18T14:00:00.000Z'))).toEqual([
+      'im_there',
+    ]);
+    expect(availableShowMarkActionsForEvent(festival, new Date('2026-09-19T19:00:00.000Z'))).toEqual([
+      'im_there',
+    ]);
+    expect(availableShowMarkActionsForEvent(festival, new Date('2026-09-21T14:00:00.000Z'))).toEqual([
+      'attended',
+    ]);
+  });
 });
 
 describe('showMarkCardStatus', () => {

@@ -12,7 +12,7 @@ import {
   type ShowMarkAction,
   type ShowMarkStatus,
 } from '@/shared/show-marks';
-import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
+import { jamBaseEventUpcomingOrInProgress, jamBaseEventImThereEligible, jamBaseEventUsesFestivalRunWindow } from '@/shared/jambase-event-day';
 import { archivalUploadNavState } from '@/react-app/lib/archival-upload';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
 
@@ -52,7 +52,10 @@ export default function ShowMarkButtons({
   const current = eventId ? getMarkForEvent(eventId) : null;
   const attendedActive = isAttendedShowMarkActive(current);
   const showOver = !jamBaseEventUpcomingOrInProgress(event);
-  const offerUpload = Boolean(showUploadClip && user && attendedActive && current && showOver);
+  const festivalLive = jamBaseEventUsesFestivalRunWindow(event) && jamBaseEventImThereEligible(event);
+  const offerUpload = Boolean(
+    showUploadClip && ((user && attendedActive && current && showOver) || festivalLive),
+  );
 
   if (!eventId || (actions.length === 0 && !offerUpload)) return null;
 
@@ -127,14 +130,18 @@ export default function ShowMarkButtons({
           </button>
         );
       })}
-      {offerUpload && current ? (
+      {offerUpload ? (
         <button
           type="button"
-          onClick={() =>
+          onClick={() => {
+            if (!user) {
+              alert('Sign in to upload a clip from this show.');
+              return;
+            }
             navigate('/upload?archive=true', {
               state: archivalUploadNavState(current, event),
-            })
-          }
+            });
+          }}
           className={[
             'inline-flex items-center justify-center gap-1 rounded-lg font-semibold text-white momentum-grad-interactive whitespace-nowrap shrink-0',
             smallType ? 'text-xs' : '',

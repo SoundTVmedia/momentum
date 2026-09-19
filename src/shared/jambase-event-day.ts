@@ -12,9 +12,82 @@ export const JAMBASE_CAMERA_EVENT_MAX_HOURS_AFTER_START = 10;
 /** Look back this many hours before capture when resolving in-show listings at a venue. */
 export const JAMBASE_EVENT_IN_SHOW_LOOKBACK_HOURS = 10;
 
+const FESTIVAL_TYPE_RE = /festival/i;
+const FESTIVAL_NAME_RE = /fest(?:ival)?s?\b/i;
+const FESTIVAL_BRAND_RE =
+  /\b(?:lollapalooza|coachella|bonnaroo|gov(?:ernors)? ball|outside lands|burning man|sxsw|electric forest|rolling loud|ultra music|tomorrowland|glastonbury|acl|shaky knees)\b/i;
+const LINEUP_FESTIVAL_MIN_PERFORMERS = 8;
+
+/** Date-only festival marks often omit `endDate`; assume start plus this many extra days. */
+const DATE_ONLY_FESTIVAL_RUN_EXTRA_DAYS = 2;
+
 export function jamBaseEventLocalYmd(startDate: string): string | null {
   const m = startDate.trim().match(/^(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : null;
+}
+
+function jamBaseEventStartLocalYmd(ev: Record<string, unknown>): string | null {
+  return typeof ev.startDate === 'string' ? jamBaseEventLocalYmd(ev.startDate) : null;
+}
+
+function jamBaseEventEndLocalYmd(ev: Record<string, unknown>): string | null {
+  return typeof ev.endDate === 'string' ? jamBaseEventLocalYmd(ev.endDate) : null;
+}
+
+function addCalendarDaysYmd(ymd: string, days: number): string {
+  const ms = Date.parse(`${ymd}T12:00:00Z`);
+  if (!Number.isFinite(ms)) return ymd;
+  return ymdUtc(ms + days * 86400 * 1000);
+}
+
+function jamBaseEventResolvedEndYmd(ev: Record<string, unknown>): string | null {
+  const startYmd = jamBaseEventStartLocalYmd(ev);
+  if (!startYmd) return null;
+  const explicit = jamBaseEventEndLocalYmd(ev);
+  if (explicit && explicit >= startYmd) return explicit;
+  const sd = typeof ev.startDate === 'string' ? ev.startDate.trim() : '';
+  if (jamBaseEventUsesFestivalRunWindow(ev) && !/T\d{2}:\d{2}/.test(sd)) {
+    return addCalendarDaysYmd(startYmd, DATE_ONLY_FESTIVAL_RUN_EXTRA_DAYS);
+  }
+  return startYmd;
+}
+
+/**
+ * Multi-day / festival listings use an inclusive venue-local start→end calendar
+ * window instead of the single-night 4-hour in-progress window.
+ * Kept local to this module to avoid a jambase-festival ↔ event-day import cycle.
+ */
+export function jamBaseEventUsesFestivalRunWindow(ev: Record<string, unknown>): boolean {
+  const typeBits: string[] = [];
+  for (const key of ['@type', 'type', 'eventType', 'x-eventType', 'additionalType']) {
+    const raw = ev[key];
+    if (typeof raw === 'string' && raw.trim()) typeBits.push(raw);
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (typeof item === 'string' && item.trim()) typeBits.push(item);
+      }
+    }
+  }
+  if (FESTIVAL_TYPE_RE.test(typeBits.join(' '))) return true;
+  const name = typeof ev.name === 'string' ? ev.name : '';
+  if (name && (FESTIVAL_NAME_RE.test(name) || FESTIVAL_BRAND_RE.test(name))) return true;
+  return Array.isArray(ev.performer) && ev.performer.length >= LINEUP_FESTIVAL_MIN_PERFORMERS;
+}
+
+/** Venue-local today (or capture day) falls on the festival start date through end date, inclusive. */
+export function jamBaseEventOnFestivalRunDay(
+  ev: Record<string, unknown>,
+  captureMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (!jamBaseEventUsesFestivalRunWindow(ev)) return false;
+  const startYmd = jamBaseEventStartLocalYmd(ev);
+  if (!startYmd) return false;
+  const endYmd = jamBaseEventResolvedEndYmd(ev) ?? startYmd;
+  const tz = jamBaseEventFestivalRunTimeZone(ev, userLat, userLon);
+  const dayYmd = ymdInTimeZone(captureMs, tz);
+  return dayYmd >= startYmd && dayYmd <= endYmd;
 }
 
 /** Rough US timezone from GPS when JamBase omits `x-timezone` on the venue. */
@@ -43,6 +116,22 @@ export function jamBaseVenueTimezone(
     if (inferred) return inferred;
   }
   return 'UTC';
+}
+
+function jamBaseEventFestivalRunTimeZone(
+  ev: Record<string, unknown>,
+  userLat?: number,
+  userLon?: number,
+): string {
+  const tz = jamBaseVenueTimezone(ev, userLat, userLon);
+  if (tz !== 'UTC') return tz;
+  try {
+    const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (typeof local === 'string' && local.trim() && local.trim() !== 'UTC') return local.trim();
+  } catch {
+    /* fall through */
+  }
+  return tz;
 }
 
 export function ymdInTimeZone(ms: number, timeZone: string): string {
@@ -314,6 +403,7 @@ export function jamBaseEventCameraCaptureDay(
   userLat?: number,
   userLon?: number,
 ): boolean {
+  if (jamBaseEventOnFestivalRunDay(ev, captureMs, userLat, userLon)) return true;
   if (!jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)) return false;
   const hours = jamBaseEventHoursFromStart(ev, captureMs, userLat, userLon);
   if (hours == null) return true;
@@ -329,7 +419,12 @@ export function jamBaseEventHasStarted(
   userLon?: number,
 ): boolean {
   const hours = jamBaseEventHoursFromStart(ev, nowMs, userLat, userLon);
-  return hours != null && hours >= 0;
+  if (hours != null) return hours >= 0;
+  if (!jamBaseEventUsesFestivalRunWindow(ev)) return false;
+  const startYmd = jamBaseEventStartLocalYmd(ev);
+  if (!startYmd) return false;
+  const tz = jamBaseEventFestivalRunTimeZone(ev, userLat, userLon);
+  return ymdInTimeZone(nowMs, tz) >= startYmd;
 }
 
 /** True when the show has started and is still within the in-progress Going window. */
@@ -339,6 +434,7 @@ export function jamBaseEventInProgress(
   userLat?: number,
   userLon?: number,
 ): boolean {
+  if (jamBaseEventOnFestivalRunDay(ev, nowMs, userLat, userLon)) return true;
   const hours = jamBaseEventHoursFromStart(ev, nowMs, userLat, userLon);
   if (hours == null) return false;
   return hours >= 0 && hours <= JAMBASE_EVENT_ONGOING_HOURS_AFTER_START;
@@ -372,6 +468,7 @@ export function jamBaseEventFeedVisible(
   userLat?: number,
   userLon?: number,
 ): boolean {
+  if (jamBaseEventOnFestivalRunDay(ev, captureMs, userLat, userLon)) return true;
   if (jamBaseEventSameCalendarDay(ev, captureMs, userLat, userLon)) {
     const hours = jamBaseEventHoursFromStart(ev, captureMs, userLat, userLon);
     if (hours == null) return true;
@@ -393,7 +490,19 @@ export function jamBaseEventUpcomingOrInProgress(
 ): boolean {
   if (jamBaseEventFeedVisible(ev, nowMs, userLat, userLon)) return true;
   const startMs = jamBaseEventStartMs(ev, userLat, userLon);
-  if (startMs == null) return true;
+  if (startMs == null) {
+    const startYmd = jamBaseEventStartLocalYmd(ev);
+    if (!startYmd) return true;
+    const tz = jamBaseEventUsesFestivalRunWindow(ev)
+      ? jamBaseEventFestivalRunTimeZone(ev, userLat, userLon)
+      : jamBaseVenueTimezone(ev, userLat, userLon);
+    const todayYmd = ymdInTimeZone(nowMs, tz);
+    if (jamBaseEventUsesFestivalRunWindow(ev)) {
+      const endYmd = jamBaseEventResolvedEndYmd(ev) ?? startYmd;
+      return todayYmd <= endYmd;
+    }
+    return startYmd >= todayYmd;
+  }
   return startMs > nowMs;
 }
 
@@ -407,6 +516,22 @@ export function jamBaseEventIsConcluded(
   return !jamBaseEventUpcomingOrInProgress(ev, nowMs, userLat, userLon);
 }
 
+/** Tickets stay on upcoming listings. Festivals hide them on every day of the run. */
+export function jamBaseEventShouldOfferTickets(
+  ev: Record<string, unknown>,
+  nowMs: number = Date.now(),
+  userLat?: number,
+  userLon?: number,
+): boolean {
+  if (
+    jamBaseEventUsesFestivalRunWindow(ev) &&
+    jamBaseEventImThereEligible(ev, nowMs, userLat, userLon)
+  ) {
+    return false;
+  }
+  return jamBaseEventUpcomingOrInProgress(ev, nowMs, userLat, userLon);
+}
+
 /**
  * True when capture instant is on the same venue-local calendar day as the event,
  * including late-night shows that cross midnight (e.g. 8pm show, 1am capture),
@@ -418,6 +543,7 @@ export function jamBaseEventMatchesCapture(
   userLat?: number,
   userLon?: number,
 ): boolean {
+  if (jamBaseEventOnFestivalRunDay(ev, captureMs, userLat, userLon)) return true;
   if (jamBaseEventSameShowNight(ev, captureMs, userLat, userLon)) return true;
   return jamBaseEventOngoingAtCapture(ev, captureMs, userLat, userLon);
 }

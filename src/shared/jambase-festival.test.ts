@@ -12,6 +12,7 @@ import {
   pickFestivalGroupForSlug,
 } from './jambase-festival';
 import { jamBaseEventToShowMarkInput } from './show-marks';
+import { jamBaseEventImThereEligible, jamBaseEventShouldOfferTickets } from './jambase-event-day';
 
 const lineup = (names: string[], headliner = names[0]) =>
   names.map((name) => ({
@@ -186,6 +187,9 @@ describe('festivalPageToJamBaseEvent', () => {
       venue_location: 'Atlanta, GA',
       start_date: '2026-09-18',
     });
+    const dayTwo = Date.parse('2026-09-19T19:00:00.000Z');
+    expect(jamBaseEventImThereEligible(ev!, dayTwo)).toBe(true);
+    expect(jamBaseEventShouldOfferTickets(ev!, dayTwo)).toBe(false);
   });
 
   it('returns null without a JamBase event id', () => {

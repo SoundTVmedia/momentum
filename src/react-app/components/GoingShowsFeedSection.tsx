@@ -9,7 +9,7 @@ import SectionHeading from '@/react-app/components/SectionHeading';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
-import { jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
+import { jamBaseEventShouldOfferTickets } from '@/shared/jambase-event-day';
 import { jamBaseEventTicketUrl } from '@/shared/jambase-events';
 import { isUpcomingShowMark, showMarkCardStatus, showMarkCardStatusLabel, showMarkToJamBaseEvent, type UserShowMark } from '@/shared/show-marks';
 
@@ -43,7 +43,7 @@ function FriendGoingCard({
     [mark.artist_name, mark.venue_name].filter(Boolean).join(' at ') ||
     'Show';
   const event = jbEvent ?? showMarkToJamBaseEvent(mark);
-  const ticketUrl = jamBaseEventUpcomingOrInProgress(event)
+  const ticketUrl = jamBaseEventShouldOfferTickets(event)
     ? jamBaseEventTicketUrl(event)
     : null;
 

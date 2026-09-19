@@ -20,7 +20,7 @@ import {
   type FestivalPageFestival,
 } from '@/shared/jambase-festival';
 import { jamBaseEventTicketUrl } from '@/shared/jambase-events';
-import { jamBaseEventIsConcluded } from '@/shared/jambase-event-day';
+import { jamBaseEventIsConcluded, jamBaseEventShouldOfferTickets } from '@/shared/jambase-event-day';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import type { ClipWithUser } from '@/shared/types';
 
@@ -84,8 +84,14 @@ export default function FestivalPage() {
   const dateLabel = formatFestivalDateRange(festival.start_date, festival.end_date);
   const locationLabel = [festival.venue_name, festival.city_line].filter(Boolean).join(' · ');
   const markEvent = festivalPageToJamBaseEvent(festival);
-  const pastShow = Boolean(markEvent && jamBaseEventIsConcluded(markEvent));
-  const ticketUrl = !pastShow
+  const dateEvent = markEvent ?? {
+    name: festival.name,
+    '@type': 'Festival',
+    startDate: festival.start_date ?? undefined,
+    endDate: festival.end_date ?? undefined,
+  };
+  const pastShow = jamBaseEventIsConcluded(dateEvent);
+  const ticketUrl = jamBaseEventShouldOfferTickets(dateEvent)
     ? festival.ticket_url?.trim() || (markEvent ? jamBaseEventTicketUrl(markEvent) : null)
     : null;
 

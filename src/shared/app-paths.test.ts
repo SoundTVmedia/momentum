@@ -3,6 +3,7 @@ import {
   clipShowClipsPath,
   festivalPath,
   apiFestivalPath,
+  festivalPageHrefFromEvent,
   jamBaseEventShowPath,
   pastShowClipsPath,
   showMarkClipsPath,
@@ -134,6 +135,19 @@ describe('festivalPath', () => {
     expect(apiFestivalPath('Bonnaroo Music Festival 2026')).toBe(
       '/api/festivals/bonnaroo-music-festival',
     );
+  });
+});
+
+describe('festivalPageHrefFromEvent', () => {
+  it('links a festival clips title to the festival page', () => {
+    expect(festivalPageHrefFromEvent(null, 'Shaky Knees')).toBe('/festivals/shaky-knees');
+    expect(
+      festivalPageHrefFromEvent({ name: 'Shaky Knees Festival', '@type': 'Festival' }),
+    ).toBe('/festivals/shaky-knees-festival');
+  });
+
+  it('returns null for a regular concert', () => {
+    expect(festivalPageHrefFromEvent(null, 'Phish at Madison Square Garden')).toBeNull();
   });
 });
 
