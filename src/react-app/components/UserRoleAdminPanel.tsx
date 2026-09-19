@@ -11,6 +11,7 @@ import type { ExtendedMochaUser } from '@/shared/types';
 type SearchUser = {
   mocha_user_id: string;
   display_name: string | null;
+  email: string | null;
   role: string;
   is_admin: number;
   is_moderator: number;
@@ -234,7 +235,7 @@ export default function UserRoleAdminPanel({ extendedUser }: UserRoleAdminPanelP
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by display name or user ID..."
+            placeholder="Search by display name, email, or user ID..."
             className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-momentum-flare"
           />
         </div>
@@ -290,7 +291,10 @@ export default function UserRoleAdminPanel({ extendedUser }: UserRoleAdminPanelP
                           </span>
                         )}
                       </div>
-                      <p className="text-gray-400 text-sm truncate">{user.mocha_user_id}</p>
+                      {user.email ? (
+                        <p className="text-gray-400 text-sm truncate">{user.email}</p>
+                      ) : null}
+                      <p className="text-gray-500 text-xs truncate">{user.mocha_user_id}</p>
                     </div>
                   </div>
 

@@ -3,6 +3,43 @@ import { isCommunityRole } from '../shared/user-roles';
 import { getStaffProfile, isAdmin, isSuperAdmin } from './admin-auth';
 import { mochaUserIdKey } from './mocha-user-id';
 
+export const ADMIN_USER_ROLE_SEARCH_SQL = `SELECT mocha_user_id, display_name, role, is_admin, is_moderator, is_superadmin, profile_image_url,
+            COALESCE(
+              (SELECT email FROM user_emails
+               WHERE user_emails.mocha_user_id = user_profiles.mocha_user_id
+               ORDER BY CASE WHEN user_emails.email LIKE ? THEN 0 ELSE 1 END
+               LIMIT 1),
+              (SELECT email FROM email_accounts WHERE email_accounts.id = user_profiles.mocha_user_id LIMIT 1),
+              (SELECT email FROM google_accounts WHERE google_accounts.id = user_profiles.mocha_user_id LIMIT 1),
+              (SELECT email FROM apple_accounts WHERE apple_accounts.id = user_profiles.mocha_user_id LIMIT 1)
+            ) AS email,
+            COALESCE(
+              (SELECT 1 FROM user_bans
+               WHERE user_bans.mocha_user_id = user_profiles.mocha_user_id
+               AND (user_bans.expires_at IS NULL OR user_bans.expires_at > datetime('now'))
+               LIMIT 1),
+              0
+            ) AS is_suspended
+     FROM user_profiles
+     WHERE display_name LIKE ? OR mocha_user_id LIKE ?
+        OR mocha_user_id IN (
+          SELECT mocha_user_id FROM user_emails WHERE email LIKE ?
+          UNION
+          SELECT id FROM email_accounts WHERE email LIKE ?
+          UNION
+          SELECT id FROM google_accounts WHERE email LIKE ?
+          UNION
+          SELECT id FROM apple_accounts WHERE email LIKE ?
+        )
+     ORDER BY display_name ASC
+     LIMIT 20`;
+
+export function adminUserRoleSearchBinds(q: string): string[] {
+  const like = `%${q}%`;
+  const emailLike = `%${q.toLowerCase()}%`;
+  return [emailLike, like, like, emailLike, emailLike, emailLike, emailLike];
+}
+
 export async function searchUsersForRoleAdmin(c: Context) {
   const mochaUser = c.get('user');
   if (!mochaUser) {
@@ -19,21 +56,8 @@ export async function searchUsersForRoleAdmin(c: Context) {
     return c.json({ users: [] });
   }
 
-  const users = await c.env.DB.prepare(
-    `SELECT mocha_user_id, display_name, role, is_admin, is_moderator, is_superadmin, profile_image_url,
-            COALESCE(
-              (SELECT 1 FROM user_bans
-               WHERE user_bans.mocha_user_id = user_profiles.mocha_user_id
-               AND (user_bans.expires_at IS NULL OR user_bans.expires_at > datetime('now'))
-               LIMIT 1),
-              0
-            ) AS is_suspended
-     FROM user_profiles
-     WHERE display_name LIKE ? OR mocha_user_id LIKE ?
-     ORDER BY display_name ASC
-     LIMIT 20`,
-  )
-    .bind(`%${q}%`, `%${q}%`)
+  const users = await c.env.DB.prepare(ADMIN_USER_ROLE_SEARCH_SQL)
+    .bind(...adminUserRoleSearchBinds(q))
     .all();
 
   return c.json({ users: users.results || [] });
