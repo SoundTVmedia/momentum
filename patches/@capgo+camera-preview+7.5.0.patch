@@ -64,7 +64,8 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
  
 -        // Create photo output
          self.photoOutput = AVCapturePhotoOutput()
-         self.photoOutput?.isHighResolutionCaptureEnabled = true
+-        self.photoOutput?.isHighResolutionCaptureEnabled = true
++        self.photoOutput?.isHighResolutionCaptureEnabled = false
  
 -        // Create video output
          self.fileVideoOutput = AVCaptureMovieFileOutput()
@@ -147,7 +148,10 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
  
                  // Defer adding photo/video outputs to avoid blocking
                  // These aren't needed immediately for preview
-@@ -280,11 +349,6 @@
+@@ -277,14 +346,9 @@
+                     if let photoOutput = self.photoOutput, captureSession.canAddOutput(photoOutput) {
+-                        photoOutput.isHighResolutionCaptureEnabled = true
++                        photoOutput.isHighResolutionCaptureEnabled = false
                          captureSession.addOutput(photoOutput)
                      }
  
@@ -166,16 +170,17 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 -                if captureSession.canSetSessionPreset(.hd4K3840x2160) {
 -                    targetPreset = .hd4K3840x2160
 -                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
-+                if captureSession.canSetSessionPreset(.hd1920x1080) {
-                     targetPreset = .hd1920x1080
-+                } else if captureSession.canSetSessionPreset(.hd1280x720) {
+-                    targetPreset = .hd1920x1080
++                if captureSession.canSetSessionPreset(.hd1280x720) {
 +                    targetPreset = .hd1280x720
++                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
++                    targetPreset = .hd1920x1080
                  }
 +            case "9:16":
-+                if captureSession.canSetSessionPreset(.hd1920x1080) {
-+                    targetPreset = .hd1920x1080
-+                } else if captureSession.canSetSessionPreset(.hd1280x720) {
++                if captureSession.canSetSessionPreset(.hd1280x720) {
 +                    targetPreset = .hd1280x720
++                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
++                    targetPreset = .hd1920x1080
 +                }
              case "4:3":
                  if captureSession.canSetSessionPreset(.photo) {
@@ -184,12 +189,12 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          }
      }
  
-+    /// Movie recording + stabilization need a video preset. `.photo` is the plugin default when
-+    /// no aspectRatio is passed (our full-bleed start path) and it silently refuses to stabilize.
-+    /// FEEDBACK THERMAL PATCH: never `.high` / 4K — 1080p30 is the capture ceiling.
++    /// Movie recording needs a video preset. `.photo` is the plugin default when
++    /// no aspectRatio is passed (our full-bleed start path).
++    /// FEEDBACK THERMAL PATCH: 720p is the capture ceiling — 1080p/4K overheats concert phones.
 +    private func applyVideoRecordingPreset() {
 +        guard let captureSession = self.captureSession else { return }
-+        let candidates: [AVCaptureSession.Preset] = [.hd1920x1080, .hd1280x720]
++        let candidates: [AVCaptureSession.Preset] = [.hd1280x720, .hd1920x1080]
 +        let chosen = candidates.first { captureSession.canSetSessionPreset($0) }
 +        if let chosen = chosen {
 +            captureSession.sessionPreset = chosen
@@ -292,11 +297,8 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +        let auto = device?.activeFormat.isVideoStabilizationModeSupported(.auto) ?? false
 +        print("[CameraPreview] Stab probe \(reason) device=\(device?.localizedName ?? "nil") preset=\(preset) cinematic=\(cinematic) standard=\(standard) auto=\(auto) connections=\(connections.count)")
 +
-+        // FEEDBACK THERMAL PATCH: never cinematic — ISP+GPU cost is too high for 15–60s clips.
-+        let ladder: [AVCaptureVideoStabilizationMode] = [.standard, .auto]
-+        let mode = ladder.first { candidate in
-+            device?.activeFormat.isVideoStabilizationModeSupported(candidate) ?? false
-+        } ?? .auto
++        // FEEDBACK THERMAL PATCH: no video stabilization — ISP+GPU cost cooks phones at shows.
++        let mode: AVCaptureVideoStabilizationMode = .off
 +
 +        for connection in connections where connection.isVideoStabilizationSupported {
 +            if !logOnly {

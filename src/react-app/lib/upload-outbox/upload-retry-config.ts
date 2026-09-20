@@ -12,9 +12,9 @@ export const UPLOAD_RETRY_CONFIG = {
   backoffDelaysMs: [60_000, 5 * 60_000, 20 * 60_000] as const,
   backoffCapMs: 20 * 60_000,
   /** Parallel in-flight uploads (FIFO among queued jobs). */
-  maxConcurrentUploads: 3,
-  /** Festival / stadium: several clips before any of them can upload. */
-  maxQueueSize: 12,
+  maxConcurrentUploads: 2,
+  /** Festival / stadium: queue many clips before any of them can upload. */
+  maxQueueSize: 50,
 } as const;
 
 /**

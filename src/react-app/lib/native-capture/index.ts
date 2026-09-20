@@ -15,7 +15,7 @@ import { getNativePlatform, isNativeApp } from '@/react-app/lib/native-bridge';
 export const NATIVE_CAPTURE_MAX_SECONDS = 60;
 export const NATIVE_LIVE_AUDD_SEGMENT_MS = 10_000;
 /** Stop idle camera preview so a pocketed phone does not keep the ISP hot. */
-export const CAPTURE_IDLE_STOP_MS = 20_000;
+export const CAPTURE_IDLE_STOP_MS = 10_000;
 
 export type NativeCaptureFacing = 'rear' | 'front';
 

@@ -1,10 +1,21 @@
+import { Capacitor } from '@capacitor/core';
+
 let wakeLock: WakeLockSentinel | null = null;
 let holdCount = 0;
+
+function shouldHoldScreenWakeLock(): boolean {
+  // Native iOS uses background URLSession. A screen wake lock keeps the
+  // display at full brightness and cooks the phone during a long upload queue.
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+    return false;
+  }
+  return typeof navigator !== 'undefined' && 'wakeLock' in navigator;
+}
 
 export async function acquireUploadWakeLock(): Promise<void> {
   holdCount += 1;
   if (holdCount > 1 || wakeLock) return;
-  if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+  if (!shouldHoldScreenWakeLock()) return;
   try {
     wakeLock = await navigator.wakeLock.request('screen');
     wakeLock.addEventListener('release', () => {

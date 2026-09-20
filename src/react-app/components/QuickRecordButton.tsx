@@ -157,7 +157,7 @@ export default function QuickRecordButton({
   // Orientation state
   const [isPortrait, setIsPortrait] = useState(() => deviceIsPortraitViewport());
   const [recordingOrientation, setRecordingOrientation] = useState<'portrait' | 'landscape'>('portrait');
-  const [videoResolution, setVideoResolution] = useState({ width: 1080, height: 1920 });
+  const [videoResolution, setVideoResolution] = useState({ width: 720, height: 1280 });
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -898,28 +898,28 @@ export default function QuickRecordButton({
       const currentIsPortrait = deviceIsPortraitViewport();
       console.log('QuickRecordButton: Current orientation:', currentIsPortrait ? 'portrait' : 'landscape');
       
-      // Prefer 1080p30. Never lead with 4K — some phones honor it and overheat.
+      // Prefer 720p24. 1080p/4K plus stabilization cooks phones at shows.
       const highQualityVideo = currentIsPortrait
         ? {
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-            frameRate: { ideal: 30 },
+            width: { ideal: 720 },
+            height: { ideal: 1280 },
+            frameRate: { ideal: 24, max: 30 },
           }
         : {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: 30 },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 24, max: 30 },
           };
       const baseVideo = currentIsPortrait
         ? {
-            width: { ideal: 1080, min: 640 },
-            height: { ideal: 1920, min: 960 },
-            frameRate: { ideal: 30, min: 24 },
+            width: { ideal: 720, min: 640 },
+            height: { ideal: 1280, min: 960 },
+            frameRate: { ideal: 24, min: 15 },
           }
         : {
-            width: { ideal: 1920, min: 960 },
-            height: { ideal: 1080, min: 640 },
-            frameRate: { ideal: 30, min: 24 },
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            frameRate: { ideal: 24, min: 15 },
           };
       const facing = facingOverride ?? preferredFacingMode;
       const orderedFacingModes: ('environment' | 'user')[] =
@@ -1999,11 +1999,11 @@ export default function QuickRecordButton({
       const preferMp4 = isIOS || isSafari || isAppleMediaRecorderPlatform();
       const mimeType = pickVideoRecorderMime({ hasAudio, preferMp4 }) ?? '';
       const recorderOptions: MediaRecorderOptions = {
-        videoBitsPerSecond: 5_000_000,
+        videoBitsPerSecond: 2_500_000,
       };
       if (mimeType) recorderOptions.mimeType = mimeType;
       if (hasAudio) {
-        recorderOptions.audioBitsPerSecond = 192_000;
+        recorderOptions.audioBitsPerSecond = 128_000;
       }
 
       const mediaRecorder = new MediaRecorder(stream, recorderOptions);
