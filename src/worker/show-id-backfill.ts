@@ -1,6 +1,11 @@
 import { computeShowId, isJamBaseEventId, majorityCaptureDay, utcYmdFromTimestamp } from '../shared/show-id';
 import { resolveClipEventTitle } from '../shared/event-title';
-import { clipNightKeySql } from './past-show-sql';
+import {
+  clipBilledTitleKeySql,
+  clipCaptureDaySql,
+  clipNightKeySql,
+  clipRealJamBaseEventIdSql,
+} from './past-show-sql';
 
 const BACKFILL_BATCH_SIZE = 250;
 const MAX_BATCHES_PER_RUN = 8;
@@ -88,6 +93,51 @@ async function backfillClipShowIdsBatch(env: Env): Promise<number> {
 }
 
 /**
+ * Clear composite slugs that were wrongly stored in jambase_event_id so they
+ * cannot mint a second past-show card/page (Foreigner clip 387).
+ */
+async function sanitizeBogusJamBaseEventIdsBatch(env: Env): Promise<number> {
+  const pending = await env.DB.prepare(
+    `SELECT id, show_id, jambase_event_id, artist_name, venue_name, timestamp
+     FROM clips
+     WHERE NULLIF(TRIM(jambase_event_id), '') IS NOT NULL
+       AND TRIM(jambase_event_id) NOT LIKE 'jambase:%'
+     LIMIT ?`,
+  )
+    .bind(BACKFILL_BATCH_SIZE)
+    .all();
+
+  const rows = (pending.results || []) as ClipShowRow[];
+  if (rows.length === 0) return 0;
+
+  let updated = 0;
+  for (const row of rows) {
+    const bogus = row.jambase_event_id?.trim() || '';
+    const nextShowId =
+      row.show_id?.trim() ||
+      bogus ||
+      computeShowId({
+        artist_name: row.artist_name,
+        venue_name: row.venue_name,
+        timestamp: row.timestamp,
+      });
+
+    await env.DB.prepare(
+      `UPDATE clips
+       SET jambase_event_id = NULL,
+           show_id = COALESCE(NULLIF(TRIM(show_id), ''), ?),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+    )
+      .bind(nextShowId, row.id)
+      .run();
+    updated += 1;
+  }
+
+  return updated;
+}
+
+/**
  * Detach clips whose capture day does not match the majority night for their
  * stored JamBase event id (e.g. a Dec Phish MSG clip tagged with a July event).
  * Clears the wrong JamBase id and assigns a date-based composite show_id.
@@ -101,6 +151,7 @@ async function detachOutlierJamBaseShowIdsBatch(env: Env): Promise<number> {
     `SELECT TRIM(jambase_event_id) as event_id
      FROM clips
      WHERE NULLIF(TRIM(jambase_event_id), '') IS NOT NULL
+       AND TRIM(jambase_event_id) LIKE 'jambase:%'
        AND NULLIF(TRIM(timestamp), '') IS NOT NULL
      GROUP BY TRIM(jambase_event_id)
      HAVING COUNT(DISTINCT ${captureDaySql}) > 1
@@ -156,34 +207,64 @@ async function detachOutlierJamBaseShowIdsBatch(env: Env): Promise<number> {
 
 /**
  * Promote composite/slug show ids to a sibling JamBase event id from the same
- * concert night (e.g. earliest Ariana clip stored as a slug while later clips
- * stored jambase:14852021).
+ * concert — same UTC night, or same billed title within one UTC day (Foreigner
+ * midnight spill), including rows that stored a slug in jambase_event_id.
  */
 async function promoteSiblingJamBaseShowIdsBatch(env: Env): Promise<number> {
   const night = clipNightKeySql('clips');
   const siblingNight = clipNightKeySql('sibling');
+  const billed = clipBilledTitleKeySql('clips');
+  const siblingBilled = clipBilledTitleKeySql('sibling');
+  const siblingJamBase = clipRealJamBaseEventIdSql('sibling');
+  const daysApart = `(CASE
+    WHEN ${clipCaptureDaySql('clips')} IS NULL OR ${clipCaptureDaySql('sibling')} IS NULL THEN NULL
+    ELSE ABS(julianday(${clipCaptureDaySql('clips')}) - julianday(${clipCaptureDaySql('sibling')}))
+  END)`;
+
   const pending = await env.DB.prepare(
     `SELECT
        clips.id as id,
        clips.show_id as show_id,
        clips.jambase_event_id as jambase_event_id,
-       TRIM(sibling.jambase_event_id) as sibling_event_id,
+       ${siblingJamBase} as sibling_event_id,
        NULLIF(TRIM(sibling.jambase_artist_id), '') as sibling_artist_id,
        NULLIF(TRIM(sibling.jambase_venue_id), '') as sibling_venue_id
      FROM clips
      INNER JOIN clips AS sibling
        ON sibling.id != clips.id
-      AND NULLIF(TRIM(sibling.jambase_event_id), '') IS NOT NULL
-      AND ${siblingNight} IS NOT NULL
-      AND ${night} IS NOT NULL
-      AND ${siblingNight} = ${night}
+      AND ${siblingJamBase} IS NOT NULL
+      AND (
+        (
+          ${siblingNight} IS NOT NULL
+          AND ${night} IS NOT NULL
+          AND ${siblingNight} = ${night}
+        )
+        OR (
+          ${billed} IS NOT NULL
+          AND ${siblingBilled} = ${billed}
+          AND ${daysApart} IS NOT NULL
+          AND ${daysApart} <= 1
+        )
+        OR (
+          ${billed} IS NOT NULL
+          AND ${siblingBilled} = ${billed}
+          AND ${clipCaptureDaySql('clips')} IS NULL
+          AND (
+            SELECT COUNT(DISTINCT ${clipRealJamBaseEventIdSql('jb')})
+            FROM clips AS jb
+            WHERE ${clipRealJamBaseEventIdSql('jb')} IS NOT NULL
+              AND ${clipBilledTitleKeySql('jb')} = ${billed}
+          ) = 1
+        )
+      )
      WHERE (
-       NULLIF(TRIM(clips.jambase_event_id), '') IS NULL
+       ${clipRealJamBaseEventIdSql('clips')} IS NULL
        OR (
          NULLIF(TRIM(clips.show_id), '') IS NOT NULL
          AND TRIM(clips.show_id) NOT LIKE 'jambase:%'
        )
      )
+     ORDER BY clips.id ASC, sibling.id ASC
      LIMIT ?`,
   )
     .bind(BACKFILL_BATCH_SIZE)
@@ -229,14 +310,21 @@ async function promoteSiblingJamBaseShowIdsBatch(env: Env): Promise<number> {
 }
 
 /**
- * Backfill clips.show_id / event_title, detach cross-night JamBase outliers,
- * then promote same-night composite ids to a sibling JamBase event id.
+ * Backfill clips.show_id / event_title, clear bogus jambase_event_id slugs,
+ * detach cross-night JamBase outliers, then promote same-concert composite ids
+ * to a sibling JamBase event id.
  */
 export async function backfillClipShowIds(env: Env): Promise<number> {
   let totalUpdated = 0;
 
   for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
     const updated = await backfillClipShowIdsBatch(env);
+    totalUpdated += updated;
+    if (updated === 0) break;
+  }
+
+  for (let batch = 0; batch < MAX_BATCHES_PER_RUN; batch++) {
+    const updated = await sanitizeBogusJamBaseEventIdsBatch(env);
     totalUpdated += updated;
     if (updated === 0) break;
   }
@@ -264,4 +352,5 @@ export async function backfillClipShowIds(env: Env): Promise<number> {
 export const __testing = {
   promoteSiblingJamBaseShowIdsBatch,
   detachOutlierJamBaseShowIdsBatch,
+  sanitizeBogusJamBaseEventIdsBatch,
 };

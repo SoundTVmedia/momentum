@@ -221,6 +221,55 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     ]);
   });
 
+  it('collapses Foreigner-shaped duplicates: midnight spill, slug-as-jambase_id, and null timestamps', () => {
+    const db = createDb();
+    const insert = db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, created_at, jambase_event_id, show_id, event_title)
+      VALUES (?, 'Foreigner', 'The Bell Auditorium', ?, ?, ?, ?, 'Foreigner at The Bell Auditorium')
+    `);
+    insert.run(361, '2026-09-19T23:43:35.989Z', null, 'jambase:15705118', 'jambase:15705118');
+    insert.run(368, '2026-09-19T23:57:48.837Z', null, 'jambase:15705118', 'jambase:15705118');
+    insert.run(370, '2026-09-20T00:11:57.952Z', null, null, 'foreigner-the-bell-auditorium-2026-09-20');
+    insert.run(384, '2026-09-20T00:38:19.440Z', null, null, 'foreigner-the-bell-auditorium-2026-09-20');
+    insert.run(381, null, '2026-09-20 02:48:58', null, null);
+    insert.run(387, '', '2026-09-20 15:16:39', 'foreigner-the-bell-auditorium-2026-09-20', 'foreigner-the-bell-auditorium-2026-09-20');
+    insert.run(300, '2026-07-25T01:00:00.000Z', null, 'jambase:15668773', 'jambase:15668773');
+    // Force a different event title so Phish does not collide with Foreigner grouping.
+    db.prepare(`UPDATE clips SET event_title = 'Phish at Madison Square Garden', artist_name = 'Phish', venue_name = 'Madison Square Garden' WHERE id = 300`).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+        ORDER BY artist_name ASC, show_date ASC
+      `)
+      .all() as Array<{ show_id: string; clip_count: number; artist_name: string; jambase_event_id: string | null }>;
+
+    expect(
+      rows.map((row) => ({
+        show_id: row.show_id,
+        clip_count: row.clip_count,
+        artist_name: row.artist_name,
+        jambase_event_id: row.jambase_event_id,
+      })),
+    ).toEqual([
+      {
+        show_id: 'jambase:15705118',
+        clip_count: 6,
+        artist_name: 'Foreigner',
+        jambase_event_id: 'jambase:15705118',
+      },
+      {
+        show_id: 'jambase:15668773',
+        clip_count: 1,
+        artist_name: 'Phish',
+        jambase_event_id: 'jambase:15668773',
+      },
+    ]);
+  });
+
   it('ignores Unix-epoch clip timestamps when dating a past-show card', () => {
     const db = createDb();
     db.prepare(`
@@ -284,6 +333,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         artist_name TEXT,
         venue_name TEXT,
         timestamp TEXT,
+        created_at TEXT,
         jambase_event_id TEXT,
         show_id TEXT,
         event_title TEXT
@@ -407,6 +457,36 @@ describe('clipBelongsToRequestedShowSql', () => {
     expect(canonicalBySlug.canonical_show_id).toBe('jambase:15705118');
   });
 
+  it('keeps a slug wrongly stored as jambase_event_id on the same Foreigner show page', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, created_at, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Foreigner', 'The Bell Auditorium', '2026-09-19T23:43:35.989Z', NULL, 'jambase:15705118', 'jambase:15705118', 'Foreigner at The Bell Auditorium'),
+        (2, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:13:03.119Z', NULL, NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium'),
+        (3, 'Foreigner', 'The Bell Auditorium', '', '2026-09-20 15:16:39', 'foreigner-the-bell-auditorium-2026-09-20', 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
+    `).run();
+
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const byEventId = db
+      .prepare(sql)
+      .all(
+        ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15705118'),
+      ) as Array<{ id: number }>;
+    const byComposite = db
+      .prepare(sql)
+      .all(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'foreigner-the-bell-auditorium-2026-09-20',
+        ),
+      ) as Array<{ id: number }>;
+
+    expect(byEventId).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    expect(byComposite).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+  });
+
   it('includes archival clips that share an event title across capture days', () => {
     const db = createDb();
     db.prepare(`
@@ -489,17 +569,17 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     `);
     db.prepare(
       `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-10 days'))`,
-    ).run('fresh');
+    ).run('jambase:fresh');
     db.prepare(
       `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, datetime('now', '-40 days'))`,
-    ).run('stale');
+    ).run('jambase:stale');
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (1, datetime('now', '-10 days'), datetime('now'), 'fresh')`,
+       VALUES (1, datetime('now', '-10 days'), datetime('now'), 'jambase:fresh')`,
     ).run();
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (2, datetime('now', '-40 days'), datetime('now'), 'stale')`,
+       VALUES (2, datetime('now', '-40 days'), datetime('now'), 'jambase:stale')`,
     ).run();
 
     const rows = db
@@ -569,10 +649,10 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     `);
     db.prepare(
       `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, ?)`,
-    ).run('past-show', new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString());
+    ).run('jambase:past-show', new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString());
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (1, datetime('now', '-10 days'), datetime('now'), 'past-show')`,
+       VALUES (1, datetime('now', '-10 days'), datetime('now'), 'jambase:past-show')`,
     ).run();
 
     const rows = db
@@ -604,10 +684,10 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     `);
     db.prepare(
       `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, ?)`,
-    ).run('old-show', new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
+    ).run('jambase:old-show', new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id)
-       VALUES (1, datetime('now', '-40 days'), datetime('now'), 'old-show')`,
+       VALUES (1, datetime('now', '-40 days'), datetime('now'), 'jambase:old-show')`,
     ).run();
 
     const rows = db
@@ -672,14 +752,14 @@ describe('LATEST_SCENE_CLIP_FRESH_SQL', () => {
     `);
     db.prepare(
       `INSERT INTO jambase_events (jambase_event_id, start_date) VALUES (?, ?)`,
-    ).run('old-show', new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
+    ).run('jambase:old-show', new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString());
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id, mocha_user_id)
-       VALUES (1, datetime('now', '-40 days'), datetime('now'), 'old-show', 'me')`,
+       VALUES (1, datetime('now', '-40 days'), datetime('now'), 'jambase:old-show', 'me')`,
     ).run();
     db.prepare(
       `INSERT INTO clips (id, timestamp, created_at, jambase_event_id, mocha_user_id)
-       VALUES (2, datetime('now', '-40 days'), datetime('now'), 'old-show', 'someone-else')`,
+       VALUES (2, datetime('now', '-40 days'), datetime('now'), 'jambase:old-show', 'someone-else')`,
     ).run();
 
     const latest = latestSceneClipFreshOrOwnSql('me');
@@ -826,7 +906,7 @@ describe('mergeClipAndLibraryPastShows', () => {
 
     expect(merged).toHaveLength(1);
     expect(merged[0]?.jambase_event_id).toBe('jambase:15705118');
-    expect(merged[0]?.clip_count).toBe(5);
+    expect(merged[0]?.clip_count).toBe(6);
   });
 
   it('keeps two-night residencies that have distinct JamBase event ids', () => {

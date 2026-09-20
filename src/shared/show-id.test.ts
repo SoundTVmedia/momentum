@@ -4,6 +4,7 @@ import {
   computeShowId,
   isJamBaseEventId,
   majorityCaptureDay,
+  normalizeJamBaseEventId,
   pickClipForShowHeader,
   resolveClipShowNavigationId,
   utcYmdFromTimestamp,
@@ -92,6 +93,19 @@ describe('show-id', () => {
   it('detects JamBase event ids', () => {
     expect(isJamBaseEventId('jambase:14852021')).toBe(true);
     expect(isJamBaseEventId('ariana-grande-barclays-center-2026-07-14')).toBe(false);
+    expect(normalizeJamBaseEventId('foreigner-the-bell-auditorium-2026-09-20')).toBeNull();
+    expect(normalizeJamBaseEventId('jambase:15705118')).toBe('jambase:15705118');
+  });
+
+  it('does not treat a slug stored in jambase_event_id as a JamBase show id', () => {
+    expect(
+      computeShowId({
+        jambase_event_id: 'foreigner-the-bell-auditorium-2026-09-20',
+        artist_name: 'Foreigner',
+        venue_name: 'The Bell Auditorium',
+        timestamp: '2026-09-20T00:13:03.119Z',
+      }),
+    ).toBe('foreigner-the-bell-auditorium-2026-09-20');
   });
 
   it('navigates mixed-id clips to the JamBase show page', () => {
