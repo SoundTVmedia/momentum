@@ -14,11 +14,15 @@ export function configureGoogleSignIn(): void {
   GoogleSignin.configure({
     iosClientId: GOOGLE_IOS_CLIENT_ID,
     offlineAccess: false,
+    scopes: ['https://www.googleapis.com/auth/user.birthday.read'],
   });
   configured = true;
 }
 
-export async function signInWithGoogleIdToken(): Promise<string> {
+export async function signInWithGoogleTokens(): Promise<{
+  idToken: string;
+  accessToken: string | null;
+}> {
   if (Platform.OS !== 'ios') {
     throw new Error('Google Sign-In is only wired for iOS in Phase 2.');
   }
@@ -34,6 +38,20 @@ export async function signInWithGoogleIdToken(): Promise<string> {
   if (!idToken) {
     throw new Error('Google did not return an ID token.');
   }
+
+  let accessToken: string | null = null;
+  try {
+    const tokens = await GoogleSignin.getTokens();
+    accessToken = tokens.accessToken?.trim() || null;
+  } catch {
+    accessToken = null;
+  }
+
+  return { idToken, accessToken };
+}
+
+export async function signInWithGoogleIdToken(): Promise<string> {
+  const { idToken } = await signInWithGoogleTokens();
   return idToken;
 }
 

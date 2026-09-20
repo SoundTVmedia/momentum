@@ -44,10 +44,13 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
   return user;
 }
 
-export async function exchangeGoogleIdToken(idToken: string): Promise<NativeAuthSuccess> {
+export async function exchangeGoogleIdToken(
+  idToken: string,
+  accessToken?: string | null,
+): Promise<NativeAuthSuccess> {
   const result = await apiJson<NativeAuthSuccess>('/api/auth/google/native', {
     method: 'POST',
-    body: JSON.stringify({ idToken }),
+    body: JSON.stringify({ idToken, accessToken: accessToken || undefined }),
   });
   await persistNativeSession(result);
   return result;

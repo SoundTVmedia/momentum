@@ -25,6 +25,10 @@ import {
   ensureGoogleBridgeAccount,
 } from './mocha-identity-sync';
 import { ensureOAuthUserProfile } from './oauth-profile-bootstrap';
+import {
+  GOOGLE_OAUTH_SCOPES,
+  assertGoogleAccessTokenMeetsMinimumAge,
+} from './minimum-age';
 const SESSION_MAX_AGE_SEC = 30 * 24 * 60 * 60;
 
 function hashOpaqueToken(raw: string): string {
@@ -209,7 +213,7 @@ export async function buildGoogleOAuthRedirectUrl(
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'openid email profile',
+    scope: GOOGLE_OAUTH_SCOPES,
     state,
     access_type: 'online',
     prompt: 'select_account',
@@ -237,7 +241,7 @@ export function googleAccountToMochaUser(row: {
   email: string;
   display_name: string | null;
 }): MochaUser {
-  const name = row.display_name?.trim() || row.email.split('@')[0] || 'User';
+  const name = row.display_name?.trim() || 'User';
   return {
     id: row.id,
     email: row.email,
@@ -456,6 +460,7 @@ async function resolveGoogleSignInSession(
 
   await ensureOAuthUserProfile(db, mochaUserId, {
     email: normalizedEmail,
+    displayName: info.name,
     avatarUrl: info.picture,
   });
 
@@ -548,6 +553,7 @@ export async function exchangeGoogleOAuthCode(
     throw new Error('Could not load your Google profile');
   }
 
+  await assertGoogleAccessTokenMeetsMinimumAge(tokenJson.access_token);
   return resolveGoogleSignInSession(c.env.DB, userInfo);
 }
 
@@ -566,6 +572,7 @@ type GoogleIdTokenInfo = {
 export async function exchangeGoogleNativeIdToken(
   env: Env,
   idToken: string,
+  accessToken?: string | null,
 ): Promise<GoogleSignInResult> {
   const token = idToken.trim();
   if (!token) {
@@ -608,6 +615,10 @@ export async function exchangeGoogleNativeIdToken(
 
   if (!userInfo.sub) {
     throw new Error('Google account is missing required profile fields');
+  }
+
+  if (accessToken?.trim()) {
+    await assertGoogleAccessTokenMeetsMinimumAge(accessToken);
   }
 
   return resolveGoogleSignInSession(env.DB, userInfo);

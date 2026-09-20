@@ -125,7 +125,7 @@ export function emailAccountToMochaUser(row: {
   email: string;
   display_name: string | null;
 }): MochaUser {
-  const name = row.display_name?.trim() || row.email.split('@')[0] || 'User';
+  const name = row.display_name?.trim() || 'User';
   const sub = `email:${row.id}`;
   return {
     id: row.id,

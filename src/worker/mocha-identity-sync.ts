@@ -2,6 +2,7 @@ import type { MochaUser } from '@/shared/mocha-user';
 import { normalizeEmail } from './auth-password-utils';
 import { upsertUserEmailIndex } from './account-linking';
 import { mochaUserIdKey } from './mocha-user-id';
+import { ensureOAuthUserProfile } from './oauth-profile-bootstrap';
 
 /** Keep Mocha Google users discoverable for Apple/email deduplication. */
 export async function syncMochaUserIdentity(
@@ -14,7 +15,13 @@ export async function syncMochaUserIdentity(
     return;
   }
 
-  const displayName = user.google_user_data?.name?.trim() || null;
+  const displayName =
+    user.google_user_data?.name?.trim() ||
+    [user.google_user_data?.given_name, user.google_user_data?.family_name]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .map((part) => part.trim())
+      .join(' ') ||
+    null;
   const avatarUrl = user.google_user_data?.picture?.trim() || null;
 
   try {
@@ -35,6 +42,11 @@ export async function syncMochaUserIdentity(
   }
 
   await upsertUserEmailIndex(db, email, id, 'mocha');
+  await ensureOAuthUserProfile(db, id, {
+    email,
+    displayName,
+    avatarUrl,
+  });
 }
 
 export async function ensureGoogleBridgeAccount(

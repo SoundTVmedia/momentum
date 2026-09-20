@@ -18,6 +18,11 @@ import {
 import { createGoogleSession } from './google-oauth';
 import { ensureGoogleBridgeAccount } from './mocha-identity-sync';
 import { ensureOAuthUserProfile } from './oauth-profile-bootstrap';
+import {
+  ageSignalFromAppleClaims,
+  ageSignalFromDeclaredAgeRange,
+  assertMinimumAge,
+} from './minimum-age';
 import { createAppleClientSecret, verifyAppleJwt } from './apple-jwt';
 import { hashOpaqueToken, isLocalDevHost } from './hybrid-auth';
 
@@ -138,7 +143,7 @@ export function appleAccountToMochaUser(row: {
   email: string;
   display_name: string | null;
 }): MochaUser {
-  const name = row.display_name?.trim() || row.email.split('@')[0] || 'User';
+  const name = row.display_name?.trim() || 'User';
   return {
     id: row.id,
     email: row.email,
@@ -369,6 +374,7 @@ export async function resolveAppleSignInSession(
 
   await ensureOAuthUserProfile(db, mochaUserId, {
     email,
+    displayName: info.name,
     avatarUrl: null,
   });
 
@@ -455,6 +461,7 @@ export async function exchangeAppleOAuthCode(
     name: parseAppleUserName(userJson),
   };
 
+  assertMinimumAge(ageSignalFromAppleClaims(idClaims));
   return resolveAppleSignInSession(c.env.DB, info);
 }
 
@@ -465,6 +472,10 @@ export type AppleNativeSignInBody = {
   givenName?: string | null;
   familyName?: string | null;
   user?: string | null;
+  declaredAgeRange?: {
+    lowerBound?: number | null;
+    upperBound?: number | null;
+  } | null;
 };
 
 function parseAppleNativeUserName(body: AppleNativeSignInBody): string | null {
@@ -511,6 +522,8 @@ export async function exchangeAppleNativeIdentityToken(
     name: parseAppleNativeUserName(body),
   };
 
+  assertMinimumAge(ageSignalFromAppleClaims(idClaims));
+  assertMinimumAge(ageSignalFromDeclaredAgeRange(body.declaredAgeRange));
   return resolveAppleSignInSession(c.env.DB, info);
 }
 

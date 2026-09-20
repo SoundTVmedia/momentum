@@ -21,7 +21,7 @@ import {
 } from '@/src/lib/auth/apple';
 import {
   googleSignInErrorMessage,
-  signInWithGoogleIdToken,
+  signInWithGoogleTokens,
 } from '@/src/lib/auth/google';
 
 type AuthContextValue = {
@@ -71,8 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     try {
-      const idToken = await signInWithGoogleIdToken();
-      await exchangeGoogleIdToken(idToken);
+      const { idToken, accessToken } = await signInWithGoogleTokens();
+      await exchangeGoogleIdToken(idToken, accessToken);
       await refresh();
       const next = await fetchCurrentUser();
       if (!next) {

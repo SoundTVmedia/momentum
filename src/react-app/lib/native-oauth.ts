@@ -193,12 +193,15 @@ async function exchangeNativeGoogleCode(
   }
 }
 
-async function exchangeNativeGoogleIdToken(idToken: string): Promise<void> {
+async function exchangeNativeGoogleIdToken(
+  idToken: string,
+  accessToken?: string | null,
+): Promise<void> {
   const response = await fetch('/api/auth/google/native', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ idToken }),
+    body: JSON.stringify({ idToken, accessToken: accessToken || undefined }),
   });
 
   if (!response.ok) {
@@ -274,6 +277,20 @@ function waitForNativeGoogleCallback(): Promise<void> {
   });
 }
 
+function readGoogleSdkAccessToken(result: { accessToken?: unknown }): string | null {
+  const access = result.accessToken;
+  if (typeof access === 'string' && access.trim()) {
+    return access.trim();
+  }
+  if (access && typeof access === 'object' && 'token' in access) {
+    const token = (access as { token?: unknown }).token;
+    if (typeof token === 'string' && token.trim()) {
+      return token.trim();
+    }
+  }
+  return null;
+}
+
 async function performNativeGoogleSignInWithSdk(): Promise<void> {
   await initNativeSocialLogin();
   if (!socialLoginInitialized) {
@@ -286,7 +303,7 @@ async function performNativeGoogleSignInWithSdk(): Promise<void> {
     SocialLogin.login({
       provider: 'google',
       options: {
-        scopes: ['email', 'profile'],
+        scopes: ['email', 'profile', 'https://www.googleapis.com/auth/user.birthday.read'],
       },
     }),
     NATIVE_GOOGLE_SDK_TIMEOUT_MS,
@@ -302,7 +319,8 @@ async function performNativeGoogleSignInWithSdk(): Promise<void> {
     throw new Error('Google sign-in did not return an identity token.');
   }
 
-  await exchangeNativeGoogleIdToken(idToken);
+  const accessToken = readGoogleSdkAccessToken(result.result);
+  await exchangeNativeGoogleIdToken(idToken, accessToken);
   await refreshNativeSessionUser();
 }
 

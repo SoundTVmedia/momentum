@@ -38,6 +38,7 @@ import {
   setAppleSessionCookie,
 } from "./apple-oauth";
 import { handleAppleServerNotification } from "./apple-notifications";
+import { oauthErrorHttpStatus } from "./minimum-age";
 import { buildNativeAppOAuthDeepLink, googleIosUrlSchemeFromClientId, isValidGoogleIosOAuthClientId } from "../shared/oauth-redirect";
 import { mochaUserIdKey, parseD1LastRowId } from "./mocha-user-id";
 import { syncMochaUserIdentity } from "./mocha-identity-sync";
@@ -338,9 +339,13 @@ app.post('/api/auth/google/native', async (c) => {
     return c.json({ error: 'Google sign-in is not configured.' }, 503);
   }
 
-  const body = (await c.req.json()) as { idToken?: string };
+  const body = (await c.req.json()) as { idToken?: string; accessToken?: string };
   try {
-    const signIn = await exchangeGoogleNativeIdToken(c.env, body.idToken ?? '');
+    const signIn = await exchangeGoogleNativeIdToken(
+      c.env,
+      body.idToken ?? '',
+      body.accessToken ?? null,
+    );
     const local = isLocalDevHost(c);
     const cookieBase = {
       httpOnly: true,
@@ -401,7 +406,7 @@ app.post('/api/auth/google/native', async (c) => {
             ? e.message
             : 'Google sign-in could not be completed.',
       },
-      502,
+      oauthErrorHttpStatus(e),
     );
   }
 });
@@ -491,6 +496,10 @@ app.post('/api/auth/apple/native', async (c) => {
     givenName?: string | null;
     familyName?: string | null;
     user?: string | null;
+    declaredAgeRange?: {
+      lowerBound?: number | null;
+      upperBound?: number | null;
+    } | null;
   };
 
   try {
@@ -501,6 +510,7 @@ app.post('/api/auth/apple/native', async (c) => {
       givenName: body.givenName ?? null,
       familyName: body.familyName ?? null,
       user: body.user ?? null,
+      declaredAgeRange: body.declaredAgeRange ?? null,
     });
 
     const local = isLocalDevHost(c);
@@ -561,7 +571,7 @@ app.post('/api/auth/apple/native', async (c) => {
             ? e.message
             : 'Apple sign-in could not be completed.',
       },
-      502,
+      oauthErrorHttpStatus(e),
     );
   }
 });
@@ -658,7 +668,7 @@ app.post("/api/sessions", async (c) => {
               ? e.message
               : 'Google sign-in could not be completed.',
         },
-        502,
+        oauthErrorHttpStatus(e),
       );
     }
   }
