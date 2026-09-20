@@ -41,6 +41,14 @@ export function isJamBaseEventId(value: string | null | undefined): boolean {
   return id.startsWith('jambase:');
 }
 
+/** Persist only real JamBase event ids — never composite show slugs. */
+export function normalizeJamBaseEventId(
+  value: string | null | undefined,
+): string | null {
+  const id = typeof value === 'string' ? value.trim() : '';
+  return isJamBaseEventId(id) ? id : null;
+}
+
 /**
  * Show id for clip → show-page navigation.
  * Prefer a JamBase event id so slug-only rows still match past-show cards when
@@ -126,7 +134,9 @@ export function pickClipForShowHeader<
 export function computeShowId(input: ShowIdInput): string | null {
   const eventId =
     typeof input.jambase_event_id === 'string' ? input.jambase_event_id.trim() : '';
-  if (eventId) return eventId;
+  // Only real JamBase ids become the show key — never a composite slug that was
+  // mistakenly stored in jambase_event_id (creates duplicate past-show pages).
+  if (isJamBaseEventId(eventId)) return eventId;
 
   const artist = typeof input.artist_name === 'string' ? input.artist_name.trim() : '';
   const venue = typeof input.venue_name === 'string' ? input.venue_name.trim() : '';

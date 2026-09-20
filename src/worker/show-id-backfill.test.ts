@@ -53,10 +53,12 @@ describe('promoteSiblingJamBaseShowIdsBatch', () => {
         artist_name TEXT,
         venue_name TEXT,
         timestamp TEXT,
+        created_at TEXT,
         jambase_event_id TEXT,
         jambase_artist_id TEXT,
         jambase_venue_id TEXT,
         show_id TEXT,
+        event_title TEXT,
         updated_at TEXT
       )
     `);
@@ -96,6 +98,7 @@ describe('promoteSiblingJamBaseShowIdsBatch', () => {
         artist_name TEXT,
         venue_name TEXT,
         timestamp TEXT,
+        created_at TEXT,
         jambase_event_id TEXT,
         jambase_artist_id TEXT,
         jambase_venue_id TEXT,
@@ -131,6 +134,85 @@ describe('promoteSiblingJamBaseShowIdsBatch', () => {
     expect(july).toEqual({
       show_id: 'jambase:15668779',
       jambase_event_id: 'jambase:15668779',
+    });
+  });
+
+  it('clears a composite slug wrongly stored as jambase_event_id', async () => {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        artist_name TEXT,
+        venue_name TEXT,
+        timestamp TEXT,
+        created_at TEXT,
+        jambase_event_id TEXT,
+        jambase_artist_id TEXT,
+        jambase_venue_id TEXT,
+        show_id TEXT,
+        event_title TEXT,
+        updated_at TEXT
+      )
+    `);
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (387, 'Foreigner', 'The Bell Auditorium', '', 'foreigner-the-bell-auditorium-2026-09-20', 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
+    `).run();
+
+    const updated = await __testing.sanitizeBogusJamBaseEventIdsBatch({
+      DB: asD1(db),
+    } as Env);
+
+    expect(updated).toBe(1);
+    const row = db
+      .prepare('SELECT show_id, jambase_event_id FROM clips WHERE id = 387')
+      .get() as { show_id: string; jambase_event_id: string | null };
+    expect(row).toEqual({
+      show_id: 'foreigner-the-bell-auditorium-2026-09-20',
+      jambase_event_id: null,
+    });
+  });
+
+  it('promotes a UTC-next-day Foreigner slug clip to the sibling JamBase event id', async () => {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        artist_name TEXT,
+        venue_name TEXT,
+        timestamp TEXT,
+        created_at TEXT,
+        jambase_event_id TEXT,
+        jambase_artist_id TEXT,
+        jambase_venue_id TEXT,
+        show_id TEXT,
+        event_title TEXT,
+        updated_at TEXT
+      )
+    `);
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, jambase_artist_id, jambase_venue_id, show_id, event_title)
+      VALUES
+        (361, 'Foreigner', 'The Bell Auditorium', '2026-09-19T23:43:35.989Z', 'jambase:15705118', 'jambase:artist', 'jambase:venue', 'jambase:15705118', 'Foreigner at The Bell Auditorium'),
+        (370, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:11:57.952Z', NULL, NULL, NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
+    `).run();
+
+    const updated = await __testing.promoteSiblingJamBaseShowIdsBatch({
+      DB: asD1(db),
+    } as Env);
+
+    expect(updated).toBe(1);
+    const row = db
+      .prepare('SELECT show_id, jambase_event_id FROM clips WHERE id = 370')
+      .get() as { show_id: string; jambase_event_id: string };
+    expect(row).toEqual({
+      show_id: 'jambase:15705118',
+      jambase_event_id: 'jambase:15705118',
     });
   });
 });

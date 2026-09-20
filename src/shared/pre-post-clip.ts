@@ -1,4 +1,5 @@
 import { buildHashtagsArrayForPost } from './clip-hashtags';
+import { normalizeJamBaseEventId } from './show-id';
 
 export function isPrePostContentFeed(feed: string | null | undefined): feed is 'pre_post' {
   return feed === 'pre_post';
@@ -72,7 +73,7 @@ export function clipShowFieldsForContentFeed(
     location: fields.location.trim() || null,
     song_title: fields.song_title.trim() || null,
     genre_name: fields.genre_name.trim() || null,
-    jambase_event_id: fields.jambaseLink?.event ?? null,
+    jambase_event_id: normalizeJamBaseEventId(fields.jambaseLink?.event),
     jambase_artist_id: fields.jambaseLink?.artist ?? null,
     jambase_venue_id: fields.jambaseLink?.venue ?? null,
     event_title: fields.jambaseLink?.eventTitle ?? fields.eventTitleFallback ?? null,

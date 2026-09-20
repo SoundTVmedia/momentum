@@ -1,3 +1,4 @@
+import { isJamBaseEventId } from '../shared/show-id';
 import { showCalendarDaysApart, showNightKey } from '../shared/show-night-key';
 
 /**
@@ -9,7 +10,7 @@ import { showCalendarDaysApart, showNightKey } from '../shared/show-night-key';
 export function clipShowKeySql(alias = 'clips'): string {
   return `COALESCE(
   NULLIF(TRIM(${alias}.show_id), ''),
-  NULLIF(TRIM(${alias}.jambase_event_id), ''),
+  ${clipRealJamBaseEventIdSql(alias)},
   LOWER(TRIM(${alias}.artist_name)) || '|' ||
     LOWER(TRIM(${alias}.venue_name)) || '|' ||
     strftime('%Y-%m-%d', ${alias}.timestamp)
@@ -18,16 +19,35 @@ export function clipShowKeySql(alias = 'clips'): string {
 
 export const CLIP_SHOW_KEY_SQL = clipShowKeySql('clips');
 
-/** UTC calendar day from a clip timestamp, including ISO `T`/`Z` values. */
+/**
+ * Only real JamBase event ids (`jambase:…`). Composite slugs wrongly stored in
+ * `jambase_event_id` must not create a second past-show card or show page.
+ */
+export function clipRealJamBaseEventIdSql(alias = 'clips'): string {
+  return `(CASE
+    WHEN TRIM(IFNULL(${alias}.jambase_event_id, '')) LIKE 'jambase:%'
+    THEN TRIM(${alias}.jambase_event_id)
+    ELSE NULL
+  END)`;
+}
+
+/**
+ * UTC calendar day for concert-night matching.
+ * Prefer capture timestamp; fall back to created_at so archival uploads that
+ * never stamped `timestamp` (Foreigner Bell Auditorium) still join the night.
+ */
 export function clipCaptureDaySql(alias = 'clips'): string {
-  return `strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.timestamp`)})`;
+  return `COALESCE(
+    strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.timestamp`)}),
+    strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.created_at`)})
+  )`;
 }
 
 function clipVenueKeySql(alias: string): string {
   return `LOWER(REPLACE(REPLACE(TRIM(${alias}.venue_name), CHAR(39), ''), CHAR(8217), ''))`;
 }
 
-function clipBilledTitleKeySql(alias: string): string {
+export function clipBilledTitleKeySql(alias: string): string {
   return `(CASE
     WHEN NULLIF(TRIM(${alias}.event_title), '') IS NULL THEN NULL
     WHEN NULLIF(TRIM(${alias}.artist_name), '') IS NULL THEN NULL
@@ -79,10 +99,11 @@ function inheritJamBaseEventIdSql(alias: string): string {
   const billed = clipBilledTitleKeySql(alias);
   const seedBilled = clipBilledTitleKeySql('group_seed');
   const daysApart = clipCaptureDaysApartSql('group_seed', alias);
+  const seedJamBase = clipRealJamBaseEventIdSql('group_seed');
   return `(
-    SELECT NULLIF(TRIM(group_seed.jambase_event_id), '')
+    SELECT ${seedJamBase}
     FROM clips AS group_seed
-    WHERE NULLIF(TRIM(group_seed.jambase_event_id), '') IS NOT NULL
+    WHERE ${seedJamBase} IS NOT NULL
       AND (
         (
           ${seedNight} IS NOT NULL
@@ -95,7 +116,19 @@ function inheritJamBaseEventIdSql(alias: string): string {
           AND ${daysApart} IS NOT NULL
           AND ${daysApart} <= 1
         )
+        OR (
+          ${billed} IS NOT NULL
+          AND ${seedBilled} = ${billed}
+          AND ${clipCaptureDaySql(alias)} IS NULL
+          AND (
+            SELECT COUNT(DISTINCT ${clipRealJamBaseEventIdSql('jb')})
+            FROM clips AS jb
+            WHERE ${clipRealJamBaseEventIdSql('jb')} IS NOT NULL
+              AND ${clipBilledTitleKeySql('jb')} = ${billed}
+          ) = 1
+        )
       )
+    ORDER BY group_seed.id ASC
     LIMIT 1
   )`;
 }
@@ -114,7 +147,7 @@ function inheritJamBaseEventIdSql(alias: string): string {
 export function clipPastShowGroupKeySql(alias = 'clips'): string {
   const billed = clipBilledTitleKeySql(alias);
   return `COALESCE(
-    NULLIF(TRIM(${alias}.jambase_event_id), ''),
+    ${clipRealJamBaseEventIdSql(alias)},
     ${inheritJamBaseEventIdSql(alias)},
     CASE
       WHEN ${billed} IS NULL THEN NULL
@@ -129,7 +162,7 @@ export const CLIP_PAST_SHOW_GROUP_KEY_SQL = clipPastShowGroupKeySql('clips');
 /** Prefer a JamBase event id when a night group contains mixed show identities. */
 export function groupedPastShowIdSql(): string {
   return `COALESCE(
-    MAX(CASE WHEN NULLIF(TRIM(clips.jambase_event_id), '') IS NOT NULL THEN TRIM(clips.jambase_event_id) END),
+    MAX(${clipRealJamBaseEventIdSql('clips')}),
     MAX(${CLIP_SHOW_KEY_SQL})
   )`;
 }
@@ -156,7 +189,7 @@ export function groupedPastShowsSelectSql(options?: { includeAverageRating?: boo
         ) as show_date,
         MAX(clips.venue_name) as venue_name,
         MAX(clips.location) as venue_location,
-        MAX(CASE WHEN clips.jambase_event_id IS NOT NULL AND TRIM(clips.jambase_event_id) != '' THEN clips.jambase_event_id END) as jambase_event_id,
+        MAX(${clipRealJamBaseEventIdSql('clips')}) as jambase_event_id,
         MAX(CASE WHEN clips.jambase_venue_id IS NOT NULL AND TRIM(clips.jambase_venue_id) != '' THEN clips.jambase_venue_id END) as jambase_venue_id,
         MAX(CASE WHEN clips.jambase_artist_id IS NOT NULL AND TRIM(clips.jambase_artist_id) != '' THEN clips.jambase_artist_id END) as jambase_artist_id,
         COUNT(DISTINCT clips.id) as clip_count,${averageRatingSql}
@@ -236,7 +269,7 @@ function billedShowKey(row: PastShowListRow): string | null {
 }
 
 function pastShowHasJamBaseId(row: PastShowListRow): boolean {
-  return Boolean(row.jambase_event_id?.trim());
+  return isJamBaseEventId(row.jambase_event_id);
 }
 
 /** Prefer the card with more clips, then the one that already has a JamBase event id. */
@@ -285,13 +318,32 @@ export function mergeClipAndLibraryPastShows(
       const existingIdx = out.findIndex((existing) => billedShowKey(existing) === billed);
       if (existingIdx >= 0) {
         const existing = out[existingIdx]!;
-        const existingJb = existing.jambase_event_id?.trim() || '';
-        const rowJb = row.jambase_event_id?.trim() || '';
+        const existingJb = isJamBaseEventId(existing.jambase_event_id)
+          ? existing.jambase_event_id!.trim()
+          : '';
+        const rowJb = isJamBaseEventId(row.jambase_event_id) ? row.jambase_event_id!.trim() : '';
         const bothDistinctJamBase = Boolean(existingJb && rowJb && existingJb !== rowJb);
         const daysApart = showCalendarDaysApart(existing.show_date, row.show_date);
         const sameUtcNight = daysApart != null && daysApart <= 1;
         if (!bothDistinctJamBase && sameUtcNight) {
-          out[existingIdx] = pastShowCardIsRicher(row, existing) ? row : existing;
+          const richer = pastShowCardIsRicher(row, existing) ? row : existing;
+          const poorer = richer === row ? existing : row;
+          out[existingIdx] = {
+            ...richer,
+            clip_count: (Number(existing.clip_count) || 0) + (Number(row.clip_count) || 0),
+            jambase_event_id:
+              (isJamBaseEventId(richer.jambase_event_id)
+                ? richer.jambase_event_id
+                : isJamBaseEventId(poorer.jambase_event_id)
+                  ? poorer.jambase_event_id
+                  : richer.jambase_event_id) ?? null,
+            show_id:
+              (isJamBaseEventId(richer.show_id)
+                ? richer.show_id
+                : isJamBaseEventId(poorer.show_id)
+                  ? poorer.show_id
+                  : richer.show_id) ?? richer.show_id,
+          };
           remember(row);
           remember(existing);
           return;
@@ -340,11 +392,11 @@ export function clipBelongsToRequestedShowSql(): string {
   return `(
     ${clipMatchesShowIdentitySql('clips')}
     OR (
-      NULLIF(TRIM(clips.jambase_event_id), '') IS NOT NULL
-      AND TRIM(clips.jambase_event_id) IN (
-        SELECT TRIM(seed.jambase_event_id)
+      ${clipRealJamBaseEventIdSql('clips')} IS NOT NULL
+      AND ${clipRealJamBaseEventIdSql('clips')} IN (
+        SELECT ${clipRealJamBaseEventIdSql('seed')}
         FROM clips AS seed
-        WHERE NULLIF(TRIM(seed.jambase_event_id), '') IS NOT NULL
+        WHERE ${clipRealJamBaseEventIdSql('seed')} IS NOT NULL
           AND ${clipMatchesShowIdentitySql('seed')}
       )
     )
@@ -373,12 +425,12 @@ export function clipBelongsToEventTitleSql(): string {
         AND NULLIF(TRIM(${clipShowKeySql('titled')}), '') IS NOT NULL
     )
     OR (
-      NULLIF(TRIM(clips.jambase_event_id), '') IS NOT NULL
-      AND TRIM(clips.jambase_event_id) IN (
-        SELECT TRIM(titled.jambase_event_id)
+      ${clipRealJamBaseEventIdSql('clips')} IS NOT NULL
+      AND ${clipRealJamBaseEventIdSql('clips')} IN (
+        SELECT ${clipRealJamBaseEventIdSql('titled')}
         FROM clips AS titled
         WHERE titled.event_title = ?
-          AND NULLIF(TRIM(titled.jambase_event_id), '') IS NOT NULL
+          AND ${clipRealJamBaseEventIdSql('titled')} IS NOT NULL
       )
     )
   )`;
@@ -424,7 +476,7 @@ export function latestSceneClipFreshSql(
     ${CLIP_RECORDED_DATETIME_SQL}
   )`;
   return `(
-  NULLIF(TRIM(IFNULL(clips.jambase_event_id, '')), '') IS NULL
+  ${clipRealJamBaseEventIdSql('clips')} IS NULL
   OR ${eventAtSql} IS NULL
   OR ${eventAtSql} >= datetime('now', '${window}')
 )`;

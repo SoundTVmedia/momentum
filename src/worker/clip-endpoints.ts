@@ -10,7 +10,7 @@ import {
   genreFieldsFromBody,
   songFieldsFromBody,
 } from './clip-tag-fields';
-import { computeShowId } from '../shared/show-id';
+import { computeShowId, normalizeJamBaseEventId } from '../shared/show-id';
 import { resolveClipEventTitle } from '../shared/event-title';
 import { createRealtimeService } from './realtime-service';
 import { getStaffProfile, isSuperAdmin } from './admin-auth';
@@ -531,8 +531,10 @@ export async function updateOwnClipByBody(c: Context<{ Bindings: Env }>) {
   const existingTimestamp =
     typeof existingRow.timestamp === 'string' ? existingRow.timestamp : null;
   const jambaseEventId =
-    trimOrNull(body.jambase_event_id) ??
-    (typeof existingRow.jambase_event_id === 'string' ? existingRow.jambase_event_id : null);
+    normalizeJamBaseEventId(trimOrNull(body.jambase_event_id)) ??
+    normalizeJamBaseEventId(
+      typeof existingRow.jambase_event_id === 'string' ? existingRow.jambase_event_id : null,
+    );
   const jambaseArtistId =
     trimOrNull(body.jambase_artist_id) ??
     (typeof existingRow.jambase_artist_id === 'string' ? existingRow.jambase_artist_id : null);
@@ -1026,7 +1028,7 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
   const { song_title, song_slug } = songFieldsFromBody(body);
   const { genre_name, genre_slug } = genreFieldsFromBody(body);
   const hashtagsJson = JSON.stringify(buildHashtagsForClipBody(body));
-  const jambase_event_id = trimOrNull(body.jambase_event_id);
+  const jambase_event_id = normalizeJamBaseEventId(trimOrNull(body.jambase_event_id));
   const jambase_artist_id = trimOrNull(body.jambase_artist_id);
   const jambase_venue_id = trimOrNull(body.jambase_venue_id);
 
@@ -1040,7 +1042,9 @@ export async function postAdminUpdateClipMetadata(c: Context<{ Bindings: Env }>)
     typeof row.timestamp === 'string' ? row.timestamp : null;
   const resolvedEventId =
     jambase_event_id ??
-    (typeof row.jambase_event_id === 'string' ? row.jambase_event_id : null);
+    normalizeJamBaseEventId(
+      typeof row.jambase_event_id === 'string' ? row.jambase_event_id : null,
+    );
   const resolvedSongTitle =
     song_title ??
     (typeof row.song_title === 'string' ? row.song_title : null);

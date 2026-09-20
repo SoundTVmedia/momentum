@@ -1,6 +1,6 @@
 import type { ClipShowCandidate } from '../shared/types';
 import { isPrePostContentFeed } from '../shared/pre-post-clip';
-import { computeShowId } from '../shared/show-id';
+import { computeShowId, normalizeJamBaseEventId } from '../shared/show-id';
 import { resolveClipEventTitle } from '../shared/event-title';
 import {
   canAutoApplyCandidate,
@@ -53,7 +53,7 @@ export function enrichmentFromCandidate(
     artist_name: artist,
     venue_name: venue,
     location,
-    jambase_event_id: candidate.jambase_event_id?.trim() || null,
+    jambase_event_id: normalizeJamBaseEventId(candidate.jambase_event_id),
     jambase_artist_id: candidate.jambase_artist_id?.trim() || null,
     jambase_venue_id: candidate.jambase_venue_id?.trim() || null,
     event_title: eventTitle,
@@ -291,7 +291,7 @@ export async function enrichDraftClipRowIfNeeded(
     .first<Record<string, unknown>>();
 
   if (!row) return false;
-  if (String(row.jambase_event_id ?? '').trim()) return false;
+  if (normalizeJamBaseEventId(String(row.jambase_event_id ?? ''))) return false;
 
   const lat = Number(row.geolocation_latitude);
   const lon = Number(row.geolocation_longitude);
@@ -318,8 +318,11 @@ export async function enrichDraftClipRowIfNeeded(
   const location = String(row.location ?? '').trim() || enrichment.location;
   const eventTitle = enrichment.event_title?.trim() || String(row.event_title ?? '').trim();
   const eventId =
-    enrichment.jambase_event_id?.trim() ||
-    (typeof row.jambase_event_id === 'string' ? row.jambase_event_id.trim() : '');
+    normalizeJamBaseEventId(enrichment.jambase_event_id) ||
+    normalizeJamBaseEventId(
+      typeof row.jambase_event_id === 'string' ? row.jambase_event_id : null,
+    ) ||
+    '';
   const artistId =
     enrichment.jambase_artist_id?.trim() ||
     (typeof row.jambase_artist_id === 'string' ? row.jambase_artist_id.trim() : '');
