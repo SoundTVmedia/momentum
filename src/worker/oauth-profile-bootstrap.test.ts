@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import {
   defaultDisplayNameFromEmail,
   ensureOAuthUserProfile,
@@ -73,7 +73,7 @@ describe('ensureOAuthUserProfile', () => {
     const d1 = {
       prepare(sql: string) {
         return {
-          bind(...args: unknown[]) {
+          bind(...args: SQLInputValue[]) {
             const stmt = db.prepare(sql);
             return {
               async first() {

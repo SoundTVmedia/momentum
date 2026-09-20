@@ -21,7 +21,10 @@ export function isAccountTooYoungError(error: unknown): error is AccountTooYoung
   return error instanceof AccountTooYoungError;
 }
 
-export function oauthErrorHttpStatus(error: unknown, fallback = 502): number {
+export function oauthErrorHttpStatus(
+  error: unknown,
+  fallback: 502 = 502,
+): 403 | 502 {
   return isAccountTooYoungError(error) ? error.status : fallback;
 }
 
