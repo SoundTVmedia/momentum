@@ -148,7 +148,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
  
                  // Defer adding photo/video outputs to avoid blocking
                  // These aren't needed immediately for preview
-@@ -277,14 +346,9 @@
+@@ -277,13 +346,8 @@
                      if let photoOutput = self.photoOutput, captureSession.canAddOutput(photoOutput) {
 -                        photoOutput.isHighResolutionCaptureEnabled = true
 +                        photoOutput.isHighResolutionCaptureEnabled = false
@@ -264,7 +264,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
              } else {
                  device.videoZoomFactor = zoomLevel
              }
-@@ -1434,7 +1531,86 @@
+@@ -1434,7 +1531,83 @@
          self.firstFrameReadyCallback = nil
      }
  
