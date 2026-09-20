@@ -66,7 +66,9 @@ import {
   nativeCaptureHaptic,
   nativeCaptureWarningHaptic,
   NATIVE_CAPTURE_MAX_SECONDS,
+  CAPTURE_IDLE_STOP_MS,
 } from '@/react-app/lib/native-capture';
+import { App } from '@capacitor/app';
 import { resolveEnqueueClassification } from '@/react-app/lib/upload-outbox/enqueue-classification';
 import { isPrePostContentFeed } from '@/shared/pre-post-clip';
 import { clearCaptureHandoffBusy } from '@/react-app/lib/upload-outbox/capture-handoff';
@@ -199,6 +201,7 @@ export default function QuickRecordButton({
   /** Bound to preview <video>; drives loadedmetadata / play without mount-order deadlock */
   const [previewStream, setPreviewStream] = useState<MediaStream | null>(null);
   const [previewTapToStart, setPreviewTapToStart] = useState(false);
+  const [capturePausedForHeat, setCapturePausedForHeat] = useState(false);
   const primedMediaStreamRef = useRef(primedMediaStream);
   primedMediaStreamRef.current = primedMediaStream;
   const [zoomRange, setZoomRange] = useState<CameraZoomRange | null>(null);
@@ -895,16 +898,16 @@ export default function QuickRecordButton({
       const currentIsPortrait = deviceIsPortraitViewport();
       console.log('QuickRecordButton: Current orientation:', currentIsPortrait ? 'portrait' : 'landscape');
       
-      // Try high-quality constraints first, then broader compatibility fallbacks.
+      // Prefer 1080p30. Never lead with 4K — some phones honor it and overheat.
       const highQualityVideo = currentIsPortrait
         ? {
-            width: { ideal: 2160 },
-            height: { ideal: 3840 },
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
             frameRate: { ideal: 30 },
           }
         : {
-            width: { ideal: 3840 },
-            height: { ideal: 2160 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
             frameRate: { ideal: 30 },
           };
       const baseVideo = currentIsPortrait
@@ -1661,6 +1664,57 @@ export default function QuickRecordButton({
     liveAuddStoppedRef.current = true;
   };
 
+  const pauseCapturePreviewForThermal = () => {
+    if (isRecordingRef.current || nativeCaptureFinishingRef.current) return;
+    releaseAllCaptureResources();
+    setCameraOpenRequested(false);
+    setCapturePausedForHeat(true);
+  };
+
+  useEffect(() => {
+    if (!showModal || !cameraReady || isRecording || isFinishingRecording || capturePausedForHeat) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      pauseCapturePreviewForThermal();
+    }, CAPTURE_IDLE_STOP_MS);
+    return () => window.clearTimeout(timer);
+  }, [showModal, cameraReady, isRecording, isFinishingRecording, capturePausedForHeat]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    let appHandle: { remove: () => Promise<void> } | undefined;
+    const pauseIfIdlePreview = () => {
+      if (!isRecordingRef.current && !nativeCaptureFinishingRef.current) {
+        pauseCapturePreviewForThermal();
+      }
+    };
+    void App.addListener('appStateChange', (state) => {
+      if (!state.isActive) {
+        pauseIfIdlePreview();
+        return;
+      }
+      if (!showModalRef.current) return;
+      setCapturePausedForHeat((paused) => {
+        if (!paused) return paused;
+        window.setTimeout(() => {
+          void requestPermissions();
+        }, 0);
+        return false;
+      });
+    }).then((handle) => {
+      appHandle = handle;
+    });
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') pauseIfIdlePreview();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      void appHandle?.remove();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [showModal]);
+
   const finalizeParallelAuddRecorderOnly = (ar: MediaRecorder) => {
     clearAuddParallelCapTimer();
     auddParallelAudioRecorderRef.current = null;
@@ -1945,7 +1999,7 @@ export default function QuickRecordButton({
       const preferMp4 = isIOS || isSafari || isAppleMediaRecorderPlatform();
       const mimeType = pickVideoRecorderMime({ hasAudio, preferMp4 }) ?? '';
       const recorderOptions: MediaRecorderOptions = {
-        videoBitsPerSecond: preferMp4 ? 10_000_000 : 5_000_000,
+        videoBitsPerSecond: 5_000_000,
       };
       if (mimeType) recorderOptions.mimeType = mimeType;
       if (hasAudio) {
@@ -2423,6 +2477,7 @@ export default function QuickRecordButton({
     setCameraReady(false);
     setCameraOpenRequested(false);
     setPreviewTapToStart(false);
+    setCapturePausedForHeat(false);
     recordingSecondsRef.current = 0;
     lastGeoRef.current = null;
     clipGeoAtRecordingStartRef.current = null;
@@ -2524,6 +2579,7 @@ export default function QuickRecordButton({
       return;
     }
     if (gestureCameraPrimingPending || captureReopenWarmupPending) return;
+    if (capturePausedForHeat) return;
     const primedLive =
       primedMediaStream?.getVideoTracks()[0]?.readyState === 'live';
     const previewLive =
@@ -2545,6 +2601,7 @@ export default function QuickRecordButton({
     captureReopenWarmupPending,
     primedMediaStream,
     previewStream,
+    capturePausedForHeat,
   ]);
 
   // Responsive layout — video layer is always full-screen; only chrome styling changes on rotate.
@@ -2938,6 +2995,22 @@ export default function QuickRecordButton({
                 style={{ left: `${focusReticle.x * 100}%`, top: `${focusReticle.y * 100}%` }}
                 aria-hidden
               />
+            )}
+            {capturePausedForHeat && showModal && !isRecording && (
+              <button
+                type="button"
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center"
+                onClick={() => {
+                  setCapturePausedForHeat(false);
+                  void requestPermissions();
+                }}
+              >
+                <Film className="w-12 h-12 text-momentum-flare" aria-hidden />
+                <span className="text-white font-semibold">Tap to resume camera</span>
+                <span className="text-gray-400 text-xs max-w-xs">
+                  Preview paused so your phone stays cooler. Recording still uses the camera as usual.
+                </span>
+              </button>
             )}
             {previewTapToStart && previewStream && !cameraReady && (
               <button

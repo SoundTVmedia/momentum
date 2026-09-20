@@ -59,6 +59,8 @@ export const NATIVE_HLS_START_MBPS = 0.8;
 export const HLS_START_MIN_HEIGHT = 360;
 /** Next fragment after start: jump toward HD before ABR takes over. */
 export const HLS_CLIMB_MIN_HEIGHT = 720;
+/** Phone clip modal: never decode above 720p (devicePixelRatio would otherwise allow 1080). */
+export const HLS_MOBILE_MAX_HEIGHT = 720;
 
 type HlsLadderLevel = { height?: number; bitrate?: number; bandwidth?: number };
 
@@ -94,6 +96,22 @@ export function hlsStartLevelIndex(levels: readonly HlsLadderLevel[]): number {
 
 export function hlsClimbLevelIndex(levels: readonly HlsLadderLevel[]): number {
   return pickHlsLevelIndexAtLeastHeight(levels, HLS_CLIMB_MIN_HEIGHT);
+}
+
+/** Highest ladder index at or below {@link HLS_MOBILE_MAX_HEIGHT}, or -1 if none. */
+export function hlsMobileMaxLevelIndex(levels: readonly HlsLadderLevel[]): number {
+  if (!levels.length) return -1;
+  let best = -1;
+  let bestHeight = -1;
+  for (let i = 0; i < levels.length; i++) {
+    const height = levels[i].height ?? 0;
+    if (height <= 0 || height > HLS_MOBILE_MAX_HEIGHT) continue;
+    if (height > bestHeight) {
+      bestHeight = height;
+      best = i;
+    }
+  }
+  return best;
 }
 
 function isStreamHlsDeliveryUrl(url: string): boolean {

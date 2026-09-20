@@ -11,6 +11,13 @@ export type PrimedCaptureGeo = {
   accuracy?: number;
 };
 
+/** Cache GPS for a minute so Capture taps do not cold-start the radio every time. */
+export const CAPTURE_GEO_POSITION_OPTIONS = {
+  enableHighAccuracy: true,
+  timeout: 20_000,
+  maximumAge: 60_000,
+} as const;
+
 /** Geolocation requires a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) (HTTPS or localhost). Chrome will not show a prompt on plain HTTP LAN URLs. */
 export function isGeolocationSecureContext(): boolean {
   return typeof window === 'undefined' || window.isSecureContext;
@@ -25,9 +32,7 @@ async function primeNativeGeolocationOnUserGesture(): Promise<PrimedCaptureGeo |
     }
 
     const position = await Geolocation.getCurrentPosition({
-      enableHighAccuracy: true,
-      timeout: 20_000,
-      maximumAge: 0,
+      ...CAPTURE_GEO_POSITION_OPTIONS,
     });
 
     return {
@@ -71,11 +76,7 @@ export function primeGeolocationOnUserGesture(): Promise<PrimedCaptureGeo | null
           });
         },
         () => finish(null),
-        {
-          enableHighAccuracy: true,
-          timeout: 20000,
-          maximumAge: 0,
-        },
+        CAPTURE_GEO_POSITION_OPTIONS,
       );
     } catch {
       finish(null);

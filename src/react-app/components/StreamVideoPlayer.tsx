@@ -5,6 +5,7 @@ import {
   type ClipPlaybackFields,
   hlsClimbLevelIndex,
   hlsStartLevelIndex,
+  hlsMobileMaxLevelIndex,
   isHlsPlaybackUrl,
   resolveModalPlaybackSource,
 } from '@/shared/clip-playback';
@@ -480,7 +481,8 @@ function StreamVideoPlayer(
               startLevel: 0,
               // After the start fragment, assume a decent connection so ABR
               // does not sit on 240p for half the clip (default 500 kbps).
-              abrEwmaDefaultEstimate: 4_000_000,
+              // Mobile stays lower so 1080p decode does not cook the phone.
+              abrEwmaDefaultEstimate: mobile ? 1_500_000 : 4_000_000,
               abrBandWidthUpFactor: 0.85,
               testBandwidth: true,
               maxBufferLength: 4,
@@ -494,6 +496,10 @@ function StreamVideoPlayer(
             let climbedFromStart = false;
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
               if (cancelled || stoppedRef.current) return;
+              if (mobile) {
+                const cap = hlsMobileMaxLevelIndex(hls.levels);
+                if (cap >= 0) hls.autoLevelCapping = cap;
+              }
               const start = hlsStartLevelIndex(hls.levels);
               hls.startLevel = start;
               const startMeta = hls.levels[start];

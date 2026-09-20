@@ -287,7 +287,7 @@ export default function ClipFeedPreviewMedia({
           onError={onPosterError}
           onLoad={onPosterLoad}
         />
-      ) : stillVideoSrc ? (
+      ) : stillVideoSrc && !isNativeApp() ? (
         <ClipVideoStill
           src={stillVideoSrc}
           className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${

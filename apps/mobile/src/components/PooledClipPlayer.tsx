@@ -51,21 +51,10 @@ export function PooledClipPlayer({
   useEffect(() => {
     const inForeground = modalVisible && appActive;
     const shouldPlay = isActive && inForeground;
-    let kickTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       player.muted = !shouldPlay;
       if (shouldPlay) {
         player.play();
-      } else if (inForeground) {
-        // iOS / ExoPlayer ignore preload until playback starts (muted is enough).
-        player.play();
-        kickTimer = setTimeout(() => {
-          try {
-            player.pause();
-          } catch {
-            /* ignore */
-          }
-        }, 280);
       } else {
         player.muted = true;
         player.pause();
@@ -73,9 +62,6 @@ export function PooledClipPlayer({
     } catch {
       /* player may be releasing */
     }
-    return () => {
-      if (kickTimer) clearTimeout(kickTimer);
-    };
   }, [appActive, isActive, modalVisible, player]);
 
   useEffect(() => {
@@ -114,23 +100,12 @@ export function OffscreenClipPrefetch({ src, full }: { src: string; full: boolea
 
   useEffect(() => {
     applyBufferOptions(player, full);
-    let kickTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       player.muted = true;
-      player.play();
-      kickTimer = setTimeout(() => {
-        try {
-          player.pause();
-        } catch {
-          /* ignore */
-        }
-      }, full ? 600 : 280);
+      player.pause();
     } catch {
       /* ignore */
     }
-    return () => {
-      if (kickTimer) clearTimeout(kickTimer);
-    };
   }, [full, player]);
 
   useEffect(() => {

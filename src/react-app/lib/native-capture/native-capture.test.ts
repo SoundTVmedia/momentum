@@ -11,3 +11,10 @@ describe('shouldUseNativeIosCapture', () => {
     expect(shouldUseNativeIosCapture()).toBe(false);
   });
 });
+
+describe('CAPTURE_IDLE_STOP_MS', () => {
+  it('stops idle preview after 20s', async () => {
+    const { CAPTURE_IDLE_STOP_MS } = await import('@/react-app/lib/native-capture');
+    expect(CAPTURE_IDLE_STOP_MS).toBe(20_000);
+  });
+});

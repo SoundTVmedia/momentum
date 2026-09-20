@@ -11,6 +11,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Camera,
   useCameraDevice,
+  useCameraFormat,
   useCameraPermission,
   useMicrophonePermission,
 } from 'react-native-vision-camera';
@@ -47,6 +48,10 @@ export default function CaptureScreen() {
   const [isFocused, setIsFocused] = useState(true);
   const cameraRef = useRef<Camera>(null);
   const device = useCameraDevice('back');
+  const format = useCameraFormat(device, [
+    { videoResolution: { width: 1920, height: 1080 } },
+    { fps: 30 },
+  ]);
   const { hasPermission: hasCam, requestPermission: requestCam } =
     useCameraPermission();
   const { hasPermission: hasMic, requestPermission: requestMic } =
@@ -369,6 +374,9 @@ export default function CaptureScreen() {
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
           device={device}
+          format={format}
+          fps={30}
+          videoStabilizationMode="standard"
           isActive={isFocused}
           video
           audio

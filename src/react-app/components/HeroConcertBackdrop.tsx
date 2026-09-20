@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { displayMediaUrl } from '@/shared/media-proxy';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
 import {
   resolveClipPosterUrl,
   resolveFeedPreviewVideoSrc,
@@ -73,6 +74,7 @@ export default function HeroConcertBackdrop({
   playing = true,
 }: HeroConcertBackdropProps) {
   const reducedMotion = usePrefersReducedMotion();
+  const postersOnly = reducedMotion || isNativeApp();
   const layerARef = useRef<HTMLVideoElement>(null);
   const layerBRef = useRef<HTMLVideoElement>(null);
   const [active, setActive] = useState(0);
@@ -102,7 +104,7 @@ export default function HeroConcertBackdrop({
   const liveSrc = liveLayer === 0 ? layerA.src : layerB.src;
 
   useEffect(() => {
-    if (reducedMotion) return;
+    if (postersOnly) return;
     const videos = [layerARef.current, layerBRef.current];
     videos.forEach((video, index) => {
       if (!video) return;
@@ -114,7 +116,7 @@ export default function HeroConcertBackdrop({
         video.pause();
       }
     });
-  }, [reducedMotion, playing, liveLayer, liveSrc]);
+  }, [postersOnly, playing, liveLayer, liveSrc]);
 
   const promoteLayer = (layer: 0 | 1) => {
     if (pendingSwap.current !== layer) return;
@@ -175,7 +177,7 @@ export default function HeroConcertBackdrop({
 
   if (!usingLibrary) return null;
 
-  if (reducedMotion) {
+  if (postersOnly) {
     const poster = slides[0]?.poster;
     if (!poster) return null;
     return (

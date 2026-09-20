@@ -24,6 +24,7 @@ import {
   NATIVE_HLS_START_MBPS,
   hlsClimbLevelIndex,
   hlsStartLevelIndex,
+  hlsMobileMaxLevelIndex,
 } from './clip-playback';
 
 const UID = 'a1b2c3d4e5f6789012345678abcdef01';
@@ -203,6 +204,18 @@ seg-1.ts`;
     ];
     expect(hlsStartLevelIndex(levels)).toBe(1);
     expect(hlsClimbLevelIndex(levels)).toBe(3);
+    expect(hlsMobileMaxLevelIndex(levels)).toBe(3);
+  });
+
+  it('caps mobile HLS at 720p even when 1080p is on the ladder', () => {
+    expect(
+      hlsMobileMaxLevelIndex([
+        { height: 360, bitrate: 800_000 },
+        { height: 720, bitrate: 2_500_000 },
+        { height: 1080, bitrate: 5_000_000 },
+      ]),
+    ).toBe(1);
+    expect(hlsMobileMaxLevelIndex([{ height: 1080, bitrate: 5_000_000 }])).toBe(-1);
   });
 
   it('prefers uploaded JPEG poster over stream fields', () => {

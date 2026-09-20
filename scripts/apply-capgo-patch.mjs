@@ -32,6 +32,7 @@ function patchLooksApplied() {
     controllerSrc.includes('previewLayer.videoGravity = .resizeAspectFill') &&
     controllerSrc.includes('movieFragmentInterval = CMTime.invalid') &&
     controllerSrc.includes('FEEDBACK STABILIZATION PATCH') &&
+    controllerSrc.includes('FEEDBACK THERMAL PATCH') &&
     controllerSrc.includes('FEEDBACK PINCH RAMP PATCH')
   );
 }

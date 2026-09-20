@@ -2,6 +2,7 @@ import type { ImgHTMLAttributes } from 'react';
 import type { ClipPlaybackFields } from '@/shared/clip-playback';
 import { useClipPosterSrc } from '@/react-app/lib/clipPosterImage';
 import ClipVideoStill from '@/react-app/components/ClipVideoStill';
+import { isNativeApp } from '@/react-app/lib/native-bridge';
 
 export type ClipPosterImageProps = Omit<
   ImgHTMLAttributes<HTMLImageElement>,
@@ -40,7 +41,7 @@ export default function ClipPosterImage({ clip, alt = '', className = '', ...res
           onLoad={onLoad}
           {...rest}
         />
-      ) : videoSrc ? (
+      ) : videoSrc && !isNativeApp() ? (
         <ClipVideoStill src={videoSrc} className={className} onCaptured={cacheExtractedPoster} />
       ) : (
         <div className={`animate-pulse bg-white/10 ${className}`.trim()} aria-hidden />
