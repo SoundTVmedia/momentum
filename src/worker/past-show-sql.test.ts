@@ -186,6 +186,41 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
   });
 
+  it('merges a JamBase night with a UTC-next-day composite slug for the same billed show', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Foreigner', 'The Bell Auditorium', '2026-09-19T23:43:35.989Z', 'jambase:15705118', 'jambase:15705118', 'Foreigner at The Bell Auditorium'),
+        (2, 'Foreigner', 'The Bell Auditorium', '2026-09-19T23:50:00.000Z', 'jambase:15705118', 'jambase:15705118', 'Foreigner at The Bell Auditorium'),
+        (3, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:13:03.119Z', NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium'),
+        (300, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden'),
+        (301, 'Phish', 'Madison Square Garden', '2026-07-26T01:00:00.000Z', 'jambase:15668776', 'jambase:15668776', 'Phish at Madison Square Garden')
+    `).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+        ORDER BY artist_name ASC, show_date ASC
+      `)
+      .all() as Array<{ show_id: string; clip_count: number; artist_name: string }>;
+
+    expect(
+      rows.map((row) => ({
+        show_id: row.show_id,
+        clip_count: row.clip_count,
+        artist_name: row.artist_name,
+      })),
+    ).toEqual([
+      { show_id: 'jambase:15705118', clip_count: 3, artist_name: 'Foreigner' },
+      { show_id: 'jambase:15668773', clip_count: 1, artist_name: 'Phish' },
+      { show_id: 'jambase:15668776', clip_count: 1, artist_name: 'Phish' },
+    ]);
+  });
+
   it('ignores Unix-epoch clip timestamps when dating a past-show card', () => {
     const db = createDb();
     db.prepare(`
@@ -327,6 +362,49 @@ describe('clipBelongsToRequestedShowSql', () => {
         ),
       ) as { canonical_show_id: string };
     expect(canonicalBySlug.canonical_show_id).toBe('jambase:14852021');
+  });
+
+  it('treats a UTC-midnight spill as one show page for the same billed title', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Foreigner', 'The Bell Auditorium', '2026-09-19T23:43:35.989Z', 'jambase:15705118', 'jambase:15705118', 'Foreigner at The Bell Auditorium'),
+        (2, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:13:03.119Z', NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
+    `).run();
+
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const byEventId = db
+      .prepare(sql)
+      .all(
+        ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15705118'),
+      ) as Array<{ id: number }>;
+    const byComposite = db
+      .prepare(sql)
+      .all(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'foreigner-the-bell-auditorium-2026-09-20',
+        ),
+      ) as Array<{ id: number }>;
+
+    expect(byEventId).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(byComposite).toEqual([{ id: 1 }, { id: 2 }]);
+
+    const canonicalBySlug = db
+      .prepare(
+        `SELECT ${groupedPastShowIdSql()} as canonical_show_id
+         FROM clips
+         WHERE ${clipBelongsToRequestedShowSql()}`,
+      )
+      .get(
+        ...Array.from(
+          { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
+          () => 'foreigner-the-bell-auditorium-2026-09-20',
+        ),
+      ) as { canonical_show_id: string };
+    expect(canonicalBySlug.canonical_show_id).toBe('jambase:15705118');
   });
 
   it('includes archival clips that share an event title across capture days', () => {
@@ -710,6 +788,82 @@ describe('mergeClipAndLibraryPastShows', () => {
 
     expect(merged).toHaveLength(1);
     expect(merged[0]?.show_id).toBe('charlie-puth-madison-square-garden-2026-06-01');
+  });
+
+  it('merges a JamBase card with a UTC-next-day composite card for the same billed show', () => {
+    const merged = mergeClipAndLibraryPastShows(
+      [
+        {
+          show_id: 'foreigner-the-bell-auditorium-2026-09-20',
+          event_title: 'Foreigner at The Bell Auditorium',
+          artist_name: 'Foreigner',
+          show_date: '2026-09-20T00:13:03.119Z',
+          venue_name: 'The Bell Auditorium',
+          venue_location: 'Augusta, GA',
+          jambase_event_id: null,
+          jambase_venue_id: 'jambase:65079',
+          jambase_artist_id: null,
+          clip_count: 1,
+          thumbnail_url: null,
+        },
+        {
+          show_id: 'jambase:15705118',
+          event_title: 'Foreigner at The Bell Auditorium',
+          artist_name: 'Foreigner',
+          show_date: '2026-09-19T23:43:35.989Z',
+          venue_name: 'The Bell Auditorium',
+          venue_location: 'Augusta, GA',
+          jambase_event_id: 'jambase:15705118',
+          jambase_venue_id: 'jambase:65079',
+          jambase_artist_id: null,
+          clip_count: 5,
+          thumbnail_url: null,
+        },
+      ],
+      [],
+      12,
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.jambase_event_id).toBe('jambase:15705118');
+    expect(merged[0]?.clip_count).toBe(5);
+  });
+
+  it('keeps two-night residencies that have distinct JamBase event ids', () => {
+    const merged = mergeClipAndLibraryPastShows(
+      [
+        {
+          show_id: 'jambase:1',
+          event_title: 'Phish at Madison Square Garden',
+          artist_name: 'Phish',
+          show_date: '2025-12-29T01:00:00.000Z',
+          venue_name: 'Madison Square Garden',
+          venue_location: 'New York, NY',
+          jambase_event_id: 'jambase:1',
+          jambase_venue_id: null,
+          jambase_artist_id: null,
+          clip_count: 2,
+          thumbnail_url: null,
+        },
+        {
+          show_id: 'jambase:2',
+          event_title: 'Phish at Madison Square Garden',
+          artist_name: 'Phish',
+          show_date: '2025-12-30T01:00:00.000Z',
+          venue_name: 'Madison Square Garden',
+          venue_location: 'New York, NY',
+          jambase_event_id: 'jambase:2',
+          jambase_venue_id: null,
+          jambase_artist_id: null,
+          clip_count: 4,
+          thumbnail_url: null,
+        },
+      ],
+      [],
+      12,
+    );
+
+    expect(merged).toHaveLength(2);
   });
 });
 

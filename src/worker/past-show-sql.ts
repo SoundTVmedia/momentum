@@ -1,4 +1,4 @@
-import { showNightKey } from '../shared/show-night-key';
+import { showCalendarDaysApart, showNightKey } from '../shared/show-night-key';
 
 /**
  * Canonical SQL identity for a clip's show.
@@ -23,6 +23,31 @@ export function clipCaptureDaySql(alias = 'clips'): string {
   return `strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.timestamp`)})`;
 }
 
+function clipVenueKeySql(alias: string): string {
+  return `LOWER(REPLACE(REPLACE(TRIM(${alias}.venue_name), CHAR(39), ''), CHAR(8217), ''))`;
+}
+
+function clipBilledTitleKeySql(alias: string): string {
+  return `(CASE
+    WHEN NULLIF(TRIM(${alias}.event_title), '') IS NULL THEN NULL
+    WHEN NULLIF(TRIM(${alias}.artist_name), '') IS NULL THEN NULL
+    WHEN NULLIF(TRIM(${alias}.venue_name), '') IS NULL THEN NULL
+    ELSE LOWER(TRIM(${alias}.artist_name)) || '|' ||
+      ${clipVenueKeySql(alias)} || '|' ||
+      LOWER(TRIM(${alias}.event_title))
+  END)`;
+}
+
+/** Whole UTC days between two clip timestamps, or NULL when either day is missing. */
+function clipCaptureDaysApartSql(leftAlias: string, rightAlias: string): string {
+  const left = clipCaptureDaySql(leftAlias);
+  const right = clipCaptureDaySql(rightAlias);
+  return `(CASE
+    WHEN ${left} IS NULL OR ${right} IS NULL THEN NULL
+    ELSE ABS(julianday(${left}) - julianday(${right}))
+  END)`;
+}
+
 /**
  * Same-concert-night identity: artist + venue + capture day.
  * Used to merge clips that stored a JamBase event id as show_id with clips
@@ -34,7 +59,7 @@ export function clipNightKeySql(alias = 'clips'): string {
     WHEN NULLIF(TRIM(${alias}.venue_name), '') IS NULL THEN NULL
     WHEN ${clipCaptureDaySql(alias)} IS NULL THEN NULL
     ELSE LOWER(TRIM(${alias}.artist_name)) || '|' ||
-      LOWER(REPLACE(REPLACE(TRIM(${alias}.venue_name), CHAR(39), ''), CHAR(8217), '')) || '|' ||
+      ${clipVenueKeySql(alias)} || '|' ||
       ${clipCaptureDaySql(alias)}
   END)`;
 }
@@ -42,38 +67,60 @@ export function clipNightKeySql(alias = 'clips'): string {
 export const CLIP_NIGHT_KEY_SQL = clipNightKeySql('clips');
 
 /**
+ * Inherit a JamBase event id from a sibling clip on the same concert.
+ *
+ * Same UTC night covers mixed JamBase + composite ids (Don Toliver / Ariana).
+ * Same billed title within one UTC day covers midnight spill, where one clip
+ * is tagged `jambase:…` on Sep 19 and another is a slug dated Sep 20.
+ */
+function inheritJamBaseEventIdSql(alias: string): string {
+  const night = clipNightKeySql(alias);
+  const seedNight = clipNightKeySql('group_seed');
+  const billed = clipBilledTitleKeySql(alias);
+  const seedBilled = clipBilledTitleKeySql('group_seed');
+  const daysApart = clipCaptureDaysApartSql('group_seed', alias);
+  return `(
+    SELECT NULLIF(TRIM(group_seed.jambase_event_id), '')
+    FROM clips AS group_seed
+    WHERE NULLIF(TRIM(group_seed.jambase_event_id), '') IS NOT NULL
+      AND (
+        (
+          ${seedNight} IS NOT NULL
+          AND ${night} IS NOT NULL
+          AND ${seedNight} = ${night}
+        )
+        OR (
+          ${billed} IS NOT NULL
+          AND ${seedBilled} = ${billed}
+          AND ${daysApart} IS NOT NULL
+          AND ${daysApart} <= 1
+        )
+      )
+    LIMIT 1
+  )`;
+}
+
+/**
  * Past-show card identity for GROUP BY.
  *
  * 1. Prefer a stored JamBase event id (keeps multi-night residencies separate).
  * 2. Otherwise inherit a JamBase id from another clip on the same concert night
- *    (Don Toliver-style mixed JamBase + composite ids).
+ *    or the same billed title within one UTC day (Foreigner at The Bell
+ *    Auditorium midnight spill).
  * 3. Otherwise group by artist + venue + event title so archival uploads with
  *    wrong capture dates still share one card (Charlie Puth at MSG).
  * 4. Last resort: artist + venue + capture day.
  */
 export function clipPastShowGroupKeySql(alias = 'clips'): string {
-  const night = clipNightKeySql(alias);
-  const seedNight = clipNightKeySql('group_seed');
+  const billed = clipBilledTitleKeySql(alias);
   return `COALESCE(
     NULLIF(TRIM(${alias}.jambase_event_id), ''),
-    (
-      SELECT NULLIF(TRIM(group_seed.jambase_event_id), '')
-      FROM clips AS group_seed
-      WHERE NULLIF(TRIM(group_seed.jambase_event_id), '') IS NOT NULL
-        AND ${seedNight} IS NOT NULL
-        AND ${night} IS NOT NULL
-        AND ${seedNight} = ${night}
-      LIMIT 1
-    ),
+    ${inheritJamBaseEventIdSql(alias)},
     CASE
-      WHEN NULLIF(TRIM(${alias}.event_title), '') IS NULL THEN NULL
-      WHEN NULLIF(TRIM(${alias}.artist_name), '') IS NULL THEN NULL
-      WHEN NULLIF(TRIM(${alias}.venue_name), '') IS NULL THEN NULL
-      ELSE 'title:' || LOWER(TRIM(${alias}.artist_name)) || '|' ||
-        LOWER(REPLACE(REPLACE(TRIM(${alias}.venue_name), CHAR(39), ''), CHAR(8217), '')) || '|' ||
-        LOWER(TRIM(${alias}.event_title))
+      WHEN ${billed} IS NULL THEN NULL
+      ELSE 'title:' || ${billed}
     END,
-    ${night}
+    ${clipNightKeySql(alias)}
   )`;
 }
 
@@ -177,6 +224,29 @@ export function libraryShowNightKeySql(): string {
   END)`;
 }
 
+function billedShowKey(row: PastShowListRow): string | null {
+  const artist = (row.artist_name ?? '').trim().toLowerCase();
+  const venue = (row.venue_name ?? '')
+    .trim()
+    .replace(/['\u2019]/g, '')
+    .toLowerCase();
+  const title = (row.event_title ?? '').trim().toLowerCase();
+  if (!artist || !venue || !title) return null;
+  return `${artist}|${venue}|${title}`;
+}
+
+function pastShowHasJamBaseId(row: PastShowListRow): boolean {
+  return Boolean(row.jambase_event_id?.trim());
+}
+
+/** Prefer the card with more clips, then the one that already has a JamBase event id. */
+function pastShowCardIsRicher(candidate: PastShowListRow, current: PastShowListRow): boolean {
+  const candidateClips = Number(candidate.clip_count) || 0;
+  const currentClips = Number(current.clip_count) || 0;
+  if (candidateClips !== currentClips) return candidateClips > currentClips;
+  return pastShowHasJamBaseId(candidate) && !pastShowHasJamBaseId(current);
+}
+
 export function mergeClipAndLibraryPastShows(
   clipShows: PastShowListRow[],
   libraryShows: PastShowListRow[],
@@ -189,15 +259,17 @@ export function mergeClipAndLibraryPastShows(
   const out: PastShowListRow[] = [];
 
   const titleKey = (row: PastShowListRow): string | null => {
-    if (row.jambase_event_id?.trim()) return null;
-    const artist = (row.artist_name ?? '').trim().toLowerCase();
-    const venue = (row.venue_name ?? '')
-      .trim()
-      .replace(/['\u2019]/g, '')
-      .toLowerCase();
-    const title = (row.event_title ?? '').trim().toLowerCase();
-    if (!artist || !venue || !title) return null;
-    return `${artist}|${venue}|${title}`;
+    if (pastShowHasJamBaseId(row)) return null;
+    return billedShowKey(row);
+  };
+
+  const remember = (row: PastShowListRow) => {
+    const id = (row.jambase_event_id || row.show_id || '').trim();
+    const night = showNightKey(row.artist_name, row.venue_name, row.show_date);
+    const title = titleKey(row);
+    if (id) seenIds.add(id);
+    if (night) seenNights.add(night);
+    if (title) seenTitles.add(title);
   };
 
   const take = (row: PastShowListRow) => {
@@ -207,9 +279,27 @@ export function mergeClipAndLibraryPastShows(
     if (id && seenIds.has(id)) return;
     if (night && seenNights.has(night)) return;
     if (title && seenTitles.has(title)) return;
-    if (id) seenIds.add(id);
-    if (night) seenNights.add(night);
-    if (title) seenTitles.add(title);
+
+    const billed = billedShowKey(row);
+    if (billed) {
+      const existingIdx = out.findIndex((existing) => billedShowKey(existing) === billed);
+      if (existingIdx >= 0) {
+        const existing = out[existingIdx]!;
+        const existingJb = existing.jambase_event_id?.trim() || '';
+        const rowJb = row.jambase_event_id?.trim() || '';
+        const bothDistinctJamBase = Boolean(existingJb && rowJb && existingJb !== rowJb);
+        const daysApart = showCalendarDaysApart(existing.show_date, row.show_date);
+        const sameUtcNight = daysApart != null && daysApart <= 1;
+        if (!bothDistinctJamBase && sameUtcNight) {
+          out[existingIdx] = pastShowCardIsRicher(row, existing) ? row : existing;
+          remember(row);
+          remember(existing);
+          return;
+        }
+      }
+    }
+
+    remember(row);
     out.push(row);
   };
 
