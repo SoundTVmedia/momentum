@@ -29,19 +29,6 @@ const SLIDE_COUNT = 3;
 const SLIDE_MS = 8000;
 const BUD_LIGHT_LOGO_URL = 'https://www.budlight.com/img/header/logo.png';
 
-function slidesFromClips(clips: ClipWithUser[] | undefined, max = 8): HeroClipSlide[] {
-  const next: HeroClipSlide[] = [];
-  const seen = new Set<string>();
-  for (const clip of clips ?? []) {
-    const slide = clipToHeroSlide(clip);
-    if (!slide || seen.has(slide.src)) continue;
-    seen.add(slide.src);
-    next.push(slide);
-    if (next.length >= max) break;
-  }
-  return next;
-}
-
 function shuffleCopy<T>(items: T[]): T[] {
   const next = [...items];
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -53,8 +40,66 @@ function shuffleCopy<T>(items: T[]): T[] {
   return next;
 }
 
-function playableClips(clips: ClipWithUser[] | undefined): ClipWithUser[] {
-  return (clips ?? []).filter((clip) => clipToHeroSlide(clip));
+function playableClipSrc(clip: ClipWithUser): string | null {
+  return clipToHeroSlide(clip)?.src ?? null;
+}
+
+/** Unique playable clips in first-seen order (by preview src). */
+function uniquePlayableClips(clips: ClipWithUser[] | undefined): ClipWithUser[] {
+  const next: ClipWithUser[] = [];
+  const seen = new Set<string>();
+  for (const clip of clips ?? []) {
+    const src = playableClipSrc(clip);
+    if (!src || seen.has(src)) continue;
+    seen.add(src);
+    next.push(clip);
+  }
+  return next;
+}
+
+function asSingleHeroSlide(clip: ClipWithUser | null): HeroClipSlide[] {
+  if (!clip) return [];
+  const slide = clipToHeroSlide(clip);
+  return slide ? [slide] : [];
+}
+
+function firstUnusedClip(candidates: ClipWithUser[], usedSrcs: Set<string>): ClipWithUser | null {
+  for (const clip of candidates) {
+    const src = playableClipSrc(clip);
+    if (src && !usedSrcs.has(src)) return clip;
+  }
+  return null;
+}
+
+/**
+ * Slide 1 and 2 each get one clip (different when the pool has 2+).
+ * Slide 3 is the featured clip, preferring an unused liked clip.
+ * Shuffle the inputs before calling so each reload picks a new trio.
+ */
+export function assignHeroCarouselClips(
+  pool: ClipWithUser[],
+  featuredCandidates: ClipWithUser[] = [],
+): {
+  slideA: HeroClipSlide[];
+  slideB: HeroClipSlide[];
+  featured: ClipWithUser | null;
+} {
+  const unique = uniquePlayableClips(pool);
+  const first = unique[0] ?? null;
+  const second = unique[1] ?? first;
+  const usedSrcs = new Set(
+    [first, second].map((clip) => (clip ? playableClipSrc(clip) : null)).filter((src): src is string => Boolean(src)),
+  );
+  const featured =
+    firstUnusedClip(uniquePlayableClips(featuredCandidates), usedSrcs) ??
+    firstUnusedClip(unique.slice(2), usedSrcs) ??
+    first;
+
+  return {
+    slideA: asSingleHeroSlide(first),
+    slideB: asSingleHeroSlide(second),
+    featured,
+  };
 }
 
 function clipFeedKey(clip: ClipWithUser): string | number | null {
@@ -114,14 +159,6 @@ async function fetchFeaturedShowClips(
   }
 
   return [clip];
-}
-
-/** Different featured clip on each cold load / pull-refresh. */
-function pickRandomPlayable(clips: ClipWithUser[] | undefined): ClipWithUser | null {
-  const playable = playableClips(clips);
-  if (playable.length === 0) return null;
-  const index = Math.floor(Math.random() * playable.length);
-  return playable[index] ?? null;
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -324,24 +361,18 @@ export default function HeroSection({
       const latestData = latestRes.ok
         ? ((await latestRes.json()) as { clips?: ClipWithUser[] })
         : { clips: [] };
-      const pool = slidesFromClips(
-        [
-          ...(viewedData.clips ?? []),
-          ...(likedData.clips ?? []),
-          ...(latestData.clips ?? []),
-        ],
-        16,
+      const pool = uniquePlayableClips([
+        ...(viewedData.clips ?? []),
+        ...(likedData.clips ?? []),
+        ...(latestData.clips ?? []),
+      ]);
+      const assigned = assignHeroCarouselClips(
+        shuffleCopy(pool),
+        shuffleCopy(uniquePlayableClips(likedData.clips)),
       );
-      // Independent shuffles so slide 1 and 2 start on different clips each load.
-      if (pool.length > 0) {
-        setSlidesA(shuffleCopy(pool));
-        setSlidesB(shuffleCopy(pool).slice(0, 5));
-      }
-      setFeatured(
-        pickRandomPlayable(likedData.clips) ??
-          pickRandomPlayable(viewedData.clips) ??
-          pickRandomPlayable(latestData.clips),
-      );
+      setSlidesA(assigned.slideA);
+      setSlidesB(assigned.slideB);
+      setFeatured(assigned.featured);
     } catch {
       /* keep solid backdrop until clips load */
     }
