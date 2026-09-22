@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import HeroConcertBackdrop, {
   clipToHeroSlide,
+  primeInlineHeroVideo,
   type HeroClipSlide,
 } from '@/react-app/components/HeroConcertBackdrop';
 import FindAShowModal from '@/react-app/components/FindAShowModal';
@@ -195,6 +196,7 @@ function FeaturedClipSlide({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    primeInlineHeroVideo(video);
     if (playing) {
       void video.play().catch(() => {});
     } else {
@@ -239,7 +241,10 @@ function FeaturedClipSlide({
       {slide ? (
         <div className="hero-video-backdrop-wrap">
           <video
-            ref={videoRef}
+            ref={(node) => {
+              videoRef.current = node;
+              primeInlineHeroVideo(node);
+            }}
             className="hero-video-backdrop is-live"
             src={slide.src}
             poster={slide.poster}

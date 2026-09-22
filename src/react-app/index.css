@@ -880,13 +880,9 @@ html.native-quick-capture-open .native-capture-overlay-text * {
 
   .hero-concert-photo__img {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: auto;
-    height: auto;
-    min-width: 100%;
-    min-height: 100%;
-    transform: translate(-50%, -50%) scale(1.08);
+    inset: 0;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
     object-position: center center;
   }
@@ -986,16 +982,17 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     }
   }
 
+  /*
+   * Cover-fill without CSS transform. iOS WKWebView/Safari will not paint
+   * <video> that has its own transform inside a transformed carousel track
+   * (slides 1–2 were blank; the featured slide already used transform: none).
+   */
   .hero-video-backdrop {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: auto;
-    height: auto;
-    min-width: 100%;
-    min-height: 100%;
-    transform: translate(-50%, -50%) scale(1.08);
-    transform-origin: center center;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
     object-fit: cover;
     object-position: center center;
     opacity: 1;
@@ -1016,51 +1013,14 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     opacity: 1;
   }
 
-  /* Wide viewports: portrait source must scale by width to avoid side gaps */
-  @media (min-aspect-ratio: 4/3) {
-    .hero-video-backdrop {
-      width: 100%;
-      height: auto;
-      min-height: 100%;
-      min-width: 100%;
-      transform: translate(-50%, -50%) scale(1.35);
-    }
-  }
-
-  @media (min-aspect-ratio: 16/9) {
-    .hero-video-backdrop {
-      transform: translate(-50%, -50%) scale(1.55);
-    }
-  }
-
-  /* Featured clip: fill the slide without the Ken-Burns zoom used on decorative slides. */
   .hero-featured-clip .hero-concert-photo__img,
   .hero-featured-clip .hero-video-backdrop {
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
-    min-width: 0;
-    min-height: 0;
     transform: none;
     object-fit: cover;
     object-position: center center;
-  }
-
-  @media (min-aspect-ratio: 4/3) {
-    .hero-featured-clip .hero-video-backdrop {
-      width: 100%;
-      height: 100%;
-      min-width: 0;
-      min-height: 0;
-      transform: none;
-    }
-  }
-
-  @media (min-aspect-ratio: 16/9) {
-    .hero-featured-clip .hero-video-backdrop {
-      transform: none;
-    }
   }
 
   /* Occasional stage-light sweep across the hero photo */

@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { displayMediaUrl } from '@/shared/media-proxy';
-import { isNativeApp } from '@/react-app/lib/native-bridge';
 import {
   resolveClipPosterUrl,
   resolveFeedPreviewVideoSrc,
   type ClipPlaybackFields,
 } from '@/shared/clip-playback';
+
+/** iOS WKWebView will not autoplay inline without the webkit attribute. */
+export function primeInlineHeroVideo(video: HTMLVideoElement | null) {
+  if (!video) return;
+  video.muted = true;
+  video.playsInline = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', 'true');
+}
 
 export type HeroClipSlide = {
   id?: number;
@@ -74,7 +82,9 @@ export default function HeroConcertBackdrop({
   playing = true,
 }: HeroConcertBackdropProps) {
   const reducedMotion = usePrefersReducedMotion();
-  const postersOnly = reducedMotion || isNativeApp();
+  // Native used to skip <video> and require a poster, which left slides 1–2 empty
+  // when Stream/R2 thumbnails were missing. Featured already plays inline on iOS.
+  const postersOnly = reducedMotion && Boolean(slides[0]?.poster);
   const layerARef = useRef<HTMLVideoElement>(null);
   const layerBRef = useRef<HTMLVideoElement>(null);
   const [active, setActive] = useState(0);
@@ -108,6 +118,7 @@ export default function HeroConcertBackdrop({
     const videos = [layerARef.current, layerBRef.current];
     videos.forEach((video, index) => {
       if (!video) return;
+      primeInlineHeroVideo(video);
       if (playing && index === liveLayer) {
         void video.play().catch(() => {
           /* Autoplay may be blocked until a user gesture */
@@ -215,7 +226,10 @@ export default function HeroConcertBackdrop({
       <div className="hero-video-backdrop-wrap">
         {layerA.src ? (
           <video
-            ref={layerARef}
+            ref={(node) => {
+              layerARef.current = node;
+              primeInlineHeroVideo(node);
+            }}
             className={`hero-video-backdrop ${liveLayer === 0 ? 'is-live' : ''}`}
             src={layerA.src}
             poster={layerA.poster || undefined}
@@ -240,7 +254,10 @@ export default function HeroConcertBackdrop({
         ) : null}
         {layerB.src ? (
           <video
-            ref={layerBRef}
+            ref={(node) => {
+              layerBRef.current = node;
+              primeInlineHeroVideo(node);
+            }}
             className={`hero-video-backdrop ${liveLayer === 1 ? 'is-live' : ''}`}
             src={layerB.src}
             poster={layerB.poster || undefined}

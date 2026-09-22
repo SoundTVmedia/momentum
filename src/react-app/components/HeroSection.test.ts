@@ -3,7 +3,7 @@ import {
   assignHeroCarouselClips,
   mergeFeaturedShowFeed,
 } from '@/react-app/components/HeroSection';
-import { clipToHeroSlide } from '@/react-app/components/HeroConcertBackdrop';
+import { clipToHeroSlide, primeInlineHeroVideo } from '@/react-app/components/HeroConcertBackdrop';
 import type { ClipWithUser } from '@/shared/types';
 
 function clip(id: number, artist = 'Wet Leg'): ClipWithUser {
@@ -70,5 +70,25 @@ describe('assignHeroCarouselClips', () => {
     expect(assigned.slideA[0]?.src).toBe(clipToHeroSlide(a)?.src);
     expect(assigned.slideB[0]?.src).toBe(clipToHeroSlide(a)?.src);
     expect(assigned.featured).toBe(a);
+  });
+});
+
+describe('primeInlineHeroVideo', () => {
+  it('sets muted playsinline attributes iOS needs for inline autoplay', () => {
+    const attrs = new Map<string, string>();
+    const video = {
+      muted: false,
+      playsInline: false,
+      setAttribute(name: string, value: string) {
+        attrs.set(name, value);
+      },
+    } as unknown as HTMLVideoElement;
+
+    primeInlineHeroVideo(video);
+
+    expect(video.muted).toBe(true);
+    expect(video.playsInline).toBe(true);
+    expect(attrs.get('playsinline')).toBe('');
+    expect(attrs.get('webkit-playsinline')).toBe('true');
   });
 });
