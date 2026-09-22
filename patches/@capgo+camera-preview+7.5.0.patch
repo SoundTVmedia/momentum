@@ -264,7 +264,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
              } else {
                  device.videoZoomFactor = zoomLevel
              }
-@@ -1434,7 +1531,83 @@
+@@ -1434,7 +1531,86 @@
          self.firstFrameReadyCallback = nil
      }
  
@@ -297,8 +297,11 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +        let auto = device?.activeFormat.isVideoStabilizationModeSupported(.auto) ?? false
 +        print("[CameraPreview] Stab probe \(reason) device=\(device?.localizedName ?? "nil") preset=\(preset) cinematic=\(cinematic) standard=\(standard) auto=\(auto) connections=\(connections.count)")
 +
-+        // FEEDBACK THERMAL PATCH: no video stabilization — ISP+GPU cost cooks phones at shows.
-+        let mode: AVCaptureVideoStabilizationMode = .off
++        // Concert clips need optical/cinematic stab. Fall through if a format rejects it.
++        let ladder: [AVCaptureVideoStabilizationMode] = [.cinematic, .standard, .auto]
++        let mode = ladder.first { candidate in
++            device?.activeFormat.isVideoStabilizationModeSupported(candidate) ?? false
++        } ?? .auto
 +
 +        for connection in connections where connection.isVideoStabilizationSupported {
 +            if !logOnly {
