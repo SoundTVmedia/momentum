@@ -171,16 +171,16 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 -                    targetPreset = .hd4K3840x2160
 -                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
 -                    targetPreset = .hd1920x1080
-+                if captureSession.canSetSessionPreset(.hd1280x720) {
-+                    targetPreset = .hd1280x720
-+                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
++                if captureSession.canSetSessionPreset(.hd1920x1080) {
 +                    targetPreset = .hd1920x1080
++                } else if captureSession.canSetSessionPreset(.hd1280x720) {
++                    targetPreset = .hd1280x720
                  }
 +            case "9:16":
-+                if captureSession.canSetSessionPreset(.hd1280x720) {
-+                    targetPreset = .hd1280x720
-+                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
++                if captureSession.canSetSessionPreset(.hd1920x1080) {
 +                    targetPreset = .hd1920x1080
++                } else if captureSession.canSetSessionPreset(.hd1280x720) {
++                    targetPreset = .hd1280x720
 +                }
              case "4:3":
                  if captureSession.canSetSessionPreset(.photo) {
@@ -191,10 +191,10 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
  
 +    /// Movie recording needs a video preset. `.photo` is the plugin default when
 +    /// no aspectRatio is passed (our full-bleed start path).
-+    /// FEEDBACK THERMAL PATCH: 720p is the capture ceiling — 1080p/4K overheats concert phones.
++    /// FEEDBACK THERMAL PATCH: 1080p is the capture ceiling — 4K overheats concert phones.
 +    private func applyVideoRecordingPreset() {
 +        guard let captureSession = self.captureSession else { return }
-+        let candidates: [AVCaptureSession.Preset] = [.hd1280x720, .hd1920x1080]
++        let candidates: [AVCaptureSession.Preset] = [.hd1920x1080, .hd1280x720]
 +        let chosen = candidates.first { captureSession.canSetSessionPreset($0) }
 +        if let chosen = chosen {
 +            captureSession.sessionPreset = chosen
