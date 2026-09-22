@@ -1,7 +1,8 @@
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
+index 5dec305..1983b65 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/CameraController.swift
-@@ -41,6 +41,8 @@
+@@ -41,6 +41,8 @@ class CameraController: NSObject {
      private let zoomUpdateThrottle: TimeInterval = 1.0 / 60.0 // 60 FPS max
  
      var videoFileURL: URL?
@@ -10,7 +11,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
      private let saneMaxZoomFactor: CGFloat = 25.5
  
      // Track output preparation status
-@@ -192,30 +194,69 @@
+@@ -192,30 +194,69 @@ extension CameraController {
          }
      }
  
@@ -88,7 +89,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          self.outputsPrepared = true
      }
  
-@@ -240,6 +281,11 @@
+@@ -240,6 +281,11 @@ extension CameraController {
                      throw CameraControllerError.captureSessionIsMissing
                  }
  
@@ -100,7 +101,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
                  // Prepare outputs
                  self.prepareOutputs()
  
-@@ -249,14 +295,36 @@
+@@ -249,14 +295,36 @@ extension CameraController {
                  // Set aspect ratio preset and remember requested ratio
                  self.requestedAspectRatio = aspectRatio
                  self.configureSessionPreset(for: aspectRatio)
@@ -140,7 +141,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
                  }
  
                  captureSession.commitConfiguration()
-@@ -266,6 +334,7 @@
+@@ -266,6 +334,7 @@ extension CameraController {
  
                  // Start the session
                  captureSession.startRunning()
@@ -148,7 +149,9 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
  
                  // Defer adding photo/video outputs to avoid blocking
                  // These aren't needed immediately for preview
-@@ -277,13 +346,8 @@
+@@ -276,15 +345,10 @@ extension CameraController {
+ 
+                     // Add photo output
                      if let photoOutput = self.photoOutput, captureSession.canAddOutput(photoOutput) {
 -                        photoOutput.isHighResolutionCaptureEnabled = true
 +                        photoOutput.isHighResolutionCaptureEnabled = false
@@ -163,29 +166,27 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
                      captureSession.commitConfiguration()
                  }
  
-@@ -307,11 +371,17 @@
+@@ -307,10 +371,16 @@ extension CameraController {
          if let aspectRatio = aspectRatio {
              switch aspectRatio {
              case "16:9":
 -                if captureSession.canSetSessionPreset(.hd4K3840x2160) {
 -                    targetPreset = .hd4K3840x2160
 -                } else if captureSession.canSetSessionPreset(.hd1920x1080) {
--                    targetPreset = .hd1920x1080
-+                if captureSession.canSetSessionPreset(.hd1920x1080) {
-+                    targetPreset = .hd1920x1080
-+                } else if captureSession.canSetSessionPreset(.hd1280x720) {
-+                    targetPreset = .hd1280x720
-                 }
-+            case "9:16":
 +                if captureSession.canSetSessionPreset(.hd1920x1080) {
 +                    targetPreset = .hd1920x1080
 +                } else if captureSession.canSetSessionPreset(.hd1280x720) {
 +                    targetPreset = .hd1280x720
 +                }
++            case "9:16":
++                if captureSession.canSetSessionPreset(.hd1920x1080) {
+                     targetPreset = .hd1920x1080
++                } else if captureSession.canSetSessionPreset(.hd1280x720) {
++                    targetPreset = .hd1280x720
+                 }
              case "4:3":
                  if captureSession.canSetSessionPreset(.photo) {
-                     targetPreset = .photo
-@@ -336,6 +406,21 @@
+@@ -336,6 +406,21 @@ extension CameraController {
          }
      }
  
@@ -207,7 +208,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
      private func setInitialZoom(level: Float?) {
          let device = (currentCameraPosition == .rear) ? rearCamera : frontCamera
          guard let device = device else {
-@@ -416,14 +501,18 @@
+@@ -416,13 +501,17 @@ extension CameraController {
              if self.audioDevice == nil {
                  self.audioDevice = AVCaptureDevice.default(for: AVMediaType.audio)
              }
@@ -221,7 +222,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +            guard let audioDevice = self.audioDevice else {
 +                print("[CameraPreview] No audio capture device available")
 +                throw CameraControllerError.inputsAreInvalid
-             }
++            }
 +            self.audioInput = try AVCaptureDeviceInput(device: audioDevice)
 +            if captureSession.canAddInput(self.audioInput!) {
 +                captureSession.addInput(self.audioInput!)
@@ -229,11 +230,10 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +            } else {
 +                print("[CameraPreview] Cannot add audio input to capture session — recording video-only")
 +                self.audioInput = nil
-+            }
+             }
          }
      }
- 
-@@ -454,9 +543,9 @@
+@@ -454,9 +543,9 @@ extension CameraController {
              previewLayer.frame = frame
              previewLayer.videoGravity = .resizeAspectFill
          } else {
@@ -245,7 +245,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          }
  
          // Insert layer immediately (only if new)
-@@ -1110,8 +1199,16 @@
+@@ -1110,8 +1199,16 @@ extension CameraController {
              try device.lockForConfiguration()
  
              if ramp {
@@ -264,7 +264,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
              } else {
                  device.videoZoomFactor = zoomLevel
              }
-@@ -1434,7 +1531,86 @@
+@@ -1434,7 +1531,86 @@ extension CameraController {
          self.firstFrameReadyCallback = nil
      }
  
@@ -351,7 +351,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          guard let captureSession = self.captureSession, captureSession.isRunning else {
              throw CameraControllerError.captureSessionIsMissing
          }
-@@ -1446,9 +1622,14 @@
+@@ -1446,9 +1622,14 @@ extension CameraController {
              throw CameraControllerError.fileVideoOutputNotFound
          }
  
@@ -366,7 +366,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
              switch UIDevice.current.orientation {
              case .landscapeRight:
                  connection.videoOrientation = .landscapeLeft
-@@ -1463,6 +1644,20 @@
+@@ -1463,6 +1644,20 @@ extension CameraController {
              }
          }
  
@@ -387,7 +387,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          let identifier = UUID()
          let randomIdentifier = identifier.uuidString.replacingOccurrences(of: "-", with: "")
          let finalIdentifier = String(randomIdentifier.prefix(8))
-@@ -1488,12 +1683,48 @@
+@@ -1488,11 +1683,47 @@ extension CameraController {
              return
          }
  
@@ -413,7 +413,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +    private func recordedMovieAudioTrackCount(at url: URL) -> Int {
 +        let asset = AVURLAsset(url: url)
 +        return asset.tracks(withMediaType: .audio).count
-     }
++    }
 +
 +    /// AVAsset often reports 0 audio tracks immediately after didFinishRecordingTo while the MP4 moov atom is still being written.
 +    private func finalizeRecordedMovieAudio(at url: URL, attempt: Int = 0, completion: @escaping () -> Void) {
@@ -435,11 +435,10 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +            }
 +            self.finalizeRecordedMovieAudio(at: url, attempt: attempt + 1, completion: completion)
 +        }
-+    }
+     }
  }
  
- extension CameraController: UIGestureRecognizerDelegate {
-@@ -1839,11 +2070,19 @@
+@@ -1839,11 +2070,19 @@ extension UIImage {
  
  extension CameraController: AVCaptureFileOutputRecordingDelegate {
      func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
@@ -463,9 +462,10 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
      }
  }
 diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
+index d7a333f..d6d790a 100644
 --- a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
 +++ b/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPlugin/Plugin.swift
-@@ -6,6 +6,17 @@
+@@ -6,6 +6,17 @@ import CoreImage
  import CoreLocation
  import MobileCoreServices
  
@@ -483,7 +483,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
  extension UIWindow {
      static var isLandscape: Bool {
          if #available(iOS 13.0, *) {
-@@ -75,6 +86,7 @@
+@@ -75,6 +86,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
      // Camera state tracking
      private var isInitializing: Bool = false
      private var isInitialized: Bool = false
@@ -491,7 +491,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
      private var backgroundSession: AVCaptureSession?
  
      var previewView: UIView!
-@@ -528,7 +540,18 @@
+@@ -528,7 +540,18 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
  
          self.cameraPosition = call.getString("position") ?? "rear"
          let deviceId = call.getString("deviceId")
@@ -511,7 +511,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
  
          // Set width - use screen width if not provided or if 0
          if let width = call.getInt("width"), width > 0 {
-@@ -565,9 +588,15 @@
+@@ -565,9 +588,15 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
          self.toBack = call.getBool("toBack") ?? true
          self.storeToFile = call.getBool("storeToFile") ?? false
          self.enableZoom = call.getBool("enableZoom") ?? false
@@ -530,7 +530,31 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          self.gridMode = call.getString("gridMode") ?? "none"
          self.positioning = call.getString("positioning") ?? "top"
  
-@@ -1139,12 +1168,21 @@
+@@ -652,6 +681,23 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
+         self.isInitializing = false
+         self.isInitialized = true
+ 
++        // FEEDBACK VIDEO MODE START RESOLVE: the thermal patch does not attach the
++        // AVCaptureVideoDataOutput in video mode (32BGRA buffers overheated phones), so
++        // captureOutput never fires and firstFrameReadyCallback never resolves this call —
++        // the WebView waited on "Preparing camera…" forever. The session is already
++        // running here; resolve immediately instead of waiting for a frame that never comes.
++        if self.videoCaptureMode {
++            DispatchQueue.main.async {
++                var returnedObject = JSObject()
++                returnedObject["width"] = self.previewView.frame.width as any JSValue
++                returnedObject["height"] = self.previewView.frame.height as any JSValue
++                returnedObject["x"] = self.previewView.frame.origin.x as any JSValue
++                returnedObject["y"] = self.previewView.frame.origin.y as any JSValue
++                call.resolve(returnedObject)
++            }
++            return
++        }
++
+         // Set up callback to wait for first frame before resolving
+         self.cameraController.firstFrameReadyCallback = { [weak self] in
+             guard let self = self else { return }
+@@ -1139,11 +1185,20 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
      }
  
      @objc func startRecordVideo(_ call: CAPPluginCall) {
@@ -545,7 +569,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +            } else if call.options["disableAudio"] != nil {
 +                self.disableAudio = capacitorBool(call, "disableAudio", default: true)
 +            }
-         }
++        }
 +        print("[CameraPreview] startRecordVideo disableAudio=\(self.disableAudio) videoCaptureMode=\(self.videoCaptureMode)")
 +        self.cameraController.captureVideoWhenReady { error in
 +            if let error = error {
@@ -553,11 +577,10 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
 +            } else {
 +                call.resolve()
 +            }
-+        }
+         }
      }
  
-     @objc func stopRecordVideo(_ call: CAPPluginCall) {
-@@ -1159,7 +1197,11 @@
+@@ -1159,7 +1214,11 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
                  return
              }
  
@@ -570,7 +593,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          }
      }
  
-@@ -1695,6 +1737,7 @@
+@@ -1695,6 +1754,7 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
          // Update preview layer frame efficiently
          if let previewLayer = self.cameraController.previewLayer {
              previewLayer.frame = self.previewView.bounds
@@ -578,7 +601,7 @@ diff --git a/node_modules/@capgo/camera-preview/ios/Sources/CapgoCameraPreviewPl
          }
  
          // Update grid overlay frame if it exists
-@@ -1742,6 +1785,8 @@
+@@ -1742,6 +1802,8 @@ public class CameraPreview: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelega
  
          if let width = call.getInt("width") { self.width = CGFloat(width) }
          if let height = call.getInt("height") { self.height = CGFloat(height) }

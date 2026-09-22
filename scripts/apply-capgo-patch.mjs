@@ -28,6 +28,9 @@ function patchLooksApplied() {
   return (
     pluginSrc.includes('hasExplicitWidth') &&
     pluginSrc.includes('Honor explicit dimensions from setPreviewSize') &&
+    // Without this, CameraPreview.start never resolves in video mode (no data output →
+    // no first frame) and the app hangs on "Preparing camera…".
+    pluginSrc.includes('FEEDBACK VIDEO MODE START RESOLVE') &&
     controllerSrc.includes('Full-bleed explicit size') &&
     controllerSrc.includes('previewLayer.videoGravity = .resizeAspectFill') &&
     controllerSrc.includes('movieFragmentInterval = CMTime.invalid') &&
