@@ -10,6 +10,25 @@ interface NetworkStatus {
   rtt?: number;
 }
 
+/** Network Information API (Chromium/Android only; absent in WKWebView and Safari). */
+export type NetworkInformationLike = {
+  effectiveType?: string;
+  downlink?: number;
+  rtt?: number;
+  addEventListener: (type: 'change', listener: () => void) => void;
+  removeEventListener: (type: 'change', listener: () => void) => void;
+};
+
+export function getNetworkInformation(): NetworkInformationLike | null {
+  if (typeof navigator === 'undefined') return null;
+  const nav = navigator as Navigator & {
+    connection?: NetworkInformationLike;
+    mozConnection?: NetworkInformationLike;
+    webkitConnection?: NetworkInformationLike;
+  };
+  return nav.connection ?? nav.mozConnection ?? nav.webkitConnection ?? null;
+}
+
 export function useNetworkStatus(): NetworkStatus {
   const [status, setStatus] = useState<NetworkStatus>({
     isOnline: navigator.onLine,
@@ -26,9 +45,7 @@ export function useNetworkStatus(): NetworkStatus {
     };
 
     const updateConnectionSpeed = () => {
-      const connection = (navigator as any).connection || 
-                        (navigator as any).mozConnection || 
-                        (navigator as any).webkitConnection;
+      const connection = getNetworkInformation();
 
       if (connection) {
         const effectiveType = connection.effectiveType;
@@ -62,9 +79,7 @@ export function useNetworkStatus(): NetworkStatus {
     window.addEventListener('offline', updateOnlineStatus);
 
     // Listen for connection changes
-    const connection = (navigator as any).connection || 
-                      (navigator as any).mozConnection || 
-                      (navigator as any).webkitConnection;
+    const connection = getNetworkInformation();
 
     if (connection) {
       connection.addEventListener('change', updateConnectionSpeed);

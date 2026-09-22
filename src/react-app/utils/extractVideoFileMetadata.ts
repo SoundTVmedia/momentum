@@ -48,11 +48,14 @@ function parseIsoDateString(raw: string): Date | null {
 export function findEmbeddedRecordedAt(bytes: Uint8Array): Date | null {
   const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 
+  // NUL is a real separator in MP4/MOV atom payloads, hence the control character.
+  /* eslint-disable no-control-regex */
   const patterns = [
     /creation_time[\x00\s'"=:>]+(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)/gi,
     /com\.apple\.quicktime\.creationdate[\x00\s'"=:>]+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{4})?)/gi,
     /(?:©day|day)[\x00\s'"=:>]+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:[+-]\d{4})?)/gi,
   ];
+  /* eslint-enable no-control-regex */
 
   for (const re of patterns) {
     re.lastIndex = 0;

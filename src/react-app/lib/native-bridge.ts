@@ -43,9 +43,29 @@ export function isIosClient(): boolean {
   });
 }
 
+let pushListenersAttached = false;
+
+/**
+ * APNs registration is asynchronous: `register()` resolves before iOS hands back
+ * the token, and a failure (missing aps-environment entitlement, no network,
+ * simulator) only arrives on `registrationError`. Attach both listeners before
+ * registering so neither outcome is silent in device logs.
+ */
+async function attachPushListeners(): Promise<void> {
+  if (pushListenersAttached) return;
+  pushListenersAttached = true;
+  await PushNotifications.addListener('registration', (token) => {
+    console.log('[push] APNs token registered', token.value.slice(0, 8) + '…');
+  });
+  await PushNotifications.addListener('registrationError', (err) => {
+    console.warn('[push] APNs registration failed', err.error);
+  });
+}
+
 export async function registerNativePush(): Promise<void> {
   if (!isNativeApp()) return;
   try {
+    await attachPushListeners();
     const perm = await PushNotifications.requestPermissions();
     if (perm.receive !== 'granted') return;
     await PushNotifications.register();
@@ -275,17 +295,45 @@ export async function saveVideoToGallery(filePath: string, fileName?: string): P
   });
 }
 
+/**
+ * Normalize a native video location to a `file://` URL for `Media.saveVideo`.
+ *
+ * The Media plugin only reads `file://` URLs safely. Anything else it fetches
+ * with `try! Data(contentsOf:)`, so a `capacitor://localhost/_capacitor_file_/…`
+ * URL (what `Capacitor.convertFileSrc` returns) or a WebView-served https URL
+ * kills the app instead of rejecting. Paths from our own plugins arrive as plain
+ * POSIX paths (`…/Library/Application Support/upload-outbox/<job>.mp4`), which
+ * additionally need percent-encoding before `URL(string:)` accepts them.
+ *
+ * Returns null when the input cannot be mapped to a local file.
+ */
+export function nativeVideoFileUrlForGallery(fileUri: string): string | null {
+  const trimmed = fileUri.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('file://')) return trimmed;
+
+  const servedFile = trimmed.match(/^[a-z][a-z0-9+.-]*:\/\/[^/]*\/_capacitor_file_(\/.*)$/i);
+  if (servedFile) {
+    return `file://${servedFile[1]}`;
+  }
+
+  if (trimmed.startsWith('/')) {
+    return `file://${encodeURI(trimmed)}`;
+  }
+
+  return null;
+}
+
 /** Save a native filesystem video URI directly to Photos (skips blob round-trip). */
 export async function saveNativeVideoUriToGallery(
   fileUri: string,
   fileName?: string,
 ): Promise<void> {
   if (!isNativeApp()) return;
-  const trimmed = fileUri.trim();
-  const path =
-    trimmed.startsWith('file://') || trimmed.startsWith('capacitor://')
-      ? trimmed
-      : Capacitor.convertFileSrc(trimmed);
+  const path = nativeVideoFileUrlForGallery(fileUri);
+  if (!path) {
+    throw new Error(`Cannot save to Photos from a non-file URI: ${fileUri.trim()}`);
+  }
   await saveVideoToGallery(path, fileName);
 }
 

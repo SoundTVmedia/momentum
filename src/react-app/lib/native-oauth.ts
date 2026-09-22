@@ -8,6 +8,7 @@ import { Browser } from '@capacitor/browser';
 import { SignInWithApple } from '@capacitor-community/apple-sign-in';
 import { SocialLogin } from '@capgo/capacitor-social-login';
 import { Capacitor } from '@capacitor/core';
+import { AppBuildConfig, type GoogleSignInBuildConfig } from '@feedback/app-build-config';
 import {
   isValidGoogleIosOAuthClientId,
   NATIVE_APP_ID,
@@ -75,39 +76,67 @@ export function shouldUseNativeInAppOAuth(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 }
 
-type CapacitorConfigWithGoogle = {
-  googleIosOAuthClientId?: string;
-  ios?: {
-    infoPlist?: {
-      GIDClientID?: string;
-    };
-  };
-};
-
-/** iOS client id baked into the native binary at `cap sync` (Info.plist GIDClientID). */
-export function readBuiltGoogleIosOAuthClientId(): string | null {
-  if (!shouldUseNativeInAppOAuth()) {
+/**
+ * iOS client id compiled into this binary, or null when the binary cannot run
+ * GoogleSignIn safely.
+ *
+ * The JS bundle comes from `server.url`, so it cannot know which binary it is
+ * running in; the native plugin reads Info.plist. `cap:sync` writes GIDClientID
+ * and the reversed-client-id URL scheme there from GOOGLE_IOS_OAUTH_CLIENT_ID
+ * (Capacitor itself has no `ios.infoPlist` option). Without the scheme
+ * GoogleSignIn throws an NSException on `signIn`, so a client id whose scheme is
+ * missing is treated as "not built in".
+ */
+export function builtGoogleIosOAuthClientIdFromConfig(
+  built: GoogleSignInBuildConfig | null | undefined,
+): string | null {
+  const clientId = built?.iosClientId?.trim() ?? '';
+  if (!clientId || !isValidGoogleIosOAuthClientId(clientId)) {
     return null;
   }
-  const cfg = (Capacitor as unknown as { getConfig?: () => CapacitorConfigWithGoogle }).getConfig?.();
-  if (!cfg) {
+  if (built?.urlSchemeRegistered !== true) {
     return null;
   }
-  for (const raw of [cfg.googleIosOAuthClientId, cfg.ios?.infoPlist?.GIDClientID]) {
-    const trimmed = raw?.trim();
-    if (trimmed && isValidGoogleIosOAuthClientId(trimmed)) {
-      return trimmed;
-    }
-  }
-  return null;
+  return clientId;
 }
 
-export function nativeGoogleSdkMatchesServerConfig(config: GoogleNativeConfig): boolean {
-  if (!config.enabled || !config.iOSClientId) {
+let builtGoogleClientIdPromise: Promise<string | null> | null = null;
+
+export function readBuiltGoogleIosOAuthClientId(): Promise<string | null> {
+  if (!shouldUseNativeInAppOAuth()) {
+    return Promise.resolve(null);
+  }
+  if (!builtGoogleClientIdPromise) {
+    builtGoogleClientIdPromise = AppBuildConfig.getGoogleSignInConfig()
+      .then((built) => {
+        const clientId = builtGoogleIosOAuthClientIdFromConfig(built);
+        if (built?.iosClientId && !clientId) {
+          console.warn(
+            'Native Google Sign-In disabled: GIDClientID is in Info.plist but its URL scheme',
+            built.urlScheme,
+            'is not registered. Re-run npm run cap:sync with GOOGLE_IOS_OAUTH_CLIENT_ID set and rebuild.',
+          );
+        }
+        return clientId;
+      })
+      .catch((err) => {
+        // Binaries built before this plugin existed reject with "not implemented".
+        console.warn('AppBuildConfig unavailable; using browser Google sign-in:', err);
+        return null;
+      });
+  }
+  return builtGoogleClientIdPromise;
+}
+
+/** The server's iOS client id must be the one compiled into this binary. */
+export function nativeGoogleSdkMatchesServerConfig(
+  config: GoogleNativeConfig,
+  builtClientId: string | null,
+): boolean {
+  if (!config.enabled || !config.iOSClientId || !builtClientId) {
     return false;
   }
-  const built = readBuiltGoogleIosOAuthClientId();
-  return built === config.iOSClientId.trim();
+  return builtClientId === config.iOSClientId.trim();
 }
 
 async function readGoogleNativeConfig(): Promise<GoogleNativeConfig> {
@@ -138,8 +167,15 @@ export async function initNativeSocialLogin(): Promise<void> {
     return;
   }
 
-  const config = await readGoogleNativeConfig();
-  if (!nativeGoogleSdkMatchesServerConfig(config) || !config.webClientId || !config.iOSClientId) {
+  const [config, builtClientId] = await Promise.all([
+    readGoogleNativeConfig(),
+    readBuiltGoogleIosOAuthClientId(),
+  ]);
+  if (
+    !nativeGoogleSdkMatchesServerConfig(config, builtClientId) ||
+    !config.webClientId ||
+    !config.iOSClientId
+  ) {
     return;
   }
 
@@ -392,8 +428,11 @@ async function performNativeGoogleSignInWithBrowser(): Promise<void> {
 }
 
 export async function performNativeGoogleSignIn(): Promise<void> {
-  const config = await readGoogleNativeConfig();
-  if (nativeGoogleSdkMatchesServerConfig(config)) {
+  const [config, builtClientId] = await Promise.all([
+    readGoogleNativeConfig(),
+    readBuiltGoogleIosOAuthClientId(),
+  ]);
+  if (nativeGoogleSdkMatchesServerConfig(config, builtClientId)) {
     try {
       await performNativeGoogleSignInWithSdk();
       return;
@@ -402,7 +441,9 @@ export async function performNativeGoogleSignIn(): Promise<void> {
     }
   } else if (config.enabled && config.iOSClientId) {
     console.warn(
-      'Native Google SDK unavailable in this build (missing GOOGLE_IOS_OAUTH_CLIENT_ID at cap sync). Using browser sign-in.',
+      builtClientId
+        ? `Native Google SDK skipped: binary client id ${builtClientId} does not match the Worker's GOOGLE_IOS_OAUTH_CLIENT_ID. Using browser sign-in.`
+        : 'Native Google SDK unavailable in this build (GOOGLE_IOS_OAUTH_CLIENT_ID was not set at cap sync). Using browser sign-in.',
     );
   }
   await performNativeGoogleSignInWithBrowser();

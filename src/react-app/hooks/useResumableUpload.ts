@@ -7,7 +7,7 @@ interface UploadProgress {
 }
 
 interface UseResumableUploadResult {
-  uploadFile: (file: File, onProgress?: (progress: UploadProgress) => void) => Promise<any>;
+  uploadFile: (file: File, onProgress?: (progress: UploadProgress) => void) => Promise<unknown>;
   uploading: boolean;
   progress: UploadProgress | null;
   error: string | null;
@@ -25,7 +25,7 @@ export function useResumableUpload(): UseResumableUploadResult {
   const uploadFile = useCallback(async (
     file: File,
     onProgress?: (progress: UploadProgress) => void
-  ): Promise<any> => {
+  ): Promise<unknown> => {
     setUploading(true);
     setError(null);
     

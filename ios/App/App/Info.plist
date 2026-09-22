@@ -38,7 +38,7 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Feedback uses your location to match concert clips to nearby venues and JamBase shows.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Feedback uses your location to match concert clips to nearby venues and shows.</string>
+	<string>Feedback uses your location to match concert clips to nearby venues and JamBase shows.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Feedback uses the microphone to record concert audio and identify songs.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -14,10 +14,11 @@
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
 # iOS native Google Sign-In — create an iOS OAuth client for com.feedbacklive.app in Google Cloud.
-# Set the same value as a Wrangler secret AND export it before `npx cap sync ios` so Xcode gets
-# GIDClientID + the reversed Google URL scheme in Info.plist:
+# Set the same value as a Wrangler secret AND export it before `npm run cap:sync` so Xcode gets
+# GIDClientID + the reversed Google URL scheme in Info.plist (written by
+# scripts/sync-ios-info-plist.mjs — a bare `npx cap sync ios` does not touch Info.plist):
 #   export GOOGLE_IOS_OAUTH_CLIENT_ID='123456789-xxxx.apps.googleusercontent.com'
-#   npx cap sync ios
+#   npm run cap:sync
 # GOOGLE_IOS_OAUTH_CLIENT_ID=
 # React Native migration app (com.feedbacklive.app.rn) — additive; Cap keeps GOOGLE_IOS_OAUTH_CLIENT_ID:
 # GOOGLE_IOS_OAUTH_CLIENT_ID_RN=254629847229-1ge9jdqj2l6j09n7o67pump5pfo8giki.apps.googleusercontent.com

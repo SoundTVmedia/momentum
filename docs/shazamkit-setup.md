@@ -41,14 +41,22 @@ ShazamKit no-match or error.
 
 ```bash
 npm install                # links @feedback/shazamkit (file:packages/shazamkit)
-npx cap sync ios           # copies web assets + refreshes pods
-# open ios/App/App.xcworkspace in Xcode and build (pod install runs via cap sync)
+npm run cap:sync           # capgo patch → build:app → cap sync (pod install) → Info.plist sync
+# open ios/App/App.xcworkspace in Xcode and build
 ```
 
 The pod is registered in `ios/App/Podfile`
 (`FeedbackShazamkit` — the name Capacitor derives from `@feedback/shazamkit`;
 lowercase "kit" is required). `Podfile.lock` updates on the next `pod install`
 on macOS.
+
+Prefer `npm run cap:sync` (or at least `npx cap sync ios`) over a bare
+`pod install`. `@capgo/capacitor-social-login` trims its podspec to the
+providers enabled in `capacitor.config.ts` (Google only) from a
+`capacitor:sync:before` hook; `ios/App/Podfile` re-runs that hook so a bare
+`pod install` matches, but it needs `ios/App/App/capacitor.config.json`, which
+only `cap sync`/`cap copy` writes. Without it `pod install` resolves the
+untrimmed podspec and adds FBSDK 18 + Alamofire to `Podfile.lock`.
 
 Do **not** put `com.apple.developer.shazamkit` in `App.entitlements` — Apple
 does not treat that key as a real entitlement, and Xcode will refuse to include
@@ -124,8 +132,8 @@ before install. Pull that Podfile, then sync again.
 # Quit Xcode first so it does not rewrite the file
 sed -i '' 's/objectVersion = 70;/objectVersion = 56;/' ios/App/App.xcodeproj/project.pbxproj
 grep objectVersion ios/App/App.xcodeproj/project.pbxproj | head -1   # expect 56
-cd ios/App && pod install && cd ../..
-# or: npx cap sync ios
+npx cap sync ios   # preferred — runs the social-login provider hook, then pod install
+# or, if ios/App/App/capacitor.config.json already exists: cd ios/App && pod install && cd ../..
 ```
 
 Also: prefer **New Group** over **New Folder** in Xcode, and set Project Format

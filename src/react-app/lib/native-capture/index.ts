@@ -39,9 +39,6 @@ let lastPreviewLayoutKey = '';
 const NATIVE_VIDEO_OUTPUT_READY_MS = 2500;
 let previewRecordingReadyAt = 0;
 let previewStartGeneration = 0;
-let clipsRecordedSincePreviewStart = 0;
-/** Clips finished in this app session — used to recover audio after caption playback. */
-let totalNativeClipsRecorded = 0;
 let restorePlaybackInFlight: Promise<void> | null = null;
 let lastRestorePlaybackAt = 0;
 let lastRestorePlaybackOkAt = 0;
@@ -144,7 +141,6 @@ async function runCameraPreviewStart(
   }
   previewRunning = true;
   previewAudioEnabled = withAudio;
-  clipsRecordedSincePreviewStart = 0;
   // setPreviewSize must run after movie output + mic are wired — doing it earlier breaks audio mux.
   await layoutNativeCapturePreview({ force: true });
   if (generation !== previewStartGeneration) {
@@ -604,8 +600,6 @@ export async function stopNativeVideoRecording(): Promise<{
       audioTrackCount?: number;
     };
     recordingActive = false;
-    clipsRecordedSincePreviewStart += 1;
-    totalNativeClipsRecorded += 1;
     return {
       videoFilePath: result.videoFilePath,
       audioTrackCount: result.audioTrackCount ?? 0,

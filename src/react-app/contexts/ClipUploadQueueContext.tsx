@@ -66,7 +66,7 @@ import {
   releaseUploadWakeLock,
 } from '@/react-app/lib/upload-outbox/upload-wake-lock';
 import { notifyClipUploadSuccess } from '@/react-app/lib/upload-outbox/upload-success-notification';
-import { writeVideoToNativeCache } from '@/react-app/lib/native-bridge';
+import { isNativeApp, writeVideoToNativeCache } from '@/react-app/lib/native-bridge';
 import { resolveWelcomeName } from '@/react-app/lib/resolveWelcomeName';
 import type { ExtendedMochaUser } from '@/shared/types';
 
@@ -863,18 +863,23 @@ export function ClipUploadQueueProvider({ children }: { children: ReactNode }) {
           console.warn('ClipUploadQueue persistOutboxVideo:', err);
         }
         let sourcePath = nativeVideoUri;
-        if (!sourcePath) {
+        // Native only: on web the Filesystem plugin would base64 the whole clip into a
+        // second IndexedDB store that nothing reads or cleans up — the IDB outbox blob
+        // above is the durable copy there.
+        if (!sourcePath && isNativeApp()) {
           try {
             sourcePath = await writeVideoToNativeCache(videoBlob, job.fileName);
           } catch (err) {
             console.warn('ClipUploadQueue writeVideoToNativeCache:', err);
           }
         }
-        const durablePath = await persistDurableVideoFile({
-          jobId: job.id,
-          sourcePath,
-          fileName: job.fileName,
-        });
+        const durablePath = isNativeApp()
+          ? await persistDurableVideoFile({
+              jobId: job.id,
+              sourcePath,
+              fileName: job.fileName,
+            })
+          : null;
         if (durablePath && durablePath !== nativeVideoUri) {
           updateJob(job.id, { nativeVideoUri: durablePath });
         }

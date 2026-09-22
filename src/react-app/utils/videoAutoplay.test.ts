@@ -47,6 +47,24 @@ describe('tryVideoPlayPreferSound', () => {
     expect(video.play).toHaveBeenCalledTimes(2);
   });
 
+  it('does not leak a rejection when both unmuted and muted play are blocked', async () => {
+    const video = mockVideo();
+    video.play = vi.fn(async () => {
+      throw new DOMException('The play() request was interrupted', 'AbortError');
+    });
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      tryVideoPlayPreferSound(video);
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      expect(video.play).toHaveBeenCalledTimes(2);
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
+  });
+
   it('respects explicit preferMuted', async () => {
     const video = mockVideo();
     video.play = vi.fn(async () => {

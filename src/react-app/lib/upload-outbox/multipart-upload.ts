@@ -255,12 +255,22 @@ export async function uploadFileMultipart(options: {
     options;
   const size = options.fileSize && options.fileSize > 0 ? options.fileSize : file.size;
 
+  // Parts the server already holds — both paths resume from here instead of re-sending.
+  let doneParts = new Set<number>();
+  try {
+    const status = await fetchUploadSessionStatus(sessionId, signal);
+    doneParts = new Set(status.completedPartNumbers ?? []);
+  } catch {
+    /* first upload — no status yet; part PUTs surface a dead session themselves */
+  }
+
   if (jobId && (await canUseNativeBackgroundParts(nativeFilePath))) {
     await uploadNativeFileMultipart({
       jobId,
       sessionId,
       filePath: nativeFilePath!.trim(),
       fileSize: size,
+      completedPartNumbers: [...doneParts],
       onProgress,
       signal,
     });
@@ -270,17 +280,8 @@ export async function uploadFileMultipart(options: {
   const mode = effectiveUploadMode(uploadMode);
   const { totalParts, partSize } = computePartPlan(file.size);
 
-  let doneParts = new Set<number>();
-  try {
-    const status = await fetchUploadSessionStatus(sessionId, signal);
-    const fromServer = status.completedPartNumbers ?? [];
-    doneParts = new Set(fromServer);
-    if (doneParts.size > 0) {
-      const base = Math.round((doneParts.size / totalParts) * 100);
-      onProgress?.(base);
-    }
-  } catch {
-    /* first upload — no status yet */
+  if (doneParts.size > 0) {
+    onProgress?.(Math.round((doneParts.size / totalParts) * 100));
   }
 
   let uploadedBytes = 0;

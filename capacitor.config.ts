@@ -43,10 +43,12 @@ const config: CapacitorConfig = {
     url: capServerUrl,
     ...(capServerIsHttp ? { cleartext: true } : {}),
   },
-  // Baked into ios/App/App/capacitor.config.json at sync — used to gate native Google SDK vs browser OAuth.
-  ...(googleIosClientId ? { googleIosOAuthClientId: googleIosClientId } : {}),
   ios: {
     contentInset: 'never',
+    // NOT a Capacitor option: the CLI bakes this object into ios/App/App/capacitor.config.json
+    // and otherwise ignores it. `npm run cap:sync` applies it to ios/App/App/Info.plist via
+    // scripts/sync-ios-info-plist.mjs. The WebView reads GIDClientID + the URL scheme back
+    // through @feedback/app-build-config to decide native Google SDK vs browser OAuth.
     infoPlist: {
       NSCameraUsageDescription:
         'Feedback uses the camera to record concert clips in the app.',

@@ -15,6 +15,7 @@ import {
 } from '@/react-app/utils/captureShowSession';
 import { useClipUploadQueue } from '@/react-app/contexts/ClipUploadQueueContext';
 import { useShowMarks } from '@/react-app/hooks/useShowMarks';
+import { getNetworkInformation } from '@/react-app/hooks/useNetworkStatus';
 import { clipCandidateMatchesCameraCaptureDay, resolveCameraGoingAutoFill, isCameraGoingAutoFillSource, resolveCameraVenuePicker } from '@/shared/clip-resolve-show-match';
 import { readDeviceCoordsForNearbyShows } from '@/react-app/lib/nearby-shows-url';
 import {
@@ -294,7 +295,7 @@ export default function QuickRecordButton({
 
   // Detect network speed
   useEffect(() => {
-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const connection = getNetworkInformation();
     if (connection) {
       const updateNetworkSpeed = () => {
         const effectiveType = connection.effectiveType;
@@ -1812,79 +1813,8 @@ export default function QuickRecordButton({
     resetLiveSongIdentification();
   };
 
-  const identifyLiveSegmentBlob = (_blob: Blob) => {
-    /* Live song ID is deferred until after upload. */
-  };
-
-  const beginLiveAuddSegment = (stream: MediaStream, audioMime: string) => {
-    if (liveAuddStoppedRef.current) return;
-
-    const liveTracks = stream.getAudioTracks().filter((t) => t.readyState === 'live');
-    if (liveTracks.length === 0) return;
-
-    clearLiveAuddSegmentTimer();
-    liveAuddSegmentChunksRef.current = [];
-
-    try {
-      const liveIdStream = new MediaStream(liveTracks.map((t) => t.clone()));
-      const liveRec = new MediaRecorder(liveIdStream, {
-        mimeType: audioMime,
-        audioBitsPerSecond: 96_000,
-      });
-      liveAuddAudioMimeRef.current = liveRec.mimeType || audioMime;
-
-      liveRec.ondataavailable = (event) => {
-        if (event.data.size > 0) liveAuddSegmentChunksRef.current.push(event.data);
-      };
-
-      liveRec.onstop = () => {
-        try {
-          liveIdStream.getTracks().forEach((t) => t.stop());
-        } catch {
-          /* ignore */
-        }
-        const chunks = liveAuddSegmentChunksRef.current;
-        liveAuddSegmentChunksRef.current = [];
-        const outMime =
-          liveRec.mimeType && liveRec.mimeType.length > 0
-            ? liveRec.mimeType
-            : liveAuddAudioMimeRef.current;
-        const blob = chunks.length > 0 ? new Blob(chunks, { type: outMime }) : null;
-        if (blob) identifyLiveSegmentBlob(blob);
-        if (!liveAuddStoppedRef.current) {
-          beginLiveAuddSegment(stream, audioMime);
-        }
-      };
-
-      liveAuddRecorderRef.current = liveRec;
-      liveRec.start();
-
-      liveAuddSegmentTimerRef.current = setTimeout(() => {
-        liveAuddSegmentTimerRef.current = null;
-        const rec = liveAuddRecorderRef.current;
-        if (!rec || rec !== liveRec || liveAuddStoppedRef.current) return;
-        if (rec.state !== 'recording' && rec.state !== 'paused') return;
-        if (typeof rec.requestData === 'function') {
-          try {
-            rec.requestData();
-          } catch {
-            /* ignore */
-          }
-        }
-        try {
-          rec.stop();
-        } catch {
-          /* ignore */
-        }
-        if (liveAuddRecorderRef.current === liveRec) {
-          liveAuddRecorderRef.current = null;
-        }
-      }, 5_000);
-    } catch (e) {
-      console.warn('QuickRecordButton: live song segment failed', e);
-    }
-  };
-
+  // Live song ID is deferred until after upload; the in-capture segment recorder was removed
+  // with it (see identify-for-upload.ts). startLiveSongPipeline stays as the no-op seam.
   /** Live song ID from mic — starts when preview has audio (before REC) and during capture. */
   const startLiveSongPipeline = (_stream: MediaStream): boolean => {
     return false;

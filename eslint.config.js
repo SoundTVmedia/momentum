@@ -12,6 +12,9 @@ export default tseslint.config(
       "dist",
       "./worker-configuration.d.ts",
       "apps/mobile/**",
+      // `cap sync` copies of webDir — built output, not source.
+      "ios/App/App/public/**",
+      "android/app/src/main/assets/public/**",
     ],
   },
   {
@@ -30,6 +33,16 @@ export default tseslint.config(
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true },
+      ],
+      // `_name` is the codebase convention for intentionally unused parameters/destructures.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
       ],
     },
   }

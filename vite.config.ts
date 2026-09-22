@@ -29,9 +29,8 @@ const apiProxyTarget =
     : undefined;
 
 export default defineConfig({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: [
-    ...mochaPlugins(process.env as any),
+    ...mochaPlugins(process.env as Parameters<typeof mochaPlugins>[0]),
     react(),
     ...(shouldEnableCloudflarePlugin
       ? [

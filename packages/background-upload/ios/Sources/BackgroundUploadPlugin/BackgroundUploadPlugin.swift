@@ -283,28 +283,55 @@ public class BackgroundUploadPlugin: CAPPlugin, CAPBridgedPlugin, URLSessionTask
         return dest
     }
 
+    /// WKWebView and WKHTTPCookieStore are main-thread objects; `uploadPart`
+    /// calls this from a utility queue, so hop to main before touching them.
     private func withWebViewCookies(
         _ request: URLRequest,
         url: URL,
         done: @escaping (URLRequest) -> Void
     ) {
-        guard let store = bridge?.webView?.configuration.websiteDataStore.httpCookieStore else {
-            done(request)
-            return
-        }
-        store.getAllCookies { cookies in
-            var next = request
-            let host = url.host ?? ""
-            let matching = cookies.filter { cookie in
-                let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
-                return host == cookie.domain || host.hasSuffix(domain)
+        DispatchQueue.main.async { [weak self] in
+            guard let store = self?.bridge?.webView?.configuration.websiteDataStore.httpCookieStore else {
+                done(request)
+                return
             }
-            if !matching.isEmpty {
-                let header = matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-                next.setValue(header, forHTTPHeaderField: "Cookie")
+            store.getAllCookies { cookies in
+                var next = request
+                let host = url.host ?? ""
+                let matching = cookies.filter { cookie in
+                    let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
+                    return host == cookie.domain || host.hasSuffix(domain)
+                }
+                if !matching.isEmpty {
+                    let header = matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+                    next.setValue(header, forHTTPHeaderField: "Cookie")
+                }
+                done(next)
             }
-            done(next)
         }
+    }
+
+    /// Identify the part a task belongs to. `pendingParts` is in-memory, so after
+    /// iOS relaunches the app to deliver a finished background task the map is
+    /// empty; the stable `taskDescription` ("jobId#partNumber") still names it.
+    private func pendingPart(for task: URLSessionTask, remove: Bool) -> (jobId: String, partNumber: Int)? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        if let pending = remove
+            ? pendingParts.removeValue(forKey: task.taskIdentifier)
+            : pendingParts[task.taskIdentifier]
+        {
+            return pending
+        }
+        guard let description = task.taskDescription,
+              let hash = description.lastIndex(of: "#"),
+              let partNumber = Int(description[description.index(after: hash)...]),
+              partNumber > 0
+        else {
+            return nil
+        }
+        let jobId = String(description[..<hash])
+        return jobId.isEmpty ? nil : (jobId, partNumber)
     }
 
     private static func fileURL(from path: String) -> URL {
@@ -321,10 +348,7 @@ public class BackgroundUploadPlugin: CAPPlugin, CAPBridgedPlugin, URLSessionTask
         totalBytesSent: Int64,
         totalBytesExpectedToSend: Int64
     ) {
-        stateLock.lock()
-        let pending = pendingParts[task.taskIdentifier]
-        stateLock.unlock()
-        guard let pending else { return }
+        guard let pending = pendingPart(for: task, remove: false) else { return }
         notifyListeners("uploadProgress", data: [
             "jobId": pending.jobId,
             "partNumber": pending.partNumber,
@@ -334,10 +358,7 @@ public class BackgroundUploadPlugin: CAPPlugin, CAPBridgedPlugin, URLSessionTask
     }
 
     public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        stateLock.lock()
-        let pending = pendingParts.removeValue(forKey: task.taskIdentifier)
-        stateLock.unlock()
-        guard let pending else { return }
+        guard let pending = pendingPart(for: task, remove: true) else { return }
         let status = (task.response as? HTTPURLResponse)?.statusCode ?? 0
         if let error {
             notifyListeners("uploadPartFailed", data: [

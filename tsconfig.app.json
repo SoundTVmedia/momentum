@@ -10,6 +10,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
+      "@feedback/app-build-config": ["./packages/app-build-config/src/index.ts"],
       "@feedback/background-upload": ["./packages/background-upload/src/index.ts"],
       "@feedback/native-audio-capture": ["./packages/native-audio-capture/src/index.ts"],
       "@feedback/shazamkit": ["./packages/shazamkit/src/index.ts"]
@@ -32,6 +33,7 @@
   },
   "include": [
     "src/react-app",
+    "packages/app-build-config/src",
     "packages/background-upload/src",
     "packages/native-audio-capture/src",
     "packages/shazamkit/src"

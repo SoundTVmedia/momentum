@@ -80,14 +80,23 @@ export function tryVideoPlayPreferSound(
     video.volume = 1;
     try {
       await attempt(false);
+      return;
     } catch {
-      // Keep trying for sound — muted is only a temporary bridge so playback starts.
+      /* fall through to the muted bridge */
+    }
+    // Keep trying for sound — muted is only a temporary bridge so playback starts.
+    // The muted retry can still reject (AbortError when the element is paused or
+    // removed mid-call); this is fire-and-forget, so swallow it instead of
+    // surfacing an unhandled rejection.
+    try {
       await attempt(true);
-      window.setTimeout(tryUnmuteWhilePlaying, 120);
-      window.setTimeout(tryUnmuteWhilePlaying, 400);
-      if (!isMobilePlaybackPlatform()) {
-        window.setTimeout(tryUnmuteWhilePlaying, 800);
-      }
+    } catch {
+      return;
+    }
+    setTimeout(tryUnmuteWhilePlaying, 120);
+    setTimeout(tryUnmuteWhilePlaying, 400);
+    if (!isMobilePlaybackPlatform()) {
+      setTimeout(tryUnmuteWhilePlaying, 800);
     }
   };
 

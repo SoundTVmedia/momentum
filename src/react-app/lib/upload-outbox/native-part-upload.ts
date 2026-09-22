@@ -72,6 +72,44 @@ export async function canUseNativeBackgroundParts(filePath: string | null | unde
   }
 }
 
+export type NativePartPlan = {
+  totalParts: number;
+  /** Bytes already on the server, so progress starts where the last run stopped. */
+  alreadyUploadedBytes: number;
+  parts: Array<{ partNumber: number; offset: number; length: number }>;
+};
+
+/**
+ * Byte ranges still missing on the server. A background URLSession keeps
+ * uploading after the WebView is killed; when the app relaunches the runner
+ * restarts the job, so anything the server already has must be skipped instead
+ * of re-sent (the browser path does the same via `completedPartNumbers`).
+ */
+export function planNativeParts(
+  fileSize: number,
+  completedPartNumbers: Iterable<number> = [],
+  partSize = UPLOAD_PART_SIZE_BYTES,
+): NativePartPlan {
+  const size = Math.max(0, fileSize);
+  const totalParts = Math.max(1, Math.ceil(size / partSize));
+  const completed = new Set<number>();
+  for (const n of completedPartNumbers) {
+    if (Number.isInteger(n) && n >= 1 && n <= totalParts) completed.add(n);
+  }
+  const parts: NativePartPlan['parts'] = [];
+  let alreadyUploadedBytes = 0;
+  for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+    const offset = (partNumber - 1) * partSize;
+    const length = Math.max(0, Math.min(partSize, size - offset));
+    if (completed.has(partNumber)) {
+      alreadyUploadedBytes += length;
+      continue;
+    }
+    parts.push({ partNumber, offset, length });
+  }
+  return { totalParts, alreadyUploadedBytes, parts };
+}
+
 /**
  * PUT file slices via the platform background session (URLSession / native HTTP).
  * Completes when the OS reports the part finished — survives app backgrounding.
@@ -81,24 +119,28 @@ export async function uploadNativeFileMultipart(options: {
   sessionId: string;
   filePath: string;
   fileSize: number;
+  /** Parts the server already reports as received (from `/status`). */
+  completedPartNumbers?: number[];
   onProgress?: (pct: number) => void;
   signal?: AbortSignal;
 }): Promise<void> {
-  const { jobId, sessionId, filePath, fileSize, onProgress, signal } = options;
+  const { jobId, sessionId, filePath, fileSize, completedPartNumbers, onProgress, signal } =
+    options;
   startPartListeners();
-  const partSize = UPLOAD_PART_SIZE_BYTES;
-  const totalParts = Math.max(1, Math.ceil(fileSize / partSize));
-  let uploaded = 0;
+  const plan = planNativeParts(fileSize, completedPartNumbers ?? []);
+  let uploaded = plan.alreadyUploadedBytes;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  if (uploaded > 0) {
+    onProgress?.(Math.round((uploaded / Math.max(fileSize, 1)) * 100));
+  }
 
-  for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+  for (const { partNumber, offset, length } of plan.parts) {
     if (signal?.aborted) throw new Error('Upload cancelled');
+    if (length <= 0) continue;
     const reachable = await getNetworkReachability();
     if (!reachable.connected) {
       throw new TypeError('Network error during part upload');
     }
-    const start = (partNumber - 1) * partSize;
-    const length = Math.min(partSize, fileSize - start);
     const url = `${origin}/api/uploads/${sessionId}/parts/${partNumber}`;
     const done = waitForPart(jobId, partNumber, signal);
     const scheduled = await BackgroundUpload.uploadPart({
@@ -106,11 +148,12 @@ export async function uploadNativeFileMultipart(options: {
       partNumber,
       url,
       filePath,
-      offset: start,
+      offset,
       length,
       httpMethod: 'PUT',
     });
     if (!scheduled.accepted) {
+      waiters.delete(waiterKey(jobId, partNumber));
       throw new Error(`Part ${partNumber} upload failed: native uploader unavailable`);
     }
     await done;
