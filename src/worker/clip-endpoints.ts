@@ -19,6 +19,7 @@ import {
   CLIP_BELONGS_TO_SHOW_BIND_COUNT,
   clipBelongsToEventTitleSql,
   clipBelongsToRequestedShowSql,
+  withShowClipMembership,
 } from './past-show-sql';
 import {
   SHOW_CLIPS_RECORDED_ORDER_BY_SQL,
@@ -712,12 +713,12 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
   if (showIdentity) {
     scope = 'show';
     results = await c.env.DB.prepare(
-      `${CLIP_WITH_USER_SELECT}
+      withShowClipMembership(`${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
        WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND ${clipBelongsToRequestedShowSql()}
        ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}
-       LIMIT 50`,
+       LIMIT 50`),
     )
       .bind(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showIdentity))
       .all();

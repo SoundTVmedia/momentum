@@ -5,7 +5,7 @@ import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv, normalizeJamBaseApiKey } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
-import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowIdSql } from './past-show-sql';
+import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowIdSql, withShowClipMembership } from './past-show-sql';
 import { listPastShowsForEntity } from './past-show-list';
 import { clipShowIdForAttendedMark } from './user-show-marks-endpoints';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
@@ -699,6 +699,7 @@ export async function getShowClips(c: Context) {
 
     query += ' LIMIT ? OFFSET ?';
     bindings.push(String(limit + 1), String(offset));
+    query = withShowClipMembership(query);
 
     const clips = await c.env.DB.prepare(query)
       .bind(...bindings)
@@ -713,7 +714,7 @@ export async function getShowClips(c: Context) {
       () => showId,
     );
     const canonicalRow = (await c.env.DB.prepare(
-      `SELECT
+      withShowClipMembership(`SELECT
          ${groupedPastShowIdSql()} as canonical_show_id,
          MAX(CASE
            WHEN NULLIF(TRIM(clips.jambase_event_id), '') IS NOT NULL
@@ -721,7 +722,7 @@ export async function getShowClips(c: Context) {
          END) as jambase_event_id
        FROM clips
        WHERE ${clipBelongsToRequestedShowSql()}
-       AND ${PUBLIC_VISIBLE_CLIP_SQL}`,
+       AND ${PUBLIC_VISIBLE_CLIP_SQL}`),
     )
       .bind(...showIdentityBinds)
       .first()) as { canonical_show_id?: string | null; jambase_event_id?: string | null } | null;

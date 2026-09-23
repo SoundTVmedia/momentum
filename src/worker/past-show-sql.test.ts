@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, festivalClipSearchSql, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, type PastShowListRow } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, D1_MAX_SQL_STATEMENT_BYTES, festivalClipSearchSql, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, withShowClipMembership, type PastShowListRow } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -214,7 +214,7 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     ]);
 
     const festivalClips = db
-      .prepare(`SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`)
+      .prepare(withShowClipMembership(`SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`))
       .get(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:sk-fri')) as {
       n: number;
     };
@@ -302,9 +302,9 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
 
     const jayZ = db
       .prepare(
-        `SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`,
+        withShowClipMembership(`SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`),
       )
-      .get('jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new') as {
+      .get('jambase:new', 'jambase:new', 'jambase:new') as {
       n: number;
     };
     expect(jayZ.n).toBe(2);
@@ -441,6 +441,42 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
   });
 });
 
+describe('D1 statement length', () => {
+  it('keeps show-page queries under the 100 KB D1 limit', () => {
+    const showPage = withShowClipMembership(`
+      SELECT clips.*, user_profiles.display_name as user_display_name
+      FROM clips
+      LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
+      WHERE ${clipBelongsToRequestedShowSql()}
+      AND clips.is_hidden = 0 AND clips.is_draft = 0
+      ORDER BY clips.created_at DESC
+      LIMIT ? OFFSET ?
+    `);
+    const pastShows = `
+      SELECT ${groupedPastShowsSelectSql()}
+      FROM clips
+      WHERE clips.artist_name = ?
+      GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+      ORDER BY show_date DESC
+      LIMIT ?
+    `;
+    const festivalPage = `
+      SELECT clips.*
+      FROM clips
+      WHERE ${festivalClipSearchSql({
+        titleNeedleCount: 4,
+        eventIdCount: 80,
+        editionYear: '2026',
+      })}
+      ORDER BY clips.created_at DESC
+      LIMIT 50
+    `;
+    expect(showPage.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
+    expect(pastShows.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
+    expect(festivalPage.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
+  });
+});
+
 describe('clipBelongsToRequestedShowSql', () => {
   const databases: DatabaseSync[] = [];
 
@@ -477,7 +513,7 @@ describe('clipBelongsToRequestedShowSql', () => {
     insert.run(2, 'Madison Square Garden', '2025-04-20T03:00:00.000Z', 'jambase:123', 'jambase:123', 'Phish');
     insert.run(3, 'The Sphere', '2025-04-20T01:00:00.000Z', 'jambase:999', 'other-show', 'Other Night');
 
-    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
     const showBinds = Array.from(
       { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
       () => 'phish-msg-2025-04-20',
@@ -505,7 +541,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (131, 'Ariana Grande', 'Barclays Center', '2026-07-14T00:32:47.000Z', NULL, 'ariana-grande-barclays-center-2026-07-14', 'Ariana Grande at Barclays Center')
     `).run();
 
-    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
     const byEventId = db
       .prepare(sql)
       .all(
@@ -525,9 +561,9 @@ describe('clipBelongsToRequestedShowSql', () => {
 
     const canonicalBySlug = db
       .prepare(
-        `SELECT ${groupedPastShowIdSql()} as canonical_show_id
+        withShowClipMembership(`SELECT ${groupedPastShowIdSql()} as canonical_show_id
          FROM clips
-         WHERE ${clipBelongsToRequestedShowSql()}`,
+         WHERE ${clipBelongsToRequestedShowSql()}`),
       )
       .get(
         ...Array.from(
@@ -548,7 +584,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (2, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:13:03.119Z', NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
     `).run();
 
-    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
     const byEventId = db
       .prepare(sql)
       .all(
@@ -568,9 +604,9 @@ describe('clipBelongsToRequestedShowSql', () => {
 
     const canonicalBySlug = db
       .prepare(
-        `SELECT ${groupedPastShowIdSql()} as canonical_show_id
+        withShowClipMembership(`SELECT ${groupedPastShowIdSql()} as canonical_show_id
          FROM clips
-         WHERE ${clipBelongsToRequestedShowSql()}`,
+         WHERE ${clipBelongsToRequestedShowSql()}`),
       )
       .get(
         ...Array.from(
@@ -592,7 +628,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (3, 'Foreigner', 'The Bell Auditorium', '', '2026-09-20 15:16:39', 'foreigner-the-bell-auditorium-2026-09-20', 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
     `).run();
 
-    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
     const byEventId = db
       .prepare(sql)
       .all(
@@ -623,7 +659,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (300, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden')
     `).run();
 
-    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
     const byJune = db
       .prepare(sql)
       .all(

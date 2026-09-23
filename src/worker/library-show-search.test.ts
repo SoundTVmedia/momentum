@@ -7,8 +7,13 @@ import {
   libraryShowToJamBaseEvent,
   type LibraryShowSearchRow,
 } from './library-show-search';
+import { D1_MAX_SQL_STATEMENT_BYTES } from './past-show-sql';
 
 describe('library show search', () => {
+  it('stays under the D1 statement length limit', () => {
+    expect(LIBRARY_SHOW_SEARCH_SQL.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
+  });
+
   const databases: DatabaseSync[] = [];
 
   afterEach(() => {

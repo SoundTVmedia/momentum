@@ -601,36 +601,67 @@ export function clipMatchesShowIdentitySql(alias = 'clips'): string {
 export const CLIP_SHOW_IDENTITY_BIND_COUNT = 3;
 
 /**
- * All clips for a show page, including rows that stored a composite show_id
- * while others stored the JamBase event id, same-night siblings, and
- * title-matched archival clips when no JamBase event id exists.
- * Bind the same showId nine times.
+ * D1 rejects a statement longer than 100 KB. The show-membership key is large,
+ * so it has to be written once in a CTE instead of inlined on both sides of a
+ * comparison.
  */
-export function clipBelongsToRequestedShowSql(): string {
-  return `(
-    ${clipMatchesShowIdentitySql('clips')}
-    OR (
-      ${clipRealJamBaseEventIdSql('clips')} IS NOT NULL
-      AND ${clipRealJamBaseEventIdSql('clips')} IN (
-        SELECT ${clipRealJamBaseEventIdSql('seed')}
-        FROM clips AS seed
-        WHERE ${clipRealJamBaseEventIdSql('seed')} IS NOT NULL
-          AND ${clipMatchesShowIdentitySql('seed')}
-      )
-    )
-    OR (
-      ${clipPastShowGroupKeySql('clips')} IS NOT NULL
-      AND ${clipPastShowGroupKeySql('clips')} IN (
-        SELECT ${clipPastShowGroupKeySql('seed')}
-        FROM clips AS seed
-        WHERE ${clipPastShowGroupKeySql('seed')} IS NOT NULL
-          AND ${clipMatchesShowIdentitySql('seed')}
-      )
-    )
+export const D1_MAX_SQL_STATEMENT_BYTES = 100_000;
+
+/**
+ * One row per clip with the show key used by past-show pages.
+ * Prefix a statement with this before {@link clipBelongsToRequestedShowSql}.
+ */
+export function showClipMembershipCteSql(): string {
+  return `show_clip_membership AS (
+    SELECT
+      clips.rowid AS membership_rowid,
+      ${clipPastShowGroupKeySql('clips')} AS membership_group_key,
+      ${clipRealJamBaseEventIdSql('clips')} AS membership_jambase_id,
+      ${clipShowKeySql('clips')} AS membership_show_key,
+      NULLIF(TRIM(clips.show_id), '') AS membership_show_id
+    FROM clips
   )`;
 }
 
-export const CLIP_BELONGS_TO_SHOW_BIND_COUNT = CLIP_SHOW_IDENTITY_BIND_COUNT * 3;
+/** Put the show-membership CTE in front of a SELECT. */
+export function withShowClipMembership(sql: string): string {
+  const trimmed = sql.trim();
+  if (/^WITH\b/i.test(trimmed)) {
+    return `WITH ${showClipMembershipCteSql()}, ${trimmed.replace(/^WITH\s+/i, '')}`;
+  }
+  return `WITH ${showClipMembershipCteSql()}\n${trimmed}`;
+}
+
+/**
+ * All clips for a show page, including rows that stored a composite show_id
+ * while others stored the JamBase event id, same-night siblings, and
+ * title-matched archival clips when no JamBase event id exists.
+ * The statement must be wrapped with {@link withShowClipMembership}.
+ * Bind the same showId three times.
+ */
+export function clipBelongsToRequestedShowSql(): string {
+  return `clips.rowid IN (
+    SELECT me.membership_rowid
+    FROM show_clip_membership AS me
+    JOIN show_clip_membership AS seed
+      ON (
+        me.membership_rowid = seed.membership_rowid
+        OR (
+          me.membership_jambase_id IS NOT NULL
+          AND me.membership_jambase_id = seed.membership_jambase_id
+        )
+        OR (
+          me.membership_group_key IS NOT NULL
+          AND me.membership_group_key = seed.membership_group_key
+        )
+      )
+    WHERE seed.membership_show_key = ?
+      OR seed.membership_show_id = ?
+      OR seed.membership_jambase_id = ?
+  )`;
+}
+
+export const CLIP_BELONGS_TO_SHOW_BIND_COUNT = CLIP_SHOW_IDENTITY_BIND_COUNT;
 
 const FESTIVAL_EDITION_YEAR_MIN = 2015;
 const FESTIVAL_EDITION_YEAR_MAX = 2032;
