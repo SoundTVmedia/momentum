@@ -33,6 +33,30 @@ describe('pastShowClipsPath', () => {
     ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-21/clips');
   });
 
+  it('opens the clip show when the attended mark id is not on the clips', () => {
+    expect(
+      pastShowClipsPath({
+        event_title: 'Jay-Z at Yankee Stadium',
+        artist_name: 'Jay-Z',
+        link_artist_name: 'Jay-Z',
+        venue_name: 'Yankee Stadium',
+        show_id: 'jambase:clips',
+        jambase_event_id: 'jambase:mark',
+        show_date: '2024-07-14T23:10:00.000Z',
+      }),
+    ).toBe('/artists/jay-z/shows/jambase%3Aclips/clips');
+    expect(
+      clipShowClipsPath({
+        event_title: 'Jay-Z at Yankee Stadium',
+        artist_name: 'Jay-Z',
+        venue_name: 'Yankee Stadium',
+        timestamp: '2024-07-14T23:40:00.000Z',
+        show_id: 'jambase:clips',
+        jambase_event_id: 'jambase:clips',
+      }),
+    ).toBe('/artists/jay-z/shows/jambase%3Aclips/clips');
+  });
+
   it('opens a festival card on the festival page', () => {
     expect(
       pastShowClipsPath({

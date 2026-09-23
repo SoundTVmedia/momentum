@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, type PastShowListRow } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, type PastShowListRow } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -1012,6 +1012,33 @@ describe('mergeClipAndLibraryPastShows', () => {
     expect(merged).toHaveLength(1);
     expect(merged[0]?.clip_count).toBe(6);
     expect(merged[0]?.identity_ids).toEqual(expect.arrayContaining(['jambase:old', 'jambase:new']));
+  });
+
+  it('points an attended mark at the clip show id the player already uses', () => {
+    expect(
+      showPageIdForPastShowCard(
+        showRow({
+          show_id: 'jambase:mark',
+          event_title: 'Jay-Z at Yankee Stadium',
+          artist_name: 'Jay-Z',
+          show_date: '2024-07-14T23:10:00.000Z',
+          venue_name: 'Yankee Stadium',
+          jambase_event_id: 'jambase:mark',
+          clip_count: 0,
+        }),
+        [
+          showRow({
+            show_id: 'jambase:clips',
+            event_title: 'Jay-Z at Yankee Stadium',
+            artist_name: 'Jay-Z',
+            show_date: '2024-07-14T23:40:00.000Z',
+            venue_name: 'Yankee Stadium',
+            jambase_event_id: 'jambase:clips',
+            clip_count: 2,
+          }),
+        ],
+      ),
+    ).toEqual({ showId: 'jambase:clips', artistName: 'Jay-Z' });
   });
 
   it('merges a Jay-Z listing that crosses UTC midnight with the existing night', () => {
