@@ -1,4 +1,4 @@
-import { FESTIVAL_BRAND_KEYS, festivalNamesShareEdition } from '../shared/jambase-festival';
+import { festivalDisplayTitle, festivalNamesShareEdition } from '../shared/jambase-festival';
 import { isJamBaseEventId, resolveClipShowNavigationId } from '../shared/show-id';
 import { sameConcertNight } from '../shared/show-night-key';
 
@@ -142,25 +142,6 @@ function inheritJamBaseEventIdSql(alias: string): string {
   )`;
 }
 
-const FESTIVAL_TITLE_TOKENS = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-  'weekend',
-  ...Array.from({ length: 2032 - 2015 + 1 }, (_, i) => String(2015 + i)),
-];
-
-function stripLooseTokensSql(expr: string, tokens: string[]): string {
-  return tokens.reduce(
-    (acc, token) => `TRIM(REPLACE(' ' || ${acc} || ' ', ' ${token} ', ' '))`,
-    expr,
-  );
-}
-
 function clipLooseTitleSql(alias: string): string {
   return clipLooseNameSql(`${alias}.event_title`);
 }
@@ -168,61 +149,6 @@ function clipLooseTitleSql(alias: string): string {
 /** Lowercased event title with hyphens and apostrophes folded, for festival clip search. */
 export function clipEventTitleLooseSql(alias = 'clips'): string {
   return clipLooseTitleSql(alias);
-}
-
-function clipPaddedLooseTitleSql(alias: string): string {
-  return `' ' || ${clipLooseTitleSql(alias)} || ' '`;
-}
-
-function festivalBrandKeySql(alias: string): string {
-  const padded = clipPaddedLooseTitleSql(alias);
-  const whens = FESTIVAL_BRAND_KEYS.map(
-    (brand) => `WHEN instr(${padded}, ' ${brand.needle} ') > 0 THEN '${brand.key}'`,
-  ).join('\n');
-  return `CASE\n${whens}\nELSE NULL END`;
-}
-
-function festivalTitleIsGenericSql(alias: string): string {
-  const padded = clipPaddedLooseTitleSql(alias);
-  // "Summerfest" has no space before "fest". "manifest" does too, so exclude it.
-  return `(
-    instr(${padded}, ' festival ') > 0
-    OR instr(${padded}, ' festivals ') > 0
-    OR instr(${padded}, ' fest ') > 0
-    OR instr(${padded}, ' fests ') > 0
-    OR (
-      instr(${padded}, 'fest ') > 0
-      AND instr(${padded}, ' manifest ') = 0
-      AND instr(${padded}, ' manifesto ') = 0
-    )
-  )`;
-}
-
-function festivalEditionYearSql(alias: string): string {
-  const title = clipLooseTitleSql(alias);
-  const captureYear = `substr(${clipCaptureDaySql(alias)}, 1, 4)`;
-  const whens = Array.from({ length: 2032 - 2015 + 1 }, (_, i) => {
-    const year = String(2015 + i);
-    return `WHEN instr(${title}, '${year}') > 0 THEN '${year}'`;
-  }).join('\n');
-  return `CASE\n${whens}\nELSE ${captureYear} END`;
-}
-
-/**
- * One key for every clip in a festival edition, across artists and days.
- * "Shaky Knees Friday" and "The National at Shaky Knees" share it.
- * A normal concert title stays null so residencies are unchanged.
- */
-function clipFestivalEditionKeySql(alias: string): string {
-  const brand = festivalBrandKeySql(alias);
-  const genericName = `REPLACE(${stripLooseTokensSql(clipLooseTitleSql(alias), FESTIVAL_TITLE_TOKENS)}, '  ', ' ')`;
-  const year = festivalEditionYearSql(alias);
-  return `(CASE
-    WHEN NULLIF(TRIM(${alias}.event_title), '') IS NULL THEN NULL
-    WHEN ${brand} IS NOT NULL THEN 'festival:' || ${brand} || ':' || COALESCE(${year}, '')
-    WHEN ${festivalTitleIsGenericSql(alias)} THEN 'festival:' || ${genericName} || ':' || COALESCE(${year}, '')
-    ELSE NULL
-  END)`;
 }
 
 /**
@@ -247,21 +173,22 @@ function sameNightCanonicalJamBaseIdSql(alias: string): string {
 /**
  * Past-show card identity for GROUP BY.
  *
- * 1. A festival edition shares one key across artists and days (Shaky Knees).
- * 2. Same artist + venue + UTC day shares one JamBase id, even when listings
+ * A festival edition is collapsed later in pastShowsAreSameConcert so a show
+ * page stays one concert. This key is one concert night:
+ *
+ * 1. Same artist + venue + UTC day shares one JamBase id, even when listings
  *    disagree (Jay-Z at Yankee Stadium).
- * 3. Otherwise a stored JamBase event id (keeps multi-night residencies separate).
- * 4. Otherwise inherit a JamBase id from another clip on the same concert night
+ * 2. Otherwise a stored JamBase event id (keeps multi-night residencies separate).
+ * 3. Otherwise inherit a JamBase id from another clip on the same concert night
  *    or the same billed title within one UTC day (Foreigner at The Bell
  *    Auditorium midnight spill).
- * 5. Otherwise group by artist + venue + event title so archival uploads with
+ * 4. Otherwise group by artist + venue + event title so archival uploads with
  *    wrong capture dates still share one card (Charlie Puth at MSG).
- * 6. Last resort: artist + venue + capture day.
+ * 5. Last resort: artist + venue + capture day.
  */
 export function clipPastShowGroupKeySql(alias = 'clips'): string {
   const billed = clipBilledTitleKeySql(alias);
   return `COALESCE(
-    ${clipFestivalEditionKeySql(alias)},
     ${sameNightCanonicalJamBaseIdSql(alias)},
     ${clipRealJamBaseEventIdSql(alias)},
     ${inheritJamBaseEventIdSql(alias)},
@@ -519,7 +446,7 @@ export function mergePastShowPair(current: PastShowListRow, incoming: PastShowLi
   const poorer = richer === incoming ? current : incoming;
   const ids = [...new Set([...pastShowIdentityIds(current), ...pastShowIdentityIds(incoming)])];
   const jamBase = ids.find((id) => isJamBaseEventId(id)) ?? richer.jambase_event_id ?? null;
-  return {
+  const merged: PastShowListRow = {
     ...richer,
     clip_count: (Number(current.clip_count) || 0) + (Number(incoming.clip_count) || 0),
     jambase_event_id: jamBase,
@@ -527,6 +454,17 @@ export function mergePastShowPair(current: PastShowListRow, incoming: PastShowLi
     thumbnail_url: richer.thumbnail_url || poorer.thumbnail_url,
     artist_image_url: richer.artist_image_url || poorer.artist_image_url,
     identity_ids: ids,
+  };
+  if (!sameFestivalEdition(current, incoming)) return merged;
+  const title =
+    festivalDisplayTitle(current.event_title) ||
+    festivalDisplayTitle(incoming.event_title) ||
+    merged.event_title;
+  const artistsDiffer = concertNameKey(current.artist_name) !== concertNameKey(incoming.artist_name);
+  return {
+    ...merged,
+    event_title: title,
+    artist_name: artistsDiffer ? null : merged.artist_name,
   };
 }
 
