@@ -27,6 +27,7 @@ export interface PastShowSummary {
   jambase_event_id?: string | null;
   jambase_venue_id?: string | null;
   jambase_artist_id?: string | null;
+  link_artist_name?: string | null;
   clip_count: number;
   average_show_rating?: number;
   thumbnail_url: string | null;

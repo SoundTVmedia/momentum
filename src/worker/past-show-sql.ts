@@ -1,5 +1,5 @@
 import { festivalNamesShareEdition } from '../shared/jambase-festival';
-import { isJamBaseEventId } from '../shared/show-id';
+import { isJamBaseEventId, resolveClipShowNavigationId } from '../shared/show-id';
 import { sameConcertNight } from '../shared/show-night-key';
 
 /**
@@ -259,6 +259,8 @@ export type PastShowListRow = {
   artist_image_url?: string | null;
   /** Other show / event ids that were collapsed into this card. */
   identity_ids?: string[];
+  /** Artist name on the clips, used so the card opens the same show page as the player. */
+  link_artist_name?: string | null;
 };
 
 export function libraryShowStubSelectSql(options?: { includeAverageRating?: boolean }): string {
@@ -390,6 +392,41 @@ function preferredShowId(row: PastShowListRow, ids: string[]): string | null {
   const jamBase = ids.find((id) => isJamBaseEventId(id));
   if (jamBase) return jamBase;
   return row.show_id ?? row.jambase_event_id ?? ids[0] ?? null;
+}
+
+/**
+ * Show-page id for a past-show card that counted clips stored under a different id.
+ * Matches the clip player: prefer the clip's JamBase event id, then its show id.
+ */
+export function showPageIdForPastShowCard(
+  card: PastShowListRow,
+  clips: PastShowListRow[],
+): { showId: string; artistName: string | null } | null {
+  const matched = clips.filter((clip) => pastShowsAreSameConcert(card, clip));
+  if (matched.length === 0) return null;
+  const navOf = (clip: PastShowListRow) =>
+    resolveClipShowNavigationId({
+      show_id: clip.show_id,
+      jambase_event_id: clip.jambase_event_id,
+      artist_name: clip.artist_name,
+      venue_name: clip.venue_name,
+      timestamp: clip.show_date,
+    });
+  const cardId = (card.show_id ?? card.jambase_event_id ?? '').trim();
+  const ranked = [...matched].sort((a, b) => {
+    const aNav = navOf(a) ?? '';
+    const bNav = navOf(b) ?? '';
+    const score = (nav: string) => (isJamBaseEventId(nav) ? 2 : nav ? 1 : 0);
+    const byScore = score(bNav) - score(aNav);
+    if (byScore !== 0) return byScore;
+    if (aNav === cardId && bNav !== cardId) return -1;
+    if (bNav === cardId && aNav !== cardId) return 1;
+    return 0;
+  });
+  const chosen = ranked[0]!;
+  const showId = navOf(chosen);
+  if (!showId) return null;
+  return { showId, artistName: chosen.artist_name?.trim() || null };
 }
 
 export function mergePastShowPair(current: PastShowListRow, incoming: PastShowListRow): PastShowListRow {

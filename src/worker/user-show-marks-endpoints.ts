@@ -20,6 +20,7 @@ import {
   collapsePastShowRows,
   concertNameKey,
   pastShowsAreSameConcert,
+  showPageIdForPastShowCard,
   type PastShowListRow,
 } from './past-show-sql';
 import {
@@ -430,10 +431,13 @@ async function attachClipStatsToPastShows(
         row.thumbnail_url ||
         matched.find((clip) => clip.thumbnail_url?.trim())?.thumbnail_url ||
         null;
+      const link = showPageIdForPastShowCard(row, matched);
       return {
         ...row,
         clip_count: matched.length,
         thumbnail_url: thumbnail,
+        show_id: link?.showId || row.show_id,
+        link_artist_name: link?.artistName || row.artist_name,
       };
     });
   } catch (e) {
@@ -456,7 +460,73 @@ function pastShowListRowToCard(row: PastShowListRow) {
     clip_count: row.clip_count ?? 0,
     thumbnail_url: row.thumbnail_url,
     artist_image_url: row.artist_image_url ?? null,
+    link_artist_name: row.link_artist_name ?? null,
   };
+}
+
+/**
+ * When a show URL is an attended-mark id that no clip stored, return the clip's
+ * show id so the page can open the same show the player title uses.
+ */
+export async function clipShowIdForAttendedMark(
+  db: D1Database,
+  showId: string,
+): Promise<string | null> {
+  const id = showId.trim();
+  if (!id) return null;
+  const mark = await db
+    .prepare(
+      `SELECT event_title, artist_name, venue_name, start_date, jambase_event_id
+       FROM user_show_marks
+       WHERE jambase_event_id = ?
+       LIMIT 1`,
+    )
+    .bind(id)
+    .first();
+  if (!mark) return null;
+  const raw = mark as Record<string, unknown>;
+  const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+  const card: PastShowListRow = {
+    show_id: id,
+    event_title: text(raw.event_title),
+    artist_name: text(raw.artist_name),
+    show_date: text(raw.start_date),
+    venue_name: text(raw.venue_name),
+    venue_location: null,
+    jambase_event_id: id,
+    jambase_venue_id: null,
+    jambase_artist_id: null,
+    clip_count: 0,
+    thumbnail_url: null,
+  };
+  const venueKey = concertNameKey(card.venue_name);
+  const titleKey = concertNameKey(card.event_title);
+  const artistKey = concertNameKey(card.artist_name);
+  if (venueKey.length < 4 && titleKey.length < 4 && artistKey.length < 4) return null;
+  try {
+    const result = await db
+      .prepare(
+        `SELECT clips.jambase_event_id, clips.show_id, clips.event_title, clips.artist_name,
+                clips.venue_name, clips.timestamp
+         FROM clips
+         WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
+           AND (
+             (? != '' AND instr(LOWER(REPLACE(REPLACE(IFNULL(clips.venue_name, ''), '-', ' '), '''', '')), ?) > 0)
+             OR (? != '' AND instr(LOWER(REPLACE(REPLACE(IFNULL(clips.event_title, ''), '-', ' '), '''', '')), ?) > 0)
+             OR (? != '' AND instr(LOWER(REPLACE(REPLACE(IFNULL(clips.artist_name, ''), '-', ' '), '''', '')), ?) > 0)
+           )
+         LIMIT 200`,
+      )
+      .bind(venueKey, venueKey, titleKey, titleKey, artistKey, artistKey)
+      .all();
+    const clips = ((result.results ?? []) as Array<Record<string, unknown>>).map(clipToPastShowRow);
+    const link = showPageIdForPastShowCard(card, clips);
+    if (!link || link.showId === id) return null;
+    return link.showId;
+  } catch (e) {
+    console.error('clipShowIdForAttendedMark', e);
+    return null;
+  }
 }
 
 /** GET /api/users/:userId/attended-shows — public past shows the user marked as went. */
