@@ -33,6 +33,18 @@ describe('pastShowClipsPath', () => {
     ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-21/clips');
   });
 
+  it('opens a festival card on the festival page', () => {
+    expect(
+      pastShowClipsPath({
+        event_title: 'Shaky Knees',
+        artist_name: 'Foo Fighters',
+        venue_name: 'Central Park',
+        show_id: 'jambase:sk-fri',
+        show_date: '2026-09-18T23:00:00.000Z',
+      }),
+    ).toBe('/festivals/shaky-knees');
+  });
+
   it('computes a date-aware show id for older API responses', () => {
     expect(
       pastShowClipsPath({

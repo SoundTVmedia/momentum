@@ -139,6 +139,8 @@ export function apiShowClipsPath(
 
 /** Clips from one past-show card, including its date-aware fallback identity. */
 export function pastShowClipsPath(show: PastShowClipsInput): string {
+  const festivalHref = festivalPageHrefFromEvent(null, show.event_title);
+  if (festivalHref) return festivalHref;
   const showId =
     show.show_id?.trim() ||
     show.jambase_event_id?.trim() ||

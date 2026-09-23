@@ -9,6 +9,7 @@ import {
   isShowMarkActionActive,
   showMarkActionLabel,
   showMarkActionStatus,
+  showMarksAreSameConcert,
   type ShowMarkAction,
   type ShowMarkStatus,
 } from '@/shared/show-marks';
@@ -26,6 +27,8 @@ type ShowMarkButtonsProps = {
   size?: 'card' | 'hero';
   /** Show pages: after I went, offer archival clip upload for this show. */
   showUploadClip?: boolean;
+  /** Past festival pages that already have clips can take another upload. */
+  uploadReady?: boolean;
 };
 
 function signInPrompt(action: ShowMarkAction): string {
@@ -41,20 +44,27 @@ export default function ShowMarkButtons({
   statusOverride,
   size = 'card',
   showUploadClip = false,
+  uploadReady = false,
 }: ShowMarkButtonsProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { getMarkForEvent, toggleMark, hydrated } = useShowMarks();
+  const { getMarkForEvent, marks, toggleMark, hydrated } = useShowMarks();
   const [pending, setPending] = useState<ShowMarkAction | null>(null);
 
   const eventId = typeof event.identifier === 'string' ? event.identifier : null;
   const actions = availableShowMarkActionsForEvent(event, new Date(), statusOverride);
-  const current = eventId ? getMarkForEvent(eventId) : null;
+  const eventMark = jamBaseEventToShowMarkInput(event, statusOverride ?? 'attended');
+  const current =
+    (eventId ? getMarkForEvent(eventId) : null) ??
+    (eventMark
+      ? marks.find((mark) => showMarksAreSameConcert(mark, eventMark)) ?? null
+      : null);
   const attendedActive = isAttendedShowMarkActive(current);
   const showOver = !jamBaseEventUpcomingOrInProgress(event);
   const festivalLive = jamBaseEventUsesFestivalRunWindow(event) && jamBaseEventImThereEligible(event);
   const offerUpload = Boolean(
-    showUploadClip && ((user && attendedActive && current && showOver) || festivalLive),
+    showUploadClip &&
+      (uploadReady || (user && attendedActive && current && showOver) || festivalLive),
   );
 
   if (!eventId || (actions.length === 0 && !offerUpload)) return null;

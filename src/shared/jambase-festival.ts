@@ -1,5 +1,5 @@
 import type { JamBaseEventRecord } from './jambase-events';
-import { jamBaseEventImageUrl, jamBaseEventTicketUrl, jamBaseEventVenueCityLine, jamBaseEventVenueName } from './jambase-events';
+import { jamBaseEventId, jamBaseEventImageUrl, jamBaseEventTicketUrl, jamBaseEventVenueCityLine, jamBaseEventVenueName } from './jambase-events';
 import { slugifyEntityName } from './jambase-slug';
 
 const FESTIVAL_TYPE_RE = /festival/i;
@@ -77,10 +77,64 @@ export function isJamBaseFestivalEvent(ev: JamBaseEventRecord | null | undefined
   return jamBaseEventPerformerCount(ev) >= LINEUP_FESTIVAL_MIN_PERFORMERS;
 }
 
-/** Slug used for `/festivals/:slug` — drops a trailing year so annual editions share a page. */
+const FESTIVAL_DAY_SUFFIX =
+  /-(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend(?:-\d+)?|day-\d+)$/;
+
+function stripFestivalEditionSuffix(slug: string): string {
+  let next = slug;
+  for (let i = 0; i < 3; i++) {
+    const stripped = next
+      .replace(FESTIVAL_DAY_SUFFIX, '')
+      .replace(/-20\d{2}$/, '')
+      .replace(/-19\d{2}$/, '');
+    if (stripped === next) break;
+    next = stripped;
+  }
+  return next;
+}
+
+/** Slug used for `/festivals/:slug` — one page per festival, not per day or year. */
 export function festivalCanonicalSlug(name: string | null | undefined): string {
-  const slug = slugifyEntityName(name);
-  return slug.replace(/-20\d{2}$/, '').replace(/-19\d{2}$/, '');
+  return stripFestivalEditionSuffix(slugifyEntityName(name));
+}
+
+function festivalDateYear(iso: string | null | undefined): string | null {
+  return (iso ?? '').trim().match(/^(\d{4})-\d{2}-\d{2}/)?.[1] ?? null;
+}
+
+/**
+ * Same festival name and the same calendar year.
+ * A missing date still matches (an upload often has no festival start).
+ * Next year's edition stays separate.
+ */
+export function festivalDatesShareEdition(
+  leftDate: string | null | undefined,
+  rightDate: string | null | undefined,
+): boolean {
+  const leftYear = festivalDateYear(leftDate);
+  const rightYear = festivalDateYear(rightDate);
+  if (leftYear && rightYear) return leftYear === rightYear;
+  return true;
+}
+
+/** True when two titles are the same festival edition (Friday and Saturday included). */
+export function festivalNamesShareEdition(
+  leftName: string | null | undefined,
+  rightName: string | null | undefined,
+  leftDate?: string | null,
+  rightDate?: string | null,
+): boolean {
+  const left = leftName?.trim() || '';
+  const right = rightName?.trim() || '';
+  if (!left || !right) return false;
+  if (!isJamBaseFestivalEvent({ name: left }) || !isJamBaseFestivalEvent({ name: right })) {
+    return false;
+  }
+  const leftKey = festivalCanonicalSlug(left);
+  const rightKey = festivalCanonicalSlug(right);
+  if (!leftKey || !rightKey) return false;
+  if (!festivalSlugMatches(left, rightKey) && !festivalSlugMatches(right, leftKey)) return false;
+  return festivalDatesShareEdition(leftDate, rightDate);
 }
 
 /** JamBase `name=` keyword queries — keep the year, then also try without it. */
@@ -286,11 +340,16 @@ export function pickFestivalGroupForSlug(
   const scored = groups.map((group) => {
     const starts = group.map(eventStartMs).filter((ms) => Number.isFinite(ms));
     const soonest = starts.length ? Math.min(...starts) : Number.POSITIVE_INFINITY;
-    const upcomingBoost = soonest >= nowMs - 12 * 60 * 60 * 1000 ? 0 : Number.MAX_SAFE_INTEGER / 4;
+    const upcoming = soonest >= nowMs - 12 * 60 * 60 * 1000;
     const lineup = mergeFestivalLineups(group).length;
-    return { group, soonest: soonest + upcomingBoost, lineup };
+    return { group, upcoming, soonest, lineup };
   });
-  scored.sort((a, b) => a.soonest - b.soonest || b.lineup - a.lineup);
+  scored.sort((a, b) => {
+    if (a.upcoming !== b.upcoming) return a.upcoming ? -1 : 1;
+    // Upcoming: earliest edition. Past: the most recent edition, not the oldest.
+    if (a.upcoming) return a.soonest - b.soonest || b.lineup - a.lineup;
+    return b.soonest - a.soonest || b.lineup - a.lineup;
+  });
   return scored[0]?.group ?? [];
 }
 
@@ -368,7 +427,7 @@ export function festivalPageFromEvents(group: JamBaseEventRecord[]): {
       city_line: jamBaseEventVenueCityLine(primary) || null,
       ticket_url: ticket,
       website_url: website,
-      jambase_event_id: typeof primary.identifier === 'string' ? primary.identifier : null,
+      jambase_event_id: jamBaseEventId(primary) || null,
     },
     artists: mergeFestivalLineups(group),
     eventIds,

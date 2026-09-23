@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, type PastShowListRow } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -184,6 +184,43 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       { show_id: 'jambase:15668776', clip_count: 1, artist_name: 'Phish' },
     ]);
     expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
+  });
+
+  it('merges two JamBase ids for the same artist, venue, and night', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Jay-Z', 'Yankee Stadium', '2024-07-14T23:30:00.000Z', 'jambase:old', 'jambase:old', 'Jay-Z at Yankee Stadium'),
+        (2, 'Jay Z', 'Yankee Stadium', '2024-07-14T23:50:00.000Z', 'jambase:new', 'jambase:new', 'Jay Z at Yankee Stadium'),
+        (3, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden'),
+        (4, 'Phish', 'Madison Square Garden', '2026-07-26T01:00:00.000Z', 'jambase:15668776', 'jambase:15668776', 'Phish at Madison Square Garden')
+    `).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+        ORDER BY artist_name ASC, show_date ASC
+      `)
+      .all() as Array<{ clip_count: number; artist_name: string }>;
+
+    expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
+      { artist_name: 'Jay-Z', clip_count: 2 },
+      { artist_name: 'Phish', clip_count: 1 },
+      { artist_name: 'Phish', clip_count: 1 },
+    ]);
+
+    const jayZ = db
+      .prepare(
+        `SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`,
+      )
+      .get('jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new', 'jambase:new') as {
+      n: number;
+    };
+    expect(jayZ.n).toBe(2);
   });
 
   it('merges a JamBase night with a UTC-next-day composite slug for the same billed show', () => {
@@ -945,7 +982,168 @@ describe('mergeClipAndLibraryPastShows', () => {
 
     expect(merged).toHaveLength(2);
   });
+
+  it('merges a second Jay-Z Yankee Stadium listing from the same night', () => {
+    const merged = mergeClipAndLibraryPastShows(
+      [
+        showRow({
+          show_id: 'jambase:old',
+          event_title: 'Jay-Z at Yankee Stadium',
+          artist_name: 'Jay-Z',
+          show_date: '2024-07-14T23:10:00.000Z',
+          venue_name: 'Yankee Stadium',
+          jambase_event_id: 'jambase:old',
+          clip_count: 4,
+        }),
+        showRow({
+          show_id: 'jambase:new',
+          event_title: 'Jay Z at Yankee Stadium',
+          artist_name: 'Jay Z',
+          show_date: '2024-07-14T23:40:00.000Z',
+          venue_name: 'Yankee Stadium',
+          jambase_event_id: 'jambase:new',
+          clip_count: 2,
+        }),
+      ],
+      [],
+      12,
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.clip_count).toBe(6);
+    expect(merged[0]?.identity_ids).toEqual(expect.arrayContaining(['jambase:old', 'jambase:new']));
+  });
+
+  it('merges a Jay-Z listing that crosses UTC midnight with the existing night', () => {
+    expect(
+      pastShowsAreSameConcert(
+        showRow({
+          show_id: 'jambase:old',
+          event_title: 'Jay-Z at Yankee Stadium',
+          artist_name: 'Jay-Z',
+          show_date: '2024-07-14T23:40:00.000Z',
+          venue_name: 'Yankee Stadium',
+          jambase_event_id: 'jambase:old',
+          clip_count: 4,
+        }),
+        showRow({
+          show_id: 'jambase:new',
+          event_title: 'Jay Z at Yankee Stadium',
+          artist_name: 'Jay Z',
+          show_date: '2024-07-15T00:20:00.000Z',
+          venue_name: 'Yankee Stadium',
+          jambase_event_id: 'jambase:new',
+          clip_count: 2,
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('collapses festival day listings and a later upload in the same year', () => {
+    const collapsed = collapsePastShowRows([
+      showRow({
+        show_id: 'jambase:sk-fri',
+        event_title: 'Shaky Knees 2026 - Friday',
+        artist_name: 'Foo Fighters',
+        show_date: '2026-05-15T23:00:00.000Z',
+        venue_name: 'Central Park',
+        jambase_event_id: 'jambase:sk-fri',
+        clip_count: 0,
+      }),
+      showRow({
+        show_id: 'jambase:sk-sat',
+        event_title: 'Shaky Knees 2026 - Saturday',
+        artist_name: 'The National',
+        show_date: '2026-09-22T18:00:00.000Z',
+        venue_name: 'Central Park',
+        jambase_event_id: 'jambase:sk-sat',
+        clip_count: 0,
+      }),
+    ]);
+    expect(collapsed).toHaveLength(1);
+    expect(
+      pastShowsAreSameConcert(
+        collapsed[0]!,
+        showRow({
+          show_id: 'jambase:sk-2025',
+          event_title: 'Shaky Knees',
+          artist_name: 'Foo Fighters',
+          show_date: '2025-09-19T23:00:00.000Z',
+          venue_name: 'Central Park',
+          jambase_event_id: 'jambase:sk-2025',
+          clip_count: 1,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('collapses a multi-day festival into one card and keeps a residency split', () => {
+    const collapsed = collapsePastShowRows([
+      showRow({
+        show_id: 'jambase:sk-fri',
+        event_title: 'Shaky Knees',
+        artist_name: 'Foo Fighters',
+        show_date: '2026-09-18T23:00:00.000Z',
+        venue_name: 'Central Park',
+        jambase_event_id: 'jambase:sk-fri',
+        clip_count: 0,
+      }),
+      showRow({
+        show_id: 'jambase:sk-sat',
+        event_title: 'Shaky Knees Festival',
+        artist_name: 'The National',
+        show_date: '2026-09-19T23:00:00.000Z',
+        venue_name: 'Central Park',
+        jambase_event_id: 'jambase:sk-sat',
+        clip_count: 0,
+      }),
+    ]);
+    expect(collapsed).toHaveLength(1);
+    expect(
+      pickCanonicalShowIdentity(
+        showRow({
+          show_id: 'jambase:new',
+          event_title: 'Jay Z at Yankee Stadium',
+          artist_name: 'Jay Z',
+          show_date: '2024-07-14T23:40:00.000Z',
+          venue_name: 'Yankee Stadium',
+          jambase_event_id: 'jambase:new',
+          clip_count: 0,
+        }),
+        [
+          showRow({
+            show_id: 'jambase:old',
+            event_title: 'Jay-Z at Yankee Stadium',
+            artist_name: 'Jay-Z',
+            show_date: '2024-07-14T23:10:00.000Z',
+            venue_name: 'Yankee Stadium',
+            jambase_event_id: 'jambase:old',
+            clip_count: 4,
+          }),
+        ],
+      )?.jambase_event_id,
+    ).toBe('jambase:old');
+    expect(pastShowsAreSameConcert(collapsed[0]!, showRow({
+      show_id: 'performer-set',
+      event_title: 'Shaky Knees 2026',
+      artist_name: 'Foo Fighters',
+      show_date: '2026-09-18T23:30:00.000Z',
+      venue_name: 'Piedmont Park',
+      jambase_event_id: 'performer-set',
+      clip_count: 2,
+    }))).toBe(true);
+  });
 });
+
+function showRow(partial: PastShowListRow): PastShowListRow {
+  return {
+    venue_location: null,
+    jambase_venue_id: null,
+    jambase_artist_id: null,
+    thumbnail_url: null,
+    ...partial,
+  };
+}
 
 describe('libraryShowNightKeySql', () => {
   it('matches the clip night key for the same artist, venue, and date', () => {

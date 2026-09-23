@@ -63,6 +63,40 @@ describe('archivalUploadNavState', () => {
     });
   });
 
+  it('keeps the existing Jay-Z mark when the page is a second listing of that night', () => {
+    expect(
+      archivalUploadNavState(
+        mark({
+          jambase_event_id: 'jambase:jayz-original',
+          jambase_venue_id: 'jambase:yankee',
+          jambase_artist_id: 'jambase:jayz',
+          event_title: 'Jay-Z at Yankee Stadium',
+          artist_name: 'Jay-Z',
+          venue_name: 'Yankee Stadium',
+          venue_location: 'Bronx, NY',
+          start_date: '2024-07-14T23:40:00.000Z',
+        }),
+        {
+          ...jayZYankee,
+          identifier: 'jambase:jayz-duplicate',
+          startDate: '2024-07-15T00:20:00.000Z',
+        },
+      ),
+    ).toEqual({
+      fromPhotoLibrary: true,
+      showData: {
+        jambase_event_id: 'jambase:jayz-original',
+        jambase_venue_id: 'jambase:yankee',
+        jambase_artist_id: 'jambase:jayz',
+        event_title: 'Jay-Z at Yankee Stadium',
+        artist_name: 'Jay-Z',
+        venue_name: 'Yankee Stadium',
+        location: 'Bronx, NY',
+        start_date: '2024-07-14T23:40:00.000Z',
+      },
+    });
+  });
+
   it('uses the show page event so the clip is tagged to that concert', () => {
     expect(archivalUploadNavState(mark(), jayZYankee)).toEqual({
       fromPhotoLibrary: true,
