@@ -1,13 +1,10 @@
 import type { Context } from 'hono';
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import {
-  festivalClipTitleNeedles,
   festivalPageFromEvents,
   festivalSlugMatches,
   festivalTitleSearchPhrases,
   isJamBaseFestivalEvent,
-  jamBaseEventPerformerCount,
-  mergeFestivalLineups,
   pickFestivalGroupForSlug,
   type FestivalLineupArtist,
 } from '../shared/jambase-festival';
@@ -17,17 +14,16 @@ import {
   slugifyEntityName,
   titleCaseWords,
 } from '../shared/jambase-slug';
+import { jamBaseVenueEventLookbackDateFrom } from '../shared/jambase-event-day';
 import { rewriteJamBaseEventImages, rewriteMediaUrlForClient } from '../shared/media-proxy';
 import { clientMediaOrigin } from './client-media-origin';
 import { normalizeClipApiRows } from './clip-row-normalize';
-import { festivalClipSearchSql } from './past-show-sql';
 import {
   jamBaseFestivalPageListKey,
   lookupCachedEventList,
   storeCachedEventList,
 } from './jambase-cache';
 import {
-  jamBaseEventDateFromDaysAgo,
   jamBaseQuotaFromEnv,
   type JamBaseQuotaContext,
 } from './jambase-client';
@@ -40,25 +36,14 @@ import {
   jamBaseEventIdentifier,
   dedupeJamBaseEvents,
   fetchJamBaseEventsByEventName,
-  JAMBASE_ARCHIVE_LOOKBACK_DAYS,
 } from './jambase-events-search';
-
-function festivalSearchMatched(events: Record<string, unknown>[], phrase: string): boolean {
-  const slug = slugifyEntityName(phrase);
-  return events.some((ev) => {
-    const name = typeof ev.name === 'string' ? ev.name : '';
-    return festivalSlugMatches(name, slug) || isJamBaseFestivalEvent(ev);
-  });
-}
 
 async function searchFestivalEvents(
   apiKey: string,
   quota: JamBaseQuotaContext | undefined,
   phrase: string,
 ): Promise<Record<string, unknown>[]> {
-  // Name search must include past editions. The venue lookback is only today,
-  // which drops festivals that already happened (Shaky Knees the week after).
-  const fromDate = jamBaseEventDateFromDaysAgo(JAMBASE_ARCHIVE_LOOKBACK_DAYS);
+  const fromDate = jamBaseVenueEventLookbackDateFrom();
   const phrases = festivalTitleSearchPhrases(phrase);
   let merged: Record<string, unknown>[] = [];
 
@@ -67,21 +52,19 @@ async function searchFestivalEvents(
       eventType: 'festival',
       perPage: '50',
       eventDateFrom: fromDate,
-      expandPastEvents: 'true',
     });
     merged = dedupeJamBaseEvents([...merged, ...fests]);
-    if (festivalSearchMatched(merged, phrase)) break;
+    if (merged.length > 0) break;
   }
 
-  if (!festivalSearchMatched(merged, phrase)) {
+  if (merged.length === 0) {
     for (const title of phrases) {
       const titled = await fetchJamBaseEventsByEventName(apiKey, title, quota, {
         perPage: '50',
         eventDateFrom: fromDate,
-        expandPastEvents: 'true',
       });
       merged = dedupeJamBaseEvents([...merged, ...titled]);
-      if (festivalSearchMatched(merged, phrase)) break;
+      if (merged.length > 0) break;
     }
   }
 
@@ -99,45 +82,6 @@ async function searchFestivalEvents(
   ]);
   merged = dedupeJamBaseEvents([...merged, ...byArtist.events, ...byVenue.events]);
   return merged;
-}
-
-function lineupFromClipArtists(
-  clips: Array<{ artist_name?: unknown }>,
-): FestivalLineupArtist[] {
-  const seen = new Set<string>();
-  const artists: FestivalLineupArtist[] = [];
-  for (const clip of clips) {
-    const name = typeof clip.artist_name === 'string' ? clip.artist_name.trim() : '';
-    const key = slugifyEntityName(name);
-    if (!name || !key || seen.has(key)) continue;
-    seen.add(key);
-    artists.push({
-      name,
-      image_url: null,
-      jambase_id: null,
-      is_headliner: false,
-    });
-  }
-  return artists.sort((a, b) => a.name.localeCompare(b.name));
-}
-
-/** Accept raw JamBase identifiers and the `jambase:123` form stored on clips. */
-function expandFestivalClipIds(ids: string[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of ids) {
-    const id = raw.trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-    const numeric = id.match(/(\d+)$/)?.[1];
-    if (!numeric) continue;
-    const prefixed = `jambase:${numeric}`;
-    if (seen.has(prefixed)) continue;
-    seen.add(prefixed);
-    out.push(prefixed);
-  }
-  return out;
 }
 
 function rewriteLineup(
@@ -188,22 +132,19 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
     }
   }
 
-  const needsLineup = group.length > 0 && mergeFestivalLineups(group).length === 0;
-  if (group.length > 0 && apiKey?.trim() && (!fromFestivalCache || needsLineup)) {
-    const targets = [...group]
-      .sort((a, b) => jamBaseEventPerformerCount(b) - jamBaseEventPerformerCount(a))
-      .filter((ev) => needsLineup || jamBaseEventPerformerCount(ev) === 0)
-      .slice(0, 4);
-    let hydrated = false;
-    for (const ev of targets) {
-      const id = jamBaseEventIdentifier(ev);
-      if (!id) continue;
+  if (group.length > 0 && !fromFestivalCache && apiKey?.trim()) {
+    const richest = [...group].sort((a, b) => {
+      const ap = Array.isArray(a.performer) ? a.performer.length : 0;
+      const bp = Array.isArray(b.performer) ? b.performer.length : 0;
+      return bp - ap;
+    })[0];
+    const id = jamBaseEventIdentifier(richest ?? {});
+    if (id) {
       const full = await fetchJamBaseEventById(apiKey, jbQ, id);
-      if (!full || jamBaseEventPerformerCount(full) === 0) continue;
-      group = [full, ...group.filter((existing) => jamBaseEventIdentifier(existing) !== id)];
-      hydrated = true;
+      if (full) {
+        group = [full, ...group.filter((ev) => jamBaseEventIdentifier(ev) !== id)];
+      }
     }
-    if (hydrated) fromFestivalCache = false;
   }
 
   if (!fromFestivalCache && db && festivalListKey && group.length > 0) {
@@ -231,14 +172,8 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
   }
 
   const artists = rewriteLineup(built?.artists ?? [], mediaOrigin);
-  const eventIds = expandFestivalClipIds(built?.eventIds ?? []).slice(0, 80);
-  const titleNeedles = festivalClipTitleNeedles(slug, displayName, festival.name);
-  const editionYear = festival.start_date?.match(/^(\d{4})-\d{2}-\d{2}/)?.[1] ?? null;
-  const clipMatch = festivalClipSearchSql({
-    titleNeedleCount: titleNeedles.length,
-    eventIdCount: eventIds.length,
-    editionYear,
-  });
+  const eventIds = (built?.eventIds ?? []).slice(0, 20);
+  const titleLike = `%${festival.name}%`;
 
   let clipsSql = `
     SELECT
@@ -249,42 +184,24 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
-    AND (${clipMatch || '0'})
+    AND (
+      clips.event_title LIKE ?
+      OR LOWER(REPLACE(TRIM(IFNULL(clips.event_title, '')), ' ', '-')) LIKE ?
+      ${eventIds.length > 0 ? `OR clips.jambase_event_id IN (${eventIds.map(() => '?').join(', ')})` : ''}
+    )
   `;
-  const bindings: unknown[] = [...titleNeedles, ...eventIds, ...eventIds];
+  const bindings: unknown[] = [titleLike, `%${slug}%`];
+  if (eventIds.length > 0) {
+    bindings.push(...eventIds);
+  }
   clipsSql += ` ORDER BY clips.created_at DESC LIMIT 50`;
 
   const clipsRes = await db.prepare(clipsSql).bind(...bindings).all();
-  const clips = normalizeClipApiRows((clipsRes.results ?? []) as Record<string, unknown>[]);
-  const lineup =
-    artists.length > 0 ? artists : lineupFromClipArtists(clips as Array<{ artist_name?: unknown }>);
-  if (!festival.jambase_event_id) {
-    const fromClip = clips.find((clip) => {
-      const eventId = typeof clip.jambase_event_id === 'string' ? clip.jambase_event_id.trim() : '';
-      const showId = typeof clip.show_id === 'string' ? clip.show_id.trim() : '';
-      return Boolean(eventId || showId);
-    });
-    const adopted =
-      (typeof fromClip?.jambase_event_id === 'string' && fromClip.jambase_event_id.trim()) ||
-      (typeof fromClip?.show_id === 'string' && fromClip.show_id.trim()) ||
-      '';
-    if (adopted) festival.jambase_event_id = adopted;
-  }
-  if (!festival.start_date) {
-    const clipDates = clips
-      .map((clip) => (typeof clip.timestamp === 'string' ? clip.timestamp.trim() : ''))
-      .filter(Boolean)
-      .sort();
-    if (clipDates[0]) festival.start_date = clipDates[0];
-    if (!festival.end_date && clipDates.length > 1) {
-      festival.end_date = clipDates[clipDates.length - 1] ?? null;
-    }
-  }
 
   return {
     festival,
-    artists: lineup,
-    clips,
+    artists,
+    clips: normalizeClipApiRows((clipsRes.results ?? []) as Record<string, unknown>[]),
     jambase_attribution: Boolean(built),
   };
 }

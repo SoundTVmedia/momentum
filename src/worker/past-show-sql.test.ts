@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, clipHeadlinerMatchSql, clipLooseNameKey, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, D1_MAX_SQL_STATEMENT_BYTES, festivalClipSearchSql, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, withShowClipMembership, type PastShowListRow } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -186,181 +186,6 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
   });
 
-  it('keeps each festival concert on its own show page and keeps a residency split', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES
-        (1, 'Foo Fighters', 'Piedmont Park', '2026-09-18T23:00:00.000Z', 'jambase:sk-fri', 'jambase:sk-fri', 'Shaky Knees 2026 - Friday'),
-        (2, 'The National', 'Piedmont Park', '2026-09-19T23:00:00.000Z', 'jambase:sk-sat', 'jambase:sk-sat', 'The National at Shaky Knees'),
-        (3, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden'),
-        (4, 'Phish', 'Madison Square Garden', '2026-07-26T01:00:00.000Z', 'jambase:15668776', 'jambase:15668776', 'Phish at Madison Square Garden')
-    `).run();
-
-    const rows = db
-      .prepare(`
-        SELECT ${groupedPastShowsSelectSql()}
-        FROM clips
-        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
-        ORDER BY clip_count DESC, artist_name ASC
-      `)
-      .all() as Array<{ clip_count: number; artist_name: string }>;
-
-    expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
-      { artist_name: 'Foo Fighters', clip_count: 1 },
-      { artist_name: 'Phish', clip_count: 1 },
-      { artist_name: 'Phish', clip_count: 1 },
-      { artist_name: 'The National', clip_count: 1 },
-    ]);
-
-    const festivalClips = db
-      .prepare(withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`))
-      .all(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:sk-fri')) as Array<{
-      id: number;
-    }>;
-    expect(festivalClips.map((row) => row.id)).toEqual([1]);
-  });
-
-  it('groups Summerfest days and does not treat Manifest as a festival', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES
-        (1, 'Foo Fighters', 'Henry Maier Festival Park', '2026-07-02T23:00:00.000Z', 'jambase:sf-fri', 'jambase:sf-fri', 'Summerfest 2026 - Friday'),
-        (2, 'The National', 'Henry Maier Festival Park', '2026-07-03T23:00:00.000Z', 'jambase:sf-sat', 'jambase:sf-sat', 'Summerfest Saturday'),
-        (3, 'Artist A', 'The Wiltern', '2026-06-01T23:00:00.000Z', 'jambase:man-1', 'jambase:man-1', 'Manifest'),
-        (4, 'Artist B', 'Red Rocks', '2026-06-02T23:00:00.000Z', 'jambase:man-2', 'jambase:man-2', 'Manifest')
-    `).run();
-
-    const rows = db
-      .prepare(`
-        SELECT ${groupedPastShowsSelectSql()}
-        FROM clips
-        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
-        ORDER BY clip_count DESC, artist_name ASC
-      `)
-      .all() as Array<{ clip_count: number; artist_name: string; event_title: string }>;
-
-    expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
-      { artist_name: 'Artist A', clip_count: 1 },
-      { artist_name: 'Artist B', clip_count: 1 },
-      { artist_name: 'Foo Fighters', clip_count: 1 },
-      { artist_name: 'The National', clip_count: 1 },
-    ]);
-
-    const collapsed = collapsePastShowRows([
-      showRow({
-        show_id: 'jambase:sf-fri',
-        event_title: 'Summerfest 2026 - Friday',
-        artist_name: 'Foo Fighters',
-        show_date: '2026-07-02T23:00:00.000Z',
-        venue_name: 'Henry Maier Festival Park',
-        jambase_event_id: 'jambase:sf-fri',
-        clip_count: 1,
-      }),
-      showRow({
-        show_id: 'jambase:sf-sat',
-        event_title: 'Summerfest Saturday',
-        artist_name: 'The National',
-        show_date: '2026-07-03T23:00:00.000Z',
-        venue_name: 'Henry Maier Festival Park',
-        jambase_event_id: 'jambase:sf-sat',
-        clip_count: 1,
-      }),
-      showRow({
-        show_id: 'jambase:man-1',
-        event_title: 'Manifest',
-        artist_name: 'Artist A',
-        show_date: '2026-06-01T23:00:00.000Z',
-        venue_name: 'The Wiltern',
-        jambase_event_id: 'jambase:man-1',
-        clip_count: 1,
-      }),
-      showRow({
-        show_id: 'jambase:man-2',
-        event_title: 'Manifest',
-        artist_name: 'Artist B',
-        show_date: '2026-06-02T23:00:00.000Z',
-        venue_name: 'Red Rocks',
-        jambase_event_id: 'jambase:man-2',
-        clip_count: 1,
-      }),
-    ]);
-    expect(collapsed.map((row) => row.event_title).sort()).toEqual([
-      'Manifest',
-      'Manifest',
-      'Summerfest',
-    ]);
-    expect(collapsed.find((row) => row.event_title === 'Summerfest')?.artist_name).toBeNull();
-    expect(collapsed.filter((row) => row.event_title === 'Manifest').map((row) => row.artist_name).sort()).toEqual([
-      'Artist A',
-      'Artist B',
-    ]);
-  });
-
-  it('loads this edition of a festival, including a performer set that omits the festival name', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES
-        (1, 'Foo Fighters', 'Piedmont Park', '2026-09-18T23:00:00.000Z', 'jambase:sk-fri', 'jambase:sk-fri', 'Shaky Knees 2026 - Friday'),
-        (2, 'The National', 'Piedmont Park', '2026-09-19T23:00:00.000Z', 'jambase:sk-sat', 'jambase:sk-sat', 'The National at Shaky Knees'),
-        (3, 'Foo Fighters', 'Piedmont Park', '2026-09-19T20:00:00.000Z', 'jambase:sk-set', 'jambase:sk-set', 'Foo Fighters'),
-        (4, 'Old Act', 'Piedmont Park', '2019-05-03T23:00:00.000Z', 'jambase:sk-2019', 'jambase:sk-2019', 'Shaky Knees 2019'),
-        (5, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:phish', 'jambase:phish', 'Phish at Madison Square Garden')
-    `).run();
-
-    const sql = festivalClipSearchSql({
-      titleNeedleCount: 1,
-      eventIdCount: 1,
-      editionYear: '2026',
-    });
-    const rows = db
-      .prepare(`SELECT id FROM clips WHERE ${sql} ORDER BY id`)
-      .all('shaky knees', 'jambase:sk-set', 'jambase:sk-set') as Array<{ id: number }>;
-    expect(rows.map((row) => row.id)).toEqual([1, 2, 3]);
-  });
-
-  it('merges two JamBase ids for the same artist, venue, and night', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES
-        (1, 'Jay-Z', 'Yankee Stadium', '2024-07-14T23:30:00.000Z', 'jambase:old', 'jambase:old', 'Jay-Z at Yankee Stadium'),
-        (2, 'Jay Z', 'Yankee Stadium', '2024-07-14T23:50:00.000Z', 'jambase:new', 'jambase:new', 'Jay Z at Yankee Stadium'),
-        (3, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden'),
-        (4, 'Phish', 'Madison Square Garden', '2026-07-26T01:00:00.000Z', 'jambase:15668776', 'jambase:15668776', 'Phish at Madison Square Garden')
-    `).run();
-
-    const rows = db
-      .prepare(`
-        SELECT ${groupedPastShowsSelectSql()}
-        FROM clips
-        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
-        ORDER BY artist_name ASC, show_date ASC
-      `)
-      .all() as Array<{ clip_count: number; artist_name: string }>;
-
-    expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
-      { artist_name: 'Jay-Z', clip_count: 2 },
-      { artist_name: 'Phish', clip_count: 1 },
-      { artist_name: 'Phish', clip_count: 1 },
-    ]);
-
-    const jayZ = db
-      .prepare(
-        withShowClipMembership(`SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`),
-      )
-      .get('jambase:new', 'jambase:new', 'jambase:new') as {
-      n: number;
-    };
-    expect(jayZ.n).toBe(2);
-  });
-
   it('merges a JamBase night with a UTC-next-day composite slug for the same billed show', () => {
     const db = createDb();
     db.prepare(`
@@ -492,43 +317,6 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
   });
 });
 
-describe('D1 statement length', () => {
-  it('keeps show-page queries under the 100 KB D1 limit', () => {
-    const showPage = withShowClipMembership(`
-      SELECT clips.*, user_profiles.display_name as user_display_name
-      FROM clips
-      LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
-      WHERE ${clipBelongsToRequestedShowSql()}
-      AND clips.is_hidden = 0 AND clips.is_draft = 0
-      ORDER BY clips.created_at DESC
-      LIMIT ? OFFSET ?
-    `);
-    const pastShows = `
-      SELECT ${groupedPastShowsSelectSql()}
-      FROM clips
-      WHERE clips.artist_name = ?
-      GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
-      ORDER BY show_date DESC
-      LIMIT ?
-    `;
-    const festivalPage = `
-      SELECT clips.*
-      FROM clips
-      WHERE ${festivalClipSearchSql({
-        titleNeedleCount: 4,
-        eventIdCount: 80,
-        editionYear: '2026',
-      })}
-      ORDER BY clips.created_at DESC
-      LIMIT 50
-    `;
-    expect(showPage.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
-    expect(pastShows.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
-    expect(festivalPage.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
-    expect(showPage).not.toContain('show_clip_membership');
-  });
-});
-
 describe('clipBelongsToRequestedShowSql', () => {
   const databases: DatabaseSync[] = [];
 
@@ -565,7 +353,7 @@ describe('clipBelongsToRequestedShowSql', () => {
     insert.run(2, 'Madison Square Garden', '2025-04-20T03:00:00.000Z', 'jambase:123', 'jambase:123', 'Phish');
     insert.run(3, 'The Sphere', '2025-04-20T01:00:00.000Z', 'jambase:999', 'other-show', 'Other Night');
 
-    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
     const showBinds = Array.from(
       { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
       () => 'phish-msg-2025-04-20',
@@ -593,7 +381,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (131, 'Ariana Grande', 'Barclays Center', '2026-07-14T00:32:47.000Z', NULL, 'ariana-grande-barclays-center-2026-07-14', 'Ariana Grande at Barclays Center')
     `).run();
 
-    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
     const byEventId = db
       .prepare(sql)
       .all(
@@ -613,9 +401,9 @@ describe('clipBelongsToRequestedShowSql', () => {
 
     const canonicalBySlug = db
       .prepare(
-        withShowClipMembership(`SELECT ${groupedPastShowIdSql()} as canonical_show_id
+        `SELECT ${groupedPastShowIdSql()} as canonical_show_id
          FROM clips
-         WHERE ${clipBelongsToRequestedShowSql()}`),
+         WHERE ${clipBelongsToRequestedShowSql()}`,
       )
       .get(
         ...Array.from(
@@ -636,7 +424,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (2, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:13:03.119Z', NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
     `).run();
 
-    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
     const byEventId = db
       .prepare(sql)
       .all(
@@ -656,9 +444,9 @@ describe('clipBelongsToRequestedShowSql', () => {
 
     const canonicalBySlug = db
       .prepare(
-        withShowClipMembership(`SELECT ${groupedPastShowIdSql()} as canonical_show_id
+        `SELECT ${groupedPastShowIdSql()} as canonical_show_id
          FROM clips
-         WHERE ${clipBelongsToRequestedShowSql()}`),
+         WHERE ${clipBelongsToRequestedShowSql()}`,
       )
       .get(
         ...Array.from(
@@ -680,7 +468,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (3, 'Foreigner', 'The Bell Auditorium', '', '2026-09-20 15:16:39', 'foreigner-the-bell-auditorium-2026-09-20', 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
     `).run();
 
-    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
     const byEventId = db
       .prepare(sql)
       .all(
@@ -711,7 +499,7 @@ describe('clipBelongsToRequestedShowSql', () => {
         (300, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden')
     `).run();
 
-    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
     const byJune = db
       .prepare(sql)
       .all(
@@ -754,79 +542,6 @@ describe('clipBelongsToRequestedShowSql', () => {
       .all('Phish at MSG', 'Phish at MSG', 'Phish at MSG') as Array<{ id: number }>;
 
     expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
-  });
-
-  it('keeps each headliner on a shared festival event id', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES
-        (1, 'OK Go', 'Piedmont Park', '2026-09-18T12:00:00.000Z', 'jambase:15698172', 'jambase:15698172', 'Shaky Knees'),
-        (2, 'Coheed and Cambria', 'Piedmont Park', '2026-09-18T12:00:00.000Z', 'jambase:15698172', 'jambase:15698172', 'Shaky Knees'),
-        (3, 'Coheed and Cambria', 'Piedmont Park', '2026-09-18T18:00:00.000Z', 'jambase:15698172', 'jambase:15698172', 'Shaky Knees'),
-        (4, 'Hot Mulligan', 'Piedmont Park', NULL, NULL, NULL, 'Shaky Knees')
-    `).run();
-
-    const sql = withShowClipMembership(
-      `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} AND ${clipHeadlinerMatchSql()} ORDER BY id`,
-    );
-    const okGo = db.prepare(sql).all(
-      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15698172'),
-      clipLooseNameKey('ok go'),
-    ) as Array<{ id: number }>;
-    const coheed = db.prepare(sql).all(
-      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15698172'),
-      clipLooseNameKey('coheed and cambria'),
-    ) as Array<{ id: number }>;
-
-    expect(okGo).toEqual([{ id: 1 }]);
-    expect(coheed).toEqual([{ id: 2 }, { id: 3 }]);
-  });
-
-  it('includes undated uploads that share one billed show', () => {
-    const db = createDb();
-    db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES
-        (1, 'Jay-Z', 'Yankee Stadium', '2024-07-14T23:30:00.000Z', 'jambase:15947370', 'jambase:15947370', 'Jay-Z at Yankee Stadium'),
-        (2, 'Jay-Z', 'Yankee Stadium', NULL, NULL, NULL, 'Jay-Z at Yankee Stadium'),
-        (3, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:1', 'jambase:1', 'Phish at Madison Square Garden')
-    `).run();
-
-    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
-    const rows = db.prepare(sql).all(
-      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15947370'),
-    ) as Array<{ id: number }>;
-    expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
-  });
-
-  it('answers a show page without scoring every other clip', () => {
-    const db = createDb();
-    const insert = db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES (?, 'Other', 'Other Venue', '2024-01-01T00:00:00.000Z', ?, ?, 'Other at Other Venue')
-    `);
-    for (let id = 1; id <= 800; id += 1) {
-      insert.run(id, `jambase:${id}`, `jambase:${id}`);
-    }
-    db.prepare(`
-      INSERT INTO clips
-        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
-      VALUES
-        (900, 'Foreigner', 'The Bell Auditorium', '2026-09-19T23:43:35.989Z', 'jambase:15705118', 'jambase:15705118', 'Foreigner at The Bell Auditorium'),
-        (901, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:13:03.119Z', NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
-    `).run();
-
-    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
-    const started = Date.now();
-    const rows = db.prepare(sql).all(
-      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15705118'),
-    ) as Array<{ id: number }>;
-    expect(Date.now() - started).toBeLessThan(1000);
-    expect(rows).toEqual([{ id: 900 }, { id: 901 }]);
   });
 });
 
@@ -1230,233 +945,7 @@ describe('mergeClipAndLibraryPastShows', () => {
 
     expect(merged).toHaveLength(2);
   });
-
-  it('merges a second Jay-Z Yankee Stadium listing from the same night', () => {
-    const merged = mergeClipAndLibraryPastShows(
-      [
-        showRow({
-          show_id: 'jambase:old',
-          event_title: 'Jay-Z at Yankee Stadium',
-          artist_name: 'Jay-Z',
-          show_date: '2024-07-14T23:10:00.000Z',
-          venue_name: 'Yankee Stadium',
-          jambase_event_id: 'jambase:old',
-          clip_count: 4,
-        }),
-        showRow({
-          show_id: 'jambase:new',
-          event_title: 'Jay Z at Yankee Stadium',
-          artist_name: 'Jay Z',
-          show_date: '2024-07-14T23:40:00.000Z',
-          venue_name: 'Yankee Stadium',
-          jambase_event_id: 'jambase:new',
-          clip_count: 2,
-        }),
-      ],
-      [],
-      12,
-    );
-
-    expect(merged).toHaveLength(1);
-    expect(merged[0]?.clip_count).toBe(6);
-    expect(merged[0]?.identity_ids).toEqual(expect.arrayContaining(['jambase:old', 'jambase:new']));
-  });
-
-  it('points an attended mark at the clip show id the player already uses', () => {
-    expect(
-      showPageIdForPastShowCard(
-        showRow({
-          show_id: 'jambase:mark',
-          event_title: 'Jay-Z at Yankee Stadium',
-          artist_name: 'Jay-Z',
-          show_date: '2024-07-14T23:10:00.000Z',
-          venue_name: 'Yankee Stadium',
-          jambase_event_id: 'jambase:mark',
-          clip_count: 0,
-        }),
-        [
-          showRow({
-            show_id: 'jambase:clips',
-            event_title: 'Jay-Z at Yankee Stadium',
-            artist_name: 'Jay-Z',
-            show_date: '2024-07-14T23:40:00.000Z',
-            venue_name: 'Yankee Stadium',
-            jambase_event_id: 'jambase:clips',
-            clip_count: 2,
-          }),
-        ],
-      ),
-    ).toEqual({ showId: 'jambase:clips', artistName: 'Jay-Z' });
-  });
-
-  it('merges a Jay-Z listing that crosses UTC midnight with the existing night', () => {
-    expect(
-      pastShowsAreSameConcert(
-        showRow({
-          show_id: 'jambase:old',
-          event_title: 'Jay-Z at Yankee Stadium',
-          artist_name: 'Jay-Z',
-          show_date: '2024-07-14T23:40:00.000Z',
-          venue_name: 'Yankee Stadium',
-          jambase_event_id: 'jambase:old',
-          clip_count: 4,
-        }),
-        showRow({
-          show_id: 'jambase:new',
-          event_title: 'Jay Z at Yankee Stadium',
-          artist_name: 'Jay Z',
-          show_date: '2024-07-15T00:20:00.000Z',
-          venue_name: 'Yankee Stadium',
-          jambase_event_id: 'jambase:new',
-          clip_count: 2,
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it('collapses festival day listings and a later upload in the same year', () => {
-    const collapsed = collapsePastShowRows([
-      showRow({
-        show_id: 'jambase:sk-fri',
-        event_title: 'Shaky Knees 2026 - Friday',
-        artist_name: 'Foo Fighters',
-        show_date: '2026-05-15T23:00:00.000Z',
-        venue_name: 'Central Park',
-        jambase_event_id: 'jambase:sk-fri',
-        clip_count: 0,
-      }),
-      showRow({
-        show_id: 'jambase:sk-sat',
-        event_title: 'Shaky Knees 2026 - Saturday',
-        artist_name: 'The National',
-        show_date: '2026-09-22T18:00:00.000Z',
-        venue_name: 'Central Park',
-        jambase_event_id: 'jambase:sk-sat',
-        clip_count: 0,
-      }),
-    ]);
-    expect(collapsed).toHaveLength(1);
-    expect(
-      pastShowsAreSameConcert(
-        collapsed[0]!,
-        showRow({
-          show_id: 'jambase:sk-2025',
-          event_title: 'Shaky Knees',
-          artist_name: 'Foo Fighters',
-          show_date: '2025-09-19T23:00:00.000Z',
-          venue_name: 'Central Park',
-          jambase_event_id: 'jambase:sk-2025',
-          clip_count: 1,
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it('collapses a multi-day festival into one card and keeps a residency split', () => {
-    const collapsed = collapsePastShowRows([
-      showRow({
-        show_id: 'jambase:sk-fri',
-        event_title: 'Shaky Knees',
-        artist_name: 'Foo Fighters',
-        show_date: '2026-09-18T23:00:00.000Z',
-        venue_name: 'Central Park',
-        jambase_event_id: 'jambase:sk-fri',
-        clip_count: 0,
-      }),
-      showRow({
-        show_id: 'jambase:sk-sat',
-        event_title: 'Shaky Knees Festival',
-        artist_name: 'The National',
-        show_date: '2026-09-19T23:00:00.000Z',
-        venue_name: 'Central Park',
-        jambase_event_id: 'jambase:sk-sat',
-        clip_count: 0,
-      }),
-    ]);
-    expect(collapsed).toHaveLength(1);
-    expect(collapsed[0]?.event_title).toBe('Shaky Knees');
-    expect(collapsed[0]?.artist_name).toBeNull();
-    expect(
-      pickCanonicalShowIdentity(
-        showRow({
-          show_id: 'jambase:new',
-          event_title: 'Jay Z at Yankee Stadium',
-          artist_name: 'Jay Z',
-          show_date: '2024-07-14T23:40:00.000Z',
-          venue_name: 'Yankee Stadium',
-          jambase_event_id: 'jambase:new',
-          clip_count: 0,
-        }),
-        [
-          showRow({
-            show_id: 'jambase:old',
-            event_title: 'Jay-Z at Yankee Stadium',
-            artist_name: 'Jay-Z',
-            show_date: '2024-07-14T23:10:00.000Z',
-            venue_name: 'Yankee Stadium',
-            jambase_event_id: 'jambase:old',
-            clip_count: 4,
-          }),
-        ],
-      )?.jambase_event_id,
-    ).toBe('jambase:old');
-    expect(pastShowsAreSameConcert(collapsed[0]!, showRow({
-      show_id: 'performer-set',
-      event_title: 'Shaky Knees 2026',
-      artist_name: 'Foo Fighters',
-      show_date: '2026-09-18T23:30:00.000Z',
-      venue_name: 'Piedmont Park',
-      jambase_event_id: 'performer-set',
-      clip_count: 2,
-    }))).toBe(true);
-    expect(pastShowsAreSameConcert(collapsed[0]!, showRow({
-      show_id: 'jambase:national',
-      event_title: 'The National at Shaky Knees',
-      artist_name: 'The National',
-      show_date: '2026-09-19T23:00:00.000Z',
-      venue_name: 'Piedmont Park',
-      jambase_event_id: 'jambase:national',
-      clip_count: 1,
-    }))).toBe(true);
-    expect(pastShowsAreSameConcert(
-      showRow({
-        show_id: 'jambase:coachella',
-        event_title: 'Foo Fighters at Coachella',
-        artist_name: 'Foo Fighters',
-        show_date: '2026-04-12T23:00:00.000Z',
-        venue_name: 'Empire Polo Club',
-        jambase_event_id: 'jambase:coachella',
-        clip_count: 1,
-      }),
-      showRow({
-        show_id: 'jambase:sk',
-        event_title: 'The National at Shaky Knees',
-        artist_name: 'The National',
-        show_date: '2026-09-19T23:00:00.000Z',
-        venue_name: 'Piedmont Park',
-        jambase_event_id: 'jambase:sk',
-        clip_count: 1,
-      }),
-    )).toBe(false);
-  });
 });
-
-function showRow(partial: Partial<PastShowListRow> & Pick<PastShowListRow, 'clip_count'>): PastShowListRow {
-  return {
-    show_id: partial.show_id ?? null,
-    event_title: partial.event_title ?? null,
-    artist_name: partial.artist_name ?? null,
-    show_date: partial.show_date ?? null,
-    venue_name: partial.venue_name ?? null,
-    venue_location: partial.venue_location ?? null,
-    jambase_event_id: partial.jambase_event_id ?? null,
-    jambase_venue_id: partial.jambase_venue_id ?? null,
-    jambase_artist_id: partial.jambase_artist_id ?? null,
-    clip_count: partial.clip_count,
-    thumbnail_url: partial.thumbnail_url ?? null,
-    identity_ids: partial.identity_ids,
-  };
-}
 
 describe('libraryShowNightKeySql', () => {
   it('matches the clip night key for the same artist, venue, and date', () => {
