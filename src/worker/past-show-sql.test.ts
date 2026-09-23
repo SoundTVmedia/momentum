@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, D1_MAX_SQL_STATEMENT_BYTES, festivalClipSearchSql, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, withShowClipMembership, type PastShowListRow } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, clipHeadlinerMatchSql, clipLooseNameKey, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, D1_MAX_SQL_STATEMENT_BYTES, festivalClipSearchSql, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, withShowClipMembership, type PastShowListRow } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -525,6 +525,7 @@ describe('D1 statement length', () => {
     expect(showPage.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
     expect(pastShows.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
     expect(festivalPage.length).toBeLessThan(D1_MAX_SQL_STATEMENT_BYTES);
+    expect(showPage).not.toContain('show_clip_membership');
   });
 });
 
@@ -753,6 +754,79 @@ describe('clipBelongsToRequestedShowSql', () => {
       .all('Phish at MSG', 'Phish at MSG', 'Phish at MSG') as Array<{ id: number }>;
 
     expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it('keeps each headliner on a shared festival event id', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'OK Go', 'Piedmont Park', '2026-09-18T12:00:00.000Z', 'jambase:15698172', 'jambase:15698172', 'Shaky Knees'),
+        (2, 'Coheed and Cambria', 'Piedmont Park', '2026-09-18T12:00:00.000Z', 'jambase:15698172', 'jambase:15698172', 'Shaky Knees'),
+        (3, 'Coheed and Cambria', 'Piedmont Park', '2026-09-18T18:00:00.000Z', 'jambase:15698172', 'jambase:15698172', 'Shaky Knees'),
+        (4, 'Hot Mulligan', 'Piedmont Park', NULL, NULL, NULL, 'Shaky Knees')
+    `).run();
+
+    const sql = withShowClipMembership(
+      `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} AND ${clipHeadlinerMatchSql()} ORDER BY id`,
+    );
+    const okGo = db.prepare(sql).all(
+      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15698172'),
+      clipLooseNameKey('ok go'),
+    ) as Array<{ id: number }>;
+    const coheed = db.prepare(sql).all(
+      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15698172'),
+      clipLooseNameKey('coheed and cambria'),
+    ) as Array<{ id: number }>;
+
+    expect(okGo).toEqual([{ id: 1 }]);
+    expect(coheed).toEqual([{ id: 2 }, { id: 3 }]);
+  });
+
+  it('includes undated uploads that share one billed show', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Jay-Z', 'Yankee Stadium', '2024-07-14T23:30:00.000Z', 'jambase:15947370', 'jambase:15947370', 'Jay-Z at Yankee Stadium'),
+        (2, 'Jay-Z', 'Yankee Stadium', NULL, NULL, NULL, 'Jay-Z at Yankee Stadium'),
+        (3, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:1', 'jambase:1', 'Phish at Madison Square Garden')
+    `).run();
+
+    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
+    const rows = db.prepare(sql).all(
+      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15947370'),
+    ) as Array<{ id: number }>;
+    expect(rows).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  it('answers a show page without scoring every other clip', () => {
+    const db = createDb();
+    const insert = db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES (?, 'Other', 'Other Venue', '2024-01-01T00:00:00.000Z', ?, ?, 'Other at Other Venue')
+    `);
+    for (let id = 1; id <= 800; id += 1) {
+      insert.run(id, `jambase:${id}`, `jambase:${id}`);
+    }
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (900, 'Foreigner', 'The Bell Auditorium', '2026-09-19T23:43:35.989Z', 'jambase:15705118', 'jambase:15705118', 'Foreigner at The Bell Auditorium'),
+        (901, 'Foreigner', 'The Bell Auditorium', '2026-09-20T00:13:03.119Z', NULL, 'foreigner-the-bell-auditorium-2026-09-20', 'Foreigner at The Bell Auditorium')
+    `).run();
+
+    const sql = withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`);
+    const started = Date.now();
+    const rows = db.prepare(sql).all(
+      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15705118'),
+    ) as Array<{ id: number }>;
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(rows).toEqual([{ id: 900 }, { id: 901 }]);
   });
 });
 

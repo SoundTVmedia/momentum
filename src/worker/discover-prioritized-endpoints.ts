@@ -5,7 +5,8 @@ import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv, normalizeJamBaseApiKey } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
-import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowIdSql, withShowClipMembership } from './past-show-sql';
+import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, clipHeadlinerMatchSql, clipLooseNameKey, groupedPastShowIdSql, withShowClipMembership } from './past-show-sql';
+import { normalizedSlugFromRouteParam, searchPhraseFromSlug } from '../shared/jambase-slug';
 import { listPastShowsForEntity } from './past-show-list';
 import { clipShowIdForAttendedMark } from './user-show-marks-endpoints';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
@@ -659,6 +660,15 @@ export async function getShowClips(c: Context) {
   if (!showId) {
     return c.json({ error: 'showId is required' }, 400);
   }
+  let artistParam = artistNameParam;
+  try {
+    artistParam = decodeURIComponent(artistNameParam);
+  } catch {
+    artistParam = artistNameParam;
+  }
+  const artistLoose = clipLooseNameKey(
+    searchPhraseFromSlug(normalizedSlugFromRouteParam(artistParam)),
+  );
   const sortBy = c.req.query('sort_by') || 'time_posted';
   const requestedPage = Number.parseInt(c.req.query('page') || '1', 10);
   const requestedLimit = Number.parseInt(c.req.query('limit') || '20', 10);
@@ -678,11 +688,13 @@ export async function getShowClips(c: Context) {
       FROM clips
       LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
       WHERE ${clipBelongsToRequestedShowSql()}
+      AND ${artistLoose ? clipHeadlinerMatchSql('clips') : '1 = 1'}
       AND ${PUBLIC_VISIBLE_CLIP_SQL}
     `;
 
     const bindings: unknown[] = [
       ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showId),
+      ...(artistLoose ? [artistLoose] : []),
     ];
 
     // Apply sorting
@@ -709,10 +721,10 @@ export async function getShowClips(c: Context) {
     const visible = withoutBlockedAuthors(rows as Record<string, unknown>[], hiddenAuthors);
     const hasMore = visible.length > limit;
     const pageClips = hasMore ? visible.slice(0, limit) : visible;
-    const showIdentityBinds = Array.from(
-      { length: CLIP_BELONGS_TO_SHOW_BIND_COUNT },
-      () => showId,
-    );
+    const showIdentityBinds = [
+      ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showId),
+      ...(artistLoose ? [artistLoose] : []),
+    ];
     const canonicalRow = (await c.env.DB.prepare(
       withShowClipMembership(`SELECT
          ${groupedPastShowIdSql()} as canonical_show_id,
@@ -722,6 +734,7 @@ export async function getShowClips(c: Context) {
          END) as jambase_event_id
        FROM clips
        WHERE ${clipBelongsToRequestedShowSql()}
+       AND ${artistLoose ? clipHeadlinerMatchSql('clips') : '1 = 1'}
        AND ${PUBLIC_VISIBLE_CLIP_SQL}`),
     )
       .bind(...showIdentityBinds)
