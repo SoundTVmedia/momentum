@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   festivalCanonicalSlug,
   festivalClipTitleNeedles,
+  festivalDisplayTitle,
   festivalNamesShareEdition,
   festivalPageFromEvents,
   festivalPageToJamBaseEvent,
@@ -46,6 +47,11 @@ describe('isJamBaseFestivalEvent', () => {
     expect(isJamBaseFestivalEvent({ name: 'Big Weekend', performer })).toBe(true);
   });
 
+  it('does not treat Manifest as a festival', () => {
+    expect(isJamBaseFestivalEvent({ name: 'Manifest' })).toBe(false);
+    expect(isJamBaseFestivalEvent({ name: 'Manifesto' })).toBe(false);
+  });
+
   it('does not treat a normal concert as a festival', () => {
     expect(
       isJamBaseFestivalEvent({
@@ -64,6 +70,14 @@ describe('festivalCanonicalSlug', () => {
   it('drops a day label so Friday and Saturday share a page', () => {
     expect(festivalCanonicalSlug('Shaky Knees 2026 - Friday')).toBe('shaky-knees');
     expect(festivalCanonicalSlug('Shaky Knees 2026 - Saturday')).toBe('shaky-knees');
+  });
+});
+
+describe('festivalDisplayTitle', () => {
+  it('uses the festival brand instead of a performer set title', () => {
+    expect(festivalDisplayTitle('The National at Shaky Knees')).toBe('Shaky Knees');
+    expect(festivalDisplayTitle('Summerfest 2026 - Friday')).toBe('Summerfest');
+    expect(festivalDisplayTitle('Phish at Madison Square Garden')).toBeNull();
   });
 });
 

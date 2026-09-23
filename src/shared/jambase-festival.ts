@@ -22,8 +22,11 @@ export const FESTIVAL_BRAND_KEYS: Array<{ needle: string; key: string }> = [
 ];
 
 const FESTIVAL_TYPE_RE = /festival/i;
-/** Matches "festival", "fest", "Summerfest", "Jazz Fest", etc. */
-const FESTIVAL_NAME_RE = /fest(?:ival)?s?\b/i;
+/**
+ * "festival", "fest", "Summerfest", "Jazz Fest".
+ * A letter before "fest" still matches Summerfest, but not Manifest.
+ */
+const FESTIVAL_NAME_RE = /\b(?:fest(?:ival)?s?|(?!mani)[a-z]{2,}fest)\b/i;
 const FESTIVAL_BRAND_RE =
   /\b(?:lollapalooza|coachella|bonnaroo|gov(?:ernors)? ball|outside lands|burning man|sxsw|electric forest|rolling loud|ultra music|tomorrowland|glastonbury|acl|shaky knees)\b/i;
 const LINEUP_FESTIVAL_MIN_PERFORMERS = 8;
@@ -169,6 +172,23 @@ export function festivalDatesShareEdition(
   const rightYear = festivalDateYear(rightDate);
   if (leftYear && rightYear) return leftYear === rightYear;
   return true;
+}
+
+/** Card label for a festival edition, such as "Shaky Knees" or "Summerfest". */
+export function festivalDisplayTitle(name: string | null | undefined): string | null {
+  const brand = festivalBrandKey(name);
+  const slug =
+    brand || (isJamBaseFestivalEvent({ name: name ?? '' }) ? festivalCanonicalSlug(name) : '');
+  if (!slug) return null;
+  return slug
+    .split('-')
+    .map((word) => {
+      if (!word) return '';
+      if (word === 'acl' || word === 'sxsw') return word.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .filter(Boolean)
+    .join(' ');
 }
 
 /**
