@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, type PastShowListRow } from './past-show-sql';
+import { CLIP_SHOW_KEY_SQL, CLIP_PAST_SHOW_GROUP_KEY_SQL, clipBelongsToEventTitleSql, clipBelongsToRequestedShowSql, CLIP_BELONGS_TO_SHOW_BIND_COUNT, collapsePastShowRows, festivalClipSearchSql, groupedPastShowIdSql, groupedPastShowsSelectSql, libraryShowNightKeySql, mergeClipAndLibraryPastShows, pastShowsAreSameConcert, pickCanonicalShowIdentity, showPageIdForPastShowCard, LATEST_SCENE_CLIP_FRESH_SQL, latestSceneClipFreshOrOwnSql, type PastShowListRow } from './past-show-sql';
 
 describe('CLIP_SHOW_KEY_SQL', () => {
   const databases: DatabaseSync[] = [];
@@ -184,6 +184,93 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       { show_id: 'jambase:15668776', clip_count: 1, artist_name: 'Phish' },
     ]);
     expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
+  });
+
+  it('groups a festival edition across artists and days, and keeps a residency split', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Foo Fighters', 'Piedmont Park', '2026-09-18T23:00:00.000Z', 'jambase:sk-fri', 'jambase:sk-fri', 'Shaky Knees 2026 - Friday'),
+        (2, 'The National', 'Piedmont Park', '2026-09-19T23:00:00.000Z', 'jambase:sk-sat', 'jambase:sk-sat', 'The National at Shaky Knees'),
+        (3, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:15668773', 'jambase:15668773', 'Phish at Madison Square Garden'),
+        (4, 'Phish', 'Madison Square Garden', '2026-07-26T01:00:00.000Z', 'jambase:15668776', 'jambase:15668776', 'Phish at Madison Square Garden')
+    `).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+        ORDER BY clip_count DESC, artist_name ASC
+      `)
+      .all() as Array<{ clip_count: number; artist_name: string }>;
+
+    expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
+      { artist_name: 'The National', clip_count: 2 },
+      { artist_name: 'Phish', clip_count: 1 },
+      { artist_name: 'Phish', clip_count: 1 },
+    ]);
+
+    const festivalClips = db
+      .prepare(`SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`)
+      .get(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:sk-fri')) as {
+      n: number;
+    };
+    expect(festivalClips.n).toBe(2);
+  });
+
+  it('groups Summerfest days and does not treat Manifest as a festival', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Foo Fighters', 'Henry Maier Festival Park', '2026-07-02T23:00:00.000Z', 'jambase:sf-fri', 'jambase:sf-fri', 'Summerfest 2026 - Friday'),
+        (2, 'The National', 'Henry Maier Festival Park', '2026-07-03T23:00:00.000Z', 'jambase:sf-sat', 'jambase:sf-sat', 'Summerfest Saturday'),
+        (3, 'Artist A', 'The Wiltern', '2026-06-01T23:00:00.000Z', 'jambase:man-1', 'jambase:man-1', 'Manifest'),
+        (4, 'Artist B', 'Red Rocks', '2026-06-02T23:00:00.000Z', 'jambase:man-2', 'jambase:man-2', 'Manifest')
+    `).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+        ORDER BY clip_count DESC, artist_name ASC
+      `)
+      .all() as Array<{ clip_count: number; artist_name: string; event_title: string }>;
+
+    expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
+      { artist_name: 'The National', clip_count: 2 },
+      { artist_name: 'Artist A', clip_count: 1 },
+      { artist_name: 'Artist B', clip_count: 1 },
+    ]);
+  });
+
+  it('loads this edition of a festival, including a performer set that omits the festival name', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, jambase_event_id, show_id, event_title)
+      VALUES
+        (1, 'Foo Fighters', 'Piedmont Park', '2026-09-18T23:00:00.000Z', 'jambase:sk-fri', 'jambase:sk-fri', 'Shaky Knees 2026 - Friday'),
+        (2, 'The National', 'Piedmont Park', '2026-09-19T23:00:00.000Z', 'jambase:sk-sat', 'jambase:sk-sat', 'The National at Shaky Knees'),
+        (3, 'Foo Fighters', 'Piedmont Park', '2026-09-19T20:00:00.000Z', 'jambase:sk-set', 'jambase:sk-set', 'Foo Fighters'),
+        (4, 'Old Act', 'Piedmont Park', '2019-05-03T23:00:00.000Z', 'jambase:sk-2019', 'jambase:sk-2019', 'Shaky Knees 2019'),
+        (5, 'Phish', 'Madison Square Garden', '2026-07-25T01:00:00.000Z', 'jambase:phish', 'jambase:phish', 'Phish at Madison Square Garden')
+    `).run();
+
+    const sql = festivalClipSearchSql({
+      titleNeedleCount: 1,
+      eventIdCount: 1,
+      editionYear: '2026',
+    });
+    const rows = db
+      .prepare(`SELECT id FROM clips WHERE ${sql} ORDER BY id`)
+      .all('shaky knees', 'jambase:sk-set', 'jambase:sk-set') as Array<{ id: number }>;
+    expect(rows.map((row) => row.id)).toEqual([1, 2, 3]);
   });
 
   it('merges two JamBase ids for the same artist, venue, and night', () => {
@@ -1159,6 +1246,35 @@ describe('mergeClipAndLibraryPastShows', () => {
       jambase_event_id: 'performer-set',
       clip_count: 2,
     }))).toBe(true);
+    expect(pastShowsAreSameConcert(collapsed[0]!, showRow({
+      show_id: 'jambase:national',
+      event_title: 'The National at Shaky Knees',
+      artist_name: 'The National',
+      show_date: '2026-09-19T23:00:00.000Z',
+      venue_name: 'Piedmont Park',
+      jambase_event_id: 'jambase:national',
+      clip_count: 1,
+    }))).toBe(true);
+    expect(pastShowsAreSameConcert(
+      showRow({
+        show_id: 'jambase:coachella',
+        event_title: 'Foo Fighters at Coachella',
+        artist_name: 'Foo Fighters',
+        show_date: '2026-04-12T23:00:00.000Z',
+        venue_name: 'Empire Polo Club',
+        jambase_event_id: 'jambase:coachella',
+        clip_count: 1,
+      }),
+      showRow({
+        show_id: 'jambase:sk',
+        event_title: 'The National at Shaky Knees',
+        artist_name: 'The National',
+        show_date: '2026-09-19T23:00:00.000Z',
+        venue_name: 'Piedmont Park',
+        jambase_event_id: 'jambase:sk',
+        clip_count: 1,
+      }),
+    )).toBe(false);
   });
 });
 

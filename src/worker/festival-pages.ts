@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import {
+  festivalClipTitleNeedles,
   festivalPageFromEvents,
   festivalSlugMatches,
   festivalTitleSearchPhrases,
@@ -19,6 +20,7 @@ import {
 import { rewriteJamBaseEventImages, rewriteMediaUrlForClient } from '../shared/media-proxy';
 import { clientMediaOrigin } from './client-media-origin';
 import { normalizeClipApiRows } from './clip-row-normalize';
+import { festivalClipSearchSql } from './past-show-sql';
 import {
   jamBaseFestivalPageListKey,
   lookupCachedEventList,
@@ -119,6 +121,25 @@ function lineupFromClipArtists(
   return artists.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Accept raw JamBase identifiers and the `jambase:123` form stored on clips. */
+function expandFestivalClipIds(ids: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    const numeric = id.match(/(\d+)$/)?.[1];
+    if (!numeric) continue;
+    const prefixed = `jambase:${numeric}`;
+    if (seen.has(prefixed)) continue;
+    seen.add(prefixed);
+    out.push(prefixed);
+  }
+  return out;
+}
+
 function rewriteLineup(
   artists: FestivalLineupArtist[],
   origin: string,
@@ -210,8 +231,14 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
   }
 
   const artists = rewriteLineup(built?.artists ?? [], mediaOrigin);
-  const eventIds = (built?.eventIds ?? []).slice(0, 20);
-  const titleLike = `%${festival.name}%`;
+  const eventIds = expandFestivalClipIds(built?.eventIds ?? []).slice(0, 80);
+  const titleNeedles = festivalClipTitleNeedles(slug, displayName, festival.name);
+  const editionYear = festival.start_date?.match(/^(\d{4})-\d{2}-\d{2}/)?.[1] ?? null;
+  const clipMatch = festivalClipSearchSql({
+    titleNeedleCount: titleNeedles.length,
+    eventIdCount: eventIds.length,
+    editionYear,
+  });
 
   let clipsSql = `
     SELECT
@@ -222,16 +249,9 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
     FROM clips
     LEFT JOIN user_profiles ON clips.mocha_user_id = user_profiles.mocha_user_id
     WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
-    AND (
-      clips.event_title LIKE ?
-      OR LOWER(REPLACE(TRIM(IFNULL(clips.event_title, '')), ' ', '-')) LIKE ?
-      ${eventIds.length > 0 ? `OR clips.jambase_event_id IN (${eventIds.map(() => '?').join(', ')})` : ''}
-    )
+    AND (${clipMatch || '0'})
   `;
-  const bindings: unknown[] = [titleLike, `%${slug}%`];
-  if (eventIds.length > 0) {
-    bindings.push(...eventIds);
-  }
+  const bindings: unknown[] = [...titleNeedles, ...eventIds, ...eventIds];
   clipsSql += ` ORDER BY clips.created_at DESC LIMIT 50`;
 
   const clipsRes = await db.prepare(clipsSql).bind(...bindings).all();

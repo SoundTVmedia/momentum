@@ -14,9 +14,11 @@ import {
   type UserShowMark,
 } from '../shared/show-marks';
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
+import { festivalClipTitleNeedles } from '../shared/jambase-festival';
 import { getBlockDirections } from './user-blocks';
 import { attachPastShowArtistImages } from './past-show-list';
 import {
+  clipEventTitleLooseSql,
   collapsePastShowRows,
   concertNameKey,
   pastShowsAreSameConcert,
@@ -391,7 +393,10 @@ async function attachClipStatsToPastShows(
         .filter((title) => title.length >= 4),
     ),
   ];
-  if (ids.length === 0 && titles.length === 0) return rows;
+  const festivalNeedles = [
+    ...new Set(rows.flatMap((row) => festivalClipTitleNeedles(row.event_title))),
+  ];
+  if (ids.length === 0 && titles.length === 0 && festivalNeedles.length === 0) return rows;
 
   const idPlaceholders = ids.map(() => '?').join(',');
   const titleSql =
@@ -408,9 +413,16 @@ async function attachClipStatsToPastShows(
       ? `TRIM(IFNULL(clips.jambase_event_id, '')) IN (${idPlaceholders})
          OR TRIM(IFNULL(clips.show_id, '')) IN (${idPlaceholders})`
       : '';
-  const where = [idSql, titleSql].filter(Boolean).join(' OR ');
+  const looseTitle = clipEventTitleLooseSql('clips');
+  const festivalSql =
+    festivalNeedles.length > 0
+      ? festivalNeedles
+          .map(() => `instr(' ' || ${looseTitle} || ' ', ' ' || ? || ' ') > 0`)
+          .join(' OR ')
+      : '';
+  const identityWhere = [idSql, titleSql].filter(Boolean).join(' OR ');
 
-  try {
+  const loadClips = async (where: string, binds: unknown[]) => {
     const result = await db
       .prepare(
         `SELECT clips.jambase_event_id, clips.show_id, clips.event_title, clips.artist_name,
@@ -420,10 +432,32 @@ async function attachClipStatsToPastShows(
            AND (${where})
          LIMIT 500`,
       )
-      .bind(...ids, ...ids, ...titles.map((title) => `%${title}%`))
+      .bind(...binds)
       .all();
+    return ((result.results ?? []) as Array<Record<string, unknown>>).map(clipToPastShowRow);
+  };
 
-    const clips = ((result.results ?? []) as Array<Record<string, unknown>>).map(clipToPastShowRow);
+  try {
+    const loaded: PastShowListRow[] = [];
+    if (identityWhere) {
+      loaded.push(...(await loadClips(identityWhere, [...ids, ...ids, ...titles.map((title) => `%${title}%`)])));
+    }
+    if (festivalSql) {
+      loaded.push(...(await loadClips(festivalSql, festivalNeedles)));
+    }
+    const seen = new Set<string>();
+    const clips = loaded.filter((clip) => {
+      const key = [
+        clip.jambase_event_id,
+        clip.show_id,
+        clip.event_title,
+        clip.artist_name,
+        clip.show_date,
+      ].join('|');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     return rows.map((row) => {
       const matched = clips.filter((clip) => pastShowsAreSameConcert(row, clip));
       if (matched.length === 0) return { ...row, clip_count: 0 };

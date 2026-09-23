@@ -1,4 +1,4 @@
-import { festivalCanonicalSlug, isJamBaseFestivalEvent } from './jambase-festival';
+import { festivalBrandKey, festivalCanonicalSlug, isJamBaseFestivalEvent } from './jambase-festival';
 import { slugifyEntityName } from './jambase-slug';
 import { computeShowId, resolveClipShowNavigationId } from './show-id';
 import { jamBaseEventTitle, resolveClipEventTitle } from './event-title';
@@ -40,7 +40,7 @@ export function venuePath(name: string | null | undefined): string {
 }
 
 export function festivalPath(name: string | null | undefined): string {
-  const slug = festivalCanonicalSlug(name) || slugifyEntityName(name);
+  const slug = festivalBrandKey(name) || festivalCanonicalSlug(name) || slugifyEntityName(name);
   return slug ? `/festivals/${slug}` : '/festivals';
 }
 
@@ -62,7 +62,7 @@ export function festivalPageHrefFromEvent(
 }
 
 export function apiFestivalPath(name: string | null | undefined): string {
-  const slug = festivalCanonicalSlug(name) || slugifyEntityName(name);
+  const slug = festivalBrandKey(name) || festivalCanonicalSlug(name) || slugifyEntityName(name);
   return slug ? `/api/festivals/${slug}` : '/api/festivals';
 }
 
