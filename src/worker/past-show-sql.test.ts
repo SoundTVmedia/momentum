@@ -186,7 +186,7 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     expect(rows[0]?.show_date).toBe('2026-05-30T02:33:49.000Z');
   });
 
-  it('groups a festival edition across artists and days, and keeps a residency split', () => {
+  it('keeps each festival concert on its own show page and keeps a residency split', () => {
     const db = createDb();
     db.prepare(`
       INSERT INTO clips
@@ -208,17 +208,18 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       .all() as Array<{ clip_count: number; artist_name: string }>;
 
     expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
-      { artist_name: 'The National', clip_count: 2 },
+      { artist_name: 'Foo Fighters', clip_count: 1 },
       { artist_name: 'Phish', clip_count: 1 },
       { artist_name: 'Phish', clip_count: 1 },
+      { artist_name: 'The National', clip_count: 1 },
     ]);
 
     const festivalClips = db
-      .prepare(withShowClipMembership(`SELECT COUNT(*) as n FROM clips WHERE ${clipBelongsToRequestedShowSql()}`))
-      .get(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:sk-fri')) as {
-      n: number;
-    };
-    expect(festivalClips.n).toBe(2);
+      .prepare(withShowClipMembership(`SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`))
+      .all(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:sk-fri')) as Array<{
+      id: number;
+    }>;
+    expect(festivalClips.map((row) => row.id)).toEqual([1]);
   });
 
   it('groups Summerfest days and does not treat Manifest as a festival', () => {
@@ -243,9 +244,59 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
       .all() as Array<{ clip_count: number; artist_name: string; event_title: string }>;
 
     expect(rows.map((row) => ({ artist_name: row.artist_name, clip_count: row.clip_count }))).toEqual([
-      { artist_name: 'The National', clip_count: 2 },
       { artist_name: 'Artist A', clip_count: 1 },
       { artist_name: 'Artist B', clip_count: 1 },
+      { artist_name: 'Foo Fighters', clip_count: 1 },
+      { artist_name: 'The National', clip_count: 1 },
+    ]);
+
+    const collapsed = collapsePastShowRows([
+      showRow({
+        show_id: 'jambase:sf-fri',
+        event_title: 'Summerfest 2026 - Friday',
+        artist_name: 'Foo Fighters',
+        show_date: '2026-07-02T23:00:00.000Z',
+        venue_name: 'Henry Maier Festival Park',
+        jambase_event_id: 'jambase:sf-fri',
+        clip_count: 1,
+      }),
+      showRow({
+        show_id: 'jambase:sf-sat',
+        event_title: 'Summerfest Saturday',
+        artist_name: 'The National',
+        show_date: '2026-07-03T23:00:00.000Z',
+        venue_name: 'Henry Maier Festival Park',
+        jambase_event_id: 'jambase:sf-sat',
+        clip_count: 1,
+      }),
+      showRow({
+        show_id: 'jambase:man-1',
+        event_title: 'Manifest',
+        artist_name: 'Artist A',
+        show_date: '2026-06-01T23:00:00.000Z',
+        venue_name: 'The Wiltern',
+        jambase_event_id: 'jambase:man-1',
+        clip_count: 1,
+      }),
+      showRow({
+        show_id: 'jambase:man-2',
+        event_title: 'Manifest',
+        artist_name: 'Artist B',
+        show_date: '2026-06-02T23:00:00.000Z',
+        venue_name: 'Red Rocks',
+        jambase_event_id: 'jambase:man-2',
+        clip_count: 1,
+      }),
+    ]);
+    expect(collapsed.map((row) => row.event_title).sort()).toEqual([
+      'Manifest',
+      'Manifest',
+      'Summerfest',
+    ]);
+    expect(collapsed.find((row) => row.event_title === 'Summerfest')?.artist_name).toBeNull();
+    expect(collapsed.filter((row) => row.event_title === 'Manifest').map((row) => row.artist_name).sort()).toEqual([
+      'Artist A',
+      'Artist B',
     ]);
   });
 
@@ -1249,6 +1300,8 @@ describe('mergeClipAndLibraryPastShows', () => {
       }),
     ]);
     expect(collapsed).toHaveLength(1);
+    expect(collapsed[0]?.event_title).toBe('Shaky Knees');
+    expect(collapsed[0]?.artist_name).toBeNull();
     expect(
       pickCanonicalShowIdentity(
         showRow({
