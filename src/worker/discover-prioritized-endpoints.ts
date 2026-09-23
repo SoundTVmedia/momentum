@@ -5,8 +5,9 @@ import { resolveVenueNameForClipsQuery } from './artist-venue-pages';
 import { jamBaseQuotaFromEnv, normalizeJamBaseApiKey } from './jambase-client';
 import { normalizeClipApiRows } from './clip-row-normalize';
 import { mochaUserIdKey } from './mocha-user-id';
-import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowIdSql } from './past-show-sql';
+import { CLIP_BELONGS_TO_SHOW_BIND_COUNT, clipBelongsToRequestedShowSql, clipBelongsToEventTitleSql, groupedPastShowIdSql, withShowClipMembership } from './past-show-sql';
 import { listPastShowsForEntity } from './past-show-list';
+import { clipShowIdForAttendedMark } from './user-show-marks-endpoints';
 import { getHiddenUserIdsForRequest, withoutBlockedAuthors } from './user-blocks';
 import { isUserFollowTargetId } from './follow-endpoints';
 import { fetchJamBaseEventById } from './jambase-endpoints';
@@ -698,6 +699,7 @@ export async function getShowClips(c: Context) {
 
     query += ' LIMIT ? OFFSET ?';
     bindings.push(String(limit + 1), String(offset));
+    query = withShowClipMembership(query);
 
     const clips = await c.env.DB.prepare(query)
       .bind(...bindings)
@@ -712,7 +714,7 @@ export async function getShowClips(c: Context) {
       () => showId,
     );
     const canonicalRow = (await c.env.DB.prepare(
-      `SELECT
+      withShowClipMembership(`SELECT
          ${groupedPastShowIdSql()} as canonical_show_id,
          MAX(CASE
            WHEN NULLIF(TRIM(clips.jambase_event_id), '') IS NOT NULL
@@ -720,14 +722,18 @@ export async function getShowClips(c: Context) {
          END) as jambase_event_id
        FROM clips
        WHERE ${clipBelongsToRequestedShowSql()}
-       AND ${PUBLIC_VISIBLE_CLIP_SQL}`,
+       AND ${PUBLIC_VISIBLE_CLIP_SQL}`),
     )
       .bind(...showIdentityBinds)
       .first()) as { canonical_show_id?: string | null; jambase_event_id?: string | null } | null;
-    const canonicalShowId =
+    let canonicalShowId =
       typeof canonicalRow?.canonical_show_id === 'string'
         ? canonicalRow.canonical_show_id.trim()
         : '';
+    if (pageClips.length === 0 && offset === 0) {
+      const linkedShowId = await clipShowIdForAttendedMark(c.env.DB, showId);
+      if (linkedShowId) canonicalShowId = linkedShowId;
+    }
     const pageClipEventId = pageClips.find((clip) => {
       const id = typeof clip.jambase_event_id === 'string' ? clip.jambase_event_id.trim() : '';
       return Boolean(id);

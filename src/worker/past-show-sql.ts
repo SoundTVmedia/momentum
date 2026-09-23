@@ -1,5 +1,5 @@
-import { festivalNamesShareEdition } from '../shared/jambase-festival';
-import { isJamBaseEventId } from '../shared/show-id';
+import { FESTIVAL_BRAND_KEYS, festivalNamesShareEdition } from '../shared/jambase-festival';
+import { isJamBaseEventId, resolveClipShowNavigationId } from '../shared/show-id';
 import { sameConcertNight } from '../shared/show-night-key';
 
 /**
@@ -142,6 +142,89 @@ function inheritJamBaseEventIdSql(alias: string): string {
   )`;
 }
 
+const FESTIVAL_TITLE_TOKENS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+  'weekend',
+  ...Array.from({ length: 2032 - 2015 + 1 }, (_, i) => String(2015 + i)),
+];
+
+function stripLooseTokensSql(expr: string, tokens: string[]): string {
+  return tokens.reduce(
+    (acc, token) => `TRIM(REPLACE(' ' || ${acc} || ' ', ' ${token} ', ' '))`,
+    expr,
+  );
+}
+
+function clipLooseTitleSql(alias: string): string {
+  return clipLooseNameSql(`${alias}.event_title`);
+}
+
+/** Lowercased event title with hyphens and apostrophes folded, for festival clip search. */
+export function clipEventTitleLooseSql(alias = 'clips'): string {
+  return clipLooseTitleSql(alias);
+}
+
+function clipPaddedLooseTitleSql(alias: string): string {
+  return `' ' || ${clipLooseTitleSql(alias)} || ' '`;
+}
+
+function festivalBrandKeySql(alias: string): string {
+  const padded = clipPaddedLooseTitleSql(alias);
+  const whens = FESTIVAL_BRAND_KEYS.map(
+    (brand) => `WHEN instr(${padded}, ' ${brand.needle} ') > 0 THEN '${brand.key}'`,
+  ).join('\n');
+  return `CASE\n${whens}\nELSE NULL END`;
+}
+
+function festivalTitleIsGenericSql(alias: string): string {
+  const padded = clipPaddedLooseTitleSql(alias);
+  // "Summerfest" has no space before "fest". "manifest" does too, so exclude it.
+  return `(
+    instr(${padded}, ' festival ') > 0
+    OR instr(${padded}, ' festivals ') > 0
+    OR instr(${padded}, ' fest ') > 0
+    OR instr(${padded}, ' fests ') > 0
+    OR (
+      instr(${padded}, 'fest ') > 0
+      AND instr(${padded}, ' manifest ') = 0
+      AND instr(${padded}, ' manifesto ') = 0
+    )
+  )`;
+}
+
+function festivalEditionYearSql(alias: string): string {
+  const title = clipLooseTitleSql(alias);
+  const captureYear = `substr(${clipCaptureDaySql(alias)}, 1, 4)`;
+  const whens = Array.from({ length: 2032 - 2015 + 1 }, (_, i) => {
+    const year = String(2015 + i);
+    return `WHEN instr(${title}, '${year}') > 0 THEN '${year}'`;
+  }).join('\n');
+  return `CASE\n${whens}\nELSE ${captureYear} END`;
+}
+
+/**
+ * One key for every clip in a festival edition, across artists and days.
+ * "Shaky Knees Friday" and "The National at Shaky Knees" share it.
+ * A normal concert title stays null so residencies are unchanged.
+ */
+function clipFestivalEditionKeySql(alias: string): string {
+  const brand = festivalBrandKeySql(alias);
+  const genericName = `REPLACE(${stripLooseTokensSql(clipLooseTitleSql(alias), FESTIVAL_TITLE_TOKENS)}, '  ', ' ')`;
+  const year = festivalEditionYearSql(alias);
+  return `(CASE
+    WHEN NULLIF(TRIM(${alias}.event_title), '') IS NULL THEN NULL
+    WHEN ${brand} IS NOT NULL THEN 'festival:' || ${brand} || ':' || COALESCE(${year}, '')
+    WHEN ${festivalTitleIsGenericSql(alias)} THEN 'festival:' || ${genericName} || ':' || COALESCE(${year}, '')
+    ELSE NULL
+  END)`;
+}
+
 /**
  * One JamBase id for every clip on the same artist + venue + UTC day.
  * Duplicate listings of one concert (two `jambase:` ids for Jay-Z at Yankee
@@ -164,19 +247,21 @@ function sameNightCanonicalJamBaseIdSql(alias: string): string {
 /**
  * Past-show card identity for GROUP BY.
  *
- * 1. Same artist + venue + UTC day shares one JamBase id, even when listings
+ * 1. A festival edition shares one key across artists and days (Shaky Knees).
+ * 2. Same artist + venue + UTC day shares one JamBase id, even when listings
  *    disagree (Jay-Z at Yankee Stadium).
- * 2. Otherwise a stored JamBase event id (keeps multi-night residencies separate).
- * 3. Otherwise inherit a JamBase id from another clip on the same concert night
+ * 3. Otherwise a stored JamBase event id (keeps multi-night residencies separate).
+ * 4. Otherwise inherit a JamBase id from another clip on the same concert night
  *    or the same billed title within one UTC day (Foreigner at The Bell
  *    Auditorium midnight spill).
- * 4. Otherwise group by artist + venue + event title so archival uploads with
+ * 5. Otherwise group by artist + venue + event title so archival uploads with
  *    wrong capture dates still share one card (Charlie Puth at MSG).
- * 5. Last resort: artist + venue + capture day.
+ * 6. Last resort: artist + venue + capture day.
  */
 export function clipPastShowGroupKeySql(alias = 'clips'): string {
   const billed = clipBilledTitleKeySql(alias);
   return `COALESCE(
+    ${clipFestivalEditionKeySql(alias)},
     ${sameNightCanonicalJamBaseIdSql(alias)},
     ${clipRealJamBaseEventIdSql(alias)},
     ${inheritJamBaseEventIdSql(alias)},
@@ -259,6 +344,8 @@ export type PastShowListRow = {
   artist_image_url?: string | null;
   /** Other show / event ids that were collapsed into this card. */
   identity_ids?: string[];
+  /** Artist name on the clips, used so the card opens the same show page as the player. */
+  link_artist_name?: string | null;
 };
 
 export function libraryShowStubSelectSql(options?: { includeAverageRating?: boolean }): string {
@@ -392,6 +479,41 @@ function preferredShowId(row: PastShowListRow, ids: string[]): string | null {
   return row.show_id ?? row.jambase_event_id ?? ids[0] ?? null;
 }
 
+/**
+ * Show-page id for a past-show card that counted clips stored under a different id.
+ * Matches the clip player: prefer the clip's JamBase event id, then its show id.
+ */
+export function showPageIdForPastShowCard(
+  card: PastShowListRow,
+  clips: PastShowListRow[],
+): { showId: string; artistName: string | null } | null {
+  const matched = clips.filter((clip) => pastShowsAreSameConcert(card, clip));
+  if (matched.length === 0) return null;
+  const navOf = (clip: PastShowListRow) =>
+    resolveClipShowNavigationId({
+      show_id: clip.show_id,
+      jambase_event_id: clip.jambase_event_id,
+      artist_name: clip.artist_name,
+      venue_name: clip.venue_name,
+      timestamp: clip.show_date,
+    });
+  const cardId = (card.show_id ?? card.jambase_event_id ?? '').trim();
+  const ranked = [...matched].sort((a, b) => {
+    const aNav = navOf(a) ?? '';
+    const bNav = navOf(b) ?? '';
+    const score = (nav: string) => (isJamBaseEventId(nav) ? 2 : nav ? 1 : 0);
+    const byScore = score(bNav) - score(aNav);
+    if (byScore !== 0) return byScore;
+    if (aNav === cardId && bNav !== cardId) return -1;
+    if (bNav === cardId && aNav !== cardId) return 1;
+    return 0;
+  });
+  const chosen = ranked[0]!;
+  const showId = navOf(chosen);
+  if (!showId) return null;
+  return { showId, artistName: chosen.artist_name?.trim() || null };
+}
+
 export function mergePastShowPair(current: PastShowListRow, incoming: PastShowListRow): PastShowListRow {
   const richer = pastShowCardIsRicher(incoming, current) ? incoming : current;
   const poorer = richer === incoming ? current : incoming;
@@ -479,36 +601,117 @@ export function clipMatchesShowIdentitySql(alias = 'clips'): string {
 export const CLIP_SHOW_IDENTITY_BIND_COUNT = 3;
 
 /**
- * All clips for a show page, including rows that stored a composite show_id
- * while others stored the JamBase event id, same-night siblings, and
- * title-matched archival clips when no JamBase event id exists.
- * Bind the same showId nine times.
+ * D1 rejects a statement longer than 100 KB. The show-membership key is large,
+ * so it has to be written once in a CTE instead of inlined on both sides of a
+ * comparison.
  */
-export function clipBelongsToRequestedShowSql(): string {
-  return `(
-    ${clipMatchesShowIdentitySql('clips')}
-    OR (
-      ${clipRealJamBaseEventIdSql('clips')} IS NOT NULL
-      AND ${clipRealJamBaseEventIdSql('clips')} IN (
-        SELECT ${clipRealJamBaseEventIdSql('seed')}
-        FROM clips AS seed
-        WHERE ${clipRealJamBaseEventIdSql('seed')} IS NOT NULL
-          AND ${clipMatchesShowIdentitySql('seed')}
-      )
-    )
-    OR (
-      ${clipPastShowGroupKeySql('clips')} IS NOT NULL
-      AND ${clipPastShowGroupKeySql('clips')} IN (
-        SELECT ${clipPastShowGroupKeySql('seed')}
-        FROM clips AS seed
-        WHERE ${clipPastShowGroupKeySql('seed')} IS NOT NULL
-          AND ${clipMatchesShowIdentitySql('seed')}
-      )
-    )
+export const D1_MAX_SQL_STATEMENT_BYTES = 100_000;
+
+/**
+ * One row per clip with the show key used by past-show pages.
+ * Prefix a statement with this before {@link clipBelongsToRequestedShowSql}.
+ */
+export function showClipMembershipCteSql(): string {
+  return `show_clip_membership AS (
+    SELECT
+      clips.rowid AS membership_rowid,
+      ${clipPastShowGroupKeySql('clips')} AS membership_group_key,
+      ${clipRealJamBaseEventIdSql('clips')} AS membership_jambase_id,
+      ${clipShowKeySql('clips')} AS membership_show_key,
+      NULLIF(TRIM(clips.show_id), '') AS membership_show_id
+    FROM clips
   )`;
 }
 
-export const CLIP_BELONGS_TO_SHOW_BIND_COUNT = CLIP_SHOW_IDENTITY_BIND_COUNT * 3;
+/** Put the show-membership CTE in front of a SELECT. */
+export function withShowClipMembership(sql: string): string {
+  const trimmed = sql.trim();
+  if (/^WITH\b/i.test(trimmed)) {
+    return `WITH ${showClipMembershipCteSql()}, ${trimmed.replace(/^WITH\s+/i, '')}`;
+  }
+  return `WITH ${showClipMembershipCteSql()}\n${trimmed}`;
+}
+
+/**
+ * All clips for a show page, including rows that stored a composite show_id
+ * while others stored the JamBase event id, same-night siblings, and
+ * title-matched archival clips when no JamBase event id exists.
+ * The statement must be wrapped with {@link withShowClipMembership}.
+ * Bind the same showId three times.
+ */
+export function clipBelongsToRequestedShowSql(): string {
+  return `clips.rowid IN (
+    SELECT me.membership_rowid
+    FROM show_clip_membership AS me
+    JOIN show_clip_membership AS seed
+      ON (
+        me.membership_rowid = seed.membership_rowid
+        OR (
+          me.membership_jambase_id IS NOT NULL
+          AND me.membership_jambase_id = seed.membership_jambase_id
+        )
+        OR (
+          me.membership_group_key IS NOT NULL
+          AND me.membership_group_key = seed.membership_group_key
+        )
+      )
+    WHERE seed.membership_show_key = ?
+      OR seed.membership_show_id = ?
+      OR seed.membership_jambase_id = ?
+  )`;
+}
+
+export const CLIP_BELONGS_TO_SHOW_BIND_COUNT = CLIP_SHOW_IDENTITY_BIND_COUNT;
+
+const FESTIVAL_EDITION_YEAR_MIN = 2015;
+const FESTIVAL_EDITION_YEAR_MAX = 2032;
+
+/**
+ * Clip rows for a festival page.
+ * Title needles are matched as whole phrases ("shaky knees" inside
+ * "The National at Shaky Knees"). When the page has an edition year, a title
+ * match must be that year — either written in the title or, when the title
+ * has no year, the capture day. Event ids still match on their own so a
+ * performer set titled only with the artist is included.
+ * Bind each title needle once, then each event id twice.
+ */
+export function festivalClipSearchSql(options: {
+  alias?: string;
+  titleNeedleCount: number;
+  eventIdCount: number;
+  editionYear?: string | null;
+}): string {
+  const alias = options.alias ?? 'clips';
+  const loose = clipEventTitleLooseSql(alias);
+  const padded = `' ' || ${loose} || ' '`;
+  const titleSql =
+    options.titleNeedleCount > 0
+      ? Array.from(
+          { length: options.titleNeedleCount },
+          () => `instr(${padded}, ' ' || ? || ' ') > 0`,
+        ).join(' OR ')
+      : '';
+  const idSql =
+    options.eventIdCount > 0
+      ? `TRIM(IFNULL(${alias}.jambase_event_id, '')) IN (${Array.from({ length: options.eventIdCount }, () => '?').join(', ')})
+         OR TRIM(IFNULL(${alias}.show_id, '')) IN (${Array.from({ length: options.eventIdCount }, () => '?').join(', ')})`
+      : '';
+  const year = (options.editionYear ?? '').match(/^(?:19|20)\d{2}$/)?.[0] ?? '';
+  let titleClause = titleSql;
+  if (titleSql && year) {
+    const noYear = Array.from(
+      { length: FESTIVAL_EDITION_YEAR_MAX - FESTIVAL_EDITION_YEAR_MIN + 1 },
+      (_, i) => `instr(${loose}, '${FESTIVAL_EDITION_YEAR_MIN + i}') = 0`,
+    ).join(' AND ');
+    const captureYear = `substr(${clipCaptureDaySql(alias)}, 1, 4)`;
+    titleClause = `(${titleSql}) AND (
+      instr(${loose}, '${year}') > 0
+      OR ((${noYear}) AND (${captureYear} = '${year}' OR ${captureYear} IS NULL OR TRIM(IFNULL(${captureYear}, '')) = ''))
+    )`;
+  }
+  const parts = [titleClause, idSql].filter(Boolean);
+  return parts.length > 0 ? `(${parts.join(' OR ')})` : '(0)';
+}
 
 /** Bind the event title three times. */
 export function clipBelongsToEventTitleSql(): string {
