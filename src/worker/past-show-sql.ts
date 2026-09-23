@@ -538,64 +538,91 @@ export function clipMatchesShowIdentitySql(alias = 'clips'): string {
 
 export const CLIP_SHOW_IDENTITY_BIND_COUNT = 3;
 
-/**
- * D1 rejects a statement longer than 100 KB. The show-membership key is large,
- * so it has to be written once in a CTE instead of inlined on both sides of a
- * comparison.
- */
+/** D1 rejects a statement longer than 100 KB. */
 export const D1_MAX_SQL_STATEMENT_BYTES = 100_000;
 
 /**
- * One row per clip with the show key used by past-show pages.
- * Prefix a statement with this before {@link clipBelongsToRequestedShowSql}.
+ * Show membership used to be a CTE that scored every clip in the table.
+ * Callers can keep wrapping with this; it no longer rewrites the statement.
  */
-export function showClipMembershipCteSql(): string {
-  return `show_clip_membership AS (
-    SELECT
-      clips.rowid AS membership_rowid,
-      ${clipPastShowGroupKeySql('clips')} AS membership_group_key,
-      ${clipRealJamBaseEventIdSql('clips')} AS membership_jambase_id,
-      ${clipShowKeySql('clips')} AS membership_show_key,
-      NULLIF(TRIM(clips.show_id), '') AS membership_show_id
-    FROM clips
-  )`;
-}
-
-/** Put the show-membership CTE in front of a SELECT. */
 export function withShowClipMembership(sql: string): string {
-  const trimmed = sql.trim();
-  if (/^WITH\b/i.test(trimmed)) {
-    return `WITH ${showClipMembershipCteSql()}, ${trimmed.replace(/^WITH\s+/i, '')}`;
-  }
-  return `WITH ${showClipMembershipCteSql()}\n${trimmed}`;
+  return sql.trim();
 }
 
 /**
- * All clips for a show page, including rows that stored a composite show_id
- * while others stored the JamBase event id, same-night siblings, and
- * title-matched archival clips when no JamBase event id exists.
- * The statement must be wrapped with {@link withShowClipMembership}.
+ * Loose artist key matching {@link clipArtistKeySql}: hyphens become spaces,
+ * apostrophes drop. Route slugs should be turned into a phrase first.
+ */
+export function clipLooseNameKey(value: string | null | undefined): string {
+  return (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/-/g, ' ')
+    .replace(/'/g, '')
+    .replace(/\u2019/g, '');
+}
+
+/** Bind one loose artist name (`clipLooseNameKey`). */
+export function clipHeadlinerMatchSql(alias = 'clips'): string {
+  return `${clipArtistKeySql(alias)} = ?`;
+}
+
+/**
+ * All clips for one concert page.
+ *
+ * Starts from rows that stored this show id, then adds siblings: the same
+ * JamBase event and headliner, the same artist + venue + night, a billed
+ * title with no separate event id, a midnight spill, or an undated upload
+ * when that title has only one event id.
+ *
+ * A festival event id shared by several artists stays one row per headliner
+ * once the caller also binds {@link clipHeadlinerMatchSql}. This does not
+ * scan a group key for every clip in the database.
  * Bind the same showId three times.
  */
 export function clipBelongsToRequestedShowSql(): string {
-  return `clips.rowid IN (
-    SELECT me.membership_rowid
-    FROM show_clip_membership AS me
-    JOIN show_clip_membership AS seed
-      ON (
-        me.membership_rowid = seed.membership_rowid
+  const clipJamBase = clipRealJamBaseEventIdSql('clips');
+  const seedJamBase = clipRealJamBaseEventIdSql('seed');
+  const clipBilled = clipBilledTitleKeySql('clips');
+  const seedBilled = clipBilledTitleKeySql('seed');
+  const daysApart = clipCaptureDaysApartSql('seed', 'clips');
+  const singleEventForTitle = `(
+    SELECT COUNT(DISTINCT ${clipRealJamBaseEventIdSql('billed_mate')})
+    FROM clips AS billed_mate
+    WHERE ${clipRealJamBaseEventIdSql('billed_mate')} IS NOT NULL
+      AND ${clipBilledTitleKeySql('billed_mate')} = ${clipBilled}
+  ) = 1`;
+  return `EXISTS (
+    SELECT 1
+    FROM clips AS seed
+    WHERE ${clipMatchesShowIdentitySql('seed')}
+      AND (
+        seed.rowid = clips.rowid
         OR (
-          me.membership_jambase_id IS NOT NULL
-          AND me.membership_jambase_id = seed.membership_jambase_id
+          ${clipJamBase} IS NOT NULL
+          AND ${clipJamBase} = ${seedJamBase}
+          AND ${clipArtistKeySql('clips')} = ${clipArtistKeySql('seed')}
         )
         OR (
-          me.membership_group_key IS NOT NULL
-          AND me.membership_group_key = seed.membership_group_key
+          ${clipNightKeySql('clips')} IS NOT NULL
+          AND ${clipNightKeySql('clips')} = ${clipNightKeySql('seed')}
+        )
+        OR (
+          ${clipBilled} IS NOT NULL
+          AND ${clipBilled} = ${seedBilled}
+          AND (
+            (${clipJamBase} IS NULL AND ${seedJamBase} IS NULL)
+            OR (${clipJamBase} IS NOT NULL AND ${clipJamBase} = ${seedJamBase})
+            OR (${daysApart} IS NOT NULL AND ${daysApart} <= 1)
+            OR (
+              ${clipJamBase} IS NULL
+              AND ${clipCaptureDaySql('clips')} IS NULL
+              AND ${seedJamBase} IS NOT NULL
+              AND ${singleEventForTitle}
+            )
+          )
         )
       )
-    WHERE seed.membership_show_key = ?
-      OR seed.membership_show_id = ?
-      OR seed.membership_jambase_id = ?
   )`;
 }
 

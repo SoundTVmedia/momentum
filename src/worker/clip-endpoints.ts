@@ -19,6 +19,8 @@ import {
   CLIP_BELONGS_TO_SHOW_BIND_COUNT,
   clipBelongsToEventTitleSql,
   clipBelongsToRequestedShowSql,
+  clipHeadlinerMatchSql,
+  clipLooseNameKey,
   withShowClipMembership,
 } from './past-show-sql';
 import {
@@ -712,15 +714,20 @@ export async function getRelatedClipsForShare(c: Context<{ Bindings: Env }>) {
 
   if (showIdentity) {
     scope = 'show';
+    const artistLoose = clipLooseNameKey(artistName);
     results = await c.env.DB.prepare(
       withShowClipMembership(`${CLIP_WITH_USER_SELECT}
        ${CLIP_WITH_USER_FROM}
        WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
        AND ${clipBelongsToRequestedShowSql()}
+       ${artistLoose ? `AND ${clipHeadlinerMatchSql('clips')}` : ''}
        ${SHOW_CLIPS_RECORDED_ORDER_BY_SQL}
        LIMIT 50`),
     )
-      .bind(...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showIdentity))
+      .bind(
+        ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => showIdentity),
+        ...(artistLoose ? [artistLoose] : []),
+      )
       .all();
   } else if (eventTitle) {
     scope = 'show';
