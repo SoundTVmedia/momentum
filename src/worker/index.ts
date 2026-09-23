@@ -144,7 +144,6 @@ import {
 } from "../shared/content-feed";
 import { headlinerMatchesAcrArtist } from "../shared/artist-name-match";
 import { computeShowId } from "../shared/show-id";
-import { canonicalizeClipShow } from "./canonicalize-clip-show";
 import { resolveClipEventTitle } from "../shared/event-title";
 import {
   clipShowFieldsForContentFeed,
@@ -1512,17 +1511,6 @@ app.post("/api/clips", authMiddleware, async (c) => {
         venue_name: resolvedVenue,
         timestamp: resolvedTimestamp,
       });
-  const canonicalShow = isPrePostContentFeed(contentFeed)
-    ? { jambaseEventId: resolvedJambaseEventId, showId }
-    : await canonicalizeClipShow(c.env.DB, {
-        jambaseEventId: resolvedJambaseEventId,
-        showId,
-        artistName: resolvedArtist,
-        venueName: resolvedVenue,
-        eventTitle: resolvedEventTitle,
-        timestamp: resolvedTimestamp,
-        userId: uid,
-      });
 
   try {
     const result = await c.env.DB.prepare(
@@ -1564,10 +1552,10 @@ app.post("/api/clips", authMiddleware, async (c) => {
         recording_orientation || null,
         video_resolution_w || null,
         video_resolution_h || null,
-        canonicalShow.jambaseEventId,
+        resolvedJambaseEventId,
         resolvedJambaseArtistId,
         resolvedJambaseVenueId,
-        canonicalShow.showId,
+        showId,
         resolvedEventTitle,
         classification?.content_feed ?? 'main',
         classification?.acr_matched ? 1 : 0,

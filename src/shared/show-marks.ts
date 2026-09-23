@@ -9,9 +9,7 @@ import {
   jamBaseEventHasStarted,
 } from './jambase-event-day';
 import { isJamBaseEventOnOrAfterToday } from './jambase-events';
-import { festivalNamesShareEdition } from './jambase-festival';
 import { computeShowId } from './show-id';
-import { sameConcertNight } from './show-night-key';
 
 export type ShowMarkStatus = 'going' | 'attended';
 
@@ -124,61 +122,6 @@ export function pastShowSummaryToJamBaseEvent(
           : undefined,
     },
   };
-}
-
-export type ShowMarkIdentity = {
-  jambase_event_id?: string | null;
-  event_title?: string | null;
-  artist_name?: string | null;
-  venue_name?: string | null;
-  start_date?: string | null;
-};
-
-function showMarkNameKey(value: string | null | undefined): string {
-  return (value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/['\u2019]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function showMarkNamesMatch(
-  left: string | null | undefined,
-  right: string | null | undefined,
-): boolean {
-  const a = showMarkNameKey(left);
-  const b = showMarkNameKey(right);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  return a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a));
-}
-
-/**
- * Same concert under two JamBase listings: same id, same festival edition,
- * or the same artist and venue on the same night. A next-night residency
- * does not match.
- */
-export function showMarksAreSameConcert(left: ShowMarkIdentity, right: ShowMarkIdentity): boolean {
-  const leftId = left.jambase_event_id?.trim() || '';
-  const rightId = right.jambase_event_id?.trim() || '';
-  if (leftId && leftId === rightId) return true;
-  if (
-    festivalNamesShareEdition(
-      left.event_title,
-      right.event_title,
-      left.start_date,
-      right.start_date,
-    )
-  ) {
-    return true;
-  }
-  return (
-    sameConcertNight(left.start_date, right.start_date) &&
-    showMarkNamesMatch(left.artist_name, right.artist_name) &&
-    showMarkNamesMatch(left.venue_name, right.venue_name)
-  );
 }
 
 /** Build a show-mark payload from a JamBase event JSON object. */

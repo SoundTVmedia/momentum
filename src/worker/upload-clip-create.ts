@@ -22,7 +22,6 @@ import { rejectIfClipDoesNotMatchTargetShow } from './clip-show-metadata-gate';
 import { clipShowTagsFromMatchedEvent } from '../shared/clip-show-metadata-match';
 import { fillMissingClipTimestampFromSetlist } from './clip-setlist-timestamp';
 import { parseShowTimeMs } from '../shared/show-timestamp';
-import { canonicalizeClipShow } from './canonicalize-clip-show';
 
 export type ClipCreateBody = Record<string, unknown>;
 
@@ -357,23 +356,6 @@ export async function resolveClipCreateFields(
         }
       }
     }
-  }
-
-  if (!isPrePostContentFeed(contentFeed)) {
-    const canonical = await canonicalizeClipShow(c.env.DB, {
-      jambaseEventId: fields.resolvedJambaseEventId,
-      showId: fields.showId,
-      artistName: fields.resolvedArtist,
-      venueName: fields.resolvedVenue,
-      eventTitle: fields.resolvedEventTitle,
-      timestamp: fields.resolvedTimestamp,
-      userId: fields.uid,
-    });
-    fields = {
-      ...fields,
-      resolvedJambaseEventId: canonical.jambaseEventId,
-      showId: canonical.showId,
-    };
   }
 
   return {

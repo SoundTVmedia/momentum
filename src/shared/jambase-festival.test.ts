@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   festivalCanonicalSlug,
-  festivalClipTitleNeedles,
-  festivalDisplayTitle,
-  festivalNamesShareEdition,
   festivalPageFromEvents,
   festivalPageToJamBaseEvent,
   festivalTitleSearchPhrases,
@@ -47,11 +44,6 @@ describe('isJamBaseFestivalEvent', () => {
     expect(isJamBaseFestivalEvent({ name: 'Big Weekend', performer })).toBe(true);
   });
 
-  it('does not treat Manifest as a festival', () => {
-    expect(isJamBaseFestivalEvent({ name: 'Manifest' })).toBe(false);
-    expect(isJamBaseFestivalEvent({ name: 'Manifesto' })).toBe(false);
-  });
-
   it('does not treat a normal concert as a festival', () => {
     expect(
       isJamBaseFestivalEvent({
@@ -65,32 +57,6 @@ describe('isJamBaseFestivalEvent', () => {
 describe('festivalCanonicalSlug', () => {
   it('drops a trailing year so annual editions share a page', () => {
     expect(festivalCanonicalSlug('Bonnaroo Music Festival 2026')).toBe('bonnaroo-music-festival');
-  });
-
-  it('drops a day label so Friday and Saturday share a page', () => {
-    expect(festivalCanonicalSlug('Shaky Knees 2026 - Friday')).toBe('shaky-knees');
-    expect(festivalCanonicalSlug('Shaky Knees 2026 - Saturday')).toBe('shaky-knees');
-  });
-});
-
-describe('festivalDisplayTitle', () => {
-  it('uses the festival brand instead of a performer set title', () => {
-    expect(festivalDisplayTitle('The National at Shaky Knees')).toBe('Shaky Knees');
-    expect(festivalDisplayTitle('Summerfest 2026 - Friday')).toBe('Summerfest');
-    expect(festivalDisplayTitle('Phish at Madison Square Garden')).toBeNull();
-  });
-});
-
-describe('festivalClipTitleNeedles', () => {
-  it('keeps the short festival name so longer JamBase titles still match clips', () => {
-    expect(festivalClipTitleNeedles('shaky-knees', 'Shaky Knees Music Festival 2026')).toEqual([
-      'shaky knees',
-      'shaky knees music festival',
-    ]);
-    expect(festivalClipTitleNeedles('The National at Shaky Knees')).toEqual([
-      'shaky knees',
-      'the national at shaky knees',
-    ]);
   });
 });
 
@@ -107,48 +73,6 @@ describe('festivalSlugMatches', () => {
 
   it('does not match unrelated short tokens', () => {
     expect(festivalSlugMatches('Jazz Fest', 'fest')).toBe(false);
-  });
-
-  it('treats gov ball and governors ball as the same festival', () => {
-    expect(festivalSlugMatches('Governors Ball Music Festival', 'gov-ball')).toBe(true);
-    expect(festivalSlugMatches('Shaky Knees', 'coachella')).toBe(false);
-  });
-});
-
-describe('festivalNamesShareEdition', () => {
-  it('groups a performer set with the festival day in the same year', () => {
-    expect(
-      festivalNamesShareEdition(
-        'The National at Shaky Knees',
-        'Shaky Knees 2026 - Friday',
-        '2026-09-19',
-        '2026-09-18',
-      ),
-    ).toBe(true);
-    expect(
-      festivalNamesShareEdition(
-        'Foo Fighters at Shaky Knees',
-        'The National at Shaky Knees',
-        '2026-09-18',
-        '2026-09-19',
-      ),
-    ).toBe(true);
-    expect(
-      festivalNamesShareEdition(
-        'The National at Shaky Knees',
-        'Shaky Knees',
-        '2026-09-19',
-        '2025-09-19',
-      ),
-    ).toBe(false);
-    expect(
-      festivalNamesShareEdition(
-        'The National at Shaky Knees',
-        'Foo Fighters at Coachella',
-        '2026-09-19',
-        '2026-04-12',
-      ),
-    ).toBe(false);
   });
 });
 
@@ -202,58 +126,6 @@ describe('pickFestivalGroupForSlug', () => {
       Date.parse('2026-01-01Z'),
     );
     expect(group.map((ev) => ev.identifier).sort()).toEqual(['fri', 'sat']);
-  });
-
-  it('prefers the most recent past edition over an older one', () => {
-    const group = pickFestivalGroupForSlug(
-      [
-        {
-          identifier: 'old',
-          name: 'Shaky Knees',
-          startDate: '2019-05-03',
-          performer: lineup(['Old Act']),
-        },
-        {
-          identifier: 'recent',
-          name: 'Shaky Knees 2026',
-          startDate: '2026-09-18',
-          performer: lineup(['New Act']),
-        },
-      ],
-      'shaky-knees',
-      Date.parse('2026-09-22T00:00:00Z'),
-    );
-    expect(group.map((ev) => ev.identifier)).toEqual(['recent']);
-  });
-
-  it('keeps a performer set with the festival days of that edition', () => {
-    const group = pickFestivalGroupForSlug(
-      [
-        {
-          identifier: 'fri',
-          name: 'Shaky Knees 2026 - Friday',
-          startDate: '2026-09-18',
-          location: { name: 'Piedmont Park' },
-          performer: lineup(['Foo Fighters']),
-        },
-        {
-          identifier: 'set',
-          name: 'The National at Shaky Knees',
-          startDate: '2026-09-19',
-          location: { name: 'Piedmont Park Stage' },
-          performer: lineup(['The National']),
-        },
-        {
-          identifier: 'old',
-          name: 'Shaky Knees',
-          startDate: '2019-05-03',
-          performer: lineup(['Old Act']),
-        },
-      ],
-      'shaky-knees',
-      Date.parse('2026-09-22T00:00:00Z'),
-    );
-    expect(group.map((ev) => ev.identifier).sort()).toEqual(['fri', 'set']);
   });
 });
 

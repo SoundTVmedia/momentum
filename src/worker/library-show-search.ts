@@ -34,8 +34,7 @@ export type LibraryShowSearchRow = {
 
 /** Bind the same LIKE four times, then LIMIT. */
 export const LIBRARY_SHOW_SEARCH_SQL = `
-  SELECT ${groupedPastShowsSelectSql({ includeAverageRating: false })},
-         ${CLIP_PAST_SHOW_GROUP_KEY_SQL} AS past_show_group_key
+  SELECT ${groupedPastShowsSelectSql({ includeAverageRating: false })}
   FROM clips
   WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
   AND (
@@ -44,8 +43,8 @@ export const LIBRARY_SHOW_SEARCH_SQL = `
     OR IFNULL(clips.venue_name, '') LIKE ? COLLATE NOCASE
     OR IFNULL(clips.location, '') LIKE ? COLLATE NOCASE
   )
-  GROUP BY past_show_group_key
-  HAVING past_show_group_key IS NOT NULL
+  GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+  HAVING ${CLIP_PAST_SHOW_GROUP_KEY_SQL} IS NOT NULL
   ORDER BY show_date DESC
   LIMIT ?
 `;

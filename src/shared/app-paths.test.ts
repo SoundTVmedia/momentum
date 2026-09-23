@@ -33,42 +33,6 @@ describe('pastShowClipsPath', () => {
     ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-21/clips');
   });
 
-  it('opens the clip show when the attended mark id is not on the clips', () => {
-    expect(
-      pastShowClipsPath({
-        event_title: 'Jay-Z at Yankee Stadium',
-        artist_name: 'Jay-Z',
-        link_artist_name: 'Jay-Z',
-        venue_name: 'Yankee Stadium',
-        show_id: 'jambase:clips',
-        jambase_event_id: 'jambase:mark',
-        show_date: '2024-07-14T23:10:00.000Z',
-      }),
-    ).toBe('/artists/jay-z/shows/jambase%3Aclips/clips');
-    expect(
-      clipShowClipsPath({
-        event_title: 'Jay-Z at Yankee Stadium',
-        artist_name: 'Jay-Z',
-        venue_name: 'Yankee Stadium',
-        timestamp: '2024-07-14T23:40:00.000Z',
-        show_id: 'jambase:clips',
-        jambase_event_id: 'jambase:clips',
-      }),
-    ).toBe('/artists/jay-z/shows/jambase%3Aclips/clips');
-  });
-
-  it('opens a festival card on the festival page', () => {
-    expect(
-      pastShowClipsPath({
-        event_title: 'Shaky Knees',
-        artist_name: 'Foo Fighters',
-        venue_name: 'Central Park',
-        show_id: 'jambase:sk-fri',
-        show_date: '2026-09-18T23:00:00.000Z',
-      }),
-    ).toBe('/festivals/shaky-knees');
-  });
-
   it('computes a date-aware show id for older API responses', () => {
     expect(
       pastShowClipsPath({
@@ -166,10 +130,11 @@ describe('clipShowClipsPath', () => {
 });
 
 describe('festivalPath', () => {
-  it('uses the festival brand so a performer set still opens the festival', () => {
-    expect(festivalPath('Bonnaroo Music Festival 2026')).toBe('/festivals/bonnaroo');
-    expect(apiFestivalPath('Bonnaroo Music Festival 2026')).toBe('/api/festivals/bonnaroo');
-    expect(festivalPath('The National at Shaky Knees')).toBe('/festivals/shaky-knees');
+  it('uses a year-stripped festival slug', () => {
+    expect(festivalPath('Bonnaroo Music Festival 2026')).toBe('/festivals/bonnaroo-music-festival');
+    expect(apiFestivalPath('Bonnaroo Music Festival 2026')).toBe(
+      '/api/festivals/bonnaroo-music-festival',
+    );
   });
 });
 
@@ -178,7 +143,7 @@ describe('festivalPageHrefFromEvent', () => {
     expect(festivalPageHrefFromEvent(null, 'Shaky Knees')).toBe('/festivals/shaky-knees');
     expect(
       festivalPageHrefFromEvent({ name: 'Shaky Knees Festival', '@type': 'Festival' }),
-    ).toBe('/festivals/shaky-knees');
+    ).toBe('/festivals/shaky-knees-festival');
   });
 
   it('returns null for a regular concert', () => {
@@ -205,7 +170,7 @@ describe('jamBaseEventShowPath', () => {
         identifier: 'jambase:fest',
         name: 'Bonnaroo Music Festival 2026',
       }),
-    ).toBe('/festivals/bonnaroo');
+    ).toBe('/festivals/bonnaroo-music-festival');
   });
 });
 

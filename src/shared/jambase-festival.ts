@@ -1,32 +1,10 @@
 import type { JamBaseEventRecord } from './jambase-events';
-import { jamBaseEventId, jamBaseEventImageUrl, jamBaseEventTicketUrl, jamBaseEventVenueCityLine, jamBaseEventVenueName } from './jambase-events';
+import { jamBaseEventImageUrl, jamBaseEventTicketUrl, jamBaseEventVenueCityLine, jamBaseEventVenueName } from './jambase-events';
 import { slugifyEntityName } from './jambase-slug';
 
-/** Longer phrases first so "governors ball" wins over "gov ball". */
-export const FESTIVAL_BRAND_KEYS: Array<{ needle: string; key: string }> = [
-  { needle: 'shaky knees', key: 'shaky-knees' },
-  { needle: 'governors ball', key: 'governors-ball' },
-  { needle: 'gov ball', key: 'governors-ball' },
-  { needle: 'outside lands', key: 'outside-lands' },
-  { needle: 'burning man', key: 'burning-man' },
-  { needle: 'electric forest', key: 'electric-forest' },
-  { needle: 'rolling loud', key: 'rolling-loud' },
-  { needle: 'ultra music', key: 'ultra-music' },
-  { needle: 'lollapalooza', key: 'lollapalooza' },
-  { needle: 'coachella', key: 'coachella' },
-  { needle: 'bonnaroo', key: 'bonnaroo' },
-  { needle: 'tomorrowland', key: 'tomorrowland' },
-  { needle: 'glastonbury', key: 'glastonbury' },
-  { needle: 'sxsw', key: 'sxsw' },
-  { needle: 'acl', key: 'acl' },
-];
-
 const FESTIVAL_TYPE_RE = /festival/i;
-/**
- * "festival", "fest", "Summerfest", "Jazz Fest".
- * A letter before "fest" still matches Summerfest, but not Manifest.
- */
-const FESTIVAL_NAME_RE = /\b(?:fest(?:ival)?s?|(?!mani)[a-z]{2,}fest)\b/i;
+/** Matches "festival", "fest", "Summerfest", "Jazz Fest", etc. */
+const FESTIVAL_NAME_RE = /fest(?:ival)?s?\b/i;
 const FESTIVAL_BRAND_RE =
   /\b(?:lollapalooza|coachella|bonnaroo|gov(?:ernors)? ball|outside lands|burning man|sxsw|electric forest|rolling loud|ultra music|tomorrowland|glastonbury|acl|shaky knees)\b/i;
 const LINEUP_FESTIVAL_MIN_PERFORMERS = 8;
@@ -99,129 +77,10 @@ export function isJamBaseFestivalEvent(ev: JamBaseEventRecord | null | undefined
   return jamBaseEventPerformerCount(ev) >= LINEUP_FESTIVAL_MIN_PERFORMERS;
 }
 
-const FESTIVAL_DAY_SUFFIX =
-  /-(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend(?:-\d+)?|day-\d+)$/;
-
-function stripFestivalEditionSuffix(slug: string): string {
-  let next = slug;
-  for (let i = 0; i < 3; i++) {
-    const stripped = next
-      .replace(FESTIVAL_DAY_SUFFIX, '')
-      .replace(/-20\d{2}$/, '')
-      .replace(/-19\d{2}$/, '');
-    if (stripped === next) break;
-    next = stripped;
-  }
-  return next;
-}
-
-/** Slug used for `/festivals/:slug` — one page per festival, not per day or year. */
+/** Slug used for `/festivals/:slug` — drops a trailing year so annual editions share a page. */
 export function festivalCanonicalSlug(name: string | null | undefined): string {
-  return stripFestivalEditionSuffix(slugifyEntityName(name));
-}
-
-/** Brand slug when the title mentions a known festival, including "Artist at Shaky Knees". */
-export function festivalBrandKey(name: string | null | undefined): string | null {
-  const phrase = ` ${(festivalCanonicalSlug(name) || slugifyEntityName(name)).replace(/-/g, ' ').trim()} `;
-  if (phrase.trim().length < 3) return null;
-  for (const brand of FESTIVAL_BRAND_KEYS) {
-    if (phrase.includes(` ${brand.needle} `)) return brand.key;
-  }
-  return null;
-}
-
-/**
- * Phrases to find clips for a festival page.
- * A known brand ("shaky knees") is included even when the title is longer,
- * so "Artist at Shaky Knees" and "Shaky Knees Music Festival" find the same clips.
- */
-export function festivalClipTitleNeedles(
-  ...names: Array<string | null | undefined>
-): string[] {
-  const out: string[] = [];
-  for (const name of names) {
-    const brand = festivalBrandKey(name)?.replace(/-/g, ' ');
-    const phrase = (festivalCanonicalSlug(name) || '').replace(/-/g, ' ').trim();
-    for (const item of [brand, phrase]) {
-      const needle = item?.trim() || '';
-      // Brand keys include short names ("acl"). Other phrases stay longer so
-      // "fest" does not match every title.
-      const minLength = item === brand ? 3 : 4;
-      if (needle.length < minLength) continue;
-      if (out.some((existing) => existing === needle)) continue;
-      out.push(needle);
-    }
-  }
-  return out;
-}
-
-function festivalDateYear(iso: string | null | undefined): string | null {
-  return (iso ?? '').trim().match(/^(\d{4})-\d{2}-\d{2}/)?.[1] ?? null;
-}
-
-/**
- * Same festival name and the same calendar year.
- * A missing date still matches (an upload often has no festival start).
- * Next year's edition stays separate.
- */
-export function festivalDatesShareEdition(
-  leftDate: string | null | undefined,
-  rightDate: string | null | undefined,
-): boolean {
-  const leftYear = festivalDateYear(leftDate);
-  const rightYear = festivalDateYear(rightDate);
-  if (leftYear && rightYear) return leftYear === rightYear;
-  return true;
-}
-
-/** Card label for a festival edition, such as "Shaky Knees" or "Summerfest". */
-export function festivalDisplayTitle(name: string | null | undefined): string | null {
-  const brand = festivalBrandKey(name);
-  const slug =
-    brand || (isJamBaseFestivalEvent({ name: name ?? '' }) ? festivalCanonicalSlug(name) : '');
-  if (!slug) return null;
-  return slug
-    .split('-')
-    .map((word) => {
-      if (!word) return '';
-      if (word === 'acl' || word === 'sxsw') return word.toUpperCase();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .filter(Boolean)
-    .join(' ');
-}
-
-/**
- * Identity for one festival edition's name, ignoring the performer and the day.
- * "The National at Shaky Knees" and "Shaky Knees 2026 - Friday" share it.
- */
-export function festivalEditionKey(name: string | null | undefined): string | null {
-  const brand = festivalBrandKey(name);
-  if (brand) return brand;
-  const trimmed = name?.trim() || '';
-  if (!trimmed || !isJamBaseFestivalEvent({ name: trimmed })) return null;
-  return festivalCanonicalSlug(trimmed) || null;
-}
-
-/** True when two titles are the same festival edition (Friday and Saturday included). */
-export function festivalNamesShareEdition(
-  leftName: string | null | undefined,
-  rightName: string | null | undefined,
-  leftDate?: string | null,
-  rightDate?: string | null,
-): boolean {
-  const left = leftName?.trim() || '';
-  const right = rightName?.trim() || '';
-  if (!left || !right) return false;
-  const leftKey = festivalEditionKey(left);
-  const rightKey = festivalEditionKey(right);
-  if (!leftKey || !rightKey) return false;
-  const sameName =
-    leftKey === rightKey ||
-    festivalSlugMatches(left, rightKey) ||
-    festivalSlugMatches(right, leftKey);
-  if (!sameName) return false;
-  return festivalDatesShareEdition(leftDate, rightDate);
+  const slug = slugifyEntityName(name);
+  return slug.replace(/-20\d{2}$/, '').replace(/-19\d{2}$/, '');
 }
 
 /** JamBase `name=` keyword queries — keep the year, then also try without it. */
@@ -240,16 +99,13 @@ export function festivalTitleSearchPhrases(raw: string): string[] {
 
 export function festivalPathSlugFromEvent(ev: JamBaseEventRecord): string {
   const name = typeof ev.name === 'string' ? ev.name : '';
-  return festivalBrandKey(name) || festivalCanonicalSlug(name) || slugifyEntityName(name);
+  return festivalCanonicalSlug(name) || slugifyEntityName(name);
 }
 
 export function festivalSlugMatches(
   eventName: string | null | undefined,
   routeSlug: string | null | undefined,
 ): boolean {
-  const routeBrand = festivalBrandKey(routeSlug);
-  const eventBrand = festivalBrandKey(eventName);
-  if (routeBrand && eventBrand) return routeBrand === eventBrand;
   const route = festivalCanonicalSlug(routeSlug) || slugifyEntityName(routeSlug);
   const event = festivalCanonicalSlug(eventName) || slugifyEntityName(eventName);
   if (!route || !event) return false;
@@ -399,16 +255,12 @@ export function groupFestivalEvents(events: JamBaseEventRecord[]): JamBaseEventR
       groups.push(group);
       continue;
     }
-    const seedBrand = festivalBrandKey(typeof seed.name === 'string' ? seed.name : '');
     for (let j = i + 1; j < festivals.length; j++) {
       if (used.has(j)) continue;
       const other = festivals[j];
       if (festivalPathSlugFromEvent(other) !== seedSlug) continue;
-      const otherName = typeof other.name === 'string' ? other.name : '';
-      const otherBrand = festivalBrandKey(otherName);
-      const sameBrand = Boolean(seedBrand && otherBrand && seedBrand === otherBrand);
       const otherVenue = slugifyEntityName(jamBaseEventVenueName(other));
-      if (!sameBrand && seedVenue && otherVenue && seedVenue !== otherVenue) continue;
+      if (seedVenue && otherVenue && seedVenue !== otherVenue) continue;
       const otherStart = eventStartMs(other);
       if (Number.isFinite(seedStart) && Number.isFinite(otherStart)) {
         if (Math.abs(otherStart - seedStart) > CLUSTER_MAX_GAP_MS) continue;
@@ -434,16 +286,11 @@ export function pickFestivalGroupForSlug(
   const scored = groups.map((group) => {
     const starts = group.map(eventStartMs).filter((ms) => Number.isFinite(ms));
     const soonest = starts.length ? Math.min(...starts) : Number.POSITIVE_INFINITY;
-    const upcoming = soonest >= nowMs - 12 * 60 * 60 * 1000;
+    const upcomingBoost = soonest >= nowMs - 12 * 60 * 60 * 1000 ? 0 : Number.MAX_SAFE_INTEGER / 4;
     const lineup = mergeFestivalLineups(group).length;
-    return { group, upcoming, soonest, lineup };
+    return { group, soonest: soonest + upcomingBoost, lineup };
   });
-  scored.sort((a, b) => {
-    if (a.upcoming !== b.upcoming) return a.upcoming ? -1 : 1;
-    // Upcoming: earliest edition. Past: the most recent edition, not the oldest.
-    if (a.upcoming) return a.soonest - b.soonest || b.lineup - a.lineup;
-    return b.soonest - a.soonest || b.lineup - a.lineup;
-  });
+  scored.sort((a, b) => a.soonest - b.soonest || b.lineup - a.lineup);
   return scored[0]?.group ?? [];
 }
 
@@ -521,7 +368,7 @@ export function festivalPageFromEvents(group: JamBaseEventRecord[]): {
       city_line: jamBaseEventVenueCityLine(primary) || null,
       ticket_url: ticket,
       website_url: website,
-      jambase_event_id: jamBaseEventId(primary) || null,
+      jambase_event_id: typeof primary.identifier === 'string' ? primary.identifier : null,
     },
     artists: mergeFestivalLineups(group),
     eventIds,

@@ -1,4 +1,4 @@
-import { festivalBrandKey, festivalCanonicalSlug, isJamBaseFestivalEvent } from './jambase-festival';
+import { festivalCanonicalSlug, isJamBaseFestivalEvent } from './jambase-festival';
 import { slugifyEntityName } from './jambase-slug';
 import { computeShowId, resolveClipShowNavigationId } from './show-id';
 import { jamBaseEventTitle, resolveClipEventTitle } from './event-title';
@@ -20,8 +20,6 @@ export type ShowMarkClipsInput = {
 export type PastShowClipsInput = ShowMarkClipsInput & {
   show_id?: string | null;
   show_date?: string | null;
-  /** Artist on the clips when the attended mark used a different name. */
-  link_artist_name?: string | null;
 };
 
 export type ClipShowClipsInput = ShowMarkClipsInput & {
@@ -40,7 +38,7 @@ export function venuePath(name: string | null | undefined): string {
 }
 
 export function festivalPath(name: string | null | undefined): string {
-  const slug = festivalBrandKey(name) || festivalCanonicalSlug(name) || slugifyEntityName(name);
+  const slug = festivalCanonicalSlug(name) || slugifyEntityName(name);
   return slug ? `/festivals/${slug}` : '/festivals';
 }
 
@@ -62,7 +60,7 @@ export function festivalPageHrefFromEvent(
 }
 
 export function apiFestivalPath(name: string | null | undefined): string {
-  const slug = festivalBrandKey(name) || festivalCanonicalSlug(name) || slugifyEntityName(name);
+  const slug = festivalCanonicalSlug(name) || slugifyEntityName(name);
   return slug ? `/api/festivals/${slug}` : '/api/festivals';
 }
 
@@ -141,19 +139,16 @@ export function apiShowClipsPath(
 
 /** Clips from one past-show card, including its date-aware fallback identity. */
 export function pastShowClipsPath(show: PastShowClipsInput): string {
-  const festivalHref = festivalPageHrefFromEvent(null, show.event_title);
-  if (festivalHref) return festivalHref;
-  const artistName = show.link_artist_name?.trim() || show.artist_name;
   const showId =
     show.show_id?.trim() ||
     show.jambase_event_id?.trim() ||
     computeShowId({
       jambase_event_id: show.jambase_event_id,
-      artist_name: artistName,
+      artist_name: show.artist_name,
       venue_name: show.venue_name,
       timestamp: show.show_date,
     });
-  return showClipsPath(artistName, showId);
+  return showClipsPath(show.artist_name, showId);
 }
 
 /** The exact show for a clip, with a title-based fallback for legacy clip rows. */

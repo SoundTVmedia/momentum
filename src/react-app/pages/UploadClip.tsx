@@ -2139,14 +2139,11 @@ export default function UploadClip() {
         markCaptureShowSessionPosted(posted, captureGeo.latitude, captureGeo.longitude);
       }
       if (link?.event?.trim()) {
-        const targetedShowStart =
-          (location.state as { showData?: { start_date?: string } } | null)?.showData?.start_date?.trim() ||
-          '';
         const markInput = jamBaseEventToShowMarkInput(
           {
             identifier: link.event,
             name: link.eventTitle ?? venueName,
-            startDate: targetedShowStart || recordingAtIso || new Date().toISOString(),
+            startDate: recordingAtIso ?? new Date().toISOString(),
             performer: artistName
               ? [{ name: artistName, identifier: link.artist, 'x-isHeadliner': true }]
               : [],
@@ -2177,7 +2174,6 @@ export default function UploadClip() {
       jambaseLink,
       captureGeo,
       recordingAtIso,
-      location.state,
     ],
   );
 
