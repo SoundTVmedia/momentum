@@ -58,6 +58,11 @@ describe('festivalCanonicalSlug', () => {
   it('drops a trailing year so annual editions share a page', () => {
     expect(festivalCanonicalSlug('Bonnaroo Music Festival 2026')).toBe('bonnaroo-music-festival');
   });
+
+  it('drops a day label so Friday and Saturday share a page', () => {
+    expect(festivalCanonicalSlug('Shaky Knees 2026 - Friday')).toBe('shaky-knees');
+    expect(festivalCanonicalSlug('Shaky Knees 2026 - Saturday')).toBe('shaky-knees');
+  });
 });
 
 describe('festivalTitleSearchPhrases', () => {
@@ -126,6 +131,28 @@ describe('pickFestivalGroupForSlug', () => {
       Date.parse('2026-01-01Z'),
     );
     expect(group.map((ev) => ev.identifier).sort()).toEqual(['fri', 'sat']);
+  });
+
+  it('prefers the most recent past edition over an older one', () => {
+    const group = pickFestivalGroupForSlug(
+      [
+        {
+          identifier: 'old',
+          name: 'Shaky Knees',
+          startDate: '2019-05-03',
+          performer: lineup(['Old Act']),
+        },
+        {
+          identifier: 'recent',
+          name: 'Shaky Knees 2026',
+          startDate: '2026-09-18',
+          performer: lineup(['New Act']),
+        },
+      ],
+      'shaky-knees',
+      Date.parse('2026-09-22T00:00:00Z'),
+    );
+    expect(group.map((ev) => ev.identifier)).toEqual(['recent']);
   });
 });
 

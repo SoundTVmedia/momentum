@@ -1,6 +1,10 @@
 import type { ClipUploadJobPayload } from '@/react-app/lib/processClipUpload';
 import { resolveClipEventTitle } from '@/shared/event-title';
-import { jamBaseEventToShowMarkInput, type UserShowMark } from '@/shared/show-marks';
+import {
+  jamBaseEventToShowMarkInput,
+  showMarksAreSameConcert,
+  type UserShowMark,
+} from '@/shared/show-marks';
 
 export type ArchivalUploadShowData = {
   jambase_event_id?: string;
@@ -77,10 +81,38 @@ export function archivalUploadNavState(
   mark?: UserShowMark | null,
   event?: Record<string, unknown> | null,
 ): ArchivalUploadNavState {
-  const showData = mergeShowData(
-    archivalShowDataFromEvent(event),
-    mark ? showDataFromMark(mark) : undefined,
+  const fromEvent = archivalShowDataFromEvent(event);
+  const fromMark = mark ? showDataFromMark(mark) : undefined;
+  const markId = fromMark?.jambase_event_id?.trim() || '';
+  const eventId = fromEvent?.jambase_event_id?.trim() || '';
+  const reuseExistingMark = Boolean(
+    fromMark &&
+      fromEvent &&
+      markId &&
+      eventId &&
+      markId !== eventId &&
+      showMarksAreSameConcert(
+        {
+          jambase_event_id: markId,
+          event_title: fromMark.event_title,
+          artist_name: fromMark.artist_name,
+          venue_name: fromMark.venue_name,
+          start_date: fromMark.start_date,
+        },
+        {
+          jambase_event_id: eventId,
+          event_title: fromEvent.event_title,
+          artist_name: fromEvent.artist_name,
+          venue_name: fromEvent.venue_name,
+          start_date: fromEvent.start_date,
+        },
+      ),
   );
+  // A second JamBase listing for this concert must keep the id already on the
+  // profile card. An unrelated page event still wins over a different mark.
+  const showData = reuseExistingMark
+    ? mergeShowData(fromMark, fromEvent)
+    : mergeShowData(fromEvent, fromMark);
   if (!showData) return { fromPhotoLibrary: true };
   return { fromPhotoLibrary: true, showData };
 }

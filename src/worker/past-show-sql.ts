@@ -1,5 +1,6 @@
+import { festivalNamesShareEdition } from '../shared/jambase-festival';
 import { isJamBaseEventId } from '../shared/show-id';
-import { showCalendarDaysApart, showNightKey } from '../shared/show-night-key';
+import { sameConcertNight } from '../shared/show-night-key';
 
 /**
  * Canonical SQL identity for a clip's show.
@@ -43,8 +44,16 @@ export function clipCaptureDaySql(alias = 'clips'): string {
   )`;
 }
 
+function clipLooseNameSql(expr: string): string {
+  return `LOWER(REPLACE(REPLACE(REPLACE(TRIM(${expr}), '-', ' '), CHAR(39), ''), CHAR(8217), ''))`;
+}
+
 function clipVenueKeySql(alias: string): string {
-  return `LOWER(REPLACE(REPLACE(TRIM(${alias}.venue_name), CHAR(39), ''), CHAR(8217), ''))`;
+  return clipLooseNameSql(`${alias}.venue_name`);
+}
+
+function clipArtistKeySql(alias: string): string {
+  return clipLooseNameSql(`${alias}.artist_name`);
 }
 
 export function clipBilledTitleKeySql(alias: string): string {
@@ -52,9 +61,9 @@ export function clipBilledTitleKeySql(alias: string): string {
     WHEN NULLIF(TRIM(${alias}.event_title), '') IS NULL THEN NULL
     WHEN NULLIF(TRIM(${alias}.artist_name), '') IS NULL THEN NULL
     WHEN NULLIF(TRIM(${alias}.venue_name), '') IS NULL THEN NULL
-    ELSE LOWER(TRIM(${alias}.artist_name)) || '|' ||
+    ELSE ${clipArtistKeySql(alias)} || '|' ||
       ${clipVenueKeySql(alias)} || '|' ||
-      LOWER(TRIM(${alias}.event_title))
+      ${clipLooseNameSql(`${alias}.event_title`)}
   END)`;
 }
 
@@ -78,7 +87,7 @@ export function clipNightKeySql(alias = 'clips'): string {
     WHEN NULLIF(TRIM(${alias}.artist_name), '') IS NULL THEN NULL
     WHEN NULLIF(TRIM(${alias}.venue_name), '') IS NULL THEN NULL
     WHEN ${clipCaptureDaySql(alias)} IS NULL THEN NULL
-    ELSE LOWER(TRIM(${alias}.artist_name)) || '|' ||
+    ELSE ${clipArtistKeySql(alias)} || '|' ||
       ${clipVenueKeySql(alias)} || '|' ||
       ${clipCaptureDaySql(alias)}
   END)`;
@@ -134,19 +143,41 @@ function inheritJamBaseEventIdSql(alias: string): string {
 }
 
 /**
+ * One JamBase id for every clip on the same artist + venue + UTC day.
+ * Duplicate listings of one concert (two `jambase:` ids for Jay-Z at Yankee
+ * Stadium) share that id. A different calendar day keeps its own id, so a
+ * two-night residency stays two shows.
+ */
+function sameNightCanonicalJamBaseIdSql(alias: string): string {
+  const night = clipNightKeySql(alias);
+  const mateNight = clipNightKeySql('night_mate');
+  const mateJamBase = clipRealJamBaseEventIdSql('night_mate');
+  return `(
+    SELECT MIN(${mateJamBase})
+    FROM clips AS night_mate
+    WHERE ${mateJamBase} IS NOT NULL
+      AND ${night} IS NOT NULL
+      AND ${mateNight} = ${night}
+  )`;
+}
+
+/**
  * Past-show card identity for GROUP BY.
  *
- * 1. Prefer a stored JamBase event id (keeps multi-night residencies separate).
- * 2. Otherwise inherit a JamBase id from another clip on the same concert night
+ * 1. Same artist + venue + UTC day shares one JamBase id, even when listings
+ *    disagree (Jay-Z at Yankee Stadium).
+ * 2. Otherwise a stored JamBase event id (keeps multi-night residencies separate).
+ * 3. Otherwise inherit a JamBase id from another clip on the same concert night
  *    or the same billed title within one UTC day (Foreigner at The Bell
  *    Auditorium midnight spill).
- * 3. Otherwise group by artist + venue + event title so archival uploads with
+ * 4. Otherwise group by artist + venue + event title so archival uploads with
  *    wrong capture dates still share one card (Charlie Puth at MSG).
- * 4. Last resort: artist + venue + capture day.
+ * 5. Last resort: artist + venue + capture day.
  */
 export function clipPastShowGroupKeySql(alias = 'clips'): string {
   const billed = clipBilledTitleKeySql(alias);
   return `COALESCE(
+    ${sameNightCanonicalJamBaseIdSql(alias)},
     ${clipRealJamBaseEventIdSql(alias)},
     ${inheritJamBaseEventIdSql(alias)},
     CASE
@@ -226,6 +257,8 @@ export type PastShowListRow = {
   stream_video_id?: string | null;
   /** JamBase artist photo (`artists.image_url`) when the clip poster is missing. */
   artist_image_url?: string | null;
+  /** Other show / event ids that were collapsed into this card. */
+  identity_ids?: string[];
 };
 
 export function libraryShowStubSelectSql(options?: { includeAverageRating?: boolean }): string {
@@ -251,21 +284,94 @@ export function libraryShowNightKeySql(): string {
     WHEN NULLIF(TRIM(library_shows.artist_name), '') IS NULL THEN NULL
     WHEN NULLIF(TRIM(library_shows.venue_name), '') IS NULL THEN NULL
     WHEN NULLIF(TRIM(library_shows.start_date), '') IS NULL THEN NULL
-    ELSE LOWER(TRIM(library_shows.artist_name)) || '|' ||
-      LOWER(REPLACE(REPLACE(TRIM(library_shows.venue_name), CHAR(39), ''), CHAR(8217), '')) || '|' ||
+    ELSE ${clipLooseNameSql('library_shows.artist_name')} || '|' ||
+      ${clipLooseNameSql('library_shows.venue_name')} || '|' ||
       strftime('%Y-%m-%d', datetime(replace(replace(substr(TRIM(library_shows.start_date), 1, 19), 'T', ' '), 'Z', '')))
   END)`;
 }
 
-function billedShowKey(row: PastShowListRow): string | null {
-  const artist = (row.artist_name ?? '').trim().toLowerCase();
-  const venue = (row.venue_name ?? '')
+/** Compare show names ignoring case, hyphens, and apostrophes ("Jay-Z" / "Jay Z"). */
+export function concertNameKey(value: string | null | undefined): string {
+  return (value ?? '')
     .trim()
+    .toLowerCase()
     .replace(/['\u2019]/g, '')
-    .toLowerCase();
-  const title = (row.event_title ?? '').trim().toLowerCase();
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function concertNamesMatch(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  const a = concertNameKey(left);
+  const b = concertNameKey(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a))) return true;
+  return false;
+}
+
+function billedShowKey(row: PastShowListRow): string | null {
+  const artist = concertNameKey(row.artist_name);
+  const venue = concertNameKey(row.venue_name);
+  const title = concertNameKey(row.event_title);
   if (!artist || !venue || !title) return null;
   return `${artist}|${venue}|${title}`;
+}
+
+function pastShowIdentityIds(row: PastShowListRow): string[] {
+  const ids = [row.show_id, row.jambase_event_id, ...(row.identity_ids ?? [])];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const id = (raw ?? '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
+function sameFestivalEdition(left: PastShowListRow, right: PastShowListRow): boolean {
+  return festivalNamesShareEdition(
+    left.event_title,
+    right.event_title,
+    left.show_date,
+    right.show_date,
+  );
+}
+
+/**
+ * True when two cards, marks, or clips are the same concert.
+ * Distinct JamBase ids on different nights stay separate (residencies).
+ * The same night, the same billed show, or the same festival edition collapse.
+ */
+export function pastShowsAreSameConcert(left: PastShowListRow, right: PastShowListRow): boolean {
+  const rightIds = new Set(pastShowIdentityIds(right));
+  if (pastShowIdentityIds(left).some((id) => rightIds.has(id))) return true;
+  if (sameFestivalEdition(left, right)) return true;
+
+  if (
+    sameConcertNight(left.show_date, right.show_date) &&
+    concertNamesMatch(left.artist_name, right.artist_name) &&
+    concertNamesMatch(left.venue_name, right.venue_name)
+  ) {
+    return true;
+  }
+
+  const leftBilled = billedShowKey(left);
+  const rightBilled = billedShowKey(right);
+  if (!leftBilled || leftBilled !== rightBilled) return false;
+
+  const leftJamBase = isJamBaseEventId(left.jambase_event_id) ? left.jambase_event_id!.trim() : '';
+  const rightJamBase = isJamBaseEventId(right.jambase_event_id)
+    ? right.jambase_event_id!.trim()
+    : '';
+  const bothDistinctJamBase = Boolean(leftJamBase && rightJamBase && leftJamBase !== rightJamBase);
+  if (bothDistinctJamBase) return sameConcertNight(left.show_date, right.show_date);
+  return true;
 }
 
 function pastShowHasJamBaseId(row: PastShowListRow): boolean {
@@ -280,83 +386,73 @@ function pastShowCardIsRicher(candidate: PastShowListRow, current: PastShowListR
   return pastShowHasJamBaseId(candidate) && !pastShowHasJamBaseId(current);
 }
 
+function preferredShowId(row: PastShowListRow, ids: string[]): string | null {
+  const jamBase = ids.find((id) => isJamBaseEventId(id));
+  if (jamBase) return jamBase;
+  return row.show_id ?? row.jambase_event_id ?? ids[0] ?? null;
+}
+
+export function mergePastShowPair(current: PastShowListRow, incoming: PastShowListRow): PastShowListRow {
+  const richer = pastShowCardIsRicher(incoming, current) ? incoming : current;
+  const poorer = richer === incoming ? current : incoming;
+  const ids = [...new Set([...pastShowIdentityIds(current), ...pastShowIdentityIds(incoming)])];
+  const jamBase = ids.find((id) => isJamBaseEventId(id)) ?? richer.jambase_event_id ?? null;
+  return {
+    ...richer,
+    clip_count: (Number(current.clip_count) || 0) + (Number(incoming.clip_count) || 0),
+    jambase_event_id: jamBase,
+    show_id: preferredShowId(richer, ids),
+    thumbnail_url: richer.thumbnail_url || poorer.thumbnail_url,
+    artist_image_url: richer.artist_image_url || poorer.artist_image_url,
+    identity_ids: ids,
+  };
+}
+
+/** Collapse cards that are the same concert, summing clip counts. */
+export function collapsePastShowRows(rows: PastShowListRow[]): PastShowListRow[] {
+  const out: PastShowListRow[] = [];
+  for (const row of rows) {
+    const idx = out.findIndex((existing) => pastShowsAreSameConcert(existing, row));
+    if (idx < 0) {
+      out.push({ ...row, identity_ids: pastShowIdentityIds(row) });
+      continue;
+    }
+    out[idx] = mergePastShowPair(out[idx]!, row);
+  }
+  return out;
+}
+
+/**
+ * When a new clip or mark is the same concert as one we already have, keep the
+ * existing identity so it does not mint a second past-show card.
+ */
+export function pickCanonicalShowIdentity(
+  incoming: PastShowListRow,
+  existing: PastShowListRow[],
+): PastShowListRow | null {
+  const matches = existing.filter((row) => pastShowsAreSameConcert(incoming, row));
+  if (matches.length === 0) return null;
+  const ranked = [...matches].sort((a, b) => {
+    const aJamBase = pastShowHasJamBaseId(a) ? 1 : 0;
+    const bJamBase = pastShowHasJamBaseId(b) ? 1 : 0;
+    if (aJamBase !== bJamBase) return bJamBase - aJamBase;
+    return (Number(b.clip_count) || 0) - (Number(a.clip_count) || 0);
+  });
+  const chosen = ranked[0]!;
+  const chosenId = (isJamBaseEventId(chosen.jambase_event_id) ? chosen.jambase_event_id : chosen.show_id) ?? '';
+  const incomingId =
+    (isJamBaseEventId(incoming.jambase_event_id) ? incoming.jambase_event_id : incoming.show_id) ?? '';
+  if (chosenId.trim() && chosenId.trim() === incomingId.trim()) return null;
+  return chosen;
+}
+
 export function mergeClipAndLibraryPastShows(
   clipShows: PastShowListRow[],
   libraryShows: PastShowListRow[],
   limit: number,
   sortBy: 'date_played' | 'average_rating' = 'date_played',
 ): PastShowListRow[] {
-  const seenIds = new Set<string>();
-  const seenNights = new Set<string>();
-  const seenTitles = new Set<string>();
-  const out: PastShowListRow[] = [];
-
-  const titleKey = (row: PastShowListRow): string | null => {
-    if (pastShowHasJamBaseId(row)) return null;
-    return billedShowKey(row);
-  };
-
-  const remember = (row: PastShowListRow) => {
-    const id = (row.jambase_event_id || row.show_id || '').trim();
-    const night = showNightKey(row.artist_name, row.venue_name, row.show_date);
-    const title = titleKey(row);
-    if (id) seenIds.add(id);
-    if (night) seenNights.add(night);
-    if (title) seenTitles.add(title);
-  };
-
-  const take = (row: PastShowListRow) => {
-    const id = (row.jambase_event_id || row.show_id || '').trim();
-    const night = showNightKey(row.artist_name, row.venue_name, row.show_date);
-    const title = titleKey(row);
-    if (id && seenIds.has(id)) return;
-    if (night && seenNights.has(night)) return;
-    if (title && seenTitles.has(title)) return;
-
-    const billed = billedShowKey(row);
-    if (billed) {
-      const existingIdx = out.findIndex((existing) => billedShowKey(existing) === billed);
-      if (existingIdx >= 0) {
-        const existing = out[existingIdx]!;
-        const existingJb = isJamBaseEventId(existing.jambase_event_id)
-          ? existing.jambase_event_id!.trim()
-          : '';
-        const rowJb = isJamBaseEventId(row.jambase_event_id) ? row.jambase_event_id!.trim() : '';
-        const bothDistinctJamBase = Boolean(existingJb && rowJb && existingJb !== rowJb);
-        const daysApart = showCalendarDaysApart(existing.show_date, row.show_date);
-        const sameUtcNight = daysApart != null && daysApart <= 1;
-        if (!bothDistinctJamBase && sameUtcNight) {
-          const richer = pastShowCardIsRicher(row, existing) ? row : existing;
-          const poorer = richer === row ? existing : row;
-          out[existingIdx] = {
-            ...richer,
-            clip_count: (Number(existing.clip_count) || 0) + (Number(row.clip_count) || 0),
-            jambase_event_id:
-              (isJamBaseEventId(richer.jambase_event_id)
-                ? richer.jambase_event_id
-                : isJamBaseEventId(poorer.jambase_event_id)
-                  ? poorer.jambase_event_id
-                  : richer.jambase_event_id) ?? null,
-            show_id:
-              (isJamBaseEventId(richer.show_id)
-                ? richer.show_id
-                : isJamBaseEventId(poorer.show_id)
-                  ? poorer.show_id
-                  : richer.show_id) ?? richer.show_id,
-          };
-          remember(row);
-          remember(existing);
-          return;
-        }
-      }
-    }
-
-    remember(row);
-    out.push(row);
-  };
-
-  for (const row of clipShows) take(row);
-  for (const row of libraryShows) take(row);
+  const out = collapsePastShowRows([...clipShows, ...libraryShows]);
 
   if (sortBy === 'average_rating') {
     out.sort(

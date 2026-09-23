@@ -16,7 +16,12 @@ import {
 import { PUBLIC_VISIBLE_CLIP_SQL } from '../shared/content-feed';
 import { getBlockDirections } from './user-blocks';
 import { attachPastShowArtistImages } from './past-show-list';
-import type { PastShowListRow } from './past-show-sql';
+import {
+  collapsePastShowRows,
+  concertNameKey,
+  pastShowsAreSameConcert,
+  type PastShowListRow,
+} from './past-show-sql';
 import {
   jamBaseEventHasStarted,
   jamBaseEventImThereEligible,
@@ -340,56 +345,95 @@ function pastShowCardToListRow(card: ReturnType<typeof userShowMarkToPastShowSum
   };
 }
 
+function clipToPastShowRow(row: {
+  jambase_event_id?: unknown;
+  show_id?: unknown;
+  event_title?: unknown;
+  artist_name?: unknown;
+  venue_name?: unknown;
+  timestamp?: unknown;
+  thumbnail_url?: unknown;
+}): PastShowListRow {
+  const text = (value: unknown) => (typeof value === 'string' ? value : null);
+  return {
+    show_id: text(row.show_id),
+    event_title: text(row.event_title),
+    artist_name: text(row.artist_name),
+    show_date: text(row.timestamp),
+    venue_name: text(row.venue_name),
+    venue_location: null,
+    jambase_event_id: text(row.jambase_event_id),
+    jambase_venue_id: null,
+    jambase_artist_id: null,
+    clip_count: 1,
+    thumbnail_url: text(row.thumbnail_url),
+  };
+}
+
 async function attachClipStatsToPastShows(
   db: D1Database,
   rows: PastShowListRow[],
 ): Promise<PastShowListRow[]> {
   const ids = [
     ...new Set(
-      rows
-        .map((row) => (row.jambase_event_id || row.show_id || '').trim())
-        .filter((id) => id.length > 0),
+      rows.flatMap((row) =>
+        [row.jambase_event_id, row.show_id, ...(row.identity_ids ?? [])]
+          .map((id) => (id ?? '').trim())
+          .filter((id) => id.length > 0),
+      ),
     ),
   ];
-  if (ids.length === 0) return rows;
+  const titles = [
+    ...new Set(
+      rows
+        .map((row) => concertNameKey(row.event_title))
+        .filter((title) => title.length >= 4),
+    ),
+  ];
+  if (ids.length === 0 && titles.length === 0) return rows;
 
-  const placeholders = ids.map(() => '?').join(',');
+  const idPlaceholders = ids.map(() => '?').join(',');
+  const titleSql =
+    titles.length > 0
+      ? titles
+          .map(
+            () =>
+              `LOWER(REPLACE(REPLACE(TRIM(IFNULL(clips.event_title, '')), '-', ' '), '''', '')) LIKE ?`,
+          )
+          .join(' OR ')
+      : '';
+  const idSql =
+    ids.length > 0
+      ? `TRIM(IFNULL(clips.jambase_event_id, '')) IN (${idPlaceholders})
+         OR TRIM(IFNULL(clips.show_id, '')) IN (${idPlaceholders})`
+      : '';
+  const where = [idSql, titleSql].filter(Boolean).join(' OR ');
+
   try {
     const result = await db
       .prepare(
-        `SELECT TRIM(clips.jambase_event_id) as id,
-                COUNT(*) as clip_count,
-                MAX(NULLIF(TRIM(clips.thumbnail_url), '')) as thumbnail_url
+        `SELECT clips.jambase_event_id, clips.show_id, clips.event_title, clips.artist_name,
+                clips.venue_name, clips.timestamp, clips.thumbnail_url
          FROM clips
          WHERE ${PUBLIC_VISIBLE_CLIP_SQL}
-           AND NULLIF(TRIM(clips.jambase_event_id), '') IN (${placeholders})
-         GROUP BY TRIM(clips.jambase_event_id)`,
+           AND (${where})
+         LIMIT 500`,
       )
-      .bind(...ids)
+      .bind(...ids, ...ids, ...titles.map((title) => `%${title}%`))
       .all();
 
-    const byId = new Map<string, { clip_count: number; thumbnail_url: string | null }>();
-    for (const row of (result.results ?? []) as Array<{
-      id?: unknown;
-      clip_count?: unknown;
-      thumbnail_url?: unknown;
-    }>) {
-      const id = typeof row.id === 'string' ? row.id.trim() : '';
-      if (!id) continue;
-      byId.set(id, {
-        clip_count: Number(row.clip_count) || 0,
-        thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
-      });
-    }
-
+    const clips = ((result.results ?? []) as Array<Record<string, unknown>>).map(clipToPastShowRow);
     return rows.map((row) => {
-      const id = (row.jambase_event_id || row.show_id || '').trim();
-      const stats = byId.get(id);
-      if (!stats) return row;
+      const matched = clips.filter((clip) => pastShowsAreSameConcert(row, clip));
+      if (matched.length === 0) return { ...row, clip_count: 0 };
+      const thumbnail =
+        row.thumbnail_url ||
+        matched.find((clip) => clip.thumbnail_url?.trim())?.thumbnail_url ||
+        null;
       return {
         ...row,
-        clip_count: stats.clip_count,
-        thumbnail_url: row.thumbnail_url || stats.thumbnail_url,
+        clip_count: matched.length,
+        thumbnail_url: thumbnail,
       };
     });
   } catch (e) {
@@ -460,7 +504,9 @@ export async function getUserAttendedShows(c: Context) {
       .map(rowToMark)
       .filter((mark) => isProfilePastShowMark(mark));
 
-    let shows = marks.map((mark) => pastShowCardToListRow(userShowMarkToPastShowSummary(mark)));
+    let shows = collapsePastShowRows(
+      marks.map((mark) => pastShowCardToListRow(userShowMarkToPastShowSummary(mark))),
+    );
     shows = await attachClipStatsToPastShows(c.env.DB, shows);
     shows = await attachPastShowArtistImages(c.env.DB, shows);
     return c.json({ shows: shows.map(pastShowListRowToCard) });
@@ -468,6 +514,43 @@ export async function getUserAttendedShows(c: Context) {
     console.error('getUserAttendedShows', e);
     return c.json({ error: 'Failed to load past shows' }, 500);
   }
+}
+
+function markToPastShowRow(mark: UserShowMark): PastShowListRow {
+  return pastShowCardToListRow(userShowMarkToPastShowSummary(mark));
+}
+
+/** Reuse an existing mark when this write is the same concert under a new id. */
+async function existingShowMarkForSameConcert(
+  db: D1Database,
+  userId: string,
+  input: ShowMarkUpsertInput,
+): Promise<UserShowMark | null> {
+  const incoming = markToPastShowRow({
+    id: 0,
+    status: input.status,
+    jambase_event_id: input.jambase_event_id,
+    jambase_venue_id: input.jambase_venue_id ?? null,
+    jambase_artist_id: input.jambase_artist_id ?? null,
+    event_title: input.event_title ?? null,
+    artist_name: input.artist_name ?? null,
+    venue_name: input.venue_name ?? null,
+    venue_location: input.venue_location ?? null,
+    venue_timezone: input.venue_timezone ?? null,
+    start_date: input.start_date ?? null,
+    created_at: '',
+    updated_at: '',
+  });
+  const rows = await db
+    .prepare(`SELECT * FROM user_show_marks WHERE mocha_user_id = ?`)
+    .bind(userId)
+    .all();
+  for (const raw of rows.results ?? []) {
+    const mark = rowToMark(raw as Record<string, unknown>);
+    if (mark.jambase_event_id === input.jambase_event_id) continue;
+    if (pastShowsAreSameConcert(incoming, markToPastShowRow(mark))) return mark;
+  }
+  return null;
 }
 
 /** POST /api/users/me/show-marks — upsert going / attended */
@@ -511,6 +594,10 @@ export async function upsertMyShowMark(c: Context) {
   const uid = mochaUserIdKey(mochaUser);
 
   try {
+    const folded = await existingShowMarkForSameConcert(c.env.DB, uid, input);
+    const eventId = folded?.jambase_event_id || input.jambase_event_id;
+    const startDate = folded?.start_date?.trim() || input.start_date || null;
+
     await c.env.DB.prepare(
       `INSERT INTO user_show_marks (
          mocha_user_id, status, jambase_event_id, jambase_venue_id, jambase_artist_id,
@@ -531,7 +618,7 @@ export async function upsertMyShowMark(c: Context) {
       .bind(
         uid,
         input.status,
-        input.jambase_event_id,
+        eventId,
         input.jambase_venue_id ?? null,
         input.jambase_artist_id ?? null,
         input.event_title ?? null,
@@ -539,14 +626,14 @@ export async function upsertMyShowMark(c: Context) {
         input.venue_name ?? null,
         input.venue_location ?? null,
         input.venue_timezone ?? null,
-        input.start_date ?? null,
+        startDate,
       )
       .run();
 
     const row = await c.env.DB.prepare(
       `SELECT * FROM user_show_marks WHERE mocha_user_id = ? AND jambase_event_id = ?`,
     )
-      .bind(uid, input.jambase_event_id)
+      .bind(uid, eventId)
       .first();
 
     if (!row) return c.json({ error: 'Failed to save show mark' }, 500);
