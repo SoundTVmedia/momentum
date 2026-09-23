@@ -1135,13 +1135,20 @@ describe('mergeClipAndLibraryPastShows', () => {
   });
 });
 
-function showRow(partial: PastShowListRow): PastShowListRow {
+function showRow(partial: Partial<PastShowListRow> & Pick<PastShowListRow, 'clip_count'>): PastShowListRow {
   return {
-    venue_location: null,
-    jambase_venue_id: null,
-    jambase_artist_id: null,
-    thumbnail_url: null,
-    ...partial,
+    show_id: partial.show_id ?? null,
+    event_title: partial.event_title ?? null,
+    artist_name: partial.artist_name ?? null,
+    show_date: partial.show_date ?? null,
+    venue_name: partial.venue_name ?? null,
+    venue_location: partial.venue_location ?? null,
+    jambase_event_id: partial.jambase_event_id ?? null,
+    jambase_venue_id: partial.jambase_venue_id ?? null,
+    jambase_artist_id: partial.jambase_artist_id ?? null,
+    clip_count: partial.clip_count,
+    thumbnail_url: partial.thumbnail_url ?? null,
+    identity_ids: partial.identity_ids,
   };
 }
 
