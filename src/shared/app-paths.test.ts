@@ -166,11 +166,10 @@ describe('clipShowClipsPath', () => {
 });
 
 describe('festivalPath', () => {
-  it('uses a year-stripped festival slug', () => {
-    expect(festivalPath('Bonnaroo Music Festival 2026')).toBe('/festivals/bonnaroo-music-festival');
-    expect(apiFestivalPath('Bonnaroo Music Festival 2026')).toBe(
-      '/api/festivals/bonnaroo-music-festival',
-    );
+  it('uses the festival brand so a performer set still opens the festival', () => {
+    expect(festivalPath('Bonnaroo Music Festival 2026')).toBe('/festivals/bonnaroo');
+    expect(apiFestivalPath('Bonnaroo Music Festival 2026')).toBe('/api/festivals/bonnaroo');
+    expect(festivalPath('The National at Shaky Knees')).toBe('/festivals/shaky-knees');
   });
 });
 
@@ -179,7 +178,7 @@ describe('festivalPageHrefFromEvent', () => {
     expect(festivalPageHrefFromEvent(null, 'Shaky Knees')).toBe('/festivals/shaky-knees');
     expect(
       festivalPageHrefFromEvent({ name: 'Shaky Knees Festival', '@type': 'Festival' }),
-    ).toBe('/festivals/shaky-knees-festival');
+    ).toBe('/festivals/shaky-knees');
   });
 
   it('returns null for a regular concert', () => {
@@ -206,7 +205,7 @@ describe('jamBaseEventShowPath', () => {
         identifier: 'jambase:fest',
         name: 'Bonnaroo Music Festival 2026',
       }),
-    ).toBe('/festivals/bonnaroo-music-festival');
+    ).toBe('/festivals/bonnaroo');
   });
 });
 
