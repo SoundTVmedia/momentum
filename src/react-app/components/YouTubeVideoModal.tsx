@@ -26,7 +26,9 @@ import {
   ClipTicketSheetHeader,
 } from '@/react-app/components/ClipModalTicketSheet';
 import {
+  allowYoutubePictureInPicture,
   ensureYoutubeUnmuted,
+  enterYoutubePictureInPicture,
   loadYoutubeIframeApi,
   startYoutubeAutoplay,
   YT_PLAYER_STATE,
@@ -65,12 +67,14 @@ function formatCount(n: number): string {
 function YouTubeEmbed({
   video,
   edgeSwipeHandlers,
+  onPlayer,
 }: {
   video: YoutubeVideoItem;
   edgeSwipeHandlers?: {
     onTouchStart: (e: React.TouchEvent) => void;
     onTouchEnd: (e: React.TouchEvent) => void;
   };
+  onPlayer?: (player: YTPlayer | null) => void;
 }) {
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -109,12 +113,18 @@ function YouTubeEmbed({
           playsinline: 1,
           rel: 0,
           modestbranding: 1,
+          controls: 0,
+          fs: 0,
+          disablekb: 1,
+          iv_load_policy: 3,
           enablejsapi: 1,
           origin: typeof window !== 'undefined' ? window.location.origin : '',
         },
         events: {
           onReady: (event) => {
+            allowYoutubePictureInPicture(event.target);
             startYoutubeAutoplay(event.target);
+            onPlayer?.(event.target);
           },
           onStateChange: (event) => {
             if (userPausedRef.current) return;
@@ -137,10 +147,11 @@ function YouTubeEmbed({
 
     return () => {
       cancelled = true;
+      onPlayer?.(null);
       playerRef.current?.destroy();
       playerRef.current = null;
     };
-  }, [video.videoId]);
+  }, [onPlayer, video.videoId]);
 
   useLayoutEffect(() => {
     const frame = frameRef.current;
@@ -195,7 +206,7 @@ function YouTubeModalSidebar({
   buyActions: ReactNode;
 }) {
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-900/50 md:w-1/3">
+    <div className="flex h-full min-h-0 w-1/3 flex-col overflow-hidden bg-slate-900/50">
       <div className="flex-shrink-0 border-b border-white/10 p-4">
         <p className="mb-2 text-xs font-medium uppercase tracking-wide text-red-400/90">
           YouTube
@@ -264,6 +275,10 @@ export default function YouTubeVideoModal({
   const navigate = useNavigate();
   const { setHideBottomNav } = useMobileChrome();
   const gestureSurfaceRef = useRef<HTMLDivElement>(null);
+  const ytPlayerRef = useRef<YTPlayer | null>(null);
+  const setYoutubePlayer = useCallback((player: YTPlayer | null) => {
+    ytPlayerRef.current = player;
+  }, []);
   const { trackTicketClick } = useTicketmaster();
   const { websiteUrl: artistWebsiteUrl, loading: artistProfileLoading } = useClipArtistProfile(
     video.artistName,
@@ -318,6 +333,11 @@ export default function YouTubeVideoModal({
       : 'Upcoming show';
 
   const openExternal = useCallback(async (url: string) => {
+    try {
+      await enterYoutubePictureInPicture(ytPlayerRef.current);
+    } catch {
+      /* still open tickets or merch if picture-in-picture is unavailable */
+    }
     await openExternalKeepClipPlaying(url);
   }, []);
 
@@ -438,8 +458,7 @@ export default function YouTubeVideoModal({
   const mobileOverlay = (
     <>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-12 pt-3">
-        <div className="pointer-events-auto flex items-start justify-between gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-red-400/90">YouTube</p>
+        <div className="pointer-events-auto flex items-start justify-end">
           <button
             type="button"
             onClick={onClose}
@@ -513,6 +532,7 @@ export default function YouTubeVideoModal({
       key={video.videoId}
       video={video}
       edgeSwipeHandlers={mobileViewport ? edgeSwipeHandlers : undefined}
+      onPlayer={setYoutubePlayer}
     />
   );
 
@@ -549,7 +569,7 @@ export default function YouTubeVideoModal({
   );
 
   return (
-    <div ref={gestureSurfaceRef} className="fixed inset-0 z-[110] overflow-hidden bg-black">
+    <div ref={gestureSurfaceRef} className="fixed inset-0 z-[110] flex overflow-hidden glass-modal-overlay">
       <div
         ref={mobileSwipeRef}
         className={`relative flex h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 ${mobileViewport ? '' : 'hidden'}`}
@@ -562,18 +582,22 @@ export default function YouTubeVideoModal({
         {ticketDetails()}
       </div>
 
-      <div className={`relative h-[100dvh] w-full ${mobileViewport ? 'hidden' : 'block'}`}>
-        <div className="mx-auto flex h-full max-w-6xl">
-          <div className="relative flex h-full min-h-0 flex-1 flex-col bg-slate-950">
+      <div
+        className={`mx-auto hidden h-full min-h-0 w-full max-w-6xl items-center justify-center overflow-hidden p-4 md:flex ${
+          mobileViewport ? '!hidden' : ''
+        }`}
+      >
+        <div className="flex h-full max-h-[90vh] min-h-0 w-full overflow-hidden rounded-2xl glass-dropdown">
+          <div className="relative flex min-h-0 w-2/3 flex-shrink-0 flex-col overflow-hidden bg-black">
             {ticketHeader()}
-            <div className={`relative min-h-0 flex-1 bg-black ${showTicketSheet ? 'px-4 py-3' : ''}`}>
+            <div className={`relative min-h-0 flex-1 ${showTicketSheet ? 'px-4 py-3' : ''}`}>
               {!mobileViewport ? youtubePlayer : null}
               {showTicketSheet ? null : (
                 <>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="absolute right-4 top-4 z-30 rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
+                    className="absolute right-4 top-4 z-30 rounded-full glass-icon-btn p-2 text-white transition-colors"
                     aria-label="Close"
                   >
                     <X className="h-6 w-6" />

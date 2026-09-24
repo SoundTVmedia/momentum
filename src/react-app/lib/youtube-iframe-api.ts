@@ -1,3 +1,5 @@
+import { enterClipPictureInPicture } from '@/react-app/lib/clip-picture-in-picture';
+
 /** Minimal types for the YouTube IFrame Player API (loaded at runtime). */
 export const YT_PLAYER_STATE = {
   UNSTARTED: -1,
@@ -16,6 +18,7 @@ export type YTPlayer = {
   isMuted?: () => boolean;
   loadVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void;
   getPlayerState: () => number;
+  getIframe?: () => HTMLIFrameElement;
   setSize?: (width: number, height: number) => void;
   destroy: () => void;
 };
@@ -84,6 +87,84 @@ export function startYoutubeAutoplay(player: YTPlayer): void {
         playMutedThenUnmute();
       }
     }, delay);
+  }
+}
+
+type DocumentPictureInPicture = {
+  requestWindow: (options?: { width?: number; height?: number }) => Promise<Window>;
+};
+
+function documentPictureInPicture(): DocumentPictureInPicture | null {
+  if (typeof window === 'undefined') return null;
+  const pip = (window as Window & { documentPictureInPicture?: DocumentPictureInPicture })
+    .documentPictureInPicture;
+  return pip?.requestWindow ? pip : null;
+}
+
+/** Let the browser float this embed. YouTube's iframe omits the permission by default. */
+export function allowYoutubePictureInPicture(player: YTPlayer | null | undefined): HTMLIFrameElement | null {
+  const iframe = player?.getIframe?.() ?? null;
+  if (!iframe) return null;
+  const allow = new Set(
+    (iframe.getAttribute('allow') ?? '')
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean),
+  );
+  allow.add('autoplay');
+  allow.add('picture-in-picture');
+  iframe.setAttribute('allow', [...allow].join('; '));
+  return iframe;
+}
+
+/**
+ * Float the YouTube embed before opening tickets or merch.
+ * Moves the live iframe into a document picture-in-picture window so playback
+ * continues while the shop opens. Restores the iframe when that window closes.
+ */
+export async function enterYoutubePictureInPicture(
+  player: YTPlayer | null | undefined,
+): Promise<boolean> {
+  const iframe = allowYoutubePictureInPicture(player);
+  if (!iframe) return false;
+
+  try {
+    player?.playVideo();
+  } catch {
+    /* still try PiP */
+  }
+
+  try {
+    const video = iframe.contentDocument?.querySelector('video');
+    if (video instanceof HTMLVideoElement) {
+      return enterClipPictureInPicture(video);
+    }
+  } catch {
+    /* cross-origin embed — use the document picture-in-picture window */
+  }
+
+  const pip = documentPictureInPicture();
+  if (!pip) return false;
+
+  try {
+    const width = Math.max(320, Math.round(iframe.clientWidth || 480));
+    const height = Math.max(180, Math.round(iframe.clientHeight || 270));
+    const pipWindow = await pip.requestWindow({ width, height });
+    const parent = iframe.parentElement;
+    const next = iframe.nextSibling;
+    const style = pipWindow.document.createElement('style');
+    style.textContent = 'html,body{margin:0;height:100%;background:#000}iframe{width:100%;height:100%;border:0}';
+    pipWindow.document.head.appendChild(style);
+    pipWindow.document.body.appendChild(iframe);
+
+    const restore = () => {
+      if (!parent?.isConnected) return;
+      parent.insertBefore(iframe, next);
+    };
+    pipWindow.addEventListener('pagehide', restore, { once: true });
+    return true;
+  } catch {
+    return false;
   }
 }
 
