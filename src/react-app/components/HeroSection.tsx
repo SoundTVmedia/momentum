@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { App } from '@capacitor/app';
 import { Link } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import HeroConcertBackdrop, {
@@ -238,7 +239,7 @@ function FeaturedClipSlide({
           decoding="async"
         />
       ) : null}
-      {slide ? (
+      {slide && playing ? (
         <div className="hero-video-backdrop-wrap">
           <video
             ref={(node) => {
@@ -349,6 +350,7 @@ export default function HeroSection({
   const [findShowOpen, setFindShowOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const ignoreClickRef = useRef(false);
+  const featuredFeedAbortRef = useRef<AbortController | null>(null);
 
   const loadHeroClips = useCallback(async () => {
     try {
@@ -390,21 +392,44 @@ export default function HeroSection({
   useAppPullRefresh(loadHeroClips);
 
   useEffect(() => {
+    let removed = false;
+    let appHandle: { remove: () => Promise<void> } | undefined;
+    const lastRotateAt = { current: Date.now() };
+    const rotate = () => {
+      const now = Date.now();
+      if (now - lastRotateAt.current < 1500) return;
+      lastRotateAt.current = now;
+      void loadHeroClips();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') rotate();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    void App.addListener('appStateChange', (state) => {
+      if (state.isActive) rotate();
+    }).then((handle) => {
+      if (removed) {
+        void handle.remove();
+        return;
+      }
+      appHandle = handle;
+    });
+    return () => {
+      removed = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      void appHandle?.remove();
+    };
+  }, [loadHeroClips]);
+
+  useEffect(() => {
     if (!featured) {
       setFeaturedFeed([]);
       return;
     }
     setFeaturedFeed([featured]);
-    const ac = new AbortController();
-    void fetchFeaturedShowClips(featured, ac.signal)
-      .then((clips) => {
-        if (!ac.signal.aborted) setFeaturedFeed(clips);
-      })
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-      });
-    return () => ac.abort();
   }, [featured]);
+
+  useEffect(() => () => featuredFeedAbortRef.current?.abort(), []);
 
   useEffect(() => {
     if (tourActive) {
@@ -449,7 +474,19 @@ export default function HeroSection({
 
   const openFeaturedClip = () => {
     if (consumeSwipeClick()) return;
-    if (featured) setClipModal(featured);
+    if (!featured) return;
+    setClipModal(featured);
+    setFeaturedFeed([featured]);
+    featuredFeedAbortRef.current?.abort();
+    const ac = new AbortController();
+    featuredFeedAbortRef.current = ac;
+    void fetchFeaturedShowClips(featured, ac.signal)
+      .then((clips) => {
+        if (!ac.signal.aborted) setFeaturedFeed(clips);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      });
   };
 
   return (
@@ -476,6 +513,7 @@ export default function HeroSection({
                 key={slidesA[0]?.src ?? 'slide-a'}
                 slides={slidesA}
                 playing={index === 0 && !reducedMotion}
+                loadVideo={index === 0}
               />
             </div>
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
@@ -550,6 +588,7 @@ export default function HeroSection({
                 key={slidesB[0]?.src ?? 'slide-b'}
                 slides={slidesB}
                 playing={index === 1 && !reducedMotion}
+                loadVideo={index === 1}
               />
             </div>
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
