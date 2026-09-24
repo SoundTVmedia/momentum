@@ -26,7 +26,7 @@ describe('allowYoutubePictureInPicture', () => {
       setAttribute: (_name: string, value: string) => {
         allow = value;
       },
-    } as HTMLIFrameElement;
+    } as unknown as HTMLIFrameElement;
 
     allowYoutubePictureInPicture(fakePlayer(iframe));
     expect(allow).toContain('picture-in-picture');
