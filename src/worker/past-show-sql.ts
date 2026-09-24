@@ -32,13 +32,23 @@ export function clipRealJamBaseEventIdSql(alias = 'clips'): string {
 }
 
 /**
+ * UTC calendar day from the recorded timestamp only.
+ * Upload time (`created_at`) is not a concert night — Jay-Z at Yankee Stadium
+ * archival clips were posted in September for the July 12 show.
+ */
+export function clipRecordedDaySql(alias = 'clips'): string {
+  return `strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.timestamp`)})`;
+}
+
+/**
  * UTC calendar day for concert-night matching.
  * Prefer capture timestamp; fall back to created_at so archival uploads that
- * never stamped `timestamp` (Foreigner Bell Auditorium) still join the night.
+ * never stamped `timestamp` (Foreigner Bell Auditorium) still join the night
+ * when that upload is the only date we have.
  */
 export function clipCaptureDaySql(alias = 'clips'): string {
   return `COALESCE(
-    strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.timestamp`)}),
+    ${clipRecordedDaySql(alias)},
     strftime('%Y-%m-%d', ${sqlitePlausibleDateTimeSql(`${alias}.created_at`)})
   )`;
 }
@@ -92,6 +102,8 @@ export const CLIP_NIGHT_KEY_SQL = clipNightKeySql('clips');
  * Same UTC night covers mixed JamBase + composite ids (Don Toliver / Ariana).
  * Same billed title within one UTC day covers midnight spill, where one clip
  * is tagged `jambase:…` on Sep 19 and another is a slug dated Sep 20.
+ * A missing recorded timestamp still joins that title when only one JamBase
+ * event exists for it, even if the clip was uploaded months later.
  */
 function inheritJamBaseEventIdSql(alias: string): string {
   const night = clipNightKeySql(alias);
@@ -119,7 +131,7 @@ function inheritJamBaseEventIdSql(alias: string): string {
         OR (
           ${billed} IS NOT NULL
           AND ${seedBilled} = ${billed}
-          AND ${clipCaptureDaySql(alias)} IS NULL
+          AND ${clipRecordedDaySql(alias)} IS NULL
           AND (
             SELECT COUNT(DISTINCT ${clipRealJamBaseEventIdSql('jb')})
             FROM clips AS jb

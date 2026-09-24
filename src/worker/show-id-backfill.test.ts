@@ -215,4 +215,44 @@ describe('promoteSiblingJamBaseShowIdsBatch', () => {
       jambase_event_id: 'jambase:15705118',
     });
   });
+
+  it('promotes Yankee Stadium clips that were uploaded months later with no capture time', async () => {
+    const db = new DatabaseSync(':memory:');
+    databases.push(db);
+    db.exec(`
+      CREATE TABLE clips (
+        id INTEGER PRIMARY KEY,
+        artist_name TEXT,
+        venue_name TEXT,
+        timestamp TEXT,
+        created_at TEXT,
+        jambase_event_id TEXT,
+        jambase_artist_id TEXT,
+        jambase_venue_id TEXT,
+        show_id TEXT,
+        event_title TEXT,
+        updated_at TEXT
+      )
+    `);
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, created_at, jambase_event_id, jambase_artist_id, jambase_venue_id, show_id, event_title)
+      VALUES
+        (135, 'Jay-Z', 'Yankee Stadium', '2026-07-13T05:03:33.000Z', '2026-07-18 00:48:30', 'jambase:15947370', 'jambase:artist', 'jambase:venue', 'jambase:15947370', 'Jay-Z at Yankee Stadium'),
+        (356, 'Jay-Z', 'Yankee Stadium', NULL, '2026-09-18 13:06:36', NULL, NULL, NULL, NULL, 'Jay-Z at Yankee Stadium')
+    `).run();
+
+    const updated = await __testing.promoteSiblingJamBaseShowIdsBatch({
+      DB: asD1(db),
+    } as Env);
+
+    expect(updated).toBe(1);
+    const row = db
+      .prepare('SELECT show_id, jambase_event_id FROM clips WHERE id = 356')
+      .get() as { show_id: string; jambase_event_id: string };
+    expect(row).toEqual({
+      show_id: 'jambase:15947370',
+      jambase_event_id: 'jambase:15947370',
+    });
+  });
 });
