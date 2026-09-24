@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Calendar, MapPin, Ticket, X } from 'lucide-react';
+import { Calendar, MapPin, X } from 'lucide-react';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import {
   formatJamBaseEventDate,
@@ -82,14 +82,6 @@ export default function ClipModalTicketSheet({
                 {venueCity ? <p className="text-sm text-gray-400">{venueCity}</p> : null}
               </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-center">
-            <Ticket className="mx-auto mb-2 h-6 w-6 text-momentum-flare" aria-hidden />
-            <p className="text-sm text-gray-300">
-              The clip keeps playing here. Ticket checkout opens in your browser, and the clip
-              continues in a picture-in-picture window.
-            </p>
           </div>
         </div>
 
