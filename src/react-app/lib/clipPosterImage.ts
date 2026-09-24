@@ -4,6 +4,7 @@ import {
   resolveClipPosterCandidates,
   resolveFeedPreviewVideoSrc,
 } from '@/shared/clip-playback';
+import { displayMediaUrl } from '@/shared/media-proxy';
 
 function samplePosterStats(
   data: Uint8ClampedArray,
@@ -79,10 +80,9 @@ export function isLikelyBlackPosterImage(img: HTMLImageElement): boolean {
   return posterImageUsability(img) === 'unusable';
 }
 
-export function clipPosterCrossOrigin(src: string): 'anonymous' | undefined {
-  return src.includes('videodelivery.net') || src.includes('cloudflarestream.com')
-    ? 'anonymous'
-    : undefined;
+/** Show a loaded poster unless we can prove it is a blank/black/flash frame. */
+export function shouldAcceptLoadedPoster(usability: PosterImageUsability): boolean {
+  return usability !== 'unusable';
 }
 
 const EXTRACTED_POSTER_CACHE_LIMIT = 48;
@@ -100,7 +100,10 @@ function rememberExtractedPoster(videoSrc: string, dataUrl: string): void {
 
 export function useClipPosterSrc(clip: ClipPlaybackFields) {
   const urlCandidates = useMemo(
-    () => resolveClipPosterCandidates(clip),
+    () =>
+      resolveClipPosterCandidates(clip)
+        .map((url) => displayMediaUrl(url))
+        .filter(Boolean),
     [
       clip.thumbnail_url,
       clip.stream_thumbnail_url,
@@ -153,8 +156,10 @@ export function useClipPosterSrc(clip: ClipPlaybackFields) {
   }, [index, urlCandidates.length]);
 
   const urlSrc = rejectStored ? '' : (urlCandidates[index] ?? '');
-  const probeSrc = extractedSrc || acceptedUrl ? '' : urlSrc;
-  const src = extractedSrc ?? acceptedUrl;
+  // Paint the current candidate immediately. A 1px opacity-0 probe never
+  // displayed, and on iOS it often never decoded, so tiles stayed empty.
+  const src = extractedSrc ?? (acceptedUrl || urlSrc);
+  const probeSrc = '';
 
   const onError = useCallback(() => {
     if (extractedSrc) return;
@@ -164,14 +169,15 @@ export function useClipPosterSrc(clip: ClipPlaybackFields) {
   const onLoad = useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
       if (extractedSrc) return;
-      const usability = posterImageUsability(event.currentTarget);
-      if (usability === 'unusable' || (usability === 'unknown' && videoSrc)) {
+      // A load event means the browser painted the file. Dark concert frames
+      // fail the pixel probe and used to cycle through more URLs before anything showed.
+      if (!event.currentTarget.naturalWidth) {
         advanceOrExtract();
         return;
       }
       setAcceptedUrl(urlSrc);
     },
-    [advanceOrExtract, extractedSrc, urlSrc, videoSrc],
+    [advanceOrExtract, extractedSrc, urlSrc],
   );
 
   return {
@@ -180,9 +186,10 @@ export function useClipPosterSrc(clip: ClipPlaybackFields) {
     videoSrc,
     onError,
     onLoad,
-    crossOrigin: extractedSrc
-      ? undefined
-      : clipPosterCrossOrigin(src || probeSrc),
+    // Never put Stream thumbs in CORS mode: a failed CORS check hides the
+    // image entirely (WKWebView / some desktop browsers), which is worse
+    // than skipping a rare all-black frame.
+    crossOrigin: undefined,
     cacheExtractedPoster,
   };
 }

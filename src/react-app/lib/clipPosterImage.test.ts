@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { posterPixelsLookUnusable } from '@/react-app/lib/clipPosterImage';
+import {
+  posterPixelsLookUnusable,
+  shouldAcceptLoadedPoster,
+} from '@/react-app/lib/clipPosterImage';
 
 function rgbaFill(w: number, h: number, r: number, g: number, b: number): Uint8ClampedArray {
   const data = new Uint8ClampedArray(w * h * 4);
@@ -30,5 +33,16 @@ describe('posterPixelsLookUnusable', () => {
       data[i + 2] = 80;
     }
     expect(posterPixelsLookUnusable(data, 32, 32)).toBe(false);
+  });
+});
+
+describe('shouldAcceptLoadedPoster', () => {
+  it('keeps CORS-unknown posters so feed tiles still paint', () => {
+    expect(shouldAcceptLoadedPoster('unknown')).toBe(true);
+    expect(shouldAcceptLoadedPoster('usable')).toBe(true);
+  });
+
+  it('rejects proven blank frames', () => {
+    expect(shouldAcceptLoadedPoster('unusable')).toBe(false);
   });
 });

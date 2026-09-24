@@ -281,8 +281,8 @@ export default function ClipFeedPreviewMedia({
           className={`clip-feed-preview__poster absolute inset-0 z-[2] h-full w-full object-cover pointer-events-none rounded-[inherit] transition-opacity duration-200 ${
             thumbHidden ? 'opacity-0' : 'opacity-100'
           }`}
-          loading={posterOnly ? 'eager' : 'lazy'}
-          fetchPriority={posterOnly ? 'high' : 'auto'}
+          loading="eager"
+          fetchPriority="high"
           decoding="async"
           onError={onPosterError}
           onLoad={onPosterLoad}

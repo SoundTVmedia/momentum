@@ -37,6 +37,9 @@ export default function ClipPosterImage({ clip, alt = '', className = '', ...res
           alt={alt}
           className={className}
           crossOrigin={crossOrigin}
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
           onError={onError}
           onLoad={onLoad}
           {...rest}
