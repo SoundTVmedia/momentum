@@ -292,6 +292,64 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     expect(rows[0]?.show_date).toBe('2026-09-19T16:00:00.000Z');
   });
 
+  it('keeps Jay-Z at Yankee Stadium on one card when archival clips have no capture time', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, created_at, jambase_event_id, show_id, event_title)
+      VALUES
+        (135, 'Jay-Z', 'Yankee Stadium', '2026-07-13T05:03:33.000Z', '2026-07-18 00:48:30', 'jambase:15947370', 'jambase:15947370', 'Jay-Z at Yankee Stadium'),
+        (390, 'Jay-Z', 'Yankee Stadium', '2026-07-12T20:00:00.000Z', '2026-09-22 22:52:44', 'jambase:15947370', 'jambase:15947370', 'Jay-Z at Yankee Stadium'),
+        (356, 'Jay-Z', 'Yankee Stadium', NULL, '2026-09-18 13:06:36', NULL, NULL, 'Jay-Z at Yankee Stadium'),
+        (389, 'Jay-Z', 'Yankee Stadium', NULL, '2026-09-22 22:51:34', NULL, NULL, 'Jay-Z at Yankee Stadium'),
+        (140, 'Jay-Z', 'Yankee Stadium', '2026-07-13T05:51:16.000Z', '2026-09-18 14:00:00', NULL, 'jay-z-yankee-stadium-2026-07-13', 'Jay-Z at Yankee Stadium'),
+        (300, 'Phish', 'Madison Square Garden', '2025-12-29T01:00:00.000Z', '2025-12-29 02:00:00', 'jambase:1', 'jambase:1', 'Phish at Madison Square Garden'),
+        (301, 'Phish', 'Madison Square Garden', '2025-12-30T01:00:00.000Z', '2025-12-30 02:00:00', 'jambase:2', 'jambase:2', 'Phish at Madison Square Garden')
+    `).run();
+
+    const rows = db
+      .prepare(`
+        SELECT ${groupedPastShowsSelectSql()}
+        FROM clips
+        GROUP BY ${CLIP_PAST_SHOW_GROUP_KEY_SQL}
+        ORDER BY artist_name ASC, show_date ASC
+      `)
+      .all() as Array<{
+      show_id: string;
+      clip_count: number;
+      artist_name: string;
+      show_date: string;
+    }>;
+
+    expect(
+      rows.map((row) => ({
+        show_id: row.show_id,
+        clip_count: row.clip_count,
+        artist_name: row.artist_name,
+        show_date: row.show_date,
+      })),
+    ).toEqual([
+      {
+        show_id: 'jambase:15947370',
+        clip_count: 5,
+        artist_name: 'Jay-Z',
+        show_date: '2026-07-12T20:00:00.000Z',
+      },
+      {
+        show_id: 'jambase:1',
+        clip_count: 1,
+        artist_name: 'Phish',
+        show_date: '2025-12-29T01:00:00.000Z',
+      },
+      {
+        show_id: 'jambase:2',
+        clip_count: 1,
+        artist_name: 'Phish',
+        show_date: '2025-12-30T01:00:00.000Z',
+      },
+    ]);
+  });
+
   it('prefers a real clip poster over empty thumbnail strings', () => {
     const db = createDb();
     db.prepare(`
@@ -455,6 +513,27 @@ describe('clipBelongsToRequestedShowSql', () => {
         ),
       ) as { canonical_show_id: string };
     expect(canonicalBySlug.canonical_show_id).toBe('jambase:15705118');
+  });
+
+  it('includes Yankee Stadium archival clips with no capture time on the JamBase show page', () => {
+    const db = createDb();
+    db.prepare(`
+      INSERT INTO clips
+        (id, artist_name, venue_name, timestamp, created_at, jambase_event_id, show_id, event_title)
+      VALUES
+        (135, 'Jay-Z', 'Yankee Stadium', '2026-07-13T05:03:33.000Z', '2026-07-18 00:48:30', 'jambase:15947370', 'jambase:15947370', 'Jay-Z at Yankee Stadium'),
+        (356, 'Jay-Z', 'Yankee Stadium', NULL, '2026-09-18 13:06:36', NULL, NULL, 'Jay-Z at Yankee Stadium'),
+        (389, 'Jay-Z', 'Yankee Stadium', NULL, '2026-09-22 22:51:34', NULL, NULL, 'Jay-Z at Yankee Stadium')
+    `).run();
+
+    const sql = `SELECT id FROM clips WHERE ${clipBelongsToRequestedShowSql()} ORDER BY id`;
+    const rows = db
+      .prepare(sql)
+      .all(
+        ...Array.from({ length: CLIP_BELONGS_TO_SHOW_BIND_COUNT }, () => 'jambase:15947370'),
+      ) as Array<{ id: number }>;
+
+    expect(rows).toEqual([{ id: 135 }, { id: 356 }, { id: 389 }]);
   });
 
   it('keeps a slug wrongly stored as jambase_event_id on the same Foreigner show page', () => {

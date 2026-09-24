@@ -239,4 +239,16 @@ describe('showNightRecordedAtIso', () => {
   it('drops a library file date from another day', () => {
     expect(showNightRecordedAtIso('2026-09-18T12:00:00.000Z', event)).toBeNull();
   });
+
+  it('keeps a July 13 after-midnight Yankee Stadium capture on a July 12 JamBase listing', () => {
+    const yankee = {
+      startDate: '2026-07-12T20:00:00',
+      location: {
+        name: 'Yankee Stadium',
+        address: { 'x-timezone': 'America/New_York' },
+      },
+    };
+    const recordedAt = '2026-07-13T05:03:33.000Z';
+    expect(showNightRecordedAtIso(recordedAt, yankee)).toBe(recordedAt);
+  });
 });

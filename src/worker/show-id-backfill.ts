@@ -5,6 +5,7 @@ import {
   clipCaptureDaySql,
   clipNightKeySql,
   clipRealJamBaseEventIdSql,
+  clipRecordedDaySql,
 } from './past-show-sql';
 
 const BACKFILL_BATCH_SIZE = 250;
@@ -207,8 +208,10 @@ async function detachOutlierJamBaseShowIdsBatch(env: Env): Promise<number> {
 
 /**
  * Promote composite/slug show ids to a sibling JamBase event id from the same
- * concert — same UTC night, or same billed title within one UTC day (Foreigner
- * midnight spill), including rows that stored a slug in jambase_event_id.
+ * concert — same UTC night, same billed title within one UTC day (Foreigner
+ * midnight spill), or a billed title with no recorded timestamp when only one
+ * JamBase event exists (Jay-Z archival uploads). Includes rows that stored a
+ * slug in jambase_event_id.
  */
 async function promoteSiblingJamBaseShowIdsBatch(env: Env): Promise<number> {
   const night = clipNightKeySql('clips');
@@ -248,7 +251,7 @@ async function promoteSiblingJamBaseShowIdsBatch(env: Env): Promise<number> {
         OR (
           ${billed} IS NOT NULL
           AND ${siblingBilled} = ${billed}
-          AND ${clipCaptureDaySql('clips')} IS NULL
+          AND ${clipRecordedDaySql('clips')} IS NULL
           AND (
             SELECT COUNT(DISTINCT ${clipRealJamBaseEventIdSql('jb')})
             FROM clips AS jb
