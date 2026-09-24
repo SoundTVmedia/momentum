@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { clipPlayerFramePixels, clipPlayerLayout } from './clipDisplayAspectRatio';
+import {
+  clipPlayerFrameContain,
+  clipPlayerFramePixels,
+  clipPlayerLayout,
+} from './clipDisplayAspectRatio';
 
 describe('clipPlayerLayout', () => {
   it('fills width for 16:9 landscape', () => {
@@ -61,6 +65,22 @@ describe('clipPlayerFramePixels', () => {
         video_resolution_h: 1920,
       })),
     ).toEqual({ height: 970, width: 970 * (1080 / 1920) });
+  });
+
+  it('fits 9:16 inside a short wide pane without overflowing', () => {
+    const layout = clipPlayerLayout({ video_resolution_w: 1080, video_resolution_h: 1920 });
+    const frame = clipPlayerFrameContain({ width: 360, height: 180 }, layout);
+    expect(frame.height).toBe(180);
+    expect(frame.width).toBeCloseTo(180 * (1080 / 1920));
+    expect(frame.width).toBeLessThanOrEqual(360);
+  });
+
+  it('fits 16:9 inside a tall narrow pane without overflowing', () => {
+    const layout = clipPlayerLayout({ video_resolution_w: 1920, video_resolution_h: 1080 });
+    const frame = clipPlayerFrameContain({ width: 200, height: 400 }, layout);
+    expect(frame.width).toBe(200);
+    expect(frame.height).toBeCloseTo(200 / (1920 / 1080));
+    expect(frame.height).toBeLessThanOrEqual(400);
   });
 
   it('crops 9:16 sides when the player is narrower than the height-fitted frame', () => {

@@ -24,7 +24,7 @@ import {
   Loader2,
   Upload,
 } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef, type SyntheticEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
@@ -123,7 +123,13 @@ export default function ClipModal({
   const mobileContainerRef = useRef<HTMLDivElement>(null);
   const mobilePlayerRef = useRef<StreamVideoPlayerHandle>(null);
   const desktopPlayerRef = useRef<StreamVideoPlayerHandle>(null);
+  const [mobileStageEl, setMobileStageEl] = useState<HTMLDivElement | null>(null);
+  const [desktopStageEl, setDesktopStageEl] = useState<HTMLDivElement | null>(null);
+  const [mobileTicketHost, setMobileTicketHost] = useState<HTMLDivElement | null>(null);
+  const [desktopTicketHost, setDesktopTicketHost] = useState<HTMLDivElement | null>(null);
   const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
+  /** True once the clip is back on the full-screen stage, so the sheet can unmount. */
+  const [ticketVideoDocked, setTicketVideoDocked] = useState(true);
 
   const onClose = useCallback(() => {
     mobilePlayerRef.current?.stop();
@@ -291,6 +297,7 @@ export default function ClipModal({
 
   const openTicketSheet = useCallback(() => {
     if (!nearestTicketShow?.ticketUrl) return;
+    setTicketVideoDocked(false);
     setTicketSheetOpen(true);
 
     const ev = nearestTicketShow.event;
@@ -320,8 +327,16 @@ export default function ClipModal({
   ]);
 
   const closeTicketSheet = useCallback(() => {
-    setTicketSheetOpen(false);
+    setMobileTicketHost(null);
+    setDesktopTicketHost(null);
+    setTicketVideoDocked(true);
   }, []);
+
+  useLayoutEffect(() => {
+    if (ticketVideoDocked && ticketSheetOpen) {
+      setTicketSheetOpen(false);
+    }
+  }, [ticketVideoDocked, ticketSheetOpen]);
 
   useHorizontalFeedSwipe({
     enabled: mobileSwipeEnabled,
@@ -359,6 +374,9 @@ export default function ClipModal({
     setMobileCommentsOpen(false);
     setEditOpen(false);
     setIsDownloading(false);
+    setMobileTicketHost(null);
+    setDesktopTicketHost(null);
+    setTicketVideoDocked(true);
     setTicketSheetOpen(false);
     setPlayback({ isPlaying: true, isMuted: false });
   }, [clip.id]);
@@ -916,17 +934,22 @@ export default function ClipModal({
         }`}
       >
         <div className="relative min-h-0 flex-1">
-          {mobileViewport ? (
-            <ClipModalMaximizedVideo
-              ref={mobilePlayerRef}
-              clip={clip}
-              onPlaybackStateChange={setPlayback}
-              onViewsCountChange={handleViewsCountChange}
-              onPlaybackFailed={handlePlaybackFailed}
-            />
-          ) : null}
+          {mobileViewport ? <div ref={setMobileStageEl} className="h-full w-full" /> : null}
           {playbackFailurePanel}
         </div>
+        {mobileViewport && (mobileTicketHost ?? mobileStageEl)
+          ? createPortal(
+              <ClipModalMaximizedVideo
+                ref={mobilePlayerRef}
+                clip={clip}
+                fit={mobileTicketHost ? 'contain' : 'cover'}
+                onPlaybackStateChange={setPlayback}
+                onViewsCountChange={handleViewsCountChange}
+                onPlaybackFailed={handlePlaybackFailed}
+              />,
+              mobileTicketHost ?? mobileStageEl!,
+            )
+          : null}
 
         {/* Pin chrome to the viewport, not the video element. */}
         <div className="pointer-events-none absolute inset-0 z-10">{mobileVideoOverlay}</div>
@@ -973,6 +996,7 @@ export default function ClipModal({
             eventTitle={ticketEventTitle}
             onClose={closeTicketSheet}
             onOpenTickets={openExternalFromClip}
+            onVideoHost={setMobileTicketHost}
           />
         ) : null}
       </div>
@@ -1041,17 +1065,22 @@ export default function ClipModal({
             ) : null}
 
             <div className="relative h-full min-h-0 w-full overflow-hidden overflow-y-hidden">
-              {!mobileViewport ? (
-                <ClipModalMaximizedVideo
-                  ref={desktopPlayerRef}
-                  clip={clip}
-                  onPlaybackStateChange={setPlayback}
-                  onViewsCountChange={handleViewsCountChange}
-                  onPlaybackFailed={handlePlaybackFailed}
-                />
-              ) : null}
+              {!mobileViewport ? <div ref={setDesktopStageEl} className="h-full w-full" /> : null}
               {playbackFailurePanel}
             </div>
+            {!mobileViewport && (desktopTicketHost ?? desktopStageEl)
+              ? createPortal(
+                  <ClipModalMaximizedVideo
+                    ref={desktopPlayerRef}
+                    clip={clip}
+                    fit={desktopTicketHost ? 'contain' : 'cover'}
+                    onPlaybackStateChange={setPlayback}
+                    onViewsCountChange={handleViewsCountChange}
+                    onPlaybackFailed={handlePlaybackFailed}
+                  />,
+                  desktopTicketHost ?? desktopStageEl!,
+                )
+              : null}
 
             {ticketSheetOpen && nearestTicketShow?.ticketUrl ? (
               <ClipModalTicketSheet
@@ -1060,6 +1089,7 @@ export default function ClipModal({
                 eventTitle={ticketEventTitle}
                 onClose={closeTicketSheet}
                 onOpenTickets={openExternalFromClip}
+                onVideoHost={setDesktopTicketHost}
               />
             ) : null}
           </div>

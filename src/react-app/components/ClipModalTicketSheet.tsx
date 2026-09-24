@@ -1,14 +1,13 @@
+import { useLayoutEffect, useRef } from 'react';
 import { Calendar, MapPin, Ticket, X } from 'lucide-react';
 import EventTicketActions from '@/react-app/components/EventTicketActions';
 import {
   formatJamBaseEventDate,
   formatJamBaseEventTime,
-  jamBaseEventCardImageUrl,
   jamBaseEventVenueCityLine,
   jamBaseEventVenueName,
   type JamBaseEventRecord,
 } from '@/shared/jambase-events';
-import { displayMediaUrl } from '@/shared/media-proxy';
 
 type ClipModalTicketSheetProps = {
   event: JamBaseEventRecord;
@@ -16,6 +15,8 @@ type ClipModalTicketSheetProps = {
   eventTitle: string;
   onClose: () => void;
   onOpenTickets?: (url: string) => void | Promise<void>;
+  /** Live clip is portaled here so playback continues without remounting. */
+  onVideoHost?: (node: HTMLDivElement | null) => void;
 };
 
 export default function ClipModalTicketSheet({
@@ -24,11 +25,17 @@ export default function ClipModalTicketSheet({
   eventTitle,
   onClose,
   onOpenTickets,
+  onVideoHost,
 }: ClipModalTicketSheetProps) {
   const startDate = typeof event.startDate === 'string' ? event.startDate : null;
   const venueName = jamBaseEventVenueName(event);
   const venueCity = jamBaseEventVenueCityLine(event);
-  const imageUrl = displayMediaUrl(jamBaseEventCardImageUrl(event));
+  const videoHostRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    onVideoHost?.(videoHostRef.current);
+    return () => onVideoHost?.(null);
+  }, [onVideoHost]);
 
   return (
     <div
@@ -52,53 +59,52 @@ export default function ClipModalTicketSheet({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-5">
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80">
-            <div className="aspect-[16/10] w-full overflow-hidden bg-black">
-              <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-            </div>
-            <div className="space-y-3 p-4">
-              <div className="flex items-start gap-2 text-white">
-                <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-momentum-flare" aria-hidden />
-                <div>
-                  <p className="font-semibold">{formatJamBaseEventDate(startDate)}</p>
-                  {startDate && formatJamBaseEventTime(startDate) ? (
-                    <p className="text-sm text-gray-400">{formatJamBaseEventTime(startDate)}</p>
-                  ) : null}
-                </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-3">
+        <div ref={videoHostRef} className="h-full w-full" />
+      </div>
+
+      <div className="shrink-0 px-4 pt-1">
+        <div className="mx-auto max-h-[34svh] w-full max-w-md space-y-3 overflow-y-auto">
+          <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+            <div className="flex items-start gap-2 text-white">
+              <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-momentum-flare" aria-hidden />
+              <div>
+                <p className="font-semibold">{formatJamBaseEventDate(startDate)}</p>
+                {startDate && formatJamBaseEventTime(startDate) ? (
+                  <p className="text-sm text-gray-400">{formatJamBaseEventTime(startDate)}</p>
+                ) : null}
               </div>
-              <div className="flex items-start gap-2 text-white">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-momentum-flare" aria-hidden />
-                <div>
-                  <p className="font-semibold">{venueName}</p>
-                  {venueCity ? <p className="text-sm text-gray-400">{venueCity}</p> : null}
-                </div>
+            </div>
+            <div className="flex items-start gap-2 text-white">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-momentum-flare" aria-hidden />
+              <div>
+                <p className="font-semibold">{venueName}</p>
+                {venueCity ? <p className="text-sm text-gray-400">{venueCity}</p> : null}
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-4 text-center">
-            <Ticket className="mx-auto mb-2 h-8 w-8 text-momentum-flare" aria-hidden />
+          <div className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3 text-center">
+            <Ticket className="mx-auto mb-2 h-6 w-6 text-momentum-flare" aria-hidden />
             <p className="text-sm text-gray-300">
-              Ticket checkout opens in your browser. The clip keeps playing in a
-              picture-in-picture window so you can still listen while you buy.
+              The clip keeps playing here. Ticket checkout opens in your browser, and the clip
+              continues in a picture-in-picture window.
             </p>
           </div>
-
-          <EventTicketActions
-            ticketUrl={ticketUrl}
-            eventTitle={eventTitle}
-            className="w-full"
-            onGetTicketsClick={
-              onOpenTickets
-                ? () => {
-                    void onOpenTickets(ticketUrl);
-                  }
-                : undefined
-            }
-          />
         </div>
+
+        <EventTicketActions
+          ticketUrl={ticketUrl}
+          eventTitle={eventTitle}
+          className="mx-auto w-full max-w-md py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+          onGetTicketsClick={
+            onOpenTickets
+              ? () => {
+                  void onOpenTickets(ticketUrl);
+                }
+              : undefined
+          }
+        />
       </div>
     </div>
   );

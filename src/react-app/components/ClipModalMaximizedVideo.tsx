@@ -4,7 +4,11 @@ import StreamVideoPlayer, {
   type StreamVideoPlayerPlaybackState,
   type StreamVideoPlayerFailure,
 } from '@/react-app/components/StreamVideoPlayer';
-import { clipPlayerFramePixels, clipPlayerLayout } from '@/react-app/utils/clipDisplayAspectRatio';
+import {
+  clipPlayerFrameContain,
+  clipPlayerFramePixels,
+  clipPlayerLayout,
+} from '@/react-app/utils/clipDisplayAspectRatio';
 import type { ClipWithUser } from '@/shared/types';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 
@@ -18,6 +22,8 @@ type ClipModalMaximizedVideoProps = {
   onPlaybackStateChange?: (state: StreamVideoPlayerPlaybackState) => void;
   onViewsCountChange?: (viewsCount: number) => void;
   onPlaybackFailed?: (failure: StreamVideoPlayerFailure) => void;
+  /** cover fills one axis and crops. contain keeps the whole clip inside the box. */
+  fit?: 'cover' | 'contain';
 };
 
 /**
@@ -28,7 +34,15 @@ const ClipModalMaximizedVideo = forwardRef<
   StreamVideoPlayerHandle,
   ClipModalMaximizedVideoProps
 >(function ClipModalMaximizedVideo(
-  { clip, swipeHandlers, overlay, onPlaybackStateChange, onViewsCountChange, onPlaybackFailed },
+  {
+    clip,
+    swipeHandlers,
+    overlay,
+    onPlaybackStateChange,
+    onViewsCountChange,
+    onPlaybackFailed,
+    fit = 'cover',
+  },
   ref,
 ) {
   const clipId = clipNumericId(clip);
@@ -58,7 +72,11 @@ const ClipModalMaximizedVideo = forwardRef<
   }, []);
 
   const layout = clipPlayerLayout(clip, measured);
-  const frame = playerSize ? clipPlayerFramePixels(playerSize, layout) : null;
+  const frame = playerSize
+    ? fit === 'contain'
+      ? clipPlayerFrameContain(playerSize, layout)
+      : clipPlayerFramePixels(playerSize, layout)
+    : null;
 
   return (
     <div
@@ -91,7 +109,7 @@ const ClipModalMaximizedVideo = forwardRef<
           autoPlay
           loop
           controlsPlacement="hidden"
-          videoObjectFit="cover"
+          videoObjectFit={fit === 'contain' ? 'contain' : 'cover'}
           onPlaybackStateChange={onPlaybackStateChange}
           onVideoDimensions={setMeasured}
           clipId={clipId}

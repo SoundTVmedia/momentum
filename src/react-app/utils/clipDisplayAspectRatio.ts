@@ -24,6 +24,22 @@ export function clipPlayerFramePixels(
   return { height: player.height, width: player.height * ar };
 }
 
+/** Fit the whole frame inside the player. Neither axis overflows. */
+export function clipPlayerFrameContain(
+  player: { width: number; height: number },
+  layout: ClipPlayerLayout,
+): { width: number; height: number } {
+  const ar = layout.width / layout.height;
+  if (player.width <= 0 || player.height <= 0 || ar <= 0) {
+    return { width: Math.max(0, player.width), height: Math.max(0, player.height) };
+  }
+  const heightIfFullWidth = player.width / ar;
+  if (heightIfFullWidth <= player.height) {
+    return { width: player.width, height: heightIfFullWidth };
+  }
+  return { width: player.height * ar, height: player.height };
+}
+
 function validPixels(
   w: number | null | undefined,
   h: number | null | undefined,
