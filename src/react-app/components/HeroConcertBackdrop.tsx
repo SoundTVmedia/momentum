@@ -70,6 +70,8 @@ export function clipToHeroSlide(clip: ClipPlaybackFields & {
 type HeroConcertBackdropProps = {
   slides?: HeroClipSlide[];
   playing?: boolean;
+  /** When false, keep the poster and do not attach a video element. */
+  loadVideo?: boolean;
 };
 
 /**
@@ -80,6 +82,7 @@ type HeroConcertBackdropProps = {
 export default function HeroConcertBackdrop({
   slides = [],
   playing = true,
+  loadVideo = true,
 }: HeroConcertBackdropProps) {
   const reducedMotion = usePrefersReducedMotion();
   // Native used to skip <video> and require a poster, which left slides 1–2 empty
@@ -188,7 +191,7 @@ export default function HeroConcertBackdrop({
 
   if (!usingLibrary) return null;
 
-  if (postersOnly) {
+  if (postersOnly || !loadVideo) {
     const poster = slides[0]?.poster;
     if (!poster) return null;
     return (
