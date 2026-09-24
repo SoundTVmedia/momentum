@@ -302,6 +302,7 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
         (390, 'Jay-Z', 'Yankee Stadium', '2026-07-12T20:00:00.000Z', '2026-09-22 22:52:44', 'jambase:15947370', 'jambase:15947370', 'Jay-Z at Yankee Stadium'),
         (356, 'Jay-Z', 'Yankee Stadium', NULL, '2026-09-18 13:06:36', NULL, NULL, 'Jay-Z at Yankee Stadium'),
         (389, 'Jay-Z', 'Yankee Stadium', NULL, '2026-09-22 22:51:34', NULL, NULL, 'Jay-Z at Yankee Stadium'),
+        (140, 'Jay-Z', 'Yankee Stadium', '2026-07-13T05:51:16.000Z', '2026-09-18 14:00:00', NULL, 'jay-z-yankee-stadium-2026-07-13', 'Jay-Z at Yankee Stadium'),
         (300, 'Phish', 'Madison Square Garden', '2025-12-29T01:00:00.000Z', '2025-12-29 02:00:00', 'jambase:1', 'jambase:1', 'Phish at Madison Square Garden'),
         (301, 'Phish', 'Madison Square Garden', '2025-12-30T01:00:00.000Z', '2025-12-30 02:00:00', 'jambase:2', 'jambase:2', 'Phish at Madison Square Garden')
     `).run();
@@ -330,7 +331,7 @@ describe('CLIP_NIGHT_KEY_SQL', () => {
     ).toEqual([
       {
         show_id: 'jambase:15947370',
-        clip_count: 4,
+        clip_count: 5,
         artist_name: 'Jay-Z',
         show_date: '2026-07-12T20:00:00.000Z',
       },
