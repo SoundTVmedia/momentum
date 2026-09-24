@@ -16,6 +16,7 @@ export type YTPlayer = {
   isMuted?: () => boolean;
   loadVideoById: (videoId: string | { videoId: string; startSeconds?: number }) => void;
   getPlayerState: () => number;
+  setSize?: (width: number, height: number) => void;
   destroy: () => void;
 };
 

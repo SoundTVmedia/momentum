@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import {
   X,
@@ -10,8 +10,21 @@ import {
   Music,
 } from 'lucide-react';
 import { useHorizontalFeedSwipe } from '@/react-app/hooks/useHorizontalFeedSwipe';
+import { useTrackpadFeedSwipe } from '@/react-app/hooks/useTrackpadFeedSwipe';
+import { useVerticalSwipeUp } from '@/react-app/hooks/useVerticalSwipeUp';
+import { useClipArtistProfile } from '@/react-app/hooks/useClipArtistProfile';
+import { useClipPlaybackTickets } from '@/react-app/hooks/useClipPlaybackTickets';
+import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { artistPath } from '@/shared/app-paths';
+import { jamBaseEventVenueName } from '@/shared/jambase-events';
+import { openExternalKeepClipPlaying } from '@/react-app/lib/open-external-keep-clip-playing';
+import ClipModalBuyMerch from '@/react-app/components/ClipModalBuyMerch';
+import ClipModalBuyTickets from '@/react-app/components/ClipModalBuyTickets';
+import {
+  ClipTicketSheetDetails,
+  ClipTicketSheetHeader,
+} from '@/react-app/components/ClipModalTicketSheet';
 import {
   ensureYoutubeUnmuted,
   loadYoutubeIframeApi,
@@ -59,6 +72,7 @@ function YouTubeEmbed({
     onTouchEnd: (e: React.TouchEvent) => void;
   };
 }) {
+  const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YTPlayer | null>(null);
   const userPausedRef = useRef(false);
@@ -128,9 +142,29 @@ function YouTubeEmbed({
     };
   }, [video.videoId]);
 
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const fit = () => {
+      const player = playerRef.current;
+      const width = frame.clientWidth;
+      const height = frame.clientHeight;
+      if (!player?.setSize || width <= 0 || height <= 0) return;
+      try {
+        player.setSize(width, height);
+      } catch {
+        /* player not ready */
+      }
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [video.videoId]);
+
   return (
-    <div className="absolute inset-0 bg-black">
-      <div ref={hostRef} className="absolute inset-0 h-full w-full" title={video.title} />
+    <div ref={frameRef} className="absolute inset-0 bg-black">
+      <div ref={hostRef} className="h-full w-full" title={video.title} />
       {edgeSwipeHandlers ? (
         <>
           <div
@@ -154,9 +188,11 @@ function YouTubeEmbed({
 function YouTubeModalSidebar({
   video,
   goArtistPage,
+  buyActions,
 }: {
   video: YoutubeVideoItem;
   goArtistPage: () => void;
+  buyActions: ReactNode;
 }) {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-900/50 md:w-1/3">
@@ -204,7 +240,8 @@ function YouTubeModalSidebar({
         ) : null}
       </div>
 
-      <div className="flex-shrink-0 border-t border-white/10 p-4">
+      <div className="flex-shrink-0 space-y-3 border-t border-white/10 p-4">
+        {buyActions}
         <a
           href={video.watchUrl}
           target="_blank"
@@ -226,6 +263,15 @@ export default function YouTubeVideoModal({
 }: YouTubeVideoModalProps) {
   const navigate = useNavigate();
   const { setHideBottomNav } = useMobileChrome();
+  const gestureSurfaceRef = useRef<HTMLDivElement>(null);
+  const { trackTicketClick } = useTicketmaster();
+  const { websiteUrl: artistWebsiteUrl, loading: artistProfileLoading } = useClipArtistProfile(
+    video.artistName,
+  );
+  const { show: nearestTicketShow, loading: nearestTicketLoading } = useClipPlaybackTickets(
+    video.artistName,
+  );
+  const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
 
   useEffect(() => {
     setHideBottomNav(true);
@@ -266,7 +312,44 @@ export default function YouTubeVideoModal({
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  const mobileSwipeEnabled = canFeedNav && mobileViewport;
+  const ticketEventTitle =
+    nearestTicketShow && typeof nearestTicketShow.event.name === 'string'
+      ? nearestTicketShow.event.name
+      : 'Upcoming show';
+
+  const openExternal = useCallback(async (url: string) => {
+    await openExternalKeepClipPlaying(url);
+  }, []);
+
+  const openTicketSheet = useCallback(() => {
+    if (!nearestTicketShow?.ticketUrl) return;
+    setTicketSheetOpen(true);
+    const ev = nearestTicketShow.event;
+    const eventId = String(ev.identifier ?? ev['@id'] ?? ev.id ?? 'jambase');
+    const venueName = jamBaseEventVenueName(ev);
+    void trackTicketClick(
+      eventId,
+      ticketEventTitle,
+      nearestTicketShow.ticketUrl,
+      undefined,
+      undefined,
+      undefined,
+      venueName || undefined,
+    );
+  }, [nearestTicketShow, ticketEventTitle, trackTicketClick]);
+
+  const closeTicketSheet = useCallback(() => {
+    setTicketSheetOpen(false);
+  }, []);
+
+  useEffect(() => {
+    setTicketSheetOpen(false);
+  }, [video.videoId]);
+
+  const gesturesIdle = !ticketSheetOpen;
+  const mobileSwipeEnabled = canFeedNav && mobileViewport && gesturesIdle;
+  const ticketSwipeEnabled =
+    mobileViewport && gesturesIdle && !!nearestTicketShow?.ticketUrl;
 
   const { containerRef: mobileSwipeRef, onTouchStart, onTouchEnd } = useHorizontalFeedSwipe({
     enabled: mobileSwipeEnabled,
@@ -278,13 +361,33 @@ export default function YouTubeVideoModal({
     ? { onTouchStart, onTouchEnd }
     : undefined;
 
+  useVerticalSwipeUp({
+    enabled: ticketSwipeEnabled,
+    containerRef: mobileSwipeRef,
+    onSwipeUp: openTicketSheet,
+  });
+
+  useTrackpadFeedSwipe({
+    enabled: gesturesIdle,
+    containerRef: gestureSurfaceRef,
+    onPrev: goPrev,
+    onNext: goNext,
+    onSwipeUp: openTicketSheet,
+    horizontalEnabled: canFeedNav,
+    verticalEnabled: !!nearestTicketShow?.ticketUrl,
+  });
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (ticketSheetOpen) {
+          closeTicketSheet();
+          return;
+        }
         onClose();
         return;
       }
-      if (!canFeedNav) return;
+      if (!canFeedNav || ticketSheetOpen) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) {
         return;
@@ -299,7 +402,7 @@ export default function YouTubeVideoModal({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [canFeedNav, goPrev, goNext, onClose]);
+  }, [canFeedNav, goPrev, goNext, onClose, ticketSheetOpen, closeTicketSheet]);
 
   const goArtistPage = () => {
     if (!video.artistName?.trim()) return;
@@ -374,6 +477,18 @@ export default function YouTubeVideoModal({
               {formatCount(video.viewCount)}
             </span>
           </div>
+          <div className="mt-3 flex flex-col gap-2" data-no-clip-swipe="">
+            <ClipModalBuyMerch
+              websiteUrl={artistWebsiteUrl}
+              loading={artistProfileLoading}
+              onOpen={openExternal}
+            />
+            <ClipModalBuyTickets
+              show={nearestTicketShow}
+              loading={nearestTicketLoading}
+              onActivate={openTicketSheet}
+            />
+          </div>
           <a
             href={video.watchUrl}
             target="_blank"
@@ -401,35 +516,79 @@ export default function YouTubeVideoModal({
     />
   );
 
+  const showTicketSheet = ticketSheetOpen && !!nearestTicketShow?.ticketUrl;
+  const ticketHeader = () =>
+    showTicketSheet ? (
+      <ClipTicketSheetHeader eventTitle={ticketEventTitle} onClose={closeTicketSheet} />
+    ) : null;
+  const ticketDetails = () =>
+    showTicketSheet && nearestTicketShow?.ticketUrl ? (
+      <ClipTicketSheetDetails
+        event={nearestTicketShow.event}
+        ticketUrl={nearestTicketShow.ticketUrl}
+        eventTitle={ticketEventTitle}
+        onOpenTickets={openExternal}
+      />
+    ) : null;
+
+  const desktopBuyActions = (
+    <div className="flex flex-col gap-2" data-no-clip-swipe="">
+      <ClipModalBuyMerch
+        websiteUrl={artistWebsiteUrl}
+        loading={artistProfileLoading}
+        className="w-full"
+        onOpen={openExternal}
+      />
+      <ClipModalBuyTickets
+        show={nearestTicketShow}
+        loading={nearestTicketLoading}
+        onActivate={openTicketSheet}
+        className="w-full"
+      />
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-[110] overflow-hidden bg-black">
-      {/* Mobile: full-viewport video (same pattern as ClipModal) */}
+    <div ref={gestureSurfaceRef} className="fixed inset-0 z-[110] overflow-hidden bg-black">
       <div
         ref={mobileSwipeRef}
-        className={`relative h-[100dvh] w-full overflow-hidden ${mobileViewport ? '' : 'hidden'}`}
+        className={`relative flex h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 ${mobileViewport ? '' : 'hidden'}`}
       >
-        {mobileViewport ? youtubePlayer : null}
-        {mobileOverlay}
+        {ticketHeader()}
+        <div className={`relative min-h-0 flex-1 ${showTicketSheet ? 'px-4 py-3' : ''}`}>
+          {mobileViewport ? youtubePlayer : null}
+          {showTicketSheet ? null : mobileOverlay}
+        </div>
+        {ticketDetails()}
       </div>
 
-      {/* Desktop */}
-      <div
-        className={`relative h-[100dvh] w-full ${mobileViewport ? 'hidden' : 'block'}`}
-      >
+      <div className={`relative h-[100dvh] w-full ${mobileViewport ? 'hidden' : 'block'}`}>
         <div className="mx-auto flex h-full max-w-6xl">
-          <div className="relative h-full min-h-0 flex-1 bg-black">
-            {!mobileViewport ? youtubePlayer : null}
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-4 top-4 z-30 rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
-              aria-label="Close"
-            >
-              <X className="h-6 w-6" />
-            </button>
-            {navButtons}
+          <div className="relative flex h-full min-h-0 flex-1 flex-col bg-slate-950">
+            {ticketHeader()}
+            <div className={`relative min-h-0 flex-1 bg-black ${showTicketSheet ? 'px-4 py-3' : ''}`}>
+              {!mobileViewport ? youtubePlayer : null}
+              {showTicketSheet ? null : (
+                <>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="absolute right-4 top-4 z-30 rounded-full glass-icon-btn p-2 text-white transition-colors hover:bg-black/70"
+                    aria-label="Close"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                  {navButtons}
+                </>
+              )}
+            </div>
+            {ticketDetails()}
           </div>
-          <YouTubeModalSidebar video={video} goArtistPage={goArtistPage} />
+          <YouTubeModalSidebar
+            video={video}
+            goArtistPage={goArtistPage}
+            buyActions={desktopBuyActions}
+          />
         </div>
       </div>
     </div>
