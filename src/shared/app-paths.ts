@@ -139,6 +139,11 @@ export function apiShowClipsPath(
 
 /** Clips from one past-show card, including its date-aware fallback identity. */
 export function pastShowClipsPath(show: PastShowClipsInput): string {
+  const eventTitle = typeof show.event_title === 'string' ? show.event_title.trim() : '';
+  if (eventTitle && isJamBaseFestivalEvent({ name: eventTitle })) {
+    return eventClipsPath(eventTitle);
+  }
+
   const showId =
     show.show_id?.trim() ||
     show.jambase_event_id?.trim() ||

@@ -85,6 +85,8 @@ type HeroConcertBackdropProps = {
   playing?: boolean;
   /** When false, keep the poster and do not attach a video element. */
   loadVideo?: boolean;
+  /** Resume playback when this backdrop scrolls into the carousel. */
+  active?: boolean;
 };
 
 /**
@@ -96,6 +98,7 @@ export default function HeroConcertBackdrop({
   slides = [],
   playing = true,
   loadVideo = true,
+  active = true,
 }: HeroConcertBackdropProps) {
   const reducedMotion = usePrefersReducedMotion();
   // Native used to skip <video> and require a poster, which left slides 1–2 empty
@@ -141,7 +144,7 @@ export default function HeroConcertBackdrop({
         video.pause();
       }
     });
-  }, [postersOnly, playing, liveLayer, liveSrc]);
+  }, [postersOnly, playing, liveLayer, liveSrc, active]);
 
   const promoteLayer = (layer: 0 | 1) => {
     if (pendingSwap.current !== layer) return;

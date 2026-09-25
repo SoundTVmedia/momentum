@@ -178,16 +178,14 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-function FeaturedClipSlide({
+function FeaturedClipMedia({
   clip,
   playing,
-  onOpen,
-  consumeSwipeClick,
+  active,
 }: {
   clip: ClipWithUser | null;
   playing: boolean;
-  onOpen: () => void;
-  consumeSwipeClick: () => boolean;
+  active: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const slide = clip ? clipToHeroSlide(clip) : null;
@@ -201,9 +199,68 @@ function FeaturedClipSlide({
     } else {
       video.pause();
     }
-  }, [playing, slide?.src]);
+  }, [playing, active, slide?.src]);
 
-  const poster = slide?.poster ?? '';
+  if (!slide) return null;
+  if (!playing) {
+    return slide.poster ? (
+      <img
+        src={slide.poster}
+        alt=""
+        className="hero-concert-photo__img pointer-events-none"
+        width={1920}
+        height={720}
+        decoding="async"
+      />
+    ) : null;
+  }
+
+  return (
+    <div className="absolute inset-0">
+      {slide.poster ? (
+        <img
+          src={slide.poster}
+          alt=""
+          className="hero-concert-photo__img pointer-events-none"
+          width={1920}
+          height={720}
+          decoding="async"
+        />
+      ) : null}
+      <div className="hero-video-backdrop-wrap">
+        <video
+          ref={(node) => {
+            videoRef.current = node;
+            primeInlineHeroVideo(node);
+          }}
+          className="hero-video-backdrop is-live"
+          src={slide.src}
+          poster={slide.poster}
+          muted
+          loop
+          playsInline
+          autoPlay
+          preload="auto"
+          disablePictureInPicture
+          controls={false}
+          controlsList="nodownload nofullscreen noremoteplayback"
+          aria-hidden
+        />
+      </div>
+    </div>
+  );
+}
+
+function FeaturedClipSlide({
+  clip,
+  onOpen,
+  consumeSwipeClick,
+}: {
+  clip: ClipWithUser | null;
+  onOpen: () => void;
+  consumeSwipeClick: () => boolean;
+}) {
+  const slide = clip ? clipToHeroSlide(clip) : null;
   const name = slide?.displayName ?? clip?.user_display_name?.trim() ?? 'Fan';
   const canOpen = clip != null && slide != null;
   const eventTitle = clip ? resolveClipEventTitle(clip) : null;
@@ -224,38 +281,6 @@ function FeaturedClipSlide({
         if (clip) prefetchModalPlayback(clip);
       }}
     >
-      {poster ? (
-        <img
-          src={poster}
-          alt=""
-          className="hero-concert-photo__img pointer-events-none"
-          width={1920}
-          height={720}
-          decoding="async"
-        />
-      ) : null}
-      {slide && playing ? (
-        <div className="hero-video-backdrop-wrap">
-          <video
-            ref={(node) => {
-              videoRef.current = node;
-              primeInlineHeroVideo(node);
-            }}
-            className="hero-video-backdrop is-live"
-            src={slide.src}
-            poster={slide.poster}
-            muted
-            loop
-            playsInline
-            autoPlay={playing}
-            preload="auto"
-            disablePictureInPicture
-            controls={false}
-            controlsList="nodownload nofullscreen noremoteplayback"
-            aria-hidden
-          />
-        </div>
-      ) : null}
       <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/35 to-transparent pb-8 pt-16 sm:pb-11">
         <div className="flex max-w-[min(24rem,calc(100%-5.5rem))] flex-col items-start gap-1 px-4 text-left sm:px-6">
@@ -457,20 +482,39 @@ export default function HeroSection({
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
+      <div className="hero-carousel__stages" aria-hidden>
+        <div className={`hero-carousel__stage${index === 0 ? ' is-active' : ''}`}>
+          <HeroConcertBackdrop
+            key={slidesA[0]?.src ?? 'slide-a'}
+            slides={slidesA}
+            playing={!reducedMotion}
+            loadVideo={!reducedMotion}
+            active={index === 0}
+          />
+        </div>
+        <div className={`hero-carousel__stage${index === 1 ? ' is-active' : ''}`}>
+          <HeroConcertBackdrop
+            key={slidesB[0]?.src ?? 'slide-b'}
+            slides={slidesB}
+            playing={!reducedMotion}
+            loadVideo={!reducedMotion}
+            active={index === 1}
+          />
+        </div>
+        <div className={`hero-carousel__stage${index === 2 ? ' is-active' : ''}`}>
+          <FeaturedClipMedia
+            clip={featured}
+            playing={!reducedMotion && !clipModal}
+            active={index === 2}
+          />
+        </div>
+      </div>
       <div
         className="hero-carousel__track"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         <div className="hero-carousel__slide" aria-hidden={index !== 0}>
           <div className="hero-carousel__fill">
-            <div className="absolute inset-0 hero-concert-photo" aria-hidden>
-              <HeroConcertBackdrop
-                key={slidesA[0]?.src ?? 'slide-a'}
-                slides={slidesA}
-                playing={index === 0 && !reducedMotion}
-                loadVideo={index === 0}
-              />
-            </div>
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
             <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
@@ -536,16 +580,8 @@ export default function HeroSection({
           </div>
         </div>
 
-        <div className="hero-carousel__slide" aria-hidden={index !== 1} style={{ backgroundColor: '#0B0711' }}>
-          <div className="hero-carousel__fill" style={{ backgroundColor: '#0B0711' }}>
-            <div className="absolute inset-0 hero-concert-photo" aria-hidden>
-              <HeroConcertBackdrop
-                key={slidesB[0]?.src ?? 'slide-b'}
-                slides={slidesB}
-                playing={index === 1 && !reducedMotion}
-                loadVideo={index === 1}
-              />
-            </div>
+        <div className="hero-carousel__slide" aria-hidden={index !== 1}>
+          <div className="hero-carousel__fill">
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
             <div className="absolute inset-0 hero-jambase-wash" aria-hidden />
             <div className="relative z-10 flex min-h-[14.026rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[23.377rem] sm:px-6 sm:py-8 lg:min-h-[28.052rem]">
@@ -574,7 +610,6 @@ export default function HeroSection({
         <div className="hero-carousel__slide" aria-hidden={index !== 2}>
           <FeaturedClipSlide
             clip={featured}
-            playing={index === 2 && !reducedMotion && !clipModal}
             onOpen={openFeaturedClip}
             consumeSwipeClick={consumeSwipeClick}
           />

@@ -33,6 +33,19 @@ describe('pastShowClipsPath', () => {
     ).toBe('/artists/phish/shows/phish-madison-square-garden-2025-04-21/clips');
   });
 
+  it('opens a festival past-show card on the shared festival clips page', () => {
+    expect(
+      pastShowClipsPath({
+        event_title: 'Shaky Knees',
+        artist_name: 'Hot Mulligan',
+        venue_name: 'Piedmont Park',
+        show_date: '2026-09-18 22:16:50',
+        show_id: null,
+        jambase_event_id: null,
+      }),
+    ).toBe('/events/clips/Shaky%20Knees');
+  });
+
   it('computes a date-aware show id for older API responses', () => {
     expect(
       pastShowClipsPath({
