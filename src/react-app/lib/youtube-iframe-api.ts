@@ -123,6 +123,44 @@ export function allowYoutubePictureInPicture(player: YTPlayer | null | undefined
  * Moves the live iframe into a document picture-in-picture window so playback
  * continues while the shop opens. Restores the iframe when that window closes.
  */
+const YOUTUBE_RESUME_DELAYS_MS = [0, 50, 200, 600];
+
+/** YouTube's iframe API pauses when this tab hides. PiP should keep playing, like a clip. */
+export function holdYoutubePlaybackWhileHidden(player: YTPlayer | null | undefined): () => void {
+  if (!player || typeof document === 'undefined') return () => {};
+
+  let stopped = false;
+  const resume = () => {
+    if (stopped) return;
+    try {
+      player.playVideo();
+    } catch {
+      /* player not ready */
+    }
+    try {
+      player.getIframe?.().contentWindow?.postMessage(
+        JSON.stringify({ event: 'command', func: 'playVideo', args: [] }),
+        '*',
+      );
+    } catch {
+      /* cross-origin or detached */
+    }
+  };
+
+  const onVisibility = () => {
+    if (document.visibilityState !== 'hidden') return;
+    for (const delay of YOUTUBE_RESUME_DELAYS_MS) {
+      globalThis.setTimeout(resume, delay);
+    }
+  };
+
+  document.addEventListener('visibilitychange', onVisibility, true);
+  return () => {
+    stopped = true;
+    document.removeEventListener('visibilitychange', onVisibility, true);
+  };
+}
+
 function youtubeEmbedIframe(player: YTPlayer | null | undefined): HTMLIFrameElement | null {
   const fromPlayer = allowYoutubePictureInPicture(player);
   if (fromPlayer) return fromPlayer;
@@ -191,7 +229,9 @@ export async function enterYoutubePictureInPicture(
       pipWindow.document.head.appendChild(style);
       pipWindow.document.body.appendChild(iframe);
 
+      const releaseHold = holdYoutubePlaybackWhileHidden(player);
       const restore = () => {
+        releaseHold();
         if (!parent?.isConnected) return;
         parent.insertBefore(iframe, next);
       };

@@ -45,8 +45,17 @@ export async function openExternalKeepClipPlaying(
     }
   }
 
-  const opened = window.open(trimmed, '_blank', 'noopener,noreferrer')
-  if (!opened) {
-    window.location.assign(trimmed)
+  // `noopener` makes window.open return null even when the tab opened, which
+  // used to fall through to location.assign and unload this page. Clip <video>
+  // PiP survives that; a YouTube document PiP window does not.
+  const opened = window.open(trimmed, '_blank')
+  if (opened) {
+    try {
+      opened.opener = null
+    } catch {
+      /* already severed */
+    }
+    return
   }
+  window.location.assign(trimmed)
 }
