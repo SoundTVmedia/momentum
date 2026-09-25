@@ -287,7 +287,8 @@ function FeaturedClipSlide({
     >
       <FeaturedClipMedia clip={clip} playing={playing} active={active} />
       <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/35 to-transparent pb-8 pt-16 sm:pb-11">
+      <div className="hero-slide-copy pointer-events-none">
+      <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/35 to-transparent pb-8 pt-16 sm:pb-11">
         <div className="flex max-w-[min(24rem,calc(100%-5.5rem))] flex-col items-start gap-1 px-4 text-left sm:px-6">
           <p className="font-headline hero-headline-grad text-left text-xl leading-tight tracking-tight sm:text-2xl md:text-3xl">
             Sponsored Clip
@@ -311,6 +312,7 @@ function FeaturedClipSlide({
             </p>
           ) : null}
         </div>
+      </div>
       </div>
     </button>
   );
@@ -505,7 +507,7 @@ export default function HeroSection({
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
             <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
-            <div className="relative z-10 flex min-h-[14.026rem] flex-col items-center justify-center px-4 py-3 sm:min-h-[23.377rem] sm:px-6 sm:py-8 lg:min-h-[28.052rem] lg:px-8">
+            <div className="hero-slide-copy px-4 py-3 sm:px-6 sm:py-8 lg:px-8">
               <h1 className="font-headline hero-headline-grad text-center text-2xl sm:text-4xl md:text-5xl lg:text-[3.25rem] leading-tight tracking-tight">
                 Where Live Music Lives
               </h1>
@@ -580,7 +582,7 @@ export default function HeroSection({
             </div>
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
             <div className="absolute inset-0 hero-jambase-wash" aria-hidden />
-            <div className="relative z-10 flex min-h-[14.026rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[23.377rem] sm:px-6 sm:py-8 lg:min-h-[28.052rem]">
+            <div className="hero-slide-copy px-4 py-3 text-center sm:px-6 sm:py-8">
               <p className="font-headline hero-headline-grad w-full min-w-0 max-w-4xl px-1 text-center text-[1.15rem] leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-[2.75rem]">
                 Go See Live Music,
                 <span className="block">and Use Feedback to Capture it All</span>

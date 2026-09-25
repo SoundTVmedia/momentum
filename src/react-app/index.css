@@ -951,7 +951,26 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     position: relative;
     min-width: 100%;
     flex-shrink: 0;
+    overflow: hidden;
     background: #0B0711;
+    /* Keep a pre-playing clip inside this panel so it cannot show in the
+       hero ahead of the headline while the track is moving. */
+    clip-path: inset(0);
+  }
+
+  /*
+   * Above the grade and scrim for the whole slide. Those layers blend with
+   * the clip and otherwise hold the headline until the track stops.
+   */
+  .hero-slide-copy {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
 
   /*

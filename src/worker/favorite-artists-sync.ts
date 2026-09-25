@@ -53,10 +53,49 @@ async function firstArtistId(
   return rowIdToNumber(row?.id);
 }
 
+/**
+ * `artists.id` was `SERIAL PRIMARY KEY`. SQLite does not auto-assign that, so rows
+ * were stored with a NULL id and follow could not target them. Stamp the SQLite
+ * rowid (the value D1 already returned as last_row_id) onto those rows.
+ */
+export async function ensureArtistRowId(
+  db: D1Database,
+  displayName: string,
+): Promise<number | null> {
+  const key = normalizeArtistDisplayName(displayName);
+  if (!key) return null;
+  const slug = key.toLowerCase().replace(/\s+/g, '-').trim();
+  const row = (await db
+    .prepare(
+      `SELECT rowid AS rid, id
+       FROM artists
+       WHERE id IS NULL
+         AND (
+           name = ?
+           OR lower(trim(name)) = lower(trim(?))
+           OR LOWER(REPLACE(TRIM(name), ' ', '-')) = ?
+         )
+       ORDER BY rowid ASC
+       LIMIT 1`,
+    )
+    .bind(key, key, slug)
+    .first()) as { rid?: unknown; id?: unknown } | null;
+  const rid = rowIdToNumber(row?.rid);
+  if (rid == null) return null;
+  await db
+    .prepare('UPDATE artists SET id = ? WHERE rowid = ? AND id IS NULL')
+    .bind(rid, rid)
+    .run();
+  return rid;
+}
+
 /** Find an existing row by exact name, case fold, or slug (no silent SQL swallowing). */
 async function findArtistIdForName(db: D1Database, displayName: string): Promise<number | null> {
   const key = normalizeArtistDisplayName(displayName);
   if (!key) return null;
+
+  const repaired = await ensureArtistRowId(db, key);
+  if (repaired != null) return repaired;
 
   const exact = await firstArtistId(db, 'SELECT id FROM artists WHERE name = ? LIMIT 1', key);
   if (exact != null) return exact;

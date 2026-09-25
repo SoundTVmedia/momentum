@@ -27,6 +27,7 @@ import {
   mergeArtistSocialLinks,
   parseArtistSocialLinksJson,
 } from './jambase-artist-links';
+import { ensureArtistRowId } from './favorite-artists-sync';
 import { merchUrlFromArtistSocialLinks } from '../shared/artist-merch-url';
 import { rewriteJamBaseEventImages, rewriteMediaUrlForClient } from '../shared/media-proxy';
 import { clientMediaOrigin } from './client-media-origin';
@@ -254,6 +255,11 @@ export async function buildArtistPagePayload(c: Context): Promise<Record<string,
       )
       .bind(slug, canonicalName)
       .first()) as Record<string, unknown> | null;
+  }
+
+  if (artist && typeof artist.name === 'string' && !(Number(artist.id) > 0)) {
+    const repairedId = await ensureArtistRowId(db, artist.name);
+    if (repairedId != null) artist = { ...artist, id: repairedId };
   }
 
   if (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
+import { useAuth } from '@getmocha/users-service/react';
 import { useAutoRetryPageLoad } from '@/react-app/hooks/useAutoRetryPageLoad';
 import { fetchJsonWithRetry } from '@/react-app/lib/fetch-json-with-retry';
 import PastShowsSection from '@/react-app/components/PastShowsSection';
@@ -81,6 +82,7 @@ interface LiveShow {
 export default function ArtistPage() {
   const { artistName: artistNameParam } = useParams<{ artistName: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const routeArtistLabel = artistNameParam
     ? decodeURIComponent(artistNameParam).replace(/-/g, ' ')
     : '';
@@ -412,8 +414,14 @@ export default function ArtistPage() {
           <div>
             <button
               type="button"
-              onClick={() => void toggleFollowArtist(followArtistId, followArtistName)}
-              disabled={!followHydrated || artistFollowLoading || !followArtistName.trim()}
+              onClick={() => {
+                if (!user) {
+                  navigate('/auth');
+                  return;
+                }
+                void toggleFollowArtist(followArtistId, followArtistName);
+              }}
+              disabled={(Boolean(user) && !followHydrated) || artistFollowLoading || !followArtistName.trim()}
               className={`w-full px-6 py-4 rounded-xl font-semibold hover:scale-105 transition-transform flex items-center justify-center space-x-2 disabled:opacity-60 disabled:hover:scale-100 ${
                 followingArtist
                   ? 'bg-white/10 border border-momentum-rose/50 text-white'

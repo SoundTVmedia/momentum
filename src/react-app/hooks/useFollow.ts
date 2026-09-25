@@ -63,7 +63,7 @@ export function useFollow() {
   useEffect(() => {
     if (!user) {
       setFollowing(new Set())
-      setHydrated(false)
+      setHydrated(true)
       return
     }
 

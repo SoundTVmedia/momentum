@@ -195,6 +195,41 @@ describe('getOrCreateArtistIdByName', () => {
     expect(id).toBeGreaterThan(0);
     expect(artists.some((a) => a.name === 'Billie Eilish')).toBe(true);
   });
+
+  it('stamps a rowid onto an artist saved with a null id', async () => {
+    const row = { rid: 42, id: null as number | null, name: 'Phish' };
+    const db = {
+      prepare(sql: string) {
+        const s = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+        return {
+          bind(...args: unknown[]) {
+            return {
+              async first() {
+                if (s.includes('id is null')) {
+                  return row.id == null ? { rid: row.rid, id: null } : null;
+                }
+                if (s.includes('from artists')) {
+                  return row.id != null ? { id: row.id } : { id: null };
+                }
+                return null;
+              },
+              async run() {
+                if (s.includes('update artists set id')) {
+                  row.id = Number(args[0]);
+                }
+                return { success: true, meta: { changes: 1, last_row_id: row.id } };
+              },
+              async all() {
+                return { results: [] };
+              },
+            };
+          },
+        };
+      },
+    };
+    await expect(getOrCreateArtistIdByName(db as unknown as D1Database, 'Phish')).resolves.toBe(42);
+    expect(row.id).toBe(42);
+  });
 });
 
 describe('linkFavoriteArtistByName', () => {
