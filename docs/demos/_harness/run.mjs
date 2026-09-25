@@ -38,8 +38,12 @@ export async function runDemo(id) {
   console.log('artist', live.artist.name);
   console.log('past', live.pastEvent?.name, live.pastEvent?.identifier);
 
+  if (id === 'quickrecord-ios') live.preferRecordNight = true;
   const assetsDir = path.join(harnessRoot, 'assets');
-  const files = await ensureCameraFiles(live, assetsDir);
+  const files = await ensureCameraFiles(
+    id === 'quickrecord-ios' ? live : { ...live, recordNight: null },
+    assetsDir,
+  );
   const libraryMp4 = path.join(assetsDir, 'library.mp4');
   await stampLibraryClip(files.mp4, libraryMp4, {
     startDate: live.pastEvent?.startDate,

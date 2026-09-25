@@ -1,4 +1,4 @@
-import { callout, tap, typeInto, waitHomeReady, markInjectedClip, captureButton } from './session.mjs';
+import { callout, tap, typeInto, waitHomeReady, markInjectedClip, markRecordedClips, captureButton } from './session.mjs';
 
 async function waitCameraHudReady(page, show) {
   const tapToStart = page.getByRole('button', { name: /Tap to start camera preview/i });
@@ -22,42 +22,49 @@ async function waitCameraHudReady(page, show) {
     .catch(() => {});
 }
 
+async function recordOneTake(page, label) {
+  const captureBtn = page.getByTitle('Start capturing your moment (up to 60 seconds)');
+  await captureBtn.waitFor({ state: 'visible' });
+  await tap(page, captureBtn);
+  await callout(page, label);
+  await page.waitForSelector('text=REC', { timeout: 8_000 }).catch(() => {});
+  await page.waitForTimeout(3200);
+  const stopBtn = page.getByTitle('Stop recording and save your moment');
+  if (await stopBtn.isVisible().catch(() => false)) {
+    await tap(page, stopBtn);
+  }
+  await page.waitForTimeout(900);
+}
+
 export async function runQuickRecord(page, state) {
   const live = state.live;
-  const show = live.tonight;
-  if (!show?.href) throw new Error('No tonight JamBase show path');
+  const show = live.recordNight;
+  if (!show?.href) throw new Error('No record-night show for the quick record demo');
+  markRecordedClips(state, show);
   await waitHomeReady(page);
   await callout(page, 'Quick Record on iOS');
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(1400);
 
   await tap(page, captureButton(page));
   const continueBtn = page.getByRole('button', { name: 'Continue' });
   if (await continueBtn.isVisible().catch(() => false)) {
     await callout(page, 'Location and camera');
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(700);
     await tap(page, continueBtn);
   }
 
   await callout(page, 'Matching the show from GPS');
   await waitCameraHudReady(page, show);
-  await page.waitForTimeout(1200);
-  await callout(page, 'Event information fills in');
-  await page.waitForTimeout(2200);
-
-  const captureBtn = page.getByTitle('Start capturing your moment (up to 60 seconds)');
-  await captureBtn.waitFor({ state: 'visible' });
-  await tap(page, captureBtn);
-  await callout(page, 'Recording the clip');
-  await page.waitForSelector('text=REC', { timeout: 8_000 }).catch(() => {});
-  await page.waitForTimeout(4800);
-
-  const stopBtn = page.getByTitle('Stop recording and save your moment');
-  if (await stopBtn.isVisible().catch(() => false)) {
-    await tap(page, stopBtn);
-  }
+  await page.waitForTimeout(800);
+  await callout(page, `${show.artistName} at ${show.venueName}`);
   await page.waitForTimeout(1600);
-  await callout(page, 'Clip uploads in the background');
-  await page.waitForTimeout(2200);
+
+  await recordOneTake(page, 'Recording the clip');
+  await callout(page, 'Record the next moment');
+  await page.waitForTimeout(700);
+  await recordOneTake(page, 'Second clip, same show');
+  await callout(page, 'Both clips upload in the background');
+  await page.waitForTimeout(1200);
 
   const closeBtn = page.locator('.native-capture-modal button', { hasText: '✕' }).first();
   if (await closeBtn.isVisible().catch(() => false)) {
@@ -65,22 +72,54 @@ export async function runQuickRecord(page, state) {
   } else {
     await page.keyboard.press('Escape');
   }
-  await page.waitForTimeout(800);
-  await callout(page, 'Upload stays in Queue');
+  await page.waitForTimeout(600);
+
+  await tap(page, page.locator('ion-tab-button[tab="queue"]').first());
+  await page.getByRole('heading', { name: 'Upload Queue' }).waitFor({ timeout: 12_000 });
+  await page.getByText(/Uploading|Finishing upload|Processing|Identifying/i).first().waitFor({
+    timeout: 12_000,
+  }).catch(() => {});
+  await callout(page, 'Upload queue');
+  await page.waitForTimeout(2800);
+  state.holdUploads = false;
+
+  await page.goto(`${live.origin}/artists/phish`, { waitUntil: 'domcontentloaded' });
+  await callout(page, 'Phish');
+  await page.getByRole('heading', { name: 'Past Shows' }).waitFor({ timeout: 15_000 });
+  await page.evaluate(() => {
+    const heading = [...document.querySelectorAll('h2')].find((el) =>
+      /Past Shows/i.test(el.textContent || ''),
+    );
+    if (!heading) return;
+    const header = document.querySelector('ion-header, header');
+    const headerBottom = header ? header.getBoundingClientRect().bottom : 88;
+    const y = heading.getBoundingClientRect().top + window.scrollY - headerBottom - 12;
+    window.scrollTo({ top: Math.max(0, y) });
+  });
+  await page.waitForTimeout(900);
+  await callout(page, 'Past shows');
   await page.waitForTimeout(1400);
 
-  markInjectedClip(state, show);
-  await page.goto(`${live.origin}${show.href}`, { waitUntil: 'domcontentloaded' });
-  await callout(page, 'Opening the show page');
-  await page.getByText(show.artistName, { exact: false }).first().waitFor({ timeout: 15_000 }).catch(() => {});
-  if (await page.getByText('This Page Hit a Wrong Note').isVisible().catch(() => false)) {
-    throw new Error(`show page 404 for ${show.href}`);
-  }
-  await page.waitForTimeout(1800);
-  await callout(page, 'Show page populates');
+  const showCard = page.locator('article').filter({ hasText: /Jul 27, 2026/ }).first();
+  await showCard.waitFor({ state: 'visible', timeout: 12_000 });
+  await tap(page, showCard.getByRole('button', { name: 'View Show Clips' }));
+  await page.waitForURL(/\/shows\/.*\/clips/, { timeout: 15_000 });
+  const recorded = page.locator('.glass-panel').filter({ hasText: 'Recorded live' }).first();
+  await recorded.waitFor({ state: 'visible', timeout: 15_000 });
+  await recorded.evaluate((el) => {
+    const header = document.querySelector('ion-header, header');
+    const headerBottom = header ? header.getBoundingClientRect().bottom : 88;
+    const y = el.getBoundingClientRect().top + window.scrollY - headerBottom - 16;
+    window.scrollTo({ top: Math.max(0, y) });
+  });
+  await page.waitForTimeout(500);
+  await callout(page, 'Clips from the show');
+  await page.waitForTimeout(1600);
+
+  await tap(page, recorded);
+  await page.locator('.glass-modal-overlay').waitFor({ timeout: 12_000 });
+  await callout(page, 'Clip player');
   await page.waitForTimeout(2800);
-  await callout(page, 'Your clip is on the show');
-  await page.waitForTimeout(2000);
   await callout(page, '');
 }
 

@@ -151,11 +151,14 @@ export function createDemoState(live) {
       canRate: false,
     },
     injectClip: null,
+    recordedClips: [],
+    holdUploads: false,
+    uploadSessions: [],
   };
 }
 
 function cameraCandidate(live) {
-  const show = live.tonight;
+  const show = (live.preferRecordNight && live.recordNight) || live.tonight;
   return {
     jambase_event_id: show.identifier,
     jambase_artist_id: show.artistId,
@@ -171,11 +174,11 @@ function cameraCandidate(live) {
   };
 }
 
-function newClip(live, show) {
-  const src = live.clips.camera || live.clips.all[0] || {};
+function newClip(live, show, src, id = 900001) {
+  const clip = src || live.clips.camera || live.clips.all[0] || {};
   return {
-    ...src,
-    id: 900001,
+    ...clip,
+    id,
     user_display_name: 'Alex Rivera',
     mocha_user_id: 'demo-alex-rivera',
     artist_name: show.artistName,
@@ -185,7 +188,7 @@ function newClip(live, show) {
     jambase_event_id: show.identifier,
     likes_count: 0,
     views_count: 0,
-    content_description: 'Captured live',
+    content_description: 'Recorded live',
   };
 }
 
@@ -507,6 +510,14 @@ export async function installDemoMocks(page, state) {
 
       if (path.includes('/shows/') && path.endsWith('/clips') && method === 'GET') {
         const idParam = decodeURIComponent(path.split('/shows/')[1]?.replace(/\/clips$/, '') || '');
+        const recordId = live.recordNight?.identifier;
+        if (recordId && idParam === recordId && state.recordedClips?.length) {
+          const upstream = await route.fetch();
+          const data = await upstream.json();
+          const existing = Array.isArray(data.clips) ? data.clips : [];
+          data.clips = [...state.recordedClips, ...existing];
+          return json(route, data);
+        }
         const liveShow =
           (live.pastEvent?.identifier === idParam && live.pastEvent) ||
           (live.tonight?.identifier === idParam && live.tonight) ||
@@ -529,16 +540,37 @@ export async function installDemoMocks(page, state) {
       }
 
       if (/^\/api\/uploads\/.+\/status$/.test(path) && method === 'GET') {
+        const sessionId = path.split('/')[3];
+        const session =
+          state.uploadSessions.find((row) => row.sessionId === sessionId) ||
+          state.uploadSessions[0];
+        const clipId = session?.clipId || 900001;
+        if (state.holdUploads) {
+          const progress = Math.min(72, 28 + (session?.polls || 0) * 8);
+          if (session) session.polls = (session.polls || 0) + 1;
+          return json(route, {
+            sessionId,
+            clipId,
+            sessionStatus: 'processing',
+            uploadStatus: 'processing',
+            completedParts: 1,
+            totalParts: 1,
+            progress,
+            clipPublished: false,
+            thumbnailUrl: live.recordNight?.clips?.[0]?.thumbnail_url || null,
+            completedPartNumbers: [1],
+          });
+        }
         return json(route, {
-          sessionId: 'demo-session',
-          clipId: 900001,
+          sessionId,
+          clipId,
           sessionStatus: 'completed',
           uploadStatus: 'ready',
           completedParts: 1,
           totalParts: 1,
           progress: 100,
           clipPublished: true,
-          thumbnailUrl: live.clips.camera?.thumbnail_url || null,
+          thumbnailUrl: live.recordNight?.clips?.[0]?.thumbnail_url || live.clips.camera?.thumbnail_url || null,
           completedPartNumbers: [1],
         });
       }
@@ -576,13 +608,20 @@ export async function installDemoMocks(page, state) {
           state.injectClip = newClip(live, show);
         }
         if (path === '/api/uploads/init') {
+          const n = state.uploadSessions.length + 1;
+          const session = {
+            sessionId: `demo-session-${n}`,
+            clipId: 900000 + n,
+            polls: 0,
+          };
+          state.uploadSessions.push(session);
           return json(
             route,
             {
-              sessionId: 'demo-session',
-              clipId: 900001,
-              r2Key: 'clips/demo/video/demo.mp4',
-              multipartUploadId: 'demo-mpu',
+              sessionId: session.sessionId,
+              clipId: session.clipId,
+              r2Key: `clips/demo/video/demo-${n}.mp4`,
+              multipartUploadId: `demo-mpu-${n}`,
               partSize: 5 * 1024 * 1024,
               totalParts: 1,
               uploadMode: 'worker',

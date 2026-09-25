@@ -53,6 +53,51 @@ function isNycGeo(geo) {
   );
 }
 
+async function loadRecordNight() {
+  const showId = 'jambase:15668779';
+  const fallback = {
+    name: 'Phish at Madison Square Garden',
+    identifier: showId,
+    startDate: '2026-07-28T00:02:19.425Z',
+    artistName: 'Phish',
+    artistId: 'jambase:41232',
+    venueName: 'Madison Square Garden',
+    venueId: 'jambase:62108',
+    city: 'New York, NY',
+    geo: { latitude: 40.7505, longitude: -73.9934 },
+    href: showClipsHref('Phish', showId),
+    artistHref: '/artists/phish',
+    clips: [],
+  };
+  try {
+    const data = await getJson(
+      `/api/artists/phish/shows/${encodeURIComponent(showId)}/clips?limit=8`,
+    );
+    const clips = (Array.isArray(data.clips) ? data.clips : [])
+      .filter((clip) => clip?.video_url)
+      .slice(0, 2)
+      .map((clip) => ({ ...clip, video_url: originUrl(clip.video_url) }));
+    const first = clips[0];
+    if (!first) return fallback;
+    const artistName = first.artist_name || fallback.artistName;
+    const identifier = first.jambase_event_id || showId;
+    return {
+      ...fallback,
+      name: first.event_title || fallback.name,
+      identifier,
+      startDate: first.timestamp || fallback.startDate,
+      artistName,
+      venueName: first.venue_name || fallback.venueName,
+      city: first.location || fallback.city,
+      href: showClipsHref(artistName, identifier),
+      clips,
+    };
+  } catch (err) {
+    console.warn('record night clips unavailable', err);
+    return fallback;
+  }
+}
+
 export function showClipsHref(artistName, eventId) {
   const slug = String(artistName || '')
     .trim()
@@ -167,7 +212,8 @@ export async function loadLiveDemoData() {
     longitude: brooklynBowl.geo?.longitude ?? -73.9577,
   };
 
-  const cameraClip =
+  const recordNight = await loadRecordNight();
+  const cameraClip = recordNight.clips[0] ||
     artistClips[0] || venueClips[0] || namedClips[0] || clips[0] || null;
   const cameraVideoUrl = originUrl(cameraClip?.video_url);
 
@@ -263,6 +309,7 @@ export async function loadLiveDemoData() {
       camera: cameraClip,
     },
     cameraVideoUrl,
+    recordNight,
     brooklynBowl,
     bowlNyc,
   };

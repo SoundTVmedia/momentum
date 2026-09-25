@@ -1,7 +1,7 @@
 import { chromium, devices } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdir, writeFile, access } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { installDemoOverlay } from './overlay-install.mjs';
 import { installDemoMocks, createDemoState, newClip } from './mock-api.mjs';
@@ -17,54 +17,104 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+const CAMERA_SCALE =
+  'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280';
+
+async function downloadClip(url, dest) {
+  console.log('downloading concert clip', url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`clip download ${res.status}`);
+  await writeFile(dest, Buffer.from(await res.arrayBuffer()));
+}
+
 export async function ensureCameraFiles(live, assetsDir) {
   await mkdir(assetsDir, { recursive: true });
   const mp4 = path.join(assetsDir, 'concert-clip.mp4');
   const y4m = path.join(assetsDir, 'camera.y4m');
   const wav = path.join(assetsDir, 'camera.wav');
+  const markerPath = path.join(assetsDir, 'camera-source.txt');
+  const sources = (live.recordNight?.clips || [])
+    .map((clip) => clip.video_url)
+    .filter(Boolean)
+    .slice(0, 2);
+  const sourceKey = (sources.length ? sources : [live.cameraVideoUrl]).filter(Boolean).join('\n');
+  let cached = '';
   try {
-    await access(mp4);
-    await access(y4m);
-    await access(wav);
-    return { mp4, y4m, wav };
+    cached = await readFile(markerPath, 'utf8');
   } catch {
-    /* generate */
+    cached = '';
+  }
+  if (cached === sourceKey && sourceKey) {
+    try {
+      await access(y4m);
+      await access(wav);
+      return { mp4, y4m, wav };
+    } catch {
+      /* regenerate */
+    }
   }
 
-  if (!live.cameraVideoUrl) throw new Error('No live clip URL for camera preview');
-  console.log('downloading concert clip', live.cameraVideoUrl);
-  const res = await fetch(live.cameraVideoUrl);
-  if (!res.ok) throw new Error(`clip download ${res.status}`);
-  await writeFile(mp4, Buffer.from(await res.arrayBuffer()));
+  if (!sourceKey) throw new Error('No live clip URL for camera preview');
+  const urls = sourceKey.split('\n');
+  // First segment stays on screen through the opening take; the second clip
+  // starts in time for the follow-up recording.
+  const durations = urls.length > 1 ? [14, 10] : [8];
+  const segments = [];
+  const audioParts = [];
+  for (let i = 0; i < urls.length; i += 1) {
+    const src = path.join(assetsDir, `camera-src-${i}.mp4`);
+    const seg = path.join(assetsDir, `camera-seg-${i}.y4m`);
+    const audio = path.join(assetsDir, `camera-seg-${i}.wav`);
+    await downloadClip(urls[i], src);
+    if (i === 0) await writeFile(mp4, await readFile(src));
+    await run('ffmpeg', [
+      '-y',
+      '-stream_loop',
+      '-1',
+      '-i',
+      src,
+      '-t',
+      String(durations[i] || 8),
+      '-an',
+      '-vf',
+      CAMERA_SCALE,
+      '-pix_fmt',
+      'yuv420p',
+      '-r',
+      '30',
+      seg,
+    ]);
+    await run('ffmpeg', [
+      '-y',
+      '-stream_loop',
+      '-1',
+      '-i',
+      src,
+      '-t',
+      String(durations[i] || 8),
+      '-vn',
+      '-ac',
+      '1',
+      '-ar',
+      '44100',
+      audio,
+    ]);
+    segments.push(seg);
+    audioParts.push(audio);
+  }
 
-  await run('ffmpeg', [
-    '-y',
-    '-i',
-    mp4,
-    '-t',
-    '8',
-    '-an',
-    '-vf',
-    'scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280',
-    '-pix_fmt',
-    'yuv420p',
-    '-r',
-    '30',
-    y4m,
-  ]);
-  await run('ffmpeg', [
-    '-y',
-    '-i',
-    mp4,
-    '-t',
-    '8',
-    '-vn',
-    '-ac',
-    '1',
-    '-ar',
-    '44100',
-    wav,
-  ]);
+  if (segments.length === 1) {
+    await run('ffmpeg', ['-y', '-i', segments[0], '-c', 'copy', y4m]);
+    await run('ffmpeg', ['-y', '-i', audioParts[0], '-c', 'copy', wav]);
+  } else {
+    const videoList = path.join(assetsDir, 'camera-video.txt');
+    const audioList = path.join(assetsDir, 'camera-audio.txt');
+    await writeFile(videoList, segments.map((file) => `file '${file}'`).join('\n'));
+    await writeFile(audioList, audioParts.map((file) => `file '${file}'`).join('\n'));
+    await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', videoList, '-c', 'copy', y4m]);
+    await run('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', audioList, '-c', 'copy', wav]);
+  }
+  await writeFile(markerPath, sourceKey);
   return { mp4, y4m, wav };
 }
 
@@ -97,7 +147,8 @@ export async function stampLibraryClip(srcMp4, destMp4, show) {
 
 export async function openDemoApp({ live, y4m, wav }) {
   const state = createDemoState(live);
-  const geo = live.tonight.geo;
+  const geo =
+    (live.preferRecordNight && live.recordNight?.geo) || live.tonight.geo;
   const browser = await chromium.launch({
     executablePath: chromePath,
     headless: true,
@@ -124,6 +175,7 @@ export async function openDemoApp({ live, y4m, wav }) {
     },
     permissions: ['geolocation', 'camera', 'microphone'],
     locale: 'en-US',
+    timezoneId: live.preferRecordNight ? 'America/New_York' : undefined,
     colorScheme: 'dark',
   });
   await context.grantPermissions(['geolocation', 'camera', 'microphone'], {
@@ -209,6 +261,15 @@ export function captureButton(page) {
 
 export function markInjectedClip(state, show) {
   state.injectClip = newClip(state.live, show);
+}
+
+export function markRecordedClips(state, show) {
+  const sources = state.live.recordNight?.clips || [];
+  state.recordedClips = (sources.length ? sources : [state.live.clips.camera]).filter(Boolean).map(
+    (src, index) => newClip(state.live, show, src, 900001 + index),
+  );
+  state.injectClip = state.recordedClips[0] || null;
+  state.holdUploads = true;
 }
 
 export { newClip };
