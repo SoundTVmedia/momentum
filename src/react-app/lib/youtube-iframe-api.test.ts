@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   allowYoutubePictureInPicture,
   enterYoutubePictureInPicture,
+  holdYoutubePlaybackWhileHidden,
   type YTPlayer,
 } from './youtube-iframe-api';
 
@@ -47,13 +48,16 @@ describe('enterYoutubePictureInPicture', () => {
     } as unknown as HTMLIFrameElement;
 
     const pipBody = { appendChild: vi.fn() };
+    let onPageHide: (() => void) | undefined;
     const pipWindow = {
       document: {
         head: { appendChild: vi.fn() },
         body: pipBody,
         createElement: () => ({ textContent: '' }),
       },
-      addEventListener: vi.fn(),
+      addEventListener: vi.fn((type: string, handler: () => void) => {
+        if (type === 'pagehide') onPageHide = handler;
+      }),
     } as unknown as Window;
 
     const requestWindow = vi.fn(async () => pipWindow);
@@ -65,6 +69,47 @@ describe('enterYoutubePictureInPicture', () => {
     expect(pipBody.appendChild).toHaveBeenCalledWith(iframe);
     expect(player.playVideo).toHaveBeenCalled();
 
+    onPageHide?.();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('holdYoutubePlaybackWhileHidden', () => {
+  it('resumes playback when the tab hides so picture-in-picture keeps playing', () => {
+    vi.useFakeTimers();
+    let visibilityState = 'visible';
+    const listeners = new Set<() => void>();
+    vi.stubGlobal('document', {
+      get visibilityState() {
+        return visibilityState;
+      },
+      addEventListener: (_type: string, handler: () => void) => {
+        listeners.add(handler);
+      },
+      removeEventListener: (_type: string, handler: () => void) => {
+        listeners.delete(handler);
+      },
+    });
+
+    const player = fakePlayer({ contentWindow: { postMessage: vi.fn() } } as unknown as HTMLIFrameElement);
+    const release = holdYoutubePlaybackWhileHidden(player);
+
+    for (const listener of listeners) listener();
+    vi.runAllTimers();
+    expect(player.playVideo).not.toHaveBeenCalled();
+
+    visibilityState = 'hidden';
+    for (const listener of listeners) listener();
+    vi.runAllTimers();
+    expect(player.playVideo).toHaveBeenCalled();
+
+    release();
+    vi.mocked(player.playVideo).mockClear();
+    for (const listener of listeners) listener();
+    vi.runAllTimers();
+    expect(player.playVideo).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 });
