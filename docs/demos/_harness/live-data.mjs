@@ -54,11 +54,11 @@ function isNycGeo(geo) {
 }
 
 async function loadRecordNight() {
-  const showId = 'jambase:15668779';
+  const showId = 'jambase:15668776';
   const fallback = {
     name: 'Phish at Madison Square Garden',
     identifier: showId,
-    startDate: '2026-07-28T00:02:19.425Z',
+    startDate: '2026-07-26T00:20:55.866Z',
     artistName: 'Phish',
     artistId: 'jambase:41232',
     venueName: 'Madison Square Garden',
@@ -70,13 +70,17 @@ async function loadRecordNight() {
     clips: [],
   };
   try {
-    const data = await getJson(
-      `/api/artists/phish/shows/${encodeURIComponent(showId)}/clips?limit=8`,
-    );
-    const clips = (Array.isArray(data.clips) ? data.clips : [])
-      .filter((clip) => clip?.video_url)
-      .slice(0, 2)
-      .map((clip) => ({ ...clip, video_url: originUrl(clip.video_url) }));
+    const clips = [];
+    for (const id of [403, 404]) {
+      const data = await getJson(`/api/clips/${id}`);
+      const clip = data?.clip && typeof data.clip === 'object' ? data.clip : data;
+      if (!clip?.video_url) continue;
+      clips.push({
+        ...clip,
+        video_url: originUrl(clip.video_url),
+        thumbnail_url: originUrl(clip.thumbnail_url),
+      });
+    }
     const first = clips[0];
     if (!first) return fallback;
     const artistName = first.artist_name || fallback.artistName;

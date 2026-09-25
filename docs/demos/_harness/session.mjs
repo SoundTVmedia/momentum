@@ -58,7 +58,7 @@ export async function ensureCameraFiles(live, assetsDir) {
   const urls = sourceKey.split('\n');
   // First segment stays on screen through the opening take; the second clip
   // starts in time for the follow-up recording.
-  const durations = urls.length > 1 ? [14, 10] : [8];
+  const durations = urls.length > 1 ? [18, 12] : [8];
   const segments = [];
   const audioParts = [];
   for (let i = 0; i < urls.length; i += 1) {

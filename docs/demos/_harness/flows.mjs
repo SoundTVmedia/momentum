@@ -43,7 +43,7 @@ export async function runQuickRecord(page, state) {
   markRecordedClips(state, show);
   await waitHomeReady(page);
   await callout(page, 'Quick Record on iOS');
-  await page.waitForTimeout(1400);
+  await page.waitForTimeout(2200);
 
   await tap(page, captureButton(page));
   const continueBtn = page.getByRole('button', { name: 'Continue' });
@@ -55,9 +55,9 @@ export async function runQuickRecord(page, state) {
 
   await callout(page, 'Matching the show from GPS');
   await waitCameraHudReady(page, show);
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(1400);
   await callout(page, `${show.artistName} at ${show.venueName}`);
-  await page.waitForTimeout(1600);
+  await page.waitForTimeout(2600);
 
   await recordOneTake(page, 'Recording the clip');
   const resumePreview = page.getByRole('button', { name: /Tap to resume camera/i });
@@ -67,10 +67,10 @@ export async function runQuickRecord(page, state) {
   const queueLine = page.getByText(/1 in queue/);
   await queueLine.waitFor({ state: 'visible', timeout: 12_000 });
   await callout(page, '');
-  await page.waitForTimeout(1600);
+  await page.waitForTimeout(2600);
   await recordOneTake(page, 'Second clip, same show');
   await callout(page, 'Both clips upload in the background');
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(2000);
 
   const closeBtn = page.locator('.native-capture-modal button', { hasText: '✕' }).first();
   if (await closeBtn.isVisible().catch(() => false)) {
@@ -86,7 +86,7 @@ export async function runQuickRecord(page, state) {
     timeout: 12_000,
   }).catch(() => {});
   await callout(page, 'Upload queue');
-  await page.waitForTimeout(2800);
+  await page.waitForTimeout(4000);
   state.holdUploads = false;
 
   await page.goto(`${live.origin}/artists/phish`, { waitUntil: 'domcontentloaded' });
@@ -104,10 +104,11 @@ export async function runQuickRecord(page, state) {
   });
   await page.waitForTimeout(900);
   await callout(page, 'Past shows');
-  await page.waitForTimeout(1400);
+  await page.waitForTimeout(2400);
 
-  const showCard = page.locator('article').filter({ hasText: /Jul 27, 2026/ }).first();
+  const showCard = page.locator('article').filter({ hasText: /Jul 25, 2026/ }).first();
   await showCard.waitFor({ state: 'visible', timeout: 12_000 });
+  await showCard.scrollIntoViewIfNeeded();
   await tap(page, showCard.getByRole('button', { name: 'View Show Clips' }));
   await page.waitForURL(/\/shows\/.*\/clips/, { timeout: 15_000 });
   const recorded = page.locator('.glass-panel').filter({ hasText: 'Recorded live' }).first();
@@ -120,12 +121,12 @@ export async function runQuickRecord(page, state) {
   });
   await page.waitForTimeout(500);
   await callout(page, 'Clips from the show');
-  await page.waitForTimeout(1600);
+  await page.waitForTimeout(2600);
 
   await tap(page, recorded);
   await page.locator('.glass-modal-overlay').waitFor({ timeout: 12_000 });
   await callout(page, 'Clip player');
-  await page.waitForTimeout(2800);
+  await page.waitForTimeout(4000);
   await callout(page, '');
 }
 

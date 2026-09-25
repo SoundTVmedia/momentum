@@ -3,7 +3,7 @@ import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { copyFile } from 'node:fs/promises';
 
-export async function recordScreencast(page, { framesDir, outMp4, posterPath, publicMp4, publicPoster }) {
+export async function recordScreencast(page, { framesDir, outMp4, posterPath, publicMp4, publicPoster, slow = 1 }) {
   await rm(framesDir, { recursive: true, force: true });
   await mkdir(framesDir, { recursive: true });
 
@@ -51,7 +51,7 @@ export async function recordScreencast(page, { framesDir, outMp4, posterPath, pu
             '-i',
             path.join(framesDir, '%04d.jpg'),
             '-vf',
-            'scale=1080:1920:flags=lanczos:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2',
+            `${slow > 1 ? `setpts=${slow}*PTS,` : ''}scale=1080:1920:flags=lanczos:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2`,
             '-c:v',
             'libx264',
             '-pix_fmt',

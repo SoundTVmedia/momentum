@@ -64,6 +64,7 @@ export async function runDemo(id) {
     posterPath: path.join(demoDir, 'poster.png'),
     publicMp4: path.join(publicDir, spec.file),
     publicPoster: path.join(publicDir, 'poster.png'),
+    slow: id === 'quickrecord-ios' ? 1.35 : 1,
   });
 
   let flowError = null;
