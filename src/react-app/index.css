@@ -331,7 +331,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   --momentum-ink: #0B0711;
   --momentum-smoke: #160E1C;
 
-  --shell-bg: #0B0711;
+  --shell-bg: #000000;
   --shell-bg-mid: #120C1A;
   --shell-bg-deep: #1A1324;
   --shell-border: rgba(255, 255, 255, 0.1);
@@ -342,11 +342,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   --text-subtle: #8a8a8a;
   --icon-muted: #c4c4c4;
 
-  --shell-body-gradient:
-    radial-gradient(ellipse 80% 50% at 18% -10%, rgba(255, 46, 136, 0.1) 0%, transparent 55%),
-    radial-gradient(ellipse 60% 40% at 88% 12%, rgba(117, 102, 232, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 50% 100%, rgba(117, 102, 232, 0.1) 0%, transparent 45%),
-    linear-gradient(to bottom, #0B0711 0%, #120C1A 50%, #0B0711 100%);
+  --shell-body-gradient: none;
 
   --hero-headline-grad: linear-gradient(
     125deg,

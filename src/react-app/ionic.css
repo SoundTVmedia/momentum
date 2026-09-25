@@ -78,8 +78,8 @@
 :root,
 .ion-palette-dark,
 [data-theme='dark'] {
-  --ion-background-color: #0B0711;
-  --ion-background-color-rgb: 11, 7, 17;
+  --ion-background-color: #000000;
+  --ion-background-color-rgb: 0, 0, 0;
   --ion-text-color: #F6F2FA;
   --ion-text-color-rgb: 246, 242, 250;
   --ion-text-color-step-50: #f2f5f8;
