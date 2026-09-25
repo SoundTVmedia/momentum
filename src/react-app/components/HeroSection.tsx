@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import HeroConcertBackdrop, {
   clipToHeroSlide,
+  playInlineHeroVideo,
   primeInlineHeroVideo,
   type HeroClipSlide,
 } from '@/react-app/components/HeroConcertBackdrop';
@@ -199,7 +200,7 @@ function FeaturedClipSlide({
     if (!video) return;
     primeInlineHeroVideo(video);
     if (playing) {
-      void video.play().catch(() => {});
+      playInlineHeroVideo(video);
     } else {
       video.pause();
     }

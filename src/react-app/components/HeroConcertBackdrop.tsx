@@ -10,9 +10,22 @@ import {
 export function primeInlineHeroVideo(video: HTMLVideoElement | null) {
   if (!video) return;
   video.muted = true;
+  video.defaultMuted = true;
   video.playsInline = true;
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', 'true');
+}
+
+/** iOS often rejects the first play() until the element has data. */
+export function playInlineHeroVideo(video: HTMLVideoElement | null) {
+  if (!video) return;
+  primeInlineHeroVideo(video);
+  const start = () => {
+    void video.play().catch(() => {});
+  };
+  start();
+  video.addEventListener('loadeddata', start, { once: true });
+  video.addEventListener('canplay', start, { once: true });
 }
 
 export type HeroClipSlide = {
@@ -123,9 +136,7 @@ export default function HeroConcertBackdrop({
       if (!video) return;
       primeInlineHeroVideo(video);
       if (playing && index === liveLayer) {
-        void video.play().catch(() => {
-          /* Autoplay may be blocked until a user gesture */
-        });
+        playInlineHeroVideo(video);
       } else {
         video.pause();
       }

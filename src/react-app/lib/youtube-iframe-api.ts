@@ -137,6 +137,15 @@ export async function enterYoutubePictureInPicture(
   const iframe = youtubeEmbedIframe(player);
   if (!iframe) return false;
 
+  try {
+    const video = iframe.contentDocument?.querySelector('video');
+    if (video instanceof HTMLVideoElement) {
+      return enterClipPictureInPicture(video);
+    }
+  } catch {
+    /* cross-origin embed — fall through to a floating window */
+  }
+
   const pip = documentPictureInPicture();
   if (pip) {
     try {
@@ -164,21 +173,6 @@ export async function enterYoutubePictureInPicture(
     } catch {
       /* fall through to the video element inside the embed */
     }
-  }
-
-  try {
-    player?.playVideo();
-  } catch {
-    /* still try PiP */
-  }
-
-  try {
-    const video = iframe.contentDocument?.querySelector('video');
-    if (video instanceof HTMLVideoElement) {
-      return enterClipPictureInPicture(video);
-    }
-  } catch {
-    /* cross-origin embed */
   }
 
   return false;
