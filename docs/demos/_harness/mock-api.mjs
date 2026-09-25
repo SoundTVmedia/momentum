@@ -551,8 +551,8 @@ export async function installDemoMocks(page, state) {
           return json(route, {
             sessionId,
             clipId,
-            sessionStatus: 'processing',
-            uploadStatus: 'processing',
+            sessionStatus: 'uploading',
+            uploadStatus: 'uploading',
             completedParts: 1,
             totalParts: 1,
             progress,

@@ -60,8 +60,14 @@ export async function runQuickRecord(page, state) {
   await page.waitForTimeout(1600);
 
   await recordOneTake(page, 'Recording the clip');
-  await callout(page, 'Record the next moment');
-  await page.waitForTimeout(700);
+  const resumePreview = page.getByRole('button', { name: /Tap to resume camera/i });
+  if (await resumePreview.isVisible().catch(() => false)) {
+    await tap(page, resumePreview);
+  }
+  const queueLine = page.getByText(/1 in queue/);
+  await queueLine.waitFor({ state: 'visible', timeout: 12_000 });
+  await callout(page, '');
+  await page.waitForTimeout(1600);
   await recordOneTake(page, 'Second clip, same show');
   await callout(page, 'Both clips upload in the background');
   await page.waitForTimeout(1200);
