@@ -27,7 +27,10 @@ export function installDemoOverlay() {
       transition: opacity .35s ease, transform .35s ease;
       bottom: 104px; top: auto;
     }
-    .demo-callout.cam { top: 62px; bottom: auto; }
+    .demo-callout.cam { top: 112px; bottom: auto; }
+    .native-capture-modal [aria-label^="Recording,"] {
+      top: 64px !important;
+    }
     .demo-callout.show { opacity: 1; transform: none; }
     .demo-callout span {
       background: rgba(11,7,17,.82);

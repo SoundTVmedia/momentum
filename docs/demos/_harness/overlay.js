@@ -30,7 +30,7 @@
     }
     .demo-callout.cam { top: 112px; bottom: auto; }
     .native-capture-modal [aria-label^="Recording,"] {
-      top: 62px !important;
+      top: 64px !important;
     }
     .demo-callout.show { opacity: 1; transform: none; }
     .demo-callout span {
