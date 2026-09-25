@@ -26,7 +26,8 @@ export type YTPlayer = {
 type YTPlayerConstructor = new (
   element: HTMLElement,
   options: {
-    videoId: string;
+    /** Omit when `element` is an iframe that already has the embed URL. */
+    videoId?: string;
     width?: string | number;
     height?: string | number;
     playerVars?: Record<string, string | number>;
