@@ -941,32 +941,47 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     height: 100%;
   }
 
-  .hero-carousel__track {
-    display: flex;
-    width: 100%;
-    transition: transform 0.55s ease;
+  /*
+   * Stacked panes, not a translating track. A CSS transform lets the clip
+   * paint into the hero before the headline, and it also takes the JamBase
+   * color grade off the video. Each pane already has its copy on the clip.
+   */
+  .hero-carousel__deck {
+    position: relative;
+    min-height: 14.026rem;
+    background: #0B0711;
   }
 
-  .hero-carousel__slide {
-    position: relative;
-    min-width: 100%;
-    flex-shrink: 0;
+  @media (min-width: 640px) {
+    .hero-carousel__deck {
+      min-height: 23.377rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .hero-carousel__deck {
+      min-height: 28.052rem;
+    }
+  }
+
+  .hero-carousel__pane {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
     overflow: hidden;
     background: #0B0711;
-    /* Keep a pre-playing clip inside this panel so it cannot show in the
-       hero ahead of the headline while the track is moving. */
-    clip-path: inset(0);
+    pointer-events: none;
   }
 
-  /*
-   * Above the grade and scrim for the whole slide. Those layers blend with
-   * the clip and otherwise hold the headline until the track stops.
-   */
+  .hero-carousel__pane.is-active {
+    z-index: 1;
+    pointer-events: auto;
+  }
+
   .hero-slide-copy {
     position: absolute;
     inset: 0;
     z-index: 5;
-    isolation: isolate;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -981,20 +996,9 @@ html.native-quick-capture-open .native-capture-overlay-text * {
   .hero-carousel__fill {
     position: relative;
     overflow: hidden;
-    min-height: 14.026rem;
+    height: 100%;
+    min-height: 100%;
     background: #0B0711;
-  }
-
-  @media (min-width: 640px) {
-    .hero-carousel__fill {
-      min-height: 23.377rem;
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .hero-carousel__fill {
-      min-height: 28.052rem;
-    }
   }
 
   /*
@@ -1193,7 +1197,7 @@ html.native-quick-capture-open .native-capture-overlay-text * {
     animation: none !important;
   }
 
-  .hero-carousel__track {
+  .hero-carousel__pane {
     transition: none;
   }
 

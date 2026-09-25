@@ -278,7 +278,7 @@ function FeaturedClipSlide({
   return (
     <button
       type="button"
-      className={`hero-carousel__fill hero-featured-clip block w-full min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem] appearance-none border-0 bg-transparent p-0 text-left ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}
+      className={`hero-carousel__fill hero-featured-clip block h-full w-full min-h-[14.026rem] sm:min-h-[23.377rem] lg:min-h-[28.052rem] appearance-none border-0 bg-transparent p-0 text-left ${canOpen ? 'cursor-pointer' : 'cursor-default'}`}
       aria-label={canOpen ? `Play featured clip by ${name}` : undefined}
       onClick={onPlay}
       onPointerDown={() => {
@@ -489,11 +489,11 @@ export default function HeroSection({
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <div
-        className="hero-carousel__track"
-        style={{ transform: `translateX(-${index * 100}%)` }}
-      >
-        <div className="hero-carousel__slide" aria-hidden={index !== 0}>
+      <div className="hero-carousel__deck">
+        <div
+          className={`hero-carousel__pane${index === 0 ? ' is-active' : ''}`}
+          aria-hidden={index !== 0}
+        >
           <div className="hero-carousel__fill">
             <div className="absolute inset-0 hero-concert-photo" aria-hidden>
               <HeroConcertBackdrop
@@ -569,7 +569,10 @@ export default function HeroSection({
           </div>
         </div>
 
-        <div className="hero-carousel__slide" aria-hidden={index !== 1}>
+        <div
+          className={`hero-carousel__pane${index === 1 ? ' is-active' : ''}`}
+          aria-hidden={index !== 1}
+        >
           <div className="hero-carousel__fill">
             <div className="absolute inset-0 hero-concert-photo" aria-hidden>
               <HeroConcertBackdrop
@@ -605,7 +608,10 @@ export default function HeroSection({
           </div>
         </div>
 
-        <div className="hero-carousel__slide" aria-hidden={index !== 2}>
+        <div
+          className={`hero-carousel__pane${index === 2 ? ' is-active' : ''}`}
+          aria-hidden={index !== 2}
+        >
           <FeaturedClipSlide
             clip={featured}
             playing={!reducedMotion && !clipModal}
