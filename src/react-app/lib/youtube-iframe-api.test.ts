@@ -40,6 +40,7 @@ describe('enterYoutubePictureInPicture', () => {
       getAttribute: () => '',
       setAttribute: vi.fn(),
       contentDocument: null,
+      contentWindow: { postMessage: vi.fn() },
       clientWidth: 480,
       clientHeight: 270,
       parentElement: { isConnected: true, insertBefore: vi.fn() },

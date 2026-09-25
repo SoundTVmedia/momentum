@@ -131,11 +131,24 @@ function youtubeEmbedIframe(player: YTPlayer | null | undefined): HTMLIFrameElem
   return found instanceof HTMLIFrameElement ? found : null;
 }
 
+/** Same gesture the clip player uses. The embed listens when the app injects that handler. */
+export const YOUTUBE_ENTER_PIP_MESSAGE = 'momentum-enter-pip';
+
+export function requestYoutubeEmbedPictureInPicture(iframe: HTMLIFrameElement | null | undefined): void {
+  try {
+    iframe?.contentWindow?.postMessage(YOUTUBE_ENTER_PIP_MESSAGE, '*');
+  } catch {
+    /* embed not ready */
+  }
+}
+
 export async function enterYoutubePictureInPicture(
   player: YTPlayer | null | undefined,
 ): Promise<boolean> {
   const iframe = youtubeEmbedIframe(player);
   if (!iframe) return false;
+
+  requestYoutubeEmbedPictureInPicture(iframe);
 
   try {
     const video = iframe.contentDocument?.querySelector('video');

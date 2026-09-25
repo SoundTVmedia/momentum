@@ -18,7 +18,7 @@ import { useTicketmaster } from '@/react-app/hooks/useTicketmaster';
 import { useMobileChrome } from '@/react-app/contexts/MobileChromeContext';
 import { artistPath } from '@/shared/app-paths';
 import { jamBaseEventVenueName } from '@/shared/jambase-events';
-import { openExternalKeepClipPlaying } from '@/react-app/lib/open-external-keep-clip-playing';
+import { openShopWithoutLeavingPlayer } from '@/react-app/lib/open-external-keep-clip-playing';
 import ClipModalBuyMerch from '@/react-app/components/ClipModalBuyMerch';
 import ClipModalBuyTickets from '@/react-app/components/ClipModalBuyTickets';
 import {
@@ -339,13 +339,9 @@ export default function YouTubeVideoModal({
       ? nearestTicketShow.event.name
       : 'Upcoming show';
 
-  const openExternal = useCallback(async (url: string) => {
-    try {
-      await enterYoutubePictureInPicture(ytPlayerRef.current);
-    } catch {
-      /* still open tickets or merch if picture-in-picture is unavailable */
-    }
-    await openExternalKeepClipPlaying(url);
+  const openExternal = useCallback((url: string) => {
+    void enterYoutubePictureInPicture(ytPlayerRef.current);
+    openShopWithoutLeavingPlayer(url);
   }, []);
 
   const openTicketSheet = useCallback(() => {

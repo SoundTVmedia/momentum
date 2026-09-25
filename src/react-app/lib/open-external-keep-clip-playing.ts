@@ -2,6 +2,28 @@ import { Browser } from '@capacitor/browser'
 import { isNativeApp } from '@/react-app/lib/native-bridge'
 import { enterClipPictureInPicture } from '@/react-app/lib/clip-picture-in-picture'
 
+/**
+ * Open tickets or merch in a new view without replacing this page.
+ * Replacing the page drops picture-in-picture. Call this in the same tap as PiP.
+ */
+export function openShopWithoutLeavingPlayer(url: string): void {
+  const trimmed = url.trim()
+  if (!trimmed) return
+
+  if (isNativeApp()) {
+    void Browser.open({ url: trimmed })
+    return
+  }
+
+  const anchor = document.createElement('a')
+  anchor.href = trimmed
+  anchor.target = '_blank'
+  anchor.rel = 'noopener noreferrer'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
 /** Open merch / tickets without killing the clip — PiP first, then the shop. */
 export async function openExternalKeepClipPlaying(
   url: string,
