@@ -489,7 +489,7 @@ export default function HeroSection({
             slides={slidesA}
             playing={!reducedMotion}
             loadVideo={!reducedMotion}
-            active={index === 0}
+            visible={index === 0}
           />
         </div>
         <div className={`hero-carousel__stage${index === 1 ? ' is-active' : ''}`}>
@@ -498,7 +498,7 @@ export default function HeroSection({
             slides={slidesB}
             playing={!reducedMotion}
             loadVideo={!reducedMotion}
-            active={index === 1}
+            visible={index === 1}
           />
         </div>
         <div className={`hero-carousel__stage${index === 2 ? ' is-active' : ''}`}>
