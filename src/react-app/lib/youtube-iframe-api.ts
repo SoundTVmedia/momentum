@@ -142,6 +142,25 @@ export function requestYoutubeEmbedPictureInPicture(iframe: HTMLIFrameElement | 
   }
 }
 
+/** Resolves when the embed reports picture-in-picture, or when the wait expires. */
+export function waitForYoutubePictureInPicture(timeoutMs = 400): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const finish = (ok: boolean) => {
+      window.clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      resolve(ok);
+    };
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; ok?: boolean } | null;
+      if (!data || data.type !== 'momentum-pip-result') return;
+      finish(data.ok === true);
+    };
+    const timer = window.setTimeout(() => finish(false), timeoutMs);
+    window.addEventListener('message', onMessage);
+  });
+}
+
 export async function enterYoutubePictureInPicture(
   player: YTPlayer | null | undefined,
 ): Promise<boolean> {

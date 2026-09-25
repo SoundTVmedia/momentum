@@ -28,21 +28,40 @@ class MomentumBridgeViewController: CAPBridgeViewController {
     (function () {
       if (window.__momentumPipListener) return;
       window.__momentumPipListener = true;
+      function findVideo(root) {
+        if (!root || !root.querySelector) return null;
+        var video = root.querySelector('video');
+        if (video) return video;
+        var nodes = root.querySelectorAll('*');
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].shadowRoot) {
+            var nested = findVideo(nodes[i].shadowRoot);
+            if (nested) return nested;
+          }
+        }
+        return null;
+      }
       window.addEventListener('message', function (event) {
         if (event.data !== 'momentum-enter-pip') return;
-        var video = document.querySelector('video');
-        if (!video) return;
+        var video = findVideo(document);
+        var ok = false;
+        if (video) {
+          try { video.disablePictureInPicture = false; } catch (e) {}
+          try { if (video.paused) video.play(); } catch (e) {}
+          try {
+            if (typeof video.webkitSetPresentationMode === 'function') {
+              video.webkitSetPresentationMode('picture-in-picture');
+              ok = video.webkitPresentationMode === 'picture-in-picture';
+            }
+          } catch (e) {}
+          if (!ok && typeof video.requestPictureInPicture === 'function') {
+            video.requestPictureInPicture().catch(function () {});
+            ok = true;
+          }
+        }
         try {
-          if (video.paused) video.play();
+          parent.postMessage({ type: 'momentum-pip-result', ok: ok }, '*');
         } catch (e) {}
-        if (typeof video.webkitSetPresentationMode === 'function' &&
-            (!video.webkitSupportsPresentationMode || video.webkitSupportsPresentationMode('picture-in-picture'))) {
-          video.webkitSetPresentationMode('picture-in-picture');
-          return;
-        }
-        if (typeof video.requestPictureInPicture === 'function') {
-          video.requestPictureInPicture();
-        }
       });
     })();
     """

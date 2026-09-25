@@ -31,6 +31,7 @@ import {
   enterYoutubePictureInPicture,
   loadYoutubeIframeApi,
   startYoutubeAutoplay,
+  waitForYoutubePictureInPicture,
   YT_PLAYER_STATE,
   type YTPlayer,
 } from '@/react-app/lib/youtube-iframe-api';
@@ -340,8 +341,11 @@ export default function YouTubeVideoModal({
       : 'Upcoming show';
 
   const openExternal = useCallback((url: string) => {
+    const pipSettled = waitForYoutubePictureInPicture();
     void enterYoutubePictureInPicture(ytPlayerRef.current);
-    openShopWithoutLeavingPlayer(url);
+    void pipSettled.finally(() => {
+      openShopWithoutLeavingPlayer(url);
+    });
   }, []);
 
   const openTicketSheet = useCallback(() => {
