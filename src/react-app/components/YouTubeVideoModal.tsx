@@ -100,26 +100,33 @@ function YouTubeEmbed({
       } catch {
         return;
       }
-      if (cancelled || !hostRef.current || !window.YT?.Player) return;
+      const host = hostRef.current;
+      if (cancelled || !host || !window.YT?.Player) return;
 
       playerRef.current?.destroy();
-      playerRef.current = new window.YT.Player(hostRef.current, {
-        videoId: video.videoId,
-        width: '100%',
-        height: '100%',
-        playerVars: {
-          autoplay: 1,
-          mute: 0,
-          playsinline: 1,
-          rel: 0,
-          modestbranding: 1,
-          controls: 0,
-          fs: 0,
-          disablekb: 1,
-          iv_load_policy: 3,
-          enablejsapi: 1,
-          origin: typeof window !== 'undefined' ? window.location.origin : '',
-        },
+      host.replaceChildren();
+      const iframe = document.createElement('iframe');
+      iframe.title = video.title;
+      iframe.allow =
+        'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      iframe.allowFullscreen = true;
+      iframe.className = 'h-full w-full border-0';
+      const params = new URLSearchParams({
+        autoplay: '1',
+        mute: '0',
+        playsinline: '1',
+        rel: '0',
+        modestbranding: '1',
+        controls: '0',
+        fs: '0',
+        disablekb: '1',
+        iv_load_policy: '3',
+        enablejsapi: '1',
+        origin: window.location.origin,
+      });
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(video.videoId)}?${params}`;
+      host.appendChild(iframe);
+      playerRef.current = new window.YT.Player(iframe, {
         events: {
           onReady: (event) => {
             allowYoutubePictureInPicture(event.target);
@@ -457,7 +464,7 @@ export default function YouTubeVideoModal({
 
   const mobileOverlay = (
     <>
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-12 pt-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/85 via-black/40 to-transparent px-3 pb-16 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
         <div className="pointer-events-auto flex items-start justify-end">
           <button
             type="button"

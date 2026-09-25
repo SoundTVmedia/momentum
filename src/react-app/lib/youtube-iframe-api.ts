@@ -122,11 +122,48 @@ export function allowYoutubePictureInPicture(player: YTPlayer | null | undefined
  * Moves the live iframe into a document picture-in-picture window so playback
  * continues while the shop opens. Restores the iframe when that window closes.
  */
+function youtubeEmbedIframe(player: YTPlayer | null | undefined): HTMLIFrameElement | null {
+  const fromPlayer = allowYoutubePictureInPicture(player);
+  if (fromPlayer) return fromPlayer;
+  if (typeof document === 'undefined') return null;
+  const found = document.querySelector('iframe[src*="youtube.com/embed"], iframe[src*="youtube-nocookie.com/embed"]');
+  return found instanceof HTMLIFrameElement ? found : null;
+}
+
 export async function enterYoutubePictureInPicture(
   player: YTPlayer | null | undefined,
 ): Promise<boolean> {
-  const iframe = allowYoutubePictureInPicture(player);
+  const iframe = youtubeEmbedIframe(player);
   if (!iframe) return false;
+
+  const pip = documentPictureInPicture();
+  if (pip) {
+    try {
+      const width = Math.max(320, Math.round(iframe.clientWidth || 480));
+      const height = Math.max(180, Math.round(iframe.clientHeight || 270));
+      const pipWindow = await pip.requestWindow({ width, height });
+      const parent = iframe.parentElement;
+      const next = iframe.nextSibling;
+      const style = pipWindow.document.createElement('style');
+      style.textContent = 'html,body{margin:0;height:100%;background:#000}iframe{width:100%;height:100%;border:0}';
+      pipWindow.document.head.appendChild(style);
+      pipWindow.document.body.appendChild(iframe);
+
+      const restore = () => {
+        if (!parent?.isConnected) return;
+        parent.insertBefore(iframe, next);
+      };
+      pipWindow.addEventListener('pagehide', restore, { once: true });
+      try {
+        player?.playVideo();
+      } catch {
+        /* embed keeps its current playback */
+      }
+      return true;
+    } catch {
+      /* fall through to the video element inside the embed */
+    }
+  }
 
   try {
     player?.playVideo();
@@ -140,32 +177,10 @@ export async function enterYoutubePictureInPicture(
       return enterClipPictureInPicture(video);
     }
   } catch {
-    /* cross-origin embed — use the document picture-in-picture window */
+    /* cross-origin embed */
   }
 
-  const pip = documentPictureInPicture();
-  if (!pip) return false;
-
-  try {
-    const width = Math.max(320, Math.round(iframe.clientWidth || 480));
-    const height = Math.max(180, Math.round(iframe.clientHeight || 270));
-    const pipWindow = await pip.requestWindow({ width, height });
-    const parent = iframe.parentElement;
-    const next = iframe.nextSibling;
-    const style = pipWindow.document.createElement('style');
-    style.textContent = 'html,body{margin:0;height:100%;background:#000}iframe{width:100%;height:100%;border:0}';
-    pipWindow.document.head.appendChild(style);
-    pipWindow.document.body.appendChild(iframe);
-
-    const restore = () => {
-      if (!parent?.isConnected) return;
-      parent.insertBefore(iframe, next);
-    };
-    pipWindow.addEventListener('pagehide', restore, { once: true });
-    return true;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 /** Keep modal playback unmuted once video is actually playing. */
