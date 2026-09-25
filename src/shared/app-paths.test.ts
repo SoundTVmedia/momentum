@@ -118,6 +118,25 @@ describe('clipShowClipsPath', () => {
     );
   });
 
+  it('opens every Shaky Knees clip on the same festival clips page', () => {
+    expect(
+      clipShowClipsPath({
+        event_title: 'Shaky Knees',
+        artist_name: 'OK Go',
+        show_id: 'jambase:15698172',
+        jambase_event_id: 'jambase:15698172',
+      }),
+    ).toBe('/events/clips/Shaky%20Knees');
+    expect(
+      clipShowClipsPath({
+        event_title: 'Shaky Knees',
+        artist_name: 'Bone Thugs-N-Harmony',
+        show_id: null,
+        jambase_event_id: null,
+      }),
+    ).toBe('/events/clips/Shaky%20Knees');
+  });
+
   it('keeps the event-title route when a legacy clip cannot identify a show', () => {
     expect(
       clipShowClipsPath({

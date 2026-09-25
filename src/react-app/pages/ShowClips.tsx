@@ -9,7 +9,14 @@ import ShowSetlistPanel from '@/react-app/components/ShowSetlistPanel';
 import type { ClipWithUser } from '@/shared/types';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import { apiFetch } from '@/react-app/lib/apiFetch';
-import { artistPath, festivalPageHrefFromEvent, showClipsPath, venuePath } from '@/shared/app-paths';
+import {
+  artistPath,
+  eventClipsPath,
+  festivalPageHrefFromEvent,
+  showClipsPath,
+  venuePath,
+} from '@/shared/app-paths';
+import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
 import { isJamBaseEventId, pickClipForShowHeader } from '@/shared/show-id';
 import { jamBaseEventTitle } from '@/shared/event-title';
 import { jamBaseEventIsConcluded, jamBaseEventUpcomingOrInProgress } from '@/shared/jambase-event-day';
@@ -76,6 +83,13 @@ export default function ShowClipsPage() {
             return showId.trim();
           }
         })();
+        const festivalTitle = result.clips
+          .map((clip) => (typeof clip.event_title === 'string' ? clip.event_title.trim() : ''))
+          .find((title) => title && isJamBaseFestivalEvent({ name: title }));
+        if (festivalTitle) {
+          navigate(eventClipsPath(festivalTitle), { replace: true });
+          return;
+        }
         const canonicalId = result.canonical_show_id?.trim() || '';
         if (canonicalId && canonicalId !== requestedId) {
           navigate(showClipsPath(artistName, canonicalId), { replace: true });

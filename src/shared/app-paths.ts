@@ -153,12 +153,17 @@ export function pastShowClipsPath(show: PastShowClipsInput): string {
 
 /** The exact show for a clip, with a title-based fallback for legacy clip rows. */
 export function clipShowClipsPath(clip: ClipShowClipsInput): string {
+  const eventTitle = resolveClipEventTitle(clip);
+  // Festival nights are one bill. Artist show ids omit clips that only stored the festival title.
+  if (eventTitle && isJamBaseFestivalEvent({ name: eventTitle })) {
+    return eventClipsPath(eventTitle);
+  }
+
   const showId = resolveClipShowNavigationId(clip);
   if (clip.artist_name?.trim() && showId) {
     return showClipsPath(clip.artist_name, showId);
   }
 
-  const eventTitle = resolveClipEventTitle(clip);
   return eventTitle ? eventClipsPath(eventTitle) : artistPath(clip.artist_name);
 }
 
