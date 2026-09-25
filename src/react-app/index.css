@@ -1557,6 +1557,21 @@ button, a, .interactive {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 
+/*
+ * iOS treats an overflow-x scroller as horizontal-only, so a vertical thumb
+ * drag that starts on a clip or show card never moves the page. Allow both
+ * axes on the scroller and everything inside it.
+ */
+.horizontal-carousel-scroll,
+.horizontal-carousel-scroll * {
+  touch-action: pan-x pan-y;
+}
+
+.horizontal-carousel-scroll {
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+}
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
