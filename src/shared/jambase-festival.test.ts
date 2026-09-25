@@ -127,6 +127,27 @@ describe('pickFestivalGroupForSlug', () => {
     );
     expect(group.map((ev) => ev.identifier).sort()).toEqual(['fri', 'sat']);
   });
+
+  it('keeps the past lineup when the next edition has none yet', () => {
+    const group = pickFestivalGroupForSlug(
+      [
+        {
+          identifier: 'past',
+          name: 'Shaky Knees',
+          startDate: '2026-09-18',
+          performer: lineup(['The Strokes', 'SZA']),
+        },
+        {
+          identifier: 'next',
+          name: 'Shaky Knees',
+          startDate: '2027-09-17',
+        },
+      ],
+      'shaky-knees',
+      Date.parse('2026-09-25T16:00:00Z'),
+    );
+    expect(group.map((ev) => ev.identifier)).toEqual(['past']);
+  });
 });
 
 describe('festivalPageFromEvents', () => {

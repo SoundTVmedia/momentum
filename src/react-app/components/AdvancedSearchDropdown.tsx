@@ -3,7 +3,14 @@ import { createPortal } from 'react-dom';
 import { Loader2, MapPin, Music, Ticket, Users } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import type { ClipWithUser } from '@/shared/types';
-import { artistPath, festivalPath, globalSongPath, jamBaseEventShowPath, venuePath } from '@/shared/app-paths';
+import {
+  artistPath,
+  festivalPath,
+  globalSongPath,
+  jamBaseEventShowPath,
+  pastShowClipsPath,
+  venuePath,
+} from '@/shared/app-paths';
 import { clipListItemKey } from '@/react-app/lib/clip-list-key';
 import ClipPosterImage from '@/react-app/components/ClipPosterImage';
 import UserAvatar from '@/react-app/components/UserAvatar';
@@ -16,6 +23,8 @@ import {
 } from '@/react-app/lib/advanced-search';
 import { displayMediaUrl } from '@/shared/media-proxy';
 import { isJamBaseFestivalEvent } from '@/shared/jambase-festival';
+import { jamBaseEventVenueName } from '@/shared/jambase-events';
+import { formatShowCardDate } from '@/shared/show-timestamp';
 import {
   discoverResultsAreVenueIntent,
   jamBaseSearchRecordName,
@@ -30,7 +39,7 @@ export type SearchDropdownSection =
   | 'shows'
   | 'songs';
 
-/** Universal typeahead: artists, venues, Feedback users, events, and songs. */
+/** Universal typeahead: artists, venues, Feedback users, shows, and songs. */
 export const UNIVERSAL_SEARCH_SECTIONS: SearchDropdownSection[] = [
   'artists',
   'friends',
@@ -43,6 +52,64 @@ const DEFAULT_SECTIONS: SearchDropdownSection[] = [
   'clips',
   ...UNIVERSAL_SEARCH_SECTIONS,
 ];
+
+const UNIVERSAL_SHOW_LIMIT = 6;
+
+type UniversalShowHit = {
+  key: string;
+  title: string;
+  subtitle: string;
+  href: string | null;
+  festival: boolean;
+  ticket: string | null;
+};
+
+function showSubtitle(date: string, venue: string): string {
+  const when = date.trim() ? formatShowCardDate(date) : '';
+  const where = venue.trim() && venue.trim() !== 'Venue TBA' ? venue.trim() : '';
+  return [when, where].filter(Boolean).join(' · ');
+}
+
+/** Past archive, library nights, and upcoming shows for the universal typeahead. */
+function universalShowHits(results: AdvancedSearchPayload): UniversalShowHit[] {
+  const hits: UniversalShowHit[] = [];
+  const seen = new Set<string>();
+
+  for (const ev of results.jambase?.events ?? []) {
+    const id = typeof ev.identifier === 'string' ? ev.identifier.trim() : '';
+    const title = typeof ev.name === 'string' && ev.name.trim() ? ev.name.trim() : 'Show';
+    const start = typeof ev.startDate === 'string' ? ev.startDate : '';
+    const key = id || `${title}|${start}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const href = jamBaseEventShowPath(ev);
+    hits.push({
+      key,
+      title,
+      subtitle: showSubtitle(start, jamBaseEventVenueName(ev)),
+      href: href || null,
+      festival: isJamBaseFestivalEvent(ev),
+      ticket: jamBaseEventTicket(ev),
+    });
+  }
+
+  for (const show of results.pastShows ?? []) {
+    const id = (show.jambase_event_id || show.show_id || '').trim();
+    const key = id || `${show.event_title}|${show.show_date}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    hits.push({
+      key,
+      title: show.event_title,
+      subtitle: showSubtitle(show.show_date, show.venue_name ?? ''),
+      href: pastShowClipsPath(show),
+      festival: false,
+      ticket: null,
+    });
+  }
+
+  return hits.slice(0, UNIVERSAL_SHOW_LIMIT);
+}
 
 type Props = {
   query: string;
@@ -102,6 +169,7 @@ function SearchDropdownPanel({
         )
       : [];
   const showResults = Boolean(results) && (hasHits || revalidating);
+  const showHits = results ? universalShowHits(results) : [];
 
   return (
     <div className={className} role="listbox" aria-label="Search suggestions">
@@ -283,62 +351,65 @@ function SearchDropdownPanel({
               })}
             </div>
           )}
-          {show('shows') && results.jambase && results.jambase.events.length > 0 && (
+          {show('shows') && showHits.length > 0 && (
             <div className="border-b border-white/10">
               <div className="px-3 py-2 text-xs font-semibold text-momentum-ember/90 uppercase tracking-wide flex items-center gap-1">
-                <Ticket className="w-3.5 h-3.5" /> Events
+                <Ticket className="w-3.5 h-3.5" /> Shows
               </div>
-              {results.jambase.events.slice(0, 4).map((ev) => {
-                const id =
-                  typeof ev.identifier === 'string' ? ev.identifier : String(ev.startDate);
-                const title = typeof ev.name === 'string' ? ev.name : 'Show';
-                const ticket = jamBaseEventTicket(ev);
-                const festival = isJamBaseFestivalEvent(ev);
-                const showHref = jamBaseEventShowPath(ev);
-                return (
-                  <div
-                    key={id}
-                    className="px-3 py-2 border-t border-white/5 flex items-center gap-2"
-                  >
-                    {festival ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          navigate(festivalPath(title));
-                        }}
-                        className="text-sm text-gray-200 flex-1 min-w-0 truncate text-left hover:text-white"
-                      >
-                        {title}
-                      </button>
-                    ) : showHref ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          navigate(showHref);
-                        }}
-                        className="text-sm text-gray-200 flex-1 min-w-0 truncate text-left hover:text-white"
-                      >
-                        {title}
-                      </button>
-                    ) : (
-                      <span className="text-sm text-gray-200 flex-1 min-w-0 truncate">{title}</span>
-                    )}
-                    {ticket ? (
-                      <a
-                        href={ticket}
-                        target="_blank"
-                        rel="nofollow noopener noreferrer"
-                        className="text-xs text-momentum-glacier hover:underline flex-shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Tickets
-                      </a>
-                    ) : null}
-                  </div>
-                );
-              })}
+              {showHits.map((hit) => (
+                <div
+                  key={hit.key}
+                  className="px-3 py-2 border-t border-white/5 flex items-center gap-2"
+                >
+                  {hit.festival ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        navigate(festivalPath(hit.title));
+                      }}
+                      className="flex-1 min-w-0 text-left hover:text-white"
+                    >
+                      <span className="block truncate text-sm text-gray-200">{hit.title}</span>
+                      {hit.subtitle ? (
+                        <span className="block truncate text-xs text-gray-500">{hit.subtitle}</span>
+                      ) : null}
+                    </button>
+                  ) : hit.href ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        navigate(hit.href!);
+                      }}
+                      className="flex-1 min-w-0 text-left hover:text-white"
+                    >
+                      <span className="block truncate text-sm text-gray-200">{hit.title}</span>
+                      {hit.subtitle ? (
+                        <span className="block truncate text-xs text-gray-500">{hit.subtitle}</span>
+                      ) : null}
+                    </button>
+                  ) : (
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate text-sm text-gray-200">{hit.title}</span>
+                      {hit.subtitle ? (
+                        <span className="block truncate text-xs text-gray-500">{hit.subtitle}</span>
+                      ) : null}
+                    </span>
+                  )}
+                  {hit.ticket ? (
+                    <a
+                      href={hit.ticket}
+                      target="_blank"
+                      rel="nofollow noopener noreferrer"
+                      className="text-xs text-momentum-glacier hover:underline flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Tickets
+                    </a>
+                  ) : null}
+                </div>
+              ))}
             </div>
           )}
           {show('songs') && (results.songs ?? []).length > 0 && (

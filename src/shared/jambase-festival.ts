@@ -286,11 +286,23 @@ export function pickFestivalGroupForSlug(
   const scored = groups.map((group) => {
     const starts = group.map(eventStartMs).filter((ms) => Number.isFinite(ms));
     const soonest = starts.length ? Math.min(...starts) : Number.POSITIVE_INFINITY;
-    const upcomingBoost = soonest >= nowMs - 12 * 60 * 60 * 1000 ? 0 : Number.MAX_SAFE_INTEGER / 4;
+    const upcoming = soonest >= nowMs - 12 * 60 * 60 * 1000;
     const lineup = mergeFestivalLineups(group).length;
-    return { group, soonest: soonest + upcomingBoost, lineup };
+    return {
+      group,
+      hasLineup: lineup > 0 ? 0 : 1,
+      upcoming: upcoming ? 0 : 1,
+      recency: upcoming ? soonest : -soonest,
+      lineup,
+    };
   });
-  scored.sort((a, b) => a.soonest - b.soonest || b.lineup - a.lineup);
+  scored.sort(
+    (a, b) =>
+      a.hasLineup - b.hasLineup ||
+      a.upcoming - b.upcoming ||
+      a.recency - b.recency ||
+      b.lineup - a.lineup,
+  );
   return scored[0]?.group ?? [];
 }
 

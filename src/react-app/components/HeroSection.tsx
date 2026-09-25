@@ -12,13 +12,10 @@ import FindAShowModal from '@/react-app/components/FindAShowModal';
 import JamBaseWordmark from '@/react-app/components/JamBaseWordmark';
 import { JAMBASE_HOME_URL } from '@/react-app/components/PoweredByJamBase';
 import ClipModal from '@/react-app/components/ClipModal';
-import UserAvatar from '@/react-app/components/UserAvatar';
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import { clipNumericId } from '@/react-app/lib/clip-numeric-id';
 import { fetchRelatedClips } from '@/react-app/lib/fetchRelatedClips';
 import { prefetchModalPlayback } from '@/react-app/lib/clipPlaybackPrefetch';
-import { clipPostedAt, formatRelativeTime } from '@/react-app/lib/formatRelativeTime';
-import { formatCount } from '@/react-app/lib/formatCount';
 import type { ClipWithUser } from '@/shared/types';
 import { apiEventClipsPath } from '@/shared/app-paths';
 import { resolveClipEventTitle } from '@/shared/event-title';
@@ -210,9 +207,6 @@ function FeaturedClipSlide({
   const name = slide?.displayName ?? clip?.user_display_name?.trim() ?? 'Fan';
   const canOpen = clip != null && slide != null;
   const eventTitle = clip ? resolveClipEventTitle(clip) : null;
-  const artistName = clip?.artist_name?.trim() || null;
-  const songTitle = clip?.song_title?.trim() || null;
-  const venueLine = [clip?.venue_name?.trim(), clip?.location?.trim()].filter(Boolean).join(' · ');
 
   const onPlay = () => {
     if (!canOpen) return;
@@ -281,49 +275,9 @@ function FeaturedClipSlide({
               decoding="async"
             />
           </div>
-          {slide ? (
-            <div className="mt-1 flex max-w-full items-center gap-2.5">
-              <UserAvatar
-                imageUrl={slide.avatarUrl}
-                displayName={name}
-                seed={slide.mochaUserId}
-                alt={name}
-                sizeClass="h-9 w-9 sm:h-10 sm:w-10"
-                letterClassName="text-sm font-semibold"
-              />
-              <span className="min-w-0 truncate text-sm font-semibold text-white drop-shadow sm:text-base">
-                {name}
-                {clip ? (
-                  <span className="ml-1.5 font-medium text-white/65">
-                    · {formatRelativeTime(clipPostedAt(clip))}
-                  </span>
-                ) : null}
-              </span>
-            </div>
-          ) : null}
           {eventTitle ? (
             <p className="max-w-full truncate text-sm font-bold text-white drop-shadow sm:text-base">
               {eventTitle}
-            </p>
-          ) : null}
-          {artistName ? (
-            <p className="fb-clip-artist-name max-w-full truncate text-white drop-shadow">
-              {artistName}
-            </p>
-          ) : null}
-          {songTitle ? (
-            <p className="fb-clip-song max-w-full truncate text-white/90 drop-shadow">
-              {songTitle}
-            </p>
-          ) : null}
-          {venueLine ? (
-            <p className="fb-clip-place-row max-w-full truncate text-white/80 drop-shadow">
-              {venueLine}
-            </p>
-          ) : null}
-          {clip && (clip.likes_count > 0 || clip.views_count > 0) ? (
-            <p className="text-[11px] font-semibold text-white/75 sm:text-xs">
-              {formatCount(clip.likes_count)} likes · {formatCount(clip.views_count)} views
             </p>
           ) : null}
         </div>

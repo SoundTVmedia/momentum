@@ -5,6 +5,8 @@ import {
   festivalSlugMatches,
   festivalTitleSearchPhrases,
   isJamBaseFestivalEvent,
+  jamBaseEventPerformerCount,
+  mergeFestivalLineups,
   pickFestivalGroupForSlug,
   type FestivalLineupArtist,
 } from '../shared/jambase-festival';
@@ -24,6 +26,7 @@ import {
   storeCachedEventList,
 } from './jambase-cache';
 import {
+  jamBaseEventDateFromDaysAgo,
   jamBaseQuotaFromEnv,
   type JamBaseQuotaContext,
 } from './jambase-client';
@@ -33,37 +36,58 @@ import {
   fetchJamBaseEventsByVenueName,
 } from './jambase-endpoints';
 import {
+  JAMBASE_ARCHIVE_LOOKBACK_DAYS,
   jamBaseEventIdentifier,
   dedupeJamBaseEvents,
   fetchJamBaseEventsByEventName,
 } from './jambase-events-search';
+
+async function searchFestivalTitle(
+  apiKey: string,
+  quota: JamBaseQuotaContext | undefined,
+  title: string,
+  eventType?: 'festival',
+): Promise<Record<string, unknown>[]> {
+  const upcomingFrom = jamBaseVenueEventLookbackDateFrom();
+  const archiveFrom = jamBaseEventDateFromDaysAgo(JAMBASE_ARCHIVE_LOOKBACK_DAYS);
+  const [upcoming, past] = await Promise.all([
+    fetchJamBaseEventsByEventName(apiKey, title, quota, {
+      eventType,
+      perPage: '50',
+      eventDateFrom: upcomingFrom,
+    }),
+    fetchJamBaseEventsByEventName(apiKey, title, quota, {
+      eventType,
+      perPage: '50',
+      eventDateFrom: archiveFrom,
+      expandPastEvents: 'true',
+    }),
+  ]);
+  return dedupeJamBaseEvents([...upcoming, ...past]);
+}
 
 async function searchFestivalEvents(
   apiKey: string,
   quota: JamBaseQuotaContext | undefined,
   phrase: string,
 ): Promise<Record<string, unknown>[]> {
-  const fromDate = jamBaseVenueEventLookbackDateFrom();
   const phrases = festivalTitleSearchPhrases(phrase);
   let merged: Record<string, unknown>[] = [];
 
   for (const title of phrases) {
-    const fests = await fetchJamBaseEventsByEventName(apiKey, title, quota, {
-      eventType: 'festival',
-      perPage: '50',
-      eventDateFrom: fromDate,
-    });
-    merged = dedupeJamBaseEvents([...merged, ...fests]);
+    merged = dedupeJamBaseEvents([
+      ...merged,
+      ...(await searchFestivalTitle(apiKey, quota, title, 'festival')),
+    ]);
     if (merged.length > 0) break;
   }
 
   if (merged.length === 0) {
     for (const title of phrases) {
-      const titled = await fetchJamBaseEventsByEventName(apiKey, title, quota, {
-        perPage: '50',
-        eventDateFrom: fromDate,
-      });
-      merged = dedupeJamBaseEvents([...merged, ...titled]);
+      merged = dedupeJamBaseEvents([
+        ...merged,
+        ...(await searchFestivalTitle(apiKey, quota, title)),
+      ]);
       if (merged.length > 0) break;
     }
   }
@@ -82,6 +106,19 @@ async function searchFestivalEvents(
   ]);
   merged = dedupeJamBaseEvents([...merged, ...byArtist.events, ...byVenue.events]);
   return merged;
+}
+
+function pickFestivalEdition(
+  events: Record<string, unknown>[],
+  slug: string,
+): Record<string, unknown>[] {
+  let group = pickFestivalGroupForSlug(events, slug);
+  if (group.length === 0) {
+    group = events.filter((ev) =>
+      festivalSlugMatches(typeof ev.name === 'string' ? ev.name : '', slug),
+    );
+  }
+  return group.length > 0 ? group : events;
 }
 
 function rewriteLineup(
@@ -107,47 +144,46 @@ export async function buildFestivalPagePayload(c: Context): Promise<Record<strin
   const festivalListKey = jamBaseFestivalPageListKey(slug);
 
   let group: Record<string, unknown>[] = [];
-  let fromFestivalCache = false;
-  if (db && festivalListKey) {
-    const cached = await lookupCachedEventList(db, festivalListKey);
-    if (cached && cached.length > 0) {
-      group = pickFestivalGroupForSlug(cached, slug);
-      if (group.length === 0) {
-        group = cached.filter((ev) =>
-          festivalSlugMatches(typeof ev.name === 'string' ? ev.name : '', slug),
-        );
-      }
-      if (group.length === 0) group = cached;
-      fromFestivalCache = group.length > 0;
-    }
-  }
+  const fresh =
+    db && festivalListKey ? await lookupCachedEventList(db, festivalListKey) : null;
+  const freshGroup = fresh && fresh.length > 0 ? pickFestivalEdition(fresh, slug) : [];
+  const freshLineup = mergeFestivalLineups(freshGroup).length;
+  let cached = fresh;
 
-  if (group.length === 0 && apiKey?.trim() && phrase) {
+  if (freshLineup > 0) {
+    group = freshGroup;
+  } else if (apiKey?.trim() && phrase) {
+    cached =
+      fresh ??
+      (db && festivalListKey
+        ? await lookupCachedEventList(db, festivalListKey, { allowStale: true })
+        : null);
     const events = await searchFestivalEvents(apiKey, jbQ, phrase);
-    group = pickFestivalGroupForSlug(events, slug);
-    if (group.length === 0) {
-      group = events.filter((ev) =>
-        festivalSlugMatches(typeof ev.name === 'string' ? ev.name : '', slug),
-      );
-    }
+    group = pickFestivalEdition(dedupeJamBaseEvents([...(cached ?? []), ...events]), slug);
+  } else if (freshGroup.length > 0) {
+    group = freshGroup;
   }
 
-  if (group.length > 0 && !fromFestivalCache && apiKey?.trim()) {
-    const richest = [...group].sort((a, b) => {
-      const ap = Array.isArray(a.performer) ? a.performer.length : 0;
-      const bp = Array.isArray(b.performer) ? b.performer.length : 0;
-      return bp - ap;
-    })[0];
+  if (group.length > 0 && mergeFestivalLineups(group).length === 0 && apiKey?.trim()) {
+    const richest = [...group].sort(
+      (a, b) => jamBaseEventPerformerCount(b) - jamBaseEventPerformerCount(a),
+    )[0];
     const id = jamBaseEventIdentifier(richest ?? {});
     if (id) {
       const full = await fetchJamBaseEventById(apiKey, jbQ, id);
-      if (full) {
+      if (full && jamBaseEventPerformerCount(full) > 0) {
         group = [full, ...group.filter((ev) => jamBaseEventIdentifier(ev) !== id)];
       }
     }
   }
 
-  if (!fromFestivalCache && db && festivalListKey && group.length > 0) {
+  const cachedLineup =
+    cached && cached.length > 0 ? mergeFestivalLineups(pickFestivalEdition(cached, slug)).length : 0;
+  if (
+    db &&
+    festivalListKey &&
+    mergeFestivalLineups(group).length > cachedLineup
+  ) {
     await storeCachedEventList(db, festivalListKey, group);
   }
 

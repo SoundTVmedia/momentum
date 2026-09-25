@@ -559,12 +559,13 @@ async function loadEventsByIds(
 async function readEventList(
   db: D1Database,
   listKey: string,
+  allowStale = false,
 ): Promise<Record<string, unknown>[] | null> {
   const row = await db
     .prepare(`SELECT event_ids, fetched_at FROM jambase_event_lists WHERE list_key = ? LIMIT 1`)
     .bind(listKey)
     .first<{ event_ids: string; fetched_at: string }>();
-  if (!row || !jamBaseListCacheIsFresh(row.fetched_at)) return null;
+  if (!row || (!allowStale && !jamBaseListCacheIsFresh(row.fetched_at))) return null;
   const ids = parseJsonArray(row.event_ids).filter((x): x is string => typeof x === 'string');
   const events = await loadEventsByIds(db, ids);
   return events;
@@ -574,10 +575,11 @@ async function readEventList(
 export async function lookupCachedEventList(
   db: D1Database,
   listKey: string,
+  opts?: { allowStale?: boolean },
 ): Promise<Record<string, unknown>[] | null> {
   if (!listKey.trim()) return null;
   try {
-    return await readEventList(db, listKey);
+    return await readEventList(db, listKey, opts?.allowStale === true);
   } catch (e) {
     console.error('[JamBase] event list lookup failed', e);
     return null;

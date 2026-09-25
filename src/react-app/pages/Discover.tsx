@@ -150,7 +150,6 @@ function pastShowDedupeKey(show: DiscoverPastShow): string {
 function jamBaseClipEventToPastShow(event: Record<string, unknown>): DiscoverPastShow | null {
   if (isJamBaseFestivalEvent(event) || jamBaseEventUpcomingOrInProgress(event)) return null;
   const clipCount = Number(event['x-clipCount']) || 0;
-  if (clipCount <= 0) return null;
   const eventTitle = typeof event.name === 'string' ? event.name.trim() : '';
   const artistName = jamBaseEventArtistName(event);
   const showDate = typeof event.startDate === 'string' ? event.startDate.trim() : '';
@@ -179,7 +178,6 @@ function jamBaseClipEventToPastShow(event: Record<string, unknown>): DiscoverPas
 function mergeDiscoverPastShows(rows: DiscoverPastShow[]): DiscoverPastShow[] {
   const byKey = new Map<string, DiscoverPastShow>();
   for (const row of rows) {
-    if (row.clip_count <= 0) continue;
     const key = pastShowDedupeKey(row);
     const existing = byKey.get(key);
     if (!existing) {
@@ -621,7 +619,7 @@ export default function DiscoverPage() {
                 className="app-searchbar-hero min-w-0 flex-1"
                 value={searchQuery}
                 debounce={0}
-                placeholder="Search artists, venues, cities..."
+                placeholder="Search artists, venues, shows, cities..."
                 onIonInput={(e) => setSearchQuery(e.detail.value ?? '')}
               />
               <IonButtons>

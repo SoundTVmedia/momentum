@@ -16,7 +16,7 @@ export type HeroSearchBarProps = {
   className?: string;
 };
 
-/** Primary discovery entry — artists, venues, people, events, and songs. Enter → Discover. */
+/** Primary discovery entry — artists, venues, people, shows, and songs. Enter → Discover. */
 export default function HeroSearchBar({
   initialQuery = '',
   className = '',
@@ -98,12 +98,12 @@ export default function HeroSearchBar({
               type="search"
               className="hero-search-input"
               value={query}
-              placeholder="Search artists, friends, venues, songs…"
+              placeholder="Search artists, friends, venues, songs, or shows…"
               enterKeyHint="search"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
-              aria-label="Search artists, friends, venues, songs"
+              aria-label="Search artists, friends, venues, songs, or shows"
               onChange={(e) => handleInput(e.target.value)}
               onFocus={() => query.trim().length >= 2 && setShowResults(true)}
             />
