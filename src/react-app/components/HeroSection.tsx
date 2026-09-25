@@ -253,10 +253,14 @@ function FeaturedClipMedia({
 
 function FeaturedClipSlide({
   clip,
+  playing,
+  active,
   onOpen,
   consumeSwipeClick,
 }: {
   clip: ClipWithUser | null;
+  playing: boolean;
+  active: boolean;
   onOpen: () => void;
   consumeSwipeClick: () => boolean;
 }) {
@@ -281,6 +285,7 @@ function FeaturedClipSlide({
         if (clip) prefetchModalPlayback(clip);
       }}
     >
+      <FeaturedClipMedia clip={clip} playing={playing} active={active} />
       <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/80 via-black/35 to-transparent pb-8 pt-16 sm:pb-11">
         <div className="flex max-w-[min(24rem,calc(100%-5.5rem))] flex-col items-start gap-1 px-4 text-left sm:px-6">
@@ -482,39 +487,21 @@ export default function HeroSection({
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      <div className="hero-carousel__stages" aria-hidden>
-        <div className={`hero-carousel__stage${index === 0 ? ' is-active' : ''}`}>
-          <HeroConcertBackdrop
-            key={slidesA[0]?.src ?? 'slide-a'}
-            slides={slidesA}
-            playing={!reducedMotion}
-            loadVideo={!reducedMotion}
-            visible={index === 0}
-          />
-        </div>
-        <div className={`hero-carousel__stage${index === 1 ? ' is-active' : ''}`}>
-          <HeroConcertBackdrop
-            key={slidesB[0]?.src ?? 'slide-b'}
-            slides={slidesB}
-            playing={!reducedMotion}
-            loadVideo={!reducedMotion}
-            visible={index === 1}
-          />
-        </div>
-        <div className={`hero-carousel__stage${index === 2 ? ' is-active' : ''}`}>
-          <FeaturedClipMedia
-            clip={featured}
-            playing={!reducedMotion && !clipModal}
-            active={index === 2}
-          />
-        </div>
-      </div>
       <div
         className="hero-carousel__track"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         <div className="hero-carousel__slide" aria-hidden={index !== 0}>
           <div className="hero-carousel__fill">
+            <div className="absolute inset-0 hero-concert-photo" aria-hidden>
+              <HeroConcertBackdrop
+                key={slidesA[0]?.src ?? 'slide-a'}
+                slides={slidesA}
+                playing={!reducedMotion}
+                loadVideo={!reducedMotion}
+                visible={index === 0}
+              />
+            </div>
             <div className="absolute inset-0 hero-concert-sweep" aria-hidden />
             <div className="absolute inset-0 hero-grad-brand" aria-hidden />
             <div className="absolute inset-0 hero-concert-scrim" aria-hidden />
@@ -582,6 +569,15 @@ export default function HeroSection({
 
         <div className="hero-carousel__slide" aria-hidden={index !== 1}>
           <div className="hero-carousel__fill">
+            <div className="absolute inset-0 hero-concert-photo" aria-hidden>
+              <HeroConcertBackdrop
+                key={slidesB[0]?.src ?? 'slide-b'}
+                slides={slidesB}
+                playing={!reducedMotion}
+                loadVideo={!reducedMotion}
+                visible={index === 1}
+              />
+            </div>
             <div className="absolute inset-0 hero-jambase-grade" aria-hidden />
             <div className="absolute inset-0 hero-jambase-wash" aria-hidden />
             <div className="relative z-10 flex min-h-[14.026rem] flex-col items-center justify-center px-4 py-3 text-center sm:min-h-[23.377rem] sm:px-6 sm:py-8 lg:min-h-[28.052rem]">
@@ -610,6 +606,8 @@ export default function HeroSection({
         <div className="hero-carousel__slide" aria-hidden={index !== 2}>
           <FeaturedClipSlide
             clip={featured}
+            playing={!reducedMotion && !clipModal}
+            active={index === 2}
             onOpen={openFeaturedClip}
             consumeSwipeClick={consumeSwipeClick}
           />
