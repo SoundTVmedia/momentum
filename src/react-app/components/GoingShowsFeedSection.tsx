@@ -5,7 +5,7 @@ import { useAuth } from '@getmocha/users-service/react';
 import HorizontalClipCarousel, {
   HorizontalClipCarouselItem,
 } from '@/react-app/components/HorizontalClipCarousel';
-import { Section } from '@/react-app/components/ui';
+import SectionHeading from '@/react-app/components/SectionHeading';
 import ShowMarkButtons from '@/react-app/components/ShowMarkButtons';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
@@ -182,12 +182,14 @@ export default function GoingShowsFeedSection() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className={`${HOME_FEED_SECTION_CLASS} space-y-10`}>
       {friendCards.length > 0 ? (
-        <Section
-          title="Friends' plans"
-          description="Shows people you follow marked as going."
-        >
+        <section>
+          <SectionHeading
+            title="Friends Plans"
+            subtitle="Shows people you follow marked as Going"
+            size="section"
+          />
           <HorizontalClipCarousel
             stretchItems
             ariaLabel="Friends going to shows"
@@ -204,7 +206,7 @@ export default function GoingShowsFeedSection() {
               </HorizontalClipCarouselItem>
             ))}
           </HorizontalClipCarousel>
-        </Section>
+        </section>
       ) : null}
     </div>
   );
