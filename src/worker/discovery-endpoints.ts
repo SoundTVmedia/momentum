@@ -178,6 +178,7 @@ async function pastShowsForDiscoverSearch(
   songs: SearchSongRow[],
   venues: Array<{ name: string }>,
   limit: number,
+  prefetchedLibrary?: PastShowListRow[] | null,
 ): Promise<DiscoverPastShowRow[]> {
   if (limit <= 0) return [];
   const trimmed = query.trim();
@@ -206,9 +207,8 @@ async function pastShowsForDiscoverSearch(
   const perEntity =
     entityCount > 0 ? Math.max(4, Math.ceil(limit / entityCount)) : 0;
 
-  const [libraryHits, ...entityBatches] = await Promise.all([
-    searchLibraryShows(db, trimmed, Math.max(limit * 2, 12)),
-    ...(uniqueArtists.length > 0 || targetedSongs.length > 0
+  const entityWork =
+    uniqueArtists.length > 0 || targetedSongs.length > 0
       ? [
           ...uniqueArtists.map((name) =>
             listPastShowsForEntity(db, { artistName: name, limit: perEntity }),
@@ -217,7 +217,13 @@ async function pastShowsForDiscoverSearch(
         ]
       : uniqueVenues.map((name) =>
           listPastShowsForEntity(db, { venueName: name, limit: perEntity }),
-        )),
+        );
+
+  const [libraryHits, entityBatches] = await Promise.all([
+    prefetchedLibrary
+      ? Promise.resolve(prefetchedLibrary)
+      : searchLibraryShows(db, trimmed, Math.max(limit * 2, 12)),
+    Promise.all(entityWork),
   ]);
 
   const clipped = dedupeDiscoverPastShows([...libraryHits, ...entityBatches.flat()])
@@ -583,6 +589,7 @@ export async function advancedSearch(c: Context) {
   const dateRange = c.req.query('dateRange') || '30d';
   const sortBy = c.req.query('sortBy') || 'latest';
   const compact = c.req.query('compact') === '1';
+  const localOnly = c.req.query('scope') === 'local';
   const clipLimit = compact ? 6 : 30;
   const venueLimit = compact ? 6 : 20;
   const userLimit = compact ? 6 : 20;
@@ -606,10 +613,12 @@ export async function advancedSearch(c: Context) {
   const jbKeyTrimmed = typeof jbKey === 'string' ? jbKey.trim() : '';
   const jbQ = jamBaseQuotaFromEnv(c.env);
 
-  const [profileRadiusMiles, geoAnchor] = await Promise.all([
-    resolveUserSearchRadius(c.env.DB, mochaUser ?? null),
-    resolveSearchGeoAnchor(c.env.GOOGLE_MAPS_API_KEY, trimmedQuery),
-  ]);
+  const geoAnchor = localOnly
+    ? null
+    : await resolveSearchGeoAnchor(c.env.GOOGLE_MAPS_API_KEY, trimmedQuery);
+  const profileRadiusMiles = geoAnchor
+    ? await resolveUserSearchRadius(c.env.DB, mochaUser ?? null)
+    : 50;
   const radiusMiles = parseSearchRadiusMiles(c.req.query('radius_miles')) ?? profileRadiusMiles;
 
   if (geoAnchor) {
@@ -727,8 +736,15 @@ export async function advancedSearch(c: Context) {
     searchLibrarySongs(c.env.DB, trimmedQuery, songLimit),
   ]);
 
+  const libraryPromise = searchLibraryShows(
+    c.env.DB,
+    trimmedQuery,
+    compact || localOnly ? 8 : 24,
+  );
+  const hiddenAuthorsPromise = getHiddenUserIdsForRequest(c);
+
   const jbPromise =
-    trimmedQuery.length >= 2 && jbKeyTrimmed
+    !localOnly && trimmedQuery.length >= 2 && jbKeyTrimmed
       ? compact
         ? fetchJamBaseCompactCatalog(jbKeyTrimmed, trimmedQuery, jbQ, c.env.DB).then((jb) => ({
             artists: jb.artists,
@@ -785,7 +801,12 @@ export async function advancedSearch(c: Context) {
           failed: false,
         });
 
-  const [[clips, venues, users, songs], jbResult] = await Promise.all([d1Promise, jbPromise]);
+  const [[clips, venues, users, songs], jbResult, libraryHits, hiddenAuthors] = await Promise.all([
+    d1Promise,
+    jbPromise,
+    libraryPromise,
+    hiddenAuthorsPromise,
+  ]);
 
   const jambase = {
     artists: jbResult.artists,
@@ -793,7 +814,7 @@ export async function advancedSearch(c: Context) {
     events: jbResult.events,
   };
   let jambaseNotice: string | null = null;
-  if (trimmedQuery.length >= 2 && !jamBaseApiKeyConfigured(jbKey)) {
+  if (!localOnly && trimmedQuery.length >= 2 && !jamBaseApiKeyConfigured(jbKey)) {
     jambaseNotice = jamBaseMissingKeyNotice();
   } else if (jbResult.failed) {
     jambaseNotice =
@@ -803,7 +824,7 @@ export async function advancedSearch(c: Context) {
 
   const venuesBase = (venues.results ?? []) as SearchVenueRow[];
   const searchArtists = mapJamBaseArtistsToSearchRows(jambase.artists);
-  const enrichedVenues = compact
+  const enrichedVenues = localOnly || compact
     ? matchSearchVenuesToJamBaseCatalog(venuesBase, jambase.venues)
     : await enrichSearchVenuesWithJamBase(
         c.env.DB,
@@ -820,7 +841,6 @@ export async function advancedSearch(c: Context) {
   });
 
   const mediaOrigin = clientMediaOrigin(c);
-  const hiddenAuthors = await getHiddenUserIdsForRequest(c);
   if (hiddenAuthors.size > 0) {
     c.header('Cache-Control', 'private, no-store, must-revalidate');
   }
@@ -844,15 +864,23 @@ export async function advancedSearch(c: Context) {
       return row;
     });
 
+  const pastShowLimit = compact || localOnly ? 4 : 12;
   const pastShows = (
-    await pastShowsForDiscoverSearch(
-      c.env.DB,
-      trimmedQuery,
-      searchArtists,
-      songs,
-      [...enrichedVenues, ...jamBaseVenueNameRows(jambase.venues)],
-      compact ? 4 : 12,
-    )
+    localOnly
+      ? dedupeDiscoverPastShows(libraryHits)
+          .filter((row) => Number(row.clip_count) > 0)
+          .slice(0, pastShowLimit)
+          .map(pastShowRowToDiscover)
+          .filter((row): row is DiscoverPastShowRow => row != null)
+      : await pastShowsForDiscoverSearch(
+          c.env.DB,
+          trimmedQuery,
+          searchArtists,
+          songs,
+          [...enrichedVenues, ...jamBaseVenueNameRows(jambase.venues)],
+          pastShowLimit,
+          libraryHits,
+        )
   ).map((row) => rewritePastShowMedia(row, mediaOrigin));
 
   return c.json({

@@ -1789,7 +1789,7 @@ app.get("/api/clips", optionalAuthMiddleware, async (c) => {
     c.header('Cache-Control', 'private, no-store, must-revalidate');
     c.header('Pragma', 'no-cache');
   } else {
-    c.header('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+    cacheJsonProxy(c, { browserMaxAge: 30, cdnMaxAge: 120, staleWhileRevalidate: 60 });
   }
 
   const rows = (clips.results || []) as Record<string, unknown>[];

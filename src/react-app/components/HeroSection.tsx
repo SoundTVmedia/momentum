@@ -341,14 +341,10 @@ export default function HeroSection({
 
   const loadHeroClips = useCallback(async () => {
     try {
-      const [viewedRes, likedRes, latestRes] = await Promise.all([
-        fetch('/api/clips?limit=10&sort_by=most_viewed', { credentials: 'include' }),
+      const [likedRes, latestRes] = await Promise.all([
         fetch('/api/clips?limit=24&sort_by=most_liked', { credentials: 'include' }),
         fetch('/api/clips?limit=16&sort_by=latest', { credentials: 'include' }),
       ]);
-      const viewedData = viewedRes.ok
-        ? ((await viewedRes.json()) as { clips?: ClipWithUser[] })
-        : { clips: [] };
       const likedData = likedRes.ok
         ? ((await likedRes.json()) as { clips?: ClipWithUser[] })
         : { clips: [] };
@@ -356,7 +352,6 @@ export default function HeroSection({
         ? ((await latestRes.json()) as { clips?: ClipWithUser[] })
         : { clips: [] };
       const pool = uniquePlayableClips([
-        ...(viewedData.clips ?? []),
         ...(likedData.clips ?? []),
         ...(latestData.clips ?? []),
       ]);

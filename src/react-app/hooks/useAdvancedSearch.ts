@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AdvancedSearchPayload } from '@/react-app/lib/advanced-search';
 import { fetchAdvancedSearch } from '@/react-app/lib/fetch-advanced-search';
 import {
+  isCachedAdvancedSearchFresh,
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
 } from '@/react-app/lib/advanced-search-cache';
@@ -28,6 +29,16 @@ export function useAdvancedSearch() {
       return;
     }
 
+    if (isCachedAdvancedSearchFresh(trimmed)) {
+      const fresh = peekCachedAdvancedSearch(trimmed);
+      if (fresh) {
+        setResults(fresh);
+        setLoading(false);
+        setRevalidating(false);
+        return;
+      }
+    }
+
     const stale = peekCachedAdvancedSearch(trimmed);
     const hadStale = stale != null;
     if (stale) {
@@ -43,6 +54,23 @@ export function useAdvancedSearch() {
     const controller = new AbortController();
     abortRef.current = controller;
     const requestId = ++requestIdRef.current;
+    let showedLocal = hadStale;
+
+    try {
+      const local = await fetchAdvancedSearch(trimmed, {
+        compact: true,
+        scope: 'local',
+        signal: controller.signal,
+      });
+      if (requestId !== requestIdRef.current) return;
+      setResults(local);
+      setLoading(false);
+      setRevalidating(true);
+      showedLocal = true;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      if (requestId !== requestIdRef.current) return;
+    }
 
     try {
       const data = await fetchAdvancedSearch(trimmed, {
@@ -56,7 +84,7 @@ export function useAdvancedSearch() {
       if (err instanceof Error && err.name === 'AbortError') return;
       if (requestId !== requestIdRef.current) return;
       console.error('Advanced search failed:', err);
-      if (!hadStale) {
+      if (!showedLocal) {
         const timedOut =
           err instanceof Error &&
           (err.name === 'TimeoutError' || err.name === 'AbortError');
@@ -89,6 +117,15 @@ export function useAdvancedSearch() {
         setLoading(false);
         setRevalidating(false);
         return;
+      }
+      if (isCachedAdvancedSearchFresh(trimmed)) {
+        const fresh = peekCachedAdvancedSearch(trimmed);
+        if (fresh) {
+          setResults(fresh);
+          setLoading(false);
+          setRevalidating(false);
+          return;
+        }
       }
       const stale = peekCachedAdvancedSearch(trimmed);
       if (stale) {

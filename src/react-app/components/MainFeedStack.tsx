@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Upload } from 'lucide-react'
 import { useAuth } from '@getmocha/users-service/react'
@@ -32,6 +32,8 @@ export default function MainFeedStack({
 }: MainFeedStackProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const belowFoldRef = useRef<HTMLDivElement>(null)
+  const [showBelowFold, setShowBelowFold] = useState(variant !== 'home')
   const [feedType, setFeedType] = useState(defaultFeedType)
   const emptySceneTypesRef = useRef<Set<FeedFilterValue>>(new Set())
   const [emptySceneTypes, setEmptySceneTypes] = useState<Set<FeedFilterValue>>(
@@ -47,6 +49,20 @@ export default function MainFeedStack({
     const fallback = FEED_FILTER_OPTIONS.find((option) => !skip.has(option.value))
     if (fallback) setFeedType(fallback.value)
   }, [])
+  useEffect(() => {
+    if (variant !== 'home' || showBelowFold) return
+    const node = belowFoldRef.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) setShowBelowFold(true)
+      },
+      { rootMargin: '480px 0px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [showBelowFold, variant])
+
   const isHome = variant === 'home'
   const containerClass = isHome
     ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-[0.675rem] pb-3 md:pt-[0.9rem] md:pb-4'
@@ -118,9 +134,11 @@ export default function MainFeedStack({
 
       {fromTheSceneBlock}
 
-      {isHome ? <TonightShowsSection /> : null}
+      {isHome ? <div ref={belowFoldRef} className="h-px" aria-hidden /> : null}
 
-      {isHome ? (
+      {isHome && showBelowFold ? <TonightShowsSection /> : null}
+
+      {isHome && showBelowFold ? (
         <PersonalizedConcerts
           carouselBleedScope="page"
           mode="nearby"
@@ -132,9 +150,9 @@ export default function MainFeedStack({
         />
       ) : null}
 
-      {isHome && user ? <MyGoingShowsSection variant="home" /> : null}
+      {isHome && showBelowFold && user ? <MyGoingShowsSection variant="home" /> : null}
 
-      {isHome && user ? <GoingShowsFeedSection /> : null}
+      {isHome && showBelowFold && user ? <GoingShowsFeedSection /> : null}
     </div>
   )
 }

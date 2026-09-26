@@ -2,6 +2,8 @@ import type { AdvancedSearchPayload } from '@/react-app/lib/advanced-search';
 
 export type FetchAdvancedSearchOptions = {
   compact?: boolean;
+  /** `local` skips JamBase and geocoding so Feedback matches can render first. */
+  scope?: 'local';
   signal?: AbortSignal;
   location?: string;
   dateRange?: string;
@@ -17,6 +19,7 @@ export async function fetchAdvancedSearch(
   const trimmed = q.trim();
   const params = new URLSearchParams({ q: trimmed });
   if (opts.compact) params.set('compact', '1');
+  if (opts.scope === 'local') params.set('scope', 'local');
   if (opts.location) params.set('location', opts.location);
   if (opts.dateRange) params.set('dateRange', opts.dateRange);
   if (opts.sortBy) params.set('sortBy', opts.sortBy);

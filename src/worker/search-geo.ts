@@ -173,6 +173,28 @@ function geocodeResultToAnchor(query: string, result: GoogleGeocodeResult): Sear
   };
 }
 
+const GEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const geoCache = new Map<string, { at: number; anchor: SearchGeoAnchor | null }>();
+
+/** State names and "City, ST" only. Artist and song queries skip Google. */
+export function queryLooksLikePlace(query: string): boolean {
+  const trimmed = query.trim();
+  if (trimmed.length < 2 || trimmed.length > 80) return false;
+  const lower = trimmed.toLowerCase();
+  if (US_STATE_NAMES.has(lower)) return true;
+  return /^[^,]{2,40},\s*[A-Za-z][A-Za-z .'-]{1,30}$/.test(trimmed);
+}
+
+function rememberGeoAnchor(query: string, anchor: SearchGeoAnchor | null): SearchGeoAnchor | null {
+  const key = query.trim().toLowerCase();
+  geoCache.set(key, { at: Date.now(), anchor });
+  if (geoCache.size > 200) {
+    const oldest = [...geoCache.entries()].sort((a, b) => a[1].at - b[1].at)[0]?.[0];
+    if (oldest) geoCache.delete(oldest);
+  }
+  return anchor;
+}
+
 function heuristicGeoAnchor(query: string): SearchGeoAnchor | null {
   const trimmed = query.trim();
   if (trimmed.length < 2) return null;
@@ -238,31 +260,23 @@ export async function resolveSearchGeoAnchor(
   query: string,
 ): Promise<SearchGeoAnchor | null> {
   const trimmed = query.trim();
-  if (trimmed.length < 2) return null;
+  if (!queryLooksLikePlace(trimmed)) return null;
+
+  const cacheKey = trimmed.toLowerCase();
+  const cached = geoCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < GEO_CACHE_TTL_MS) return cached.anchor;
 
   const key = typeof googleMapsApiKey === 'string' ? googleMapsApiKey.trim() : '';
   if (key) {
     try {
       const anchor = await geocodeWithGoogle(key, trimmed);
-      if (anchor) return anchor;
+      if (anchor) return rememberGeoAnchor(trimmed, anchor);
     } catch (e) {
       console.warn('resolveSearchGeoAnchor geocode failed:', e);
     }
   }
 
-  const heuristic = heuristicGeoAnchor(trimmed);
-  if (!heuristic) return null;
-
-  if (key) {
-    try {
-      const anchor = await geocodeWithGoogle(key, trimmed);
-      if (anchor) return anchor;
-    } catch {
-      /* fall back to text-only heuristic anchor */
-    }
-  }
-
-  return heuristic;
+  return rememberGeoAnchor(trimmed, heuristicGeoAnchor(trimmed));
 }
 
 export async function resolveUserSearchRadius(

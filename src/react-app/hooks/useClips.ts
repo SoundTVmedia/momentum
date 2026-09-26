@@ -90,12 +90,18 @@ export function useClips(options: UseClipsOptions = {}) {
             : mine
               ? `/api/me/clips?${params}`
               : `/api/clips?${params}`
-        const response = await apiFetch(listPath, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        })
+        const personalized = mine || Boolean(userId) || feedScope === 'friends'
+        const response = await apiFetch(
+          listPath,
+          personalized
+            ? {
+                cache: 'no-store',
+                headers: {
+                  'Cache-Control': 'no-cache',
+                },
+              }
+            : {},
+        )
 
         if (generation !== fetchGenerationRef.current) return
 
@@ -189,7 +195,7 @@ export function useClips(options: UseClipsOptions = {}) {
 
   useEffect(() => {
     setPage(1)
-    void fetchClips(1, false)
+    void fetchClips(1, false, true)
   }, [feedType, feedScope, artistName, venueName, songSlug, genreSlug, userId, mine, contentFeed, limit, fetchClips])
 
   useEffect(() => {

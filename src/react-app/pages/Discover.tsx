@@ -46,6 +46,7 @@ import {
 import { displayNamesClose } from '@/shared/artist-name-match';
 import { isUsablePosterImageUrl } from '@/shared/clip-poster-url';
 import {
+  isCachedAdvancedSearchFresh,
   peekCachedAdvancedSearch,
   setCachedAdvancedSearch,
   type AdvancedSearchCacheOpts,
@@ -419,6 +420,11 @@ export default function DiscoverPage() {
     }
 
     const cached = peekCachedAdvancedSearch(trimmed, fullCacheOpts);
+    if (cached && isCachedAdvancedSearchFresh(trimmed, fullCacheOpts)) {
+      setResults(cached as SearchResults);
+      setLoading(false);
+      return;
+    }
     if (cached) {
       setResults(cached as SearchResults);
       setLoading(false);
@@ -444,6 +450,7 @@ export default function DiscoverPage() {
         const compactData = await fetchAdvancedSearch(trimmed, {
           ...fetchOpts,
           compact: true,
+          scope: 'local',
         });
         if (controller.signal.aborted) return;
         setResults(compactData as SearchResults);
