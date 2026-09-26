@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { Link } from 'react-router'
 import Header from '@/react-app/components/Header'
 import HeroSection from '@/react-app/components/HeroSection'
 import HeroSearchBar from '@/react-app/components/HeroSearchBar'
 import Footer from '@/react-app/components/Footer'
 import MainFeedStack from '@/react-app/components/MainFeedStack'
 import ProductTourOverlay from '@/react-app/components/ProductTourOverlay'
+import { Button, Card, Page, PageBody } from '@/react-app/components/ui'
 import { useProductTour } from '@/react-app/hooks/useProductTour'
 import { isTourPending } from '@/react-app/lib/productTour'
 import { useAuth } from '@getmocha/users-service/react'
@@ -22,7 +22,7 @@ export default function Home() {
   }, [user, isPending, tour.active, tour.startTour])
 
   return (
-    <div className="min-h-screen text-white">
+    <Page>
       <Header />
 
       <div className="relative z-40 bg-momentum-ink pt-[0.43rem] pb-[0.58rem] md:hidden">
@@ -49,19 +49,24 @@ export default function Home() {
       />
 
       {!user && (
-        <section className="border-t border-white/10 bg-gradient-to-b from-slate-950 to-black py-10 sm:py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <Link
-              to="/auth?mode=signup"
-              className="inline-flex items-center justify-center px-8 py-3.5 momentum-grad-interactive rounded-xl text-white font-semibold text-lg hover:scale-[1.02] transition-transform shadow-lg shadow-momentum-ember/20"
-            >
-              Create an account
-            </Link>
-          </div>
+        <section className="border-t border-white/10 py-10 sm:py-12">
+          <PageBody>
+            <Card tone="accent" className="text-center">
+              <h2 className="fb-section-title">Make the feed yours</h2>
+              <p className="fb-section-subtitle mx-auto mt-2 max-w-lg">
+                Follow artists, save shows, and pick up where the night left off.
+              </p>
+              <div className="mt-5">
+                <Button to="/auth?mode=signup" size="lg">
+                  Create an account
+                </Button>
+              </div>
+            </Card>
+          </PageBody>
         </section>
       )}
 
       <Footer />
-    </div>
+    </Page>
   )
 }

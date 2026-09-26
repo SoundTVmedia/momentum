@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Moon } from 'lucide-react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
-import SectionHeading from '@/react-app/components/SectionHeading';
-import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
+import { Button, Card, Section } from '@/react-app/components/ui';
+import { HOME_FEED_CAROUSEL_BLEED } from '@/react-app/lib/homeFeedLayout';
 import { BROWSE_TONIGHT_SHOWS_PATH } from '@/react-app/lib/browse-paths';
-import CarouselFeedFooter from '@/react-app/components/CarouselFeedFooter';
 import { useAppPullRefresh } from '@/react-app/hooks/useAppPullRefresh';
 import {
   readDeviceCoordsForNearbyShows,
@@ -105,37 +104,55 @@ export default function TonightShowsSection({
   const reloadSilent = useCallback(() => load({ silent: true }), [load]);
   useAppPullRefresh(reloadSilent);
 
+  const viewAll = (
+    <Button to={BROWSE_TONIGHT_SHOWS_PATH} variant="quiet" size="sm">
+      View all
+    </Button>
+  );
+
   if (loading) {
     return (
-      <div className={`${HOME_FEED_SECTION_CLASS} flex justify-center py-8 ${className}`}>
-        <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" aria-hidden />
-      </div>
+      <Section
+        id="shows-tonight"
+        title="Shows Tonight"
+        description="Live music happening near you tonight."
+        action={viewAll}
+        className={className || undefined}
+      >
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-8 h-8 text-momentum-flare animate-spin" aria-hidden />
+        </div>
+      </Section>
     );
   }
 
   if (events.length === 0) {
     return (
-      <section className={`${HOME_FEED_SECTION_CLASS} ${className}`}>
-        <SectionHeading
-          title="Shows Tonight"
-          size="section"
-        />
-        <div className="glass-highlight rounded-xl p-8 text-center">
-          <Moon className="w-12 h-12 text-momentum-flare mx-auto mb-4" aria-hidden />
-          <p className="text-gray-300 max-w-lg mx-auto leading-relaxed">
+      <Section
+        id="shows-tonight"
+        title="Shows Tonight"
+        description="Live music happening near you tonight."
+        action={viewAll}
+        className={className || undefined}
+      >
+        <Card className="text-center">
+          <Moon className="mx-auto mb-4 h-12 w-12 text-momentum-flare" aria-hidden />
+          <p className="mx-auto max-w-lg leading-relaxed text-gray-300">
             {message ?? 'No shows tonight near you right now.'}
           </p>
-        </div>
-      </section>
+        </Card>
+      </Section>
     );
   }
 
   return (
-    <section className={`${HOME_FEED_SECTION_CLASS} ${className}`}>
-      <SectionHeading
-        title="Shows Tonight"
-        size="section"
-      />
+    <Section
+      id="shows-tonight"
+      title="Shows Tonight"
+      description="Live music happening near you tonight."
+      action={viewAll}
+      className={className || undefined}
+    >
       <JamBaseEventGrid
         preloadedEvents={events}
         maxEvents={events.length}
@@ -144,11 +161,6 @@ export default function TonightShowsSection({
         carouselClassName={HOME_FEED_CAROUSEL_BLEED}
         showInProgressBadge
       />
-      <CarouselFeedFooter
-        viewAllHref={BROWSE_TONIGHT_SHOWS_PATH}
-        viewAllLabel="View All Shows"
-        showEndMessage={false}
-      />
-    </section>
+    </Section>
   );
 }

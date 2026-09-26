@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { Link } from 'react-router';
 import { useAuth } from '@getmocha/users-service/react';
 import JamBaseEventGrid from '@/react-app/components/JamBaseEventGrid';
-import SectionHeading from '@/react-app/components/SectionHeading';
+import { Button, Section } from '@/react-app/components/ui';
 import { MY_SHOWS_PATH } from '@/react-app/lib/browse-paths';
 import { HOME_FEED_CAROUSEL_BLEED, HOME_FEED_SECTION_CLASS } from '@/react-app/lib/homeFeedLayout';
 import { SHOW_MARKS_CHANGED_EVENT } from '@/react-app/hooks/useShowMarks';
@@ -101,21 +100,16 @@ export default function MyGoingShowsSection({
     variant === 'profile' ? `mb-10 ${className}` : `${HOME_FEED_SECTION_CLASS} ${className}`;
 
   return (
-    <section className={sectionClass}>
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
-        <SectionHeading
-          title={title}
-          subtitle="Your upcoming plans — we use these for capture and venue matching"
-          size="section"
-          className="mb-0"
-        />
-        <Link
-          to={MY_SHOWS_PATH}
-          className="text-sm text-momentum-flare hover:text-momentum-flare/80"
-        >
-          Manage my shows
-        </Link>
-      </div>
+    <Section
+      title={title}
+      description="Your upcoming plans — we use these for capture and venue matching"
+      className={sectionClass}
+      action={
+        <Button to={MY_SHOWS_PATH} variant="quiet" size="sm">
+          Manage
+        </Button>
+      }
+    >
       <JamBaseEventGrid
         preloadedEvents={events}
         maxEvents={events.length}
@@ -123,6 +117,6 @@ export default function MyGoingShowsSection({
         carouselAriaLabel={title}
         carouselClassName={variant === 'home' ? HOME_FEED_CAROUSEL_BLEED : undefined}
       />
-    </section>
+    </Section>
   );
 }

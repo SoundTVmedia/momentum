@@ -289,8 +289,8 @@ export default function FavoriteArtistFeedPanel({
         id="favorite-artist-clips"
         className={
           edgeBleed
-            ? HOME_FEED_SECTION_CLASS
-            : 'mb-8 rounded-2xl border border-momentum-rose/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
+            ? `${HOME_FEED_SECTION_CLASS} scroll-mt-28`
+            : 'mb-8 scroll-mt-28 rounded-2xl border border-momentum-rose/25 bg-black/35 p-5 sm:p-6 backdrop-blur-lg'
         }
       >
         <div className="flex flex-col items-start gap-2 text-left">
